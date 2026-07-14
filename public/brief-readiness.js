@@ -3,7 +3,7 @@ const labels = {
   roomPhotos: "One to ten room photos are added",
   photoDetails: "Every photo has a room label and specific note",
   instructions: "Spoken or typed instructions are present",
-  conciseTasks: "At least one concise cleaner task is ready",
+  conciseTasks: "Concise cleaner tasks reflect the latest notes",
   roomCoverage: "Every photographed room has a room-labelled task",
   scopeConfirmed: "Final concise checklist confirmed complete",
   privacyConsent: "Property-photo sharing permission confirmed"
@@ -37,11 +37,19 @@ export function briefScopeFingerprint({ transcript = "", tasks = [], photos = []
   });
 }
 
+export function briefSourceFingerprint({ transcript = "", photos = [] } = {}) {
+  const safePhotos = Array.isArray(photos) ? photos : [];
+  return JSON.stringify({
+    transcript: normaliseFingerprintText(transcript),
+    photos: safePhotos.map((photo) => ({ area: normaliseFingerprintText(photo?.area), note: normaliseFingerprintText(photo?.note) }))
+  });
+}
+
 export function briefScopeConfirmationIsCurrent({ checked = false, confirmedFingerprint = "", currentFingerprint = "" } = {}) {
   return checked === true && confirmedFingerprint.length > 0 && confirmedFingerprint === currentFingerprint;
 }
 
-export function briefReadiness({ requestId = "", email = "", transcript = "", tasks = [], photos = [], scopeCompleteConfirmed = false, consent = false } = {}) {
+export function briefReadiness({ requestId = "", email = "", transcript = "", tasks = [], photos = [], checklistCurrent = false, scopeCompleteConfirmed = false, consent = false } = {}) {
   const safeTasks = Array.isArray(tasks) ? tasks : [];
   const safePhotos = Array.isArray(photos) ? photos : [];
   const photographedAreas = [...new Set(safePhotos.map((photo) => String(photo?.area || "").trim()).filter((area) => roomOptionSet.has(area)))];
@@ -51,12 +59,15 @@ export function briefReadiness({ requestId = "", email = "", transcript = "", ta
     roomPhotos: safePhotos.length > 0 && safePhotos.length <= maxBriefPhotos,
     photoDetails: safePhotos.length > 0 && safePhotos.every((photo) => roomOptionSet.has(String(photo?.area || "").trim()) && String(photo?.note || "").trim().length >= 3),
     instructions: String(transcript || "").trim().length > 0,
-    conciseTasks: safeTasks.length > 0,
+    conciseTasks: safeTasks.length > 0 && checklistCurrent === true,
     roomCoverage: safePhotos.length > 0 && photographedAreas.length > 0 && uncoveredAreas.length === 0,
     scopeConfirmed: scopeCompleteConfirmed === true,
     privacyConsent: consent === true
   };
   const itemLabels = { ...labels };
+  if (safeTasks.length > 0 && checklistCurrent !== true) {
+    itemLabels.conciseTasks = "Summarise again after the latest speech or photo-note changes";
+  }
   if (uncoveredAreas.length) {
     itemLabels.roomCoverage = `Add cleaner ${uncoveredAreas.length === 1 ? "task" : "tasks"} for: ${uncoveredAreas.join(", ")}`;
   }

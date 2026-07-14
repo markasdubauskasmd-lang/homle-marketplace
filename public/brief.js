@@ -1,7 +1,7 @@
 import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js";
 import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 import { detectPriceSensitiveScope } from "./scope-signals.js";
-import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, maxBriefPhotos } from "./brief-readiness.js";
+import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos } from "./brief-readiness.js";
 
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
@@ -25,6 +25,7 @@ const photos = [];
 let submitting = false;
 let submissionComplete = false;
 let confirmedScopeFingerprint = "";
+let summarisedSourceFingerprint = "";
 const roomOptions = briefRoomOptions;
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
@@ -53,6 +54,10 @@ function currentScopeFingerprint() {
   return briefScopeFingerprint({ transcript: transcript.value, tasks: checklistTasks(), photos });
 }
 
+function currentSourceFingerprint() {
+  return briefSourceFingerprint({ transcript: transcript.value, photos });
+}
+
 function currentReadiness() {
   const scopeCompleteConfirmed = briefScopeConfirmationIsCurrent({ checked: form.elements.scopeCompleteConfirmed.checked, confirmedFingerprint: confirmedScopeFingerprint, currentFingerprint: currentScopeFingerprint() });
   return briefReadiness({
@@ -61,6 +66,7 @@ function currentReadiness() {
     transcript: transcript.value,
     tasks: checklistTasks(),
     photos,
+    checklistCurrent: summarisedSourceFingerprint === currentSourceFingerprint(),
     scopeCompleteConfirmed,
     consent: form.elements.consent.checked
   });
@@ -120,12 +126,14 @@ function renderChecklist() {
 }
 
 function generateChecklist({ scroll = true, showEmptyError = true } = {}) {
+  const sourceFingerprint = currentSourceFingerprint();
   const roomNotes = photos
     .filter((photo) => photo.area && photo.note.trim())
     .map((photo) => `In the ${photo.area}, ${photo.note.trim()}`)
     .join(". ");
   const tasks = checklistFromTranscript([roomNotes, transcript.value].filter(Boolean).join(". "));
   checklist.value = tasks.join("\n");
+  summarisedSourceFingerprint = tasks.length ? sourceFingerprint : "";
   renderChecklist();
   if (tasks.length && scroll) document.querySelector("#checklist-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   else if (!tasks.length && showEmptyError) showError("Add some spoken or typed cleaning instructions before creating the checklist.");
