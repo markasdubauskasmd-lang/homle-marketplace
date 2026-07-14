@@ -32,6 +32,8 @@ try {
   await rm(path.join(root, "data", "business-config.json"), { force: true });
   await rm(path.join(root, "data", "match-proposals.ndjson"), { force: true });
   await rm(path.join(root, "data", "proposal-status.ndjson"), { force: true });
+  await rm(path.join(root, "data", "bookings.ndjson"), { force: true });
+  await rm(path.join(root, "data", "job-outcomes.ndjson"), { force: true });
   await waitForServer();
 
   const home = await fetch(base);
@@ -46,6 +48,8 @@ try {
 
   const adminPage = await fetch(`${base}/admin`);
   assert(adminPage.ok && (await adminPage.text()).includes("Lead control desk"), "Admin page failed.");
+  const adminAsset = await fetch(`${base}/admin.js?v=smoke-test`);
+  assert(adminAsset.ok && adminAsset.headers.get("cache-control") === "no-cache", "Updated assets could remain stale in the control desk.");
 
   const invalidPhone = await fetch(`${base}/api/cleaning-requests`, {
     method: "POST",
@@ -111,6 +115,19 @@ try {
   });
   assert(statusUpdate.ok, "Admin status update failed.");
 
+  const unsafeBookingStatus = await fetch(`${base}/api/admin/status`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: requestBody.reference, kind: "request", status: "booked" })
+  });
+  assert(unsafeBookingStatus.status === 422, "Request bypassed the confirmed-booking workflow.");
+
+  const cleanerScreening = await fetch(`${base}/api/admin/status`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "screening" })
+  });
+  assert(cleanerScreening.ok, "Cleaner screening status failed.");
   const cleanerApproval = await fetch(`${base}/api/admin/status`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
@@ -166,6 +183,30 @@ try {
   assert(bookingAudit.ok && bookingAuditBody.automatedReady === true && Object.values(bookingAuditBody.checks).every(Boolean), "Accepted proposal did not pass the automated booking audit.");
   assert(bookingAuditBody.manualChecklist.length >= 5, "Booking audit omitted required manual confirmations.");
 
+  const quotedStatus = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: requestBody.reference, kind: "request", status: "quoted" }) });
+  assert(quotedStatus.ok, "Customer request could not move from contacted to quoted.");
+  const incompleteBooking = await fetch(`${base}/api/admin/bookings`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, addressAndAccessConfirmed: true }) });
+  assert(incompleteBooking.status === 422, "Incomplete manual confirmations created a booking.");
+  const confirmedBooking = await fetch(`${base}/api/admin/bookings`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ proposalId: proposalBody.proposal.id, addressAndAccessConfirmed: true, finalChecklistConfirmed: true, paymentAuthorisationConfirmed: true, cleanerAcceptanceConfirmed: true, emergencyInstructionsConfirmed: true, internalNote: "Test confirmation only" })
+  });
+  const confirmedBookingBody = await confirmedBooking.json();
+  assert(confirmedBooking.status === 201 && confirmedBookingBody.booking.id.startsWith("BKG-"), "Fully confirmed booking was not recorded.");
+
+  const unsafeCompletionStatus = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: requestBody.reference, kind: "request", status: "completed" }) });
+  assert(unsafeCompletionStatus.status === 422, "Request bypassed the completed-job workflow.");
+  const invalidOutcome = await fetch(`${base}/api/admin/job-outcomes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bookingId: confirmedBookingBody.booking.id, actualHours: 4, customerCollected: 0, cleanerPaid: 72 }) });
+  assert(invalidOutcome.status === 422, "Invalid actual job economics were accepted.");
+  const completedJob = await fetch(`${base}/api/admin/job-outcomes`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ bookingId: confirmedBookingBody.booking.id, actualHours: 4.5, customerCollected: 120, cleanerPaid: 72, otherCosts: 10, refundAmount: 5, internalNote: "Test completion only" })
+  });
+  const completedJobBody = await completedJob.json();
+  assert(completedJob.status === 201 && completedJobBody.outcome.contribution === 33 && completedJobBody.outcome.profitable === true, "Completed-job actual contribution was not calculated correctly.");
+
   const activityUpdate = await fetch(`${base}/api/admin/activity`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -175,12 +216,14 @@ try {
 
   const refreshedAdmin = await fetch(`${base}/api/admin/records`);
   const refreshedBody = await refreshedAdmin.json();
-  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.status === "contacted", "Updated status was not retained.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.status === "completed", "Gated booking and completion statuses were not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.activities?.[0]?.note.includes("confirmed the scope"), "Lead activity was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.id.startsWith("PRO-"), "Draft proposal was not retained on the customer request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.status === "accepted", "Proposal status progression was not retained.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
 
-  console.log("Smoke tests passed: public pages, scoped requests, admin security, payment readiness, matching, profitable proposals, privacy-safe drafts and accepted-proposal booking audits.");
+  console.log("Smoke tests passed: public pages, scoped requests, admin security, payment readiness, matching, profitable proposals, booking confirmations and actual completed-job economics.");
 } finally {
   child.kill("SIGTERM");
   await rm(path.join(root, "data", "cleaning-requests.ndjson"), { force: true });
@@ -190,4 +233,6 @@ try {
   await rm(path.join(root, "data", "business-config.json"), { force: true });
   await rm(path.join(root, "data", "match-proposals.ndjson"), { force: true });
   await rm(path.join(root, "data", "proposal-status.ndjson"), { force: true });
+  await rm(path.join(root, "data", "bookings.ndjson"), { force: true });
+  await rm(path.join(root, "data", "job-outcomes.ndjson"), { force: true });
 }

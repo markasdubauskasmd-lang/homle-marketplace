@@ -15,6 +15,24 @@ const statusesByKind = {
   request: ["new", "contacted", "quoted", "booked", "completed", "lost"],
   cleaner: ["new", "contacted", "screening", "approved", "paused", "rejected"]
 };
+const allowedLeadStatuses = {
+  request: {
+    new: ["new", "contacted", "lost"],
+    contacted: ["contacted", "quoted", "lost"],
+    quoted: ["quoted", "lost"],
+    booked: ["booked", "lost"],
+    completed: ["completed"],
+    lost: ["lost"]
+  },
+  cleaner: {
+    new: ["new", "contacted", "screening", "rejected"],
+    contacted: ["contacted", "screening", "rejected"],
+    screening: ["screening", "approved", "rejected"],
+    approved: ["approved", "paused"],
+    paused: ["paused", "approved", "rejected"],
+    rejected: ["rejected"]
+  }
+};
 
 function adminHeaders(extra = {}) {
   return { ...extra, ...(adminKey ? { "X-Admin-Key": adminKey } : {}) };
@@ -300,7 +318,67 @@ async function loadProposalDrafts(proposal, target, button) {
   }
 }
 
-async function loadBookingAudit(proposal, target, button) {
+function bookingConfirmation(labelText, name) {
+  const label = document.createElement("label");
+  label.className = "confirmation-check";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.name = name;
+  input.required = true;
+  label.append(input, document.createTextNode(labelText));
+  return label;
+}
+
+function appendBookingForm(record, proposal, target) {
+  if (record.booking) {
+    addText(target, "strong", `Booking ${record.booking.id} is already recorded.`, "manual-heading");
+    return;
+  }
+  if (record.status !== "quoted") {
+    addText(target, "strong", "Move this request through Contacted to Quoted before recording the booking.", "manual-heading");
+    return;
+  }
+  const form = document.createElement("form");
+  form.className = "booking-confirmation-form";
+  addText(form, "strong", "Record the five manual confirmations");
+  addText(form, "span", "Internal record only. This does not send a booking or take payment.");
+  form.append(
+    bookingConfirmation("Exact address and named access contact confirmed securely", "addressAndAccessConfirmed"),
+    bookingConfirmation("Final checklist, exclusions, products and equipment confirmed", "finalChecklistConfirmed"),
+    bookingConfirmation("Payment authorisation confirmed externally; no card details stored here", "paymentAuthorisationConfirmed"),
+    bookingConfirmation("Cleaner accepted the date, scope and proposed pay", "cleanerAcceptanceConfirmed"),
+    bookingConfirmation("Emergency and issue-reporting instructions shared", "emergencyInstructionsConfirmed")
+  );
+  const note = document.createElement("textarea");
+  note.name = "internalNote";
+  note.maxLength = 1000;
+  note.rows = 2;
+  note.placeholder = "Optional internal confirmation note — never enter card details";
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.className = "button button-small button-light";
+  submit.textContent = "Record confirmed booking";
+  form.append(note, submit);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    submit.disabled = true;
+    const data = new FormData(form);
+    const body = { proposalId: proposal.id, internalNote: data.get("internalNote") || "" };
+    ["addressAndAccessConfirmed", "finalChecklistConfirmed", "paymentAuthorisationConfirmed", "cleanerAcceptanceConfirmed", "emergencyInstructionsConfirmed"].forEach((name) => { body[name] = data.has(name); });
+    try {
+      const response = await fetch("/api/admin/bookings", { method: "POST", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Booking could not be recorded.");
+      await loadRecords();
+    } catch (error) {
+      showAdminError(error.message);
+      submit.disabled = false;
+    }
+  });
+  target.append(form);
+}
+
+async function loadBookingAudit(record, proposal, target, button) {
   button.disabled = true;
   target.replaceChildren();
   addText(target, "span", "Checking booking safeguards…");
@@ -323,12 +401,77 @@ async function loadBookingAudit(proposal, target, button) {
     const manual = document.createElement("ol");
     result.manualChecklist.forEach((item) => addText(manual, "li", item));
     target.append(heading, checks, manualHeading, manual);
+    if (result.automatedReady) appendBookingForm(record, proposal, target);
   } catch (error) {
     target.replaceChildren();
     addText(target, "strong", error.message);
   } finally {
     button.disabled = false;
   }
+}
+
+function numberField(labelText, name, value = "0") {
+  const label = document.createElement("label");
+  label.append(document.createTextNode(labelText));
+  const input = document.createElement("input");
+  input.type = "number";
+  input.name = name;
+  input.min = "0";
+  input.step = name === "actualHours" ? "0.25" : "0.01";
+  input.required = true;
+  input.value = value;
+  label.append(input);
+  return label;
+}
+
+function buildJobOutcome(record) {
+  const panel = document.createElement("div");
+  panel.className = "job-outcome";
+  if (record.outcome) {
+    panel.classList.add(record.outcome.profitable ? "job-profitable" : "job-loss");
+    addText(panel, "strong", `${record.outcome.profitable ? "Profitable" : "Loss-making"} completed job · ${record.outcome.id}`);
+    addText(panel, "span", `${record.outcome.actualHours} actual hours · ${money.format(record.outcome.customerCollected)} collected · ${money.format(record.outcome.cleanerPaid)} cleaner pay`);
+    addText(panel, "span", `${money.format(record.outcome.refundAmount)} refunds · ${money.format(record.outcome.otherCosts)} other costs · ${money.format(record.outcome.contribution)} contribution (${record.outcome.marginPercent.toFixed(1)}%)`);
+    return panel;
+  }
+  addText(panel, "strong", `Confirmed booking ${record.booking.id}`);
+  addText(panel, "span", "Record actual figures only after the job and external money movements are complete. This form never charges or pays anyone.");
+  const form = document.createElement("form");
+  form.className = "job-outcome-form";
+  form.append(
+    numberField("Actual hours", "actualHours", String(record.proposals?.[0]?.estimatedHours || "")),
+    numberField("Customer collected (£)", "customerCollected", String(record.booking.plannedCustomerTotal || "")),
+    numberField("Cleaner paid (£)", "cleanerPaid", String(record.booking.plannedCleanerPay || "")),
+    numberField("Other actual costs (£)", "otherCosts"),
+    numberField("Refunds (£)", "refundAmount")
+  );
+  const note = document.createElement("textarea");
+  note.name = "internalNote";
+  note.rows = 2;
+  note.maxLength = 1000;
+  note.placeholder = "Optional internal completion note";
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.className = "button button-small";
+  submit.textContent = "Record completed job — no money moves";
+  form.append(note, submit);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    submit.disabled = true;
+    const body = Object.fromEntries(new FormData(form).entries());
+    body.bookingId = record.booking.id;
+    try {
+      const response = await fetch("/api/admin/job-outcomes", { method: "POST", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Completed job could not be recorded.");
+      await loadRecords();
+    } catch (error) {
+      showAdminError(error.message);
+      submit.disabled = false;
+    }
+  });
+  panel.append(form);
+  return panel;
 }
 
 async function changeStatus(record, select) {
@@ -370,7 +513,7 @@ function buildCard(record) {
   statusLabel.append(document.createTextNode("Status"));
   const statusSelect = document.createElement("select");
   statusSelect.setAttribute("aria-label", `Status for ${record.id}`);
-  for (const status of statusesByKind[record.kind]) {
+  for (const status of allowedLeadStatuses[record.kind]?.[record.status] || [record.status]) {
     const option = document.createElement("option");
     option.value = status;
     option.textContent = statusLabels[status];
@@ -465,11 +608,13 @@ function buildCard(record) {
     auditButton.textContent = "Run booking audit";
     const auditTarget = document.createElement("div");
     auditTarget.className = "booking-audit-target";
-    auditButton.addEventListener("click", () => loadBookingAudit(proposal, auditTarget, auditButton));
+    auditButton.addEventListener("click", () => loadBookingAudit(record, proposal, auditTarget, auditButton));
     bookingDetails.append(bookingSummary, auditButton, auditTarget);
     proposalSummary.append(proposalStatusLabel, draftDetails, bookingDetails);
     card.append(proposalSummary);
   }
+
+  if (record.kind === "request" && record.booking) card.append(buildJobOutcome(record));
 
   if (record.nextActionAt || record.activities?.length) {
     const activitySummary = document.createElement("div");

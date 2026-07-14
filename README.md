@@ -25,6 +25,9 @@ Then open `http://127.0.0.1:4173`.
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until all seven launch checks pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
 - Structured site scope, access and hazard collection plus a read-only accepted-proposal booking audit
+- Safe lead-status transitions that prevent requests or cleaners skipping required workflow stages
+- Internal confirmed-booking records that require an accepted profitable proposal, a passed audit and five manual confirmations
+- Completed-job records for actual customer receipts, cleaner pay, costs, refunds, contribution and margin; recording never moves money
 - Private data backup script and documented recovery procedure
 - Responsive, accessible website
 - Draft privacy notice and pilot terms

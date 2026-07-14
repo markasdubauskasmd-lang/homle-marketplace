@@ -17,6 +17,25 @@ const statusOptions = {
   cleaner: new Set(["new", "contacted", "screening", "approved", "paused", "rejected"])
 };
 
+const statusTransitions = {
+  request: {
+    new: new Set(["contacted", "lost"]),
+    contacted: new Set(["quoted", "lost"]),
+    quoted: new Set(["lost"]),
+    booked: new Set(["lost"]),
+    completed: new Set([]),
+    lost: new Set([])
+  },
+  cleaner: {
+    new: new Set(["contacted", "screening", "rejected"]),
+    contacted: new Set(["screening", "rejected"]),
+    screening: new Set(["approved", "rejected"]),
+    approved: new Set(["paused"]),
+    paused: new Set(["approved", "rejected"]),
+    rejected: new Set([])
+  }
+};
+
 const cleanerServiceFields = {
   serviceTurnovers: "Rental turnovers",
   serviceEndOfTenancy: "End-of-tenancy",
@@ -169,13 +188,15 @@ function isAdminAuthorised(request) {
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals, proposalUpdates] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
     readRecords("lead-activity.ndjson"),
     readRecords("match-proposals.ndjson"),
-    readRecords("proposal-status.ndjson")
+    readRecords("proposal-status.ndjson"),
+    readRecords("bookings.ndjson"),
+    readRecords("job-outcomes.ndjson")
   ]);
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
@@ -193,10 +214,16 @@ async function getAdminRecords(request, response) {
     list.push({ ...proposal, status: latestProposalStatuses.get(proposal.id) || proposal.status || "draft" });
     proposalsByRequest.set(proposal.requestId, list);
   }
+  const bookingsByRequest = new Map();
+  for (const booking of bookings) bookingsByRequest.set(booking.requestId, booking);
+  const outcomesByBooking = new Map();
+  for (const outcome of outcomes) outcomesByBooking.set(outcome.bookingId, outcome);
   const merge = (record, kind) => {
     const leadActivities = (activitiesById.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
     const leadProposals = (proposalsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5) };
+    const booking = kind === "request" ? bookingsByRequest.get(record.id) || null : null;
+    const outcome = booking ? outcomesByBooking.get(booking.id) || null : null;
+    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5), booking, outcome };
   };
   const records = [
     ...requests.map((record) => merge(record, "request")),
@@ -315,8 +342,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   });
 }
 
-async function getAdminBookingAudit(request, response, proposalId) {
-  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+async function buildBookingAudit(proposalId) {
   const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
@@ -326,10 +352,10 @@ async function getAdminBookingAudit(request, response, proposalId) {
     readJsonFile("business-config.json", {})
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
-  if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
+  if (!proposal) return { statusCode: 404, error: "Proposal not found." };
   const customerRequest = customerRequests.find((record) => record.id === proposal.requestId);
   const cleaner = cleaners.find((record) => record.id === proposal.cleanerId);
-  if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Proposal parties were not found." });
+  if (!customerRequest || !cleaner) return { statusCode: 404, error: "Proposal parties were not found." };
   let proposalStatus = proposal.status || "draft";
   for (const update of proposalUpdates) if (update.proposalId === proposalId) proposalStatus = update.status;
   let cleanerStatus = cleaner.status || "new";
@@ -353,7 +379,111 @@ async function getAdminBookingAudit(request, response, proposalId) {
     "Confirm the cleaner has accepted the date, scope and proposed pay.",
     "Share emergency and issue-reporting instructions before the visit."
   ];
-  return json(response, 200, { ok: true, proposalId, proposalStatus, automatedReady, checks, manualChecklist });
+  return { ok: true, proposal, customerRequest, cleaner, proposalId, proposalStatus, automatedReady, checks, manualChecklist };
+}
+
+async function getAdminBookingAudit(request, response, proposalId) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  const audit = await buildBookingAudit(proposalId);
+  if (!audit.ok) return json(response, audit.statusCode, { ok: false, error: audit.error });
+  const { proposal, customerRequest, cleaner, ...publicAudit } = audit;
+  return json(response, 200, publicAudit);
+}
+
+async function createAdminBooking(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const proposalId = text(input.proposalId, 40);
+  const confirmations = {
+    addressAndAccessConfirmed: input.addressAndAccessConfirmed === true,
+    finalChecklistConfirmed: input.finalChecklistConfirmed === true,
+    paymentAuthorisationConfirmed: input.paymentAuthorisationConfirmed === true,
+    cleanerAcceptanceConfirmed: input.cleanerAcceptanceConfirmed === true,
+    emergencyInstructionsConfirmed: input.emergencyInstructionsConfirmed === true
+  };
+  if (!proposalId || !Object.values(confirmations).every(Boolean)) {
+    return json(response, 422, { ok: false, error: "Complete every manual booking confirmation before recording a booking." });
+  }
+  const audit = await buildBookingAudit(proposalId);
+  if (!audit.ok) return json(response, audit.statusCode, { ok: false, error: audit.error });
+  if (!audit.automatedReady) return json(response, 422, { ok: false, error: "The automated booking audit must pass before recording a booking.", checks: audit.checks });
+
+  const [updates, bookings] = await Promise.all([
+    readRecords("status-updates.ndjson"),
+    readRecords("bookings.ndjson")
+  ]);
+  let requestStatus = audit.customerRequest.status || "new";
+  for (const update of updates) if (update.id === audit.customerRequest.id) requestStatus = update.status;
+  if (requestStatus !== "quoted") return json(response, 422, { ok: false, error: "Move the customer request through contacted to quoted before recording a booking." });
+  if (bookings.some((booking) => booking.requestId === audit.customerRequest.id || booking.proposalId === proposalId)) {
+    return json(response, 409, { ok: false, error: "A booking is already recorded for this request or proposal." });
+  }
+
+  const booking = {
+    id: `BKG-${randomUUID().slice(0, 8).toUpperCase()}`,
+    proposalId,
+    requestId: audit.customerRequest.id,
+    cleanerId: audit.cleaner.id,
+    proposedDate: audit.proposal.proposedDate,
+    plannedCustomerTotal: audit.proposal.customerTotal,
+    plannedCleanerPay: audit.proposal.cleanerPay,
+    plannedContribution: audit.proposal.contribution,
+    confirmations,
+    internalNote: text(input.internalNote, 1000),
+    createdAt: new Date().toISOString()
+  };
+  await saveRecord("bookings.ndjson", booking);
+  await saveRecord("status-updates.ndjson", { id: booking.requestId, kind: "request", status: "booked", previousStatus: requestStatus, source: "booking-confirmation", updatedAt: booking.createdAt });
+  return json(response, 201, { ok: true, booking });
+}
+
+async function createAdminJobOutcome(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const bookingId = text(input.bookingId, 40);
+  const actualHours = Number(input.actualHours);
+  const customerCollected = Number(input.customerCollected);
+  const cleanerPaid = Number(input.cleanerPaid);
+  const otherCosts = Number(input.otherCosts || 0);
+  const refundAmount = Number(input.refundAmount || 0);
+  const values = [actualHours, customerCollected, cleanerPaid, otherCosts, refundAmount];
+  if (!bookingId || values.some((value) => !Number.isFinite(value)) || actualHours <= 0 || customerCollected <= 0 || cleanerPaid < 0 || otherCosts < 0 || refundAmount < 0) {
+    return json(response, 422, { ok: false, error: "Enter valid actual hours and non-negative job amounts; customer collected must be greater than zero." });
+  }
+  const [bookings, outcomes, updates] = await Promise.all([
+    readRecords("bookings.ndjson"),
+    readRecords("job-outcomes.ndjson"),
+    readRecords("status-updates.ndjson")
+  ]);
+  const booking = bookings.find((record) => record.id === bookingId);
+  if (!booking) return json(response, 404, { ok: false, error: "Booking not found." });
+  if (outcomes.some((record) => record.bookingId === bookingId)) return json(response, 409, { ok: false, error: "A completed-job outcome is already recorded for this booking." });
+  let requestStatus = "new";
+  for (const update of updates) if (update.id === booking.requestId) requestStatus = update.status;
+  if (requestStatus !== "booked") return json(response, 422, { ok: false, error: "Only a booked request can be completed." });
+
+  const contribution = customerCollected - cleanerPaid - otherCosts - refundAmount;
+  const outcome = {
+    id: `JOB-${randomUUID().slice(0, 8).toUpperCase()}`,
+    bookingId,
+    requestId: booking.requestId,
+    cleanerId: booking.cleanerId,
+    actualHours,
+    customerCollected,
+    cleanerPaid,
+    otherCosts,
+    refundAmount,
+    contribution,
+    marginPercent: (contribution / customerCollected) * 100,
+    profitable: contribution > 0,
+    internalNote: text(input.internalNote, 1000),
+    createdAt: new Date().toISOString()
+  };
+  await saveRecord("job-outcomes.ndjson", outcome);
+  await saveRecord("status-updates.ndjson", { id: booking.requestId, kind: "request", status: "completed", previousStatus: requestStatus, source: "job-outcome", updatedAt: outcome.createdAt });
+  return json(response, 201, { ok: true, outcome });
 }
 
 async function createAdminProposal(request, response) {
@@ -535,10 +665,18 @@ async function updateAdminStatus(request, response) {
   if (!id || !statusOptions[kind]?.has(status)) return json(response, 422, { ok: false, error: "Invalid status update." });
 
   const source = kind === "request" ? "cleaning-requests.ndjson" : "cleaner-applications.ndjson";
-  const records = await readRecords(source);
-  if (!records.some((record) => record.id === id)) return json(response, 404, { ok: false, error: "Record not found." });
+  const [records, updates] = await Promise.all([readRecords(source), readRecords("status-updates.ndjson")]);
+  const record = records.find((item) => item.id === id);
+  if (!record) return json(response, 404, { ok: false, error: "Record not found." });
+  let currentStatus = record.status || "new";
+  for (const update of updates) if (update.id === id) currentStatus = update.status;
+  if (currentStatus === status) return json(response, 200, { ok: true, id, status });
+  if (!statusTransitions[kind]?.[currentStatus]?.has(status)) {
+    const workflowHint = kind === "request" && ["booked", "completed"].includes(status) ? " Use the confirmed-booking or completed-job workflow." : "";
+    return json(response, 422, { ok: false, error: `Status cannot move from ${currentStatus} to ${status}.${workflowHint}` });
+  }
 
-  await saveRecord("status-updates.ndjson", { id, kind, status, updatedAt: new Date().toISOString() });
+  await saveRecord("status-updates.ndjson", { id, kind, status, previousStatus: currentStatus, source: "manual", updatedAt: new Date().toISOString() });
   return json(response, 200, { ok: true, id, status });
 }
 
@@ -660,7 +798,7 @@ async function serveFile(requestPath, response) {
     const extension = path.extname(filePath).toLowerCase();
     response.writeHead(200, {
       "Content-Type": mimeTypes[extension] || "application/octet-stream",
-      "Cache-Control": extension === ".html" ? "no-store" : "public, max-age=3600"
+      "Cache-Control": extension === ".html" ? "no-store" : "no-cache"
     });
     response.end(body);
     return true;
@@ -700,6 +838,12 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/booking-audit") {
       return await getAdminBookingAudit(request, response, text(requestUrl.searchParams.get("proposalId"), 40));
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/admin/bookings") {
+      return await createAdminBooking(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/admin/job-outcomes") {
+      return await createAdminJobOutcome(request, response);
     }
     if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/status") {
       return await updateAdminStatus(request, response);
