@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript, normaliseChecklistTask } from "./public/checklist.js";
-import { briefRoomOptions } from "./public/brief-readiness.js";
+import { briefRoomOptions, maxBriefPhotos } from "./public/brief-readiness.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "./public/scope-signals.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mjs";
 
@@ -2661,7 +2661,7 @@ async function handleJobBrief(request, response) {
   const cleanerPhotoSharingConsent = input.sharePhotosWithSelectedCleaner === true;
   const suppliedTasks = Array.isArray(input.checklist) ? input.checklist.map(normaliseChecklistTask).filter(Boolean) : [];
   const checklist = [...new Map((suppliedTasks.length ? suppliedTasks : checklistFromTranscript(transcript)).map((task) => [task.toLowerCase(), task])).values()].slice(0, 40);
-  const photoInputs = Array.isArray(input.photos) ? input.photos.slice(0, 7) : [];
+  const photoInputs = Array.isArray(input.photos) ? input.photos.slice(0, maxBriefPhotos + 1) : [];
   const scopeSignals = detectPriceSensitiveScope({ transcript, checklist, photos: photoInputs });
   const errors = [];
   if (!/^REQ-[A-Z0-9]{8}$/.test(requestId)) errors.push("Enter a valid Tideway cleaning-request reference.");
@@ -2669,7 +2669,7 @@ async function handleJobBrief(request, response) {
   if (!transcript) errors.push("Add or dictate the cleaning instructions.");
   if (!checklist.length) errors.push("Generate and review at least one checklist task.");
   if (!photoInputs.length) errors.push("Add at least one property photo.");
-  if (photoInputs.length > 6) errors.push("Add no more than six property photos.");
+  if (photoInputs.length > maxBriefPhotos) errors.push(`Add no more than ${maxBriefPhotos} property photos.`);
   if (photoInputs.some((photo) => !briefRoomAreas.has(text(photo?.area, 80)))) errors.push("Choose a valid room for every property photo.");
   if (photoInputs.some((photo) => text(photo?.note, 500).length < 3)) errors.push("Add a short room note explaining what every photo shows.");
   const photographedAreas = [...new Set(photoInputs.map((photo) => text(photo?.area, 80)).filter((area) => briefRoomAreas.has(area)))];

@@ -1,6 +1,6 @@
 const labels = {
   connectedRequest: "Request reference and email are complete",
-  roomPhotos: "One to six room photos are added",
+  roomPhotos: "One to ten room photos are added",
   photoDetails: "Every photo has a room label and specific note",
   instructions: "Spoken or typed instructions are present",
   conciseTasks: "At least one concise cleaner task is ready",
@@ -9,6 +9,7 @@ const labels = {
   privacyConsent: "Property-photo sharing permission confirmed"
 };
 
+export const maxBriefPhotos = 10;
 export const briefRoomOptions = [
   "Kitchen",
   "Bathroom", "Bathroom 1", "Bathroom 2", "Bathroom 3",
@@ -47,7 +48,7 @@ export function briefReadiness({ requestId = "", email = "", transcript = "", ta
   const uncoveredAreas = photographedAreas.filter((area) => !safeTasks.some((task) => String(task).toLowerCase().startsWith(`${area.toLowerCase()}:`)));
   const checks = {
     connectedRequest: /^REQ-[A-Z0-9]{8}$/i.test(String(requestId || "").trim()) && hasEmail(email),
-    roomPhotos: safePhotos.length > 0 && safePhotos.length <= 6,
+    roomPhotos: safePhotos.length > 0 && safePhotos.length <= maxBriefPhotos,
     photoDetails: safePhotos.length > 0 && safePhotos.every((photo) => roomOptionSet.has(String(photo?.area || "").trim()) && String(photo?.note || "").trim().length >= 3),
     instructions: String(transcript || "").trim().length > 0,
     conciseTasks: safeTasks.length > 0,

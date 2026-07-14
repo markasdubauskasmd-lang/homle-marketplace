@@ -1,7 +1,7 @@
 import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js";
 import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 import { detectPriceSensitiveScope } from "./scope-signals.js";
-import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint } from "./brief-readiness.js";
+import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, maxBriefPhotos } from "./brief-readiness.js";
 
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
@@ -145,7 +145,7 @@ form.elements.consent.addEventListener("change", renderReadiness);
 
 function renderPhotos() {
   photoPreview.replaceChildren();
-  photoCount.textContent = `${photos.length}/6`;
+  photoCount.textContent = `${photos.length}/${maxBriefPhotos}`;
   if (!photos.length) {
     const empty = document.createElement("p");
     empty.className = "empty-photo-state";
@@ -206,7 +206,7 @@ function renderPhotos() {
 
 photoInput.addEventListener("change", () => {
   const selected = Array.from(photoInput.files || []);
-  const available = 6 - photos.length;
+  const available = maxBriefPhotos - photos.length;
   if (selected.length > available) showError(`You can add ${available} more ${available === 1 ? "photo" : "photos"}.`);
   selected.slice(0, available).forEach((file) => {
     if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return;

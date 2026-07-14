@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript } from "../public/checklist.js";
 import { clearBriefHandoff, readBriefHandoff, saveBriefHandoff } from "../public/brief-handoff.js";
-import { briefReadiness, briefScopeConfirmationIsCurrent, briefScopeFingerprint } from "../public/brief-readiness.js";
+import { briefReadiness, briefScopeConfirmationIsCurrent, briefScopeFingerprint, maxBriefPhotos } from "../public/brief-readiness.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "../public/scope-signals.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "../offer-expiry.mjs";
 
@@ -66,9 +66,12 @@ try {
 
   const emptyScanReadiness = briefReadiness();
   assert(emptyScanReadiness.ready === false && emptyScanReadiness.remaining === 8 && emptyScanReadiness.items.length === 8, "Empty room scan did not expose every required readiness item.");
-  const excessivePhotos = Array.from({ length: 7 }, () => ({ area: "Kitchen", note: "Worktops need cleaning" }));
+  const maximumPhotos = Array.from({ length: maxBriefPhotos }, () => ({ area: "Kitchen", note: "Worktops need cleaning" }));
+  const maximumPhotoReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean the kitchen.", tasks: ["Kitchen: Clean the worktops"], photos: maximumPhotos, scopeCompleteConfirmed: true, consent: true });
+  assert(maximumPhotoReadiness.ready === true, "Live readiness rejected the supported whole-property photo limit.");
+  const excessivePhotos = Array.from({ length: maxBriefPhotos + 1 }, () => ({ area: "Kitchen", note: "Worktops need cleaning" }));
   const excessivePhotoReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean the kitchen.", tasks: ["Kitchen: Clean the worktops"], photos: excessivePhotos, scopeCompleteConfirmed: true, consent: true });
-  assert(excessivePhotoReadiness.ready === false && excessivePhotoReadiness.checks.roomPhotos === false, "Live readiness showed more than six room photos as ready.");
+  assert(excessivePhotoReadiness.ready === false && excessivePhotoReadiness.checks.roomPhotos === false, "Live readiness showed more than ten room photos as ready.");
   const invalidRoomReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean the garage.", tasks: ["Garage: Clean the floor"], photos: [{ area: "Garage", note: "Floor needs cleaning" }], scopeCompleteConfirmed: true, consent: true });
   assert(invalidRoomReadiness.ready === false && invalidRoomReadiness.checks.photoDetails === false && invalidRoomReadiness.checks.roomCoverage === false, "Live readiness accepted a room label outside Tideway's supported set.");
   const uncoveredScanReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean the kitchen.", tasks: ["Bathroom: Clean the sink"], photos: [{ area: "Kitchen", note: "Worktops need cleaning" }], scopeCompleteConfirmed: true, consent: true });
@@ -117,12 +120,13 @@ try {
   assert(adminPage.ok && adminPageText.includes("Lead control desk") && adminPageText.includes("Founder-action queue") && adminPageText.includes('id="action-filter"'), "Admin dispatch control page failed.");
   const briefPage = await fetch(`${base}/brief`);
   const briefPageText = await briefPage.text();
-  assert(briefPage.ok && briefPageText.includes("Request details carried over.") && briefPageText.includes("Checking room scan") && briefPageText.includes("Extra time may be needed") && briefPageText.includes("require this confirmation again"), "Photo job-brief page, live readiness panel, private handoff notice, customer-facing scope warning or change-sensitive scope confirmation failed.");
+  assert(briefPage.ok && briefPageText.includes("Request details carried over.") && briefPageText.includes('id="photo-count">0/10') && briefPageText.includes("Checking room scan") && briefPageText.includes("Extra time may be needed") && briefPageText.includes("require this confirmation again"), "Photo job-brief page, ten-photo whole-property limit, live readiness panel, private handoff notice, customer-facing scope warning or change-sensitive scope confirmation failed.");
   assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
   const scopeSignalAsset = await fetch(`${base}/scope-signals.js`);
   assert(scopeSignalAsset.ok && (await scopeSignalAsset.text()).includes("detectPriceSensitiveScope"), "Shared customer/server scope detection asset failed.");
   const briefReadinessAsset = await fetch(`${base}/brief-readiness.js`);
-  assert(briefReadinessAsset.ok && (await briefReadinessAsset.text()).includes("briefReadiness"), "Shared room-scan readiness asset failed.");
+  const briefReadinessAssetText = await briefReadinessAsset.text();
+  assert(briefReadinessAsset.ok && briefReadinessAssetText.includes("briefReadiness") && briefReadinessAssetText.includes("maxBriefPhotos = 10"), "Shared room-scan readiness or whole-property photo-limit asset failed.");
   const requestStatusPage = await fetch(`${base}/request-status`);
   assert(requestStatusPage.ok && (await requestStatusPage.text()).includes("Private request tracker"), "Private customer request tracker page failed.");
   const quotePage = await fetch(`${base}/quote`);
@@ -182,6 +186,14 @@ try {
     body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Worktops need wiping", dataUrl: "data:image/png;base64,SGVsbG8=" }], scopeCompleteConfirmed: true, consent: true })
   });
   assert(invalidPhotoBrief.status === 422, "Invalid image content was accepted as a property photo.");
+
+  const excessivePhotoBrief = await fetch(`${base}/api/job-briefs`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen.", checklist: ["Kitchen: Clean the worktops"], photos: Array.from({ length: maxBriefPhotos + 1 }, () => ({ area: "Kitchen", note: "Worktops need cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" })), scopeCompleteConfirmed: true, consent: true })
+  });
+  const excessivePhotoBriefBody = await excessivePhotoBrief.json();
+  assert(excessivePhotoBrief.status === 422 && excessivePhotoBriefBody.errors?.some((error) => error.includes("10 property photos")), "The server accepted more than the supported whole-property photo limit.");
 
   const missingRoomNote = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
   assert(missingRoomNote.status === 422, "Room scan accepted a photo without its specific room note.");
