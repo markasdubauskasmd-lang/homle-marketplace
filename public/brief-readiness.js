@@ -9,7 +9,13 @@ const labels = {
   privacyConsent: "Property-photo sharing permission confirmed"
 };
 
-export const briefRoomOptions = ["Kitchen", "Bathroom", "Bedroom", "Living room", "Hallway", "Stairs", "Office", "Communal area", "Other area"];
+export const briefRoomOptions = [
+  "Kitchen",
+  "Bathroom", "Bathroom 1", "Bathroom 2", "Bathroom 3",
+  "Bedroom", "Bedroom 1", "Bedroom 2", "Bedroom 3", "Bedroom 4", "Bedroom 5",
+  "Living room", "Dining room", "Hallway", "Stairs", "Office", "Utility room",
+  "Toilet", "Shower room", "Entrance", "Conservatory", "Balcony", "Communal area", "Other area"
+];
 const roomOptionSet = new Set(briefRoomOptions);
 
 function hasEmail(value) {

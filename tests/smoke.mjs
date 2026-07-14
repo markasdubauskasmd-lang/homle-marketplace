@@ -50,6 +50,14 @@ try {
     "Bathroom: Disinfect the toilet",
     "Do not move the locked cupboard"
   ]), "Long spoken instructions were not summarised into concise room-labelled bullets.");
+  const numberedRoomTasks = checklistFromTranscript("In bedroom one, change the bed linen and vacuum the floor. In bedroom two, dust the shelves. In the lounge, wipe the coffee table. In the WC, disinfect the toilet.");
+  assert(JSON.stringify(numberedRoomTasks) === JSON.stringify([
+    "Bedroom 1: Change the bed linen",
+    "Bedroom 1: Vacuum the floor",
+    "Bedroom 2: Dust the shelves",
+    "Living room: Wipe the coffee table",
+    "Toilet: Disinfect the toilet"
+  ]), "Spoken numbered rooms, lounge or WC did not map to canonical photo-room labels.");
 
   const detectedScopeCodes = detectPriceSensitiveScope({ transcript: "Clean inside the oven and inside the fridge. Clean inside cupboards, wash the windows, change the bed linen, arrange carpet cleaning, rubbish removal, balcony cleaning and wash the walls." }).map((signal) => signal.code);
   assert(JSON.stringify(detectedScopeCodes) === JSON.stringify(["oven-interior", "fridge-freezer-interior", "inside-storage", "window-cleaning", "linen-laundry", "carpet-upholstery", "waste-removal", "outdoor-area", "walls-ceilings"]), "Customer-facing price-sensitive scope detection omitted or reordered a supported extra.");
@@ -67,6 +75,8 @@ try {
   assert(uncoveredScanReadiness.ready === false && uncoveredScanReadiness.remaining === 1 && uncoveredScanReadiness.checks.roomCoverage === false && uncoveredScanReadiness.uncoveredAreas[0] === "Kitchen" && uncoveredScanReadiness.items.find((item) => item.key === "roomCoverage")?.label === "Add cleaner task for: Kitchen", "Live readiness missed or failed to name an uncovered photographed room.");
   const multipleUncoveredScanReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean the rooms.", tasks: ["Hallway: Vacuum the floor"], photos: [{ area: "Kitchen", note: "Worktops need cleaning" }, { area: "Bathroom", note: "Shower needs cleaning" }], scopeCompleteConfirmed: true, consent: true });
   assert(multipleUncoveredScanReadiness.items.find((item) => item.key === "roomCoverage")?.label === "Add cleaner tasks for: Kitchen, Bathroom", "Live readiness did not name every photographed room still missing cleaner tasks.");
+  const numberedRoomReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean bedroom one and bedroom two.", tasks: ["Bedroom 1: Change the bed linen", "Bedroom 2: Dust the shelves"], photos: [{ area: "Bedroom 1", note: "Bed needs changing" }, { area: "Bedroom 2", note: "Shelves need dusting" }], scopeCompleteConfirmed: true, consent: true });
+  assert(numberedRoomReadiness.ready === true, "Canonical numbered bedroom labels did not satisfy photographed-room coverage.");
   const completeScanReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean the kitchen.", tasks: ["Kitchen: Clean the worktops"], photos: [{ area: "Kitchen", note: "Worktops need cleaning" }], scopeCompleteConfirmed: true, consent: true });
   assert(completeScanReadiness.ready === true && completeScanReadiness.remaining === 0 && Object.values(completeScanReadiness.checks).every(Boolean), "Complete room scan did not reach its client-side ready state.");
 

@@ -1,10 +1,15 @@
-const rooms = [
-  "kitchen", "bathroom", "bedroom", "living room", "lounge", "dining room",
-  "hallway", "stairs", "office", "utility room", "communal area", "entrance",
-  "toilet", "wc", "shower room", "conservatory", "balcony", "other area"
-];
+import { briefRoomOptions } from "./brief-readiness.js";
 
-const roomPattern = rooms.map((room) => room.replace(/\s+/g, "\\s+")).join("|");
+const spokenRoomAliases = new Map([
+  ["lounge", "Living room"],
+  ["wc", "Toilet"],
+  ["bathroom one", "Bathroom 1"], ["bathroom two", "Bathroom 2"], ["bathroom three", "Bathroom 3"],
+  ["bedroom one", "Bedroom 1"], ["bedroom two", "Bedroom 2"], ["bedroom three", "Bedroom 3"],
+  ["bedroom four", "Bedroom 4"], ["bedroom five", "Bedroom 5"]
+]);
+const canonicalRooms = new Map(briefRoomOptions.map((room) => [room.toLowerCase(), room]));
+const roomNames = [...new Set([...canonicalRooms.keys(), ...spokenRoomAliases.keys()])].sort((a, b) => b.length - a.length);
+const roomPattern = roomNames.map((room) => room.replace(/\s+/g, "\\s+")).join("|");
 const actionPattern = [
   "clean", "wipe", "mop", "vacuum", "hoover", "sweep", "dust", "scrub",
   "disinfect", "sanitise", "sanitize", "polish", "degrease", "descale", "remove",
@@ -13,8 +18,9 @@ const actionPattern = [
   "check", "do not", "don't"
 ].join("|");
 
-function titleCaseRoom(value) {
-  return value.replace(/\b\w/g, (letter) => letter.toUpperCase());
+function canonicalRoom(value) {
+  const room = value.trim().replace(/\s+/g, " ").toLowerCase();
+  return spokenRoomAliases.get(room) || canonicalRooms.get(room) || "";
 }
 
 export function normaliseChecklistTask(value) {
@@ -49,7 +55,7 @@ export function checklistFromTranscript(value) {
     let section = sectionValue.trim();
     if (!section) continue;
     const roomMatch = section.match(roomPrefix);
-    const room = roomMatch ? titleCaseRoom(roomMatch[1].replace(/\s+/g, " ")) : "";
+    const room = roomMatch ? canonicalRoom(roomMatch[1]) : "";
     if (roomMatch) section = section.slice(roomMatch[0].length);
     for (const clause of section.split(actionBoundary)) {
       const task = normaliseChecklistTask(clause);
