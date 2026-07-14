@@ -170,6 +170,13 @@ async function saveProposalStatusOnce(update) {
       if (competingProposal) {
         throw Object.assign(new Error(`Close or exhaust the existing live proposal ${competingProposal.id} before advancing another offer for this request.`), { statusCode: 409 });
       }
+      if (proposal.replacesProposalId) {
+        const previousProposal = proposals.find((candidate) => candidate.id === proposal.replacesProposalId && candidate.requestId === proposal.requestId);
+        if (!previousProposal) throw Object.assign(new Error("The replacement offer has no valid predecessor and cannot advance."), { statusCode: 409 });
+        const previousStatus = proposalLifecycle(previousProposal, proposalUpdates).status;
+        const previousClosed = ["cancelled", "declined"].includes(previousStatus) || proposalOfferIsExhausted(previousProposal, proposalUpdates, cleanerDecisions);
+        if (!previousClosed) throw Object.assign(new Error(`The previous proposal ${previousProposal.id} must be closed or exhausted before its replacement can advance.`), { statusCode: 409 });
+      }
     }
     if (update.status === "sent") {
       const capacityConflict = findCleanerLiveCapacityConflict(proposal, proposals, proposalUpdates, cleanerDecisions, bookings);
@@ -653,6 +660,43 @@ function proposalLifecycle(proposal, proposalUpdates) {
   return { status, latestUpdate, quoteSnapshot, cleanerOpportunitySnapshot };
 }
 
+function customerDecisionForProposal(proposalId, proposalUpdates) {
+  let latest = null;
+  for (const update of proposalUpdates) {
+    if (update.proposalId === proposalId && update.source === "customer-private-quote") latest = update;
+  }
+  return latest;
+}
+
+function replacementOfferSummary(proposal, proposals, proposalUpdates, currentTerms) {
+  if (!proposal.replacesProposalId) return null;
+  const previousProposal = proposals.find((record) => record.id === proposal.replacesProposalId);
+  if (!previousProposal || previousProposal.requestId !== proposal.requestId) return null;
+  const previousLifecycle = proposalLifecycle(previousProposal, proposalUpdates);
+  const previousTerms = previousLifecycle.quoteSnapshot;
+  const previousDecision = customerDecisionForProposal(previousProposal.id, proposalUpdates);
+  const changes = [{ key: "matching", label: "Cleaner matching was run again for this visit." }];
+  if (!previousTerms) {
+    changes.push({ key: "prior-terms", label: "The previous offer did not have frozen customer terms; review every current detail." });
+  } else {
+    if (previousTerms.proposedDate !== currentTerms.proposedDate) changes.push({ key: "date", label: "The proposed cleaning date changed." });
+    if (previousTerms.proposedStartTime !== currentTerms.proposedStartTime || previousTerms.proposedEndTime !== currentTerms.proposedEndTime) changes.push({ key: "time", label: "The proposed arrival or finish time changed." });
+    if (Number(previousTerms.estimatedHours) !== Number(currentTerms.estimatedHours)) changes.push({ key: "duration", label: "The estimated cleaning time changed." });
+    if (Number(previousTerms.customerTotal) !== Number(currentTerms.customerTotal)) changes.push({ key: "customer-total", label: "The proposed customer total changed." });
+    if (previousTerms.service !== currentTerms.service || previousTerms.siteSize !== currentTerms.siteSize) changes.push({ key: "site-scope", label: "The service or site scope changed." });
+    if (JSON.stringify(previousTerms.checklist || []) !== JSON.stringify(currentTerms.checklist || [])) changes.push({ key: "checklist", label: "The cleaner checklist changed; review every task again." });
+    if (JSON.stringify(normalisePriceSensitiveScopeSignals(previousTerms.scopeSignals || [])) !== JSON.stringify(normalisePriceSensitiveScopeSignals(currentTerms.scopeSignals || []))) changes.push({ key: "extras", label: "The price-sensitive items included in the quote changed." });
+    if (previousTerms.cancellationPolicy !== currentTerms.cancellationPolicy || previousTerms.paymentTiming !== currentTerms.paymentTiming) changes.push({ key: "terms", label: "The cancellation or payment terms changed." });
+  }
+  return {
+    previousReference: previousProposal.id,
+    previousStatus: previousLifecycle.status,
+    previousCustomerAccepted: previousDecision?.status === "accepted",
+    freshCustomerDecisionRequired: true,
+    changes
+  };
+}
+
 function cleanerDecisionForProposal(proposalId, cleanerDecisions) {
   let latest = null;
   for (const decision of cleanerDecisions) if (decision.proposalId === proposalId) latest = decision;
@@ -922,17 +966,29 @@ async function getAdminRecords(request, response) {
   for (const proposal of proposals) {
     const list = proposalsByRequest.get(proposal.requestId) || [];
     const latestUpdate = latestProposalUpdates.get(proposal.id) || null;
+    const lifecycle = proposalLifecycle(proposal, proposalUpdates);
+    const previousProposal = proposal.replacesProposalId ? proposals.find((record) => record.id === proposal.replacesProposalId && record.requestId === proposal.requestId) || null : null;
+    const previousLifecycle = previousProposal ? proposalLifecycle(previousProposal, proposalUpdates) : null;
+    const previousCustomerDecision = previousProposal ? customerDecisionForProposal(previousProposal.id, proposalUpdates) : null;
+    const replacement = proposal.replacesProposalId ? lifecycle.quoteSnapshot?.replacement || {
+      previousReference: previousProposal?.id || proposal.replacesProposalId,
+      previousStatus: previousLifecycle?.status || "missing",
+      previousCustomerAccepted: previousCustomerDecision?.status === "accepted",
+      freshCustomerDecisionRequired: true,
+      changes: []
+    } : null;
     const proposalRequest = requests.find((record) => record.id === proposal.requestId) || null;
     const proposalCleaner = cleaners.find((record) => record.id === proposal.cleanerId) || null;
     const cleanerStatus = proposalCleaner ? latestStatuses.get(proposalCleaner.id) || proposalCleaner.status || "new" : "missing";
     const cleanerEligibilityCurrent = Boolean(proposalRequest && Object.values(cleanerEligibilityChecks(proposalCleaner, proposalRequest, cleanerStatus, screenings)).every(Boolean));
     list.push({
       ...proposal,
-      status: latestUpdate?.status || proposal.status || "draft",
+      status: lifecycle.status,
       statusNote: latestUpdate?.note || "",
       statusUpdatedAt: latestUpdate?.updatedAt || proposal.createdAt,
-      quoteExpiresAt: latestUpdate?.quoteSnapshot?.offerExpiresAt || "",
-      cleanerOfferExpiresAt: latestUpdate?.cleanerOpportunitySnapshot?.offerExpiresAt || "",
+      quoteExpiresAt: lifecycle.quoteSnapshot?.offerExpiresAt || "",
+      cleanerOfferExpiresAt: lifecycle.cleanerOpportunitySnapshot?.offerExpiresAt || "",
+      replacement,
       cleanerDecision: cleanerDecisionsByProposal.get(proposal.id) || null,
       cleanerEligibilityCurrent,
       availabilityCovered: Boolean(findCleanerAvailabilitySlot(proposal.cleanerId, proposal, availabilityEvents)),
@@ -1214,6 +1270,28 @@ async function updateAdminProposalStatus(request, response) {
   if (status === "sent" && (!customerOfferExpiresAt || !cleanerOfferExpiresAt)) {
     return json(response, 422, { ok: false, error: "Set valid customer and cleaner response windows before sending these offers." });
   }
+  const frozenQuoteTerms = status === "sent" ? {
+    service: customerRequest.service,
+    postcode: customerRequest.postcode,
+    siteSize: customerRequest.siteSize,
+    proposedDate: proposal.proposedDate,
+    proposedStartTime: proposal.proposedStartTime,
+    proposedEndTime: proposal.proposedEndTime,
+    estimatedHours: proposal.estimatedHours,
+    customerTotal: proposal.customerTotal,
+    checklist: reviewedBrief?.status === "reviewed" ? reviewedBrief.checklist : [],
+    scopeSignals: reviewedBrief?.status === "reviewed" ? reviewedBrief.scopeSignals : [],
+    cancellationPolicy: config.cancellationPolicy,
+    paymentTiming: config.paymentTiming,
+    legalBusinessName: config.legalBusinessName,
+    supportEmail: config.supportEmail,
+    supportPhone: config.supportPhone,
+    offerExpiresAt: customerOfferExpiresAt
+  } : null;
+  const replacement = frozenQuoteTerms ? replacementOfferSummary(proposal, proposals, updates, frozenQuoteTerms) : null;
+  if (status === "sent" && proposal.replacesProposalId && !replacement) {
+    return json(response, 409, { ok: false, error: "The replacement offer has no valid predecessor and cannot be sent." });
+  }
   const update = {
     proposalId,
     requestId: proposal.requestId,
@@ -1221,24 +1299,7 @@ async function updateAdminProposalStatus(request, response) {
     previousStatus: currentStatus,
     note: status === "cancelled" ? note : "",
     ...(status === "sent" ? {
-      quoteSnapshot: {
-        service: customerRequest.service,
-        postcode: customerRequest.postcode,
-        siteSize: customerRequest.siteSize,
-        proposedDate: proposal.proposedDate,
-        proposedStartTime: proposal.proposedStartTime,
-        proposedEndTime: proposal.proposedEndTime,
-        estimatedHours: proposal.estimatedHours,
-        customerTotal: proposal.customerTotal,
-        checklist: reviewedBrief?.status === "reviewed" ? reviewedBrief.checklist : [],
-        scopeSignals: reviewedBrief?.status === "reviewed" ? reviewedBrief.scopeSignals : [],
-        cancellationPolicy: config.cancellationPolicy,
-        paymentTiming: config.paymentTiming,
-        legalBusinessName: config.legalBusinessName,
-        supportEmail: config.supportEmail,
-        supportPhone: config.supportPhone,
-        offerExpiresAt: customerOfferExpiresAt
-      },
+      quoteSnapshot: { ...frozenQuoteTerms, replacement },
       cleanerOpportunitySnapshot: {
         cleanerName: cleaner.fullName,
         service: customerRequest.service,
@@ -1328,11 +1389,26 @@ async function getQuoteContext(token) {
   };
   const cleanerDecision = cleanerDecisionForProposal(proposal.id, cleanerDecisions);
   const cleanerOfferClosed = ["sent", "accepted"].includes(proposalStatus) && !cleanerDecision && !offerIsOpen(cleanerOpportunitySnapshot?.offerExpiresAt);
-  return { ok: true, proposal, proposalStatus, customerRequest, config, latestBrief, latestDecision, cleanerDecision, cleanerOfferClosed, quoteSnapshot, readyChecks };
+  const previewTerms = quoteSnapshot || {
+    service: customerRequest.service,
+    postcode: customerRequest.postcode,
+    siteSize: customerRequest.siteSize,
+    proposedDate: proposal.proposedDate,
+    proposedStartTime: proposal.proposedStartTime,
+    proposedEndTime: proposal.proposedEndTime,
+    estimatedHours: proposal.estimatedHours,
+    customerTotal: proposal.customerTotal,
+    checklist: latestBrief?.status === "reviewed" ? latestBrief.checklist : [],
+    scopeSignals: latestBrief?.status === "reviewed" ? latestBrief.scopeSignals : [],
+    cancellationPolicy: config.cancellationPolicy,
+    paymentTiming: config.paymentTiming
+  };
+  const replacement = quoteSnapshot?.replacement || replacementOfferSummary(proposal, proposals, proposalUpdates, previewTerms);
+  return { ok: true, proposal, proposalStatus, customerRequest, config, latestBrief, latestDecision, cleanerDecision, cleanerOfferClosed, quoteSnapshot, replacement, readyChecks };
 }
 
 function publicQuote(context) {
-  const { proposal, proposalStatus, customerRequest, config, latestBrief, latestDecision, cleanerDecision, cleanerOfferClosed, quoteSnapshot, readyChecks } = context;
+  const { proposal, proposalStatus, customerRequest, config, latestBrief, latestDecision, cleanerDecision, cleanerOfferClosed, quoteSnapshot, replacement, readyChecks } = context;
   const displayed = quoteSnapshot || {
     service: customerRequest.service,
     postcode: customerRequest.postcode,
@@ -1370,6 +1446,7 @@ function publicQuote(context) {
       supportEmail: displayed.supportEmail,
       supportPhone: displayed.supportPhone,
       legalBusinessName: displayed.legalBusinessName,
+      replacement: displayed.replacement || replacement || null,
       offerExpiresAt: displayed.offerExpiresAt || "",
       expired: proposalStatus === "sent" && !offerIsOpen(displayed.offerExpiresAt),
       availabilityChanged: proposalStatus === "sent" && !readyChecks.availabilityCovered,
@@ -2077,15 +2154,17 @@ async function getPrivateRequestStatus(request, response) {
     let status = proposal.status || "draft";
     let quoteExpiresAt = "";
     let cleanerExpiresAt = "";
+    let quoteSnapshot = null;
     for (const update of proposalUpdates) {
       if (update.proposalId !== proposal.id) continue;
       status = update.status;
       if (update.quoteSnapshot?.offerExpiresAt) quoteExpiresAt = update.quoteSnapshot.offerExpiresAt;
+      if (update.quoteSnapshot) quoteSnapshot = update.quoteSnapshot;
       if (update.cleanerOpportunitySnapshot?.offerExpiresAt) cleanerExpiresAt = update.cleanerOpportunitySnapshot.offerExpiresAt;
     }
     const cleanerDecision = cleanerDecisionForProposal(proposal.id, cleanerDecisions);
     const exhausted = cleanerDecision?.status === "declined" || (status === "sent" && !offerIsOpen(quoteExpiresAt)) || (["sent", "accepted"].includes(status) && !cleanerDecision && !offerIsOpen(cleanerExpiresAt));
-    return { ...proposal, status, quoteExpiresAt, cleanerExpiresAt, cleanerDecision, exhausted };
+    return { ...proposal, status, quoteExpiresAt, cleanerExpiresAt, quoteSnapshot, cleanerDecision, exhausted };
   }).sort((left, right) => {
     const priority = (record) => {
       if (record.status === "accepted" && record.cleanerDecision?.status === "accepted") return 8;
@@ -2155,8 +2234,10 @@ async function getPrivateRequestStatus(request, response) {
     nextAction = "Tideway must select another screened cleaner and issue a new controlled proposal before booking.";
   } else if (proposal?.status === "sent") {
     currentStage = "quote-review";
-    headline = "Your quote is ready to review";
-    nextAction = "Review the scope, timing, total and terms, then accept or decline through the private quote.";
+    headline = proposal.quoteSnapshot?.replacement ? "Your replacement quote is ready" : "Your quote is ready to review";
+    nextAction = proposal.quoteSnapshot?.replacement
+      ? "Review every current scope, timing, total and term. A previous decision is not carried into this replacement."
+      : "Review the scope, timing, total and terms, then accept or decline through the private quote.";
   } else if (proposal?.status === "accepted") {
     currentStage = "cleaner-confirmation";
     headline = "Quote accepted — cleaner confirmation pending";
@@ -2435,19 +2516,22 @@ async function createAdminProposal(request, response) {
   if (proposedDate && proposedStartTime && estimatedHours > 0 && !schedule) errors.push("The proposed cleaning must start and finish on a valid calendar date.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
-  const [requests, cleaners, updates, config, screenings, availabilityEvents] = await Promise.all([
+  const [requests, cleaners, updates, config, screenings, availabilityEvents, proposals, bookings] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
     readJsonFile("business-config.json", {}),
     readRecords("cleaner-screening.ndjson"),
-    readRecords("cleaner-availability.ndjson")
+    readRecords("cleaner-availability.ndjson"),
+    readRecords("match-proposals.ndjson"),
+    readRecords("bookings.ndjson")
   ]);
   const customerRequest = requests.find((record) => record.id === requestId);
   const cleaner = cleaners.find((record) => record.id === cleanerId);
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
   if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Customer request or cleaner was not found." });
+  if (bookings.some((booking) => booking.requestId === requestId)) return json(response, 409, { ok: false, error: "This request already has a confirmed booking. Use the protected booking-change workflow instead of creating another proposal." });
   if ((latestStatuses.get(cleaner.id) || cleaner.status) !== "approved") return json(response, 422, { ok: false, error: "Only an approved cleaner can be proposed." });
   if (!latestCleanerScreening(cleaner.id, screenings)?.complete) return json(response, 422, { ok: false, error: "Only a fully screened cleaner can be proposed." });
   if (!costAssumptionsConfirmed(config)) return json(response, 422, { ok: false, error: "Confirm the payment, travel, supplies and risk cost assumptions before preparing proposal economics." });
@@ -2464,9 +2548,13 @@ async function createAdminProposal(request, response) {
   if (config.minimumContributionMarginPercent > 0 && marginPercent < config.minimumContributionMarginPercent) {
     return json(response, 422, { ok: false, error: `This proposal's ${marginPercent.toFixed(1)}% contribution margin is below the ${config.minimumContributionMarginPercent.toFixed(1)}% minimum.` });
   }
+  const previousProposals = proposals.filter((record) => record.requestId === requestId).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const previousProposal = previousProposals[0] || null;
   const proposal = {
     id: `PRO-${randomUUID().slice(0, 8).toUpperCase()}`,
     requestId,
+    replacesProposalId: previousProposal?.id || "",
+    replacementSequence: previousProposals.length,
     cleanerId,
     cleanerName: cleaner.fullName,
     proposedDate,
@@ -2887,6 +2975,7 @@ async function serveFile(requestPath, response) {
     "/request": "index.html",
     "/join": "index.html",
     "/brief": "brief.html",
+    "/brief-complete": "brief-complete.html",
     "/request-status": "request-status.html",
     "/quote": "quote.html",
     "/opportunity": "opportunity.html",

@@ -363,10 +363,15 @@ form.addEventListener("submit", async (event) => {
       statusLink.href = `/request-status#${result.customerStatusToken}`;
       statusLink.hidden = false;
     }
+    try {
+      sessionStorage.setItem("tidewayBriefComplete", JSON.stringify({ reference: result.reference, customerStatusToken: result.customerStatusToken || "", storedAt: Date.now() }));
+    } catch {}
     try { clearBriefHandoff(window.sessionStorage); } catch {}
     submissionComplete = true;
     successBox.hidden = false;
     successBox.focus();
+    const completionFragment = [result.customerStatusToken || "", result.reference || ""].join("|");
+    location.assign(`/brief-complete#${completionFragment}`);
   } catch (error) {
     showError(error.message);
   } finally {

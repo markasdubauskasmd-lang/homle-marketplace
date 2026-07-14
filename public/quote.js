@@ -42,6 +42,22 @@ function renderQuote(quote) {
   setText("[data-business-name]", quote.legalBusinessName);
   setText("[data-support]", [quote.supportEmail, quote.supportPhone].filter(Boolean).join(" · "));
 
+  const replacementPanel = document.querySelector("[data-replacement]");
+  if (quote.replacement?.freshCustomerDecisionRequired) {
+    const message = quote.replacement.previousCustomerAccepted
+      ? "Your earlier acceptance remains recorded for audit, but it does not apply to this replacement."
+      : "This quote supersedes an earlier offer that is no longer actionable.";
+    setText("[data-replacement-message]", message);
+    const changes = document.querySelector("[data-replacement-changes]");
+    changes.replaceChildren();
+    (quote.replacement.changes || []).forEach((change) => {
+      const item = document.createElement("li");
+      item.textContent = change.label;
+      changes.append(item);
+    });
+    replacementPanel.hidden = false;
+  }
+
   if (quote.checklist?.length) {
     const list = document.querySelector("[data-checklist]");
     quote.checklist.forEach((task) => {

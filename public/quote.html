@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Review your Tideway cleaning quote</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260714-33">
-  <script src="/quote.js?v=20260714-33" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260714-38">
+  <script src="/quote.js?v=20260714-38" type="module"></script>
 </head>
 <body class="quote-page">
   <a class="skip-link" href="#main">Skip to quote</a>
@@ -38,6 +38,13 @@
         <p class="eyebrow">Review before you decide</p>
         <h1>Your Tideway cleaning quote</h1>
         <p class="quote-intro">Hello <strong data-customer-name></strong>. Check the job, price and operating rules below. This page does not take payment or confirm a booking.</p>
+
+        <section class="replacement-notice" data-replacement hidden aria-labelledby="replacement-title">
+          <h2 id="replacement-title">This is a replacement quote</h2>
+          <p data-replacement-message></p>
+          <ul data-replacement-changes></ul>
+          <strong>Review the complete current quote below. A fresh decision is required.</strong>
+        </section>
 
         <dl class="quote-details">
           <div><dt>Quote reference</dt><dd data-reference></dd></div>

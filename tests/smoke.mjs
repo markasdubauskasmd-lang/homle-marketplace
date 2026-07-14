@@ -135,7 +135,10 @@ try {
   assert(briefPageText.includes('id="job-brief-form" action="/api/job-briefs" method="post" novalidate') && !briefPageText.includes('id="save-brief" class="button submit-button" type="submit" disabled'), "Room-scan submission was blocked before it could explain incomplete readiness.");
   const briefScript = await fetch(`${base}/brief.js?v=smoke-test`);
   const briefScriptText = await briefScript.text();
-  assert(briefScript.ok && briefScriptText.includes('saveButton.disabled = submitting || submissionComplete') && briefScriptText.includes("new AbortController()") && briefScriptText.includes("took too long to prepare"), "Room-scan button recovery or bounded photo/upload handling was missing.");
+  assert(briefScript.ok && briefScriptText.includes('saveButton.disabled = submitting || submissionComplete') && briefScriptText.includes("new AbortController()") && briefScriptText.includes("took too long to prepare") && briefScriptText.includes('location.assign(`/brief-complete'), "Room-scan button recovery, bounded photo/upload handling or dedicated completion handoff was missing.");
+  const briefCompletePage = await fetch(`${base}/brief-complete`);
+  const briefCompletePageText = await briefCompletePage.text();
+  assert(briefCompletePage.ok && briefCompletePageText.includes("Thank you. Your cleaning instructions are safely submitted.") && briefCompletePageText.includes("What happens next") && briefCompletePageText.includes("Track my cleaning request") && briefCompletePageText.includes("No payment was collected."), "Dedicated room-scan thank-you page failed or omitted its safe next steps.");
   assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
   const scopeSignalAsset = await fetch(`${base}/scope-signals.js`);
   assert(scopeSignalAsset.ok && (await scopeSignalAsset.text()).includes("detectPriceSensitiveScope"), "Shared customer/server scope detection asset failed.");
@@ -145,7 +148,10 @@ try {
   const requestStatusPage = await fetch(`${base}/request-status`);
   assert(requestStatusPage.ok && (await requestStatusPage.text()).includes("Private request tracker"), "Private customer request tracker page failed.");
   const quotePage = await fetch(`${base}/quote`);
-  assert(quotePage.ok && (await quotePage.text()).includes("Private customer review"), "Private customer quote page failed.");
+  const quotePageText = await quotePage.text();
+  assert(quotePage.ok && quotePageText.includes("Private customer review") && quotePageText.includes("This is a replacement quote") && quotePageText.includes("A fresh decision is required."), "Private customer quote or replacement-review page failed.");
+  const quoteAsset = await fetch(`${base}/quote.js?v=smoke-test`);
+  assert(quoteAsset.ok && (await quoteAsset.text()).includes("previousCustomerAccepted"), "Customer replacement-quote explanation asset failed.");
   const opportunityPage = await fetch(`${base}/opportunity`);
   assert(opportunityPage.ok && (await opportunityPage.text()).includes("Private cleaner review"), "Private cleaner opportunity page failed.");
   const customerBookingPage = await fetch(`${base}/booking-confirmation`);
@@ -698,7 +704,7 @@ try {
     body: JSON.stringify({ requestId: overlapRequestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-22", proposedStartTime: "09:00", estimatedHours: 2, customerRate: 30, cleanerRate: 18, otherCosts: 0 })
   });
   const replacementProposalBody = await replacementProposal.json();
-  assert(replacementProposal.status === 201, "Replacement proposal draft could not be prepared.");
+  assert(replacementProposal.status === 201 && replacementProposalBody.proposal.replacesProposalId === overlapProposalBody.proposal.id && replacementProposalBody.proposal.replacementSequence === 2, "Replacement proposal draft was not linked to the offer it supersedes.");
   const competingReplacementReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: replacementProposalBody.proposal.id, status: "ready" }) });
   assert(competingReplacementReady.status === 409, "A second live proposal was allowed for the same cleaning request.");
   const declinedOverlapOpportunity = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": overlapProposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "declined", typedName: "Test Cleaner", reason: "Test-only schedule decline." }) });
@@ -711,6 +717,9 @@ try {
   const replacementReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: replacementProposalBody.proposal.id, status: "ready" }) });
   const replacementSent = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: replacementProposalBody.proposal.id, status: "sent" }) });
   assert(replacementReady.ok && replacementSent.ok, "Replacement proposal did not reuse the released cleaner capacity after the original decline.");
+  const replacementQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": replacementProposalBody.proposal.reviewToken } });
+  const replacementQuoteBody = await replacementQuote.json();
+  assert(replacementQuote.ok && replacementQuoteBody.quote.replacement?.previousReference === overlapProposalBody.proposal.id && replacementQuoteBody.quote.replacement?.previousCustomerAccepted === false && replacementQuoteBody.quote.replacement?.freshCustomerDecisionRequired === true && replacementQuoteBody.quote.replacement?.changes?.some((change) => change.key === "matching") && replacementQuoteBody.quote.decisionAllowed === true, "Replacement quote omitted its prior-offer audit, change summary or fresh-decision requirement.");
   const replacementTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": overlapRequestBody.customerStatusToken } });
   const replacementTrackerBody = await replacementTracker.json();
   assert(replacementTracker.ok && replacementTrackerBody.current.stage === "quote-review" && replacementTrackerBody.links.quoteToken === replacementProposalBody.proposal.reviewToken, "Customer tracker did not prioritise the replacement quote over the exhausted proposal.");
@@ -723,6 +732,21 @@ try {
   const withdrawnQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": replacementProposalBody.proposal.reviewToken } });
   const withdrawnQuoteBody = await withdrawnQuote.json();
   assert(withdrawnQuote.ok && withdrawnQuoteBody.quote.status === "cancelled" && withdrawnQuoteBody.quote.decision?.status === "accepted" && withdrawnQuoteBody.quote.decisionAllowed === false, "Withdrawn customer quote did not preserve its acceptance audit while becoming read-only.");
+  const changedReplacement = await fetch(`${base}/api/admin/proposals`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: overlapRequestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-22", proposedStartTime: "09:00", estimatedHours: 2, customerRate: 31, cleanerRate: 18, otherCosts: 0 })
+  });
+  const changedReplacementBody = await changedReplacement.json();
+  assert(changedReplacement.status === 201 && changedReplacementBody.proposal.replacesProposalId === replacementProposalBody.proposal.id && changedReplacementBody.proposal.replacementSequence === 3, "Second replacement did not continue the prior-offer audit chain.");
+  const changedReplacementReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: changedReplacementBody.proposal.id, status: "ready" }) });
+  const changedReplacementSent = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: changedReplacementBody.proposal.id, status: "sent" }) });
+  assert(changedReplacementReady.ok && changedReplacementSent.ok, "Audited replacement could not advance after its accepted predecessor was withdrawn.");
+  const changedReplacementQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": changedReplacementBody.proposal.reviewToken } });
+  const changedReplacementQuoteBody = await changedReplacementQuote.json();
+  assert(changedReplacementQuote.ok && changedReplacementQuoteBody.quote.replacement?.previousReference === replacementProposalBody.proposal.id && changedReplacementQuoteBody.quote.replacement?.previousCustomerAccepted === true && changedReplacementQuoteBody.quote.replacement?.changes?.some((change) => change.key === "customer-total") && changedReplacementQuoteBody.quote.decision === null && changedReplacementQuoteBody.quote.decisionAllowed === true, "Changed replacement silently carried forward a prior acceptance or failed to disclose the changed customer total.");
+  const closeChangedReplacement = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: changedReplacementBody.proposal.id, status: "cancelled", note: "Test-only closure after replacement lineage verification." }) });
+  assert(closeChangedReplacement.ok, "Test replacement could not be closed after lineage verification.");
   const rematchingTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": overlapRequestBody.customerStatusToken } });
   const rematchingTrackerBody = await rematchingTracker.json();
   assert(rematchingTracker.ok && rematchingTrackerBody.current.stage === "rematching" && rematchingTrackerBody.links.quoteToken === "", "Customer tracker did not return to safe rematching after replacement withdrawal.");
@@ -792,6 +816,8 @@ try {
   });
   const confirmedBookingBody = await confirmedBooking.json();
   assert(confirmedBooking.status === 201 && confirmedBookingBody.booking.id.startsWith("BKG-") && /^[A-Za-z0-9_-]{32}$/.test(confirmedBookingBody.booking.customerViewToken) && /^[A-Za-z0-9_-]{32}$/.test(confirmedBookingBody.booking.cleanerViewToken), "Fully confirmed booking or its private view tokens were not recorded.");
+  const postBookingProposal = await fetch(`${base}/api/admin/proposals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", proposedStartTime: "09:00", estimatedHours: 4, customerRate: 30, cleanerRate: 18, otherCosts: 0 }) });
+  assert(postBookingProposal.status === 409, "A new proposal was created for a request that already had a confirmed booking.");
   const postBookingOpportunityPhoto = await fetch(`${base}/api/opportunity-photo?imageId=${briefBody.photos[0].id}`, { headers: { "x-opportunity-token": proposalBody.proposal.cleanerReviewToken } });
   assert(postBookingOpportunityPhoto.status === 404, "Pre-booking opportunity photo access remained open after the confirmed booking pack took over.");
   const bookedCapacityMatching = await fetch(`${base}/api/admin/matches?requestId=${overlapRequestBody.reference}`);

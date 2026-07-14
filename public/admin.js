@@ -1191,6 +1191,18 @@ function buildCard(record) {
     addText(proposalSummary, "span", `${proposal.proposedDate} · ${proposal.proposedStartTime}–${proposal.proposedEndTime} · ${proposal.estimatedHours} hours · ${money.format(proposal.customerTotal)} customer total`);
     addText(proposalSummary, "span", `${money.format(proposal.cleanerPay)} cleaner pay · ${money.format(proposal.contribution)} contribution · ${proposal.marginPercent.toFixed(1)}% margin`);
     addText(proposalSummary, "span", `${money.format(proposal.nonCleanerCosts ?? proposal.otherCosts ?? 0)} planned non-cleaner costs: ${money.format(proposal.paymentFees || 0)} payment fees · ${money.format(proposal.travelCosts || 0)} travel · ${money.format(proposal.suppliesCosts || 0)} supplies · ${money.format(proposal.riskContingency || 0)} risk · ${money.format(proposal.otherCosts || 0)} additional`);
+    if (proposal.replacement) {
+      const replacementAudit = document.createElement("div");
+      replacementAudit.className = "replacement-audit";
+      addText(replacementAudit, "strong", `Replacement for ${proposal.replacement.previousReference}`);
+      addText(replacementAudit, "span", proposal.replacement.previousCustomerAccepted ? "The earlier customer acceptance remains recorded but cannot carry forward. A fresh customer decision is required." : "The earlier offer remains in the audit trail. A fresh customer decision is required.");
+      if (proposal.replacement.changes?.length) {
+        const changes = document.createElement("ul");
+        proposal.replacement.changes.forEach((change) => addText(changes, "li", change.label));
+        replacementAudit.append(changes);
+      }
+      proposalSummary.append(replacementAudit);
+    }
     const proposalStatusLabel = document.createElement("label");
     proposalStatusLabel.append(document.createTextNode("Internal proposal status"));
     const proposalStatus = document.createElement("select");
