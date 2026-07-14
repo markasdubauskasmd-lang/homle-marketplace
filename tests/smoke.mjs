@@ -75,6 +75,8 @@ try {
   assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
   const quotePage = await fetch(`${base}/quote`);
   assert(quotePage.ok && (await quotePage.text()).includes("Private customer review"), "Private customer quote page failed.");
+  const opportunityPage = await fetch(`${base}/opportunity`);
+  assert(opportunityPage.ok && (await opportunityPage.text()).includes("Private cleaner review"), "Private cleaner opportunity page failed.");
   const adminAsset = await fetch(`${base}/admin.js?v=smoke-test`);
   assert(adminAsset.ok && adminAsset.headers.get("cache-control") === "no-cache", "Updated assets could remain stale in the control desk.");
 
@@ -262,7 +264,7 @@ try {
     body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", estimatedHours: 4, customerRate: 30, cleanerRate: 18, otherCosts: 10, note: "Draft only" })
   });
   const proposalBody = await validProposal.json();
-  assert(validProposal.status === 201 && proposalBody.proposal.contribution === 38 && /^[A-Za-z0-9_-]{32}$/.test(proposalBody.proposal.reviewToken), "Valid draft proposal failed, calculated incorrectly or omitted its private review token.");
+  assert(validProposal.status === 201 && proposalBody.proposal.contribution === 38 && /^[A-Za-z0-9_-]{32}$/.test(proposalBody.proposal.reviewToken) && /^[A-Za-z0-9_-]{32}$/.test(proposalBody.proposal.cleanerReviewToken), "Valid draft proposal failed, calculated incorrectly or omitted a private review token.");
 
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, insuranceStatus: "in-progress" }) });
   const blockedDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
@@ -311,15 +313,33 @@ try {
   const quotePreview = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
   const quotePreviewBody = await quotePreview.json();
   assert(quotePreview.ok && quotePreviewBody.quote.reference === proposalBody.proposal.id && quotePreviewBody.quote.decisionAllowed === false && quotePreviewBody.quote.checklist.includes("Wipe every kitchen worktop"), "Private customer quote preview omitted the approved scope or opened decisions too early.");
+  const opportunityPreview = await fetch(`${base}/api/opportunity`, { headers: { "x-opportunity-token": proposalBody.proposal.cleanerReviewToken } });
+  const opportunityPreviewBody = await opportunityPreview.json();
+  assert(opportunityPreview.ok && opportunityPreviewBody.opportunity.reference === proposalBody.proposal.id && opportunityPreviewBody.opportunity.decisionAllowed === false && opportunityPreviewBody.opportunity.cleanerPay === 72 && opportunityPreviewBody.opportunity.checklist.includes("Wipe every kitchen worktop"), "Private cleaner opportunity preview omitted the reviewed scope/pay or opened decisions too early.");
+  const previewSerialised = JSON.stringify(opportunityPreviewBody);
+  assert(!previewSerialised.includes("customer@example.com") && !previewSerialised.includes("Test Customer") && !previewSerialised.includes("Collect keys"), "Cleaner opportunity preview leaked customer identity or access details.");
   const skippedTransition = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "accepted" }) });
   assert(skippedTransition.status === 422, "Proposal status skipped the sent step.");
+  const pausedCleaner = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "paused" }) });
+  assert(pausedCleaner.ok, "Approved cleaner could not be paused for proposal revalidation test.");
+  const pausedCleanerSend = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "sent" }) });
+  assert(pausedCleanerSend.status === 422, "Proposal was sent after the selected cleaner was paused.");
+  const restoredCleaner = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "approved" }) });
+  assert(restoredCleaner.ok, "Paused cleaner could not return to approved status after revalidation test.");
   const sentProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "sent" }) });
   assert(sentProposal.ok, "Sent proposal status failed.");
-  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, cancellationPolicy: "A later rule that must not rewrite an already-sent quote." }) });
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, cancellationPolicy: "A later rule that must not rewrite an already-sent quote.", cleanerModel: "A later model that must not rewrite a sent opportunity." }) });
   const frozenQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
   const frozenQuoteBody = await frozenQuote.json();
   assert(frozenQuote.ok && frozenQuoteBody.quote.cancellationPolicy === completeConfig.cancellationPolicy, "An already-sent quote changed when operating settings were edited.");
+  const frozenOpportunity = await fetch(`${base}/api/opportunity`, { headers: { "x-opportunity-token": proposalBody.proposal.cleanerReviewToken } });
+  const frozenOpportunityBody = await frozenOpportunity.json();
+  assert(frozenOpportunity.ok && frozenOpportunityBody.opportunity.cleanerModel === completeConfig.cleanerModel && frozenOpportunityBody.opportunity.decisionAllowed === true, "An already-sent cleaner opportunity changed when operating settings were edited or remained closed.");
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
+  await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "paused" }) });
+  const acceptanceWhileCleanerPaused = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Customer", scopeConfirmed: true, termsAccepted: true }) });
+  assert(acceptanceWhileCleanerPaused.status === 409, "Customer quote remained open after the proposed cleaner was paused.");
+  await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "approved" }) });
   const adminAcceptedProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "accepted" }) });
   assert(adminAcceptedProposal.status === 422, "Control desk fabricated customer acceptance without the private quote flow.");
   const invalidQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": "not-a-private-quote-token" } });
@@ -337,6 +357,24 @@ try {
   const acceptedQuoteBody = await acceptedQuote.json();
   assert(acceptedQuote.ok && acceptedQuoteBody.quote.decision?.status === "accepted" && acceptedQuoteBody.quote.decisionAllowed === false, "Accepted quote did not become a locked read-only record.");
 
+  const bookingBeforeCleaner = await fetch(`${base}/api/admin/booking-audit?proposalId=${proposalBody.proposal.id}`);
+  const bookingBeforeCleanerBody = await bookingBeforeCleaner.json();
+  assert(bookingBeforeCleaner.ok && bookingBeforeCleanerBody.automatedReady === false && bookingBeforeCleanerBody.checks.customerAccepted === true && bookingBeforeCleanerBody.checks.cleanerAccepted === false, "Booking audit did not block while cleaner acceptance was missing.");
+  const invalidOpportunity = await fetch(`${base}/api/opportunity`, { headers: { "x-opportunity-token": "not-an-opportunity-token" } });
+  assert(invalidOpportunity.status === 404, "Invalid cleaner opportunity token exposed proposal data.");
+  const wrongCleanerName = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": proposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Someone Else", scopeConfirmed: true, payConfirmed: true, availabilityConfirmed: true }) });
+  assert(wrongCleanerName.status === 422, "Cleaner opportunity accepted a mismatched application name.");
+  const incompleteCleanerDecision = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": proposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Cleaner", scopeConfirmed: true, payConfirmed: true, availabilityConfirmed: false }) });
+  assert(incompleteCleanerDecision.status === 422, "Cleaner opportunity accepted without scope, pay and availability confirmations.");
+  const acceptedCleaner = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": proposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Cleaner", scopeConfirmed: true, payConfirmed: true, availabilityConfirmed: true }) });
+  const acceptedCleanerBody = await acceptedCleaner.json();
+  assert(acceptedCleaner.ok && acceptedCleanerBody.status === "accepted", "Audited private cleaner acceptance failed.");
+  const duplicateCleanerDecision = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": proposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "declined", typedName: "Test Cleaner" }) });
+  assert(duplicateCleanerDecision.status === 409, "A completed cleaner decision was overwritten.");
+  const acceptedOpportunity = await fetch(`${base}/api/opportunity`, { headers: { "x-opportunity-token": proposalBody.proposal.cleanerReviewToken } });
+  const acceptedOpportunityBody = await acceptedOpportunity.json();
+  assert(acceptedOpportunity.ok && acceptedOpportunityBody.opportunity.decision?.status === "accepted" && acceptedOpportunityBody.opportunity.decisionAllowed === false, "Accepted cleaner opportunity did not become a locked read-only record.");
+
   const readyDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
   const readyDraftsBody = await readyDrafts.json();
   assert(readyDrafts.ok && readyDraftsBody.sendAllowed === true, "Ready proposal drafts were not available for review.");
@@ -345,8 +383,8 @@ try {
 
   const bookingAudit = await fetch(`${base}/api/admin/booking-audit?proposalId=${proposalBody.proposal.id}`);
   const bookingAuditBody = await bookingAudit.json();
-  assert(bookingAudit.ok && bookingAuditBody.automatedReady === true && Object.values(bookingAuditBody.checks).every(Boolean), "Accepted proposal did not pass the automated booking audit.");
-  assert(bookingAuditBody.manualChecklist.length >= 5, "Booking audit omitted required manual confirmations.");
+  assert(bookingAudit.ok && bookingAuditBody.automatedReady === true && Object.values(bookingAuditBody.checks).every(Boolean), "Two-sided accepted proposal did not pass the automated booking audit.");
+  assert(bookingAuditBody.manualChecklist.length >= 4, "Booking audit omitted required manual confirmations.");
 
   const quotedStatus = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: requestBody.reference, kind: "request", status: "quoted" }) });
   assert(quotedStatus.ok, "Customer request could not move from contacted to quoted.");
@@ -355,7 +393,7 @@ try {
   const confirmedBooking = await fetch(`${base}/api/admin/bookings`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ proposalId: proposalBody.proposal.id, addressAndAccessConfirmed: true, finalChecklistConfirmed: true, paymentAuthorisationConfirmed: true, cleanerAcceptanceConfirmed: true, emergencyInstructionsConfirmed: true, internalNote: "Test confirmation only" })
+    body: JSON.stringify({ proposalId: proposalBody.proposal.id, addressAndAccessConfirmed: true, finalChecklistConfirmed: true, paymentAuthorisationConfirmed: true, emergencyInstructionsConfirmed: true, internalNote: "Test confirmation only" })
   });
   const confirmedBookingBody = await confirmedBooking.json();
   assert(confirmedBooking.status === 201 && confirmedBookingBody.booking.id.startsWith("BKG-"), "Fully confirmed booking was not recorded.");
@@ -385,13 +423,14 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.activities?.[0]?.note.includes("confirmed the scope"), "Lead activity was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.id.startsWith("PRO-"), "Draft proposal was not retained on the customer request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.status === "accepted", "Proposal status progression was not retained.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.cleanerDecision?.status === "accepted", "Cleaner opportunity decision was not attached to the proposal.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "reviewed", "Job-brief review status was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, matching, profitable proposals, audited customer quote decisions, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, matching, profitable proposals, two-sided private decisions, booking confirmations and actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

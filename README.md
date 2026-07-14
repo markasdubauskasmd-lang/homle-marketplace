@@ -31,10 +31,12 @@ Then open `http://127.0.0.1:4173`.
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
 - Private customer quote-review links that keep the token out of server URLs, require name/scope/terms confirmation, lock after one decision and preserve an acceptance snapshot for the booking audit
 - Customer acceptance can no longer be fabricated from the control desk; accepted and declined states come from the private quote decision flow
+- Private cleaner opportunity links show only the area, reviewed scope, hazards and proposed pay; customer identity, exact address, access notes and private photos remain protected
+- Cleaner decisions require the application name plus scope, pay and availability confirmations, lock after one response and cannot be created from the control desk
 - Latest approved landlord checklist included in the review-only cleaner opportunity draft; photos remain separately protected for deliberate review
 - Structured site scope, access and hazard collection plus a read-only accepted-proposal booking audit
 - Safe lead-status transitions that prevent requests or cleaners skipping required workflow stages
-- Internal confirmed-booking records that require an accepted profitable proposal, a passed audit and five manual confirmations
+- Internal confirmed-booking records that require separate customer and cleaner acceptance, a profitable passed audit and four remaining manual confirmations
 - Completed-job records for actual customer receipts, cleaner pay, costs, refunds, contribution and margin; recording never moves money
 - Private data backup script and documented recovery procedure
 - Responsive, accessible website

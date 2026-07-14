@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#0e665b">
+  <title>Review a Tideway cleaning opportunity</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260714-21">
+  <script src="/opportunity.js?v=20260714-21" type="module"></script>
+</head>
+<body class="quote-page">
+  <a class="skip-link" href="#main">Skip to opportunity</a>
+  <header class="site-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a>
+      <span class="status-pill">Private opportunity</span>
+    </div>
+  </header>
+
+  <main id="main" class="section shell quote-shell">
+    <section class="quote-card" aria-labelledby="opportunity-title">
+      <div id="opportunity-loading" class="quote-state" role="status">
+        <p class="eyebrow">Private cleaner review</p>
+        <h1 id="opportunity-title">Loading the cleaning opportunity…</h1>
+        <p>Please wait while Tideway checks this private link.</p>
+      </div>
+
+      <div id="opportunity-error" class="quote-state" role="alert" hidden>
+        <p class="eyebrow">Opportunity unavailable</p>
+        <h1>We could not open this opportunity.</h1>
+        <p data-error-message>The private link may be incomplete or no longer available.</p>
+        <p>Please contact Tideway using the details in the message that brought you here.</p>
+      </div>
+
+      <div id="opportunity-content" hidden>
+        <p class="eyebrow">Review before you decide</p>
+        <h1>Cleaning opportunity</h1>
+        <p class="quote-intro">Hello <strong data-cleaner-name></strong>. Review the scope, date and proposed pay. You may accept or decline, and this page does not confirm an assignment.</p>
+
+        <dl class="quote-details">
+          <div><dt>Reference</dt><dd data-reference></dd></div>
+          <div><dt>Service</dt><dd data-service></dd></div>
+          <div><dt>Area only</dt><dd data-area></dd></div>
+          <div><dt>Site scope</dt><dd data-site-size></dd></div>
+          <div><dt>Known hazards</dt><dd data-hazards></dd></div>
+          <div><dt>Proposed date</dt><dd data-proposed-date></dd></div>
+          <div><dt>Estimated time</dt><dd data-estimated-hours></dd></div>
+          <div><dt>Proposed hourly pay</dt><dd data-cleaner-rate></dd></div>
+          <div class="quote-total"><dt>Proposed total pay</dt><dd data-cleaner-pay></dd></div>
+        </dl>
+
+        <section class="quote-scope" data-checklist-section hidden>
+          <h2>Reviewed cleaning checklist</h2>
+          <ul data-checklist></ul>
+          <p class="privacy-hint" data-photo-note></p>
+        </section>
+
+        <section class="quote-rules">
+          <h2>Before you respond</h2>
+          <p><strong>Tideway operating model:</strong> <span data-cleaner-model></span></p>
+          <p>The customer’s identity, exact address and access details are deliberately withheld at this stage. Tideway shares them securely only after both sides agree and the booking checks pass.</p>
+          <p>Accepting records your interest in this exact opportunity. It does not create an assignment, employment relationship or payment. Tideway must still issue a separate booking confirmation.</p>
+        </section>
+
+        <div id="opportunity-locked" class="quote-result" role="status" tabindex="-1" hidden></div>
+
+        <form id="opportunity-decision" class="quote-decision" novalidate>
+          <h2>Your decision</h2>
+          <label>Type the full name used on your cleaner application
+            <input name="typedName" autocomplete="name" required>
+          </label>
+          <label class="checkbox"><input name="scopeConfirmed" type="checkbox" required><span>I have reviewed the service, area, site scope, hazards and checklist shown above.</span></label>
+          <label class="checkbox"><input name="payConfirmed" type="checkbox" required><span>I have reviewed and agree to the proposed hours, hourly pay and total pay for this opportunity.</span></label>
+          <label class="checkbox"><input name="availabilityConfirmed" type="checkbox" required><span>I am currently available for the proposed date, subject to Tideway’s final booking confirmation.</span></label>
+          <label>Optional note or reason for declining
+            <textarea name="reason" rows="3" maxlength="500"></textarea>
+          </label>
+          <div class="error-summary" role="alert" tabindex="-1" hidden></div>
+          <div class="quote-actions">
+            <button class="button" type="submit" name="decision" value="accepted">Accept opportunity</button>
+            <button class="button button-outline" type="submit" name="decision" value="declined" formnovalidate>Decline opportunity</button>
+          </div>
+          <p class="pilot-note">No assignment or payment is created here. Tideway will contact you separately if the booking can be confirmed.</p>
+        </form>
+
+        <footer class="quote-contact"><span data-business-name></span><span data-support></span></footer>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

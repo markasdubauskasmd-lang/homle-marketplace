@@ -139,6 +139,24 @@ async function saveRecord(filename, record) {
   return operation;
 }
 
+async function saveDecisionOnce(filename, proposalId, record) {
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    let existing = [];
+    try {
+      const contents = await readFile(path.join(dataDir, filename), "utf8");
+      existing = contents.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    const duplicate = existing.some((item) => item.proposalId === proposalId && (!record.source || item.source === record.source));
+    if (duplicate) throw Object.assign(new Error("This private decision has already been recorded."), { statusCode: 409 });
+    await appendFile(path.join(dataDir, filename), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+  });
+  writeQueue = operation;
+  return operation;
+}
+
 async function readRecords(filename) {
   try {
     const contents = await readFile(path.join(dataDir, filename), "utf8");
@@ -274,7 +292,7 @@ function isAdminAuthorised(request) {
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, config] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, config] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
@@ -286,6 +304,7 @@ async function getAdminRecords(request, response) {
     readRecords("job-briefs.ndjson"),
     readRecords("job-brief-status.ndjson"),
     readRecords("cleaner-screening.ndjson"),
+    readRecords("cleaner-opportunity-decisions.ndjson"),
     readJsonFile("business-config.json", {})
   ]);
   const latestStatuses = new Map();
@@ -298,10 +317,11 @@ async function getAdminRecords(request, response) {
   }
   const proposalsByRequest = new Map();
   const latestProposalStatuses = new Map();
+  const cleanerDecisionsByProposal = new Map(cleanerDecisions.map((decision) => [decision.proposalId, decision]));
   for (const update of proposalUpdates) latestProposalStatuses.set(update.proposalId, update.status);
   for (const proposal of proposals) {
     const list = proposalsByRequest.get(proposal.requestId) || [];
-    list.push({ ...proposal, status: latestProposalStatuses.get(proposal.id) || proposal.status || "draft" });
+    list.push({ ...proposal, status: latestProposalStatuses.get(proposal.id) || proposal.status || "draft", cleanerDecision: cleanerDecisionsByProposal.get(proposal.id) || null });
     proposalsByRequest.set(proposal.requestId, list);
   }
   const bookingsByRequest = new Map();
@@ -398,13 +418,16 @@ async function updateAdminProposalStatus(request, response) {
     declined: new Set([]),
     cancelled: new Set([])
   };
-  const [proposals, updates, config, briefs, briefUpdates, customerRequests] = await Promise.all([
+  const [proposals, updates, config, briefs, briefUpdates, customerRequests, cleaners, cleanerUpdates, screenings] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readJsonFile("business-config.json", {}),
     readRecords("job-briefs.ndjson"),
     readRecords("job-brief-status.ndjson"),
-    readRecords("cleaning-requests.ndjson")
+    readRecords("cleaning-requests.ndjson"),
+    readRecords("cleaner-applications.ndjson"),
+    readRecords("status-updates.ndjson"),
+    readRecords("cleaner-screening.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
@@ -415,13 +438,27 @@ async function updateAdminProposalStatus(request, response) {
     return json(response, 422, { ok: false, error: "Complete all seven launch-readiness checks before advancing this proposal." });
   }
   const customerRequest = customerRequests.find((record) => record.id === proposal.requestId);
-  if (!customerRequest) return json(response, 404, { ok: false, error: "Customer request not found." });
+  const cleaner = cleaners.find((record) => record.id === proposal.cleanerId);
+  if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Proposal parties were not found." });
+  let cleanerStatus = cleaner.status || "new";
+  for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
+  const requiredService = requestServiceMap[customerRequest.service] || "";
+  if (["ready", "sent"].includes(status) && cleanerStatus !== "approved") {
+    return json(response, 422, { ok: false, error: "The proposed cleaner must still be approved before this proposal can advance." });
+  }
+  if (["ready", "sent"].includes(status) && !latestCleanerScreening(cleaner.id, screenings)?.complete) {
+    return json(response, 422, { ok: false, error: "The proposed cleaner's screening checklist must still be complete." });
+  }
+  if (["ready", "sent"].includes(status) && requiredService && !cleaner.services?.includes(requiredService)) {
+    return json(response, 422, { ok: false, error: "The proposed cleaner is not approved for this service." });
+  }
   const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
   if (["ready", "sent", "accepted"].includes(status) && !pilotCoverage.covered) {
     return json(response, 422, { ok: false, error: `${pilotCoverage.outwardCode || "This postcode"} is outside the configured Tideway pilot area.` });
   }
   const latestBrief = briefs.filter((brief) => brief.requestId === proposal.requestId).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
-  if (["ready", "sent", "accepted"].includes(status) && latestBrief && applyBriefStatus(latestBrief, briefUpdates).status !== "reviewed") {
+  const reviewedBrief = latestBrief ? applyBriefStatus(latestBrief, briefUpdates) : null;
+  if (["ready", "sent", "accepted"].includes(status) && reviewedBrief && reviewedBrief.status !== "reviewed") {
     return json(response, 422, { ok: false, error: "Review and approve the latest landlord photo job brief before advancing this proposal." });
   }
   if (["ready", "sent", "accepted"].includes(status) && proposal.estimatedHours < config.minimumHours) {
@@ -436,19 +473,38 @@ async function updateAdminProposalStatus(request, response) {
     requestId: proposal.requestId,
     status,
     previousStatus: currentStatus,
-    ...(status === "sent" ? { quoteSnapshot: {
-      service: customerRequest.service,
-      postcode: customerRequest.postcode,
-      siteSize: customerRequest.siteSize,
-      proposedDate: proposal.proposedDate,
-      estimatedHours: proposal.estimatedHours,
-      customerTotal: proposal.customerTotal,
-      cancellationPolicy: config.cancellationPolicy,
-      paymentTiming: config.paymentTiming,
-      legalBusinessName: config.legalBusinessName,
-      supportEmail: config.supportEmail,
-      supportPhone: config.supportPhone
-    } } : {}),
+    ...(status === "sent" ? {
+      quoteSnapshot: {
+        service: customerRequest.service,
+        postcode: customerRequest.postcode,
+        siteSize: customerRequest.siteSize,
+        proposedDate: proposal.proposedDate,
+        estimatedHours: proposal.estimatedHours,
+        customerTotal: proposal.customerTotal,
+        cancellationPolicy: config.cancellationPolicy,
+        paymentTiming: config.paymentTiming,
+        legalBusinessName: config.legalBusinessName,
+        supportEmail: config.supportEmail,
+        supportPhone: config.supportPhone
+      },
+      cleanerOpportunitySnapshot: {
+        cleanerName: cleaner.fullName,
+        service: customerRequest.service,
+        area: pilotCoverage.outwardCode,
+        siteSize: customerRequest.siteSize,
+        hazards: customerRequest.hazards,
+        proposedDate: proposal.proposedDate,
+        estimatedHours: proposal.estimatedHours,
+        cleanerPay: proposal.cleanerPay,
+        cleanerRate: proposal.cleanerRate,
+        checklist: reviewedBrief?.status === "reviewed" ? reviewedBrief.checklist : [],
+        photoCount: reviewedBrief?.status === "reviewed" ? reviewedBrief.photos.length : 0,
+        cleanerModel: config.cleanerModel,
+        legalBusinessName: config.legalBusinessName,
+        supportEmail: config.supportEmail,
+        supportPhone: config.supportPhone
+      }
+    } : {}),
     updatedAt: new Date().toISOString()
   };
   await saveRecord("proposal-status.ndjson", update);
@@ -457,10 +513,13 @@ async function updateAdminProposalStatus(request, response) {
 
 async function getQuoteContext(token) {
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return { ok: false, statusCode: 404, error: "This private quote link is invalid." };
-  const [proposals, proposalUpdates, customerRequests, config, briefs, briefUpdates] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, screenings, config, briefs, briefUpdates] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
+    readRecords("cleaner-applications.ndjson"),
+    readRecords("status-updates.ndjson"),
+    readRecords("cleaner-screening.ndjson"),
     readJsonFile("business-config.json", {}),
     readRecords("job-briefs.ndjson"),
     readRecords("job-brief-status.ndjson")
@@ -468,7 +527,8 @@ async function getQuoteContext(token) {
   const proposal = proposals.find((record) => record.reviewToken === token);
   if (!proposal) return { ok: false, statusCode: 404, error: "This private quote link is invalid." };
   const customerRequest = customerRequests.find((record) => record.id === proposal.requestId);
-  if (!customerRequest) return { ok: false, statusCode: 404, error: "The cleaning request could not be found." };
+  const cleaner = cleaners.find((record) => record.id === proposal.cleanerId);
+  if (!customerRequest || !cleaner) return { ok: false, statusCode: 404, error: "The cleaning proposal could not be found." };
   let proposalStatus = proposal.status || "draft";
   let latestDecision = null;
   let quoteSnapshot = null;
@@ -481,8 +541,14 @@ async function getQuoteContext(token) {
   if (proposalStatus === "draft") return { ok: false, statusCode: 409, error: "This quote is still being prepared." };
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
+  let cleanerStatus = cleaner.status || "new";
+  for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
+  const requiredService = requestServiceMap[customerRequest.service] || "";
   const readyChecks = {
     launchReady: launchReadiness(config).ready,
+    cleanerApproved: cleanerStatus === "approved",
+    cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
+    serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     briefReviewed: !latestBrief || latestBrief.status === "reviewed",
     profitable: proposal.contribution > 0,
@@ -585,7 +651,158 @@ async function decidePrivateQuote(request, response) {
     }) : null,
     updatedAt
   };
-  await saveRecord("proposal-status.ndjson", update);
+  await saveDecisionOnce("proposal-status.ndjson", context.proposal.id, update);
+  return json(response, 200, { ok: true, status: decision, decidedAt: updatedAt });
+}
+
+async function getCleanerOpportunityContext(token) {
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return { ok: false, statusCode: 404, error: "This private opportunity link is invalid." };
+  const [proposals, proposalUpdates, decisions, customerRequests, cleaners, cleanerUpdates, screenings, config, briefs, briefUpdates] = await Promise.all([
+    readRecords("match-proposals.ndjson"),
+    readRecords("proposal-status.ndjson"),
+    readRecords("cleaner-opportunity-decisions.ndjson"),
+    readRecords("cleaning-requests.ndjson"),
+    readRecords("cleaner-applications.ndjson"),
+    readRecords("status-updates.ndjson"),
+    readRecords("cleaner-screening.ndjson"),
+    readJsonFile("business-config.json", {}),
+    readRecords("job-briefs.ndjson"),
+    readRecords("job-brief-status.ndjson")
+  ]);
+  const proposal = proposals.find((record) => record.cleanerReviewToken === token);
+  if (!proposal) return { ok: false, statusCode: 404, error: "This private opportunity link is invalid." };
+  const customerRequest = customerRequests.find((record) => record.id === proposal.requestId);
+  const cleaner = cleaners.find((record) => record.id === proposal.cleanerId);
+  if (!customerRequest || !cleaner) return { ok: false, statusCode: 404, error: "The cleaning opportunity could not be found." };
+  let proposalStatus = proposal.status || "draft";
+  let opportunitySnapshot = null;
+  for (const update of proposalUpdates) {
+    if (update.proposalId !== proposal.id) continue;
+    proposalStatus = update.status;
+    if (update.cleanerOpportunitySnapshot) opportunitySnapshot = update.cleanerOpportunitySnapshot;
+  }
+  if (proposalStatus === "draft") return { ok: false, statusCode: 409, error: "This opportunity is still being prepared." };
+  let cleanerStatus = cleaner.status || "new";
+  for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
+  const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
+  const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
+  const requiredService = requestServiceMap[customerRequest.service] || "";
+  const readyChecks = {
+    launchReady: launchReadiness(config).ready,
+    cleanerApproved: cleanerStatus === "approved",
+    cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
+    pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
+    serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
+    briefReviewed: !latestBrief || latestBrief.status === "reviewed",
+    profitable: proposal.contribution > 0,
+    marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
+    minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours
+  };
+  const decision = decisions.find((record) => record.proposalId === proposal.id) || null;
+  return { ok: true, proposal, proposalStatus, customerRequest, cleaner, config, latestBrief, opportunitySnapshot, readyChecks, decision };
+}
+
+function publicCleanerOpportunity(context) {
+  const { proposal, proposalStatus, customerRequest, cleaner, config, latestBrief, opportunitySnapshot, readyChecks, decision } = context;
+  const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
+  const displayed = opportunitySnapshot || {
+    cleanerName: cleaner.fullName,
+    service: customerRequest.service,
+    area: pilotCoverage.outwardCode,
+    siteSize: customerRequest.siteSize,
+    hazards: customerRequest.hazards,
+    proposedDate: proposal.proposedDate,
+    estimatedHours: proposal.estimatedHours,
+    cleanerPay: proposal.cleanerPay,
+    cleanerRate: proposal.cleanerRate,
+    checklist: latestBrief?.status === "reviewed" ? latestBrief.checklist : [],
+    photoCount: latestBrief?.status === "reviewed" ? latestBrief.photos.length : 0,
+    cleanerModel: config.cleanerModel,
+    legalBusinessName: config.legalBusinessName,
+    supportEmail: config.supportEmail,
+    supportPhone: config.supportPhone
+  };
+  return {
+    ok: true,
+    opportunity: {
+      reference: proposal.id,
+      status: proposalStatus,
+      cleanerName: displayed.cleanerName,
+      service: displayed.service,
+      area: displayed.area,
+      siteSize: displayed.siteSize,
+      hazards: displayed.hazards,
+      proposedDate: displayed.proposedDate,
+      estimatedHours: displayed.estimatedHours,
+      cleanerPay: displayed.cleanerPay,
+      cleanerRate: displayed.cleanerRate,
+      checklist: displayed.checklist,
+      photoCount: displayed.photoCount,
+      cleanerModel: displayed.cleanerModel,
+      legalBusinessName: displayed.legalBusinessName,
+      supportEmail: displayed.supportEmail,
+      supportPhone: displayed.supportPhone,
+      decisionAllowed: ["sent", "accepted"].includes(proposalStatus) && !decision && Object.values(readyChecks).every(Boolean),
+      decision: decision ? { status: decision.status, decidedAt: decision.updatedAt, typedName: decision.typedName } : null
+    }
+  };
+}
+
+async function getPrivateCleanerOpportunity(request, response) {
+  const token = text(request.headers["x-opportunity-token"], 80);
+  const context = await getCleanerOpportunityContext(token);
+  if (!context.ok) return json(response, context.statusCode, { ok: false, error: context.error });
+  return json(response, 200, publicCleanerOpportunity(context));
+}
+
+async function decidePrivateCleanerOpportunity(request, response) {
+  ensureSameOrigin(request);
+  const token = text(request.headers["x-opportunity-token"], 80);
+  const input = await readJson(request);
+  const context = await getCleanerOpportunityContext(token);
+  if (!context.ok) return json(response, context.statusCode, { ok: false, error: context.error });
+  if (!["sent", "accepted"].includes(context.proposalStatus)) return json(response, 409, { ok: false, error: "This opportunity is not awaiting a decision." });
+  if (context.decision) return json(response, 409, { ok: false, error: "This private decision has already been recorded." });
+  if (!Object.values(context.readyChecks).every(Boolean)) return json(response, 409, { ok: false, error: "This opportunity changed and must be reviewed by Tideway before you decide." });
+
+  const decision = text(input.decision, 20);
+  const typedName = text(input.typedName, 120);
+  const normalisedName = (value) => value.toLocaleLowerCase("en-GB").replace(/\s+/g, " ").trim();
+  if (!["accepted", "declined"].includes(decision)) return json(response, 422, { ok: false, error: "Choose whether to accept or decline this opportunity." });
+  if (!typedName || normalisedName(typedName) !== normalisedName(context.cleaner.fullName)) {
+    return json(response, 422, { ok: false, error: "Type the same full name used on the cleaner application." });
+  }
+  if (decision === "accepted" && (input.scopeConfirmed !== true || input.payConfirmed !== true || input.availabilityConfirmed !== true)) {
+    return json(response, 422, { ok: false, error: "Confirm the scope, proposed pay and availability before accepting." });
+  }
+
+  const displayed = publicCleanerOpportunity(context).opportunity;
+  const updatedAt = new Date().toISOString();
+  const record = {
+    proposalId: context.proposal.id,
+    requestId: context.proposal.requestId,
+    cleanerId: context.proposal.cleanerId,
+    status: decision,
+    typedName,
+    scopeConfirmed: decision === "accepted",
+    payConfirmed: decision === "accepted",
+    availabilityConfirmed: decision === "accepted",
+    reason: text(input.reason, 500),
+    acceptedSnapshot: decision === "accepted" ? {
+      service: displayed.service,
+      area: displayed.area,
+      siteSize: displayed.siteSize,
+      hazards: displayed.hazards,
+      proposedDate: displayed.proposedDate,
+      estimatedHours: displayed.estimatedHours,
+      cleanerPay: displayed.cleanerPay,
+      cleanerRate: displayed.cleanerRate,
+      checklist: displayed.checklist,
+      cleanerModel: displayed.cleanerModel
+    } : null,
+    updatedAt
+  };
+  await saveDecisionOnce("cleaner-opportunity-decisions.ndjson", context.proposal.id, record);
   return json(response, 200, { ok: true, status: decision, decidedAt: updatedAt });
 }
 
@@ -677,7 +894,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
 }
 
 async function buildBookingAudit(proposalId) {
-  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config, briefs, briefUpdates, screenings] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config, briefs, briefUpdates, screenings, cleanerDecisions] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
@@ -686,7 +903,8 @@ async function buildBookingAudit(proposalId) {
     readJsonFile("business-config.json", {}),
     readRecords("job-briefs.ndjson"),
     readRecords("job-brief-status.ndjson"),
-    readRecords("cleaner-screening.ndjson")
+    readRecords("cleaner-screening.ndjson"),
+    readRecords("cleaner-opportunity-decisions.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return { statusCode: 404, error: "Proposal not found." };
@@ -700,9 +918,11 @@ async function buildBookingAudit(proposalId) {
   const requiredService = requestServiceMap[customerRequest.service] || "";
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
+  const cleanerDecision = cleanerDecisions.find((record) => record.proposalId === proposal.id) || null;
   const checks = {
     launchReady: launchReadiness(config).ready,
-    proposalAccepted: proposalStatus === "accepted",
+    customerAccepted: proposalStatus === "accepted",
+    cleanerAccepted: cleanerDecision?.status === "accepted",
     cleanerApproved: cleanerStatus === "approved",
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
@@ -720,10 +940,9 @@ async function buildBookingAudit(proposalId) {
     "Confirm the exact service address and named access contact through the approved secure process.",
     "Confirm the final task checklist, exclusions, products and equipment with both sides.",
     "Confirm the customer payment authorisation without storing card details in Tideway notes.",
-    "Confirm the cleaner has accepted the date, scope and proposed pay.",
     "Share emergency and issue-reporting instructions before the visit."
   ];
-  return { ok: true, proposal, customerRequest, cleaner, proposalId, proposalStatus, automatedReady, checks, manualChecklist };
+  return { ok: true, proposal, customerRequest, cleaner, proposalId, proposalStatus, cleanerDecision: cleanerDecision ? { status: cleanerDecision.status, decidedAt: cleanerDecision.updatedAt } : null, automatedReady, checks, manualChecklist };
 }
 
 async function getAdminBookingAudit(request, response, proposalId) {
@@ -743,7 +962,6 @@ async function createAdminBooking(request, response) {
     addressAndAccessConfirmed: input.addressAndAccessConfirmed === true,
     finalChecklistConfirmed: input.finalChecklistConfirmed === true,
     paymentAuthorisationConfirmed: input.paymentAuthorisationConfirmed === true,
-    cleanerAcceptanceConfirmed: input.cleanerAcceptanceConfirmed === true,
     emergencyInstructionsConfirmed: input.emergencyInstructionsConfirmed === true
   };
   if (!proposalId || !Object.values(confirmations).every(Boolean)) {
@@ -895,6 +1113,7 @@ async function createAdminProposal(request, response) {
     marginPercent,
     note,
     reviewToken: randomBytes(24).toString("base64url"),
+    cleanerReviewToken: randomBytes(24).toString("base64url"),
     status: "draft",
     createdAt: new Date().toISOString()
   };
@@ -1228,6 +1447,7 @@ async function serveFile(requestPath, response) {
     "/join": "index.html",
     "/brief": "brief.html",
     "/quote": "quote.html",
+    "/opportunity": "opportunity.html",
     "/admin": "admin.html",
     "/privacy": "privacy.html",
     "/terms": "terms.html"
@@ -1274,6 +1494,12 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/quote/decision") {
       return await decidePrivateQuote(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/opportunity") {
+      return await getPrivateCleanerOpportunity(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/opportunity/decision") {
+      return await decidePrivateCleanerOpportunity(request, response);
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/records") {
       return await getAdminRecords(request, response);

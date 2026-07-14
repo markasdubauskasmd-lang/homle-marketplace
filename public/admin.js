@@ -347,13 +347,12 @@ function appendBookingForm(record, proposal, target) {
   }
   const form = document.createElement("form");
   form.className = "booking-confirmation-form";
-  addText(form, "strong", "Record the five manual confirmations");
+  addText(form, "strong", "Record the four remaining manual confirmations");
   addText(form, "span", "Internal record only. This does not send a booking or take payment.");
   form.append(
     bookingConfirmation("Exact address and named access contact confirmed securely", "addressAndAccessConfirmed"),
     bookingConfirmation("Final checklist, exclusions, products and equipment confirmed", "finalChecklistConfirmed"),
     bookingConfirmation("Payment authorisation confirmed externally; no card details stored here", "paymentAuthorisationConfirmed"),
-    bookingConfirmation("Cleaner accepted the date, scope and proposed pay", "cleanerAcceptanceConfirmed"),
     bookingConfirmation("Emergency and issue-reporting instructions shared", "emergencyInstructionsConfirmed")
   );
   const note = document.createElement("textarea");
@@ -371,7 +370,7 @@ function appendBookingForm(record, proposal, target) {
     submit.disabled = true;
     const data = new FormData(form);
     const body = { proposalId: proposal.id, internalNote: data.get("internalNote") || "" };
-    ["addressAndAccessConfirmed", "finalChecklistConfirmed", "paymentAuthorisationConfirmed", "cleanerAcceptanceConfirmed", "emergencyInstructionsConfirmed"].forEach((name) => { body[name] = data.has(name); });
+    ["addressAndAccessConfirmed", "finalChecklistConfirmed", "paymentAuthorisationConfirmed", "emergencyInstructionsConfirmed"].forEach((name) => { body[name] = data.has(name); });
     try {
       const response = await fetch("/api/admin/bookings", { method: "POST", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
       const result = await response.json();
@@ -398,7 +397,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Latest photo job brief reviewed", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
+    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Latest photo job brief reviewed", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -750,7 +749,7 @@ function buildCard(record) {
     const proposal = record.proposals[0];
     const proposalSummary = document.createElement("div");
     proposalSummary.className = "proposal-summary";
-    const proposalDisplayLabels = { draft: "Draft proposal", ready: "Ready proposal", sent: "Sent proposal", accepted: "Accepted proposal", declined: "Declined proposal", cancelled: "Cancelled proposal" };
+    const proposalDisplayLabels = { draft: "Draft proposal", ready: "Ready proposal", sent: "Sent proposal", accepted: "Customer accepted proposal", declined: "Customer declined proposal", cancelled: "Cancelled proposal" };
     addText(proposalSummary, "strong", `${proposalDisplayLabels[proposal.status] || "Proposal"} · ${proposal.cleanerName}`);
     addText(proposalSummary, "span", `${proposal.proposedDate} · ${proposal.estimatedHours} hours · ${money.format(proposal.customerTotal)} customer total`);
     addText(proposalSummary, "span", `${money.format(proposal.cleanerPay)} cleaner pay · ${money.format(proposal.contribution)} contribution · ${proposal.marginPercent.toFixed(1)}% margin`);
@@ -762,8 +761,8 @@ function buildCard(record) {
       draft: "Draft",
       ready: "Ready to send — internally approved",
       sent: "Sent manually",
-      accepted: "Accepted by both sides",
-      declined: "Declined",
+      accepted: "Accepted by customer",
+      declined: "Declined by customer",
       cancelled: "Cancelled"
     };
     const allowedByCurrent = {
@@ -799,6 +798,25 @@ function buildCard(record) {
       copyLink.addEventListener("click", () => copyDraft(reviewUrl, copyLink));
       quoteLink.append(linkField, copyLink);
     }
+    const cleanerLink = document.createElement("div");
+    cleanerLink.className = "quote-review-link cleaner-review-link";
+    if (proposal.cleanerReviewToken && ["ready", "sent", "accepted", "declined"].includes(proposal.status)) {
+      const cleanerDecision = proposal.cleanerDecision?.status;
+      addText(cleanerLink, "strong", cleanerDecision === "accepted" ? "Cleaner accepted this opportunity" : cleanerDecision === "declined" ? "Cleaner declined this opportunity" : "Private cleaner opportunity link");
+      addText(cleanerLink, "span", proposal.status === "ready" ? "Preview only until you record the proposal as sent." : cleanerDecision ? `Decision recorded ${formatDate(proposal.cleanerDecision.updatedAt)}. The link is now read-only.` : "Share only with the proposed cleaner. It records their own decision and does not confirm an assignment.");
+      const opportunityUrl = `${location.origin}/opportunity#${proposal.cleanerReviewToken}`;
+      const opportunityField = document.createElement("input");
+      opportunityField.type = "text";
+      opportunityField.readOnly = true;
+      opportunityField.value = opportunityUrl;
+      opportunityField.setAttribute("aria-label", `Private cleaner opportunity link for ${proposal.id}`);
+      const copyOpportunity = document.createElement("button");
+      copyOpportunity.type = "button";
+      copyOpportunity.className = "button button-small button-outline";
+      copyOpportunity.textContent = "Copy cleaner link — does not send";
+      copyOpportunity.addEventListener("click", () => copyDraft(opportunityUrl, copyOpportunity));
+      cleanerLink.append(opportunityField, copyOpportunity);
+    }
     const draftDetails = document.createElement("details");
     draftDetails.className = "message-drafts";
     const draftSummary = document.createElement("summary");
@@ -823,7 +841,7 @@ function buildCard(record) {
     auditTarget.className = "booking-audit-target";
     auditButton.addEventListener("click", () => loadBookingAudit(record, proposal, auditTarget, auditButton));
     bookingDetails.append(bookingSummary, auditButton, auditTarget);
-    proposalSummary.append(proposalStatusLabel, quoteLink, draftDetails, bookingDetails);
+    proposalSummary.append(proposalStatusLabel, quoteLink, cleanerLink, draftDetails, bookingDetails);
     card.append(proposalSummary);
   }
 
