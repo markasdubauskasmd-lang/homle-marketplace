@@ -106,6 +106,10 @@ function text(value, max = 300) {
   return typeof value === "string" ? value.trim().replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").slice(0, max) : "";
 }
 
+function localDateToday(now = new Date()) {
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
+}
+
 function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -152,6 +156,35 @@ async function saveDecisionOnce(filename, proposalId, record) {
     const duplicate = existing.some((item) => item.proposalId === proposalId && (!record.source || item.source === record.source));
     if (duplicate) throw Object.assign(new Error("This private decision has already been recorded."), { statusCode: 409 });
     await appendFile(path.join(dataDir, filename), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+  });
+  writeQueue = operation;
+  return operation;
+}
+
+async function saveCleanerDecisionOnce(record) {
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    const [proposals, proposalUpdates, decisions, bookings] = await Promise.all([
+      readRecords("match-proposals.ndjson"),
+      readRecords("proposal-status.ndjson"),
+      readRecords("cleaner-opportunity-decisions.ndjson"),
+      readRecords("bookings.ndjson")
+    ]);
+    if (decisions.some((item) => item.proposalId === record.proposalId)) {
+      throw Object.assign(new Error("This private decision has already been recorded."), { statusCode: 409 });
+    }
+    const proposal = proposals.find((item) => item.id === record.proposalId);
+    if (!proposal) throw Object.assign(new Error("This cleaning opportunity could not be found."), { statusCode: 404 });
+    let proposalStatus = proposal.status || "draft";
+    for (const update of proposalUpdates) if (update.proposalId === proposal.id) proposalStatus = update.status;
+    if (!["sent", "accepted"].includes(proposalStatus)) {
+      throw Object.assign(new Error("This opportunity is no longer awaiting a decision."), { statusCode: 409 });
+    }
+    if (record.status === "accepted") {
+      const conflict = findCleanerScheduleConflict(proposal, proposals, proposalUpdates, decisions, bookings);
+      if (conflict) throw Object.assign(new Error(`This cleaner already has accepted work that overlaps this time (${conflict.id}).`), { statusCode: 409 });
+    }
+    await appendFile(path.join(dataDir, "cleaner-opportunity-decisions.ndjson"), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
   });
   writeQueue = operation;
   return operation;
@@ -240,6 +273,58 @@ function pilotPostcodeCoverage(postcode, configuredPostcodes) {
     invalidCodes,
     covered: Boolean(outwardCode && allowedCodes.includes(outwardCode))
   };
+}
+
+function jobSchedule(record) {
+  const proposedDate = text(record?.proposedDate, 20);
+  const proposedStartTime = text(record?.proposedStartTime, 10);
+  const estimatedHours = Number(record?.estimatedHours);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(proposedDate) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(proposedStartTime) || !Number.isFinite(estimatedHours) || estimatedHours <= 0) return null;
+  const [year, month, day] = proposedDate.split("-").map(Number);
+  const [hour, minute] = proposedStartTime.split(":").map(Number);
+  const startMs = Date.UTC(year, month - 1, day, hour, minute);
+  const parsed = new Date(startMs);
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) return null;
+  const endMs = startMs + estimatedHours * 60 * 60 * 1000;
+  const nextDayMs = Date.UTC(year, month - 1, day + 1);
+  if (endMs > nextDayMs) return null;
+  const end = new Date(endMs);
+  const proposedEndTime = `${String(end.getUTCHours()).padStart(2, "0")}:${String(end.getUTCMinutes()).padStart(2, "0")}`;
+  return { proposedDate, proposedStartTime, proposedEndTime, startMs, endMs };
+}
+
+function schedulesOverlap(left, right) {
+  return left.startMs < right.endMs && right.startMs < left.endMs;
+}
+
+function findCleanerScheduleConflict(target, proposals, proposalUpdates, cleanerDecisions, bookings) {
+  const targetSchedule = jobSchedule(target);
+  if (!targetSchedule) return { id: "invalid-schedule", proposedDate: target.proposedDate };
+  const statuses = new Map(proposals.map((proposal) => [proposal.id, proposal.status || "draft"]));
+  for (const update of proposalUpdates) statuses.set(update.proposalId, update.status);
+  const acceptedProposalIds = new Set(cleanerDecisions.filter((decision) => decision.status === "accepted").map((decision) => decision.proposalId));
+  const bookedProposalIds = new Set(bookings.map((booking) => booking.proposalId));
+  for (const other of proposals) {
+    if (other.id === target.id || other.cleanerId !== target.cleanerId) continue;
+    if (["declined", "cancelled"].includes(statuses.get(other.id))) continue;
+    if (!acceptedProposalIds.has(other.id) && !bookedProposalIds.has(other.id)) continue;
+    const otherSchedule = jobSchedule(other);
+    if (!otherSchedule) {
+      if (other.proposedDate === target.proposedDate) return { id: other.id, proposedDate: other.proposedDate };
+      continue;
+    }
+    if (schedulesOverlap(targetSchedule, otherSchedule)) return { id: other.id, ...otherSchedule };
+  }
+  for (const booking of bookings) {
+    if (booking.proposalId === target.id || booking.cleanerId !== target.cleanerId) continue;
+    const bookingSchedule = jobSchedule(booking);
+    if (!bookingSchedule) {
+      if (booking.proposedDate === target.proposedDate) return { id: booking.id, proposedDate: booking.proposedDate };
+      continue;
+    }
+    if (schedulesOverlap(targetSchedule, bookingSchedule)) return { id: booking.id, ...bookingSchedule };
+  }
+  return null;
 }
 
 function launchReadiness(config) {
@@ -418,7 +503,7 @@ async function updateAdminProposalStatus(request, response) {
     declined: new Set([]),
     cancelled: new Set([])
   };
-  const [proposals, updates, config, briefs, briefUpdates, customerRequests, cleaners, cleanerUpdates, screenings] = await Promise.all([
+  const [proposals, updates, config, briefs, briefUpdates, customerRequests, cleaners, cleanerUpdates, screenings, cleanerDecisions, bookings] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readJsonFile("business-config.json", {}),
@@ -427,7 +512,9 @@ async function updateAdminProposalStatus(request, response) {
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
-    readRecords("cleaner-screening.ndjson")
+    readRecords("cleaner-screening.ndjson"),
+    readRecords("cleaner-opportunity-decisions.ndjson"),
+    readRecords("bookings.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
@@ -468,6 +555,10 @@ async function updateAdminProposalStatus(request, response) {
     const proposalMargin = Number.isFinite(proposal.marginPercent) ? `${proposal.marginPercent.toFixed(1)}%` : "unrecorded";
     return json(response, 422, { ok: false, error: `This proposal's ${proposalMargin} contribution margin is below the ${config.minimumContributionMarginPercent.toFixed(1)}% minimum.` });
   }
+  const scheduleConflict = findCleanerScheduleConflict(proposal, proposals, updates, cleanerDecisions, bookings);
+  if (["ready", "sent"].includes(status) && scheduleConflict) {
+    return json(response, 422, { ok: false, error: `The selected cleaner already has accepted work that overlaps this proposed time (${scheduleConflict.id}).` });
+  }
   const update = {
     proposalId,
     requestId: proposal.requestId,
@@ -479,6 +570,8 @@ async function updateAdminProposalStatus(request, response) {
         postcode: customerRequest.postcode,
         siteSize: customerRequest.siteSize,
         proposedDate: proposal.proposedDate,
+        proposedStartTime: proposal.proposedStartTime,
+        proposedEndTime: proposal.proposedEndTime,
         estimatedHours: proposal.estimatedHours,
         customerTotal: proposal.customerTotal,
         cancellationPolicy: config.cancellationPolicy,
@@ -494,6 +587,8 @@ async function updateAdminProposalStatus(request, response) {
         siteSize: customerRequest.siteSize,
         hazards: customerRequest.hazards,
         proposedDate: proposal.proposedDate,
+        proposedStartTime: proposal.proposedStartTime,
+        proposedEndTime: proposal.proposedEndTime,
         estimatedHours: proposal.estimatedHours,
         cleanerPay: proposal.cleanerPay,
         cleanerRate: proposal.cleanerRate,
@@ -513,13 +608,15 @@ async function updateAdminProposalStatus(request, response) {
 
 async function getQuoteContext(token) {
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return { ok: false, statusCode: 404, error: "This private quote link is invalid." };
-  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, screenings, config, briefs, briefUpdates] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, screenings, cleanerDecisions, bookings, config, briefs, briefUpdates] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
     readRecords("cleaner-screening.ndjson"),
+    readRecords("cleaner-opportunity-decisions.ndjson"),
+    readRecords("bookings.ndjson"),
     readJsonFile("business-config.json", {}),
     readRecords("job-briefs.ndjson"),
     readRecords("job-brief-status.ndjson")
@@ -553,7 +650,8 @@ async function getQuoteContext(token) {
     briefReviewed: !latestBrief || latestBrief.status === "reviewed",
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
-    minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours
+    minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
+    scheduleConflictFree: !findCleanerScheduleConflict(proposal, proposals, proposalUpdates, cleanerDecisions, bookings)
   };
   return { ok: true, proposal, proposalStatus, customerRequest, config, latestBrief, latestDecision, quoteSnapshot, readyChecks };
 }
@@ -565,6 +663,8 @@ function publicQuote(context) {
     postcode: customerRequest.postcode,
     siteSize: customerRequest.siteSize,
     proposedDate: proposal.proposedDate,
+    proposedStartTime: proposal.proposedStartTime,
+    proposedEndTime: proposal.proposedEndTime,
     estimatedHours: proposal.estimatedHours,
     customerTotal: proposal.customerTotal,
     cancellationPolicy: config.cancellationPolicy,
@@ -584,6 +684,8 @@ function publicQuote(context) {
       siteSize: displayed.siteSize,
       preferredDate: customerRequest.preferredDate,
       proposedDate: displayed.proposedDate,
+      proposedStartTime: displayed.proposedStartTime,
+      proposedEndTime: displayed.proposedEndTime,
       estimatedHours: displayed.estimatedHours,
       customerTotal: displayed.customerTotal,
       cancellationPolicy: displayed.cancellationPolicy,
@@ -641,6 +743,8 @@ async function decidePrivateQuote(request, response) {
       postcode: context.customerRequest.postcode,
       siteSize: context.customerRequest.siteSize,
       proposedDate: context.proposal.proposedDate,
+      proposedStartTime: context.proposal.proposedStartTime,
+      proposedEndTime: context.proposal.proposedEndTime,
       estimatedHours: context.proposal.estimatedHours,
       customerTotal: context.proposal.customerTotal,
       cancellationPolicy: context.config.cancellationPolicy,
@@ -657,10 +761,11 @@ async function decidePrivateQuote(request, response) {
 
 async function getCleanerOpportunityContext(token) {
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return { ok: false, statusCode: 404, error: "This private opportunity link is invalid." };
-  const [proposals, proposalUpdates, decisions, customerRequests, cleaners, cleanerUpdates, screenings, config, briefs, briefUpdates] = await Promise.all([
+  const [proposals, proposalUpdates, decisions, bookings, customerRequests, cleaners, cleanerUpdates, screenings, config, briefs, briefUpdates] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaner-opportunity-decisions.ndjson"),
+    readRecords("bookings.ndjson"),
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
@@ -696,7 +801,8 @@ async function getCleanerOpportunityContext(token) {
     briefReviewed: !latestBrief || latestBrief.status === "reviewed",
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
-    minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours
+    minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
+    scheduleConflictFree: !findCleanerScheduleConflict(proposal, proposals, proposalUpdates, decisions, bookings)
   };
   const decision = decisions.find((record) => record.proposalId === proposal.id) || null;
   return { ok: true, proposal, proposalStatus, customerRequest, cleaner, config, latestBrief, opportunitySnapshot, readyChecks, decision };
@@ -712,6 +818,8 @@ function publicCleanerOpportunity(context) {
     siteSize: customerRequest.siteSize,
     hazards: customerRequest.hazards,
     proposedDate: proposal.proposedDate,
+    proposedStartTime: proposal.proposedStartTime,
+    proposedEndTime: proposal.proposedEndTime,
     estimatedHours: proposal.estimatedHours,
     cleanerPay: proposal.cleanerPay,
     cleanerRate: proposal.cleanerRate,
@@ -733,6 +841,8 @@ function publicCleanerOpportunity(context) {
       siteSize: displayed.siteSize,
       hazards: displayed.hazards,
       proposedDate: displayed.proposedDate,
+      proposedStartTime: displayed.proposedStartTime,
+      proposedEndTime: displayed.proposedEndTime,
       estimatedHours: displayed.estimatedHours,
       cleanerPay: displayed.cleanerPay,
       cleanerRate: displayed.cleanerRate,
@@ -794,6 +904,8 @@ async function decidePrivateCleanerOpportunity(request, response) {
       siteSize: displayed.siteSize,
       hazards: displayed.hazards,
       proposedDate: displayed.proposedDate,
+      proposedStartTime: displayed.proposedStartTime,
+      proposedEndTime: displayed.proposedEndTime,
       estimatedHours: displayed.estimatedHours,
       cleanerPay: displayed.cleanerPay,
       cleanerRate: displayed.cleanerRate,
@@ -802,7 +914,7 @@ async function decidePrivateCleanerOpportunity(request, response) {
     } : null,
     updatedAt
   };
-  await saveDecisionOnce("cleaner-opportunity-decisions.ndjson", context.proposal.id, record);
+  await saveCleanerDecisionOnce(record);
   return json(response, 200, { ok: true, status: decision, decidedAt: updatedAt });
 }
 
@@ -847,6 +959,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Thank you for requesting ${customerRequest.service.toLowerCase()} in ${customerRequest.postcode}.`,
     "",
     `Proposed date: ${proposal.proposedDate}`,
+    `Proposed time: ${proposal.proposedStartTime}–${proposal.proposedEndTime}`,
     `Site scope: ${customerRequest.siteSize || "[Confirm site size before sending]"}`,
     `Estimated cleaning time: ${proposal.estimatedHours} hours`,
     `Proposed customer total: ${money(proposal.customerTotal)}`,
@@ -870,6 +983,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Site scope: ${customerRequest.siteSize || "Confirm before accepting"}`,
     `Known hazards: ${customerRequest.hazards || "Confirm before accepting"}`,
     `Proposed date: ${proposal.proposedDate}`,
+    `Proposed time: ${proposal.proposedStartTime}–${proposal.proposedEndTime}`,
     `Estimated time: ${proposal.estimatedHours} hours`,
     `Proposed cleaner pay: ${money(proposal.cleanerPay)} total (${money(proposal.cleanerRate)} per hour)`,
     ...(latestBrief ? ["", latestBrief.status === "reviewed" ? "Tideway-reviewed cleaner checklist:" : "Landlord-draft cleaner checklist (Tideway review required):", ...latestBrief.checklist.map((task) => `- ${task}`), `Photo references held privately: ${latestBrief.photos.length}. Share only through the approved secure process after confirmation.`] : []),
@@ -894,7 +1008,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
 }
 
 async function buildBookingAudit(proposalId) {
-  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config, briefs, briefUpdates, screenings, cleanerDecisions] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config, briefs, briefUpdates, screenings, cleanerDecisions, bookings] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
@@ -904,7 +1018,8 @@ async function buildBookingAudit(proposalId) {
     readRecords("job-briefs.ndjson"),
     readRecords("job-brief-status.ndjson"),
     readRecords("cleaner-screening.ndjson"),
-    readRecords("cleaner-opportunity-decisions.ndjson")
+    readRecords("cleaner-opportunity-decisions.ndjson"),
+    readRecords("bookings.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return { statusCode: 404, error: "Proposal not found." };
@@ -933,7 +1048,8 @@ async function buildBookingAudit(proposalId) {
     briefReviewed: !latestBrief || latestBrief.status === "reviewed",
     scopeCaptured: Boolean(customerRequest.siteSize),
     accessCaptured: Boolean(customerRequest.accessNotes),
-    hazardsCaptured: Boolean(customerRequest.hazards)
+    hazardsCaptured: Boolean(customerRequest.hazards),
+    scheduleConflictFree: !findCleanerScheduleConflict(proposal, proposals, proposalUpdates, cleanerDecisions, bookings)
   };
   const automatedReady = Object.values(checks).every(Boolean);
   const manualChecklist = [
@@ -988,6 +1104,9 @@ async function createAdminBooking(request, response) {
     requestId: audit.customerRequest.id,
     cleanerId: audit.cleaner.id,
     proposedDate: audit.proposal.proposedDate,
+    proposedStartTime: audit.proposal.proposedStartTime,
+    proposedEndTime: audit.proposal.proposedEndTime,
+    estimatedHours: audit.proposal.estimatedHours,
     plannedCustomerTotal: audit.proposal.customerTotal,
     plannedCleanerPay: audit.proposal.cleanerPay,
     plannedContribution: audit.proposal.contribution,
@@ -1059,6 +1178,7 @@ async function createAdminProposal(request, response) {
   const requestId = text(input.requestId, 40);
   const cleanerId = text(input.cleanerId, 40);
   const proposedDate = text(input.proposedDate, 20);
+  const proposedStartTime = text(input.proposedStartTime, 10);
   const estimatedHours = Math.max(0, Number(input.estimatedHours) || 0);
   const customerRate = Math.max(0, Number(input.customerRate) || 0);
   const cleanerRate = Math.max(0, Number(input.cleanerRate) || 0);
@@ -1068,7 +1188,11 @@ async function createAdminProposal(request, response) {
   const errors = [];
   if (!requestId || !cleanerId) errors.push("Customer request and cleaner are required.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(proposedDate)) errors.push("Choose a proposed date.");
-  if (estimatedHours <= 0 || customerRate <= 0 || cleanerRate <= 0) errors.push("Hours, customer rate and cleaner pay must be greater than zero.");
+  if (proposedDate && proposedDate < localDateToday()) errors.push("Proposed date cannot be in the past.");
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(proposedStartTime)) errors.push("Choose an exact proposed start time.");
+  if (estimatedHours <= 0 || estimatedHours > 16 || customerRate <= 0 || cleanerRate <= 0) errors.push("Hours must be between 0 and 16, and customer rate and cleaner pay must be greater than zero.");
+  const schedule = jobSchedule({ proposedDate, proposedStartTime, estimatedHours });
+  if (proposedDate && proposedStartTime && estimatedHours > 0 && !schedule) errors.push("The proposed cleaning must start and finish on a valid calendar date.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
   const [requests, cleaners, updates, config, screenings] = await Promise.all([
@@ -1103,6 +1227,8 @@ async function createAdminProposal(request, response) {
     cleanerId,
     cleanerName: cleaner.fullName,
     proposedDate,
+    proposedStartTime,
+    proposedEndTime: schedule.proposedEndTime,
     estimatedHours,
     customerRate,
     cleanerRate,
@@ -1369,6 +1495,7 @@ async function handleCleaningRequest(request, response) {
     hazards: text(input.hazards, 120),
     frequency: text(input.frequency, 80),
     preferredDate: text(input.preferredDate, 20),
+    preferredTimeWindow: text(input.preferredTimeWindow, 80),
     details: text(input.details, 1200),
     consent: input.consent === true
   };
@@ -1387,6 +1514,7 @@ async function handleCleaningRequest(request, response) {
   if (record.email && !isEmail(record.email)) errors.push("Enter a valid email address.");
   if (record.phone && !isPhone(record.phone)) errors.push("Enter a valid phone number.");
   if (record.postcode && !isUkPostcode(record.postcode)) errors.push("Enter a valid UK postcode.");
+  if (record.preferredDate && (!/^\d{4}-\d{2}-\d{2}$/.test(record.preferredDate) || record.preferredDate < localDateToday())) errors.push("Preferred date must be today or later.");
   if (!record.consent) errors.push("Privacy consent is required.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 

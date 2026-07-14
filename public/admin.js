@@ -68,6 +68,10 @@ function proposalField(labelText, name, type = "number", value = "") {
   input.type = type;
   input.required = true;
   if (type === "number") { input.min = "0"; input.step = name === "estimatedHours" ? "0.5" : "0.01"; }
+  if (type === "date") {
+    const now = new Date();
+    input.min = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
+  }
   input.value = value || "";
   label.append(input);
   return label;
@@ -78,7 +82,8 @@ function showProposalForm(record, match, target) {
   const form = document.createElement("form");
   form.className = "proposal-form";
   form.append(
-    proposalField("Proposed date", "proposedDate", "date"),
+    proposalField("Proposed date", "proposedDate", "date", record.preferredDate),
+    proposalField("Exact start time", "proposedStartTime", "time", record.preferredTimeWindow?.startsWith("Afternoon") ? "13:00" : record.preferredTimeWindow?.startsWith("Evening") ? "17:00" : "09:00"),
     proposalField("Estimated hours", "estimatedHours", "number", state.config.minimumHours),
     proposalField("Customer rate per hour (£)", "customerRate", "number", state.config.customerHourlyRate),
     proposalField("Cleaner pay per hour (£)", "cleanerRate", "number", state.config.cleanerHourlyPay),
@@ -397,7 +402,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Latest photo job brief reviewed", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
+    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Latest photo job brief reviewed", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -672,6 +677,7 @@ function buildCard(record) {
     addDetail(details, "Hazards", record.hazards);
     addDetail(details, "Frequency", record.frequency);
     addDetail(details, "Preferred date", record.preferredDate);
+    addDetail(details, "Preferred arrival", record.preferredTimeWindow);
     addDetail(details, "Organisation", record.organisation);
     addDetail(details, "Details", record.details);
   } else {
@@ -751,7 +757,7 @@ function buildCard(record) {
     proposalSummary.className = "proposal-summary";
     const proposalDisplayLabels = { draft: "Draft proposal", ready: "Ready proposal", sent: "Sent proposal", accepted: "Customer accepted proposal", declined: "Customer declined proposal", cancelled: "Cancelled proposal" };
     addText(proposalSummary, "strong", `${proposalDisplayLabels[proposal.status] || "Proposal"} · ${proposal.cleanerName}`);
-    addText(proposalSummary, "span", `${proposal.proposedDate} · ${proposal.estimatedHours} hours · ${money.format(proposal.customerTotal)} customer total`);
+    addText(proposalSummary, "span", `${proposal.proposedDate} · ${proposal.proposedStartTime}–${proposal.proposedEndTime} · ${proposal.estimatedHours} hours · ${money.format(proposal.customerTotal)} customer total`);
     addText(proposalSummary, "span", `${money.format(proposal.cleanerPay)} cleaner pay · ${money.format(proposal.contribution)} contribution · ${proposal.marginPercent.toFixed(1)}% margin`);
     const proposalStatusLabel = document.createElement("label");
     proposalStatusLabel.append(document.createTextNode("Internal proposal status"));

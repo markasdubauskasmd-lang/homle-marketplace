@@ -27,6 +27,8 @@ Then open `http://127.0.0.1:4173`.
 - Founder-configured outward-postcode enforcement that blocks out-of-area matching, proposal use and booking readiness
 - Human-reviewed matching suggestions using fully screened approved cleaners, requested service type and postcode coverage
 - Internal draft proposals that link a request to an approved cleaner and reject work below the minimum hours, loss-making economics or a below-target contribution margin
+- Exact proposal start and calculated finish times, with past-date and same-day duration validation
+- Atomic schedule-conflict protection that prevents one cleaner accepting or booking overlapping work, including legacy booking records
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until launch checks, pilot coverage and the latest job-brief review pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
 - Private customer quote-review links that keep the token out of server URLs, require name/scope/terms confirmation, lock after one decision and preserve an acceptance snapshot for the booking audit

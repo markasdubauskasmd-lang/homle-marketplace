@@ -31,6 +31,7 @@ function renderOpportunity(opportunity) {
   setText("[data-site-size]", opportunity.siteSize);
   setText("[data-hazards]", opportunity.hazards);
   setText("[data-proposed-date]", date.format(new Date(`${opportunity.proposedDate}T12:00:00`)));
+  setText("[data-proposed-time]", `${opportunity.proposedStartTime}–${opportunity.proposedEndTime}`);
   setText("[data-estimated-hours]", `${opportunity.estimatedHours} hours`);
   setText("[data-cleaner-rate]", `${money.format(opportunity.cleanerRate)} per hour`);
   setText("[data-cleaner-pay]", money.format(opportunity.cleanerPay));

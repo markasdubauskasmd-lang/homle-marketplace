@@ -30,6 +30,7 @@ function renderQuote(quote) {
   setText("[data-postcode]", quote.postcode);
   setText("[data-site-size]", quote.siteSize);
   setText("[data-proposed-date]", date.format(new Date(`${quote.proposedDate}T12:00:00`)));
+  setText("[data-proposed-time]", `${quote.proposedStartTime}–${quote.proposedEndTime}`);
   setText("[data-estimated-hours]", `${quote.estimatedHours} hours`);
   setText("[data-customer-total]", money.format(quote.customerTotal));
   setText("[data-cancellation]", quote.cancellationPolicy);

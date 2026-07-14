@@ -20,6 +20,11 @@ document.querySelectorAll("[data-year]").forEach((element) => {
   element.textContent = String(new Date().getFullYear());
 });
 
+document.querySelectorAll('input[type="date"]').forEach((input) => {
+  const now = new Date();
+  input.min = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
+});
+
 function formToJson(form) {
   const data = Object.fromEntries(new FormData(form).entries());
   form.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
