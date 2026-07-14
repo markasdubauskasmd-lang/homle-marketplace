@@ -17,6 +17,22 @@ const statusOptions = {
   cleaner: new Set(["new", "contacted", "screening", "approved", "paused", "rejected"])
 };
 
+const cleanerServiceFields = {
+  serviceTurnovers: "Rental turnovers",
+  serviceEndOfTenancy: "End-of-tenancy",
+  serviceWorkplaces: "Offices and workplaces",
+  serviceCommunal: "Communal areas",
+  serviceDeepCleans: "Deep cleans"
+};
+
+const requestServiceMap = {
+  "Rental turnover clean": "Rental turnovers",
+  "End-of-tenancy clean": "End-of-tenancy",
+  "Regular workplace clean": "Offices and workplaces",
+  "Communal area clean": "Communal areas",
+  "One-off deep clean": "Deep cleans"
+};
+
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -177,6 +193,55 @@ async function getAdminRecords(request, response) {
   return json(response, 200, { ok: true, records });
 }
 
+async function getAdminMatches(request, response, requestId) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  const [requests, cleaners, updates] = await Promise.all([
+    readRecords("cleaning-requests.ndjson"),
+    readRecords("cleaner-applications.ndjson"),
+    readRecords("status-updates.ndjson")
+  ]);
+  const customerRequest = requests.find((record) => record.id === requestId);
+  if (!customerRequest) return json(response, 404, { ok: false, error: "Customer request not found." });
+
+  const latestStatuses = new Map();
+  for (const update of updates) latestStatuses.set(update.id, update.status);
+  const requiredService = requestServiceMap[customerRequest.service] || "";
+  const outwardCode = customerRequest.postcode.replace(/\s+/g, " ").split(" ")[0].toUpperCase();
+  const postcodeArea = outwardCode.match(/^[A-Z]+/)?.[0] || "";
+
+  const matches = cleaners
+    .filter((cleaner) => (latestStatuses.get(cleaner.id) || cleaner.status) === "approved")
+    .map((cleaner) => {
+      const services = Array.isArray(cleaner.services) ? cleaner.services : [];
+      const serviceMatch = !requiredService || services.includes(requiredService);
+      const coverageText = cleaner.travelAreas.toUpperCase();
+      const exactCoverage = Boolean(outwardCode && coverageText.includes(outwardCode));
+      const areaCoverage = Boolean(postcodeArea && new RegExp(`(^|[^A-Z])${postcodeArea}([^A-Z]|$)`).test(coverageText));
+      const coverageScore = exactCoverage ? 60 : areaCoverage ? 35 : 0;
+      const serviceScore = serviceMatch ? 30 : 0;
+      const score = 10 + coverageScore + serviceScore;
+      return {
+        id: cleaner.id,
+        fullName: cleaner.fullName,
+        email: cleaner.email,
+        phone: cleaner.phone,
+        postcode: cleaner.postcode,
+        travelAreas: cleaner.travelAreas,
+        availability: cleaner.availability,
+        experience: cleaner.experience,
+        services,
+        serviceMatch,
+        coverage: exactCoverage ? "Postcode listed" : areaCoverage ? "Postcode area listed" : "Coverage needs checking",
+        score
+      };
+    })
+    .filter((cleaner) => cleaner.serviceMatch)
+    .sort((left, right) => right.score - left.score || left.fullName.localeCompare(right.fullName))
+    .slice(0, 10);
+
+  return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service }, matches });
+}
+
 async function addAdminActivity(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   ensureSameOrigin(request);
@@ -314,6 +379,9 @@ async function handleCleanerApplication(request, response) {
     experience: text(input.experience, 80),
     availability: text(input.availability, 240),
     transport: text(input.transport, 80),
+    services: Array.isArray(input.services)
+      ? input.services.map((service) => text(service, 80)).filter((service) => Object.values(cleanerServiceFields).includes(service))
+      : Object.entries(cleanerServiceFields).filter(([field]) => input[field] === true).map(([, service]) => service),
     rightToWork: input.rightToWork === true,
     consent: input.consent === true,
     notes: text(input.notes, 1000)
@@ -327,6 +395,7 @@ async function handleCleanerApplication(request, response) {
   required(record.travelAreas, "Areas you can work", errors);
   required(record.experience, "Experience", errors);
   required(record.availability, "Availability", errors);
+  if (!record.services.length) errors.push("Choose at least one type of cleaning work.");
   if (record.email && !isEmail(record.email)) errors.push("Enter a valid email address.");
   if (record.phone && !isPhone(record.phone)) errors.push("Enter a valid phone number.");
   if (record.postcode && !isUkPostcode(record.postcode)) errors.push("Enter a valid UK postcode.");
@@ -383,6 +452,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/records") {
       return await getAdminRecords(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/admin/matches") {
+      return await getAdminMatches(request, response, text(requestUrl.searchParams.get("requestId"), 40));
     }
     if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/status") {
       return await updateAdminStatus(request, response);

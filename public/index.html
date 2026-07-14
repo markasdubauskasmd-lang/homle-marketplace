@@ -8,8 +8,8 @@
   <title>Tideway — cleaning, properly coordinated</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/styles.css">
-  <script src="/app.js" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=20260714-5">
+  <script src="/app.js?v=20260714-5" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -163,6 +163,14 @@
               <label>Cleaning experience <select name="experience" required><option value="">Choose one</option><option>New to professional cleaning</option><option>Less than 1 year</option><option>1–3 years</option><option>3–5 years</option><option>More than 5 years</option></select></label>
               <label>Transport <select name="transport"><option>Public transport</option><option>Own car or van</option><option>Bicycle</option><option>Other</option></select></label>
             </div>
+            <fieldset class="service-options" data-service-group>
+              <legend>Cleaning work you want <span>(choose at least one)</span></legend>
+              <label class="checkbox"><input name="serviceTurnovers" type="checkbox"><span>Rental turnovers</span></label>
+              <label class="checkbox"><input name="serviceEndOfTenancy" type="checkbox"><span>End-of-tenancy</span></label>
+              <label class="checkbox"><input name="serviceWorkplaces" type="checkbox"><span>Offices and workplaces</span></label>
+              <label class="checkbox"><input name="serviceCommunal" type="checkbox"><span>Communal areas</span></label>
+              <label class="checkbox"><input name="serviceDeepCleans" type="checkbox"><span>Deep cleans</span></label>
+            </fieldset>
             <label>Usual availability <input name="availability" required placeholder="For example: weekdays 8am–3pm, weekends by arrangement"></label>
             <label>Anything else? <span>(optional)</span><textarea name="notes" rows="4" placeholder="Types of cleaning you prefer, languages, equipment or questions"></textarea></label>
             <label class="checkbox"><input name="rightToWork" type="checkbox" required><span>I confirm that I have the right to work in the UK. Evidence will only be requested later through a secure process.</span></label>

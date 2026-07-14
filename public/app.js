@@ -42,6 +42,13 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
     summary.hidden = true;
     success.hidden = true;
 
+    const serviceGroup = form.querySelector("[data-service-group]");
+    if (serviceGroup && !serviceGroup.querySelector('input[type="checkbox"]:checked')) {
+      showError(form, "Choose at least one type of cleaning work.");
+      serviceGroup.querySelector('input[type="checkbox"]').focus();
+      return;
+    }
+
     if (!form.checkValidity()) {
       form.reportValidity();
       showError(form, "Please complete every required field and tick the required confirmations.");

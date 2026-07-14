@@ -128,6 +128,9 @@ textarea { resize: vertical; }
 .checkbox { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; font-weight: 500; line-height: 1.45; }
 .checkbox input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--green); }
 .checkbox a { color: var(--green); font-weight: 750; }
+.service-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 0; padding: 16px; border: 1px solid #b9c9c4; border-radius: 10px; }
+.service-options legend { padding: 0 6px; color: #203f39; font-size: .88rem; font-weight: 760; }
+.service-options legend span { color: var(--muted); font-weight: 500; }
 .submit-button { justify-self: start; min-width: 220px; }
 .submit-button[disabled] { cursor: wait; opacity: .65; transform: none; }
 .error-summary { padding: 14px 16px; color: #7b1e17; border: 1px solid #e1aaa5; border-radius: 9px; background: #fff0ee; font-weight: 650; }
@@ -244,6 +247,14 @@ textarea { resize: vertical; }
 .lead-followup form { grid-template-columns: minmax(240px, 1fr) 190px auto; align-items: end; margin-top: 14px; }
 .lead-followup textarea, .lead-followup input { padding-block: .6rem; }
 .lead-followup button { min-height: 42px; }
+.lead-matches { margin-top: 14px; border-top: 1px solid var(--line); }
+.lead-matches summary { padding: 14px 0; color: var(--green); font-size: .87rem; font-weight: 800; cursor: pointer; }
+.lead-matches > button { margin-bottom: 12px; }
+.match-results { display: grid; gap: 9px; }
+.match-results > strong, .match-results > span { display: block; }
+.match-result { display: grid; gap: 5px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--mint-pale); }
+.match-result > div { display: flex; justify-content: space-between; gap: 12px; }
+.match-result span { color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
 .admin-guidance { margin-top: 28px; padding: 28px; color: #fff; border-radius: 20px; background: var(--green-dark); }
 .admin-guidance h2 { font-size: 1.55rem; }
 .admin-guidance ol { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin: 0; padding-left: 22px; }
@@ -293,6 +304,7 @@ textarea { resize: vertical; }
   .cleaner-grid { gap: 45px; }
   .form-card { padding: 25px 18px; border-radius: 18px; }
   .field-row { grid-template-columns: 1fr; }
+  .service-options { grid-template-columns: 1fr; }
   .submit-button { width: 100%; }
   .final-cta .shell { flex-direction: column; align-items: flex-start; }
   .footer-grid { grid-template-columns: 1fr; gap: 30px; }

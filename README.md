@@ -20,6 +20,7 @@ Then open `http://127.0.0.1:4173`.
 - Private local control desk at `/admin` with lead filters, status tracking, internal notes and next-action dates
 - Internal quote calculator for checking cleaner pay and job contribution before sending a price
 - Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance and operating rules
+- Human-reviewed matching suggestions using approved cleaners, requested service type and postcode coverage
 - Private data backup script and documented recovery procedure
 - Responsive, accessible website
 - Draft privacy notice and pilot terms

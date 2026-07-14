@@ -123,6 +123,40 @@ async function addActivity(record, form) {
   }
 }
 
+async function findMatches(record, results, button) {
+  button.disabled = true;
+  results.replaceChildren();
+  addText(results, "span", "Checking approved cleaners…", "match-loading");
+  try {
+    const response = await fetch(`/api/admin/matches?requestId=${encodeURIComponent(record.id)}`, { headers: adminHeaders({ "Accept": "application/json" }) });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Matches could not be loaded.");
+    results.replaceChildren();
+    if (!result.matches.length) {
+      addText(results, "strong", "No approved service matches yet.");
+      addText(results, "span", "Approve suitable cleaner applications first, then check coverage manually.");
+      return;
+    }
+    for (const match of result.matches) {
+      const item = document.createElement("article");
+      item.className = "match-result";
+      const heading = document.createElement("div");
+      addText(heading, "strong", match.fullName);
+      addText(heading, "span", `${match.score}/100 · ${match.coverage}`);
+      item.append(heading);
+      addText(item, "span", `${match.travelAreas} · ${match.availability}`);
+      addText(item, "span", match.services.join(", "));
+      addText(item, "span", `${match.email} · ${match.phone}`);
+      results.append(item);
+    }
+  } catch (error) {
+    results.replaceChildren();
+    addText(results, "strong", error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function changeStatus(record, select) {
   const previous = record.status;
   select.disabled = true;
@@ -192,6 +226,7 @@ function buildCard(record) {
     addDetail(details, "Experience", record.experience);
     addDetail(details, "Availability", record.availability);
     addDetail(details, "Transport", record.transport);
+    addDetail(details, "Services", Array.isArray(record.services) ? record.services.join(", ") : "");
     addDetail(details, "Notes", record.notes);
   }
   card.append(details);
@@ -231,6 +266,22 @@ function buildCard(record) {
   followupForm.addEventListener("submit", (event) => { event.preventDefault(); addActivity(record, followupForm); });
   followup.append(followupForm);
   card.append(followup);
+
+  if (record.kind === "request") {
+    const matchDetails = document.createElement("details");
+    matchDetails.className = "lead-matches";
+    const matchSummary = document.createElement("summary");
+    matchSummary.textContent = "Find approved cleaner matches";
+    const matchButton = document.createElement("button");
+    matchButton.type = "button";
+    matchButton.className = "button button-small button-outline";
+    matchButton.textContent = "Check matches";
+    const matchResults = document.createElement("div");
+    matchResults.className = "match-results";
+    matchButton.addEventListener("click", () => findMatches(record, matchResults, matchButton));
+    matchDetails.append(matchSummary, matchButton, matchResults);
+    card.append(matchDetails);
+  }
   return card;
 }
 

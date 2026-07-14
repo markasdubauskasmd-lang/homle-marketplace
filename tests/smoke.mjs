@@ -69,7 +69,7 @@ try {
   const validCleaner = await fetch(`${base}/api/cleaner-applications`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ fullName: "Test Cleaner", email: "cleaner@example.com", phone: "07123456789", postcode: "SE1 7PB", travelAreas: "South London", experience: "1–3 years", availability: "Weekdays", rightToWork: true, consent: true })
+    body: JSON.stringify({ fullName: "Test Cleaner", email: "cleaner@example.com", phone: "07123456789", postcode: "SE1 7PB", travelAreas: "SW1A and South London", experience: "1–3 years", availability: "Weekdays", serviceTurnovers: true, rightToWork: true, consent: true })
   });
   const cleanerBody = await validCleaner.json();
   assert(validCleaner.status === 201 && cleanerBody.reference.startsWith("CLN-"), "Valid cleaner application failed.");
@@ -103,6 +103,18 @@ try {
   });
   assert(statusUpdate.ok, "Admin status update failed.");
 
+  const cleanerApproval = await fetch(`${base}/api/admin/status`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "approved" })
+  });
+  assert(cleanerApproval.ok, "Cleaner approval status failed.");
+
+  const matching = await fetch(`${base}/api/admin/matches?requestId=${requestBody.reference}`);
+  const matchingBody = await matching.json();
+  assert(matching.ok && matchingBody.matches.length === 1, "Approved cleaner match was not returned.");
+  assert(matchingBody.matches[0].score === 100 && matchingBody.matches[0].coverage === "Postcode listed", "Cleaner match score was incorrect.");
+
   const activityUpdate = await fetch(`${base}/api/admin/activity`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -115,7 +127,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.status === "contacted", "Updated status was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.activities?.[0]?.note.includes("confirmed the scope"), "Lead activity was not retained.");
 
-  console.log("Smoke tests passed: public pages, forms, private control desk and status tracking.");
+  console.log("Smoke tests passed: public pages, forms, admin security, lead workflow, launch settings and cleaner matching.");
 } finally {
   child.kill("SIGTERM");
   await rm(path.join(root, "data", "cleaning-requests.ndjson"), { force: true });
