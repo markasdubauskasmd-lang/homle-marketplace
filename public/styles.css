@@ -424,6 +424,7 @@ textarea { resize: vertical; }
 .checklist-preview li { margin-bottom: 7px; }
 .consent-row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; margin: 18px 0; }
 .consent-row input { width: auto; margin-top: 3px; }
+.scope-completeness { padding: 14px; border: 1px solid #9bcdbf; border-radius: 11px; background: var(--mint-pale); font-weight: 750; }
 .admin-guidance { margin-top: 28px; padding: 28px; color: #fff; border-radius: 20px; background: var(--green-dark); }
 .admin-guidance h2 { font-size: 1.55rem; }
 .admin-guidance ol { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin: 0; padding-left: 22px; }

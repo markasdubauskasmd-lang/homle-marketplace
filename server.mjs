@@ -1066,6 +1066,9 @@ async function updateAdminJobBriefStatus(request, response) {
   if (status === "reviewed" && note.length < 10) {
     return json(response, 422, { ok: false, error: "Add a short review note explaining the scope estimate." });
   }
+  if (status === "reviewed" && brief.customerScopeConfirmed !== true) {
+    return json(response, 422, { ok: false, error: "The customer must confirm that the final concise checklist includes every task they want quoted before this scan can be approved." });
+  }
   const scopeSignals = briefScopeSignals(brief);
   const scopeSignalCodes = new Set(scopeSignals.map((signal) => signal.code));
   const scopeSignalConfirmations = [...new Set(suppliedScopeSignalConfirmations.filter((code) => scopeSignalCodes.has(code)))];
@@ -1153,6 +1156,9 @@ async function updateAdminProposalStatus(request, response) {
   const reviewedBrief = latestBrief ? applyBriefStatus(latestBrief, briefUpdates) : null;
   if (["ready", "sent", "accepted"].includes(status) && (!reviewedBrief || reviewedBrief.status !== "reviewed")) {
     return json(response, 422, { ok: false, error: "A completed and reviewed room scan is required before advancing this proposal." });
+  }
+  if (["ready", "sent", "accepted"].includes(status) && reviewedBrief.customerScopeConfirmed !== true) {
+    return json(response, 422, { ok: false, error: "The customer must confirm the final concise checklist before advancing this proposal." });
   }
   if (["ready", "sent", "accepted"].includes(status) && !reviewedBrief.priceSensitiveScopeConfirmed) {
     return json(response, 422, { ok: false, error: "Every price-sensitive item detected in the room scan must be confirmed inside the reviewed cleaning-time estimate." });
@@ -1288,6 +1294,7 @@ async function getQuoteContext(token) {
     costModelCurrent: proposalCostModelCurrent(proposal, config),
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
+    customerScopeConfirmed: latestBrief?.customerScopeConfirmed === true,
     priceSensitiveScopeConfirmed: Boolean(latestBrief?.priceSensitiveScopeConfirmed),
     scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
     profitable: proposal.contribution > 0,
@@ -1461,6 +1468,7 @@ async function getCleanerOpportunityContext(token) {
     availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
     costModelCurrent: proposalCostModelCurrent(proposal, config),
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
+    customerScopeConfirmed: latestBrief?.customerScopeConfirmed === true,
     priceSensitiveScopeConfirmed: Boolean(latestBrief?.priceSensitiveScopeConfirmed),
     scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
     profitable: proposal.contribution > 0,
@@ -1666,6 +1674,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
   const briefReviewed = Boolean(latestBrief && latestBrief.status === "reviewed");
+  const customerScopeConfirmed = latestBrief?.customerScopeConfirmed === true;
   const priceSensitiveScopeConfirmed = Boolean(latestBrief?.priceSensitiveScopeConfirmed);
   const scanHoursCovered = Boolean(briefReviewed && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours);
   const warnings = [];
@@ -1674,6 +1683,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   if (!["ready", "sent", "accepted"].includes(proposalStatus)) warnings.push("The proposal is still a draft and has not been internally approved.");
   if (!latestBrief) warnings.push("The customer must complete the room scan before a cleaner-ready proposal can be used.");
   else if (!briefReviewed) warnings.push("Review and approve the latest customer room scan before using the cleaner draft.");
+  else if (!customerScopeConfirmed) warnings.push("The customer must confirm that the final concise checklist includes every task they want quoted.");
   else if (!priceSensitiveScopeConfirmed) warnings.push("Confirm every detected price-sensitive item inside the reviewed cleaning-time estimate before using this proposal.");
   else if (!scanHoursCovered) warnings.push(`Allow at least ${latestBrief.scopeEstimateHours || "the reviewed"} hours from the room-scan scope estimate before using this proposal.`);
   if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
@@ -1742,7 +1752,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     ok: true,
     proposalId,
     proposalStatus,
-    sendAllowed: readiness.ready && pilotCoverage.covered && briefReviewed && priceSensitiveScopeConfirmed && scanHoursCovered && availabilityCovered && costModelCurrent && ["ready", "sent", "accepted"].includes(proposalStatus),
+    sendAllowed: readiness.ready && pilotCoverage.covered && briefReviewed && customerScopeConfirmed && priceSensitiveScopeConfirmed && scanHoursCovered && availabilityCovered && costModelCurrent && ["ready", "sent", "accepted"].includes(proposalStatus),
     warnings,
     customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody },
     cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody }
@@ -1802,6 +1812,7 @@ async function buildBookingAudit(proposalId) {
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
+    customerScopeConfirmed: latestBrief?.customerScopeConfirmed === true,
     priceSensitiveScopeConfirmed: Boolean(latestBrief?.priceSensitiveScopeConfirmed),
     scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
     scopeCaptured: Boolean(customerRequest.siteSize),
@@ -2469,10 +2480,13 @@ async function getAdminMatches(request, response, requestId) {
 
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
+  if (latestBrief?.status === "reviewed" && latestBrief.customerScopeConfirmed !== true) {
+    return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "customer-scope-confirmation-required", requiredHours: null, confirmedExtras: [] }, matches: [] });
+  }
   if (latestBrief?.status === "reviewed" && !latestBrief.priceSensitiveScopeConfirmed) {
     return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "price-sensitive-scope-review-required", requiredHours: null, confirmedExtras: [] }, matches: [] });
   }
-  const requiredHours = latestBrief?.status === "reviewed" && latestBrief.priceSensitiveScopeConfirmed && Number.isFinite(latestBrief.scopeEstimateHours) ? latestBrief.scopeEstimateHours : null;
+  const requiredHours = latestBrief?.status === "reviewed" && latestBrief.customerScopeConfirmed === true && latestBrief.priceSensitiveScopeConfirmed && Number.isFinite(latestBrief.scopeEstimateHours) ? latestBrief.scopeEstimateHours : null;
   if (!requiredHours) {
     return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "reviewed-room-scan-required", requiredHours: null }, matches: [] });
   }
@@ -2642,6 +2656,7 @@ async function handleJobBrief(request, response) {
   const email = text(input.email, 160).toLowerCase();
   const transcript = text(input.transcript, 5000);
   const consent = input.consent === true;
+  const customerScopeConfirmed = input.scopeCompleteConfirmed === true;
   const cleanerPhotoSharingConsent = input.sharePhotosWithSelectedCleaner === true;
   const suppliedTasks = Array.isArray(input.checklist) ? input.checklist.map(normaliseChecklistTask).filter(Boolean) : [];
   const checklist = [...new Map((suppliedTasks.length ? suppliedTasks : checklistFromTranscript(transcript)).map((task) => [task.toLowerCase(), task])).values()].slice(0, 40);
@@ -2659,6 +2674,7 @@ async function handleJobBrief(request, response) {
   const photographedAreas = [...new Set(photoInputs.map((photo) => text(photo?.area, 80)).filter((area) => briefRoomAreas.has(area)))];
   const uncoveredAreas = photographedAreas.filter((area) => !checklist.some((task) => task.toLowerCase().startsWith(`${area.toLowerCase()}:`)));
   if (uncoveredAreas.length) errors.push(`Add at least one room-labelled checklist task for: ${uncoveredAreas.join(", ")}.`);
+  if (!customerScopeConfirmed) errors.push("Review the concise cleaner checklist and confirm that it includes every task you want quoted.");
   if (!consent) errors.push("Confirm that you may share these property photos and instructions.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
@@ -2685,6 +2701,7 @@ async function handleJobBrief(request, response) {
     mimeType: image.mimeType,
     storedPath: path.posix.join("job-brief-images", briefId, `${image.id}${image.extension}`)
   }));
+  const createdAt = new Date().toISOString();
   const brief = {
     id: briefId,
     requestId,
@@ -2692,12 +2709,14 @@ async function handleJobBrief(request, response) {
     checklist,
     photos,
     scopeSignals,
+    customerScopeConfirmed,
+    customerScopeConfirmedAt: createdAt,
     cleanerPhotoSharingConsent,
     status: "landlord-draft",
-    createdAt: new Date().toISOString()
+    createdAt
   };
   await saveJobBrief(brief, images);
-  return json(response, 201, { ok: true, reference: brief.id, customerStatusToken: customerRequest.customerStatusToken || "", checklist: brief.checklist, photos: brief.photos.map(({ id, area, note }) => ({ id, area, note })), scopeSignals: brief.scopeSignals, cleanerPhotoSharingConsent: brief.cleanerPhotoSharingConsent });
+  return json(response, 201, { ok: true, reference: brief.id, customerStatusToken: customerRequest.customerStatusToken || "", checklist: brief.checklist, photos: brief.photos.map(({ id, area, note }) => ({ id, area, note })), scopeSignals: brief.scopeSignals, customerScopeConfirmed: brief.customerScopeConfirmed, customerScopeConfirmedAt: brief.customerScopeConfirmedAt, cleanerPhotoSharingConsent: brief.cleanerPhotoSharingConsent });
 }
 
 async function getAdminJobBriefImage(request, response, briefId, imageId) {

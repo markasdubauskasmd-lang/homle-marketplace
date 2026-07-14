@@ -289,6 +289,9 @@ async function findMatches(record, results, button) {
       } else if (result.matchGate?.reason === "reviewed-room-scan-required") {
         addText(results, "strong", "Review the room scan before matching.");
         addText(results, "span", "Tideway needs the reviewed cleaning-time estimate before it can prove that a cleaner window is long enough.");
+      } else if (result.matchGate?.reason === "customer-scope-confirmation-required") {
+        addText(results, "strong", "Customer scope confirmation is required before matching.");
+        addText(results, "span", "The customer must confirm that the final concise checklist includes every task they want quoted.");
       } else if (result.matchGate?.reason === "price-sensitive-scope-review-required") {
         addText(results, "strong", "Confirm the price-sensitive scan items before matching.");
         addText(results, "span", "Every detected extra must be included in the reviewed cleaning-time estimate before Tideway can suggest a cleaner window.");
@@ -504,7 +507,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", availabilityCovered: "Visit fits an active confirmed availability window", costModelCurrent: "Proposal uses the current founder-confirmed cost assumptions", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", priceSensitiveScopeConfirmed: "Detected price-sensitive scan items included in reviewed hours", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
+    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", availabilityCovered: "Visit fits an active confirmed availability window", costModelCurrent: "Proposal uses the current founder-confirmed cost assumptions", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", customerScopeConfirmed: "Customer confirmed the final concise checklist", priceSensitiveScopeConfirmed: "Detected price-sensitive scan items included in reviewed hours", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -1053,6 +1056,7 @@ function buildCard(record) {
     summary.textContent = `Room scan · ${brief.checklist.length} tasks · ${brief.photos.length} photos`;
     addText(briefSummary, "strong", `${brief.id} · ${briefStatusLabels[brief.status] || brief.status}`);
     addText(briefSummary, "span", brief.cleanerPhotoSharingConsent === true ? "Customer authorised private photo review by the selected cleaner before booking." : "Room photos remain Tideway-only until a booking is confirmed.");
+    addText(briefSummary, "span", brief.customerScopeConfirmed === true ? "Customer confirmed that the final concise checklist includes every task they want quoted." : "Customer scope-completeness confirmation is missing.", brief.customerScopeConfirmed === true ? "brief-review-note" : "scope-signal-summary");
     const tasks = document.createElement("ul");
     brief.checklist.forEach((task) => addText(tasks, "li", task));
     briefSummary.append(summary, tasks);
