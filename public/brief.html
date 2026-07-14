@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Scan rooms for your clean — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260714-35">
-  <script src="/brief.js?v=20260714-31" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260714-36">
+  <script src="/brief.js?v=20260714-32" type="module"></script>
 </head>
 <body class="brief-page">
   <a class="skip-link" href="#brief-main">Skip to job brief</a>
@@ -61,12 +61,13 @@
           <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 3</p><h2>Review the cleaner checklist</h2><p>One clear task per line. Every photographed room must have at least one room-labelled task before the scan can be saved.</p></div><strong id="task-count">0 tasks</strong></div>
           <label>Cleaner tasks<textarea id="brief-checklist" rows="10" placeholder="Your generated bullet points will appear here."></textarea></label>
           <ul id="checklist-preview" class="checklist-preview" aria-live="polite"><li>Generate the checklist to preview the cleaner tasks.</li></ul>
+          <section id="scan-readiness" class="scan-readiness" aria-labelledby="scan-readiness-title"><div><strong id="scan-readiness-title" aria-live="polite">Checking room scan…</strong><span>Complete every required item before submitting. Tideway repeats these checks securely on the server.</span></div><ul id="scan-readiness-list"></ul></section>
           <div id="scope-signal-preview" class="scope-signal-summary brief-scope-warning" role="status" hidden><strong>Extra time may be needed</strong><span>Tideway found items that can materially change cleaning time. They will be reviewed before your quote; this is not an automatic price.</span><ul id="scope-signal-list"></ul></div>
           <label class="consent-row scope-completeness"><input name="scopeCompleteConfirmed" type="checkbox" required> I have reviewed the concise cleaner checklist and confirm it includes every task I want Tideway to quote. Any later change must be reviewed before the booking changes.</label>
           <label class="consent-row"><input name="consent" type="checkbox" required> I confirm that I may share these property photos and instructions with Tideway for this cleaning request.</label>
           <label class="consent-row"><input name="sharePhotosWithSelectedCleaner" type="checkbox"> Optional: allow Tideway to show these room photos and notes to the one selected cleaner through their private opportunity link before booking, so they can assess the scope. My identity, exact address and access details will remain hidden.</label>
           <div id="brief-error" class="error-summary" role="alert" tabindex="-1" hidden></div>
-          <button id="save-brief" class="button submit-button" type="submit">Complete private room scan</button>
+          <button id="save-brief" class="button submit-button" type="submit" disabled>Complete private room scan</button>
           <div id="brief-success" class="success-panel" role="status" tabindex="-1" hidden><strong>Room scan complete.</strong><span>Your scan reference is <b data-brief-reference></b>. Tideway will review it before preparing a cleaner-ready quote.</span><a class="button button-small" data-status-link href="/request-status" hidden>Track this cleaning request</a></div>
         </div>
       </form>

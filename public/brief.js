@@ -1,6 +1,7 @@
 import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js";
 import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 import { detectPriceSensitiveScope } from "./scope-signals.js";
+import { briefReadiness, briefRoomOptions } from "./brief-readiness.js";
 
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
@@ -11,6 +12,9 @@ const checklistPreview = document.querySelector("#checklist-preview");
 const taskCount = document.querySelector("#task-count");
 const scopeSignalPreview = document.querySelector("#scope-signal-preview");
 const scopeSignalList = document.querySelector("#scope-signal-list");
+const scanReadiness = document.querySelector("#scan-readiness");
+const scanReadinessTitle = document.querySelector("#scan-readiness-title");
+const scanReadinessList = document.querySelector("#scan-readiness-list");
 const voiceButton = document.querySelector("#voice-button");
 const voiceStatus = document.querySelector("#voice-status");
 const form = document.querySelector("#job-brief-form");
@@ -18,7 +22,9 @@ const errorBox = document.querySelector("#brief-error");
 const successBox = document.querySelector("#brief-success");
 const saveButton = document.querySelector("#save-brief");
 const photos = [];
-const roomOptions = ["Kitchen", "Bathroom", "Bedroom", "Living room", "Hallway", "Stairs", "Office", "Communal area", "Other area"];
+let submitting = false;
+let submissionComplete = false;
+const roomOptions = briefRoomOptions;
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 const presetReference = new URLSearchParams(location.search).get("reference");
@@ -40,6 +46,38 @@ function showError(message) {
 
 function checklistTasks() {
   return [...new Map(checklist.value.split(/\r?\n/).map(normaliseChecklistTask).filter(Boolean).map((task) => [task.toLowerCase(), task])).values()].slice(0, 40);
+}
+
+function currentReadiness() {
+  return briefReadiness({
+    requestId: form.elements.requestId.value,
+    email: form.elements.email.value,
+    transcript: transcript.value,
+    tasks: checklistTasks(),
+    photos,
+    scopeCompleteConfirmed: form.elements.scopeCompleteConfirmed.checked,
+    consent: form.elements.consent.checked
+  });
+}
+
+function renderReadiness() {
+  const readiness = currentReadiness();
+  scanReadiness.classList.toggle("scan-ready", readiness.ready);
+  scanReadinessTitle.textContent = readiness.ready
+    ? "Room scan ready to submit"
+    : `${readiness.remaining} required ${readiness.remaining === 1 ? "item" : "items"} remaining`;
+  scanReadinessList.replaceChildren();
+  readiness.items.forEach((check) => {
+    const item = document.createElement("li");
+    item.className = check.complete ? "ready" : "pending";
+    const marker = document.createElement("span");
+    marker.setAttribute("aria-hidden", "true");
+    marker.textContent = check.complete ? "✓" : "○";
+    item.append(marker, document.createTextNode(check.label));
+    scanReadinessList.append(item);
+  });
+  saveButton.disabled = submitting || submissionComplete || !readiness.ready;
+  return readiness;
 }
 
 function renderScopeSignals() {
@@ -69,6 +107,7 @@ function renderChecklist() {
   }
   taskCount.textContent = `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`;
   renderScopeSignals();
+  renderReadiness();
 }
 
 function generateChecklist({ scroll = true, showEmptyError = true } = {}) {
@@ -86,7 +125,11 @@ function generateChecklist({ scroll = true, showEmptyError = true } = {}) {
 
 document.querySelector("#generate-checklist").addEventListener("click", () => generateChecklist());
 checklist.addEventListener("input", renderChecklist);
-transcript.addEventListener("input", renderScopeSignals);
+transcript.addEventListener("input", () => { renderScopeSignals(); renderReadiness(); });
+form.elements.requestId.addEventListener("input", renderReadiness);
+form.elements.email.addEventListener("input", renderReadiness);
+form.elements.scopeCompleteConfirmed.addEventListener("change", renderReadiness);
+form.elements.consent.addEventListener("change", renderReadiness);
 
 function renderPhotos() {
   photoPreview.replaceChildren();
@@ -121,7 +164,7 @@ function renderPhotos() {
       option.selected = area === photo.area;
       select.append(option);
     });
-    select.addEventListener("change", () => { photo.area = select.value; renderScopeSignals(); });
+    select.addEventListener("change", () => { photo.area = select.value; renderScopeSignals(); renderReadiness(); });
     label.append(select);
     const noteLabel = document.createElement("label");
     noteLabel.append(document.createTextNode("What this photo shows"));
@@ -130,7 +173,7 @@ function renderPhotos() {
     note.maxLength = 500;
     note.placeholder = "For example: grease around the hob; wipe tiles and clean the extractor cover. Do not include access codes.";
     note.value = photo.note;
-    note.addEventListener("input", () => { photo.note = note.value; renderScopeSignals(); });
+    note.addEventListener("input", () => { photo.note = note.value; renderScopeSignals(); renderReadiness(); });
     noteLabel.append(note);
     const remove = document.createElement("button");
     remove.type = "button";
@@ -141,6 +184,7 @@ function renderPhotos() {
       photos.splice(index, 1);
       renderPhotos();
       renderScopeSignals();
+      renderReadiness();
     });
     controls.append(label, noteLabel, remove);
     card.append(image, controls);
@@ -160,6 +204,7 @@ photoInput.addEventListener("change", () => {
   photoInput.value = "";
   renderPhotos();
   renderScopeSignals();
+  renderReadiness();
 });
 
 function photoDataUrl(photo) {
@@ -234,6 +279,8 @@ form.addEventListener("submit", async (event) => {
   errorBox.hidden = true;
   successBox.hidden = true;
   const tasks = checklistTasks();
+  const readiness = currentReadiness();
+  if (!readiness.ready) { showError(`Complete the remaining room-scan checks: ${readiness.items.filter((item) => !item.complete).map((item) => item.label).join("; ")}.`); return; }
   if (!form.checkValidity()) { form.reportValidity(); showError("Complete the request details and required confirmation."); return; }
   if (!photos.length) { showError("Add at least one property photo."); return; }
   if (photos.some((photo) => !photo.area)) { showError("Choose the correct room for every photo."); return; }
@@ -241,7 +288,8 @@ form.addEventListener("submit", async (event) => {
   if (!tasks.length) { showError("Create and review at least one cleaner task."); return; }
   const uncoveredAreas = [...new Set(photos.map((photo) => photo.area))].filter((area) => !tasks.some((task) => task.toLowerCase().startsWith(`${area.toLowerCase()}:`)));
   if (uncoveredAreas.length) { showError(`Add at least one checklist task for: ${uncoveredAreas.join(", ")}. Use the room notes, then summarise again.`); return; }
-  saveButton.disabled = true;
+  submitting = true;
+  renderReadiness();
   saveButton.textContent = "Preparing private room scan…";
   try {
     const encodedPhotos = [];
@@ -260,12 +308,14 @@ form.addEventListener("submit", async (event) => {
       statusLink.hidden = false;
     }
     try { clearBriefHandoff(window.sessionStorage); } catch {}
+    submissionComplete = true;
     successBox.hidden = false;
     successBox.focus();
   } catch (error) {
     showError(error.message);
   } finally {
-    saveButton.disabled = false;
+    submitting = false;
+    renderReadiness();
     saveButton.textContent = "Complete private room scan";
   }
 });

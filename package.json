@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check offer-expiry.mjs && node --check public/app.js && node --check public/admin.js && node --check public/brief.js && node --check public/quote.js && node --check public/opportunity.js",
+    "check": "node --check server.mjs && node --check offer-expiry.mjs && node --check public/app.js && node --check public/admin.js && node --check public/brief.js && node --check public/brief-readiness.js && node --check public/brief-handoff.js && node --check public/checklist.js && node --check public/scope-signals.js && node --check public/quote.js && node --check public/opportunity.js && node --check public/booking-pack.js && node --check public/request-status.js",
     "test": "node tests/smoke.mjs"
   },
   "engines": {

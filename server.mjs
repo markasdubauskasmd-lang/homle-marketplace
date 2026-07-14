@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript, normaliseChecklistTask } from "./public/checklist.js";
+import { briefRoomOptions } from "./public/brief-readiness.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "./public/scope-signals.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mjs";
 
@@ -421,7 +422,7 @@ async function cleanupStaleTemporaryFiles() {
   await Promise.all(stale.map((filename) => unlink(path.join(dataDir, filename)).catch(() => {})));
 }
 
-const briefRoomAreas = new Set(["Kitchen", "Bathroom", "Bedroom", "Living room", "Hallway", "Stairs", "Office", "Communal area", "Other area"]);
+const briefRoomAreas = new Set(briefRoomOptions);
 
 function briefScopeSignals(brief) {
   if (!Array.isArray(brief?.scopeSignals)) return detectPriceSensitiveScope(brief || {});

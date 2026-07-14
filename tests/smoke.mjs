@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript } from "../public/checklist.js";
 import { clearBriefHandoff, readBriefHandoff, saveBriefHandoff } from "../public/brief-handoff.js";
+import { briefReadiness } from "../public/brief-readiness.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "../public/scope-signals.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "../offer-expiry.mjs";
 
@@ -55,6 +56,18 @@ try {
   assert(detectPriceSensitiveScope({ transcript: "Wipe the oven door, fridge door and kitchen wall tiles." }).length === 0, "Ordinary surface wiping was incorrectly flagged as a price-sensitive extra.");
   assert(JSON.stringify(normalisePriceSensitiveScopeSignals([{ code: "oven-interior", label: "Tampered label" }, { code: "not-supported", label: "Invented" }])) === JSON.stringify([{ code: "oven-interior", label: "Inside oven cleaning" }]), "Stored scope signals were not constrained to Tideway's supported labels.");
 
+  const emptyScanReadiness = briefReadiness();
+  assert(emptyScanReadiness.ready === false && emptyScanReadiness.remaining === 8 && emptyScanReadiness.items.length === 8, "Empty room scan did not expose every required readiness item.");
+  const excessivePhotos = Array.from({ length: 7 }, () => ({ area: "Kitchen", note: "Worktops need cleaning" }));
+  const excessivePhotoReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean the kitchen.", tasks: ["Kitchen: Clean the worktops"], photos: excessivePhotos, scopeCompleteConfirmed: true, consent: true });
+  assert(excessivePhotoReadiness.ready === false && excessivePhotoReadiness.checks.roomPhotos === false, "Live readiness showed more than six room photos as ready.");
+  const invalidRoomReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean the garage.", tasks: ["Garage: Clean the floor"], photos: [{ area: "Garage", note: "Floor needs cleaning" }], scopeCompleteConfirmed: true, consent: true });
+  assert(invalidRoomReadiness.ready === false && invalidRoomReadiness.checks.photoDetails === false && invalidRoomReadiness.checks.roomCoverage === false, "Live readiness accepted a room label outside Tideway's supported set.");
+  const uncoveredScanReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean the kitchen.", tasks: ["Bathroom: Clean the sink"], photos: [{ area: "Kitchen", note: "Worktops need cleaning" }], scopeCompleteConfirmed: true, consent: true });
+  assert(uncoveredScanReadiness.ready === false && uncoveredScanReadiness.remaining === 1 && uncoveredScanReadiness.checks.roomCoverage === false && uncoveredScanReadiness.uncoveredAreas[0] === "Kitchen", "Live readiness missed an uncovered photographed room.");
+  const completeScanReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean the kitchen.", tasks: ["Kitchen: Clean the worktops"], photos: [{ area: "Kitchen", note: "Worktops need cleaning" }], scopeCompleteConfirmed: true, consent: true });
+  assert(completeScanReadiness.ready === true && completeScanReadiness.remaining === 0 && Object.values(completeScanReadiness.checks).every(Boolean), "Complete room scan did not reach its client-side ready state.");
+
   const sessionValues = new Map();
   const testSession = {
     getItem: (key) => sessionValues.get(key) || null,
@@ -87,10 +100,12 @@ try {
   assert(adminPage.ok && adminPageText.includes("Lead control desk") && adminPageText.includes("Founder-action queue") && adminPageText.includes('id="action-filter"'), "Admin dispatch control page failed.");
   const briefPage = await fetch(`${base}/brief`);
   const briefPageText = await briefPage.text();
-  assert(briefPage.ok && briefPageText.includes("Request details carried over.") && briefPageText.includes("Extra time may be needed") && briefPageText.includes("every task I want Tideway to quote"), "Photo job-brief page, private handoff notice, customer-facing scope warning or required scope confirmation failed.");
+  assert(briefPage.ok && briefPageText.includes("Request details carried over.") && briefPageText.includes("Checking room scan") && briefPageText.includes("Extra time may be needed") && briefPageText.includes("every task I want Tideway to quote"), "Photo job-brief page, live readiness panel, private handoff notice, customer-facing scope warning or required scope confirmation failed.");
   assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
   const scopeSignalAsset = await fetch(`${base}/scope-signals.js`);
   assert(scopeSignalAsset.ok && (await scopeSignalAsset.text()).includes("detectPriceSensitiveScope"), "Shared customer/server scope detection asset failed.");
+  const briefReadinessAsset = await fetch(`${base}/brief-readiness.js`);
+  assert(briefReadinessAsset.ok && (await briefReadinessAsset.text()).includes("briefReadiness"), "Shared room-scan readiness asset failed.");
   const requestStatusPage = await fetch(`${base}/request-status`);
   assert(requestStatusPage.ok && (await requestStatusPage.text()).includes("Private request tracker"), "Private customer request tracker page failed.");
   const quotePage = await fetch(`${base}/quote`);
@@ -832,7 +847,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === overlapRequestBody.reference)?.dispatchActions?.some((action) => action.code === "rematch" && action.group === "rematching"), "Exhausted and withdrawn offers did not remain visible in the rematching queue.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.length === 0, "Completed profitable work remained in the active founder-action queue.");
 
-  console.log("Smoke tests passed: public pages, reviewed-scan matching gates, required customer scope-completeness confirmation, stored confirmation timestamps, booking-audit scope confirmation, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, customer-visible price-sensitive scope warnings, supported-signal coverage, false-positive protection, required reviewer confirmations, frozen confirmed extras, explicit selected-cleaner photo consent, frozen opportunity photo scope, token-authorised non-cacheable opportunity images, preview/no-consent/readiness/booking image revocation, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, live cleaner-capacity holds, capacity-aware matching, cleaner-decline capacity release, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, eight-item live scan readiness, empty/partial/complete readiness states, photo-count and supported-room safeguards, reviewed-scan matching gates, required customer scope-completeness confirmation, stored confirmation timestamps, booking-audit scope confirmation, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, customer-visible price-sensitive scope warnings, supported-signal coverage, false-positive protection, required reviewer confirmations, frozen confirmed extras, explicit selected-cleaner photo consent, frozen opportunity photo scope, token-authorised non-cacheable opportunity images, preview/no-consent/readiness/booking image revocation, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, live cleaner-capacity holds, capacity-aware matching, cleaner-decline capacity release, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));
