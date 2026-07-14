@@ -203,6 +203,34 @@ textarea { resize: vertical; }
 .stat-grid span { color: var(--muted); font-size: .8rem; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
 .stat-grid strong { margin: 14px 0 5px; color: var(--green-dark); font-size: 2.25rem; line-height: 1; }
 .stat-grid small { color: var(--muted); }
+.launch-runway { margin-bottom: 24px; padding: 26px; border: 1px solid #c6d8d2; border-radius: 20px; background: linear-gradient(145deg, #fff 0%, #f3faf7 100%); box-shadow: 0 12px 36px rgba(15,66,57,.06); }
+.launch-runway-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.launch-runway-heading h2 { margin: 3px 0 7px; font-size: 1.8rem; }
+.launch-runway-heading p:last-child { max-width: 720px; margin: 0; color: var(--muted); }
+.runway-supply { min-width: 150px; padding: 13px 16px; border: 1px solid #c6d8d2; border-radius: 14px; background: #fff; text-align: right; }
+.runway-supply strong, .runway-supply span { display: block; }
+.runway-supply strong { color: var(--green-dark); font-size: 1.8rem; }
+.runway-supply span { color: var(--muted); font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.launch-funnel-stages { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.funnel-stage { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; min-height: 78px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.72); }
+.funnel-stage > span { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: #e8efec; color: var(--muted); font-size: .78rem; font-weight: 850; }
+.funnel-stage strong, .funnel-stage small { display: block; }
+.funnel-stage strong { color: var(--ink); font-size: .88rem; }
+.funnel-stage small { margin-top: 3px; color: var(--muted); font-size: .72rem; line-height: 1.3; }
+.funnel-stage b { color: var(--muted); font-size: 1.35rem; }
+.funnel-stage-reached { border-color: #9bcabf; background: #fff; }
+.funnel-stage-reached > span { background: var(--green); color: #fff; }
+.funnel-stage-reached b { color: var(--green-dark); }
+.launch-bottleneck { margin-top: 14px; padding: 16px 18px; border-left: 4px solid #df8b24; border-radius: 10px; background: #fff4df; }
+.launch-bottleneck span, .launch-bottleneck strong, .launch-bottleneck p, .launch-bottleneck small { display: block; }
+.launch-bottleneck span { color: #8c4a00; font-size: .72rem; font-weight: 850; text-transform: uppercase; letter-spacing: .06em; }
+.launch-bottleneck strong { margin: 4px 0; color: #613500; }
+.launch-bottleneck p, .launch-bottleneck small { margin: 0; color: #70491e; }
+.launch-bottleneck small { margin-top: 7px; font-weight: 750; }
+.launch-bottleneck-complete { border-left-color: var(--green); background: #e8f7f1; }
+.launch-bottleneck-complete span, .launch-bottleneck-complete strong { color: var(--green-dark); }
+.launch-bottleneck-complete p, .launch-bottleneck-complete small { color: #315d54; }
+.runway-loading { grid-column: 1 / -1; padding: 20px; color: var(--muted); text-align: center; }
 .dispatch-queue { margin-bottom: 24px; padding: 26px; border: 1px solid #c6d8d2; border-radius: 20px; background: #fff; box-shadow: 0 12px 36px rgba(15,66,57,.06); }
 .dispatch-heading { display: flex; justify-content: space-between; gap: 24px; align-items: start; margin-bottom: 18px; }
 .dispatch-heading h2 { margin-bottom: 7px; font-size: 1.65rem; }
@@ -535,6 +563,7 @@ textarea { resize: vertical; }
   .form-card { grid-template-columns: 1fr; gap: 30px; }
   .form-intro { position: static; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
+  .launch-funnel-stages { grid-template-columns: 1fr 1fr; }
   .quote-calculator { grid-template-columns: 1fr; }
   .readiness-list { grid-template-columns: repeat(3, 1fr); }
   .quote-results { grid-template-columns: 1fr 1fr; }
@@ -586,6 +615,10 @@ textarea { resize: vertical; }
   .admin-title-row .button { width: 100%; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .stat-grid article { padding: 17px; }
+  .launch-runway { padding: 20px 16px; }
+  .launch-runway-heading { align-items: stretch; flex-direction: column; }
+  .runway-supply { text-align: left; }
+  .launch-funnel-stages { grid-template-columns: 1fr; }
   .quote-calculator { padding: 20px; }
   .launch-setup { padding: 22px 18px; }
   .launch-setup-heading { align-items: flex-start; flex-direction: column; }

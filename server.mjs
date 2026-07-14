@@ -938,6 +938,73 @@ function isAdminAuthorised(request) {
   return Boolean(adminKey && request.headers["x-admin-key"] === adminKey);
 }
 
+function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, availabilityEvents, config }) {
+  const proposalRequestIds = new Map(proposals.map((proposal) => [proposal.id, proposal.requestId]));
+  const bookingRequestIds = new Map(bookings.map((booking) => [booking.id, booking.requestId]));
+  const submittedScanRequestIds = new Set(briefs.map((brief) => brief.requestId));
+  const latestBriefs = new Map();
+  for (const brief of briefs) {
+    const current = latestBriefs.get(brief.requestId);
+    if (!current || brief.createdAt > current.createdAt) latestBriefs.set(brief.requestId, brief);
+  }
+  const reviewedScanRequestIds = new Set([...latestBriefs.values()].filter((brief) => applyBriefStatus(brief, briefUpdates).status === "reviewed").map((brief) => brief.requestId));
+  const sentOfferRequestIds = new Set(proposalUpdates.filter((update) => update.status === "sent").map((update) => proposalRequestIds.get(update.proposalId)).filter(Boolean));
+  const acceptedCustomerProposals = new Set(proposalUpdates.filter((update) => update.source === "customer-private-quote" && update.status === "accepted").map((update) => update.proposalId));
+  const acceptedCleanerProposals = new Set(cleanerDecisions.filter((decision) => decision.status === "accepted").map((decision) => decision.proposalId));
+  const twoSidedAcceptedRequestIds = new Set(proposals.filter((proposal) => proposalLifecycle(proposal, proposalUpdates).status === "accepted" && acceptedCustomerProposals.has(proposal.id) && acceptedCleanerProposals.has(proposal.id)).map((proposal) => proposal.requestId));
+  const liveOfferRequestIds = new Set(proposals.filter((proposal) => proposalHasLiveOffer(proposal, proposalUpdates, cleanerDecisions) && ["sent", "accepted"].includes(proposalLifecycle(proposal, proposalUpdates).status)).map((proposal) => proposal.requestId));
+  const bookedRequestIds = new Set(bookings.map((booking) => booking.requestId));
+  const completedOutcomes = outcomes.map((outcome) => ({ outcome, requestId: bookingRequestIds.get(outcome.bookingId) })).filter((entry) => entry.requestId);
+  const completedRequestIds = new Set(completedOutcomes.map((entry) => entry.requestId));
+  const profitablePaidOutcomes = completedOutcomes.filter(({ outcome }) => Number(outcome.customerCollected) > 0 && outcome.profitable === true && outcome.metTargetMargin === true && Number(outcome.contribution) > 0);
+  const profitableRequestIds = new Set(profitablePaidOutcomes.map((entry) => entry.requestId));
+  const dispatchReadyCleanerIds = new Set(cleaners.filter((cleaner) => {
+    const status = latestStatuses.get(cleaner.id) || cleaner.status || "new";
+    const screened = latestCleanerScreening(cleaner.id, screenings)?.complete === true;
+    const hasFutureAvailability = activeCleanerAvailability(availabilityEvents, cleaner.id).some((slot) => availabilitySlotSchedule(slot)?.endMs > Date.now());
+    return status === "approved" && screened && hasFutureAvailability;
+  }).map((cleaner) => cleaner.id));
+  const activeRequestIds = new Set(requests.filter((customerRequest) => !["lost", "completed"].includes(latestStatuses.get(customerRequest.id) || customerRequest.status || "new")).map((customerRequest) => customerRequest.id));
+  const activeSubmittedScanCount = [...submittedScanRequestIds].filter((requestId) => activeRequestIds.has(requestId)).length;
+  const activeReviewedScanCount = [...reviewedScanRequestIds].filter((requestId) => activeRequestIds.has(requestId)).length;
+  const readiness = launchReadiness(config);
+  const stages = [
+    { key: "requests", label: "Cleaning requests", count: requests.length, detail: "Valid customer demand recorded" },
+    { key: "scans", label: "Room scans submitted", count: submittedScanRequestIds.size, detail: "Photos/video, notes and concise scope stored" },
+    { key: "reviewed", label: "Latest scans reviewed", count: reviewedScanRequestIds.size, detail: "Human-reviewed time and scope" },
+    { key: "offers", label: "Offers sent", count: sentOfferRequestIds.size, detail: "Audited private quote and cleaner opportunity issued" },
+    { key: "accepted", label: "Both sides accepted", count: twoSidedAcceptedRequestIds.size, detail: "Current proposal accepted by customer and cleaner" },
+    { key: "bookings", label: "Bookings confirmed", count: bookedRequestIds.size, detail: "Protected final visit pack recorded" },
+    { key: "completed", label: "Outcomes recorded", count: completedRequestIds.size, detail: "Job timeline and actual costs complete" },
+    { key: "profitable", label: "Profitable target met", count: profitableRequestIds.size, detail: "Positive receipt and founder margin floor recorded" }
+  ];
+  let bottleneck = { key: "profitable-outcome", title: "First profitable booking outcome recorded", detail: "Protect fulfilment quality and repeat the same audited process before expanding." };
+  if (!profitableRequestIds.size) {
+    if (!readiness.ready) bottleneck = { key: "launch-readiness", title: "Complete the business launch gate", detail: `${readiness.total - readiness.completed} of ${readiness.total} readiness areas still require verified founder details before a real booking or payment.` };
+    else if (completedRequestIds.size) bottleneck = { key: "actual-economics", title: "Resolve the completed job economics", detail: "A completed outcome has not yet recorded both positive contribution and the founder-approved margin floor." };
+    else if (bookedRequestIds.size) bottleneck = { key: "job-completion", title: "Complete the confirmed visit safely", detail: "Record safe arrival, cleaner completion and customer acknowledgement before actual economics." };
+    else if (twoSidedAcceptedRequestIds.size) bottleneck = { key: "booking-confirmation", title: "Complete the final booking checks", detail: "Confirm address, access, emergency instructions and external payment authorisation before recording the booking pack." };
+    else if (liveOfferRequestIds.size) bottleneck = { key: "two-sided-acceptance", title: "Obtain a current two-sided acceptance", detail: "The named customer and proposed cleaner must decide independently through their private links before the deadlines." };
+    else if (activeReviewedScanCount && !dispatchReadyCleanerIds.size) bottleneck = { key: "cleaner-supply", title: "Verify one dispatch-ready cleaner", detail: "A genuine cleaner needs approved status, all seven screening checks and a future confirmed availability window." };
+    else if (activeReviewedScanCount) bottleneck = { key: "profitable-offer", title: "Prepare one profitable matched offer", detail: "Match reviewed hours to verified availability, then check the frozen price, pay and contribution before any authorised send." };
+    else if (activeSubmittedScanCount) bottleneck = { key: "scan-review", title: "Review the submitted room scope", detail: "Confirm the checklist, price-sensitive items, defensible cleaning hours and scope confidence." };
+    else if (activeRequestIds.size) bottleneck = { key: "room-scan", title: "Complete the required room scan", detail: "The customer must submit room visuals, notes and the confirmed concise checklist before scope review." };
+    else bottleneck = { key: "first-request", title: "Record the first authorised pilot request", detail: "Use only genuine inbound demand or founder-approved outreach; do not fabricate a lead." };
+  }
+  return {
+    stages,
+    dispatchReadyCleaners: dispatchReadyCleanerIds.size,
+    readiness: { completed: readiness.completed, total: readiness.total, ready: readiness.ready },
+    goal: {
+      achieved: profitableRequestIds.size > 0,
+      profitableBookings: profitableRequestIds.size,
+      customerReceipts: moneyValue(profitablePaidOutcomes.reduce((total, { outcome }) => total + Number(outcome.customerCollected || 0), 0)),
+      contribution: moneyValue(profitablePaidOutcomes.reduce((total, { outcome }) => total + Number(outcome.contribution || 0), 0))
+    },
+    bottleneck
+  };
+}
+
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, bookingChanges, bookingChangeUpdates, jobEvents, config, availabilityEvents] = await Promise.all([
@@ -1043,7 +1110,8 @@ async function getAdminRecords(request, response) {
     ...cleaners.map((record) => merge(record, "cleaner"))
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   const dispatchActions = records.flatMap((record) => record.dispatchActions.map((action) => ({ ...action, recordId: record.id, kind: record.kind })));
-  return json(response, 200, { ok: true, records, dispatchSummary: { urgent: dispatchActions.filter((action) => action.severity === "urgent").length, high: dispatchActions.filter((action) => action.severity === "high").length, monitor: dispatchActions.filter((action) => action.severity === "monitor").length, total: dispatchActions.length } });
+  const launchFunnel = launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, availabilityEvents, config });
+  return json(response, 200, { ok: true, records, dispatchSummary: { urgent: dispatchActions.filter((action) => action.severity === "urgent").length, high: dispatchActions.filter((action) => action.severity === "high").length, monitor: dispatchActions.filter((action) => action.severity === "monitor").length, total: dispatchActions.length }, launchFunnel });
 }
 
 async function updateAdminCleanerScreening(request, response) {

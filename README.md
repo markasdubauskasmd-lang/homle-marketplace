@@ -35,6 +35,7 @@ Then open `http://127.0.0.1:4173`.
 - Local private submission files in `data/`
 - Private local control desk at `/admin` with lead filters, status tracking, internal notes and next-action dates
 - Prioritised founder-action dispatch queue derived from recorded scan, matching, offer, booking and safety state; urgent safety reports, rematching, booking finalisation and overdue follow-ups are surfaced without sending messages or changing records
+- Private first-profitable-booking runway derives eight conversion stages from authoritative records—request, submitted scan, reviewed scope, sent offer, two-sided acceptance, confirmed booking, recorded outcome and target-margin result—then names the current bottleneck and dispatch-ready cleaner count without exposing contact data or moving money
 - Internal quote calculator that pre-fills approved rates, includes founder-confirmed payment fees, travel, supplies, risk contingency and additional job costs, and solves the customer total/hourly rate needed to meet the contribution-margin floor
 - Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules
 - Founder-configured outward-postcode enforcement that blocks out-of-area matching, proposal use and booking readiness

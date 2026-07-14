@@ -1,4 +1,4 @@
-const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {} };
+const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null };
 
 const leadList = document.querySelector("#lead-list");
 const dispatchQueueList = document.querySelector("#dispatch-queue-list");
@@ -189,6 +189,42 @@ function updateStats() {
   document.querySelector("#attention-detail").textContent = `${state.dispatchSummary.urgent || 0} urgent · ${state.dispatchSummary.high || 0} high priority`;
   document.querySelector("#new-request-count").textContent = `${requests.filter((record) => record.status === "new").length} new to review`;
   document.querySelector("#new-cleaner-count").textContent = `${cleaners.filter((record) => record.status === "new").length} new to review`;
+}
+
+function renderLaunchFunnel() {
+  const target = document.querySelector("#launch-funnel-stages");
+  const bottleneck = document.querySelector("#launch-bottleneck");
+  const funnel = state.launchFunnel;
+  target.replaceChildren();
+  if (!funnel?.stages?.length) {
+    const unavailable = document.createElement("div");
+    unavailable.className = "runway-loading";
+    unavailable.textContent = "Launch-runway evidence is unavailable. Refresh the control desk.";
+    target.append(unavailable);
+    return;
+  }
+  document.querySelector("#runway-cleaner-count").textContent = funnel.dispatchReadyCleaners;
+  funnel.stages.forEach((stage, index) => {
+    const item = document.createElement("article");
+    item.className = `funnel-stage${stage.count > 0 ? " funnel-stage-reached" : ""}`;
+    const step = document.createElement("span");
+    step.textContent = String(index + 1);
+    step.setAttribute("aria-hidden", "true");
+    const copy = document.createElement("div");
+    addText(copy, "strong", stage.label);
+    addText(copy, "small", stage.detail);
+    const count = document.createElement("b");
+    count.textContent = String(stage.count);
+    count.setAttribute("aria-label", `${stage.count} ${stage.label.toLowerCase()}`);
+    item.append(step, copy, count);
+    target.append(item);
+  });
+  bottleneck.replaceChildren();
+  bottleneck.className = `launch-bottleneck${funnel.goal?.achieved ? " launch-bottleneck-complete" : ""}`;
+  addText(bottleneck, "span", funnel.goal?.achieved ? "Milestone recorded" : "Current bottleneck");
+  addText(bottleneck, "strong", funnel.bottleneck?.title || "Review launch evidence");
+  addText(bottleneck, "p", funnel.bottleneck?.detail || "Check the underlying records before acting.");
+  if (funnel.goal?.achieved) addText(bottleneck, "small", `${funnel.goal.profitableBookings} profitable target-met booking${funnel.goal.profitableBookings === 1 ? "" : "s"} · ${money.format(funnel.goal.customerReceipts)} recorded receipts · ${money.format(funnel.goal.contribution)} contribution`);
 }
 
 function actionMatchesFilter(record) {
@@ -1396,7 +1432,9 @@ async function loadRecords() {
     showContent();
     state.records = result.records;
     state.dispatchSummary = result.dispatchSummary || {};
+    state.launchFunnel = result.launchFunnel || null;
     updateStats();
+    renderLaunchFunnel();
     renderDispatchQueue();
     renderRecords();
   } catch (error) {
