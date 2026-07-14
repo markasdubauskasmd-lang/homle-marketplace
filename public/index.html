@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Tideway connects landlords and businesses with reliable local cleaners. Join the London pilot as a customer or cleaning professional.">
+  <meta name="description" content="Request a clean, scan each room and turn spoken notes into a clear checklist for a local cleaning professional with Tideway.">
   <meta name="theme-color" content="#0e665b">
   <title>Tideway — cleaning, properly coordinated</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260714-19">
-  <script src="/app.js?v=20260714-22" type="module"></script>
+  <script src="/app.js?v=20260714-26" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -23,7 +23,7 @@
       <nav id="main-nav" class="main-nav" aria-label="Primary navigation">
         <a href="#services">Services</a>
         <a href="#how-it-works">How it works</a>
-        <a href="/brief">Photo job brief</a>
+        <a href="/brief">Scan my rooms</a>
         <a href="#for-cleaners">For cleaners</a>
         <a class="button button-small button-outline" href="#cleaner-application">Join as a cleaner</a>
         <a class="button button-small" href="#request-cleaning">Request cleaning</a>
@@ -36,8 +36,8 @@
       <div class="shell hero-grid">
         <div class="hero-copy">
           <p class="eyebrow">London pilot · applications open</p>
-          <h1>Cleaning work, matched and managed properly.</h1>
-          <p class="hero-lead">Tideway connects landlords and businesses with reliable local cleaning professionals—without the back-and-forth.</p>
+          <h1>Book a clean with every room clearly scoped.</h1>
+          <p class="hero-lead">Request a clean, photograph each room and speak naturally. Tideway turns your notes into a concise checklist before matching the work with a cleaning professional.</p>
           <div class="hero-actions">
             <a class="button" href="#request-cleaning">I need a cleaner</a>
             <a class="button button-outline" href="#cleaner-application">I want cleaning work</a>
@@ -79,10 +79,11 @@
       <div class="shell">
         <div class="section-heading"><p class="eyebrow">A controlled pilot</p><h2>Simple from request to completion</h2></div>
         <ol class="steps">
-          <li><span>1</span><div><h3>Tell us about the job</h3><p>Share the property, service, location and preferred timing.</p></div></li>
-          <li><span>2</span><div><h3>We check the details</h3><p>Tideway confirms the scope and finds a suitable available cleaner.</p></div></li>
-          <li><span>3</span><div><h3>You approve the quote</h3><p>Nothing is booked and no payment is taken until you agree.</p></div></li>
-          <li><span>4</span><div><h3>The job is coordinated</h3><p>We keep the customer and cleaner aligned from access to completion.</p></div></li>
+          <li><span>1</span><div><h3>Request a clean</h3><p>Share the property, service, location and preferred timing.</p></div></li>
+          <li><span>2</span><div><h3>Scan the rooms</h3><p>Add room photos and speak the instructions. Tideway creates concise room-by-room tasks for you to review.</p></div></li>
+          <li><span>3</span><div><h3>We match the work</h3><p>Tideway reviews the scope and checks a suitable cleaner's availability.</p></div></li>
+          <li><span>4</span><div><h3>You approve the quote</h3><p>Nothing is booked and no payment is taken until you agree.</p></div></li>
+          <li><span>5</span><div><h3>Follow the job</h3><p>Protected updates keep the customer and cleaner aligned from safe arrival to completion.</p></div></li>
         </ol>
       </div>
     </section>
@@ -107,9 +108,9 @@
       <div class="shell form-stack">
         <article id="request-cleaning" class="form-card">
           <div class="form-intro">
-            <p class="eyebrow">For landlords &amp; businesses</p>
-            <h2>Request cleaning</h2>
-            <p>Tell us what you need. During the pilot we review every request personally and reply with coverage, availability and a quote.</p>
+            <p class="eyebrow">For homes, landlords &amp; businesses</p>
+            <h2>Step 1: request cleaning</h2>
+            <p>Tell us the basics first. After submitting, the required room scan captures the photos and spoken instructions a cleaner needs.</p>
             <div class="form-promise"><strong>No payment today</strong><span>This is a request, not a confirmed booking.</span></div>
           </div>
           <form data-api-form action="/api/cleaning-requests" method="post" novalidate>
@@ -124,7 +125,7 @@
             </div>
             <div class="field-row">
               <label>UK postcode <input name="postcode" autocomplete="postal-code" required></label>
-              <label>I am a <select name="customerType" required><option value="">Choose one</option><option>Landlord</option><option>Letting or property manager</option><option>Business or office manager</option><option>Short-let operator</option><option>Other</option></select></label>
+              <label>I am a <select name="customerType" required><option value="">Choose one</option><option>Homeowner or tenant</option><option>Landlord</option><option>Letting or property manager</option><option>Business or office manager</option><option>Short-let operator</option><option>Other</option></select></label>
             </div>
             <div class="field-row">
               <label>Property type <select name="propertyType" required><option value="">Choose one</option><option>Flat or house</option><option>Office or workplace</option><option>Communal area</option><option>Short-let property</option><option>Other commercial space</option></select></label>
@@ -143,8 +144,8 @@
             <label>Job details <span>(optional)</span><textarea name="details" rows="4" placeholder="Size, access, deadline, special tasks or anything else we should know"></textarea></label>
             <label class="checkbox"><input name="consent" type="checkbox" required><span>I agree that Tideway may use these details to respond to my request. See the <a href="/privacy">privacy notice</a>.</span></label>
             <input type="hidden" name="website" value="">
-            <button class="button submit-button" type="submit">Send cleaning request</button>
-            <div class="success-panel" role="status" tabindex="-1" hidden><strong>Request received.</strong><span>Your reference is <b data-reference></b>. Tideway will review the details before any booking is confirmed.</span><a class="button button-small" data-brief-link href="/brief">Continue with photos and voice instructions</a></div>
+            <button class="button submit-button" type="submit">Continue to room scan</button>
+            <div class="success-panel" role="status" tabindex="-1" hidden><strong>Step 1 complete.</strong><span>Your reference is <b data-reference></b>. A room scan is required before Tideway can prepare a cleaner-ready quote.</span><a class="button button-small" data-brief-link href="/brief">Step 2: scan rooms and speak notes</a></div>
           </form>
         </article>
 

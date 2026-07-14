@@ -643,8 +643,8 @@ async function updateAdminProposalStatus(request, response) {
   }
   const latestBrief = briefs.filter((brief) => brief.requestId === proposal.requestId).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const reviewedBrief = latestBrief ? applyBriefStatus(latestBrief, briefUpdates) : null;
-  if (["ready", "sent", "accepted"].includes(status) && reviewedBrief && reviewedBrief.status !== "reviewed") {
-    return json(response, 422, { ok: false, error: "Review and approve the latest landlord photo job brief before advancing this proposal." });
+  if (["ready", "sent", "accepted"].includes(status) && (!reviewedBrief || reviewedBrief.status !== "reviewed")) {
+    return json(response, 422, { ok: false, error: "A completed and reviewed room scan is required before advancing this proposal." });
   }
   if (["ready", "sent", "accepted"].includes(status) && proposal.estimatedHours < config.minimumHours) {
     return json(response, 422, { ok: false, error: `This proposal's ${proposal.estimatedHours} estimated hours are below the ${config.minimumHours}-hour minimum.` });
@@ -745,7 +745,7 @@ async function getQuoteContext(token) {
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
-    briefReviewed: !latestBrief || latestBrief.status === "reviewed",
+    briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
@@ -896,7 +896,7 @@ async function getCleanerOpportunityContext(token) {
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
-    briefReviewed: !latestBrief || latestBrief.status === "reviewed",
+    briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
@@ -1039,12 +1039,13 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
-  const briefReviewed = !latestBrief || latestBrief.status === "reviewed";
+  const briefReviewed = Boolean(latestBrief && latestBrief.status === "reviewed");
   const warnings = [];
   if (!readiness.ready) warnings.push("Complete all seven launch-readiness checks before using these drafts.");
   if (!pilotCoverage.covered) warnings.push(`${pilotCoverage.outwardCode || "This postcode"} is outside the configured Tideway pilot area.`);
   if (!["ready", "sent", "accepted"].includes(proposalStatus)) warnings.push("The proposal is still a draft and has not been internally approved.");
-  if (!briefReviewed) warnings.push("Review and approve the latest landlord photo job brief before using the cleaner draft.");
+  if (!latestBrief) warnings.push("The customer must complete the room scan before a cleaner-ready proposal can be used.");
+  else if (!briefReviewed) warnings.push("Review and approve the latest customer room scan before using the cleaner draft.");
   if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
   if (!config.paymentTiming) warnings.push("Add the customer payment timing.");
   if (!config.supportEmail || !config.supportPhone) warnings.push("Add verified support contact details.");
@@ -1143,7 +1144,7 @@ async function buildBookingAudit(proposalId) {
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
-    briefReviewed: !latestBrief || latestBrief.status === "reviewed",
+    briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
     scopeCaptured: Boolean(customerRequest.siteSize),
     accessCaptured: Boolean(customerRequest.accessNotes),
     hazardsCaptured: Boolean(customerRequest.hazards),

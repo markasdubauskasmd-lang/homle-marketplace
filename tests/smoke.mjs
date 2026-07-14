@@ -58,7 +58,7 @@ try {
   assert(sessionValues.size === 0, "Completed request-to-brief handoff was not cleared.");
 
   const home = await fetch(base);
-  assert(home.ok && (await home.text()).includes("Cleaning work, matched and managed properly"), "Homepage failed.");
+  assert(home.ok && (await home.text()).includes("Book a clean with every room clearly scoped"), "Homepage failed.");
   assert(home.headers.get("content-security-policy")?.includes("frame-ancestors 'none'"), "Security headers were missing.");
   assert(home.headers.get("content-security-policy")?.includes("img-src 'self' data: blob:"), "Secure local photo previews were blocked by the content policy.");
 
@@ -235,6 +235,26 @@ try {
   });
   assert(cleanerApproval.ok, "Cleaner approval status failed.");
 
+  const unscannedRequest = await fetch(`${base}/api/cleaning-requests`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ contactName: "No Scan Customer", email: "noscan@example.com", phone: "07123456788", postcode: "SW1A 2AA", customerType: "Homeowner or tenant", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "1 bedroom and 1 bathroom", accessNotes: "Meet at the property", hazards: "None known", consent: true })
+  });
+  const unscannedRequestBody = await unscannedRequest.json();
+  assert(unscannedRequest.status === 201, "Customer request without a room scan could not be created as step one.");
+  const unscannedProposal = await fetch(`${base}/api/admin/proposals`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: unscannedRequestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-22", proposedStartTime: "09:00", estimatedHours: 3, customerRate: 30, cleanerRate: 18, otherCosts: 5 })
+  });
+  const unscannedProposalBody = await unscannedProposal.json();
+  assert(unscannedProposal.status === 201, "Internal draft could not be prepared for the room-scan gate test.");
+  const unscannedReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: unscannedProposalBody.proposal.id, status: "ready" }) });
+  assert(unscannedReady.status === 422, "A proposal advanced without the required reviewed room scan.");
+  const unscannedDraft = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${unscannedProposalBody.proposal.id}`);
+  const unscannedDraftBody = await unscannedDraft.json();
+  assert(unscannedDraft.ok && unscannedDraftBody.sendAllowed === false && unscannedDraftBody.warnings.some((warning) => warning.includes("complete the room scan")), "Missing room scan was not clearly explained in the control desk.");
+
   const matching = await fetch(`${base}/api/admin/matches?requestId=${requestBody.reference}`);
   const matchingBody = await matching.json();
   assert(matching.ok && matchingBody.matches.length === 1, "Approved cleaner match was not returned.");
@@ -302,7 +322,7 @@ try {
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
   const briefBlockedDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
   const briefBlockedDraftsBody = await briefBlockedDrafts.json();
-  assert(briefBlockedDrafts.ok && briefBlockedDraftsBody.sendAllowed === false && briefBlockedDraftsBody.warnings.some((warning) => warning.includes("photo job brief")), "Unreviewed landlord brief did not block cleaner-draft use.");
+  assert(briefBlockedDrafts.ok && briefBlockedDraftsBody.sendAllowed === false && briefBlockedDraftsBody.warnings.some((warning) => warning.includes("customer room scan")), "Unreviewed customer room scan did not block cleaner-draft use.");
   const unreviewedProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
   assert(unreviewedProposal.status === 422, "Unreviewed landlord brief did not block proposal advancement.");
   const revisionWithoutNote = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: briefBody.reference, status: "needs-revision" }) });
@@ -372,6 +392,15 @@ try {
   });
   const overlapRequestBody = await overlapRequest.json();
   assert(overlapRequest.status === 201, "Overlapping-schedule test request failed.");
+  const overlapScan = await fetch(`${base}/api/job-briefs`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: overlapRequestBody.reference, email: "overlap@example.com", transcript: "In the kitchen wipe the worktops and mop the floor.", photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true })
+  });
+  const overlapScanBody = await overlapScan.json();
+  assert(overlapScan.status === 201, "Overlapping-schedule request room scan failed.");
+  const reviewedOverlapScan = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: overlapScanBody.reference, status: "reviewed", note: "Test-only scan review." }) });
+  assert(reviewedOverlapScan.ok, "Overlapping-schedule request room scan was not reviewed.");
   const overlapProposal = await fetch(`${base}/api/admin/proposals`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -531,7 +560,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-scan handoff, automatic concise speech bullets, mandatory reviewed room scans, pilot-area enforcement, cleaner screening, private images, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

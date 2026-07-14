@@ -201,7 +201,7 @@ form.addEventListener("submit", async (event) => {
   if (!photos.length) { showError("Add at least one property photo."); return; }
   if (!tasks.length) { showError("Create and review at least one cleaner task."); return; }
   saveButton.disabled = true;
-  saveButton.textContent = "Preparing private brief…";
+  saveButton.textContent = "Preparing private room scan…";
   try {
     const encodedPhotos = [];
     for (const photo of photos) encodedPhotos.push({ area: photo.area, dataUrl: await photoDataUrl(photo) });
@@ -220,7 +220,7 @@ form.addEventListener("submit", async (event) => {
     showError(error.message);
   } finally {
     saveButton.disabled = false;
-    saveButton.textContent = "Save private job brief";
+    saveButton.textContent = "Complete private room scan";
   }
 });
 

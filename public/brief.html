@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Create a clear Tideway cleaner checklist from property photos and spoken or typed instructions.">
+  <meta name="description" content="Scan each room and turn spoken or typed cleaning instructions into a clear Tideway cleaner checklist.">
   <meta name="theme-color" content="#0e665b">
-  <title>Create a photo job brief — Tideway</title>
+  <title>Scan rooms for your clean — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260714-19">
-  <script src="/brief.js?v=20260714-19" type="module"></script>
+  <script src="/brief.js?v=20260714-26" type="module"></script>
 </head>
 <body class="brief-page">
   <a class="skip-link" href="#brief-main">Skip to job brief</a>
@@ -23,14 +23,14 @@
     <section class="brief-hero">
       <div class="shell brief-hero-grid">
         <div>
-          <p class="eyebrow">Photo + voice job brief</p>
-          <h1>Show the property. Say what needs cleaning.</h1>
-          <p class="hero-lead">Tideway turns your spoken or typed instructions into a cleaner-ready checklist, with room photos kept beside the brief for visual context.</p>
+          <p class="eyebrow">Step 2 · room scan + voice notes</p>
+          <h1>Scan every room. Say exactly what needs cleaning.</h1>
+          <p class="hero-lead">Tideway turns spoken or typed instructions into a concise room-by-room checklist, with photos kept beside the tasks for visual context.</p>
         </div>
         <ol class="brief-steps" aria-label="Three steps">
-          <li><span>1</span><strong>Add up to six room photos</strong></li>
-          <li><span>2</span><strong>Speak or type the instructions</strong></li>
-          <li><span>3</span><strong>Review every task before saving</strong></li>
+          <li><span>1</span><strong>Photograph each room that needs work</strong></li>
+          <li><span>2</span><strong>Speak naturally while you walk through</strong></li>
+          <li><span>3</span><strong>Review the concise cleaner checklist</strong></li>
         </ol>
       </div>
     </section>
@@ -44,13 +44,13 @@
         </div>
 
         <div class="brief-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Step 1</p><h2>Property photos</h2><p>Photograph only areas relevant to the clean. Avoid people, identity documents, post, keys and security codes.</p></div><strong id="photo-count">0/6</strong></div>
-          <label class="photo-picker">Add room photos<input id="brief-photos" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple></label>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 1</p><h2>Room photos</h2><p>Walk through the property and photograph each area relevant to the clean. Avoid people, identity documents, post, keys and security codes.</p></div><strong id="photo-count">0/6</strong></div>
+          <label class="photo-picker">Open camera or add room photos<input id="brief-photos" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple></label>
           <div id="photo-preview" class="photo-preview" aria-live="polite"><p class="empty-photo-state">No photos added yet.</p></div>
         </div>
 
         <div class="brief-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Step 2</p><h2>Speak or type the instructions</h2><p>Describe each room, the result you expect, priority tasks and anything the cleaner must avoid. Speech is automatically summarised into concise bullet points.</p></div><button id="voice-button" class="button button-outline" type="button">Start speaking</button></div>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 2</p><h2>Speak or type the instructions</h2><p>Name each room, the result you expect, priority tasks and anything the cleaner must avoid. Speech is automatically summarised into concise bullet points.</p></div><button id="voice-button" class="button button-outline" type="button">Start speaking</button></div>
           <div id="voice-status" class="voice-status" role="status">Voice capture checks your browser support. You can always type instead.</div>
           <label>Instructions<textarea id="brief-transcript" name="transcript" rows="9" maxlength="5000" required placeholder="For example: In the kitchen, wipe every worktop, degrease the hob, clean inside the microwave and mop the floor. In the bathroom, remove limescale from the shower screen and disinfect the toilet. Do not move the locked cupboard."></textarea></label>
           <p class="privacy-hint">Tideway saves the final text, not an audio recording. Your browser may provide the speech-to-text service, so review the transcript carefully.</p>
@@ -58,13 +58,13 @@
         </div>
 
         <div class="brief-panel" id="checklist-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Step 3</p><h2>Review the cleaner checklist</h2><p>One task per line. Edit anything unclear before saving.</p></div><strong id="task-count">0 tasks</strong></div>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 3</p><h2>Review the cleaner checklist</h2><p>One clear task per line. Check that every photographed room is represented and edit anything unclear before saving.</p></div><strong id="task-count">0 tasks</strong></div>
           <label>Cleaner tasks<textarea id="brief-checklist" rows="10" placeholder="Your generated bullet points will appear here."></textarea></label>
           <ul id="checklist-preview" class="checklist-preview" aria-live="polite"><li>Generate the checklist to preview the cleaner tasks.</li></ul>
           <label class="consent-row"><input name="consent" type="checkbox" required> I confirm that I may share these property photos and instructions with Tideway for this cleaning request.</label>
           <div id="brief-error" class="error-summary" role="alert" tabindex="-1" hidden></div>
-          <button id="save-brief" class="button submit-button" type="submit">Save private job brief</button>
-          <div id="brief-success" class="success-panel" role="status" tabindex="-1" hidden><strong>Job brief saved.</strong><span>Your brief reference is <b data-brief-reference></b>. Tideway will review it before anything is shared with a cleaner.</span></div>
+          <button id="save-brief" class="button submit-button" type="submit">Complete private room scan</button>
+          <div id="brief-success" class="success-panel" role="status" tabindex="-1" hidden><strong>Room scan complete.</strong><span>Your scan reference is <b data-brief-reference></b>. Tideway will review it before preparing a cleaner-ready quote.</span></div>
         </div>
       </form>
     </section>
