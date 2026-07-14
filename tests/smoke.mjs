@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { checklistFromTranscript } from "../public/checklist.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const testDataDir = await mkdtemp(path.join(tmpdir(), "tideway-smoke-"));
@@ -27,6 +28,17 @@ function assert(condition, message) {
 
 try {
   await waitForServer();
+
+  const conciseTasks = checklistFromTranscript("Um, so in the kitchen, please wipe every worktop, degrease the hob, clean inside the microwave and mop the floor. In the bathroom, remove limescale from the shower screen and disinfect the toilet. Finally do not move the locked cupboard.");
+  assert(JSON.stringify(conciseTasks) === JSON.stringify([
+    "Kitchen: Wipe every worktop",
+    "Kitchen: Degrease the hob",
+    "Kitchen: Clean inside the microwave",
+    "Kitchen: Mop the floor",
+    "Bathroom: Remove limescale from the shower screen",
+    "Bathroom: Disinfect the toilet",
+    "Do not move the locked cupboard"
+  ]), "Long spoken instructions were not summarised into concise room-labelled bullets.");
 
   const home = await fetch(base);
   assert(home.ok && (await home.text()).includes("Cleaning work, matched and managed properly"), "Homepage failed.");
@@ -294,7 +306,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
 
-  console.log("Smoke tests passed: public pages, photo-and-voice job briefs, human brief review gates, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, automatic concise speech bullets, photo-and-voice job briefs, human brief review gates, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

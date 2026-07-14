@@ -3,6 +3,7 @@ import { appendFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile }
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { checklistFromTranscript, normaliseChecklistTask } from "./public/checklist.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, "public");
@@ -164,21 +165,6 @@ async function cleanupStaleTemporaryFiles() {
   const filenames = await readdir(dataDir);
   const stale = filenames.filter((filename) => /^business-config\.json\.[0-9a-f-]+\.tmp$/i.test(filename));
   await Promise.all(stale.map((filename) => unlink(path.join(dataDir, filename)).catch(() => {})));
-}
-
-function normaliseChecklistTask(value) {
-  const task = text(value, 300).replace(/^[-*•\d.)\s]+/, "").replace(/\s+/g, " ").replace(/^(?:please|could you|can you|the cleaner should)\s+/i, "").trim();
-  if (task.length < 3) return "";
-  return `${task.charAt(0).toUpperCase()}${task.slice(1)}`.replace(/[.!?]+$/, "");
-}
-
-function checklistFromTranscript(value) {
-  return text(value, 5000)
-    .replace(/\b(?:and then|after that|next|also|finally)\b/gi, ".")
-    .split(/[.!?;\n]+/)
-    .map(normaliseChecklistTask)
-    .filter((task, index, tasks) => task && tasks.findIndex((item) => item.toLowerCase() === task.toLowerCase()) === index)
-    .slice(0, 40);
 }
 
 function decodeBriefPhoto(input, index) {

@@ -15,7 +15,7 @@ Then open `http://127.0.0.1:4173`.
 ## What works
 
 - Customer cleaning request form with server-side validation
-- Photo-and-voice job brief builder that turns landlord instructions into checklist bullets and privately stores resized room photos
+- Photo-and-voice job brief builder that automatically summarises speech into concise, room-labelled checklist bullets and privately stores resized room photos
 - Audited human review decisions for photo job briefs; unreviewed briefs block cleaner-draft use, proposal approval and booking readiness
 - Cleaner application form with server-side validation
 - Local private submission files in `data/`

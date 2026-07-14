@@ -1,3 +1,5 @@
+import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js";
+
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
 const photoCount = document.querySelector("#photo-count");
@@ -24,14 +26,8 @@ function showError(message) {
   errorBox.focus();
 }
 
-function normaliseTask(value) {
-  const task = value.trim().replace(/^[-*•\d.)\s]+/, "").replace(/\s+/g, " ").replace(/^(?:please|could you|can you|the cleaner should)\s+/i, "");
-  if (task.length < 3) return "";
-  return `${task.charAt(0).toUpperCase()}${task.slice(1)}`.replace(/[.!?]+$/, "");
-}
-
 function checklistTasks() {
-  return [...new Map(checklist.value.split(/\r?\n/).map(normaliseTask).filter(Boolean).map((task) => [task.toLowerCase(), task])).values()].slice(0, 40);
+  return [...new Map(checklist.value.split(/\r?\n/).map(normaliseChecklistTask).filter(Boolean).map((task) => [task.toLowerCase(), task])).values()].slice(0, 40);
 }
 
 function renderChecklist() {
@@ -51,20 +47,16 @@ function renderChecklist() {
   taskCount.textContent = `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`;
 }
 
-function generateChecklist() {
-  const tasks = [...new Map(transcript.value
-    .replace(/\b(?:and then|after that|next|also|finally)\b/gi, ".")
-    .split(/[.!?;\n]+/)
-    .map(normaliseTask)
-    .filter(Boolean)
-    .map((task) => [task.toLowerCase(), task])).values()].slice(0, 40);
+function generateChecklist({ scroll = true, showEmptyError = true } = {}) {
+  const tasks = checklistFromTranscript(transcript.value);
   checklist.value = tasks.join("\n");
   renderChecklist();
-  if (tasks.length) document.querySelector("#checklist-panel").scrollIntoView({ behavior: "smooth", block: "start" });
-  else showError("Add some spoken or typed cleaning instructions before creating the checklist.");
+  if (tasks.length && scroll) document.querySelector("#checklist-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  else if (!tasks.length && showEmptyError) showError("Add some spoken or typed cleaning instructions before creating the checklist.");
+  return tasks;
 }
 
-document.querySelector("#generate-checklist").addEventListener("click", generateChecklist);
+document.querySelector("#generate-checklist").addEventListener("click", () => generateChecklist());
 checklist.addEventListener("input", renderChecklist);
 
 function renderPhotos() {
@@ -147,14 +139,28 @@ function photoDataUrl(photo) {
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 let listening = false;
+let voiceErrorMessage = "";
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
   recognition.lang = "en-GB";
   recognition.continuous = true;
   recognition.interimResults = true;
-  recognition.onstart = () => { listening = true; voiceButton.textContent = "Stop speaking"; voiceStatus.textContent = "Listening… describe the rooms and tasks. Nothing is saved as audio."; };
-  recognition.onend = () => { listening = false; voiceButton.textContent = "Start speaking"; voiceStatus.textContent = "Voice capture stopped. Review the transcript, then create the checklist."; };
-  recognition.onerror = (event) => { voiceStatus.textContent = event.error === "not-allowed" ? "Microphone access was not allowed. Type the instructions instead." : "Voice capture stopped. You can continue by typing."; };
+  recognition.onstart = () => { listening = true; voiceErrorMessage = ""; voiceButton.textContent = "Stop speaking"; voiceStatus.textContent = "Listening… describe the rooms and tasks. Concise bullets appear automatically."; };
+  recognition.onend = () => {
+    listening = false;
+    voiceButton.textContent = "Start speaking";
+    if (voiceErrorMessage) { voiceStatus.textContent = voiceErrorMessage; return; }
+    const tasks = generateChecklist({ scroll: false, showEmptyError: false });
+    voiceStatus.textContent = tasks.length
+      ? `Voice capture stopped. ${tasks.length} concise ${tasks.length === 1 ? "bullet" : "bullets"} created below for review.`
+      : "Voice capture stopped. Speak again or type the instructions below.";
+  };
+  recognition.onerror = (event) => {
+    voiceErrorMessage = event.error === "not-allowed"
+      ? "Microphone access was not allowed. Type the instructions instead."
+      : "Voice capture stopped. You can continue by typing.";
+    voiceStatus.textContent = voiceErrorMessage;
+  };
   recognition.onresult = (event) => {
     let finalText = "";
     let interimText = "";
@@ -163,8 +169,12 @@ if (SpeechRecognition) {
       if (event.results[index].isFinal) finalText += `${words}. `;
       else interimText += words;
     }
-    if (finalText) transcript.value = `${transcript.value.trim()} ${finalText}`.trim();
-    voiceStatus.textContent = interimText ? `Listening: ${interimText}` : "Listening…";
+    if (finalText) {
+      transcript.value = `${transcript.value.trim()} ${finalText}`.trim();
+      const tasks = generateChecklist({ scroll: false, showEmptyError: false });
+      voiceStatus.textContent = `${tasks.length} concise ${tasks.length === 1 ? "bullet" : "bullets"} created so far. Keep speaking or stop to review.`;
+    }
+    if (interimText) voiceStatus.textContent = `Listening: ${interimText}`;
   };
   voiceStatus.textContent = "Voice capture is available. Your browser may provide the speech-to-text service.";
   voiceButton.addEventListener("click", () => { if (listening) recognition.stop(); else recognition.start(); });
