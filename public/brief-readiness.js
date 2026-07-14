@@ -22,6 +22,24 @@ function hasEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
 
+function normaliseFingerprintText(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+export function briefScopeFingerprint({ transcript = "", tasks = [], photos = [] } = {}) {
+  const safeTasks = Array.isArray(tasks) ? tasks : [];
+  const safePhotos = Array.isArray(photos) ? photos : [];
+  return JSON.stringify({
+    transcript: normaliseFingerprintText(transcript),
+    tasks: safeTasks.map(normaliseFingerprintText),
+    photos: safePhotos.map((photo) => ({ area: normaliseFingerprintText(photo?.area), note: normaliseFingerprintText(photo?.note) }))
+  });
+}
+
+export function briefScopeConfirmationIsCurrent({ checked = false, confirmedFingerprint = "", currentFingerprint = "" } = {}) {
+  return checked === true && confirmedFingerprint.length > 0 && confirmedFingerprint === currentFingerprint;
+}
+
 export function briefReadiness({ requestId = "", email = "", transcript = "", tasks = [], photos = [], scopeCompleteConfirmed = false, consent = false } = {}) {
   const safeTasks = Array.isArray(tasks) ? tasks : [];
   const safePhotos = Array.isArray(photos) ? photos : [];

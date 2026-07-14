@@ -1,7 +1,7 @@
 import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js";
 import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 import { detectPriceSensitiveScope } from "./scope-signals.js";
-import { briefReadiness, briefRoomOptions } from "./brief-readiness.js";
+import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint } from "./brief-readiness.js";
 
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
@@ -24,6 +24,7 @@ const saveButton = document.querySelector("#save-brief");
 const photos = [];
 let submitting = false;
 let submissionComplete = false;
+let confirmedScopeFingerprint = "";
 const roomOptions = briefRoomOptions;
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
@@ -48,19 +49,27 @@ function checklistTasks() {
   return [...new Map(checklist.value.split(/\r?\n/).map(normaliseChecklistTask).filter(Boolean).map((task) => [task.toLowerCase(), task])).values()].slice(0, 40);
 }
 
+function currentScopeFingerprint() {
+  return briefScopeFingerprint({ transcript: transcript.value, tasks: checklistTasks(), photos });
+}
+
 function currentReadiness() {
+  const scopeCompleteConfirmed = briefScopeConfirmationIsCurrent({ checked: form.elements.scopeCompleteConfirmed.checked, confirmedFingerprint: confirmedScopeFingerprint, currentFingerprint: currentScopeFingerprint() });
   return briefReadiness({
     requestId: form.elements.requestId.value,
     email: form.elements.email.value,
     transcript: transcript.value,
     tasks: checklistTasks(),
     photos,
-    scopeCompleteConfirmed: form.elements.scopeCompleteConfirmed.checked,
+    scopeCompleteConfirmed,
     consent: form.elements.consent.checked
   });
 }
 
 function renderReadiness() {
+  if (form.elements.scopeCompleteConfirmed.checked && !briefScopeConfirmationIsCurrent({ checked: true, confirmedFingerprint: confirmedScopeFingerprint, currentFingerprint: currentScopeFingerprint() })) {
+    form.elements.scopeCompleteConfirmed.checked = false;
+  }
   const readiness = currentReadiness();
   scanReadiness.classList.toggle("scan-ready", readiness.ready);
   scanReadinessTitle.textContent = readiness.ready
@@ -128,7 +137,10 @@ checklist.addEventListener("input", renderChecklist);
 transcript.addEventListener("input", () => { renderScopeSignals(); renderReadiness(); });
 form.elements.requestId.addEventListener("input", renderReadiness);
 form.elements.email.addEventListener("input", renderReadiness);
-form.elements.scopeCompleteConfirmed.addEventListener("change", renderReadiness);
+form.elements.scopeCompleteConfirmed.addEventListener("change", () => {
+  confirmedScopeFingerprint = form.elements.scopeCompleteConfirmed.checked ? currentScopeFingerprint() : "";
+  renderReadiness();
+});
 form.elements.consent.addEventListener("change", renderReadiness);
 
 function renderPhotos() {

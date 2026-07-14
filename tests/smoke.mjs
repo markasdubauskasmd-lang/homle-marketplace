@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript } from "../public/checklist.js";
 import { clearBriefHandoff, readBriefHandoff, saveBriefHandoff } from "../public/brief-handoff.js";
-import { briefReadiness } from "../public/brief-readiness.js";
+import { briefReadiness, briefScopeConfirmationIsCurrent, briefScopeFingerprint } from "../public/brief-readiness.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "../public/scope-signals.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "../offer-expiry.mjs";
 
@@ -77,6 +77,11 @@ try {
   assert(multipleUncoveredScanReadiness.items.find((item) => item.key === "roomCoverage")?.label === "Add cleaner tasks for: Kitchen, Bathroom", "Live readiness did not name every photographed room still missing cleaner tasks.");
   const numberedRoomReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean bedroom one and bedroom two.", tasks: ["Bedroom 1: Change the bed linen", "Bedroom 2: Dust the shelves"], photos: [{ area: "Bedroom 1", note: "Bed needs changing" }, { area: "Bedroom 2", note: "Shelves need dusting" }], scopeCompleteConfirmed: true, consent: true });
   assert(numberedRoomReadiness.ready === true, "Canonical numbered bedroom labels did not satisfy photographed-room coverage.");
+  const confirmedScopeFingerprint = briefScopeFingerprint({ transcript: "  Clean   the kitchen. ", tasks: ["Kitchen: Wipe the worktops"], photos: [{ area: "Kitchen", note: " Worktops need cleaning " }] });
+  const whitespaceOnlyScopeFingerprint = briefScopeFingerprint({ transcript: "Clean the kitchen.", tasks: ["Kitchen: Wipe the worktops"], photos: [{ area: "Kitchen", note: "Worktops need cleaning" }] });
+  const changedScopeFingerprint = briefScopeFingerprint({ transcript: "Clean the kitchen.", tasks: ["Kitchen: Wipe the worktops", "Kitchen: Mop the floor"], photos: [{ area: "Kitchen", note: "Worktops and floor need cleaning" }] });
+  assert(confirmedScopeFingerprint === whitespaceOnlyScopeFingerprint && confirmedScopeFingerprint !== changedScopeFingerprint, "Scope confirmation fingerprint did not distinguish a real task/note change from harmless whitespace.");
+  assert(briefScopeConfirmationIsCurrent({ checked: true, confirmedFingerprint: confirmedScopeFingerprint, currentFingerprint: whitespaceOnlyScopeFingerprint }) === true && briefScopeConfirmationIsCurrent({ checked: true, confirmedFingerprint: confirmedScopeFingerprint, currentFingerprint: changedScopeFingerprint }) === false && briefScopeConfirmationIsCurrent({ checked: false, confirmedFingerprint: confirmedScopeFingerprint, currentFingerprint: confirmedScopeFingerprint }) === false, "Scope confirmation did not become invalid after a material scope change or manual uncheck.");
   const completeScanReadiness = briefReadiness({ requestId: "REQ-1234ABCD", email: "customer@example.com", transcript: "Clean the kitchen.", tasks: ["Kitchen: Clean the worktops"], photos: [{ area: "Kitchen", note: "Worktops need cleaning" }], scopeCompleteConfirmed: true, consent: true });
   assert(completeScanReadiness.ready === true && completeScanReadiness.remaining === 0 && Object.values(completeScanReadiness.checks).every(Boolean), "Complete room scan did not reach its client-side ready state.");
 
@@ -112,7 +117,7 @@ try {
   assert(adminPage.ok && adminPageText.includes("Lead control desk") && adminPageText.includes("Founder-action queue") && adminPageText.includes('id="action-filter"'), "Admin dispatch control page failed.");
   const briefPage = await fetch(`${base}/brief`);
   const briefPageText = await briefPage.text();
-  assert(briefPage.ok && briefPageText.includes("Request details carried over.") && briefPageText.includes("Checking room scan") && briefPageText.includes("Extra time may be needed") && briefPageText.includes("every task I want Tideway to quote"), "Photo job-brief page, live readiness panel, private handoff notice, customer-facing scope warning or required scope confirmation failed.");
+  assert(briefPage.ok && briefPageText.includes("Request details carried over.") && briefPageText.includes("Checking room scan") && briefPageText.includes("Extra time may be needed") && briefPageText.includes("require this confirmation again"), "Photo job-brief page, live readiness panel, private handoff notice, customer-facing scope warning or change-sensitive scope confirmation failed.");
   assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
   const scopeSignalAsset = await fetch(`${base}/scope-signals.js`);
   assert(scopeSignalAsset.ok && (await scopeSignalAsset.text()).includes("detectPriceSensitiveScope"), "Shared customer/server scope detection asset failed.");
