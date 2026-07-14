@@ -598,6 +598,14 @@ try {
   assert(frozenOpportunity.ok && frozenOpportunityBody.opportunity.cleanerModel === completeConfig.cleanerModel && frozenOpportunityBody.opportunity.offerExpiresAt === sentOpportunityBody.opportunity.offerExpiresAt && frozenOpportunityBody.opportunity.confirmedExtras?.[0]?.code === "oven-interior" && frozenOpportunityBody.opportunity.decisionAllowed === true, "An already-sent cleaner opportunity changed, lost its confirmed extra or remained closed after settings were edited.");
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
   await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "paused" }) });
+  const pausedCleanerTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const pausedCleanerTrackerBody = await pausedCleanerTracker.json();
+  const pausedTrackerSerialised = JSON.stringify(pausedCleanerTrackerBody);
+  assert(pausedCleanerTracker.ok && pausedCleanerTrackerBody.current.stage === "rematching" && pausedCleanerTrackerBody.current.headline === "Cleaner matching changed" && pausedCleanerTrackerBody.links.quoteToken === "" && pausedCleanerTrackerBody.steps.find((step) => step.key === "cleaner")?.detail === "Rematching in progress", "Customer tracker did not move safely into rematching when the selected cleaner lost eligibility.");
+  assert(!pausedTrackerSerialised.includes(cleanerBody.reference) && !pausedTrackerSerialised.includes("cleaner@example.com") && !pausedTrackerSerialised.includes("paused"), "Eligibility rematching exposed cleaner identity or the internal eligibility reason.");
+  const pausedDispatch = await fetch(`${base}/api/admin/records`);
+  const pausedDispatchBody = await pausedDispatch.json();
+  assert(pausedDispatch.ok && pausedDispatchBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.some((action) => action.code === "rematch" && action.title === "Cleaner eligibility changed"), "Founder dispatch queue did not prioritise rematching after cleaner eligibility changed.");
   const pausedOpportunityPhoto = await fetch(`${base}/api/opportunity-photo?imageId=${briefBody.photos[0].id}`, { headers: { "x-opportunity-token": proposalBody.proposal.cleanerReviewToken } });
   assert(pausedOpportunityPhoto.status === 404, "Private room-photo access remained open while the selected cleaner was paused.");
   const acceptanceWhileCleanerPaused = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Customer", scopeConfirmed: true, termsAccepted: true }) });

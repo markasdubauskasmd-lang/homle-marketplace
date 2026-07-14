@@ -46,6 +46,7 @@ Then open `http://127.0.0.1:4173`.
 - Atomic send and booking checks prevent two overlapping offers or bookings from claiming the same cleaner capacity, including concurrent send attempts and legacy booking records
 - Availability is rechecked when a proposal advances, either side decides and the booking is written; withdrawal closes affected private decisions and moves the customer tracker safely back to rematching
 - One-live-offer control prevents competing ready, sent or accepted proposals for the same request; a cleaner decline immediately locks the affected customer quote and allows a reviewed replacement to take priority
+- Live cleaner eligibility is rechecked on the customer journey and founder dispatch queue; if approval, screening, service fit or travel coverage changes before booking, the quote action closes and the tracker returns to neutral rematching without exposing the cleaner or internal reason
 - Audited pre-booking withdrawal requires a founder reason, preserves any customer acceptance record, closes both private links and returns the request to rematching; a confirmed booking cannot be cancelled through proposal controls
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until launch checks, pilot coverage and the latest job-brief review pass
 - Scan-to-quote duration protection blocks any proposal below the reviewed room-scan hours, even when its calculated contribution and margin would otherwise pass

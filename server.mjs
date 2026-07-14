@@ -803,7 +803,9 @@ function dispatchActionsForRecord({ kind, status, nextActionAt, proposals = [], 
     else add("find-match", "high", "matching", "Reviewed request needs a cleaner match", "Find a fully screened cleaner with confirmed availability before preparing a profitable proposal.");
     return actions;
   }
-  if (["ready", "sent", "accepted"].includes(activeProposal.status) && !activeProposal.availabilityCovered) {
+  if (["ready", "sent", "accepted"].includes(activeProposal.status) && activeProposal.cleanerEligibilityCurrent === false) {
+    add("rematch", "high", "rematching", "Cleaner eligibility changed", "The current offer is blocked. Recheck approval, screening, service fit and travel coverage, then select an eligible cleaner before preparing one replacement.");
+  } else if (["ready", "sent", "accepted"].includes(activeProposal.status) && !activeProposal.availabilityCovered) {
     add("rematch", "high", "rematching", "Cleaner availability changed", "The current offer is blocked. Select a screened cleaner with a confirmed window and prepare one replacement proposal.");
   } else if (["ready", "sent", "accepted"].includes(activeProposal.status) && !activeProposal.costModelCurrent) {
     add("reprice", "high", "matching", "Proposal needs recalculation", "Founder cost assumptions changed. Prepare a replacement using the current payment, travel, supplies and risk costs.");
@@ -858,6 +860,17 @@ function latestCleanerScreening(cleanerId, screenings) {
   return latest;
 }
 
+function cleanerEligibilityChecks(cleaner, customerRequest, cleanerStatus, screenings) {
+  const requiredService = requestServiceMap[customerRequest?.service] || "";
+  return {
+    cleanerExists: Boolean(cleaner),
+    cleanerApproved: cleanerStatus === "approved",
+    cleanerScreened: Boolean(cleaner && latestCleanerScreening(cleaner.id, screenings)?.complete === true),
+    serviceApproved: Boolean(cleaner && (!requiredService || cleaner.services?.includes(requiredService))),
+    cleanerTravelCovered: Boolean(cleaner && cleanerTravelCoverage(cleaner.travelAreas, customerRequest?.postcode || "").covered)
+  };
+}
+
 function isAdminAuthorised(request) {
   const remoteAddress = request.socket.remoteAddress || "";
   const isLoopbackAddress = remoteAddress === "127.0.0.1" || remoteAddress === "::1" || remoteAddress === "::ffff:127.0.0.1";
@@ -909,6 +922,10 @@ async function getAdminRecords(request, response) {
   for (const proposal of proposals) {
     const list = proposalsByRequest.get(proposal.requestId) || [];
     const latestUpdate = latestProposalUpdates.get(proposal.id) || null;
+    const proposalRequest = requests.find((record) => record.id === proposal.requestId) || null;
+    const proposalCleaner = cleaners.find((record) => record.id === proposal.cleanerId) || null;
+    const cleanerStatus = proposalCleaner ? latestStatuses.get(proposalCleaner.id) || proposalCleaner.status || "new" : "missing";
+    const cleanerEligibilityCurrent = Boolean(proposalRequest && Object.values(cleanerEligibilityChecks(proposalCleaner, proposalRequest, cleanerStatus, screenings)).every(Boolean));
     list.push({
       ...proposal,
       status: latestUpdate?.status || proposal.status || "draft",
@@ -917,6 +934,7 @@ async function getAdminRecords(request, response) {
       quoteExpiresAt: latestUpdate?.quoteSnapshot?.offerExpiresAt || "",
       cleanerOfferExpiresAt: latestUpdate?.cleanerOpportunitySnapshot?.offerExpiresAt || "",
       cleanerDecision: cleanerDecisionsByProposal.get(proposal.id) || null,
+      cleanerEligibilityCurrent,
       availabilityCovered: Boolean(findCleanerAvailabilitySlot(proposal.cleanerId, proposal, availabilityEvents)),
       costModelCurrent: proposalCostModelCurrent(proposal, config),
       exhausted: proposalOfferIsExhausted(proposal, proposalUpdates, cleanerDecisions)
@@ -2033,7 +2051,7 @@ async function getPrivateBookingPhoto(request, response, imageId) {
 async function getPrivateRequestStatus(request, response) {
   const token = text(request.headers["x-request-token"], 80);
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private request link is invalid." });
-  const [requests, statusUpdates, briefs, briefUpdates, proposals, proposalUpdates, cleanerDecisions, bookings, outcomes, jobEvents, availabilityEvents, config] = await Promise.all([
+  const [requests, statusUpdates, briefs, briefUpdates, proposals, proposalUpdates, cleanerDecisions, bookings, outcomes, jobEvents, availabilityEvents, config, cleaners, screenings] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("status-updates.ndjson"),
     readRecords("job-briefs.ndjson"),
@@ -2045,7 +2063,9 @@ async function getPrivateRequestStatus(request, response) {
     readRecords("job-outcomes.ndjson"),
     readRecords("job-events.ndjson"),
     readRecords("cleaner-availability.ndjson"),
-    readJsonFile("business-config.json", {})
+    readJsonFile("business-config.json", {}),
+    readRecords("cleaner-applications.ndjson"),
+    readRecords("cleaner-screening.ndjson")
   ]);
   const customerRequest = requests.find((record) => record.customerStatusToken === token);
   if (!customerRequest) return json(response, 404, { ok: false, error: "This private request link is invalid." });
@@ -2087,6 +2107,11 @@ async function getPrivateRequestStatus(request, response) {
   const cleanerOfferExpired = proposal?.status === "accepted" && !cleanerDecision && !offerIsOpen(proposal.cleanerExpiresAt);
   const proposalAvailabilityCovered = proposal ? Boolean(findCleanerAvailabilitySlot(proposal.cleanerId, proposal, availabilityEvents)) : false;
   const proposalCostsCurrent = proposal ? proposalCostModelCurrent(proposal, config) : false;
+  const selectedCleaner = proposal ? cleaners.find((record) => record.id === proposal.cleanerId) || null : null;
+  let selectedCleanerStatus = selectedCleaner?.status || "missing";
+  for (const update of statusUpdates) if (selectedCleaner && update.id === selectedCleaner.id) selectedCleanerStatus = update.status;
+  const selectedCleanerEligible = proposal ? Object.values(cleanerEligibilityChecks(selectedCleaner, customerRequest, selectedCleanerStatus, screenings)).every(Boolean) : false;
+  const selectedCleanerEligibilityLost = Boolean(proposal && !booking && ["sent", "accepted"].includes(proposal.status) && !selectedCleanerEligible);
   const quoteAvailabilityLost = proposal?.status === "sent" && !proposalAvailabilityCovered;
   const cleanerAvailabilityLost = proposal?.status === "accepted" && !cleanerDecision && !proposalAvailabilityCovered;
   const quotePricingChanged = proposal?.status === "sent" && !proposalCostsCurrent;
@@ -2149,6 +2174,10 @@ async function getPrivateRequestStatus(request, response) {
     currentStage = "rematching";
     headline = "Cleaner unavailable — rematching required";
     nextAction = "Tideway must select another screened cleaner and issue a new controlled opportunity before booking.";
+  } else if (selectedCleanerEligibilityLost) {
+    currentStage = "rematching";
+    headline = "Cleaner matching changed";
+    nextAction = "Tideway is reviewing another eligible cleaner before your booking can continue.";
   } else if (cleanerPricingChanged) {
     currentStage = "rematching";
     headline = "Proposal needs recalculation";
@@ -2198,14 +2227,14 @@ async function getPrivateRequestStatus(request, response) {
 
   const scanComplete = latestBrief?.status === "reviewed";
   const quoteComplete = proposal?.status === "accepted";
-  const cleanerComplete = cleanerDecision?.status === "accepted";
+  const cleanerComplete = cleanerDecision?.status === "accepted" && !selectedCleanerEligibilityLost;
   const bookingComplete = Boolean(booking);
   const cleanComplete = Boolean(outcome || jobProgress.customerCompletedAt);
   const steps = [
     { key: "request", label: "Request received", state: "complete", detail: `Reference ${customerRequest.id}` },
     { key: "scan", label: "Room scan reviewed", state: scanComplete ? "complete" : ["room-scan", "scan-revision"].includes(currentStage) ? "action" : "current", detail: !latestBrief ? "Photos and spoken notes required" : latestBrief.status === "reviewed" ? `${latestBrief.checklist.length} tasks · ${latestBrief.scopeEstimateHours} reviewed hours` : latestBrief.status === "needs-revision" ? "Revision requested" : "Awaiting Tideway review" },
     { key: "quote", label: "Quote accepted", state: quoteComplete ? "complete" : ["quote-review", "quote-expired"].includes(currentStage) ? "action" : proposal ? "current" : "waiting", detail: quoteExpired ? "Response window ended" : proposal ? proposal.status : "Not prepared yet" },
-    { key: "cleaner", label: "Cleaner confirmed", state: cleanerComplete ? "complete" : cleanerDecision?.status === "declined" ? "action" : quoteComplete ? "current" : "waiting", detail: cleanerDecision?.status || "Awaiting an accepted quote" },
+    { key: "cleaner", label: "Cleaner confirmed", state: cleanerComplete ? "complete" : selectedCleanerEligibilityLost || cleanerDecision?.status === "declined" ? "action" : quoteComplete ? "current" : "waiting", detail: selectedCleanerEligibilityLost ? "Rematching in progress" : cleanerDecision?.status || "Awaiting an accepted quote" },
     { key: "booking", label: "Visit confirmed", state: bookingComplete ? "complete" : cleanerComplete ? "current" : "waiting", detail: booking ? `${booking.proposedDate} · ${booking.proposedStartTime}–${booking.proposedEndTime}` : "Final checks pending" },
     { key: "clean", label: "Clean completed", state: cleanComplete ? "complete" : bookingComplete ? "current" : "waiting", detail: cleanComplete ? "Completion recorded" : bookingComplete ? "Visit not completed yet" : "Waiting for a confirmed visit" }
   ];
@@ -2219,7 +2248,7 @@ async function getPrivateRequestStatus(request, response) {
     visit: booking ? { reference: booking.id, proposedDate: booking.proposedDate, proposedStartTime: booking.proposedStartTime, proposedEndTime: booking.proposedEndTime, jobProgress } : null,
     links: {
       roomScanRequired: !latestBrief || latestBrief.status === "needs-revision",
-      quoteToken: proposal && ["sent", "accepted"].includes(proposal.status) && !proposal.exhausted && !quoteExpired && !quoteAvailabilityLost && !quotePricingChanged ? proposal.reviewToken : "",
+      quoteToken: proposal && ["sent", "accepted"].includes(proposal.status) && !proposal.exhausted && !quoteExpired && !quoteAvailabilityLost && !quotePricingChanged && !selectedCleanerEligibilityLost ? proposal.reviewToken : "",
       bookingToken: booking?.customerViewToken || ""
     }
   });
