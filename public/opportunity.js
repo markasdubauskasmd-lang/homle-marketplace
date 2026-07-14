@@ -61,7 +61,9 @@ function renderOpportunity(opportunity) {
   if (opportunity.decision || !opportunity.decisionAllowed) {
     form.hidden = true;
     locked.hidden = false;
-    if (opportunity.decision?.status === "accepted") {
+    if (opportunity.status === "cancelled") {
+      locked.innerHTML = "<strong>This opportunity was withdrawn before assignment.</strong><span>No assignment was created. Contact Tideway if you need help.</span>";
+    } else if (opportunity.decision?.status === "accepted") {
       locked.innerHTML = "<strong>Opportunity accepted.</strong><span>Tideway recorded your decision. This is not yet a confirmed assignment.</span>";
     } else if (opportunity.decision?.status === "declined") {
       locked.innerHTML = "<strong>Opportunity declined.</strong><span>Tideway recorded your decision and no assignment was made.</span>";

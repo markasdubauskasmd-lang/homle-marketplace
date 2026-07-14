@@ -525,6 +525,41 @@ try {
   const overlapSent = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: overlapProposalBody.proposal.id, status: "sent" }) });
   assert(overlapReady.ok && overlapSent.ok, "A second opportunity could not reach sent state before either cleaner decision existed.");
 
+  const replacementProposal = await fetch(`${base}/api/admin/proposals`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: overlapRequestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-22", proposedStartTime: "09:00", estimatedHours: 2, customerRate: 30, cleanerRate: 18, otherCosts: 0 })
+  });
+  const replacementProposalBody = await replacementProposal.json();
+  assert(replacementProposal.status === 201, "Replacement proposal draft could not be prepared.");
+  const competingReplacementReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: replacementProposalBody.proposal.id, status: "ready" }) });
+  assert(competingReplacementReady.status === 409, "A second live proposal was allowed for the same cleaning request.");
+  const declinedOverlapOpportunity = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": overlapProposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "declined", typedName: "Test Cleaner", reason: "Test-only schedule decline." }) });
+  assert(declinedOverlapOpportunity.ok, "Cleaner could not decline the original opportunity before rematching.");
+  const exhaustedCustomerQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": overlapProposalBody.proposal.reviewToken } });
+  const exhaustedCustomerQuoteBody = await exhaustedCustomerQuote.json();
+  assert(exhaustedCustomerQuote.ok && exhaustedCustomerQuoteBody.quote.cleanerDeclined === true && exhaustedCustomerQuoteBody.quote.decisionAllowed === false, "Customer quote remained actionable after its proposed cleaner declined.");
+  const staleCustomerAcceptance = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": overlapProposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Overlap Customer", scopeConfirmed: true, termsAccepted: true }) });
+  assert(staleCustomerAcceptance.status === 409, "Customer accepted an unfulfillable quote after the cleaner declined.");
+  const replacementReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: replacementProposalBody.proposal.id, status: "ready" }) });
+  const replacementSent = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: replacementProposalBody.proposal.id, status: "sent" }) });
+  assert(replacementReady.ok && replacementSent.ok, "Replacement proposal did not advance after the original cleaner decline.");
+  const replacementTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": overlapRequestBody.customerStatusToken } });
+  const replacementTrackerBody = await replacementTracker.json();
+  assert(replacementTracker.ok && replacementTrackerBody.current.stage === "quote-review" && replacementTrackerBody.links.quoteToken === replacementProposalBody.proposal.reviewToken, "Customer tracker did not prioritise the replacement quote over the exhausted proposal.");
+  const acceptedReplacement = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": replacementProposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Overlap Customer", scopeConfirmed: true, termsAccepted: true }) });
+  assert(acceptedReplacement.ok, "Replacement customer quote could not be accepted.");
+  const shortWithdrawal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: replacementProposalBody.proposal.id, status: "cancelled", note: "Short" }) });
+  assert(shortWithdrawal.status === 422, "Proposal withdrawal was recorded without an auditable reason.");
+  const withdrawnReplacement = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: replacementProposalBody.proposal.id, status: "cancelled", note: "Test-only withdrawal before a booking was recorded." }) });
+  assert(withdrawnReplacement.ok, "Accepted pre-booking proposal could not be withdrawn safely.");
+  const withdrawnQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": replacementProposalBody.proposal.reviewToken } });
+  const withdrawnQuoteBody = await withdrawnQuote.json();
+  assert(withdrawnQuote.ok && withdrawnQuoteBody.quote.status === "cancelled" && withdrawnQuoteBody.quote.decision?.status === "accepted" && withdrawnQuoteBody.quote.decisionAllowed === false, "Withdrawn customer quote did not preserve its acceptance audit while becoming read-only.");
+  const rematchingTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": overlapRequestBody.customerStatusToken } });
+  const rematchingTrackerBody = await rematchingTracker.json();
+  assert(rematchingTracker.ok && rematchingTrackerBody.current.stage === "rematching" && rematchingTrackerBody.links.quoteToken === "", "Customer tracker did not return to safe rematching after replacement withdrawal.");
+
   const bookingBeforeCleaner = await fetch(`${base}/api/admin/booking-audit?proposalId=${proposalBody.proposal.id}`);
   const bookingBeforeCleanerBody = await bookingBeforeCleaner.json();
   assert(bookingBeforeCleaner.ok && bookingBeforeCleanerBody.automatedReady === false && bookingBeforeCleanerBody.checks.customerAccepted === true && bookingBeforeCleanerBody.checks.cleanerAccepted === false, "Booking audit did not block while cleaner acceptance was missing.");
@@ -587,6 +622,8 @@ try {
   });
   const confirmedBookingBody = await confirmedBooking.json();
   assert(confirmedBooking.status === 201 && confirmedBookingBody.booking.id.startsWith("BKG-") && /^[A-Za-z0-9_-]{32}$/.test(confirmedBookingBody.booking.customerViewToken) && /^[A-Za-z0-9_-]{32}$/.test(confirmedBookingBody.booking.cleanerViewToken), "Fully confirmed booking or its private view tokens were not recorded.");
+  const bookedProposalWithdrawal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "cancelled", note: "Test-only attempt to withdraw a confirmed booking." }) });
+  assert(bookedProposalWithdrawal.status === 409, "Proposal controls were allowed to cancel an already confirmed booking.");
   const bookedTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
   const bookedTrackerBody = await bookedTracker.json();
   assert(bookedTracker.ok && bookedTrackerBody.current.stage === "booking-confirmed" && bookedTrackerBody.links.bookingToken === confirmedBookingBody.booking.customerViewToken && bookedTrackerBody.visit.reference === confirmedBookingBody.booking.id && !JSON.stringify(bookedTrackerBody).includes("cleanerViewToken"), "Customer tracker did not link the confirmed customer booking safely.");
@@ -710,8 +747,10 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.cleanerAvailability?.length === 3, "Active confirmed availability windows were not attached to the cleaner control-desk record.");
+  const withdrawnAdminProposal = refreshedBody.records.find((record) => record.id === overlapRequestBody.reference)?.proposals?.find((proposal) => proposal.id === replacementProposalBody.proposal.id);
+  assert(withdrawnAdminProposal?.status === "cancelled" && withdrawnAdminProposal.statusNote === "Test-only withdrawal before a booking was recorded.", "Control desk did not retain the audited pre-booking withdrawal reason.");
 
-  console.log("Smoke tests passed: public pages, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

@@ -55,7 +55,11 @@ function renderQuote(quote) {
   if (quote.decision || !quote.decisionAllowed) {
     form.hidden = true;
     locked.hidden = false;
-    if (quote.decision?.status === "accepted") {
+    if (quote.status === "cancelled") {
+      locked.innerHTML = "<strong>This proposal was withdrawn before booking.</strong><span>No booking was created and no payment was taken through Tideway.</span>";
+    } else if (quote.cleanerDeclined || quote.cleanerOfferClosed) {
+      locked.innerHTML = "<strong>The proposed cleaner is no longer available.</strong><span>Tideway must review a replacement before another quote can be offered.</span>";
+    } else if (quote.decision?.status === "accepted") {
       locked.innerHTML = "<strong>Quote accepted.</strong><span>Tideway recorded your decision. This is not yet a confirmed booking and no payment was taken.</span>";
     } else if (quote.decision?.status === "declined") {
       locked.innerHTML = "<strong>Quote declined.</strong><span>Tideway recorded your decision and no booking was made.</span>";

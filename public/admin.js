@@ -260,14 +260,15 @@ async function findMatches(record, results, button) {
   }
 }
 
-async function changeProposalStatus(proposal, select) {
+async function changeProposalStatus(proposal, select, noteField) {
   const previous = proposal.status;
   select.disabled = true;
   try {
-    const response = await fetch("/api/admin/proposals/status", { method: "PATCH", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify({ proposalId: proposal.id, status: select.value }) });
+    const response = await fetch("/api/admin/proposals/status", { method: "PATCH", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify({ proposalId: proposal.id, status: select.value, note: noteField?.value || "" }) });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "Proposal status could not be saved.");
     proposal.status = result.status;
+    proposal.statusNote = result.note || "";
     await loadRecords();
   } catch (error) {
     select.value = previous;
@@ -1073,7 +1074,7 @@ function buildCard(record) {
       draft: ["draft", "ready", "cancelled"],
       ready: ["ready", "draft", "sent", "cancelled"],
       sent: ["sent", "cancelled"],
-      accepted: ["accepted"], declined: ["declined"], cancelled: ["cancelled"]
+      accepted: ["accepted", "cancelled"], declined: ["declined"], cancelled: ["cancelled"]
     };
     for (const status of allowedByCurrent[proposal.status] || [proposal.status]) {
       const option = document.createElement("option");
@@ -1082,8 +1083,22 @@ function buildCard(record) {
       option.selected = status === proposal.status;
       proposalStatus.append(option);
     }
-    proposalStatus.addEventListener("change", () => changeProposalStatus(proposal, proposalStatus));
     proposalStatusLabel.append(proposalStatus);
+    const withdrawalNoteLabel = document.createElement("label");
+    withdrawalNoteLabel.append(document.createTextNode("Withdrawal reason â€” required before cancelling"));
+    const withdrawalNote = document.createElement("textarea");
+    withdrawalNote.rows = 2;
+    withdrawalNote.maxLength = 500;
+    withdrawalNote.placeholder = "Record why this pre-booking proposal is being withdrawn (at least 10 characters).";
+    withdrawalNote.setAttribute("aria-label", `Withdrawal reason for ${proposal.id}`);
+    withdrawalNoteLabel.append(withdrawalNote);
+    const hasCancellationControl = (allowedByCurrent[proposal.status] || []).includes("cancelled") && proposal.status !== "cancelled";
+    withdrawalNoteLabel.hidden = !hasCancellationControl;
+    proposalStatus.addEventListener("change", () => {
+      withdrawalNoteLabel.hidden = proposalStatus.value !== "cancelled";
+      changeProposalStatus(proposal, proposalStatus, withdrawalNote);
+    });
+    if (proposal.status === "cancelled" && proposal.statusNote) addText(proposalSummary, "span", `Withdrawal reason: ${proposal.statusNote}`);
     const quoteLink = document.createElement("div");
     quoteLink.className = "quote-review-link";
     if (proposal.reviewToken && ["ready", "sent", "accepted", "declined"].includes(proposal.status)) {
@@ -1145,7 +1160,7 @@ function buildCard(record) {
     auditTarget.className = "booking-audit-target";
     auditButton.addEventListener("click", () => loadBookingAudit(record, proposal, auditTarget, auditButton));
     bookingDetails.append(bookingSummary, auditButton, auditTarget);
-    proposalSummary.append(proposalStatusLabel, quoteLink, cleanerLink, draftDetails, bookingDetails);
+    proposalSummary.append(proposalStatusLabel, withdrawalNoteLabel, quoteLink, cleanerLink, draftDetails, bookingDetails);
     card.append(proposalSummary);
   }
 
