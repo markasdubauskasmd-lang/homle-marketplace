@@ -168,6 +168,10 @@ try {
   const testOnlyPaymentsBody = await testOnlyPayments.json();
   assert(testOnlyPayments.ok && testOnlyPaymentsBody.readiness.ready === false && testOnlyPaymentsBody.readiness.checks.payments === false, "Test-mode payment provider did not block launch readiness.");
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
+  const undecidedCleanerModel = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, cleanerModel: "Undecided" }) });
+  const undecidedCleanerModelBody = await undecidedCleanerModel.json();
+  assert(undecidedCleanerModel.ok && undecidedCleanerModelBody.readiness.ready === false && undecidedCleanerModelBody.readiness.checks.operatingRules === false, "Undecided cleaner engagement model passed launch readiness.");
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
 
   const statusUpdate = await fetch(`${base}/api/admin/status`, {
     method: "PATCH",
@@ -189,6 +193,32 @@ try {
     body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "screening" })
   });
   assert(cleanerScreening.ok, "Cleaner screening status failed.");
+  const unscreenedApproval = await fetch(`${base}/api/admin/status`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "approved" })
+  });
+  assert(unscreenedApproval.status === 422, "Cleaner was approved without a screening checklist.");
+  const incompleteScreening = await fetch(`${base}/api/admin/cleaner-screening`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ cleanerId: cleanerBody.reference, identityChecked: true, note: "Test-only incomplete screening" })
+  });
+  const incompleteScreeningBody = await incompleteScreening.json();
+  assert(incompleteScreening.ok && incompleteScreeningBody.screening.complete === false && incompleteScreeningBody.screening.completed === 1, "Incomplete cleaner screening was not recorded accurately.");
+  const incompleteApproval = await fetch(`${base}/api/admin/status`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "approved" })
+  });
+  assert(incompleteApproval.status === 422, "Incomplete cleaner screening allowed approval.");
+  const completeScreening = await fetch(`${base}/api/admin/cleaner-screening`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ cleanerId: cleanerBody.reference, identityChecked: true, rightToWorkChecked: true, referencesChecked: true, serviceSkillsChecked: true, availabilityCoverageChecked: true, engagementTermsChecked: true, safeguardingDecisionChecked: true, note: "Test confirmations only; no identity documents stored." })
+  });
+  const completeScreeningBody = await completeScreening.json();
+  assert(completeScreening.ok && completeScreeningBody.screening.complete === true && completeScreeningBody.screening.completed === 7, "Complete cleaner screening did not pass all seven checks.");
   const cleanerApproval = await fetch(`${base}/api/admin/status`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
@@ -322,8 +352,9 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "reviewed", "Job-brief review status was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
+  assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, photo-and-voice job briefs, human brief review gates, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

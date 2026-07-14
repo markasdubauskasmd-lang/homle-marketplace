@@ -19,11 +19,12 @@ Then open `http://127.0.0.1:4173`.
 - Photo-and-voice job brief builder that automatically summarises speech into concise, room-labelled checklist bullets and privately stores resized room photos
 - Audited human review decisions for photo job briefs; unreviewed briefs block cleaner-draft use, proposal approval and booking readiness
 - Cleaner application form with server-side validation
+- Audited seven-check cleaner screening record; approval, matching, proposals and bookings remain blocked until every check is confirmed
 - Local private submission files in `data/`
 - Private local control desk at `/admin` with lead filters, status tracking, internal notes and next-action dates
 - Internal quote calculator that pre-fills approved rates, enforces minimum hours and calculates the customer total and hourly rate needed to meet the founder-approved contribution margin
 - Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules
-- Human-reviewed matching suggestions using approved cleaners, requested service type and postcode coverage
+- Human-reviewed matching suggestions using fully screened approved cleaners, requested service type and postcode coverage
 - Internal draft proposals that link a request to an approved cleaner and reject work below the minimum hours, loss-making economics or a below-target contribution margin
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until all seven launch checks and the latest job-brief review pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability

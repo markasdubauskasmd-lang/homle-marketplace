@@ -393,7 +393,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Latest photo job brief reviewed", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
+    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Latest photo job brief reviewed", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -544,6 +544,80 @@ async function changeBriefStatus(brief, form) {
   }
 }
 
+const cleanerScreeningLabels = {
+  identityChecked: "Identity checked through the approved secure process",
+  rightToWorkChecked: "Right-to-work evidence reviewed where applicable",
+  referencesChecked: "References completed and outcome recorded",
+  serviceSkillsChecked: "Cleaning skills assessed for the selected services",
+  availabilityCoverageChecked: "Availability, travel area and transport confirmed",
+  engagementTermsChecked: "Engagement model, responsibilities, pay and insurance position checked",
+  safeguardingDecisionChecked: "Safeguarding and DBS requirement decision recorded"
+};
+
+async function saveCleanerScreening(record, form) {
+  const button = form.querySelector("button");
+  button.disabled = true;
+  const body = { cleanerId: record.id, note: form.querySelector("textarea").value.trim() };
+  Object.keys(cleanerScreeningLabels).forEach((key) => { body[key] = form.elements[key].checked; });
+  try {
+    const response = await fetch("/api/admin/cleaner-screening", {
+      method: "PUT",
+      headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }),
+      body: JSON.stringify(body)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Cleaner screening could not be saved.");
+    await loadRecords();
+  } catch (error) {
+    showAdminError(error.message);
+    button.disabled = false;
+  }
+}
+
+function buildCleanerScreening(record) {
+  const screening = record.screening || {};
+  const panel = document.createElement("details");
+  panel.className = `cleaner-screening${screening.complete ? " screening-complete" : ""}`;
+  panel.open = record.status === "screening" && !screening.complete;
+  const summary = document.createElement("summary");
+  summary.textContent = `Cleaner screening · ${screening.completed || 0}/${screening.total || 7} checks`;
+  const guidance = document.createElement("p");
+  guidance.textContent = "Record confirmations only. Do not paste identity documents, document numbers, bank details or special-category information here.";
+  panel.append(summary, guidance);
+  if (record.status === "approved" && screening.complete) {
+    const completed = document.createElement("ul");
+    Object.values(cleanerScreeningLabels).forEach((label) => addText(completed, "li", `✓ ${label}`));
+    panel.append(completed);
+    if (screening.note) addText(panel, "span", `Internal note: ${screening.note}`, "screening-note");
+    return panel;
+  }
+  const form = document.createElement("form");
+  form.className = "screening-form";
+  Object.entries(cleanerScreeningLabels).forEach(([key, labelText]) => {
+    const label = document.createElement("label");
+    label.className = "screening-check";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.name = key;
+    input.checked = screening[key] === true;
+    label.append(input, document.createTextNode(labelText));
+    form.append(label);
+  });
+  const note = document.createElement("textarea");
+  note.rows = 2;
+  note.maxLength = 1000;
+  note.placeholder = "Optional internal screening note — no document numbers or copies";
+  note.value = screening.note || "";
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.className = "button button-small";
+  save.textContent = "Save screening checklist";
+  form.append(note, save);
+  form.addEventListener("submit", (event) => { event.preventDefault(); saveCleanerScreening(record, form); });
+  panel.append(form);
+  return panel;
+}
+
 function buildCard(record) {
   const card = document.createElement("article");
   card.className = `lead-card lead-${record.kind}`;
@@ -598,6 +672,8 @@ function buildCard(record) {
     addDetail(details, "Notes", record.notes);
   }
   card.append(details);
+
+  if (record.kind === "cleaner") card.append(buildCleanerScreening(record));
 
   if (record.kind === "request" && record.briefs?.length) {
     const brief = record.briefs[0];

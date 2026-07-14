@@ -38,6 +38,16 @@ const statusTransitions = {
   }
 };
 
+const cleanerScreeningChecks = [
+  "identityChecked",
+  "rightToWorkChecked",
+  "referencesChecked",
+  "serviceSkillsChecked",
+  "availabilityCoverageChecked",
+  "engagementTermsChecked",
+  "safeguardingDecisionChecked"
+];
+
 const cleanerServiceFields = {
   serviceTurnovers: "Rental turnovers",
   serviceEndOfTenancy: "End-of-tenancy",
@@ -207,7 +217,7 @@ function launchReadiness(config) {
     economics: Boolean(config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.minimumHours > 0 && config.minimumContributionMarginPercent > 0 && config.minimumContributionMarginPercent < 100 && config.customerHourlyRate > config.cleanerHourlyPay),
     insurance: config.insuranceStatus === "active",
     payments: Boolean(config.paymentProviderStatus === "live" && config.paymentProviderName && config.refundProcess),
-    operatingRules: Boolean(config.cleanerModel && config.cancellationPolicy && config.paymentTiming)
+    operatingRules: Boolean(config.cleanerModel && config.cleanerModel !== "Undecided" && config.cancellationPolicy && config.paymentTiming)
   };
   return { checks, completed: Object.values(checks).filter(Boolean).length, total: Object.keys(checks).length, ready: Object.values(checks).every(Boolean) };
 }
@@ -223,6 +233,12 @@ function applyBriefStatus(brief, updates) {
     reviewedAt = update.updatedAt;
   }
   return { ...brief, status, reviewNote, reviewedAt };
+}
+
+function latestCleanerScreening(cleanerId, screenings) {
+  let latest = null;
+  for (const screening of screenings) if (screening.cleanerId === cleanerId) latest = screening;
+  return latest;
 }
 
 function isAdminAuthorised(request) {
@@ -242,7 +258,7 @@ function isAdminAuthorised(request) {
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
@@ -252,7 +268,8 @@ async function getAdminRecords(request, response) {
     readRecords("bookings.ndjson"),
     readRecords("job-outcomes.ndjson"),
     readRecords("job-briefs.ndjson"),
-    readRecords("job-brief-status.ndjson")
+    readRecords("job-brief-status.ndjson"),
+    readRecords("cleaner-screening.ndjson")
   ]);
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
@@ -286,13 +303,37 @@ async function getAdminRecords(request, response) {
     const booking = kind === "request" ? bookingsByRequest.get(record.id) || null : null;
     const outcome = booking ? outcomesByBooking.get(booking.id) || null : null;
     const leadBriefs = kind === "request" ? (briefsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 5) : [];
-    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5), briefs: leadBriefs, booking, outcome };
+    const screening = kind === "cleaner" ? latestCleanerScreening(record.id, screenings) : null;
+    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, booking, outcome };
   };
   const records = [
     ...requests.map((record) => merge(record, "request")),
     ...cleaners.map((record) => merge(record, "cleaner"))
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   return json(response, 200, { ok: true, records });
+}
+
+async function updateAdminCleanerScreening(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const cleanerId = text(input.cleanerId, 40);
+  const cleaners = await readRecords("cleaner-applications.ndjson");
+  if (!cleaners.some((cleaner) => cleaner.id === cleanerId)) return json(response, 404, { ok: false, error: "Cleaner application not found." });
+  const checks = Object.fromEntries(cleanerScreeningChecks.map((key) => [key, input[key] === true]));
+  const completed = cleanerScreeningChecks.filter((key) => checks[key]).length;
+  const screening = {
+    id: `SCR-${randomUUID().slice(0, 8).toUpperCase()}`,
+    cleanerId,
+    ...checks,
+    completed,
+    total: cleanerScreeningChecks.length,
+    complete: completed === cleanerScreeningChecks.length,
+    note: text(input.note, 1000),
+    updatedAt: new Date().toISOString()
+  };
+  await saveRecord("cleaner-screening.ndjson", screening);
+  return json(response, 200, { ok: true, screening });
 }
 
 async function updateAdminJobBriefStatus(request, response) {
@@ -456,7 +497,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
 }
 
 async function buildBookingAudit(proposalId) {
-  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config, briefs, briefUpdates] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config, briefs, briefUpdates, screenings] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
@@ -464,7 +505,8 @@ async function buildBookingAudit(proposalId) {
     readRecords("status-updates.ndjson"),
     readJsonFile("business-config.json", {}),
     readRecords("job-briefs.ndjson"),
-    readRecords("job-brief-status.ndjson")
+    readRecords("job-brief-status.ndjson"),
+    readRecords("cleaner-screening.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return { statusCode: 404, error: "Proposal not found." };
@@ -482,6 +524,7 @@ async function buildBookingAudit(proposalId) {
     launchReady: launchReadiness(config).ready,
     proposalAccepted: proposalStatus === "accepted",
     cleanerApproved: cleanerStatus === "approved",
+    cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
@@ -629,11 +672,12 @@ async function createAdminProposal(request, response) {
   if (estimatedHours <= 0 || customerRate <= 0 || cleanerRate <= 0) errors.push("Hours, customer rate and cleaner pay must be greater than zero.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
-  const [requests, cleaners, updates, config] = await Promise.all([
+  const [requests, cleaners, updates, config, screenings] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
-    readJsonFile("business-config.json", {})
+    readJsonFile("business-config.json", {}),
+    readRecords("cleaner-screening.ndjson")
   ]);
   const customerRequest = requests.find((record) => record.id === requestId);
   const cleaner = cleaners.find((record) => record.id === cleanerId);
@@ -641,6 +685,7 @@ async function createAdminProposal(request, response) {
   for (const update of updates) latestStatuses.set(update.id, update.status);
   if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Customer request or cleaner was not found." });
   if ((latestStatuses.get(cleaner.id) || cleaner.status) !== "approved") return json(response, 422, { ok: false, error: "Only an approved cleaner can be proposed." });
+  if (!latestCleanerScreening(cleaner.id, screenings)?.complete) return json(response, 422, { ok: false, error: "Only a fully screened cleaner can be proposed." });
   if (config.minimumHours > 0 && estimatedHours < config.minimumHours) return json(response, 422, { ok: false, error: `Estimated hours must meet the ${config.minimumHours}-hour minimum.` });
   const requiredService = requestServiceMap[customerRequest.service] || "";
   if (requiredService && !cleaner.services?.includes(requiredService)) return json(response, 422, { ok: false, error: "Cleaner is not approved for the requested service." });
@@ -677,10 +722,11 @@ async function createAdminProposal(request, response) {
 
 async function getAdminMatches(request, response, requestId) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates] = await Promise.all([
+  const [requests, cleaners, updates, screenings] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
-    readRecords("status-updates.ndjson")
+    readRecords("status-updates.ndjson"),
+    readRecords("cleaner-screening.ndjson")
   ]);
   const customerRequest = requests.find((record) => record.id === requestId);
   if (!customerRequest) return json(response, 404, { ok: false, error: "Customer request not found." });
@@ -692,7 +738,7 @@ async function getAdminMatches(request, response, requestId) {
   const postcodeArea = outwardCode.match(/^[A-Z]+/)?.[0] || "";
 
   const matches = cleaners
-    .filter((cleaner) => (latestStatuses.get(cleaner.id) || cleaner.status) === "approved")
+    .filter((cleaner) => (latestStatuses.get(cleaner.id) || cleaner.status) === "approved" && latestCleanerScreening(cleaner.id, screenings)?.complete)
     .map((cleaner) => {
       const services = Array.isArray(cleaner.services) ? cleaner.services : [];
       const serviceMatch = !requiredService || services.includes(requiredService);
@@ -796,7 +842,7 @@ async function updateAdminStatus(request, response) {
   if (!id || !statusOptions[kind]?.has(status)) return json(response, 422, { ok: false, error: "Invalid status update." });
 
   const source = kind === "request" ? "cleaning-requests.ndjson" : "cleaner-applications.ndjson";
-  const [records, updates] = await Promise.all([readRecords(source), readRecords("status-updates.ndjson")]);
+  const [records, updates, screenings] = await Promise.all([readRecords(source), readRecords("status-updates.ndjson"), readRecords("cleaner-screening.ndjson")]);
   const record = records.find((item) => item.id === id);
   if (!record) return json(response, 404, { ok: false, error: "Record not found." });
   let currentStatus = record.status || "new";
@@ -805,6 +851,9 @@ async function updateAdminStatus(request, response) {
   if (!statusTransitions[kind]?.[currentStatus]?.has(status)) {
     const workflowHint = kind === "request" && ["booked", "completed"].includes(status) ? " Use the confirmed-booking or completed-job workflow." : "";
     return json(response, 422, { ok: false, error: `Status cannot move from ${currentStatus} to ${status}.${workflowHint}` });
+  }
+  if (kind === "cleaner" && status === "approved" && !latestCleanerScreening(id, screenings)?.complete) {
+    return json(response, 422, { ok: false, error: "Complete all seven cleaner-screening checks before marking this application approved." });
   }
 
   await saveRecord("status-updates.ndjson", { id, kind, status, previousStatus: currentStatus, source: "manual", updatedAt: new Date().toISOString() });
@@ -1062,6 +1111,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/status") {
       return await updateAdminStatus(request, response);
+    }
+    if (request.method === "PUT" && requestUrl.pathname === "/api/admin/cleaner-screening") {
+      return await updateAdminCleanerScreening(request, response);
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/admin/activity") {
       return await addAdminActivity(request, response);

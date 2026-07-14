@@ -22,7 +22,7 @@ The archive itself is sensitive. It includes customer and cleaner records plus a
 2. Restore the private data files into `data/`.
 3. Recreate environment variables such as `ADMIN_KEY`; never store them in source control.
 4. Start the server and check `/api/health`.
-5. Open `/admin` and confirm lead counts, lead statuses, photo-brief review decisions, notes, proposals, confirmed bookings, completed-job outcomes and launch configuration.
+5. Open `/admin` and confirm lead counts, lead statuses, cleaner-screening records, photo-brief review decisions, notes, proposals, confirmed bookings, completed-job outcomes and launch configuration.
 6. Submit one test customer request and one test cleaner application, then remove the test records.
 
 ## Production requirement
