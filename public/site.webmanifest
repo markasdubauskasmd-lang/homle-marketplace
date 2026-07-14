@@ -1,0 +1,9 @@
+{
+  "name": "Tideway Cleaning",
+  "short_name": "Tideway",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f7f4",
+  "theme_color": "#0e665b",
+  "icons": []
+}

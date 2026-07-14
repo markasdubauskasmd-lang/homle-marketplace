@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Tideway control desk</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260714-4">
+  <script src="/admin.js?v=20260714-4" defer></script>
+</head>
+<body class="admin-page">
+  <a class="skip-link" href="#admin-main">Skip to leads</a>
+  <header class="admin-header">
+    <div class="shell admin-nav">
+      <a class="brand" href="/" aria-label="Tideway website"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a>
+      <div><span class="admin-badge">Private control desk</span><a class="back-link" href="/">View website</a></div>
+    </div>
+  </header>
+  <main id="admin-main" class="shell admin-main">
+    <section id="admin-auth" class="admin-auth" aria-labelledby="admin-auth-heading" hidden>
+      <img src="/logo.svg" alt="" width="48" height="48">
+      <div><p class="eyebrow">Protected area</p><h1 id="admin-auth-heading">Unlock the control desk</h1><p>Enter the Tideway admin key configured on this server.</p></div>
+      <div id="admin-auth-error" class="error-summary" role="alert" hidden>The admin key was not accepted.</div>
+      <form id="admin-auth-form">
+        <label>Admin key<input id="admin-key" type="password" autocomplete="current-password" required></label>
+        <button class="button" type="submit">Unlock</button>
+      </form>
+    </section>
+    <div id="admin-content">
+    <div class="admin-title-row">
+      <div><p class="eyebrow">Pilot operations</p><h1>Lead control desk</h1><p>Customer demand and cleaner supply in one place.</p></div>
+      <button class="button button-outline" id="refresh-records" type="button">Refresh</button>
+    </div>
+
+    <div id="admin-error" class="error-summary" role="alert" tabindex="-1" hidden></div>
+
+    <section class="stat-grid" aria-label="Lead summary">
+      <article><span>Customer requests</span><strong id="request-count">—</strong><small id="new-request-count">Loading…</small></article>
+      <article><span>Cleaner applications</span><strong id="cleaner-count">—</strong><small id="new-cleaner-count">Loading…</small></article>
+      <article><span>Matches booked</span><strong id="booked-count">—</strong><small>Confirmed pilot work</small></article>
+      <article><span>Needs attention</span><strong id="attention-count">—</strong><small>New records to review</small></article>
+    </section>
+
+    <section class="launch-setup" aria-labelledby="launch-setup-heading">
+      <div class="launch-setup-heading">
+        <div><p class="eyebrow">Launch gate</p><h2 id="launch-setup-heading">Business readiness</h2><p>These details stay local. They must be complete and verified before Tideway is published or takes money.</p></div>
+        <div class="readiness-score"><strong id="readiness-score">0/6</strong><span>launch areas ready</span></div>
+      </div>
+      <ul class="readiness-list" id="readiness-list">
+        <li data-check="identity"><span>○</span>Legal identity</li>
+        <li data-check="contact"><span>○</span>Support contact</li>
+        <li data-check="pilotArea"><span>○</span>Pilot area</li>
+        <li data-check="economics"><span>○</span>Pricing and pay</li>
+        <li data-check="insurance"><span>○</span>Insurance active</li>
+        <li data-check="operatingRules"><span>○</span>Operating rules</li>
+      </ul>
+      <details class="setup-details">
+        <summary>Enter or update launch details</summary>
+        <form id="business-config-form">
+          <div class="field-row"><label>Legal owner name<input name="legalOwnerName" autocomplete="name"></label><label>Business structure<select name="businessStructure"><option value="">Choose one</option><option>Sole trader</option><option>Limited company</option><option>Partnership</option><option>Other</option></select></label></div>
+          <label>Legal business name<input name="legalBusinessName" autocomplete="organization"></label>
+          <label>Trading address<textarea name="tradingAddress" rows="2" autocomplete="street-address"></textarea></label>
+          <div class="field-row"><label>Support email<input name="supportEmail" type="email" autocomplete="email"></label><label>Support phone<input name="supportPhone" type="tel" autocomplete="tel"></label></div>
+          <label>Pilot postcode areas<input name="pilotPostcodes" placeholder="For example: SW2, SW4, SW9"></label>
+          <div class="field-row"><label>Cleaner engagement model<select name="cleanerModel"><option value="">Choose after advice</option><option>Employee</option><option>Worker</option><option>Self-employed contractor</option><option>Undecided</option></select></label><label>Public liability insurance<select name="insuranceStatus"><option value="not-arranged">Not arranged</option><option value="in-progress">In progress</option><option value="active">Active and verified</option></select></label></div>
+          <div class="field-row three-fields"><label>Customer hourly rate (£)<input name="customerHourlyRate" type="number" min="0" step="0.01" inputmode="decimal"></label><label>Cleaner hourly pay (£)<input name="cleanerHourlyPay" type="number" min="0" step="0.01" inputmode="decimal"></label><label>Minimum hours<input name="minimumHours" type="number" min="0" step="0.5" inputmode="decimal"></label></div>
+          <label>Cancellation rule<textarea name="cancellationPolicy" rows="3" placeholder="When customers may cancel and what happens to cleaner pay"></textarea></label>
+          <label>Customer payment timing<select name="paymentTiming"><option value="">Choose one</option><option>Payment authorised at booking and captured after completion</option><option>Payment taken at booking</option><option>Invoice after completion</option><option>Other — document before launch</option></select></label>
+          <button class="button" type="submit">Save launch details locally</button>
+          <div id="config-result" class="success-panel" role="status" tabindex="-1" hidden><strong>Launch details saved.</strong><span>The readiness checks have been updated.</span></div>
+        </form>
+      </details>
+    </section>
+
+    <section class="quote-calculator" aria-labelledby="quote-heading">
+      <div><p class="eyebrow">Before sending a quote</p><h2 id="quote-heading">Check the job economics</h2><p>This internal calculator is not shown to customers and does not save the numbers.</p></div>
+      <div class="quote-inputs">
+        <label>Estimated hours<input id="quote-hours" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0"></label>
+        <label>Customer rate per hour (£)<input id="quote-customer-rate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label>
+        <label>Cleaner pay per hour (£)<input id="quote-cleaner-rate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label>
+        <label>Other job costs (£)<input id="quote-costs" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label>
+      </div>
+      <div class="quote-results" aria-live="polite">
+        <div><span>Customer total</span><strong id="quote-total">£0.00</strong></div>
+        <div><span>Cleaner pay</span><strong id="quote-pay">£0.00</strong></div>
+        <div><span>Contribution</span><strong id="quote-contribution">£0.00</strong></div>
+        <div><span>Contribution margin</span><strong id="quote-margin">0.0%</strong></div>
+      </div>
+      <p id="quote-guidance" class="quote-guidance">Enter the expected hours and rates before promising a price.</p>
+    </section>
+
+    <section class="lead-panel">
+      <div class="lead-toolbar">
+        <div class="tab-list" role="tablist" aria-label="Lead type">
+          <button type="button" role="tab" aria-selected="true" data-kind="all">All</button>
+          <button type="button" role="tab" aria-selected="false" data-kind="request">Customers</button>
+          <button type="button" role="tab" aria-selected="false" data-kind="cleaner">Cleaners</button>
+        </div>
+        <label class="filter-label">Status<select id="status-filter"><option value="all">All statuses</option><option value="new">New</option><option value="contacted">Contacted</option><option value="quoted">Quoted</option><option value="booked">Booked</option><option value="screening">Screening</option><option value="approved">Approved</option><option value="completed">Completed</option><option value="paused">Paused</option><option value="lost">Lost</option><option value="rejected">Rejected</option></select></label>
+      </div>
+      <div id="lead-list" class="lead-list" aria-live="polite"><div class="loading-state">Loading Tideway leads…</div></div>
+    </section>
+
+    <section class="admin-guidance">
+      <h2>Daily pilot rhythm</h2>
+      <ol><li>Review every new customer request and confirm the job scope.</li><li>Contact suitable approved cleaners before promising availability.</li><li>Send a clear quote with pay, margin and cancellation terms checked.</li><li>Only mark a job booked when both sides explicitly confirm.</li></ol>
+    </section>
+    </div>
+  </main>
+</body>
+</html>

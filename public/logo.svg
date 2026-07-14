@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title">
+  <title id="title">Tideway</title>
+  <rect width="48" height="48" rx="14" fill="#0e665b"/>
+  <path d="M13 13h22v6H27v16h-6V19h-8z" fill="#fff"/>
+  <path d="M10 37c5-4 9 4 14 0s9 4 14 0" fill="none" stroke="#8ee3d2" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

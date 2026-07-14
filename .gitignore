@@ -1,0 +1,7 @@
+data/*.ndjson
+data/business-config.json
+!data/.gitkeep
+.env
+node_modules/
+*.log
+backups/

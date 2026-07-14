@@ -1,0 +1,78 @@
+const menuButton = document.querySelector(".menu-toggle");
+const mainNav = document.querySelector(".main-nav");
+
+if (menuButton && mainNav) {
+  menuButton.addEventListener("click", () => {
+    const open = mainNav.classList.toggle("open");
+    menuButton.setAttribute("aria-expanded", String(open));
+  });
+  mainNav.addEventListener("click", (event) => {
+    if (event.target.closest("a")) {
+      mainNav.classList.remove("open");
+      menuButton.setAttribute("aria-expanded", "false");
+    }
+  });
+}
+
+document.querySelectorAll("[data-year]").forEach((element) => {
+  element.textContent = String(new Date().getFullYear());
+});
+
+function formToJson(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  form.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+    data[checkbox.name] = checkbox.checked;
+  });
+  return data;
+}
+
+function showError(form, messages) {
+  const summary = form.querySelector(".error-summary");
+  summary.textContent = Array.isArray(messages) ? messages.join(" ") : messages;
+  summary.hidden = false;
+  summary.focus();
+}
+
+document.querySelectorAll("[data-api-form]").forEach((form) => {
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const summary = form.querySelector(".error-summary");
+    const success = form.querySelector(".success-panel");
+    const submitButton = form.querySelector(".submit-button");
+    summary.hidden = true;
+    success.hidden = true;
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      showError(form, "Please complete every required field and tick the required confirmations.");
+      return;
+    }
+
+    const originalLabel = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = "Sending…";
+
+    try {
+      const response = await fetch(form.action, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(formToJson(form))
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "We could not send this form.");
+
+      form.reset();
+      success.querySelector("[data-reference]").textContent = result.reference;
+      success.hidden = false;
+      success.focus();
+    } catch (error) {
+      showError(form, `${error.message} Please try again.`);
+    } finally {
+      submitButton.disabled = false;
+      submitButton.textContent = originalLabel;
+    }
+  });
+});
+
+if (location.pathname === "/request") location.hash = "request-cleaning";
+if (location.pathname === "/join") location.hash = "cleaner-application";
