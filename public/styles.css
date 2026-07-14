@@ -344,6 +344,9 @@ textarea { resize: vertical; }
 .brief-panel-heading p:last-child, .compact-heading p:last-child { margin: 0; color: var(--muted); }
 .brief-panel-heading > strong { flex: 0 0 auto; color: var(--green-dark); }
 .compact-heading { margin-bottom: 20px; }
+.brief-handoff-note { margin: -5px 0 18px; padding: 12px 14px; color: var(--green-dark); border: 1px solid #9bcdbf; border-radius: 10px; background: var(--mint-pale); }
+.brief-handoff-note strong, .brief-handoff-note span { display: block; }
+.brief-handoff-note span { margin-top: 3px; font-size: .85rem; }
 .photo-picker { display: inline-grid; padding: 13px 18px; color: #fff; border-radius: 9px; background: var(--green); cursor: pointer; }
 .photo-picker input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .photo-preview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }

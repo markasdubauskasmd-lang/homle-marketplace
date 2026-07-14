@@ -1,4 +1,5 @@
 import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js";
+import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
@@ -18,7 +19,15 @@ const roomOptions = ["Kitchen", "Bathroom", "Bedroom", "Living room", "Hallway o
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 const presetReference = new URLSearchParams(location.search).get("reference");
-if (/^REQ-[A-Z0-9]{8}$/i.test(presetReference || "")) form.elements.requestId.value = presetReference.toUpperCase();
+if (/^REQ-[A-Z0-9]{8}$/i.test(presetReference || "")) {
+  form.elements.requestId.value = presetReference.toUpperCase();
+  let handoff = null;
+  try { handoff = readBriefHandoff(window.sessionStorage, presetReference); } catch {}
+  if (handoff) {
+    form.elements.email.value = handoff.email;
+    document.querySelector("#brief-handoff-note").hidden = false;
+  }
+}
 
 function showError(message) {
   errorBox.textContent = message;
@@ -204,6 +213,7 @@ form.addEventListener("submit", async (event) => {
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "The job brief could not be saved.");
     successBox.querySelector("[data-brief-reference]").textContent = result.reference;
+    try { clearBriefHandoff(window.sessionStorage); } catch {}
     successBox.hidden = false;
     successBox.focus();
   } catch (error) {

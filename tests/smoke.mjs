@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript } from "../public/checklist.js";
+import { clearBriefHandoff, readBriefHandoff, saveBriefHandoff } from "../public/brief-handoff.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const testDataDir = await mkdtemp(path.join(tmpdir(), "tideway-smoke-"));
@@ -40,6 +41,22 @@ try {
     "Do not move the locked cupboard"
   ]), "Long spoken instructions were not summarised into concise room-labelled bullets.");
 
+  const sessionValues = new Map();
+  const testSession = {
+    getItem: (key) => sessionValues.get(key) || null,
+    setItem: (key, value) => sessionValues.set(key, value),
+    removeItem: (key) => sessionValues.delete(key)
+  };
+  const handoffTime = Date.parse("2026-07-14T10:00:00.000Z");
+  assert(saveBriefHandoff(testSession, "req-1234abcd", "Customer@Example.com", handoffTime), "Valid request-to-brief handoff was not stored.");
+  assert(readBriefHandoff(testSession, "REQ-1234ABCD", handoffTime + 5 * 60 * 1000)?.email === "customer@example.com", "Matching request-to-brief handoff was not restored.");
+  assert(readBriefHandoff(testSession, "REQ-9999ZZZZ", handoffTime + 5 * 60 * 1000) === null && sessionValues.size === 1, "A handoff leaked into a different request.");
+  assert(readBriefHandoff(testSession, "REQ-1234ABCD", handoffTime + 31 * 60 * 1000) === null && sessionValues.size === 0, "Expired request-to-brief handoff was retained.");
+  assert(saveBriefHandoff(testSession, "REQ-1234ABCD", "not-an-email", handoffTime) === false, "Invalid handoff email was stored.");
+  saveBriefHandoff(testSession, "REQ-1234ABCD", "customer@example.com", handoffTime);
+  clearBriefHandoff(testSession);
+  assert(sessionValues.size === 0, "Completed request-to-brief handoff was not cleared.");
+
   const home = await fetch(base);
   assert(home.ok && (await home.text()).includes("Cleaning work, matched and managed properly"), "Homepage failed.");
   assert(home.headers.get("content-security-policy")?.includes("frame-ancestors 'none'"), "Security headers were missing.");
@@ -54,7 +71,7 @@ try {
   const adminPage = await fetch(`${base}/admin`);
   assert(adminPage.ok && (await adminPage.text()).includes("Lead control desk"), "Admin page failed.");
   const briefPage = await fetch(`${base}/brief`);
-  assert(briefPage.ok && (await briefPage.text()).includes("Show the property. Say what needs cleaning."), "Photo job-brief page failed.");
+  assert(briefPage.ok && (await briefPage.text()).includes("Request details carried over."), "Photo job-brief page or private handoff notice failed.");
   assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
   const adminAsset = await fetch(`${base}/admin.js?v=smoke-test`);
   assert(adminAsset.ok && adminAsset.headers.get("cache-control") === "no-cache", "Updated assets could remain stale in the control desk.");
@@ -306,7 +323,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
 
-  console.log("Smoke tests passed: public pages, automatic concise speech bullets, photo-and-voice job briefs, human brief review gates, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, photo-and-voice job briefs, human brief review gates, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

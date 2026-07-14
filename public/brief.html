@@ -8,7 +8,7 @@
   <title>Create a photo job brief — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260714-16">
-  <script src="/brief.js?v=20260714-17" type="module"></script>
+  <script src="/brief.js?v=20260714-18" type="module"></script>
 </head>
 <body class="brief-page">
   <a class="skip-link" href="#brief-main">Skip to job brief</a>
@@ -39,6 +39,7 @@
       <form id="job-brief-form" action="/api/job-briefs" method="post">
         <div class="brief-panel brief-identity">
           <div class="section-heading compact-heading"><p class="eyebrow">Connect the brief</p><h2 id="brief-form-heading">Your cleaning request</h2><p>Use the reference and email from your Tideway cleaning request.</p></div>
+          <div id="brief-handoff-note" class="brief-handoff-note" role="status" hidden><strong>Request details carried over.</strong><span>Your reference and email were filled from this browser session.</span></div>
           <div class="field-row"><label>Request reference<input name="requestId" required maxlength="12" pattern="REQ-[A-Za-z0-9]{8}" placeholder="REQ-1234ABCD" autocomplete="off"></label><label>Request email<input name="email" type="email" required autocomplete="email"></label></div>
         </div>
 

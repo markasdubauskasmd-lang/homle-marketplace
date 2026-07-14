@@ -1,3 +1,5 @@
+import { saveBriefHandoff } from "./brief-handoff.js";
+
 const menuButton = document.querySelector(".menu-toggle");
 const mainNav = document.querySelector(".main-nav");
 
@@ -60,10 +62,11 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
     submitButton.textContent = "Sending…";
 
     try {
+      const submission = formToJson(form);
       const response = await fetch(form.action, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(formToJson(form))
+        body: JSON.stringify(submission)
       });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "We could not send this form.");
@@ -71,7 +74,10 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
       form.reset();
       success.querySelector("[data-reference]").textContent = result.reference;
       const briefLink = success.querySelector("[data-brief-link]");
-      if (briefLink) briefLink.href = `/brief?reference=${encodeURIComponent(result.reference)}`;
+      if (briefLink) {
+        try { saveBriefHandoff(window.sessionStorage, result.reference, submission.email); } catch {}
+        briefLink.href = `/brief?reference=${encodeURIComponent(result.reference)}`;
+      }
       success.hidden = false;
       success.focus();
     } catch (error) {
