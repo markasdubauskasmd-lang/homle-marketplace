@@ -1048,6 +1048,7 @@ function buildCard(record) {
     const summary = document.createElement("summary");
     summary.textContent = `Room scan · ${brief.checklist.length} tasks · ${brief.photos.length} photos`;
     addText(briefSummary, "strong", `${brief.id} · ${briefStatusLabels[brief.status] || brief.status}`);
+    addText(briefSummary, "span", brief.cleanerPhotoSharingConsent === true ? "Customer authorised private photo review by the selected cleaner before booking." : "Room photos remain Tideway-only until a booking is confirmed.");
     const tasks = document.createElement("ul");
     brief.checklist.forEach((task) => addText(tasks, "li", task));
     briefSummary.append(summary, tasks);

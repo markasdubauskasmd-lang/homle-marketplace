@@ -1200,6 +1200,9 @@ async function updateAdminProposalStatus(request, response) {
         cleanerRate: proposal.cleanerRate,
         checklist: reviewedBrief?.status === "reviewed" ? reviewedBrief.checklist : [],
         photoCount: reviewedBrief?.status === "reviewed" ? reviewedBrief.photos.length : 0,
+        photoSharingConsent: reviewedBrief?.status === "reviewed" && reviewedBrief.cleanerPhotoSharingConsent === true,
+        roomScanBriefId: reviewedBrief?.status === "reviewed" && reviewedBrief.cleanerPhotoSharingConsent === true ? reviewedBrief.id : "",
+        roomPhotos: reviewedBrief?.status === "reviewed" && reviewedBrief.cleanerPhotoSharingConsent === true ? reviewedBrief.photos.map(({ id, area, note }) => ({ id, area, note })) : [],
         cleanerModel: config.cleanerModel,
         legalBusinessName: config.legalBusinessName,
         supportEmail: config.supportEmail,
@@ -1434,11 +1437,12 @@ async function getCleanerOpportunityContext(token) {
     scheduleConflictFree: !findCleanerScheduleConflict(proposal, proposals, proposalUpdates, decisions, bookings)
   };
   const decision = decisions.find((record) => record.proposalId === proposal.id) || null;
-  return { ok: true, proposal, proposalStatus, customerRequest, cleaner, config, latestBrief, opportunitySnapshot, readyChecks, decision };
+  const bookingRecorded = bookings.some((booking) => booking.proposalId === proposal.id);
+  return { ok: true, proposal, proposalStatus, customerRequest, cleaner, config, latestBrief, opportunitySnapshot, readyChecks, decision, bookingRecorded };
 }
 
 function publicCleanerOpportunity(context) {
-  const { proposal, proposalStatus, customerRequest, cleaner, config, latestBrief, opportunitySnapshot, readyChecks, decision } = context;
+  const { proposal, proposalStatus, customerRequest, cleaner, config, latestBrief, opportunitySnapshot, readyChecks, decision, bookingRecorded } = context;
   const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
   const displayed = opportunitySnapshot || {
     cleanerName: cleaner.fullName,
@@ -1454,11 +1458,21 @@ function publicCleanerOpportunity(context) {
     cleanerRate: proposal.cleanerRate,
     checklist: latestBrief?.status === "reviewed" ? latestBrief.checklist : [],
     photoCount: latestBrief?.status === "reviewed" ? latestBrief.photos.length : 0,
+    photoSharingConsent: latestBrief?.status === "reviewed" && latestBrief.cleanerPhotoSharingConsent === true,
+    roomScanBriefId: "",
+    roomPhotos: [],
     cleanerModel: config.cleanerModel,
     legalBusinessName: config.legalBusinessName,
     supportEmail: config.supportEmail,
     supportPhone: config.supportPhone
   };
+  const photoAccessAllowed = ["sent", "accepted"].includes(proposalStatus)
+    && displayed.photoSharingConsent === true
+    && Array.isArray(displayed.roomPhotos)
+    && displayed.roomPhotos.length > 0
+    && !bookingRecorded
+    && Object.values(readyChecks).every(Boolean)
+    && (decision?.status === "accepted" || (!decision && offerIsOpen(displayed.offerExpiresAt)));
   return {
     ok: true,
     opportunity: {
@@ -1477,6 +1491,9 @@ function publicCleanerOpportunity(context) {
       cleanerRate: displayed.cleanerRate,
       checklist: displayed.checklist,
       photoCount: displayed.photoCount,
+      photoSharingConsent: displayed.photoSharingConsent === true,
+      photoAccessAllowed,
+      roomPhotos: photoAccessAllowed ? displayed.roomPhotos : [],
       cleanerModel: displayed.cleanerModel,
       legalBusinessName: displayed.legalBusinessName,
       supportEmail: displayed.supportEmail,
@@ -1496,6 +1513,33 @@ async function getPrivateCleanerOpportunity(request, response) {
   const context = await getCleanerOpportunityContext(token);
   if (!context.ok) return json(response, context.statusCode, { ok: false, error: context.error });
   return json(response, 200, publicCleanerOpportunity(context));
+}
+
+async function getPrivateCleanerOpportunityPhoto(request, response, imageId) {
+  const token = text(request.headers["x-opportunity-token"], 80);
+  const context = await getCleanerOpportunityContext(token);
+  if (!context.ok) return json(response, 404, { ok: false, error: "Room photo not found." });
+  const opportunity = publicCleanerOpportunity(context).opportunity;
+  const authorisedPhoto = opportunity.roomPhotos.find((photo) => photo.id === imageId);
+  const briefId = text(context.opportunitySnapshot?.roomScanBriefId, 40);
+  if (!opportunity.photoAccessAllowed || !authorisedPhoto || !briefId || !/^IMG-[A-Z0-9]{8}$/.test(imageId)) {
+    return json(response, 404, { ok: false, error: "Room photo not found." });
+  }
+  const briefs = await readRecords("job-briefs.ndjson");
+  const brief = briefs.find((record) => record.id === briefId && record.requestId === context.proposal.requestId && record.cleanerPhotoSharingConsent === true);
+  const photo = brief?.photos?.find((item) => item.id === imageId && item.id === authorisedPhoto.id);
+  if (!photo) return json(response, 404, { ok: false, error: "Room photo not found." });
+  const resolvedDataDir = path.resolve(dataDir);
+  const imagePath = path.resolve(dataDir, photo.storedPath);
+  if (!imagePath.startsWith(`${resolvedDataDir}${path.sep}`)) return json(response, 403, { ok: false, error: "Invalid room photo path." });
+  try {
+    const body = await readFile(imagePath);
+    response.writeHead(200, { "Content-Type": photo.mimeType, "Content-Length": body.length, "Cache-Control": "private, no-store", "Content-Disposition": "inline" });
+    response.end(body);
+  } catch (error) {
+    if (error.code === "ENOENT") return json(response, 404, { ok: false, error: "Room photo file not found." });
+    throw error;
+  }
 }
 
 async function decidePrivateCleanerOpportunity(request, response) {
@@ -1544,6 +1588,8 @@ async function decidePrivateCleanerOpportunity(request, response) {
       cleanerPay: displayed.cleanerPay,
       cleanerRate: displayed.cleanerRate,
       checklist: displayed.checklist,
+      photoSharingConsent: displayed.photoSharingConsent,
+      roomPhotos: displayed.photoAccessAllowed ? displayed.roomPhotos : [],
       cleanerModel: displayed.cleanerModel,
       offerExpiresAt: displayed.offerExpiresAt
     } : null,
@@ -1643,7 +1689,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Estimated time: ${proposal.estimatedHours} hours`,
     `Proposed cleaner pay: ${money(proposal.cleanerPay)} total (${money(proposal.cleanerRate)} per hour)`,
     `Respond by: ${responseDeadline(opportunitySnapshot?.offerExpiresAt, config.cleanerOpportunityValidityHours)}`,
-    ...(latestBrief ? ["", latestBrief.status === "reviewed" ? "Tideway-reviewed cleaner checklist:" : "Landlord-draft cleaner checklist (Tideway review required):", ...latestBrief.checklist.map((task) => `- ${task}`), `Photo references held privately: ${latestBrief.photos.length}. Share only through the approved secure process after confirmation.`] : []),
+    ...(latestBrief ? ["", latestBrief.status === "reviewed" ? "Tideway-reviewed cleaner checklist:" : "Landlord-draft cleaner checklist (Tideway review required):", ...latestBrief.checklist.map((task) => `- ${task}`), latestBrief.cleanerPhotoSharingConsent === true ? `Customer-authorised room photos: ${latestBrief.photos.length}. View only through the private opportunity link after Tideway sends it.` : `Photo references held privately: ${latestBrief.photos.length}. The customer has not authorised pre-booking cleaner access.`] : []),
     "",
     "This is an invitation to consider the opportunity, not a confirmed assignment. You may accept or decline. Full access details are shared only after both sides confirm.",
     "",
@@ -2551,6 +2597,7 @@ async function handleJobBrief(request, response) {
   const email = text(input.email, 160).toLowerCase();
   const transcript = text(input.transcript, 5000);
   const consent = input.consent === true;
+  const cleanerPhotoSharingConsent = input.sharePhotosWithSelectedCleaner === true;
   const suppliedTasks = Array.isArray(input.checklist) ? input.checklist.map(normaliseChecklistTask).filter(Boolean) : [];
   const checklist = [...new Map((suppliedTasks.length ? suppliedTasks : checklistFromTranscript(transcript)).map((task) => [task.toLowerCase(), task])).values()].slice(0, 40);
   const photoInputs = Array.isArray(input.photos) ? input.photos.slice(0, 7) : [];
@@ -2598,11 +2645,12 @@ async function handleJobBrief(request, response) {
     transcript,
     checklist,
     photos,
+    cleanerPhotoSharingConsent,
     status: "landlord-draft",
     createdAt: new Date().toISOString()
   };
   await saveJobBrief(brief, images);
-  return json(response, 201, { ok: true, reference: brief.id, customerStatusToken: customerRequest.customerStatusToken || "", checklist: brief.checklist, photos: brief.photos.map(({ id, area, note }) => ({ id, area, note })) });
+  return json(response, 201, { ok: true, reference: brief.id, customerStatusToken: customerRequest.customerStatusToken || "", checklist: brief.checklist, photos: brief.photos.map(({ id, area, note }) => ({ id, area, note })), cleanerPhotoSharingConsent: brief.cleanerPhotoSharingConsent });
 }
 
 async function getAdminJobBriefImage(request, response, briefId, imageId) {
@@ -2789,6 +2837,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/opportunity") {
       return await getPrivateCleanerOpportunity(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/opportunity-photo") {
+      return await getPrivateCleanerOpportunityPhoto(request, response, text(requestUrl.searchParams.get("imageId"), 40));
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/opportunity/decision") {
       return await decidePrivateCleanerOpportunity(request, response);

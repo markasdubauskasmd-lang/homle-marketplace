@@ -8,7 +8,7 @@
   <title>Review a Tideway cleaning opportunity</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260714-22">
-  <script src="/opportunity.js?v=20260714-32" type="module"></script>
+  <script src="/opportunity.js?v=20260714-33" type="module"></script>
 </head>
 <body class="quote-page">
   <a class="skip-link" href="#main">Skip to opportunity</a>
@@ -59,6 +59,12 @@
           <p class="privacy-hint" data-photo-note></p>
         </section>
 
+        <section class="quote-scope" data-room-photos-section hidden>
+          <h2>Customer-authorised room photos</h2>
+          <p class="privacy-hint">Use these visual references only to assess this cleaning opportunity. Do not copy, retain or share them outside Tideway.</p>
+          <div class="booking-room-photos" data-room-photos></div>
+        </section>
+
         <section class="quote-rules">
           <h2>Before you respond</h2>
           <p><strong>Tideway operating model:</strong> <span data-cleaner-model></span></p>
@@ -73,7 +79,7 @@
           <label>Type the full name used on your cleaner application
             <input name="typedName" autocomplete="name" required>
           </label>
-          <label class="checkbox"><input name="scopeConfirmed" type="checkbox" required><span>I have reviewed the service, area, site scope, hazards and checklist shown above.</span></label>
+          <label class="checkbox"><input name="scopeConfirmed" type="checkbox" required><span>I have reviewed the service, area, site scope, hazards, checklist and any customer-authorised room photos shown above.</span></label>
           <label class="checkbox"><input name="payConfirmed" type="checkbox" required><span>I have reviewed and agree to the proposed hours, hourly pay and total pay for this opportunity.</span></label>
           <label class="checkbox"><input name="availabilityConfirmed" type="checkbox" required><span>I am currently available for the proposed date, subject to Tideway’s final booking confirmation.</span></label>
           <label>Optional note or reason for declining

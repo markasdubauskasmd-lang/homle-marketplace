@@ -231,7 +231,7 @@ form.addEventListener("submit", async (event) => {
     const response = await fetch(form.action, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ requestId: form.elements.requestId.value, email: form.elements.email.value, transcript: transcript.value, checklist: tasks, photos: encodedPhotos, consent: form.elements.consent.checked })
+      body: JSON.stringify({ requestId: form.elements.requestId.value, email: form.elements.email.value, transcript: transcript.value, checklist: tasks, photos: encodedPhotos, consent: form.elements.consent.checked, sharePhotosWithSelectedCleaner: form.elements.sharePhotosWithSelectedCleaner.checked })
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "The job brief could not be saved.");

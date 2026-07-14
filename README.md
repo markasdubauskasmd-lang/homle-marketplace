@@ -45,6 +45,7 @@ Then open `http://127.0.0.1:4173`.
 - Private customer quote-review links that keep the token out of server URLs, require name/scope/terms confirmation, lock after one decision and preserve an acceptance snapshot for the booking audit
 - Customer acceptance can no longer be fabricated from the control desk; accepted and declined states come from the private quote decision flow
 - Private cleaner opportunity links show only the area, reviewed scope, hazards and proposed pay; customer identity, exact address, access notes and private photos remain protected
+- Customers can separately authorise the one selected cleaner to review the frozen room photos through the active private opportunity link; the exact address, identity and access details stay hidden, and preview, expired, declined or withdrawn links cannot load images
 - Cleaner decisions require the application name plus scope, pay and availability confirmations, lock after one response and cannot be created from the control desk
 - Founder-set customer and cleaner response windows freeze into each sent offer, are capped at the visit start, appear on private pages and drafts, and automatically close stale decisions; booking audits verify both acceptances were timely
 - Latest approved landlord checklist included in the review-only cleaner opportunity draft; photos remain separately protected for deliberate review

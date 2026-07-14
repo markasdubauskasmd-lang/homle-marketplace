@@ -9,6 +9,7 @@ const locked = document.querySelector("#opportunity-locked");
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "long" });
 const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeStyle: "short" });
+const roomPhotoObjectUrls = [];
 
 function setText(selector, value) {
   document.querySelector(selector).textContent = value || "—";
@@ -19,6 +20,42 @@ function showError(message) {
   content.hidden = true;
   errorState.hidden = false;
   setText("[data-error-message]", message);
+}
+
+async function loadRoomPhotos(roomPhotos) {
+  const section = document.querySelector("[data-room-photos-section]");
+  const grid = document.querySelector("[data-room-photos]");
+  section.hidden = false;
+  grid.replaceChildren();
+  for (const photo of roomPhotos) {
+    const figure = document.createElement("figure");
+    try {
+      const response = await fetch(`/api/opportunity-photo?imageId=${encodeURIComponent(photo.id)}`, { headers: { "Accept": "image/*", "X-Opportunity-Token": token } });
+      if (!response.ok) throw new Error("Photo unavailable");
+      const objectUrl = URL.createObjectURL(await response.blob());
+      roomPhotoObjectUrls.push(objectUrl);
+      const image = document.createElement("img");
+      image.src = objectUrl;
+      image.alt = `${photo.area} visual reference`;
+      image.loading = "lazy";
+      image.referrerPolicy = "no-referrer";
+      image.draggable = false;
+      figure.append(image);
+    } catch {
+      const unavailable = document.createElement("div");
+      unavailable.className = "room-photo-unavailable";
+      unavailable.textContent = "This private room photo could not be loaded.";
+      figure.append(unavailable);
+    }
+    const caption = document.createElement("figcaption");
+    const area = document.createElement("strong");
+    area.textContent = photo.area;
+    const note = document.createElement("span");
+    note.textContent = photo.note;
+    caption.append(area, note);
+    figure.append(caption);
+    grid.append(figure);
+  }
 }
 
 function renderOpportunity(opportunity) {
@@ -50,13 +87,17 @@ function renderOpportunity(opportunity) {
       item.textContent = task;
       list.append(item);
     });
-    setText("[data-photo-note]", opportunity.photoCount === 1
-      ? "One private photo reference is held by Tideway and is not exposed through this link."
-      : opportunity.photoCount > 1
-        ? `${opportunity.photoCount} private photo references are held by Tideway and are not exposed through this link.`
-        : "No private photo references are attached.");
+    setText("[data-photo-note]", opportunity.photoAccessAllowed
+      ? `${opportunity.photoCount} customer-authorised room ${opportunity.photoCount === 1 ? "photo is" : "photos are"} available below through this private review.`
+      : opportunity.photoSharingConsent && opportunity.status === "ready"
+        ? "The customer authorised private room-photo review. Photos unlock only after Tideway records this opportunity as sent."
+        : opportunity.photoCount > 0
+          ? `${opportunity.photoCount} private room ${opportunity.photoCount === 1 ? "photo is" : "photos are"} held by Tideway; the customer has not authorised pre-booking cleaner access through this link.`
+          : "No private photo references are attached.");
     document.querySelector("[data-checklist-section]").hidden = false;
   }
+
+  if (opportunity.photoAccessAllowed && opportunity.roomPhotos?.length) loadRoomPhotos(opportunity.roomPhotos);
 
   if (opportunity.decision || !opportunity.decisionAllowed) {
     form.hidden = true;
@@ -138,3 +179,5 @@ form.addEventListener("submit", async (event) => {
 });
 
 loadOpportunity();
+
+addEventListener("pagehide", () => roomPhotoObjectUrls.forEach((url) => URL.revokeObjectURL(url)));
