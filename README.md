@@ -21,7 +21,7 @@ Then open `http://127.0.0.1:4173`.
 - Photo-and-voice room scan that requires a deliberate room label and specific note for every image, automatically summarises speech and photo notes into concise room-labelled checklist bullets, and blocks saving until every photographed room has a task
 - Audited human review decisions for room scans; a missing or unreviewed scan blocks cleaner-draft use, proposal approval and booking readiness
 - Structured scan review requires a 0.5–24 hour human scope estimate, medium/high confidence and an evidence note; proposal hours default to the higher of this estimate or the founder minimum
-- Price-sensitive scan detection flags oven/fridge interiors, inside storage, windows, linen/laundry, carpet or upholstery work, waste removal, outdoor areas and wall/ceiling washing; the reviewer must explicitly confirm every detected item inside the cleaning-time estimate before matching or quoting can proceed
+- Price-sensitive scan detection flags oven/fridge interiors, inside storage, windows, linen/laundry, carpet or upholstery work, waste removal, outdoor areas and wall/ceiling washing; the customer sees the warning while reviewing the scan and the reviewer must explicitly confirm every detected item inside the cleaning-time estimate before matching or quoting can proceed
 - Confirmed price-sensitive items are frozen into the customer quote and cleaner opportunity, shown in both message drafts and the customer tracker, and retained in both protected booking packs so scope cannot silently disappear between scan and job day
 - Cleaner application form with server-side validation
 - Audited seven-check cleaner screening record; approval, matching, proposals and bookings remain blocked until every check is confirmed

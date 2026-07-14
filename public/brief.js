@@ -1,5 +1,6 @@
 import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js";
 import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
+import { detectPriceSensitiveScope } from "./scope-signals.js";
 
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
@@ -8,6 +9,8 @@ const transcript = document.querySelector("#brief-transcript");
 const checklist = document.querySelector("#brief-checklist");
 const checklistPreview = document.querySelector("#checklist-preview");
 const taskCount = document.querySelector("#task-count");
+const scopeSignalPreview = document.querySelector("#scope-signal-preview");
+const scopeSignalList = document.querySelector("#scope-signal-list");
 const voiceButton = document.querySelector("#voice-button");
 const voiceStatus = document.querySelector("#voice-status");
 const form = document.querySelector("#job-brief-form");
@@ -39,6 +42,17 @@ function checklistTasks() {
   return [...new Map(checklist.value.split(/\r?\n/).map(normaliseChecklistTask).filter(Boolean).map((task) => [task.toLowerCase(), task])).values()].slice(0, 40);
 }
 
+function renderScopeSignals() {
+  const signals = detectPriceSensitiveScope({ transcript: transcript.value, checklist: checklistTasks(), photos });
+  scopeSignalList.replaceChildren();
+  signals.forEach((signal) => {
+    const item = document.createElement("li");
+    item.textContent = signal.label;
+    scopeSignalList.append(item);
+  });
+  scopeSignalPreview.hidden = !signals.length;
+}
+
 function renderChecklist() {
   const tasks = checklistTasks();
   checklistPreview.replaceChildren();
@@ -54,6 +68,7 @@ function renderChecklist() {
     });
   }
   taskCount.textContent = `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`;
+  renderScopeSignals();
 }
 
 function generateChecklist({ scroll = true, showEmptyError = true } = {}) {
@@ -71,6 +86,7 @@ function generateChecklist({ scroll = true, showEmptyError = true } = {}) {
 
 document.querySelector("#generate-checklist").addEventListener("click", () => generateChecklist());
 checklist.addEventListener("input", renderChecklist);
+transcript.addEventListener("input", renderScopeSignals);
 
 function renderPhotos() {
   photoPreview.replaceChildren();
@@ -105,7 +121,7 @@ function renderPhotos() {
       option.selected = area === photo.area;
       select.append(option);
     });
-    select.addEventListener("change", () => { photo.area = select.value; });
+    select.addEventListener("change", () => { photo.area = select.value; renderScopeSignals(); });
     label.append(select);
     const noteLabel = document.createElement("label");
     noteLabel.append(document.createTextNode("What this photo shows"));
@@ -114,7 +130,7 @@ function renderPhotos() {
     note.maxLength = 500;
     note.placeholder = "For example: grease around the hob; wipe tiles and clean the extractor cover. Do not include access codes.";
     note.value = photo.note;
-    note.addEventListener("input", () => { photo.note = note.value; });
+    note.addEventListener("input", () => { photo.note = note.value; renderScopeSignals(); });
     noteLabel.append(note);
     const remove = document.createElement("button");
     remove.type = "button";
@@ -124,6 +140,7 @@ function renderPhotos() {
       URL.revokeObjectURL(photo.previewUrl);
       photos.splice(index, 1);
       renderPhotos();
+      renderScopeSignals();
     });
     controls.append(label, noteLabel, remove);
     card.append(image, controls);
@@ -142,6 +159,7 @@ photoInput.addEventListener("change", () => {
   });
   photoInput.value = "";
   renderPhotos();
+  renderScopeSignals();
 });
 
 function photoDataUrl(photo) {

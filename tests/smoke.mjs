@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript } from "../public/checklist.js";
 import { clearBriefHandoff, readBriefHandoff, saveBriefHandoff } from "../public/brief-handoff.js";
+import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "../public/scope-signals.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "../offer-expiry.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -49,6 +50,11 @@ try {
     "Do not move the locked cupboard"
   ]), "Long spoken instructions were not summarised into concise room-labelled bullets.");
 
+  const detectedScopeCodes = detectPriceSensitiveScope({ transcript: "Clean inside the oven and inside the fridge. Clean inside cupboards, wash the windows, change the bed linen, arrange carpet cleaning, rubbish removal, balcony cleaning and wash the walls." }).map((signal) => signal.code);
+  assert(JSON.stringify(detectedScopeCodes) === JSON.stringify(["oven-interior", "fridge-freezer-interior", "inside-storage", "window-cleaning", "linen-laundry", "carpet-upholstery", "waste-removal", "outdoor-area", "walls-ceilings"]), "Customer-facing price-sensitive scope detection omitted or reordered a supported extra.");
+  assert(detectPriceSensitiveScope({ transcript: "Wipe the oven door, fridge door and kitchen wall tiles." }).length === 0, "Ordinary surface wiping was incorrectly flagged as a price-sensitive extra.");
+  assert(JSON.stringify(normalisePriceSensitiveScopeSignals([{ code: "oven-interior", label: "Tampered label" }, { code: "not-supported", label: "Invented" }])) === JSON.stringify([{ code: "oven-interior", label: "Inside oven cleaning" }]), "Stored scope signals were not constrained to Tideway's supported labels.");
+
   const sessionValues = new Map();
   const testSession = {
     getItem: (key) => sessionValues.get(key) || null,
@@ -80,8 +86,11 @@ try {
   const adminPageText = await adminPage.text();
   assert(adminPage.ok && adminPageText.includes("Lead control desk") && adminPageText.includes("Founder-action queue") && adminPageText.includes('id="action-filter"'), "Admin dispatch control page failed.");
   const briefPage = await fetch(`${base}/brief`);
-  assert(briefPage.ok && (await briefPage.text()).includes("Request details carried over."), "Photo job-brief page or private handoff notice failed.");
+  const briefPageText = await briefPage.text();
+  assert(briefPage.ok && briefPageText.includes("Request details carried over.") && briefPageText.includes("Extra time may be needed"), "Photo job-brief page, private handoff notice or customer-facing scope warning failed.");
   assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
+  const scopeSignalAsset = await fetch(`${base}/scope-signals.js`);
+  assert(scopeSignalAsset.ok && (await scopeSignalAsset.text()).includes("detectPriceSensitiveScope"), "Shared customer/server scope detection asset failed.");
   const requestStatusPage = await fetch(`${base}/request-status`);
   assert(requestStatusPage.ok && (await requestStatusPage.text()).includes("Private request tracker"), "Private customer request tracker page failed.");
   const quotePage = await fetch(`${base}/quote`);
@@ -819,7 +828,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === overlapRequestBody.reference)?.dispatchActions?.some((action) => action.code === "rematch" && action.group === "rematching"), "Exhausted and withdrawn offers did not remain visible in the rematching queue.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.length === 0, "Completed profitable work remained in the active founder-action queue.");
 
-  console.log("Smoke tests passed: public pages, reviewed-scan matching gates, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, price-sensitive scope detection, required reviewer confirmations, frozen confirmed extras, explicit selected-cleaner photo consent, frozen opportunity photo scope, token-authorised non-cacheable opportunity images, preview/no-consent/readiness/booking image revocation, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, live cleaner-capacity holds, capacity-aware matching, cleaner-decline capacity release, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, reviewed-scan matching gates, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, customer-visible price-sensitive scope warnings, supported-signal coverage, false-positive protection, required reviewer confirmations, frozen confirmed extras, explicit selected-cleaner photo consent, frozen opportunity photo scope, token-authorised non-cacheable opportunity images, preview/no-consent/readiness/booking image revocation, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, live cleaner-capacity holds, capacity-aware matching, cleaner-decline capacity release, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));
