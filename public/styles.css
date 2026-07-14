@@ -274,6 +274,8 @@ textarea { resize: vertical; }
 .admin-brief-photos figure { margin: 0; overflow: hidden; border-radius: 9px; background: #fff; }
 .admin-brief-photos img { width: 100%; height: 150px; object-fit: cover; }
 .admin-brief-photos figcaption { padding: 8px 10px; font-size: .78rem; font-weight: 750; }
+.admin-brief-photos figcaption strong, .admin-brief-photos figcaption span { display: block; }
+.admin-brief-photos figcaption span { margin-top: 4px; color: var(--muted); font-weight: 500; }
 .activity-summary { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; padding: 14px 16px; border-radius: 10px; color: var(--muted); background: var(--mint-pale); font-size: .86rem; }
 .activity-summary .next-action { color: var(--green-dark); font-weight: 800; }
 .lead-followup { margin-top: 16px; border-top: 1px solid var(--line); }
@@ -368,6 +370,8 @@ textarea { resize: vertical; }
 .photo-preview-card img { width: 100%; height: 180px; object-fit: cover; background: #e8f1ee; }
 .photo-preview-card > div { padding: 12px; }
 .photo-preview-card select { padding-block: .55rem; }
+.photo-preview-card label + label { margin-top: 10px; }
+.photo-preview-card textarea { min-height: 82px; padding-block: .6rem; font-size: .86rem; }
 .text-button { margin-top: 8px; padding: 0; color: #8a231d; border: 0; background: transparent; font-weight: 750; cursor: pointer; }
 .voice-status { margin: -8px 0 16px; padding: 11px 13px; color: var(--green-dark); border-radius: 9px; background: var(--mint-pale); font-size: .86rem; }
 .privacy-hint { margin-top: 8px; color: var(--muted); font-size: .82rem; }
@@ -401,6 +405,13 @@ textarea { resize: vertical; }
 .quote-scope h2, .quote-rules h2, .quote-decision h2 { margin-bottom: 14px; font-size: 1.35rem; }
 .quote-scope ul { margin-bottom: 0; padding-left: 22px; }
 .quote-rules p:last-child { margin-bottom: 0; }
+.booking-room-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.booking-room-photos figure { margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.booking-room-photos img { width: 100%; height: 220px; object-fit: cover; background: #e8f1ee; }
+.booking-room-photos figcaption { padding: 12px; }
+.booking-room-photos figcaption strong, .booking-room-photos figcaption span { display: block; }
+.booking-room-photos figcaption span { margin-top: 5px; color: var(--muted); font-size: .86rem; }
+.room-photo-unavailable { display: grid; min-height: 140px; place-items: center; padding: 18px; color: var(--muted); text-align: center; }
 .quote-decision { display: grid; gap: 16px; margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); }
 .quote-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .quote-result { display: grid; gap: 8px; margin-top: 28px; padding: 20px; color: var(--green-dark); border: 1px solid #a8d2c6; border-radius: 14px; background: var(--mint-pale); }
@@ -465,6 +476,7 @@ textarea { resize: vertical; }
   .final-cta .shell { flex-direction: column; align-items: flex-start; }
   .footer-grid { grid-template-columns: 1fr; gap: 30px; }
   .footer-bottom { flex-direction: column; }
+  .booking-room-photos { grid-template-columns: 1fr; }
   .admin-nav > div { gap: 10px; }
   .admin-badge { display: none; }
   .admin-main { padding-top: 38px; }

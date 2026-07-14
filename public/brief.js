@@ -15,7 +15,7 @@ const errorBox = document.querySelector("#brief-error");
 const successBox = document.querySelector("#brief-success");
 const saveButton = document.querySelector("#save-brief");
 const photos = [];
-const roomOptions = ["Kitchen", "Bathroom", "Bedroom", "Living room", "Hallway or stairs", "Office", "Communal area", "Other area"];
+const roomOptions = ["Kitchen", "Bathroom", "Bedroom", "Living room", "Hallway", "Stairs", "Office", "Communal area", "Other area"];
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 const presetReference = new URLSearchParams(location.search).get("reference");
@@ -57,7 +57,11 @@ function renderChecklist() {
 }
 
 function generateChecklist({ scroll = true, showEmptyError = true } = {}) {
-  const tasks = checklistFromTranscript(transcript.value);
+  const roomNotes = photos
+    .filter((photo) => photo.area && photo.note.trim())
+    .map((photo) => `In the ${photo.area}, ${photo.note.trim()}`)
+    .join(". ");
+  const tasks = checklistFromTranscript([roomNotes, transcript.value].filter(Boolean).join(". "));
   checklist.value = tasks.join("\n");
   renderChecklist();
   if (tasks.length && scroll) document.querySelector("#checklist-panel").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -88,6 +92,12 @@ function renderPhotos() {
     const label = document.createElement("label");
     label.append(document.createTextNode("Area"));
     const select = document.createElement("select");
+    const prompt = document.createElement("option");
+    prompt.value = "";
+    prompt.textContent = "Choose room";
+    prompt.disabled = true;
+    prompt.selected = !photo.area;
+    select.append(prompt);
     roomOptions.forEach((area) => {
       const option = document.createElement("option");
       option.value = area;
@@ -97,6 +107,15 @@ function renderPhotos() {
     });
     select.addEventListener("change", () => { photo.area = select.value; });
     label.append(select);
+    const noteLabel = document.createElement("label");
+    noteLabel.append(document.createTextNode("What this photo shows"));
+    const note = document.createElement("textarea");
+    note.rows = 3;
+    note.maxLength = 500;
+    note.placeholder = "For example: grease around the hob; wipe tiles and clean the extractor cover. Do not include access codes.";
+    note.value = photo.note;
+    note.addEventListener("input", () => { photo.note = note.value; });
+    noteLabel.append(note);
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "text-button";
@@ -106,7 +125,7 @@ function renderPhotos() {
       photos.splice(index, 1);
       renderPhotos();
     });
-    controls.append(label, remove);
+    controls.append(label, noteLabel, remove);
     card.append(image, controls);
     photoPreview.append(card);
   });
@@ -119,7 +138,7 @@ photoInput.addEventListener("change", () => {
   selected.slice(0, available).forEach((file) => {
     if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return;
     if (file.size > 10 * 1024 * 1024) { showError(`${file.name} is over 10 MB. Choose a smaller photo.`); return; }
-    photos.push({ file, area: roomOptions[Math.min(photos.length, roomOptions.length - 1)], previewUrl: URL.createObjectURL(file) });
+    photos.push({ file, area: "", note: "", previewUrl: URL.createObjectURL(file) });
   });
   photoInput.value = "";
   renderPhotos();
@@ -199,12 +218,16 @@ form.addEventListener("submit", async (event) => {
   const tasks = checklistTasks();
   if (!form.checkValidity()) { form.reportValidity(); showError("Complete the request details and required confirmation."); return; }
   if (!photos.length) { showError("Add at least one property photo."); return; }
+  if (photos.some((photo) => !photo.area)) { showError("Choose the correct room for every photo."); return; }
+  if (photos.some((photo) => photo.note.trim().length < 3)) { showError("Add a short room note explaining what every photo shows."); return; }
   if (!tasks.length) { showError("Create and review at least one cleaner task."); return; }
+  const uncoveredAreas = [...new Set(photos.map((photo) => photo.area))].filter((area) => !tasks.some((task) => task.toLowerCase().startsWith(`${area.toLowerCase()}:`)));
+  if (uncoveredAreas.length) { showError(`Add at least one checklist task for: ${uncoveredAreas.join(", ")}. Use the room notes, then summarise again.`); return; }
   saveButton.disabled = true;
   saveButton.textContent = "Preparing private room scan…";
   try {
     const encodedPhotos = [];
-    for (const photo of photos) encodedPhotos.push({ area: photo.area, dataUrl: await photoDataUrl(photo) });
+    for (const photo of photos) encodedPhotos.push({ area: photo.area, note: photo.note.trim(), dataUrl: await photoDataUrl(photo) });
     const response = await fetch(form.action, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },

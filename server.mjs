@@ -314,8 +314,11 @@ async function cleanupStaleTemporaryFiles() {
   await Promise.all(stale.map((filename) => unlink(path.join(dataDir, filename)).catch(() => {})));
 }
 
+const briefRoomAreas = new Set(["Kitchen", "Bathroom", "Bedroom", "Living room", "Hallway", "Stairs", "Office", "Communal area", "Other area"]);
+
 function decodeBriefPhoto(input, index) {
-  const area = text(input?.area, 80) || `Photo ${index + 1}`;
+  const area = text(input?.area, 80);
+  const note = text(input?.note, 500);
   const dataUrl = typeof input?.dataUrl === "string" ? input.dataUrl : "";
   const match = dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
   if (!match) throw Object.assign(new Error(`Photo ${index + 1} must be a JPEG, PNG or WebP image.`), { statusCode: 422 });
@@ -330,7 +333,7 @@ function decodeBriefPhoto(input, index) {
   if (!validSignature) throw Object.assign(new Error(`Photo ${index + 1} is not a valid ${mimeType.replace("image/", "").toUpperCase()} image.`), { statusCode: 422 });
   const extension = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" }[mimeType];
   const id = `IMG-${randomUUID().slice(0, 8).toUpperCase()}`;
-  return { id, area, mimeType, extension, bytes };
+  return { id, area, note, mimeType, extension, bytes };
 }
 
 async function saveJobBrief(record, images) {
@@ -1225,6 +1228,7 @@ async function createAdminBooking(request, response) {
     plannedCustomerTotal: audit.proposal.customerTotal,
     plannedCleanerPay: audit.proposal.cleanerPay,
     plannedContribution: audit.proposal.contribution,
+    roomScanBriefId: audit.latestBrief.id,
     details,
     customerViewToken: randomBytes(24).toString("base64url"),
     cleanerViewToken: randomBytes(24).toString("base64url"),
@@ -1241,6 +1245,7 @@ async function createAdminBooking(request, response) {
       estimatedHours: audit.proposal.estimatedHours,
       customerTotal: audit.proposal.customerTotal,
       checklist: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.checklist : [],
+      roomPhotos: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.photos.map(({ id, area, note }) => ({ id, area, note })) : [],
       accessInstructions: details.accessInstructions,
       parkingNotes: details.parkingNotes,
       productsAndEquipment: details.productsAndEquipment,
@@ -1266,6 +1271,7 @@ async function createAdminBooking(request, response) {
       cleanerPay: audit.proposal.cleanerPay,
       cleanerRate: audit.proposal.cleanerRate,
       checklist: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.checklist : [],
+      roomPhotos: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.photos.map(({ id, area, note }) => ({ id, area, note })) : [],
       accessContactName: details.accessContactName,
       accessContactPhone: details.accessContactPhone,
       accessInstructions: details.accessInstructions,
@@ -1313,6 +1319,29 @@ async function getPrivateBookingPack(request, response) {
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .map(({ bookingId, requestId, cleanerId, audience, ...record }) => record);
   return json(response, 200, { ok: true, booking: { ...context.pack, confirmedAt: context.booking.createdAt, changeRequests: ownRequests, jobProgress: bookingJobProgress(context.booking.id, jobEvents) } });
+}
+
+async function getPrivateBookingPhoto(request, response, imageId) {
+  const token = text(request.headers["x-booking-token"], 80);
+  const context = await findPrivateBooking(token);
+  if (!context) return json(response, 404, { ok: false, error: "This private booking link is invalid." });
+  const briefId = text(context.booking.roomScanBriefId, 40);
+  if (!briefId || !/^IMG-[A-Z0-9]{8}$/.test(imageId)) return json(response, 404, { ok: false, error: "Room photo not found." });
+  const briefs = await readRecords("job-briefs.ndjson");
+  const brief = briefs.find((record) => record.id === briefId && record.requestId === context.booking.requestId);
+  const photo = brief?.photos?.find((item) => item.id === imageId);
+  if (!photo) return json(response, 404, { ok: false, error: "Room photo not found." });
+  const resolvedDataDir = path.resolve(dataDir);
+  const imagePath = path.resolve(dataDir, photo.storedPath);
+  if (!imagePath.startsWith(`${resolvedDataDir}${path.sep}`)) return json(response, 403, { ok: false, error: "Invalid room photo path." });
+  try {
+    const body = await readFile(imagePath);
+    response.writeHead(200, { "Content-Type": photo.mimeType, "Content-Length": body.length, "Cache-Control": "private, no-store" });
+    response.end(body);
+  } catch (error) {
+    if (error.code === "ENOENT") return json(response, 404, { ok: false, error: "Room photo file not found." });
+    throw error;
+  }
 }
 
 async function createPrivateBookingChangeRequest(request, response) {
@@ -1704,6 +1733,11 @@ async function handleJobBrief(request, response) {
   if (!checklist.length) errors.push("Generate and review at least one checklist task.");
   if (!photoInputs.length) errors.push("Add at least one property photo.");
   if (photoInputs.length > 6) errors.push("Add no more than six property photos.");
+  if (photoInputs.some((photo) => !briefRoomAreas.has(text(photo?.area, 80)))) errors.push("Choose a valid room for every property photo.");
+  if (photoInputs.some((photo) => text(photo?.note, 500).length < 3)) errors.push("Add a short room note explaining what every photo shows.");
+  const photographedAreas = [...new Set(photoInputs.map((photo) => text(photo?.area, 80)).filter((area) => briefRoomAreas.has(area)))];
+  const uncoveredAreas = photographedAreas.filter((area) => !checklist.some((task) => task.toLowerCase().startsWith(`${area.toLowerCase()}:`)));
+  if (uncoveredAreas.length) errors.push(`Add at least one room-labelled checklist task for: ${uncoveredAreas.join(", ")}.`);
   if (!consent) errors.push("Confirm that you may share these property photos and instructions.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
@@ -1726,6 +1760,7 @@ async function handleJobBrief(request, response) {
   const photos = images.map((image) => ({
     id: image.id,
     area: image.area,
+    note: image.note,
     mimeType: image.mimeType,
     storedPath: path.posix.join("job-brief-images", briefId, `${image.id}${image.extension}`)
   }));
@@ -1739,7 +1774,7 @@ async function handleJobBrief(request, response) {
     createdAt: new Date().toISOString()
   };
   await saveJobBrief(brief, images);
-  return json(response, 201, { ok: true, reference: brief.id, checklist: brief.checklist, photos: brief.photos.map(({ id, area }) => ({ id, area })) });
+  return json(response, 201, { ok: true, reference: brief.id, checklist: brief.checklist, photos: brief.photos.map(({ id, area, note }) => ({ id, area, note })) });
 }
 
 async function getAdminJobBriefImage(request, response, briefId, imageId) {
@@ -1926,6 +1961,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/booking-pack") {
       return await getPrivateBookingPack(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/booking-photo") {
+      return await getPrivateBookingPhoto(request, response, text(requestUrl.searchParams.get("imageId"), 40));
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/booking-change-requests") {
       return await createPrivateBookingChangeRequest(request, response);

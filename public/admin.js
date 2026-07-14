@@ -648,7 +648,11 @@ async function loadBriefPhotos(brief, target, button) {
       image.alt = `${photo.area} visual reference`;
       image.loading = "lazy";
       const caption = document.createElement("figcaption");
-      caption.textContent = photo.area;
+      const area = document.createElement("strong");
+      area.textContent = photo.area;
+      const note = document.createElement("span");
+      note.textContent = photo.note || "No room note recorded";
+      caption.append(area, note);
       figure.append(image, caption);
       target.append(figure);
     }

@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Scan rooms for your clean — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260714-19">
-  <script src="/brief.js?v=20260714-26" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260714-27">
+  <script src="/brief.js?v=20260714-27" type="module"></script>
 </head>
 <body class="brief-page">
   <a class="skip-link" href="#brief-main">Skip to job brief</a>
@@ -44,7 +44,7 @@
         </div>
 
         <div class="brief-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 1</p><h2>Room photos</h2><p>Walk through the property and photograph each area relevant to the clean. Avoid people, identity documents, post, keys and security codes.</p></div><strong id="photo-count">0/6</strong></div>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 1</p><h2>Room photos and notes</h2><p>Photograph each relevant area, choose its room and add a short note explaining what the image shows. Avoid people, identity documents, post, keys and security codes.</p></div><strong id="photo-count">0/6</strong></div>
           <label class="photo-picker">Open camera or add room photos<input id="brief-photos" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple></label>
           <div id="photo-preview" class="photo-preview" aria-live="polite"><p class="empty-photo-state">No photos added yet.</p></div>
         </div>
@@ -58,7 +58,7 @@
         </div>
 
         <div class="brief-panel" id="checklist-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 3</p><h2>Review the cleaner checklist</h2><p>One clear task per line. Check that every photographed room is represented and edit anything unclear before saving.</p></div><strong id="task-count">0 tasks</strong></div>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 3</p><h2>Review the cleaner checklist</h2><p>One clear task per line. Every photographed room must have at least one room-labelled task before the scan can be saved.</p></div><strong id="task-count">0 tasks</strong></div>
           <label>Cleaner tasks<textarea id="brief-checklist" rows="10" placeholder="Your generated bullet points will appear here."></textarea></label>
           <ul id="checklist-preview" class="checklist-preview" aria-live="polite"><li>Generate the checklist to preview the cleaner tasks.</li></ul>
           <label class="consent-row"><input name="consent" type="checkbox" required> I confirm that I may share these property photos and instructions with Tideway for this cleaning request.</label>

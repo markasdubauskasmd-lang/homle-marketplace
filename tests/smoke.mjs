@@ -107,21 +107,26 @@ try {
   const unmatchedBrief = await fetch(`${base}/api/job-briefs`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ requestId: requestBody.reference, email: "wrong@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Clean the kitchen worktops"], photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true })
+    body: JSON.stringify({ requestId: requestBody.reference, email: "wrong@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Worktops need wiping", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true })
   });
   assert(unmatchedBrief.status === 404, "A job brief attached without matching the request email.");
 
   const invalidPhotoBrief = await fetch(`${base}/api/job-briefs`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Clean the kitchen worktops"], photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,SGVsbG8=" }], consent: true })
+    body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Worktops need wiping", dataUrl: "data:image/png;base64,SGVsbG8=" }], consent: true })
   });
   assert(invalidPhotoBrief.status === 422, "Invalid image content was accepted as a property photo.");
+
+  const missingRoomNote = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true }) });
+  assert(missingRoomNote.status === 422, "Room scan accepted a photo without its specific room note.");
+  const uncoveredRoom = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Worktops need wiping", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true }) });
+  assert(uncoveredRoom.status === 422, "Room scan accepted a photographed room with no room-labelled cleaner task.");
 
   const validBrief = await fetch(`${base}/api/job-briefs`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Please wipe every kitchen worktop. Also mop the kitchen floor.", photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true })
+    body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Please wipe every kitchen worktop. Also mop the kitchen floor.", checklist: ["Kitchen: Wipe every kitchen worktop", "Kitchen: Mop the kitchen floor"], photos: [{ area: "Kitchen", note: "Worktops and floor need attention", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true })
   });
   const briefBody = await validBrief.json();
   assert(validBrief.status === 201 && briefBody.reference.startsWith("BRF-") && briefBody.checklist.length === 2, "Valid photo job brief failed or checklist bullets were not generated.");
@@ -340,10 +345,10 @@ try {
   assert(readyProposal.ok, "Ready proposal status failed after launch checks passed.");
   const quotePreview = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
   const quotePreviewBody = await quotePreview.json();
-  assert(quotePreview.ok && quotePreviewBody.quote.reference === proposalBody.proposal.id && quotePreviewBody.quote.proposedStartTime === "09:00" && quotePreviewBody.quote.proposedEndTime === "13:00" && quotePreviewBody.quote.decisionAllowed === false && quotePreviewBody.quote.checklist.includes("Wipe every kitchen worktop"), "Private customer quote preview omitted the approved scope/schedule or opened decisions too early.");
+  assert(quotePreview.ok && quotePreviewBody.quote.reference === proposalBody.proposal.id && quotePreviewBody.quote.proposedStartTime === "09:00" && quotePreviewBody.quote.proposedEndTime === "13:00" && quotePreviewBody.quote.decisionAllowed === false && quotePreviewBody.quote.checklist.includes("Kitchen: Wipe every kitchen worktop"), "Private customer quote preview omitted the approved scope/schedule or opened decisions too early.");
   const opportunityPreview = await fetch(`${base}/api/opportunity`, { headers: { "x-opportunity-token": proposalBody.proposal.cleanerReviewToken } });
   const opportunityPreviewBody = await opportunityPreview.json();
-  assert(opportunityPreview.ok && opportunityPreviewBody.opportunity.reference === proposalBody.proposal.id && opportunityPreviewBody.opportunity.proposedStartTime === "09:00" && opportunityPreviewBody.opportunity.proposedEndTime === "13:00" && opportunityPreviewBody.opportunity.decisionAllowed === false && opportunityPreviewBody.opportunity.cleanerPay === 72 && opportunityPreviewBody.opportunity.checklist.includes("Wipe every kitchen worktop"), "Private cleaner opportunity preview omitted the reviewed scope/schedule/pay or opened decisions too early.");
+  assert(opportunityPreview.ok && opportunityPreviewBody.opportunity.reference === proposalBody.proposal.id && opportunityPreviewBody.opportunity.proposedStartTime === "09:00" && opportunityPreviewBody.opportunity.proposedEndTime === "13:00" && opportunityPreviewBody.opportunity.decisionAllowed === false && opportunityPreviewBody.opportunity.cleanerPay === 72 && opportunityPreviewBody.opportunity.checklist.includes("Kitchen: Wipe every kitchen worktop"), "Private cleaner opportunity preview omitted the reviewed scope/schedule/pay or opened decisions too early.");
   const previewSerialised = JSON.stringify(opportunityPreviewBody);
   assert(!previewSerialised.includes("customer@example.com") && !previewSerialised.includes("Test Customer") && !previewSerialised.includes("Collect keys"), "Cleaner opportunity preview leaked customer identity or access details.");
   const skippedTransition = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "accepted" }) });
@@ -395,7 +400,7 @@ try {
   const overlapScan = await fetch(`${base}/api/job-briefs`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ requestId: overlapRequestBody.reference, email: "overlap@example.com", transcript: "In the kitchen wipe the worktops and mop the floor.", photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true })
+    body: JSON.stringify({ requestId: overlapRequestBody.reference, email: "overlap@example.com", transcript: "In the kitchen wipe the worktops and mop the floor.", photos: [{ area: "Kitchen", note: "Worktops and floor need cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true })
   });
   const overlapScanBody = await overlapScan.json();
   assert(overlapScan.status === 201, "Overlapping-schedule request room scan failed.");
@@ -436,7 +441,7 @@ try {
   const readyDraftsBody = await readyDrafts.json();
   assert(readyDrafts.ok && readyDraftsBody.sendAllowed === true, "Ready proposal drafts were not available for review.");
   assert(readyDraftsBody.customer.body.includes("Test Customer") && readyDraftsBody.customer.body.includes("£120.00") && readyDraftsBody.customer.body.includes("09:00–13:00"), "Customer quote draft omitted required proposal or schedule details.");
-  assert(readyDraftsBody.cleaner.body.includes("£72.00") && readyDraftsBody.cleaner.body.includes("09:00–13:00") && readyDraftsBody.cleaner.body.includes("None known") && readyDraftsBody.cleaner.body.includes("Tideway-reviewed cleaner checklist") && readyDraftsBody.cleaner.body.includes("Wipe every kitchen worktop") && readyDraftsBody.cleaner.body.includes("Photo references held privately: 1") && !readyDraftsBody.cleaner.body.includes("customer@example.com") && !readyDraftsBody.cleaner.body.includes("Test Customer") && !readyDraftsBody.cleaner.body.includes("base64"), "Cleaner draft omitted reviewed schedule/pay/photo checklist scope or leaked customer identity or image data.");
+  assert(readyDraftsBody.cleaner.body.includes("£72.00") && readyDraftsBody.cleaner.body.includes("09:00–13:00") && readyDraftsBody.cleaner.body.includes("None known") && readyDraftsBody.cleaner.body.includes("Tideway-reviewed cleaner checklist") && readyDraftsBody.cleaner.body.includes("Kitchen: Wipe every kitchen worktop") && readyDraftsBody.cleaner.body.includes("Photo references held privately: 1") && !readyDraftsBody.cleaner.body.includes("customer@example.com") && !readyDraftsBody.cleaner.body.includes("Test Customer") && !readyDraftsBody.cleaner.body.includes("base64"), "Cleaner draft omitted reviewed schedule/pay/photo checklist scope or leaked customer identity or image data.");
 
   const bookingAudit = await fetch(`${base}/api/admin/booking-audit?proposalId=${proposalBody.proposal.id}`);
   const bookingAuditBody = await bookingAudit.json();
@@ -461,12 +466,18 @@ try {
   assert(invalidBookingPack.status === 404, "Invalid booking-pack token exposed visit details.");
   const customerPack = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.customerViewToken } });
   const customerPackBody = await customerPack.json();
-  assert(customerPack.ok && customerPackBody.booking.audience === "customer" && customerPackBody.booking.serviceAddress === "10 Clean Street, Westminster, London" && customerPackBody.booking.customerTotal === 120 && customerPackBody.booking.checklist.includes("Wipe every kitchen worktop"), "Customer booking pack omitted confirmed address, price or checklist details.");
+  assert(customerPack.ok && customerPackBody.booking.audience === "customer" && customerPackBody.booking.serviceAddress === "10 Clean Street, Westminster, London" && customerPackBody.booking.customerTotal === 120 && customerPackBody.booking.checklist.includes("Kitchen: Wipe every kitchen worktop") && customerPackBody.booking.roomPhotos?.[0]?.note === "Worktops and floor need attention", "Customer booking pack omitted confirmed address, price, checklist or room-scan details.");
   const customerPackSerialised = JSON.stringify(customerPackBody);
-  assert(!customerPackSerialised.includes("cleaner@example.com") && !customerPackSerialised.includes("cleanerPay") && !customerPackSerialised.includes("cleanerRate") && !customerPackSerialised.includes("07123456781"), "Customer booking pack exposed cleaner economics or private access-contact data.");
+  assert(!customerPackSerialised.includes("cleaner@example.com") && !customerPackSerialised.includes("cleanerPay") && !customerPackSerialised.includes("cleanerRate") && !customerPackSerialised.includes("07123456781") && !customerPackSerialised.includes("storedPath"), "Customer booking pack exposed cleaner economics, private access-contact data or storage paths.");
+  const protectedCustomerPhoto = await fetch(`${base}/api/booking-photo?imageId=${briefBody.photos[0].id}`, { headers: { "x-booking-token": confirmedBookingBody.booking.customerViewToken } });
+  assert(protectedCustomerPhoto.ok && protectedCustomerPhoto.headers.get("content-type") === "image/png" && (await protectedCustomerPhoto.arrayBuffer()).byteLength > 0, "Customer could not load a protected booked room photo.");
+  const unprotectedBookingPhoto = await fetch(`${base}/api/booking-photo?imageId=${briefBody.photos[0].id}`);
+  assert(unprotectedBookingPhoto.status === 404, "Booked room photo was exposed without its private booking token.");
   const cleanerPack = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.cleanerViewToken } });
   const cleanerPackBody = await cleanerPack.json();
-  assert(cleanerPack.ok && cleanerPackBody.booking.audience === "cleaner" && cleanerPackBody.booking.serviceAddress === "10 Clean Street, Westminster, London" && cleanerPackBody.booking.accessContactName === "Site Manager" && cleanerPackBody.booking.accessContactPhone === "07123456781" && cleanerPackBody.booking.cleanerPay === 72, "Cleaner assignment pack omitted confirmed visit, access or pay details.");
+  assert(cleanerPack.ok && cleanerPackBody.booking.audience === "cleaner" && cleanerPackBody.booking.serviceAddress === "10 Clean Street, Westminster, London" && cleanerPackBody.booking.accessContactName === "Site Manager" && cleanerPackBody.booking.accessContactPhone === "07123456781" && cleanerPackBody.booking.cleanerPay === 72 && cleanerPackBody.booking.roomPhotos?.[0]?.area === "Kitchen", "Cleaner assignment pack omitted confirmed visit, access, pay or room-scan details.");
+  const protectedCleanerPhoto = await fetch(`${base}/api/booking-photo?imageId=${briefBody.photos[0].id}`, { headers: { "x-booking-token": confirmedBookingBody.booking.cleanerViewToken } });
+  assert(protectedCleanerPhoto.ok && protectedCleanerPhoto.headers.get("cache-control") === "private, no-store", "Cleaner could not load the protected room photo or it was cacheable.");
   const cleanerPackSerialised = JSON.stringify(cleanerPackBody);
   assert(!cleanerPackSerialised.includes("customer@example.com") && !cleanerPackSerialised.includes("Test Customer") && !cleanerPackSerialised.includes("customerTotal"), "Cleaner assignment pack exposed customer identity or customer price.");
   const invalidChangeRequest = await fetch(`${base}/api/booking-change-requests`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.customerViewToken }, body: JSON.stringify({ type: "reschedule", message: "Short" }) });
@@ -560,7 +571,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-scan handoff, automatic concise speech bullets, mandatory reviewed room scans, pilot-area enforcement, cleaner screening, private images, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-scan handoff, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, reviewed room scans, protected booked-room images, pilot-area enforcement, cleaner screening, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

@@ -189,7 +189,43 @@ function renderJobProgress(progress = {}, audience) {
   }
 }
 
-function renderBooking(booking) {
+async function renderRoomPhotos(photos = []) {
+  const section = document.querySelector("[data-room-scan-section]");
+  const target = document.querySelector("[data-room-photos]");
+  target.replaceChildren();
+  if (!photos.length) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  await Promise.all(photos.map(async (photo) => {
+    const figure = document.createElement("figure");
+    const image = document.createElement("img");
+    image.alt = `${photo.area} room-scan reference`;
+    image.loading = "lazy";
+    const caption = document.createElement("figcaption");
+    const area = document.createElement("strong");
+    area.textContent = photo.area;
+    const note = document.createElement("span");
+    note.textContent = photo.note;
+    caption.append(area, note);
+    figure.append(image, caption);
+    target.append(figure);
+    try {
+      const response = await fetch(`/api/booking-photo?imageId=${encodeURIComponent(photo.id)}`, { headers: { "Accept": "image/*", "X-Booking-Token": token } });
+      if (!response.ok) throw new Error("Photo unavailable");
+      image.src = URL.createObjectURL(await response.blob());
+    } catch {
+      image.remove();
+      const unavailable = document.createElement("span");
+      unavailable.className = "room-photo-unavailable";
+      unavailable.textContent = "Private photo could not be loaded.";
+      figure.prepend(unavailable);
+    }
+  }));
+}
+
+async function renderBooking(booking) {
   loading.hidden = true;
   errorState.hidden = true;
   content.hidden = false;
@@ -213,6 +249,7 @@ function renderBooking(booking) {
   setText("[data-support]", [booking.supportEmail, booking.supportPhone].filter(Boolean).join(" · "));
   renderChangeHistory(booking.changeRequests);
   renderJobProgress(booking.jobProgress, booking.audience);
+  await renderRoomPhotos(booking.roomPhotos);
 
   if (booking.checklist?.length) {
     const list = document.querySelector("[data-checklist]");
@@ -297,7 +334,7 @@ async function loadBooking() {
     const response = await fetch("/api/booking-pack", { headers: { "Accept": "application/json", "X-Booking-Token": token } });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "This booking pack could not be loaded.");
-    renderBooking(result.booking);
+    await renderBooking(result.booking);
   } catch (error) {
     showError(error.message);
   }

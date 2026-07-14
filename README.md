@@ -16,7 +16,7 @@ Then open `http://127.0.0.1:4173`.
 
 - Customer cleaning request form with server-side validation
 - One-click private handoff from a completed request into the required room scan, with reference and email prefilled for that browser session
-- Photo-and-voice room scan that automatically summarises speech into concise, room-labelled checklist bullets and privately stores resized room photos
+- Photo-and-voice room scan that requires a deliberate room label and specific note for every image, automatically summarises speech and photo notes into concise room-labelled checklist bullets, and blocks saving until every photographed room has a task
 - Audited human review decisions for room scans; a missing or unreviewed scan blocks cleaner-draft use, proposal approval and booking readiness
 - Cleaner application form with server-side validation
 - Audited seven-check cleaner screening record; approval, matching, proposals and bookings remain blocked until every check is confirmed
@@ -41,6 +41,7 @@ Then open `http://127.0.0.1:4173`.
 - Internal confirmed-booking records that require separate customer and cleaner acceptance, a profitable passed audit and four remaining manual confirmations
 - Structured confirmed-booking packs for the final address, matching postcode, access contact, arrival instructions, equipment plan and emergency instructions; duplicate bookings are rejected atomically
 - Separate fragment-token customer and cleaner booking views: the customer view hides cleaner contact/pay, while the cleaner view exposes only the visit and access information needed after confirmation
+- Reviewed room photos and their specific notes become visible to both sides only inside the confirmed protected booking packs; image requests require the private booking token and are never cached
 - Private reschedule, cancellation, access, scope and safety request submission from either booking pack; submissions never mutate the confirmed booking, schedule or payment state automatically
 - Local admin change-request queue with open, reviewing and permanently closed audit states plus a customer-visible response note
 - Append-only job-day timeline: cleaners must confirm arrival and a safe start before recording completion, then the customer acknowledges the completed visit from their own protected booking pack
