@@ -200,26 +200,30 @@ async function renderRoomPhotos(photos = []) {
   section.hidden = false;
   await Promise.all(photos.map(async (photo) => {
     const figure = document.createElement("figure");
-    const image = document.createElement("img");
-    image.alt = `${photo.area} room-scan reference`;
-    image.loading = "lazy";
+    let visual = null;
     const caption = document.createElement("figcaption");
     const area = document.createElement("strong");
     area.textContent = photo.area;
     const note = document.createElement("span");
     note.textContent = photo.note;
     caption.append(area, note);
-    figure.append(image, caption);
+    figure.append(caption);
     target.append(figure);
     try {
-      const response = await fetch(`/api/booking-photo?imageId=${encodeURIComponent(photo.id)}`, { headers: { "Accept": "image/*", "X-Booking-Token": token } });
-      if (!response.ok) throw new Error("Photo unavailable");
-      image.src = URL.createObjectURL(await response.blob());
+      const response = await fetch(`/api/booking-photo?imageId=${encodeURIComponent(photo.id)}`, { headers: { "Accept": "image/*,video/*", "X-Booking-Token": token } });
+      if (!response.ok) throw new Error("Room media unavailable");
+      const blob = await response.blob();
+      const isVideo = photo.kind === "video" || blob.type.startsWith("video/");
+      visual = document.createElement(isVideo ? "video" : "img");
+      visual.src = URL.createObjectURL(blob);
+      if (isVideo) { visual.controls = true; visual.preload = "metadata"; visual.setAttribute("aria-label", `${photo.area} short video reference`); }
+      else { visual.alt = `${photo.area} room-scan reference`; visual.loading = "lazy"; }
+      figure.prepend(visual);
     } catch {
-      image.remove();
+      visual?.remove();
       const unavailable = document.createElement("span");
       unavailable.className = "room-photo-unavailable";
-      unavailable.textContent = "Private photo could not be loaded.";
+      unavailable.textContent = "Private room media could not be loaded.";
       figure.prepend(unavailable);
     }
   }));

@@ -25,10 +25,10 @@
         <div>
           <p class="eyebrow">Step 2 · room scan + voice notes</p>
           <h1>Scan every room. Say exactly what needs cleaning.</h1>
-          <p class="hero-lead">Tideway turns spoken or typed instructions into a concise room-by-room checklist, with photos kept beside the tasks for visual context.</p>
+          <p class="hero-lead">Tideway turns spoken or typed instructions into a concise room-by-room checklist, with photos or short videos kept beside the tasks for visual context.</p>
         </div>
         <ol class="brief-steps" aria-label="Three steps">
-          <li><span>1</span><strong>Photograph each room that needs work</strong></li>
+          <li><span>1</span><strong>Photograph or film each room that needs work</strong></li>
           <li><span>2</span><strong>Speak naturally while you walk through</strong></li>
           <li><span>3</span><strong>Review the concise cleaner checklist</strong></li>
         </ol>
@@ -44,9 +44,9 @@
         </div>
 
         <div class="brief-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 1</p><h2>Room photos and notes</h2><p>Add up to ten relevant room photos, choose each exact room—including the room number where needed—and add a short note explaining what the image shows. Avoid people, identity documents, post, keys and security codes.</p></div><strong id="photo-count">0/10</strong></div>
-          <label class="photo-picker">Open camera or add room photos<input id="brief-photos" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple></label>
-          <div id="photo-preview" class="photo-preview" aria-live="polite"><p class="empty-photo-state">No photos added yet.</p></div>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 1</p><h2>Room photos, short videos and notes</h2><p>Add up to ten room visuals, including no more than two videos of 30 seconds and 15 MB each; the complete upload is capped at 20 MB. Choose each exact room—including the room number where needed—and add a short note explaining what the visual shows. Avoid people, identity documents, post, keys and security codes.</p></div><strong id="photo-count">0/10</strong></div>
+          <label class="photo-picker">Open camera or add room photos/videos<input id="brief-photos" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" capture="environment" multiple></label>
+          <div id="photo-preview" class="photo-preview" aria-live="polite"><p class="empty-photo-state">No room visuals added yet.</p></div>
         </div>
 
         <div class="brief-panel">
@@ -64,11 +64,11 @@
           <section id="scan-readiness" class="scan-readiness" aria-labelledby="scan-readiness-title"><div><strong id="scan-readiness-title" aria-live="polite">Checking room scan…</strong><span>Complete every required item before submitting. Tideway repeats these checks securely on the server.</span></div><ul id="scan-readiness-list"></ul></section>
           <div id="scope-signal-preview" class="scope-signal-summary brief-scope-warning" role="status" hidden><strong>Extra time may be needed</strong><span>Tideway found items that can materially change cleaning time. They will be reviewed before your quote; this is not an automatic price.</span><ul id="scope-signal-list"></ul></div>
           <label class="consent-row scope-completeness"><input name="scopeCompleteConfirmed" type="checkbox" required> I have reviewed the concise cleaner checklist and confirm it includes every task I want Tideway to quote. If I change the scan, notes or tasks, Tideway will require this confirmation again.</label>
-          <label class="consent-row"><input name="consent" type="checkbox" required> I confirm that I may share these property photos and instructions with Tideway for this cleaning request.</label>
-          <label class="consent-row"><input name="sharePhotosWithSelectedCleaner" type="checkbox"> Optional: allow Tideway to show these room photos and notes to the one selected cleaner through their private opportunity link before booking, so they can assess the scope. My identity, exact address and access details will remain hidden.</label>
+          <label class="consent-row"><input name="consent" type="checkbox" required> I confirm that I may share these property photos, short videos and instructions with Tideway for this cleaning request.</label>
+          <label class="consent-row"><input name="sharePhotosWithSelectedCleaner" type="checkbox"> Optional: allow Tideway to show these room photos, short videos and notes to the one selected cleaner through their private opportunity link before booking, so they can assess the scope. My identity, exact address and access details will remain hidden.</label>
           <div id="brief-error" class="error-summary" role="alert" tabindex="-1" hidden></div>
           <button id="save-brief" class="button submit-button" type="submit">Check room scan</button>
-          <div id="brief-success" class="success-panel" role="status" tabindex="-1" hidden><strong>Room scan complete.</strong><span>Your scan reference is <b data-brief-reference></b>. Tideway will review it before preparing a cleaner-ready quote.</span><a class="button button-small" data-status-link href="/request-status" hidden>Track this cleaning request</a></div>
+          <div id="brief-success" class="success-panel" role="status" tabindex="-1" hidden><strong>Room scan complete.</strong><span>Your photos or short videos, notes and checklist were saved under <b data-brief-reference></b>. Tideway will review them before preparing a cleaner-ready quote.</span><a class="button button-small" data-status-link href="/request-status" hidden>Track this cleaning request</a></div>
         </div>
       </form>
     </section>

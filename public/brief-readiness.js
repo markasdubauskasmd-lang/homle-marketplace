@@ -1,15 +1,16 @@
 const labels = {
   connectedRequest: "Request reference and email are complete",
-  roomPhotos: "One to ten room photos are added",
-  photoDetails: "Every photo has a room label and specific note",
+  roomPhotos: "One to ten room photos or short videos are added",
+  photoDetails: "Every visual has a room label and specific note",
   instructions: "Spoken or typed instructions are present",
   conciseTasks: "Concise cleaner tasks reflect the latest notes",
-  roomCoverage: "Every photographed room has a room-labelled task",
+  roomCoverage: "Every shown room has a room-labelled task",
   scopeConfirmed: "Final concise checklist confirmed complete",
-  privacyConsent: "Property-photo sharing permission confirmed"
+  privacyConsent: "Property-media sharing permission confirmed"
 };
 
 export const maxBriefPhotos = 10;
+export const maxBriefVideos = 2;
 export const briefRoomOptions = [
   "Kitchen",
   "Bathroom", "Bathroom 1", "Bathroom 2", "Bathroom 3",

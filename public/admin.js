@@ -727,20 +727,22 @@ async function loadBriefPhotos(brief, target, button) {
   target.replaceChildren();
   try {
     for (const photo of brief.photos || []) {
-      const response = await fetch(`/api/admin/job-brief-image?briefId=${encodeURIComponent(brief.id)}&imageId=${encodeURIComponent(photo.id)}`, { headers: adminHeaders({ "Accept": "image/*" }) });
-      if (!response.ok) throw new Error("A private brief photo could not be loaded.");
+      const response = await fetch(`/api/admin/job-brief-image?briefId=${encodeURIComponent(brief.id)}&imageId=${encodeURIComponent(photo.id)}`, { headers: adminHeaders({ "Accept": "image/*,video/*" }) });
+      if (!response.ok) throw new Error("A private room visual could not be loaded.");
       const figure = document.createElement("figure");
-      const image = document.createElement("img");
-      image.src = URL.createObjectURL(await response.blob());
-      image.alt = `${photo.area} visual reference`;
-      image.loading = "lazy";
+      const blob = await response.blob();
+      const isVideo = photo.kind === "video" || blob.type.startsWith("video/");
+      const visual = document.createElement(isVideo ? "video" : "img");
+      visual.src = URL.createObjectURL(blob);
+      if (isVideo) { visual.controls = true; visual.preload = "metadata"; visual.setAttribute("aria-label", `${photo.area} short video reference`); }
+      else { visual.alt = `${photo.area} visual reference`; visual.loading = "lazy"; }
       const caption = document.createElement("figcaption");
       const area = document.createElement("strong");
       area.textContent = photo.area;
       const note = document.createElement("span");
       note.textContent = photo.note || "No room note recorded";
       caption.append(area, note);
-      figure.append(image, caption);
+      figure.append(visual, caption);
       target.append(figure);
     }
     button.remove();
@@ -1056,9 +1058,10 @@ function buildCard(record) {
     const briefSummary = document.createElement("details");
     briefSummary.className = "brief-summary";
     const summary = document.createElement("summary");
-    summary.textContent = `Room scan · ${brief.checklist.length} tasks · ${brief.photos.length} photos`;
+    const videoCount = brief.photos.filter((photo) => photo.kind === "video").length;
+    summary.textContent = `Room scan · ${brief.checklist.length} tasks · ${brief.photos.length} visuals${videoCount ? ` · ${videoCount} videos` : ""}`;
     addText(briefSummary, "strong", `${brief.id} · ${briefStatusLabels[brief.status] || brief.status}`);
-    addText(briefSummary, "span", brief.cleanerPhotoSharingConsent === true ? "Customer authorised private photo review by the selected cleaner before booking." : "Room photos remain Tideway-only until a booking is confirmed.");
+    addText(briefSummary, "span", brief.cleanerPhotoSharingConsent === true ? "Customer authorised private room-media review by the selected cleaner before booking." : "Room photos and videos remain Tideway-only until a booking is confirmed.");
     addText(briefSummary, "span", brief.customerScopeConfirmed === true ? "Customer confirmed that the final concise checklist includes every task they want quoted." : "Customer scope-completeness confirmation is missing.", brief.customerScopeConfirmed === true ? "brief-review-note" : "scope-signal-summary");
     const tasks = document.createElement("ul");
     brief.checklist.forEach((task) => addText(tasks, "li", task));
@@ -1077,7 +1080,7 @@ function buildCard(record) {
       const loadPhotos = document.createElement("button");
       loadPhotos.type = "button";
       loadPhotos.className = "button button-small button-outline";
-      loadPhotos.textContent = "Load private photo previews";
+      loadPhotos.textContent = "Load private room visuals";
       const photoGrid = document.createElement("div");
       photoGrid.className = "admin-brief-photos";
       loadPhotos.addEventListener("click", () => loadBriefPhotos(brief, photoGrid, loadPhotos));

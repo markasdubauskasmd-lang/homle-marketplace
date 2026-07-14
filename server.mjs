@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript, normaliseChecklistTask } from "./public/checklist.js";
-import { briefRoomOptions, maxBriefPhotos } from "./public/brief-readiness.js";
+import { briefRoomOptions, maxBriefPhotos, maxBriefVideos } from "./public/brief-readiness.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "./public/scope-signals.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mjs";
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverage.mjs";
@@ -15,7 +15,7 @@ const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path
 const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || 4173);
 const maxBodyBytes = 64 * 1024;
-const maxBriefBodyBytes = 8 * 1024 * 1024;
+const maxBriefBodyBytes = 28 * 1024 * 1024;
 let writeQueue = Promise.resolve();
 
 const statusOptions = {
@@ -441,20 +441,28 @@ function decodeBriefPhoto(input, index) {
   const area = text(input?.area, 80);
   const note = text(input?.note, 500);
   const dataUrl = typeof input?.dataUrl === "string" ? input.dataUrl : "";
-  const match = dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-  if (!match) throw Object.assign(new Error(`Photo ${index + 1} must be a JPEG, PNG or WebP image.`), { statusCode: 422 });
+  const match = dataUrl.match(/^data:((?:image\/(?:jpeg|png|webp))|(?:video\/(?:mp4|webm|quicktime)));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw Object.assign(new Error(`Visual ${index + 1} must be a JPEG, PNG, WebP, MP4, MOV or WebM file.`), { statusCode: 422 });
   const bytes = Buffer.from(match[2], "base64");
-  if (!bytes.length || bytes.length > 900 * 1024) throw Object.assign(new Error(`Photo ${index + 1} must be under 900 KB after resizing.`), { statusCode: 422 });
   const mimeType = match[1];
+  const kind = mimeType.startsWith("video/") ? "video" : "image";
+  const maximumBytes = kind === "video" ? 15 * 1024 * 1024 : 900 * 1024;
+  if (!bytes.length || bytes.length > maximumBytes) throw Object.assign(new Error(kind === "video" ? `Video ${index + 1} must be 15 MB or smaller.` : `Photo ${index + 1} must be under 900 KB after resizing.`), { statusCode: 422 });
   const validSignature = mimeType === "image/jpeg"
     ? bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
     : mimeType === "image/png"
       ? bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
-      : bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP";
-  if (!validSignature) throw Object.assign(new Error(`Photo ${index + 1} is not a valid ${mimeType.replace("image/", "").toUpperCase()} image.`), { statusCode: 422 });
-  const extension = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" }[mimeType];
-  const id = `IMG-${randomUUID().slice(0, 8).toUpperCase()}`;
-  return { id, area, note, mimeType, extension, bytes };
+      : mimeType === "image/webp"
+        ? bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP"
+        : ["video/mp4", "video/quicktime"].includes(mimeType)
+          ? bytes.subarray(4, 8).toString("ascii") === "ftyp"
+          : bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+  if (!validSignature) throw Object.assign(new Error(`Visual ${index + 1} is not a valid ${mimeType.split("/")[1].toUpperCase()} file.`), { statusCode: 422 });
+  const durationSeconds = kind === "video" ? Number(input?.durationSeconds) : 0;
+  if (kind === "video" && (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 30)) throw Object.assign(new Error(`Video ${index + 1} must be no longer than 30 seconds.`), { statusCode: 422 });
+  const extension = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "video/mp4": ".mp4", "video/quicktime": ".mov", "video/webm": ".webm" }[mimeType];
+  const id = `${kind === "video" ? "VID" : "IMG"}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  return { id, area, note, kind, durationSeconds, mimeType, extension, bytes };
 }
 
 async function saveJobBrief(record, images) {
@@ -1317,7 +1325,7 @@ async function updateAdminProposalStatus(request, response) {
         photoCount: reviewedBrief?.status === "reviewed" ? reviewedBrief.photos.length : 0,
         photoSharingConsent: reviewedBrief?.status === "reviewed" && reviewedBrief.cleanerPhotoSharingConsent === true,
         roomScanBriefId: reviewedBrief?.status === "reviewed" && reviewedBrief.cleanerPhotoSharingConsent === true ? reviewedBrief.id : "",
-        roomPhotos: reviewedBrief?.status === "reviewed" && reviewedBrief.cleanerPhotoSharingConsent === true ? reviewedBrief.photos.map(({ id, area, note }) => ({ id, area, note })) : [],
+        roomPhotos: reviewedBrief?.status === "reviewed" && reviewedBrief.cleanerPhotoSharingConsent === true ? reviewedBrief.photos.map(({ id, area, note, kind, durationSeconds, mimeType }) => ({ id, area, note, kind: kind || "image", durationSeconds: durationSeconds || 0, mimeType })) : [],
         cleanerModel: config.cleanerModel,
         legalBusinessName: config.legalBusinessName,
         supportEmail: config.supportEmail,
@@ -1662,26 +1670,26 @@ async function getPrivateCleanerOpportunity(request, response) {
 async function getPrivateCleanerOpportunityPhoto(request, response, imageId) {
   const token = text(request.headers["x-opportunity-token"], 80);
   const context = await getCleanerOpportunityContext(token);
-  if (!context.ok) return json(response, 404, { ok: false, error: "Room photo not found." });
+  if (!context.ok) return json(response, 404, { ok: false, error: "Room media not found." });
   const opportunity = publicCleanerOpportunity(context).opportunity;
   const authorisedPhoto = opportunity.roomPhotos.find((photo) => photo.id === imageId);
   const briefId = text(context.opportunitySnapshot?.roomScanBriefId, 40);
-  if (!opportunity.photoAccessAllowed || !authorisedPhoto || !briefId || !/^IMG-[A-Z0-9]{8}$/.test(imageId)) {
-    return json(response, 404, { ok: false, error: "Room photo not found." });
+  if (!opportunity.photoAccessAllowed || !authorisedPhoto || !briefId || !/^(?:IMG|VID)-[A-Z0-9]{8}$/.test(imageId)) {
+    return json(response, 404, { ok: false, error: "Room media not found." });
   }
   const briefs = await readRecords("job-briefs.ndjson");
   const brief = briefs.find((record) => record.id === briefId && record.requestId === context.proposal.requestId && record.cleanerPhotoSharingConsent === true);
   const photo = brief?.photos?.find((item) => item.id === imageId && item.id === authorisedPhoto.id);
-  if (!photo) return json(response, 404, { ok: false, error: "Room photo not found." });
+  if (!photo) return json(response, 404, { ok: false, error: "Room media not found." });
   const resolvedDataDir = path.resolve(dataDir);
   const imagePath = path.resolve(dataDir, photo.storedPath);
-  if (!imagePath.startsWith(`${resolvedDataDir}${path.sep}`)) return json(response, 403, { ok: false, error: "Invalid room photo path." });
+  if (!imagePath.startsWith(`${resolvedDataDir}${path.sep}`)) return json(response, 403, { ok: false, error: "Invalid room media path." });
   try {
     const body = await readFile(imagePath);
     response.writeHead(200, { "Content-Type": photo.mimeType, "Content-Length": body.length, "Cache-Control": "private, no-store", "Content-Disposition": "inline" });
     response.end(body);
   } catch (error) {
-    if (error.code === "ENOENT") return json(response, 404, { ok: false, error: "Room photo file not found." });
+    if (error.code === "ENOENT") return json(response, 404, { ok: false, error: "Room media file not found." });
     throw error;
   }
 }
@@ -1842,7 +1850,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Proposed cleaner pay: ${money(proposal.cleanerPay)} total (${money(proposal.cleanerRate)} per hour)`,
     ...(latestBrief?.status === "reviewed" && latestBrief.scopeSignals.length ? ["Price-sensitive items included in these hours and proposed pay:", ...latestBrief.scopeSignals.map((signal) => `- ${signal.label}`)] : []),
     `Respond by: ${responseDeadline(opportunitySnapshot?.offerExpiresAt, config.cleanerOpportunityValidityHours)}`,
-    ...(latestBrief ? ["", latestBrief.status === "reviewed" ? "Tideway-reviewed cleaner checklist:" : "Landlord-draft cleaner checklist (Tideway review required):", ...latestBrief.checklist.map((task) => `- ${task}`), latestBrief.cleanerPhotoSharingConsent === true ? `Customer-authorised room photos: ${latestBrief.photos.length}. View only through the private opportunity link after Tideway sends it.` : `Photo references held privately: ${latestBrief.photos.length}. The customer has not authorised pre-booking cleaner access.`] : []),
+    ...(latestBrief ? ["", latestBrief.status === "reviewed" ? "Tideway-reviewed cleaner checklist:" : "Landlord-draft cleaner checklist (Tideway review required):", ...latestBrief.checklist.map((task) => `- ${task}`), latestBrief.cleanerPhotoSharingConsent === true ? `Customer-authorised room visuals: ${latestBrief.photos.length}. View photos and short videos only through the private opportunity link after Tideway sends it.` : `Room visuals held privately: ${latestBrief.photos.length}. The customer has not authorised pre-booking cleaner access.`] : []),
     "",
     "This is an invitation to consider the opportunity, not a confirmed assignment. You may accept or decline. Full access details are shared only after both sides confirm.",
     "",
@@ -2025,7 +2033,7 @@ async function createAdminBooking(request, response) {
       customerTotal: audit.proposal.customerTotal,
       checklist: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.checklist : [],
       confirmedExtras: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.scopeSignals : [],
-      roomPhotos: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.photos.map(({ id, area, note }) => ({ id, area, note })) : [],
+      roomPhotos: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.photos.map(({ id, area, note, kind, durationSeconds, mimeType }) => ({ id, area, note, kind: kind || "image", durationSeconds: durationSeconds || 0, mimeType })) : [],
       accessInstructions: details.accessInstructions,
       parkingNotes: details.parkingNotes,
       productsAndEquipment: details.productsAndEquipment,
@@ -2052,7 +2060,7 @@ async function createAdminBooking(request, response) {
       cleanerRate: audit.proposal.cleanerRate,
       checklist: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.checklist : [],
       confirmedExtras: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.scopeSignals : [],
-      roomPhotos: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.photos.map(({ id, area, note }) => ({ id, area, note })) : [],
+      roomPhotos: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.photos.map(({ id, area, note, kind, durationSeconds, mimeType }) => ({ id, area, note, kind: kind || "image", durationSeconds: durationSeconds || 0, mimeType })) : [],
       accessContactName: details.accessContactName,
       accessContactPhone: details.accessContactPhone,
       accessInstructions: details.accessInstructions,
@@ -2107,20 +2115,20 @@ async function getPrivateBookingPhoto(request, response, imageId) {
   const context = await findPrivateBooking(token);
   if (!context) return json(response, 404, { ok: false, error: "This private booking link is invalid." });
   const briefId = text(context.booking.roomScanBriefId, 40);
-  if (!briefId || !/^IMG-[A-Z0-9]{8}$/.test(imageId)) return json(response, 404, { ok: false, error: "Room photo not found." });
+  if (!briefId || !/^(?:IMG|VID)-[A-Z0-9]{8}$/.test(imageId)) return json(response, 404, { ok: false, error: "Room media not found." });
   const briefs = await readRecords("job-briefs.ndjson");
   const brief = briefs.find((record) => record.id === briefId && record.requestId === context.booking.requestId);
   const photo = brief?.photos?.find((item) => item.id === imageId);
-  if (!photo) return json(response, 404, { ok: false, error: "Room photo not found." });
+  if (!photo) return json(response, 404, { ok: false, error: "Room media not found." });
   const resolvedDataDir = path.resolve(dataDir);
   const imagePath = path.resolve(dataDir, photo.storedPath);
-  if (!imagePath.startsWith(`${resolvedDataDir}${path.sep}`)) return json(response, 403, { ok: false, error: "Invalid room photo path." });
+  if (!imagePath.startsWith(`${resolvedDataDir}${path.sep}`)) return json(response, 403, { ok: false, error: "Invalid room media path." });
   try {
     const body = await readFile(imagePath);
     response.writeHead(200, { "Content-Type": photo.mimeType, "Content-Length": body.length, "Cache-Control": "private, no-store" });
     response.end(body);
   } catch (error) {
-    if (error.code === "ENOENT") return json(response, 404, { ok: false, error: "Room photo file not found." });
+    if (error.code === "ENOENT") return json(response, 404, { ok: false, error: "Room media file not found." });
     throw error;
   }
 }
@@ -2795,15 +2803,16 @@ async function handleJobBrief(request, response) {
   if (!isEmail(email)) errors.push("Enter the email used for the cleaning request.");
   if (!transcript) errors.push("Add or dictate the cleaning instructions.");
   if (!checklist.length) errors.push("Generate and review at least one checklist task.");
-  if (!photoInputs.length) errors.push("Add at least one property photo.");
-  if (photoInputs.length > maxBriefPhotos) errors.push(`Add no more than ${maxBriefPhotos} property photos.`);
-  if (photoInputs.some((photo) => !briefRoomAreas.has(text(photo?.area, 80)))) errors.push("Choose a valid room for every property photo.");
-  if (photoInputs.some((photo) => text(photo?.note, 500).length < 3)) errors.push("Add a short room note explaining what every photo shows.");
+  if (!photoInputs.length) errors.push("Add at least one room photo or short video.");
+  if (photoInputs.length > maxBriefPhotos) errors.push(`Add no more than ${maxBriefPhotos} room visuals.`);
+  if (photoInputs.filter((photo) => String(photo?.dataUrl || "").startsWith("data:video/")).length > maxBriefVideos) errors.push(`Add no more than ${maxBriefVideos} short room videos.`);
+  if (photoInputs.some((photo) => !briefRoomAreas.has(text(photo?.area, 80)))) errors.push("Choose a valid room for every room visual.");
+  if (photoInputs.some((photo) => text(photo?.note, 500).length < 3)) errors.push("Add a short room note explaining what every photo or video shows.");
   const photographedAreas = [...new Set(photoInputs.map((photo) => text(photo?.area, 80)).filter((area) => briefRoomAreas.has(area)))];
   const uncoveredAreas = photographedAreas.filter((area) => !checklist.some((task) => task.toLowerCase().startsWith(`${area.toLowerCase()}:`)));
   if (uncoveredAreas.length) errors.push(`Add at least one room-labelled checklist task for: ${uncoveredAreas.join(", ")}.`);
   if (!customerScopeConfirmed) errors.push("Review the concise cleaner checklist and confirm that it includes every task you want quoted.");
-  if (!consent) errors.push("Confirm that you may share these property photos and instructions.");
+  if (!consent) errors.push("Confirm that you may share these room visuals and instructions with Tideway.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
   const [requests, updates, existingBriefs] = await Promise.all([
@@ -2819,13 +2828,17 @@ async function handleJobBrief(request, response) {
   if (existingBriefs.filter((brief) => brief.requestId === requestId).length >= 5) return json(response, 422, { ok: false, error: "This request already has five job-brief versions. Review them in the control desk before adding another." });
 
   const images = photoInputs.map(decodeBriefPhoto);
-  const totalImageBytes = images.reduce((total, image) => total + image.bytes.length, 0);
-  if (totalImageBytes > 5 * 1024 * 1024) return json(response, 422, { ok: false, error: "The resized photos must total no more than 5 MB." });
+  const totalPhotoBytes = images.filter((image) => image.kind === "image").reduce((total, image) => total + image.bytes.length, 0);
+  const totalMediaBytes = images.reduce((total, image) => total + image.bytes.length, 0);
+  if (totalPhotoBytes > 5 * 1024 * 1024) return json(response, 422, { ok: false, error: "The resized photos must total no more than 5 MB." });
+  if (totalMediaBytes > 20 * 1024 * 1024) return json(response, 422, { ok: false, error: "The combined room photos and short videos must total no more than 20 MB." });
   const briefId = `BRF-${randomUUID().slice(0, 8).toUpperCase()}`;
   const photos = images.map((image) => ({
     id: image.id,
     area: image.area,
     note: image.note,
+    kind: image.kind,
+    durationSeconds: image.durationSeconds,
     mimeType: image.mimeType,
     storedPath: path.posix.join("job-brief-images", briefId, `${image.id}${image.extension}`)
   }));
@@ -2844,7 +2857,7 @@ async function handleJobBrief(request, response) {
     createdAt
   };
   await saveJobBrief(brief, images);
-  return json(response, 201, { ok: true, reference: brief.id, customerStatusToken: customerRequest.customerStatusToken || "", checklist: brief.checklist, photos: brief.photos.map(({ id, area, note }) => ({ id, area, note })), scopeSignals: brief.scopeSignals, customerScopeConfirmed: brief.customerScopeConfirmed, customerScopeConfirmedAt: brief.customerScopeConfirmedAt, cleanerPhotoSharingConsent: brief.cleanerPhotoSharingConsent });
+  return json(response, 201, { ok: true, reference: brief.id, customerStatusToken: customerRequest.customerStatusToken || "", checklist: brief.checklist, photos: brief.photos.map(({ id, area, note, kind, durationSeconds, mimeType }) => ({ id, area, note, kind, durationSeconds, mimeType })), scopeSignals: brief.scopeSignals, customerScopeConfirmed: brief.customerScopeConfirmed, customerScopeConfirmedAt: brief.customerScopeConfirmedAt, cleanerPhotoSharingConsent: brief.cleanerPhotoSharingConsent });
 }
 
 async function getAdminJobBriefImage(request, response, briefId, imageId) {

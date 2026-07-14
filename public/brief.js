@@ -1,7 +1,7 @@
 import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js";
 import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 import { detectPriceSensitiveScope } from "./scope-signals.js";
-import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos } from "./brief-readiness.js";
+import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos } from "./brief-readiness.js";
 
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
@@ -158,7 +158,8 @@ form.elements.consent.addEventListener("change", renderReadiness);
 
 function renderPhotos() {
   photoPreview.replaceChildren();
-  photoCount.textContent = `${photos.length}/${maxBriefPhotos}`;
+  const videoCount = photos.filter((photo) => photo.kind === "video").length;
+  photoCount.textContent = `${photos.length}/${maxBriefPhotos} visuals${videoCount ? ` · ${videoCount}/${maxBriefVideos} videos` : ""}`;
   if (!photos.length) {
     const empty = document.createElement("p");
     empty.className = "empty-photo-state";
@@ -169,9 +170,16 @@ function renderPhotos() {
   photos.forEach((photo, index) => {
     const card = document.createElement("article");
     card.className = "photo-preview-card";
-    const image = document.createElement("img");
-    image.src = photo.previewUrl;
-    image.alt = `Selected property photo ${index + 1}`;
+    const visual = document.createElement(photo.kind === "video" ? "video" : "img");
+    visual.src = photo.previewUrl;
+    if (photo.kind === "video") {
+      visual.controls = true;
+      visual.preload = "metadata";
+      visual.muted = true;
+      visual.setAttribute("aria-label", `Selected room video ${index + 1}`);
+    } else {
+      visual.alt = `Selected property photo ${index + 1}`;
+    }
     const controls = document.createElement("div");
     const label = document.createElement("label");
     label.append(document.createTextNode("Area"));
@@ -203,7 +211,7 @@ function renderPhotos() {
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "text-button";
-    remove.textContent = "Remove photo";
+    remove.textContent = photo.kind === "video" ? "Remove video" : "Remove photo";
     remove.addEventListener("click", () => {
       URL.revokeObjectURL(photo.previewUrl);
       photos.splice(index, 1);
@@ -212,20 +220,50 @@ function renderPhotos() {
       renderReadiness();
     });
     controls.append(label, noteLabel, remove);
-    card.append(image, controls);
+    card.append(visual, controls);
     photoPreview.append(card);
   });
 }
 
-photoInput.addEventListener("change", () => {
+function videoDuration(file) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    let settled = false;
+    let timer;
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      URL.revokeObjectURL(objectUrl);
+      callback();
+    };
+    timer = setTimeout(() => finish(() => reject(new Error(`${file.name} took too long to inspect. Choose a shorter video.`))), 10000);
+    video.preload = "metadata";
+    video.onloadedmetadata = () => finish(() => resolve(video.duration));
+    video.onerror = () => finish(() => reject(new Error(`${file.name} could not be read. Use an MP4, MOV or WebM video.`)));
+    video.src = objectUrl;
+  });
+}
+
+photoInput.addEventListener("change", async () => {
   const selected = Array.from(photoInput.files || []);
   const available = maxBriefPhotos - photos.length;
-  if (selected.length > available) showError(`You can add ${available} more ${available === 1 ? "photo" : "photos"}.`);
-  selected.slice(0, available).forEach((file) => {
-    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return;
-    if (file.size > 10 * 1024 * 1024) { showError(`${file.name} is over 10 MB. Choose a smaller photo.`); return; }
-    photos.push({ file, area: "", note: "", previewUrl: URL.createObjectURL(file) });
-  });
+  if (selected.length > available) showError(`You can add ${available} more room ${available === 1 ? "visual" : "visuals"}.`);
+  for (const file of selected.slice(0, available)) {
+    const isImage = /^image\/(jpeg|png|webp)$/.test(file.type);
+    const isVideo = /^video\/(mp4|webm|quicktime)$/.test(file.type);
+    if (!isImage && !isVideo) { showError(`${file.name} is not a supported photo or video.`); continue; }
+    if (isImage && file.size > 10 * 1024 * 1024) { showError(`${file.name} is over 10 MB. Choose a smaller photo.`); continue; }
+    if (isVideo && file.size > 15 * 1024 * 1024) { showError(`${file.name} is over 15 MB. Choose a shorter video.`); continue; }
+    if (isVideo && photos.filter((photo) => photo.kind === "video").length >= maxBriefVideos) { showError(`Add no more than ${maxBriefVideos} short room videos.`); continue; }
+    let durationSeconds = 0;
+    if (isVideo) {
+      try { durationSeconds = await videoDuration(file); } catch (error) { showError(error.message); continue; }
+      if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 30) { showError(`${file.name} must be 30 seconds or shorter.`); continue; }
+    }
+    photos.push({ file, kind: isVideo ? "video" : "image", durationSeconds, area: "", note: "", previewUrl: URL.createObjectURL(file) });
+  }
   photoInput.value = "";
   renderPhotos();
   renderScopeSignals();
@@ -233,6 +271,16 @@ photoInput.addEventListener("change", () => {
 });
 
 function photoDataUrl(photo) {
+  if (photo.kind === "video") {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      const timer = setTimeout(() => { reader.abort(); reject(new Error("A selected video took too long to prepare. Remove it and choose a shorter video.")); }, 20000);
+      reader.onload = () => { clearTimeout(timer); resolve(reader.result); };
+      reader.onerror = () => { clearTimeout(timer); reject(new Error("A selected video could not be read. Remove it and choose another video.")); };
+      reader.onabort = () => clearTimeout(timer);
+      reader.readAsDataURL(photo.file);
+    });
+  }
   return new Promise((resolve, reject) => {
     const image = new Image();
     const objectUrl = URL.createObjectURL(photo.file);
@@ -334,9 +382,9 @@ form.addEventListener("submit", async (event) => {
   try {
     const encodedPhotos = [];
     for (let index = 0; index < photos.length; index += 1) {
-      saveButton.textContent = `Preparing photo ${index + 1} of ${photos.length}…`;
+      saveButton.textContent = `Preparing visual ${index + 1} of ${photos.length}…`;
       const photo = photos[index];
-      encodedPhotos.push({ area: photo.area, note: photo.note.trim(), dataUrl: await photoDataUrl(photo) });
+      encodedPhotos.push({ area: photo.area, note: photo.note.trim(), kind: photo.kind || "image", durationSeconds: photo.durationSeconds || 0, dataUrl: await photoDataUrl(photo) });
     }
     saveButton.textContent = "Saving private room scan…";
     const controller = new AbortController();

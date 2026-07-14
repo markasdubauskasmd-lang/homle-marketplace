@@ -335,7 +335,7 @@ textarea { resize: vertical; }
 .screening-note { display: block; margin-top: 10px; color: var(--muted); font-size: .84rem; }
 .admin-brief-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
 .admin-brief-photos figure { margin: 0; overflow: hidden; border-radius: 9px; background: #fff; }
-.admin-brief-photos img { width: 100%; height: 150px; object-fit: cover; }
+.admin-brief-photos img, .admin-brief-photos video { width: 100%; height: 150px; object-fit: cover; background: #e8f1ee; }
 .admin-brief-photos figcaption { padding: 8px 10px; font-size: .78rem; font-weight: 750; }
 .admin-brief-photos figcaption strong, .admin-brief-photos figcaption span { display: block; }
 .admin-brief-photos figcaption span { margin-top: 4px; color: var(--muted); font-weight: 500; }
@@ -430,7 +430,7 @@ textarea { resize: vertical; }
 .photo-preview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }
 .empty-photo-state { grid-column: 1 / -1; margin: 0; padding: 24px; color: var(--muted); border: 1px dashed #aec8c0; border-radius: 12px; text-align: center; }
 .photo-preview-card { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.photo-preview-card img { width: 100%; height: 180px; object-fit: cover; background: #e8f1ee; }
+.photo-preview-card img, .photo-preview-card video { width: 100%; height: 180px; object-fit: cover; background: #e8f1ee; }
 .photo-preview-card > div { padding: 12px; }
 .photo-preview-card select { padding-block: .55rem; }
 .photo-preview-card label + label { margin-top: 10px; }
@@ -490,7 +490,7 @@ textarea { resize: vertical; }
 .quote-rules p:last-child { margin-bottom: 0; }
 .booking-room-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
 .booking-room-photos figure { margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
-.booking-room-photos img { width: 100%; height: 220px; object-fit: cover; background: #e8f1ee; }
+.booking-room-photos img, .booking-room-photos video { width: 100%; height: 220px; object-fit: cover; background: #e8f1ee; }
 .booking-room-photos figcaption { padding: 12px; }
 .booking-room-photos figcaption strong, .booking-room-photos figcaption span { display: block; }
 .booking-room-photos figcaption span { margin-top: 5px; color: var(--muted); font-size: .86rem; }

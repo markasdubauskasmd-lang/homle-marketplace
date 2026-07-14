@@ -30,21 +30,22 @@ async function loadRoomPhotos(roomPhotos) {
   for (const photo of roomPhotos) {
     const figure = document.createElement("figure");
     try {
-      const response = await fetch(`/api/opportunity-photo?imageId=${encodeURIComponent(photo.id)}`, { headers: { "Accept": "image/*", "X-Opportunity-Token": token } });
-      if (!response.ok) throw new Error("Photo unavailable");
-      const objectUrl = URL.createObjectURL(await response.blob());
+      const response = await fetch(`/api/opportunity-photo?imageId=${encodeURIComponent(photo.id)}`, { headers: { "Accept": "image/*,video/*", "X-Opportunity-Token": token } });
+      if (!response.ok) throw new Error("Room media unavailable");
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
       roomPhotoObjectUrls.push(objectUrl);
-      const image = document.createElement("img");
-      image.src = objectUrl;
-      image.alt = `${photo.area} visual reference`;
-      image.loading = "lazy";
-      image.referrerPolicy = "no-referrer";
-      image.draggable = false;
-      figure.append(image);
+      const isVideo = photo.kind === "video" || blob.type.startsWith("video/");
+      const visual = document.createElement(isVideo ? "video" : "img");
+      visual.src = objectUrl;
+      visual.referrerPolicy = "no-referrer";
+      if (isVideo) { visual.controls = true; visual.preload = "metadata"; visual.setAttribute("aria-label", `${photo.area} short video reference`); }
+      else { visual.alt = `${photo.area} visual reference`; visual.loading = "lazy"; visual.draggable = false; }
+      figure.append(visual);
     } catch {
       const unavailable = document.createElement("div");
       unavailable.className = "room-photo-unavailable";
-      unavailable.textContent = "This private room photo could not be loaded.";
+      unavailable.textContent = "This private room visual could not be loaded.";
       figure.append(unavailable);
     }
     const caption = document.createElement("figcaption");
