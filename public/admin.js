@@ -134,8 +134,15 @@ function renderReadiness(readiness) {
   document.querySelectorAll("#readiness-list [data-check]").forEach((item) => {
     const complete = Boolean(readiness.checks[item.dataset.check]);
     item.classList.toggle("ready", complete);
-    item.querySelector("span").textContent = complete ? "✓" : "○";
+    item.querySelector(":scope > span").textContent = complete ? "✓" : "○";
+    const missing = readiness.missing?.[item.dataset.check] || [];
+    item.querySelector("[data-missing]").textContent = complete ? "All recorded requirements complete" : `Missing: ${missing.join(", ") || "verified founder evidence"}`;
   });
+  const guidance = document.querySelector("#readiness-next");
+  guidance.classList.toggle("readiness-next-complete", readiness.ready);
+  guidance.textContent = readiness.next
+    ? `Next required decision — ${readiness.next.label}: ${readiness.next.missing.join(", ")}. Do not guess or use placeholder claims.`
+    : "All seven recorded readiness areas are complete. Public launch, outreach and payment still require the founder's explicit approval.";
 }
 
 async function loadConfig() {

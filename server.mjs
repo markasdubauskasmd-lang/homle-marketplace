@@ -114,6 +114,14 @@ function localDateToday(now = new Date()) {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
 }
 
+function isIsoCalendarDate(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+  const [, year, month, day] = match.map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+}
+
 function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -792,16 +800,56 @@ function findCleanerScheduleConflict(target, proposals, proposalUpdates, cleaner
 
 function launchReadiness(config) {
   const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
-  const checks = {
-    identity: Boolean(config.legalOwnerName && config.businessStructure && config.legalBusinessName && config.tradingAddress),
-    contact: Boolean(config.supportEmail && isEmail(config.supportEmail) && config.supportPhone && isPhone(config.supportPhone)),
-    pilotArea: pilotCoverage.configured && pilotCoverage.invalidCodes.length === 0,
-    economics: Boolean(config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.minimumHours > 0 && config.minimumContributionMarginPercent > 0 && config.minimumContributionMarginPercent < 100 && config.customerHourlyRate > config.cleanerHourlyPay && costAssumptionsConfirmed(config) && config.minimumContributionMarginPercent + config.paymentFeePercent + config.riskContingencyPercent < 100),
-    insurance: config.insuranceStatus === "active",
-    payments: Boolean(config.paymentProviderStatus === "live" && config.paymentProviderName && config.refundProcess),
-    operatingRules: Boolean(config.cleanerModel && config.cleanerModel !== "Undecided" && config.cancellationPolicy && config.paymentTiming && Number.isInteger(config.customerQuoteValidityHours) && config.customerQuoteValidityHours >= 1 && config.customerQuoteValidityHours <= 168 && Number.isInteger(config.cleanerOpportunityValidityHours) && config.cleanerOpportunityValidityHours >= 1 && config.cleanerOpportunityValidityHours <= 168)
+  const today = localDateToday();
+  const requirements = {
+    identity: [
+      { label: "legal owner name", complete: Boolean(config.legalOwnerName) },
+      { label: "business structure", complete: Boolean(config.businessStructure) },
+      { label: "legal business name", complete: Boolean(config.legalBusinessName) },
+      { label: "trading address", complete: Boolean(config.tradingAddress) }
+    ],
+    contact: [
+      { label: "valid support email", complete: Boolean(config.supportEmail && isEmail(config.supportEmail)) },
+      { label: "valid support phone", complete: Boolean(config.supportPhone && isPhone(config.supportPhone)) }
+    ],
+    pilotArea: [
+      { label: "at least one valid outward postcode", complete: pilotCoverage.configured && pilotCoverage.invalidCodes.length === 0 }
+    ],
+    economics: [
+      { label: "positive customer hourly rate", complete: Number(config.customerHourlyRate) > 0 },
+      { label: "positive cleaner hourly pay", complete: Number(config.cleanerHourlyPay) > 0 },
+      { label: "founder minimum booking hours", complete: Number(config.minimumHours) > 0 },
+      { label: "founder contribution-margin floor", complete: Number(config.minimumContributionMarginPercent) > 0 && Number(config.minimumContributionMarginPercent) < 100 },
+      { label: "customer rate above cleaner pay", complete: Number(config.customerHourlyRate) > Number(config.cleanerHourlyPay) && Number(config.cleanerHourlyPay) > 0 },
+      { label: "reviewed payment, travel, supplies and risk costs", complete: costAssumptionsConfirmed(config) },
+      { label: "viable margin and percentage-cost stack", complete: Number(config.minimumContributionMarginPercent) + Number(config.paymentFeePercent) + Number(config.riskContingencyPercent) < 100 }
+    ],
+    insurance: [
+      { label: "insurance marked active and verified", complete: config.insuranceStatus === "active" },
+      { label: "insurance provider", complete: Boolean(config.insuranceProvider) },
+      { label: "cover, limit and document-location summary", complete: text(config.insuranceEvidenceNote, 800).length >= 20 },
+      { label: "future policy expiry or review date", complete: isIsoCalendarDate(config.insuranceReviewDate) && config.insuranceReviewDate >= today }
+    ],
+    payments: [
+      { label: "payment provider marked live and verified", complete: config.paymentProviderStatus === "live" },
+      { label: "payment provider name", complete: Boolean(config.paymentProviderName) },
+      { label: "documented refund process", complete: text(config.refundProcess, 800).length >= 20 },
+      { label: "provider verification evidence summary", complete: text(config.paymentProviderEvidenceNote, 800).length >= 20 },
+      { label: "provider verification date", complete: isIsoCalendarDate(config.paymentProviderVerifiedDate) && config.paymentProviderVerifiedDate <= today }
+    ],
+    operatingRules: [
+      { label: "decided cleaner engagement model", complete: Boolean(config.cleanerModel && config.cleanerModel !== "Undecided") },
+      { label: "customer cancellation rule", complete: Boolean(config.cancellationPolicy) },
+      { label: "customer payment timing", complete: Boolean(config.paymentTiming) },
+      { label: "customer quote response window", complete: Number.isInteger(config.customerQuoteValidityHours) && config.customerQuoteValidityHours >= 1 && config.customerQuoteValidityHours <= 168 },
+      { label: "cleaner opportunity response window", complete: Number.isInteger(config.cleanerOpportunityValidityHours) && config.cleanerOpportunityValidityHours >= 1 && config.cleanerOpportunityValidityHours <= 168 }
+    ]
   };
-  return { checks, completed: Object.values(checks).filter(Boolean).length, total: Object.keys(checks).length, ready: Object.values(checks).every(Boolean) };
+  const checks = Object.fromEntries(Object.entries(requirements).map(([key, items]) => [key, items.every((item) => item.complete)]));
+  const missing = Object.fromEntries(Object.entries(requirements).map(([key, items]) => [key, items.filter((item) => !item.complete).map((item) => item.label)]));
+  const labels = { identity: "Legal identity", contact: "Support contact", pilotArea: "Pilot area", economics: "Pricing and pay", insurance: "Insurance evidence", payments: "Payment readiness", operatingRules: "Operating rules" };
+  const nextKey = Object.keys(checks).find((key) => !checks[key]) || "";
+  return { checks, missing, completed: Object.values(checks).filter(Boolean).length, total: Object.keys(checks).length, ready: Object.values(checks).every(Boolean), next: nextKey ? { key: nextKey, label: labels[nextKey], missing: missing[nextKey] } : null };
 }
 
 function dispatchActionsForRecord({ kind, status, nextActionAt, proposals = [], briefs = [], booking = null, outcome = null, screening = null, cleanerAvailability = [], pilotCoverage = null }) {
@@ -2786,8 +2834,13 @@ async function updateAdminConfig(request, response) {
     pilotPostcodes: text(input.pilotPostcodes, 400).toUpperCase(),
     cleanerModel: text(input.cleanerModel, 80),
     insuranceStatus: text(input.insuranceStatus, 40),
+    insuranceProvider: text(input.insuranceProvider, 160),
+    insuranceEvidenceNote: text(input.insuranceEvidenceNote, 800),
+    insuranceReviewDate: text(input.insuranceReviewDate, 20),
     paymentProviderName: text(input.paymentProviderName, 120),
     paymentProviderStatus: text(input.paymentProviderStatus, 40),
+    paymentProviderEvidenceNote: text(input.paymentProviderEvidenceNote, 800),
+    paymentProviderVerifiedDate: text(input.paymentProviderVerifiedDate, 20),
     refundProcess: text(input.refundProcess, 800),
     customerHourlyRate: Math.max(0, Number(input.customerHourlyRate) || 0),
     cleanerHourlyPay: Math.max(0, Number(input.cleanerHourlyPay) || 0),
@@ -2808,6 +2861,8 @@ async function updateAdminConfig(request, response) {
   const errors = [];
   if (config.supportEmail && !isEmail(config.supportEmail)) errors.push("Enter a valid support email.");
   if (config.supportPhone && !isPhone(config.supportPhone)) errors.push("Enter a valid support phone number.");
+  if (config.insuranceReviewDate && !isIsoCalendarDate(config.insuranceReviewDate)) errors.push("Enter a valid insurance expiry or review date.");
+  if (config.paymentProviderVerifiedDate && (!isIsoCalendarDate(config.paymentProviderVerifiedDate) || config.paymentProviderVerifiedDate > localDateToday())) errors.push("Payment-provider verification date must be a valid date no later than today.");
   const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
   if (pilotCoverage.invalidCodes.length) errors.push(`Use comma-separated outward postcode codes only, for example SW2, SW4. Invalid: ${pilotCoverage.invalidCodes.join(", ")}.`);
   if (config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.customerHourlyRate <= config.cleanerHourlyPay) errors.push("Customer rate must be higher than cleaner pay before other costs.");
