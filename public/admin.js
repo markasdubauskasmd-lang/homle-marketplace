@@ -214,8 +214,13 @@ async function findMatches(record, results, button) {
     if (!response.ok || !result.ok) throw new Error(result.error || "Matches could not be loaded.");
     results.replaceChildren();
     if (!result.matches.length) {
-      addText(results, "strong", "No approved service matches yet.");
-      addText(results, "span", "Approve suitable cleaner applications first, then check coverage manually.");
+      if (result.pilotCoverage && !result.pilotCoverage.covered) {
+        addText(results, "strong", "Request is outside the configured pilot area.");
+        addText(results, "span", `${result.pilotCoverage.outwardCode || "This postcode"} is not included in ${result.pilotCoverage.allowedCodes.join(", ") || "the pilot postcode list"}. Do not promise coverage.`);
+      } else {
+        addText(results, "strong", "No approved service matches yet.");
+        addText(results, "span", "Approve suitable cleaner applications first, then check coverage manually.");
+      }
       return;
     }
     for (const match of result.matches) {
@@ -393,7 +398,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Latest photo job brief reviewed", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
+    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Latest photo job brief reviewed", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -651,7 +656,14 @@ function buildCard(record) {
   details.className = "lead-details";
   addDetail(details, "Email", record.email);
   addDetail(details, "Phone", record.phone);
-  addDetail(details, "Postcode", record.postcode);
+    addDetail(details, "Postcode", record.postcode);
+    if (record.pilotCoverage) {
+      addDetail(details, "Pilot coverage", record.pilotCoverage.covered
+        ? `${record.pilotCoverage.outwardCode} is inside the configured pilot`
+        : record.pilotCoverage.configured
+          ? `${record.pilotCoverage.outwardCode || "Postcode"} is outside the configured pilot`
+          : "Pilot postcodes not configured");
+    }
   if (record.kind === "request") {
     addDetail(details, "Customer", record.customerType);
     addDetail(details, "Property", record.propertyType);

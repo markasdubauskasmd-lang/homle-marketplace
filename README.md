@@ -24,9 +24,10 @@ Then open `http://127.0.0.1:4173`.
 - Private local control desk at `/admin` with lead filters, status tracking, internal notes and next-action dates
 - Internal quote calculator that pre-fills approved rates, enforces minimum hours and calculates the customer total and hourly rate needed to meet the founder-approved contribution margin
 - Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules
+- Founder-configured outward-postcode enforcement that blocks out-of-area matching, proposal use and booking readiness
 - Human-reviewed matching suggestions using fully screened approved cleaners, requested service type and postcode coverage
 - Internal draft proposals that link a request to an approved cleaner and reject work below the minimum hours, loss-making economics or a below-target contribution margin
-- Proposal status gates that prevent a draft becoming ready, sent or accepted until all seven launch checks and the latest job-brief review pass
+- Proposal status gates that prevent a draft becoming ready, sent or accepted until launch checks, pilot coverage and the latest job-brief review pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
 - Latest approved landlord checklist included in the review-only cleaner opportunity draft; photos remain separately protected for deliberate review
 - Structured site scope, access and hazard collection plus a read-only accepted-proposal booking audit

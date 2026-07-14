@@ -209,11 +209,27 @@ async function saveJobBrief(record, images) {
   return operation;
 }
 
+function pilotPostcodeCoverage(postcode, configuredPostcodes) {
+  const rawCodes = text(configuredPostcodes, 400).toUpperCase().split(/[,;\n]+/).map((code) => code.trim()).filter(Boolean);
+  const allowedCodes = [...new Set(rawCodes.map((code) => code.replace(/\s+/g, "")).filter((code) => /^[A-Z]{1,2}\d[A-Z\d]?$/.test(code)))];
+  const invalidCodes = rawCodes.filter((code) => !/^[A-Z]{1,2}\d[A-Z\d]?$/.test(code.replace(/\s+/g, "")));
+  const compactPostcode = text(postcode, 20).toUpperCase().replace(/\s+/g, "");
+  const outwardCode = compactPostcode.length > 3 ? compactPostcode.slice(0, -3) : "";
+  return {
+    configured: allowedCodes.length > 0,
+    outwardCode,
+    allowedCodes,
+    invalidCodes,
+    covered: Boolean(outwardCode && allowedCodes.includes(outwardCode))
+  };
+}
+
 function launchReadiness(config) {
+  const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
   const checks = {
     identity: Boolean(config.legalOwnerName && config.businessStructure && config.legalBusinessName && config.tradingAddress),
     contact: Boolean(config.supportEmail && isEmail(config.supportEmail) && config.supportPhone && isPhone(config.supportPhone)),
-    pilotArea: Boolean(config.pilotPostcodes),
+    pilotArea: pilotCoverage.configured && pilotCoverage.invalidCodes.length === 0,
     economics: Boolean(config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.minimumHours > 0 && config.minimumContributionMarginPercent > 0 && config.minimumContributionMarginPercent < 100 && config.customerHourlyRate > config.cleanerHourlyPay),
     insurance: config.insuranceStatus === "active",
     payments: Boolean(config.paymentProviderStatus === "live" && config.paymentProviderName && config.refundProcess),
@@ -258,7 +274,7 @@ function isAdminAuthorised(request) {
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, config] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
@@ -269,7 +285,8 @@ async function getAdminRecords(request, response) {
     readRecords("job-outcomes.ndjson"),
     readRecords("job-briefs.ndjson"),
     readRecords("job-brief-status.ndjson"),
-    readRecords("cleaner-screening.ndjson")
+    readRecords("cleaner-screening.ndjson"),
+    readJsonFile("business-config.json", {})
   ]);
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
@@ -304,7 +321,8 @@ async function getAdminRecords(request, response) {
     const outcome = booking ? outcomesByBooking.get(booking.id) || null : null;
     const leadBriefs = kind === "request" ? (briefsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 5) : [];
     const screening = kind === "cleaner" ? latestCleanerScreening(record.id, screenings) : null;
-    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, booking, outcome };
+    const pilotCoverage = kind === "request" ? pilotPostcodeCoverage(record.postcode, config.pilotPostcodes) : null;
+    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, pilotCoverage, booking, outcome };
   };
   const records = [
     ...requests.map((record) => merge(record, "request")),
@@ -380,12 +398,13 @@ async function updateAdminProposalStatus(request, response) {
     declined: new Set([]),
     cancelled: new Set([])
   };
-  const [proposals, updates, config, briefs, briefUpdates] = await Promise.all([
+  const [proposals, updates, config, briefs, briefUpdates, customerRequests] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readJsonFile("business-config.json", {}),
     readRecords("job-briefs.ndjson"),
-    readRecords("job-brief-status.ndjson")
+    readRecords("job-brief-status.ndjson"),
+    readRecords("cleaning-requests.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
@@ -394,6 +413,12 @@ async function updateAdminProposalStatus(request, response) {
   if (!transitions[currentStatus]?.has(status)) return json(response, 422, { ok: false, error: `Proposal cannot move from ${currentStatus} to ${status}.` });
   if (["ready", "sent", "accepted"].includes(status) && !launchReadiness(config).ready) {
     return json(response, 422, { ok: false, error: "Complete all seven launch-readiness checks before advancing this proposal." });
+  }
+  const customerRequest = customerRequests.find((record) => record.id === proposal.requestId);
+  if (!customerRequest) return json(response, 404, { ok: false, error: "Customer request not found." });
+  const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
+  if (["ready", "sent", "accepted"].includes(status) && !pilotCoverage.covered) {
+    return json(response, 422, { ok: false, error: `${pilotCoverage.outwardCode || "This postcode"} is outside the configured Tideway pilot area.` });
   }
   const latestBrief = briefs.filter((brief) => brief.requestId === proposal.requestId).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   if (["ready", "sent", "accepted"].includes(status) && latestBrief && applyBriefStatus(latestBrief, briefUpdates).status !== "reviewed") {
@@ -431,11 +456,13 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   for (const update of proposalUpdates) if (update.proposalId === proposalId) proposalStatus = update.status;
 
   const readiness = launchReadiness(config);
+  const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
   const briefReviewed = !latestBrief || latestBrief.status === "reviewed";
   const warnings = [];
   if (!readiness.ready) warnings.push("Complete all seven launch-readiness checks before using these drafts.");
+  if (!pilotCoverage.covered) warnings.push(`${pilotCoverage.outwardCode || "This postcode"} is outside the configured Tideway pilot area.`);
   if (!["ready", "sent", "accepted"].includes(proposalStatus)) warnings.push("The proposal is still a draft and has not been internally approved.");
   if (!briefReviewed) warnings.push("Review and approve the latest landlord photo job brief before using the cleaner draft.");
   if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
@@ -489,7 +516,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     ok: true,
     proposalId,
     proposalStatus,
-    sendAllowed: readiness.ready && briefReviewed && ["ready", "sent", "accepted"].includes(proposalStatus),
+    sendAllowed: readiness.ready && pilotCoverage.covered && briefReviewed && ["ready", "sent", "accepted"].includes(proposalStatus),
     warnings,
     customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody },
     cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody }
@@ -525,6 +552,7 @@ async function buildBookingAudit(proposalId) {
     proposalAccepted: proposalStatus === "accepted",
     cleanerApproved: cleanerStatus === "approved",
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
+    pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
@@ -730,6 +758,11 @@ async function getAdminMatches(request, response, requestId) {
   ]);
   const customerRequest = requests.find((record) => record.id === requestId);
   if (!customerRequest) return json(response, 404, { ok: false, error: "Customer request not found." });
+  const config = await readJsonFile("business-config.json", {});
+  const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
+  if (!pilotCoverage.covered) {
+    return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service }, pilotCoverage, matches: [] });
+  }
 
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
@@ -767,7 +800,7 @@ async function getAdminMatches(request, response, requestId) {
     .sort((left, right) => right.score - left.score || left.fullName.localeCompare(right.fullName))
     .slice(0, 10);
 
-  return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service }, matches });
+  return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service }, pilotCoverage, matches });
 }
 
 async function addAdminActivity(request, response) {
@@ -824,6 +857,8 @@ async function updateAdminConfig(request, response) {
   const errors = [];
   if (config.supportEmail && !isEmail(config.supportEmail)) errors.push("Enter a valid support email.");
   if (config.supportPhone && !isPhone(config.supportPhone)) errors.push("Enter a valid support phone number.");
+  const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
+  if (pilotCoverage.invalidCodes.length) errors.push(`Use comma-separated outward postcode codes only, for example SW2, SW4. Invalid: ${pilotCoverage.invalidCodes.join(", ")}.`);
   if (config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.customerHourlyRate <= config.cleanerHourlyPay) errors.push("Customer rate must be higher than cleaner pay before other costs.");
   if (config.minimumContributionMarginPercent >= 100) errors.push("Minimum contribution margin must be below 100%.");
   if (config.paymentProviderStatus === "live" && (!config.paymentProviderName || !config.refundProcess)) errors.push("Add the live payment provider and refund process.");

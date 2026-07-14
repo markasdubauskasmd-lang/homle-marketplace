@@ -148,7 +148,7 @@ try {
   const initialConfigBody = await initialConfig.json();
   assert(initialConfig.ok && initialConfigBody.readiness.completed === 0, "Initial launch readiness was incorrect.");
 
-  const completeConfig = { legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", paymentProviderName: "TestPay", paymentProviderStatus: "live", refundProcess: "Owner approves and records refunds within five working days.", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, minimumContributionMarginPercent: 25, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion" };
+  const completeConfig = { legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW1A, SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", paymentProviderName: "TestPay", paymentProviderStatus: "live", refundProcess: "Owner approves and records refunds within five working days.", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, minimumContributionMarginPercent: 25, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion" };
   const savedConfig = await fetch(`${base}/api/admin/config`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
@@ -156,6 +156,8 @@ try {
   });
   const savedConfigBody = await savedConfig.json();
   assert(savedConfig.ok && savedConfigBody.readiness.ready === true, "Complete launch settings did not pass readiness checks.");
+  const invalidPilotArea = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, pilotPostcodes: "South London" }) });
+  assert(invalidPilotArea.status === 422, "Invalid free-text pilot area was accepted instead of outward postcode codes.");
 
   const missingMarginFloor = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, minimumContributionMarginPercent: 0 }) });
   const missingMarginFloorBody = await missingMarginFloor.json();
@@ -275,6 +277,16 @@ try {
   const increasedFloorBlocked = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
   assert(increasedFloorBlocked.status === 422, "Existing proposal bypassed a newly increased founder margin floor.");
 
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, pilotPostcodes: "SW2, SW4" }) });
+  const outOfAreaMatches = await fetch(`${base}/api/admin/matches?requestId=${requestBody.reference}`);
+  const outOfAreaMatchesBody = await outOfAreaMatches.json();
+  assert(outOfAreaMatches.ok && outOfAreaMatchesBody.matches.length === 0 && outOfAreaMatchesBody.pilotCoverage.covered === false, "Out-of-area request still returned cleaner matches.");
+  const outOfAreaDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
+  const outOfAreaDraftsBody = await outOfAreaDrafts.json();
+  assert(outOfAreaDrafts.ok && outOfAreaDraftsBody.sendAllowed === false && outOfAreaDraftsBody.warnings.some((warning) => warning.includes("outside the configured Tideway pilot area")), "Out-of-area proposal drafts were not clearly blocked.");
+  const outOfAreaProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
+  assert(outOfAreaProposal.status === 422, "Out-of-area proposal advanced toward booking.");
+
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
   const briefBlockedDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
   const briefBlockedDraftsBody = await briefBlockedDrafts.json();
@@ -352,9 +364,10 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "reviewed", "Job-brief review status was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));
