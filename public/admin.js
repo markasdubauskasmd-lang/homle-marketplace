@@ -300,6 +300,37 @@ async function loadProposalDrafts(proposal, target, button) {
   }
 }
 
+async function loadBookingAudit(proposal, target, button) {
+  button.disabled = true;
+  target.replaceChildren();
+  addText(target, "span", "Checking booking safeguards…");
+  try {
+    const response = await fetch(`/api/admin/booking-audit?proposalId=${encodeURIComponent(proposal.id)}`, { headers: adminHeaders({ "Accept": "application/json" }) });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Booking audit could not be prepared.");
+    target.replaceChildren();
+    const heading = document.createElement("div");
+    heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
+    addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
+    addText(heading, "span", "This audit never confirms or sends a booking automatically.");
+    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
+    const checks = document.createElement("ul");
+    checks.className = "booking-checks";
+    Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
+    const manualHeading = document.createElement("strong");
+    manualHeading.textContent = "Manual confirmations still required";
+    manualHeading.className = "manual-heading";
+    const manual = document.createElement("ol");
+    result.manualChecklist.forEach((item) => addText(manual, "li", item));
+    target.append(heading, checks, manualHeading, manual);
+  } catch (error) {
+    target.replaceChildren();
+    addText(target, "strong", error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function changeStatus(record, select) {
   const previous = record.status;
   select.disabled = true;
@@ -360,6 +391,9 @@ function buildCard(record) {
     addDetail(details, "Customer", record.customerType);
     addDetail(details, "Property", record.propertyType);
     addDetail(details, "Service", record.service);
+    addDetail(details, "Site scope", record.siteSize);
+    addDetail(details, "Access", record.accessNotes);
+    addDetail(details, "Hazards", record.hazards);
     addDetail(details, "Frequency", record.frequency);
     addDetail(details, "Preferred date", record.preferredDate);
     addDetail(details, "Organisation", record.organisation);
@@ -421,7 +455,19 @@ function buildCard(record) {
     draftTarget.className = "draft-target";
     loadDraftButton.addEventListener("click", () => loadProposalDrafts(proposal, draftTarget, loadDraftButton));
     draftDetails.append(draftSummary, loadDraftButton, draftTarget);
-    proposalSummary.append(proposalStatusLabel, draftDetails);
+    const bookingDetails = document.createElement("details");
+    bookingDetails.className = "booking-audit";
+    const bookingSummary = document.createElement("summary");
+    bookingSummary.textContent = "Review booking gate";
+    const auditButton = document.createElement("button");
+    auditButton.type = "button";
+    auditButton.className = "button button-small button-light";
+    auditButton.textContent = "Run booking audit";
+    const auditTarget = document.createElement("div");
+    auditTarget.className = "booking-audit-target";
+    auditButton.addEventListener("click", () => loadBookingAudit(proposal, auditTarget, auditButton));
+    bookingDetails.append(bookingSummary, auditButton, auditTarget);
+    proposalSummary.append(proposalStatusLabel, draftDetails, bookingDetails);
     card.append(proposalSummary);
   }
 

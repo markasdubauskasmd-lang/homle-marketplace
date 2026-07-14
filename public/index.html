@@ -8,8 +8,8 @@
   <title>Tideway — cleaning, properly coordinated</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260714-10">
-  <script src="/app.js?v=20260714-5" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=20260714-11">
+  <script src="/app.js?v=20260714-11" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -129,6 +129,11 @@
               <label>Property type <select name="propertyType" required><option value="">Choose one</option><option>Flat or house</option><option>Office or workplace</option><option>Communal area</option><option>Short-let property</option><option>Other commercial space</option></select></label>
               <label>Service <select name="service" required><option value="">Choose one</option><option>Rental turnover clean</option><option>End-of-tenancy clean</option><option>Regular workplace clean</option><option>Communal area clean</option><option>One-off deep clean</option><option>Not sure yet</option></select></label>
             </div>
+            <div class="field-row">
+              <label>Site size or rooms <input name="siteSize" required placeholder="For example: 2 bedrooms and 1 bathroom, or 1,500 sq ft office"></label>
+              <label>Known hazards <select name="hazards" required><option value="">Choose one</option><option>None known</option><option>Pets present</option><option>Stairs or limited access</option><option>Building works or heavy soiling</option><option>Other — explain below</option></select></label>
+            </div>
+            <label>Keys and access arrangements <input name="accessNotes" required placeholder="For example: meet site manager, collect keys, concierge access"></label>
             <div class="field-row">
               <label>Frequency <select name="frequency"><option>One-off</option><option>Weekly</option><option>Several times a week</option><option>Fortnightly</option><option>As properties turn over</option><option>Not sure yet</option></select></label>
               <label>Preferred date <span>(optional)</span><input name="preferredDate" type="date"></label>

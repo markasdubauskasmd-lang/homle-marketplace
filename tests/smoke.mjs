@@ -50,7 +50,7 @@ try {
   const invalidPhone = await fetch(`${base}/api/cleaning-requests`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "123", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", consent: true })
+    body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "123", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms and 1 bathroom", accessNotes: "Collect keys from the office", hazards: "None known", consent: true })
   });
   assert(invalidPhone.status === 422, "Invalid phone number was not rejected.");
 
@@ -63,7 +63,7 @@ try {
   const validRequest = await fetch(`${base}/api/cleaning-requests`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", consent: true })
+    body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms and 1 bathroom", accessNotes: "Collect keys from the office", hazards: "None known", consent: true })
   });
   const requestBody = await validRequest.json();
   assert(validRequest.status === 201 && requestBody.reference.startsWith("REQ-"), "Valid cleaning request failed.");
@@ -159,7 +159,12 @@ try {
   const readyDraftsBody = await readyDrafts.json();
   assert(readyDrafts.ok && readyDraftsBody.sendAllowed === true, "Ready proposal drafts were not available for review.");
   assert(readyDraftsBody.customer.body.includes("Test Customer") && readyDraftsBody.customer.body.includes("£120.00"), "Customer quote draft omitted required proposal details.");
-  assert(readyDraftsBody.cleaner.body.includes("£72.00") && !readyDraftsBody.cleaner.body.includes("customer@example.com") && !readyDraftsBody.cleaner.body.includes("Test Customer"), "Cleaner draft omitted pay or leaked customer identity.");
+  assert(readyDraftsBody.cleaner.body.includes("£72.00") && readyDraftsBody.cleaner.body.includes("None known") && !readyDraftsBody.cleaner.body.includes("customer@example.com") && !readyDraftsBody.cleaner.body.includes("Test Customer"), "Cleaner draft omitted pay/safety scope or leaked customer identity.");
+
+  const bookingAudit = await fetch(`${base}/api/admin/booking-audit?proposalId=${proposalBody.proposal.id}`);
+  const bookingAuditBody = await bookingAudit.json();
+  assert(bookingAudit.ok && bookingAuditBody.automatedReady === true && Object.values(bookingAuditBody.checks).every(Boolean), "Accepted proposal did not pass the automated booking audit.");
+  assert(bookingAuditBody.manualChecklist.length >= 5, "Booking audit omitted required manual confirmations.");
 
   const activityUpdate = await fetch(`${base}/api/admin/activity`, {
     method: "POST",
@@ -175,7 +180,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.id.startsWith("PRO-"), "Draft proposal was not retained on the customer request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.status === "accepted", "Proposal status progression was not retained.");
 
-  console.log("Smoke tests passed: public pages, forms, admin security, lead workflow, payment readiness, matching, profitable proposals, readiness gates and privacy-safe unsent message drafts.");
+  console.log("Smoke tests passed: public pages, scoped requests, admin security, payment readiness, matching, profitable proposals, privacy-safe drafts and accepted-proposal booking audits.");
 } finally {
   child.kill("SIGTERM");
   await rm(path.join(root, "data", "cleaning-requests.ndjson"), { force: true });

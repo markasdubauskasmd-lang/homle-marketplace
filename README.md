@@ -24,6 +24,7 @@ Then open `http://127.0.0.1:4173`.
 - Internal draft proposals that link a request to an approved cleaner and reject loss-making job economics
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until all seven launch checks pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
+- Structured site scope, access and hazard collection plus a read-only accepted-proposal booking audit
 - Private data backup script and documented recovery procedure
 - Responsive, accessible website
 - Draft privacy notice and pilot terms

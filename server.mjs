@@ -270,6 +270,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Thank you for requesting ${customerRequest.service.toLowerCase()} in ${customerRequest.postcode}.`,
     "",
     `Proposed date: ${proposal.proposedDate}`,
+    `Site scope: ${customerRequest.siteSize || "[Confirm site size before sending]"}`,
     `Estimated cleaning time: ${proposal.estimatedHours} hours`,
     `Proposed customer total: ${money(proposal.customerTotal)}`,
     "",
@@ -289,6 +290,8 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     "",
     `Service: ${customerRequest.service}`,
     `Area: ${outwardCode}`,
+    `Site scope: ${customerRequest.siteSize || "Confirm before accepting"}`,
+    `Known hazards: ${customerRequest.hazards || "Confirm before accepting"}`,
     `Proposed date: ${proposal.proposedDate}`,
     `Estimated time: ${proposal.estimatedHours} hours`,
     `Proposed cleaner pay: ${money(proposal.cleanerPay)} total (${money(proposal.cleanerRate)} per hour)`,
@@ -310,6 +313,47 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody },
     cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody }
   });
+}
+
+async function getAdminBookingAudit(request, response, proposalId) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config] = await Promise.all([
+    readRecords("match-proposals.ndjson"),
+    readRecords("proposal-status.ndjson"),
+    readRecords("cleaning-requests.ndjson"),
+    readRecords("cleaner-applications.ndjson"),
+    readRecords("status-updates.ndjson"),
+    readJsonFile("business-config.json", {})
+  ]);
+  const proposal = proposals.find((record) => record.id === proposalId);
+  if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
+  const customerRequest = customerRequests.find((record) => record.id === proposal.requestId);
+  const cleaner = cleaners.find((record) => record.id === proposal.cleanerId);
+  if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Proposal parties were not found." });
+  let proposalStatus = proposal.status || "draft";
+  for (const update of proposalUpdates) if (update.proposalId === proposalId) proposalStatus = update.status;
+  let cleanerStatus = cleaner.status || "new";
+  for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
+  const requiredService = requestServiceMap[customerRequest.service] || "";
+  const checks = {
+    launchReady: launchReadiness(config).ready,
+    proposalAccepted: proposalStatus === "accepted",
+    cleanerApproved: cleanerStatus === "approved",
+    serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
+    profitable: proposal.contribution > 0,
+    scopeCaptured: Boolean(customerRequest.siteSize),
+    accessCaptured: Boolean(customerRequest.accessNotes),
+    hazardsCaptured: Boolean(customerRequest.hazards)
+  };
+  const automatedReady = Object.values(checks).every(Boolean);
+  const manualChecklist = [
+    "Confirm the exact service address and named access contact through the approved secure process.",
+    "Confirm the final task checklist, exclusions, products and equipment with both sides.",
+    "Confirm the customer payment authorisation without storing card details in Tideway notes.",
+    "Confirm the cleaner has accepted the date, scope and proposed pay.",
+    "Share emergency and issue-reporting instructions before the visit."
+  ];
+  return json(response, 200, { ok: true, proposalId, proposalStatus, automatedReady, checks, manualChecklist });
 }
 
 async function createAdminProposal(request, response) {
@@ -520,6 +564,9 @@ async function handleCleaningRequest(request, response) {
     customerType: text(input.customerType, 40),
     propertyType: text(input.propertyType, 80),
     service: text(input.service, 80),
+    siteSize: text(input.siteSize, 160),
+    accessNotes: text(input.accessNotes, 500),
+    hazards: text(input.hazards, 120),
     frequency: text(input.frequency, 80),
     preferredDate: text(input.preferredDate, 20),
     details: text(input.details, 1200),
@@ -534,6 +581,9 @@ async function handleCleaningRequest(request, response) {
   required(record.customerType, "Customer type", errors);
   required(record.propertyType, "Property type", errors);
   required(record.service, "Service", errors);
+  required(record.siteSize, "Site size or rooms", errors);
+  required(record.accessNotes, "Access arrangements", errors);
+  required(record.hazards, "Known hazards", errors);
   if (record.email && !isEmail(record.email)) errors.push("Enter a valid email address.");
   if (record.phone && !isPhone(record.phone)) errors.push("Enter a valid phone number.");
   if (record.postcode && !isUkPostcode(record.postcode)) errors.push("Enter a valid UK postcode.");
@@ -647,6 +697,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/proposal-drafts") {
       return await getAdminProposalDrafts(request, response, text(requestUrl.searchParams.get("proposalId"), 40));
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/admin/booking-audit") {
+      return await getAdminBookingAudit(request, response, text(requestUrl.searchParams.get("proposalId"), 40));
     }
     if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/status") {
       return await updateAdminStatus(request, response);
