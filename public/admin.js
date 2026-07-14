@@ -785,6 +785,122 @@ function buildBookingPackPanel(record) {
   return panel;
 }
 
+const outcomeAdjustmentReasons = {
+  "customer-refund": "Customer refund",
+  "re-clean": "Re-clean cost",
+  "complaint-resolution": "Complaint resolution",
+  "damage-or-loss": "Damage or loss",
+  "late-provider-cost": "Late provider cost",
+  "record-correction": "Append-only record correction",
+  other: "Other later adjustment"
+};
+
+function appendOutcomeAdjustmentDesk(record, panel) {
+  const details = document.createElement("details");
+  details.className = "outcome-adjustment-desk";
+  const summary = document.createElement("summary");
+  summary.textContent = `Later refunds, re-cleans and costs · ${record.outcome.adjustmentCount || 0} adjustments`;
+  details.append(summary);
+  addText(details, "p", "Record only work or money movements that already happened outside Tideway. This form never refunds, charges or pays anyone, and every entry is permanent.");
+  if (record.outcome.adjustments?.length) {
+    const history = document.createElement("ol");
+    history.className = "outcome-adjustment-history";
+    record.outcome.adjustments.forEach((adjustment) => {
+      const item = document.createElement("li");
+      addText(item, "strong", `${outcomeAdjustmentReasons[adjustment.reasonType] || "Adjustment"} · ${adjustment.sourceReference}`);
+      addText(item, "span", `${formatDate(adjustment.createdAt)} · ${money.format(adjustment.additionalRefundAmount || 0)} refund · ${money.format(adjustment.additionalCleanerPaid || 0)} cleaner pay · ${money.format((adjustment.additionalPaymentFees || 0) + (adjustment.additionalTravelCosts || 0) + (adjustment.additionalSuppliesCosts || 0) + (adjustment.additionalOtherCosts || 0))} other direct costs`);
+      if (adjustment.relatedChangeRequestId) addText(item, "span", `Related resolved issue: ${adjustment.relatedChangeRequestId}`);
+      history.append(item);
+    });
+    details.append(history);
+  }
+  const form = document.createElement("form");
+  form.className = "outcome-adjustment-form";
+  const reasonLabel = document.createElement("label");
+  reasonLabel.append(document.createTextNode("Reason"));
+  const reason = document.createElement("select");
+  reason.name = "reasonType";
+  reason.required = true;
+  reason.append(new Option("Choose one", ""));
+  Object.entries(outcomeAdjustmentReasons).forEach(([value, label]) => reason.append(new Option(label, value)));
+  reasonLabel.append(reason);
+  const referenceLabel = document.createElement("label");
+  referenceLabel.append(document.createTextNode("Unique external case or transaction reference"));
+  const reference = document.createElement("input");
+  reference.name = "sourceReference";
+  reference.required = true;
+  reference.minLength = 4;
+  reference.maxLength = 80;
+  reference.placeholder = "No card, bank or account credentials";
+  referenceLabel.append(reference);
+  const relatedLabel = document.createElement("label");
+  relatedLabel.append(document.createTextNode("Related resolved issue (optional)"));
+  const related = document.createElement("select");
+  related.name = "relatedChangeRequestId";
+  related.append(new Option("No linked issue", ""));
+  (record.booking.changeRequests || []).filter((change) => change.status === "closed").forEach((change) => related.append(new Option(`${change.id} · ${change.type.replaceAll("-", " ")}`, change.id)));
+  relatedLabel.append(related);
+  const fields = [
+    ["Additional work hours", "additionalHours"],
+    ["Additional customer collected (£)", "additionalCustomerCollected"],
+    ["Additional cleaner paid (£)", "additionalCleanerPaid"],
+    ["Additional payment fees (£)", "additionalPaymentFees"],
+    ["Additional travel costs (£)", "additionalTravelCosts"],
+    ["Additional supplies costs (£)", "additionalSuppliesCosts"],
+    ["Additional other costs (£)", "additionalOtherCosts"],
+    ["Additional refunds (£)", "additionalRefundAmount"]
+  ];
+  form.append(reasonLabel, referenceLabel, relatedLabel);
+  fields.forEach(([label, name]) => {
+    const field = numberField(label, name, "0");
+    if (name === "additionalHours") field.querySelector("input").step = "0.25";
+    form.append(field);
+  });
+  const noteLabel = document.createElement("label");
+  noteLabel.className = "adjustment-note";
+  noteLabel.append(document.createTextNode("Evidence note"));
+  const note = document.createElement("textarea");
+  note.name = "internalNote";
+  note.required = true;
+  note.minLength = 20;
+  note.maxLength = 1000;
+  note.rows = 3;
+  note.placeholder = "Explain what happened, what evidence was checked and why these are the final additional amounts";
+  noteLabel.append(note);
+  const confirmationLabel = document.createElement("label");
+  confirmationLabel.className = "checkbox adjustment-confirmation";
+  const confirmation = document.createElement("input");
+  confirmation.type = "checkbox";
+  confirmation.name = "externalActionConfirmed";
+  confirmation.required = true;
+  const confirmationText = document.createElement("span");
+  confirmationText.textContent = "I confirm any work or money movement already happened outside Tideway; this entry records evidence only.";
+  confirmationLabel.append(confirmation, confirmationText);
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.className = "button button-small";
+  submit.textContent = "Append adjustment — no money moves";
+  form.append(noteLabel, confirmationLabel, submit);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    submit.disabled = true;
+    const body = Object.fromEntries(new FormData(form).entries());
+    body.bookingId = record.booking.id;
+    body.externalActionConfirmed = confirmation.checked;
+    try {
+      const response = await fetch("/api/admin/job-outcome-adjustments", { method: "POST", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "Later job adjustment could not be recorded.");
+      await loadRecords();
+    } catch (error) {
+      showAdminError(error.message);
+      submit.disabled = false;
+    }
+  });
+  details.append(form);
+  panel.append(details);
+}
+
 function buildJobOutcome(record) {
   const panel = document.createElement("div");
   panel.className = "job-outcome";
@@ -796,6 +912,8 @@ function buildJobOutcome(record) {
     addText(panel, "span", `${money.format(record.outcome.refundAmount)} refunds · ${money.format(record.outcome.totalDirectCosts ?? record.outcome.otherCosts ?? 0)} total direct costs · ${money.format(record.outcome.contribution)} contribution (${record.outcome.marginPercent.toFixed(1)}%)`);
     addText(panel, "span", `${money.format(record.outcome.paymentFees || 0)} payment fees · ${money.format(record.outcome.travelCosts || 0)} travel · ${money.format(record.outcome.suppliesCosts || 0)} supplies · ${money.format(record.outcome.otherCosts || 0)} other actual costs`);
     if (record.outcome.targetMarginPercent > 0) addText(panel, "span", `Founder margin floor at completion: ${record.outcome.targetMarginPercent.toFixed(1)}%`);
+    if (record.outcome.adjusted) addText(panel, "span", `Original recorded contribution: ${money.format(record.outcome.original.contribution)} · revised by ${record.outcome.adjustmentCount} append-only adjustment${record.outcome.adjustmentCount === 1 ? "" : "s"}.`);
+    appendOutcomeAdjustmentDesk(record, panel);
     return panel;
   }
   addText(panel, "strong", `Confirmed booking ${record.booking.id}`);

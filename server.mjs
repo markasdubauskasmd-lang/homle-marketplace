@@ -713,6 +713,54 @@ function moneyValue(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
+function adjustedJobOutcome(outcome, allAdjustments = []) {
+  if (!outcome) return null;
+  const adjustments = allAdjustments.filter((record) => record.bookingId === outcome.bookingId).sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const sum = (field) => moneyValue(adjustments.reduce((total, record) => total + Number(record[field] || 0), 0));
+  const actualHours = moneyValue(Number(outcome.actualHours || 0) + sum("additionalHours"));
+  const customerCollected = moneyValue(Number(outcome.customerCollected || 0) + sum("additionalCustomerCollected"));
+  const cleanerPaid = moneyValue(Number(outcome.cleanerPaid || 0) + sum("additionalCleanerPaid"));
+  const paymentFees = moneyValue(Number(outcome.paymentFees || 0) + sum("additionalPaymentFees"));
+  const travelCosts = moneyValue(Number(outcome.travelCosts || 0) + sum("additionalTravelCosts"));
+  const suppliesCosts = moneyValue(Number(outcome.suppliesCosts || 0) + sum("additionalSuppliesCosts"));
+  const otherCosts = moneyValue(Number(outcome.otherCosts || 0) + sum("additionalOtherCosts"));
+  const refundAmount = moneyValue(Number(outcome.refundAmount || 0) + sum("additionalRefundAmount"));
+  const totalDirectCosts = moneyValue(paymentFees + travelCosts + suppliesCosts + otherCosts);
+  const contribution = moneyValue(customerCollected - cleanerPaid - totalDirectCosts - refundAmount);
+  const marginPercent = customerCollected > 0 ? (contribution / customerCollected) * 100 : 0;
+  return {
+    ...outcome,
+    actualHours,
+    customerCollected,
+    cleanerPaid,
+    paymentFees,
+    travelCosts,
+    suppliesCosts,
+    otherCosts,
+    refundAmount,
+    totalDirectCosts,
+    contribution,
+    marginPercent,
+    profitable: contribution > 0,
+    metTargetMargin: Number(outcome.targetMarginPercent) > 0 && marginPercent >= Number(outcome.targetMarginPercent),
+    adjusted: adjustments.length > 0,
+    adjustmentCount: adjustments.length,
+    adjustments: adjustments.slice().reverse(),
+    lastAdjustedAt: adjustments.at(-1)?.createdAt || "",
+    original: {
+      actualHours: Number(outcome.actualHours || 0),
+      customerCollected: Number(outcome.customerCollected || 0),
+      cleanerPaid: Number(outcome.cleanerPaid || 0),
+      totalDirectCosts: Number(outcome.totalDirectCosts || 0),
+      refundAmount: Number(outcome.refundAmount || 0),
+      contribution: Number(outcome.contribution || 0),
+      marginPercent: Number(outcome.marginPercent || 0),
+      profitable: outcome.profitable === true,
+      metTargetMargin: outcome.metTargetMargin === true
+    }
+  };
+}
+
 function costAssumptionsFromConfig(config) {
   return {
     paymentFeePercent: Number(config.paymentFeePercent) || 0,
@@ -974,6 +1022,8 @@ function dispatchActionsForRecord({ kind, status, nextActionAt, proposals = [], 
     if (!outcome && booking.jobProgress?.readyForOutcome && openChanges.length === 0) add("record-economics", "high", "booking", "Completed visit needs actual economics", "Record actual receipts, cleaner pay, fees, travel, supplies, other costs and refunds; this action does not move money.");
     else if (!outcome && booking.jobProgress?.cleanerCompletedAt && !booking.jobProgress?.customerCompletedAt) add("customer-completion-pending", "monitor", "booking", "Customer completion acknowledgement pending", "The cleaner recorded completion; the customer has not yet acknowledged the visit through the protected booking pack.");
     else if (!outcome && booking.proposedDate < today && !booking.jobProgress?.cleanerCompletedAt) add("visit-progress-overdue", "high", "booking", "Visit progress is overdue", "The scheduled date has passed without a cleaner completion event. Review the booking and any incident before recording an outcome.");
+    else if (outcome && !outcome.profitable) add("loss-review", "high", "profit", "Adjusted job outcome is loss-making", "Review the recorded refund, re-clean and later-cost evidence before using this job to change pricing or repeat the offer.");
+    else if (outcome && !outcome.metTargetMargin) add("margin-review", "high", "profit", "Adjusted job outcome is below the margin floor", "Review the append-only adjustment history and revise future pricing or cost assumptions before repeating this job shape.");
     return actions;
   }
 
@@ -1153,7 +1203,7 @@ function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, pr
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, bookingChanges, bookingChangeUpdates, jobEvents, config, availabilityEvents] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, outcomeAdjustments, briefs, briefUpdates, screenings, cleanerDecisions, bookingChanges, bookingChangeUpdates, jobEvents, config, availabilityEvents] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
@@ -1162,6 +1212,7 @@ async function getAdminRecords(request, response) {
     readRecords("proposal-status.ndjson"),
     readRecords("bookings.ndjson"),
     readRecords("job-outcomes.ndjson"),
+    readRecords("job-outcome-adjustments.ndjson"),
     readRecords("job-briefs.ndjson"),
     readRecords("job-brief-status.ndjson"),
     readRecords("cleaner-screening.ndjson"),
@@ -1229,8 +1280,9 @@ async function getAdminRecords(request, response) {
     const ownEvents = jobEvents.filter((event) => event.bookingId === booking.id).sort((left, right) => left.createdAt.localeCompare(right.createdAt));
     bookingsByRequest.set(booking.requestId, { ...booking, changeRequests: (bookingChangesByBooking.get(booking.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)), jobEvents: ownEvents, jobProgress: bookingJobProgress(booking.id, jobEvents) });
   }
+  const effectiveOutcomes = outcomes.map((outcome) => adjustedJobOutcome(outcome, outcomeAdjustments));
   const outcomesByBooking = new Map();
-  for (const outcome of outcomes) outcomesByBooking.set(outcome.bookingId, outcome);
+  for (const outcome of effectiveOutcomes) outcomesByBooking.set(outcome.bookingId, outcome);
   const briefsByRequest = new Map();
   for (const brief of briefs) {
     const list = briefsByRequest.get(brief.requestId) || [];
@@ -1256,7 +1308,7 @@ async function getAdminRecords(request, response) {
     ...cleaners.map((record) => merge(record, "cleaner"))
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   const dispatchActions = records.flatMap((record) => record.dispatchActions.map((action) => ({ ...action, recordId: record.id, kind: record.kind })));
-  const launchFunnel = launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, availabilityEvents, config });
+  const launchFunnel = launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, proposalUpdates, bookings, outcomes: effectiveOutcomes, briefs, briefUpdates, screenings, cleanerDecisions, availabilityEvents, config });
   return json(response, 200, { ok: true, records, dispatchSummary: { urgent: dispatchActions.filter((action) => action.severity === "urgent").length, high: dispatchActions.filter((action) => action.severity === "high").length, monitor: dispatchActions.filter((action) => action.severity === "monitor").length, total: dispatchActions.length }, launchFunnel });
 }
 
@@ -2567,7 +2619,7 @@ async function createPrivateBookingChangeRequest(request, response) {
   const message = text(input.message, 1200);
   const proposedDate = text(input.proposedDate, 20);
   const proposedStartTime = text(input.proposedStartTime, 10);
-  const allowedTypes = new Set(["reschedule", "cancel-request", "access-change", "scope-change", "safety-issue", "other"]);
+  const allowedTypes = new Set(["reschedule", "cancel-request", "access-change", "scope-change", "quality-issue", "safety-issue", "other"]);
   const errors = [];
   if (!allowedTypes.has(type)) errors.push("Choose a valid request type.");
   if (message.length < 10) errors.push("Explain the requested change or issue in at least 10 characters.");
@@ -2712,6 +2764,71 @@ async function createAdminJobOutcome(request, response) {
   await saveRecord("job-outcomes.ndjson", outcome);
   await saveRecord("status-updates.ndjson", { id: booking.requestId, kind: "request", status: "completed", previousStatus: requestStatus, source: "job-outcome", updatedAt: outcome.createdAt });
   return json(response, 201, { ok: true, outcome });
+}
+
+async function createAdminJobOutcomeAdjustment(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const bookingId = text(input.bookingId, 40);
+  const reasonType = text(input.reasonType, 40);
+  const sourceReference = text(input.sourceReference, 80);
+  const relatedChangeRequestId = text(input.relatedChangeRequestId, 40);
+  const internalNote = text(input.internalNote, 1000);
+  const allowedReasons = new Set(["customer-refund", "re-clean", "complaint-resolution", "damage-or-loss", "late-provider-cost", "record-correction", "other"]);
+  const fields = ["additionalHours", "additionalCustomerCollected", "additionalCleanerPaid", "additionalPaymentFees", "additionalTravelCosts", "additionalSuppliesCosts", "additionalOtherCosts", "additionalRefundAmount"];
+  const amounts = Object.fromEntries(fields.map((field) => [field, Number(input[field] || 0)]));
+  const values = Object.values(amounts);
+  const errors = [];
+  if (!/^BKG-[A-Z0-9]{8}$/.test(bookingId)) errors.push("Enter a valid booking reference.");
+  if (!allowedReasons.has(reasonType)) errors.push("Choose a valid adjustment reason.");
+  if (sourceReference.length < 4) errors.push("Add a unique external case or transaction reference of at least four characters.");
+  if (internalNote.length < 20) errors.push("Add an evidence note of at least 20 characters explaining what changed.");
+  if (input.externalActionConfirmed !== true) errors.push("Confirm that any work or money movement already happened outside Tideway and this entry is record-only.");
+  if (values.some((value) => !Number.isFinite(value) || value < 0)) errors.push("Adjustment hours and amounts must be non-negative numbers.");
+  if (amounts.additionalHours > 100 || values.slice(1).some((value) => value > 1000000)) errors.push("Adjustment values exceed the supported audit limits.");
+  if (!values.some((value) => value > 0)) errors.push("Record at least one additional hour or financial amount.");
+  if (errors.length) return json(response, 422, { ok: false, errors });
+
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    const [bookings, outcomes, adjustments, changeRequests, changeUpdates] = await Promise.all([
+      readRecords("bookings.ndjson"),
+      readRecords("job-outcomes.ndjson"),
+      readRecords("job-outcome-adjustments.ndjson"),
+      readRecords("booking-change-requests.ndjson"),
+      readRecords("booking-change-status.ndjson")
+    ]);
+    const booking = bookings.find((record) => record.id === bookingId);
+    const outcome = outcomes.find((record) => record.bookingId === bookingId);
+    if (!booking || !outcome) throw Object.assign(new Error("A recorded completed-job outcome is required before adding a later adjustment."), { statusCode: 404 });
+    if (adjustments.some((record) => record.bookingId === bookingId && record.sourceReference.toLowerCase() === sourceReference.toLowerCase())) {
+      throw Object.assign(new Error("That external adjustment reference is already recorded for this booking."), { statusCode: 409 });
+    }
+    if (relatedChangeRequestId) {
+      const related = changeRequests.find((record) => record.id === relatedChangeRequestId && record.bookingId === bookingId);
+      if (!related) throw Object.assign(new Error("The related booking issue was not found for this booking."), { statusCode: 422 });
+      if (applyBookingChangeStatus(related, changeUpdates).status !== "closed") throw Object.assign(new Error("Close the related booking issue with a resolution note before recording its final financial adjustment."), { statusCode: 422 });
+    }
+    const adjustment = {
+      id: `ADJ-${randomUUID().slice(0, 8).toUpperCase()}`,
+      bookingId,
+      requestId: booking.requestId,
+      cleanerId: booking.cleanerId,
+      reasonType,
+      sourceReference,
+      relatedChangeRequestId,
+      ...Object.fromEntries(Object.entries(amounts).map(([field, value]) => [field, moneyValue(value)])),
+      externalActionConfirmed: true,
+      internalNote,
+      createdAt: new Date().toISOString()
+    };
+    await mkdir(dataDir, { recursive: true });
+    await appendFile(path.join(dataDir, "job-outcome-adjustments.ndjson"), `${JSON.stringify(adjustment)}\n`, { encoding: "utf8", mode: 0o600 });
+    return { adjustment, outcome: adjustedJobOutcome(outcome, [...adjustments, adjustment]) };
+  });
+  writeQueue = operation;
+  const result = await operation;
+  return json(response, 201, { ok: true, ...result });
 }
 
 async function createAdminProposal(request, response) {
@@ -3374,6 +3491,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/admin/job-outcomes") {
       return await createAdminJobOutcome(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/admin/job-outcome-adjustments") {
+      return await createAdminJobOutcomeAdjustment(request, response);
     }
     if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/status") {
       return await updateAdminStatus(request, response);

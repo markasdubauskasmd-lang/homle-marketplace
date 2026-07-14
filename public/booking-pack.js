@@ -29,6 +29,7 @@ const changeTypeLabels = {
   "cancel-request": "Cancellation request",
   "access-change": "Access change",
   "scope-change": "Scope change",
+  "quality-issue": "Cleaning quality issue",
   "safety-issue": "Safety issue",
   other: "Other issue"
 };

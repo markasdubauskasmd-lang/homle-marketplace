@@ -35,7 +35,7 @@ Then open `http://127.0.0.1:4173`.
 - Local private submission files in `data/`
 - Private local control desk at `/admin` with lead filters, status tracking, internal notes and next-action dates
 - Prioritised founder-action dispatch queue derived from recorded scan, matching, offer, booking and safety state; urgent safety reports, rematching, booking finalisation and overdue follow-ups are surfaced without sending messages or changing records
-- Private first-profitable-booking runway derives eight conversion stages from authoritative records—request, submitted scan, reviewed scope, sent offer, two-sided acceptance, confirmed booking, recorded outcome and target-margin result—then names the current bottleneck and dispatch-ready cleaner count without exposing contact data or moving money
+- Private first-profitable-booking runway derives eight conversion stages from authoritative records—request, submitted scan, reviewed scope, sent offer, two-sided acceptance, confirmed booking, recorded outcome and current target-margin result—then names the bottleneck and dispatch-ready cleaner count without exposing contact data or moving money; later audited refunds or re-clean costs can correctly reverse the profitable milestone
 - Internal quote calculator that pre-fills approved rates, includes founder-confirmed payment fees, travel, supplies, risk contingency and additional job costs, and solves the customer total/hourly rate needed to meet the contribution-margin floor
 - Evidence-based local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules; every incomplete area names its exact missing decisions, while insurance/payment claims require verification summaries and dates rather than status dropdowns alone
 - Founder-configured outward-postcode enforcement that blocks out-of-area matching, proposal use and booking readiness
@@ -69,11 +69,12 @@ Then open `http://127.0.0.1:4173`.
 - Separate fragment-token customer and cleaner booking views: the customer view hides cleaner contact/pay, while the cleaner view exposes only the visit and access information needed after confirmation
 - Reviewed room photos, short videos and their specific notes become visible to both sides only inside the confirmed protected booking packs; media requests require the private booking token and are never cached
 - Private room-media lifecycle desk classifies active, scheduled, deletion-eligible and already-deleted scans against separate founder-set inactive-enquiry and completed-booking periods; nothing is deleted automatically, and manual deletion requires a verified backup, the exact scan reference and a written append-only audit reason
-- Private reschedule, cancellation, access, scope and safety request submission from either booking pack; submissions never mutate the confirmed booking, schedule or payment state automatically
+- Private reschedule, cancellation, access, scope, cleaning-quality and safety request submission from either booking pack; submissions never mutate the confirmed booking, schedule or payment state automatically
 - Local admin change-request queue with open, reviewing and permanently closed audit states plus a customer-visible response note
 - Append-only job-day timeline: cleaners must confirm arrival and a safe start before recording completion, then the customer acknowledges the completed visit from their own protected booking pack
 - Completed-job economics remain locked until the three job-day confirmations are present and every change or safety request is closed
 - Completed-job records separate actual customer receipts, cleaner pay, payment fees, travel, supplies, other costs and refunds before calculating contribution and margin; recording never moves money
+- Append-only post-completion adjustments record later refunds, re-clean work, complaint resolutions and provider costs only after the external action occurred; unique evidence references prevent duplicates, optional resolved-issue links preserve context, and the effective contribution, margin and first-profitable-booking runway recalculate immediately without rewriting the original outcome
 - Private data backup script and documented recovery procedure
 - Responsive, accessible website
 - Draft privacy notice and pilot terms
