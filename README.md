@@ -29,6 +29,8 @@ Then open `http://127.0.0.1:4173`.
 - Internal draft proposals that link a request to an approved cleaner and reject work below the minimum hours, loss-making economics or a below-target contribution margin
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until launch checks, pilot coverage and the latest job-brief review pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
+- Private customer quote-review links that keep the token out of server URLs, require name/scope/terms confirmation, lock after one decision and preserve an acceptance snapshot for the booking audit
+- Customer acceptance can no longer be fabricated from the control desk; accepted and declined states come from the private quote decision flow
 - Latest approved landlord checklist included in the review-only cleaner opportunity draft; photos remain separately protected for deliberate review
 - Structured site scope, access and hazard collection plus a read-only accepted-proposal booking audit
 - Safe lead-status transitions that prevent requests or cleaners skipping required workflow stages

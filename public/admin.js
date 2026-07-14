@@ -769,7 +769,7 @@ function buildCard(record) {
     const allowedByCurrent = {
       draft: ["draft", "ready", "cancelled"],
       ready: ["ready", "draft", "sent", "cancelled"],
-      sent: ["sent", "accepted", "declined", "cancelled"],
+      sent: ["sent", "cancelled"],
       accepted: ["accepted"], declined: ["declined"], cancelled: ["cancelled"]
     };
     for (const status of allowedByCurrent[proposal.status] || [proposal.status]) {
@@ -781,6 +781,24 @@ function buildCard(record) {
     }
     proposalStatus.addEventListener("change", () => changeProposalStatus(proposal, proposalStatus));
     proposalStatusLabel.append(proposalStatus);
+    const quoteLink = document.createElement("div");
+    quoteLink.className = "quote-review-link";
+    if (proposal.reviewToken && ["ready", "sent", "accepted", "declined"].includes(proposal.status)) {
+      addText(quoteLink, "strong", "Private customer approval link");
+      addText(quoteLink, "span", proposal.status === "ready" ? "Preview only until you record the proposal as sent." : "Share only with the named customer. The link records their decision; it does not take payment.");
+      const reviewUrl = `${location.origin}/quote#${proposal.reviewToken}`;
+      const linkField = document.createElement("input");
+      linkField.type = "text";
+      linkField.readOnly = true;
+      linkField.value = reviewUrl;
+      linkField.setAttribute("aria-label", `Private quote link for ${proposal.id}`);
+      const copyLink = document.createElement("button");
+      copyLink.type = "button";
+      copyLink.className = "button button-small button-outline";
+      copyLink.textContent = "Copy private link — does not send";
+      copyLink.addEventListener("click", () => copyDraft(reviewUrl, copyLink));
+      quoteLink.append(linkField, copyLink);
+    }
     const draftDetails = document.createElement("details");
     draftDetails.className = "message-drafts";
     const draftSummary = document.createElement("summary");
@@ -805,7 +823,7 @@ function buildCard(record) {
     auditTarget.className = "booking-audit-target";
     auditButton.addEventListener("click", () => loadBookingAudit(record, proposal, auditTarget, auditButton));
     bookingDetails.append(bookingSummary, auditButton, auditTarget);
-    proposalSummary.append(proposalStatusLabel, draftDetails, bookingDetails);
+    proposalSummary.append(proposalStatusLabel, quoteLink, draftDetails, bookingDetails);
     card.append(proposalSummary);
   }
 

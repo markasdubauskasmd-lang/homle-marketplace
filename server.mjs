@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { appendFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript, normaliseChecklistTask } from "./public/checklist.js";
@@ -393,7 +393,7 @@ async function updateAdminProposalStatus(request, response) {
   const transitions = {
     draft: new Set(["ready", "cancelled"]),
     ready: new Set(["draft", "sent", "cancelled"]),
-    sent: new Set(["accepted", "declined", "cancelled"]),
+    sent: new Set(["cancelled"]),
     accepted: new Set([]),
     declined: new Set([]),
     cancelled: new Set([])
@@ -431,9 +431,162 @@ async function updateAdminProposalStatus(request, response) {
     const proposalMargin = Number.isFinite(proposal.marginPercent) ? `${proposal.marginPercent.toFixed(1)}%` : "unrecorded";
     return json(response, 422, { ok: false, error: `This proposal's ${proposalMargin} contribution margin is below the ${config.minimumContributionMarginPercent.toFixed(1)}% minimum.` });
   }
-  const update = { proposalId, requestId: proposal.requestId, status, previousStatus: currentStatus, updatedAt: new Date().toISOString() };
+  const update = {
+    proposalId,
+    requestId: proposal.requestId,
+    status,
+    previousStatus: currentStatus,
+    ...(status === "sent" ? { quoteSnapshot: {
+      service: customerRequest.service,
+      postcode: customerRequest.postcode,
+      siteSize: customerRequest.siteSize,
+      proposedDate: proposal.proposedDate,
+      estimatedHours: proposal.estimatedHours,
+      customerTotal: proposal.customerTotal,
+      cancellationPolicy: config.cancellationPolicy,
+      paymentTiming: config.paymentTiming,
+      legalBusinessName: config.legalBusinessName,
+      supportEmail: config.supportEmail,
+      supportPhone: config.supportPhone
+    } } : {}),
+    updatedAt: new Date().toISOString()
+  };
   await saveRecord("proposal-status.ndjson", update);
   return json(response, 200, { ok: true, proposalId, status });
+}
+
+async function getQuoteContext(token) {
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return { ok: false, statusCode: 404, error: "This private quote link is invalid." };
+  const [proposals, proposalUpdates, customerRequests, config, briefs, briefUpdates] = await Promise.all([
+    readRecords("match-proposals.ndjson"),
+    readRecords("proposal-status.ndjson"),
+    readRecords("cleaning-requests.ndjson"),
+    readJsonFile("business-config.json", {}),
+    readRecords("job-briefs.ndjson"),
+    readRecords("job-brief-status.ndjson")
+  ]);
+  const proposal = proposals.find((record) => record.reviewToken === token);
+  if (!proposal) return { ok: false, statusCode: 404, error: "This private quote link is invalid." };
+  const customerRequest = customerRequests.find((record) => record.id === proposal.requestId);
+  if (!customerRequest) return { ok: false, statusCode: 404, error: "The cleaning request could not be found." };
+  let proposalStatus = proposal.status || "draft";
+  let latestDecision = null;
+  let quoteSnapshot = null;
+  for (const update of proposalUpdates) {
+    if (update.proposalId !== proposal.id) continue;
+    proposalStatus = update.status;
+    if (update.quoteSnapshot) quoteSnapshot = update.quoteSnapshot;
+    if (update.source === "customer-private-quote") latestDecision = update;
+  }
+  if (proposalStatus === "draft") return { ok: false, statusCode: 409, error: "This quote is still being prepared." };
+  const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
+  const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
+  const readyChecks = {
+    launchReady: launchReadiness(config).ready,
+    pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
+    briefReviewed: !latestBrief || latestBrief.status === "reviewed",
+    profitable: proposal.contribution > 0,
+    marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
+    minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours
+  };
+  return { ok: true, proposal, proposalStatus, customerRequest, config, latestBrief, latestDecision, quoteSnapshot, readyChecks };
+}
+
+function publicQuote(context) {
+  const { proposal, proposalStatus, customerRequest, config, latestBrief, latestDecision, quoteSnapshot, readyChecks } = context;
+  const displayed = quoteSnapshot || {
+    service: customerRequest.service,
+    postcode: customerRequest.postcode,
+    siteSize: customerRequest.siteSize,
+    proposedDate: proposal.proposedDate,
+    estimatedHours: proposal.estimatedHours,
+    customerTotal: proposal.customerTotal,
+    cancellationPolicy: config.cancellationPolicy,
+    paymentTiming: config.paymentTiming,
+    legalBusinessName: config.legalBusinessName,
+    supportEmail: config.supportEmail,
+    supportPhone: config.supportPhone
+  };
+  return {
+    ok: true,
+    quote: {
+      reference: proposal.id,
+      status: proposalStatus,
+      customerName: customerRequest.contactName,
+      service: displayed.service,
+      postcode: displayed.postcode,
+      siteSize: displayed.siteSize,
+      preferredDate: customerRequest.preferredDate,
+      proposedDate: displayed.proposedDate,
+      estimatedHours: displayed.estimatedHours,
+      customerTotal: displayed.customerTotal,
+      cancellationPolicy: displayed.cancellationPolicy,
+      paymentTiming: displayed.paymentTiming,
+      supportEmail: displayed.supportEmail,
+      supportPhone: displayed.supportPhone,
+      legalBusinessName: displayed.legalBusinessName,
+      checklist: latestBrief?.status === "reviewed" ? latestBrief.checklist : [],
+      decisionAllowed: proposalStatus === "sent" && Object.values(readyChecks).every(Boolean),
+      decision: latestDecision ? { status: latestDecision.status, decidedAt: latestDecision.updatedAt, typedName: latestDecision.typedName } : null
+    }
+  };
+}
+
+async function getPrivateQuote(request, response) {
+  const token = text(request.headers["x-quote-token"], 80);
+  const context = await getQuoteContext(token);
+  if (!context.ok) return json(response, context.statusCode, { ok: false, error: context.error });
+  return json(response, 200, publicQuote(context));
+}
+
+async function decidePrivateQuote(request, response) {
+  ensureSameOrigin(request);
+  const token = text(request.headers["x-quote-token"], 80);
+  const input = await readJson(request);
+  const context = await getQuoteContext(token);
+  if (!context.ok) return json(response, context.statusCode, { ok: false, error: context.error });
+  if (context.proposalStatus !== "sent") return json(response, 409, { ok: false, error: "This quote is not awaiting a decision." });
+  if (!Object.values(context.readyChecks).every(Boolean)) return json(response, 409, { ok: false, error: "This quote changed and must be reviewed by Tideway before you decide." });
+
+  const decision = text(input.decision, 20);
+  const typedName = text(input.typedName, 120);
+  const normalisedName = (value) => value.toLocaleLowerCase("en-GB").replace(/\s+/g, " ").trim();
+  if (!["accepted", "declined"].includes(decision)) return json(response, 422, { ok: false, error: "Choose whether to accept or decline this quote." });
+  if (!typedName || normalisedName(typedName) !== normalisedName(context.customerRequest.contactName)) {
+    return json(response, 422, { ok: false, error: "Type the same contact name used on the cleaning request." });
+  }
+  if (decision === "accepted" && (input.scopeConfirmed !== true || input.termsAccepted !== true)) {
+    return json(response, 422, { ok: false, error: "Confirm the scope and pilot terms before accepting." });
+  }
+
+  const updatedAt = new Date().toISOString();
+  const update = {
+    proposalId: context.proposal.id,
+    requestId: context.proposal.requestId,
+    status: decision,
+    previousStatus: context.proposalStatus,
+    source: "customer-private-quote",
+    typedName,
+    scopeConfirmed: decision === "accepted",
+    termsAccepted: decision === "accepted",
+    reason: text(input.reason, 500),
+    acceptedSnapshot: decision === "accepted" ? (context.quoteSnapshot || {
+      service: context.customerRequest.service,
+      postcode: context.customerRequest.postcode,
+      siteSize: context.customerRequest.siteSize,
+      proposedDate: context.proposal.proposedDate,
+      estimatedHours: context.proposal.estimatedHours,
+      customerTotal: context.proposal.customerTotal,
+      cancellationPolicy: context.config.cancellationPolicy,
+      paymentTiming: context.config.paymentTiming,
+      legalBusinessName: context.config.legalBusinessName,
+      supportEmail: context.config.supportEmail,
+      supportPhone: context.config.supportPhone
+    }) : null,
+    updatedAt
+  };
+  await saveRecord("proposal-status.ndjson", update);
+  return json(response, 200, { ok: true, status: decision, decidedAt: updatedAt });
 }
 
 async function getAdminProposalDrafts(request, response, proposalId) {
@@ -741,6 +894,7 @@ async function createAdminProposal(request, response) {
     contribution,
     marginPercent,
     note,
+    reviewToken: randomBytes(24).toString("base64url"),
     status: "draft",
     createdAt: new Date().toISOString()
   };
@@ -1073,6 +1227,7 @@ async function serveFile(requestPath, response) {
     "/request": "index.html",
     "/join": "index.html",
     "/brief": "brief.html",
+    "/quote": "quote.html",
     "/admin": "admin.html",
     "/privacy": "privacy.html",
     "/terms": "terms.html"
@@ -1113,6 +1268,12 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/job-briefs") {
       return await handleJobBrief(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/quote") {
+      return await getPrivateQuote(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/quote/decision") {
+      return await decidePrivateQuote(request, response);
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/records") {
       return await getAdminRecords(request, response);

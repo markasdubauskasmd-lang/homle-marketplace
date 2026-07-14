@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#0e665b">
+  <title>Review your Tideway cleaning quote</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260714-20">
+  <script src="/quote.js?v=20260714-20" type="module"></script>
+</head>
+<body class="quote-page">
+  <a class="skip-link" href="#main">Skip to quote</a>
+  <header class="site-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a>
+      <span class="status-pill">Private quote</span>
+    </div>
+  </header>
+
+  <main id="main" class="section shell quote-shell">
+    <section class="quote-card" aria-labelledby="quote-title">
+      <div id="quote-loading" class="quote-state" role="status">
+        <p class="eyebrow">Private customer review</p>
+        <h1 id="quote-title">Loading your cleaning quote…</h1>
+        <p>Please wait while Tideway checks this private link.</p>
+      </div>
+
+      <div id="quote-error" class="quote-state" role="alert" hidden>
+        <p class="eyebrow">Quote unavailable</p>
+        <h1>We could not open this quote.</h1>
+        <p data-error-message>The private link may be incomplete or no longer available.</p>
+        <p>Please contact Tideway using the details in the message that brought you here.</p>
+      </div>
+
+      <div id="quote-content" hidden>
+        <p class="eyebrow">Review before you decide</p>
+        <h1>Your Tideway cleaning quote</h1>
+        <p class="quote-intro">Hello <strong data-customer-name></strong>. Check the job, price and operating rules below. This page does not take payment or confirm a booking.</p>
+
+        <dl class="quote-details">
+          <div><dt>Quote reference</dt><dd data-reference></dd></div>
+          <div><dt>Service</dt><dd data-service></dd></div>
+          <div><dt>Area</dt><dd data-postcode></dd></div>
+          <div><dt>Site scope</dt><dd data-site-size></dd></div>
+          <div><dt>Proposed date</dt><dd data-proposed-date></dd></div>
+          <div><dt>Estimated time</dt><dd data-estimated-hours></dd></div>
+          <div class="quote-total"><dt>Proposed total</dt><dd data-customer-total></dd></div>
+        </dl>
+
+        <section class="quote-scope" data-checklist-section hidden>
+          <h2>Cleaning checklist</h2>
+          <ul data-checklist></ul>
+        </section>
+
+        <section class="quote-rules">
+          <h2>Important terms for this quote</h2>
+          <p><strong>Cancellation:</strong> <span data-cancellation></span></p>
+          <p><strong>Payment timing:</strong> <span data-payment></span></p>
+          <p>Read the <a href="/terms" target="_blank" rel="noopener">Tideway pilot terms</a>. Accepting the quote records your agreement to this scope and price, but Tideway must still confirm the cleaner and booking separately.</p>
+        </section>
+
+        <div id="quote-locked" class="quote-result" role="status" tabindex="-1" hidden></div>
+
+        <form id="quote-decision" class="quote-decision" novalidate>
+          <h2>Your decision</h2>
+          <label>Type the contact name used for the request
+            <input name="typedName" autocomplete="name" required>
+          </label>
+          <label class="checkbox"><input name="scopeConfirmed" type="checkbox" required><span>I have checked and agree to the service, scope, date, estimated time and proposed total shown above.</span></label>
+          <label class="checkbox"><input name="termsAccepted" type="checkbox" required><span>I agree to the Tideway pilot terms, cancellation rule and payment timing shown above.</span></label>
+          <label>Optional note or reason for declining
+            <textarea name="reason" rows="3" maxlength="500"></textarea>
+          </label>
+          <div class="error-summary" role="alert" tabindex="-1" hidden></div>
+          <div class="quote-actions">
+            <button class="button" type="submit" name="decision" value="accepted">Accept quote</button>
+            <button class="button button-outline" type="submit" name="decision" value="declined" formnovalidate>Decline quote</button>
+          </div>
+          <p class="pilot-note">No payment is collected here. Tideway will contact you separately if the booking can be confirmed.</p>
+        </form>
+
+        <footer class="quote-contact"><span data-business-name></span><span data-support></span></footer>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

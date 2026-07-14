@@ -73,6 +73,8 @@ try {
   const briefPage = await fetch(`${base}/brief`);
   assert(briefPage.ok && (await briefPage.text()).includes("Request details carried over."), "Photo job-brief page or private handoff notice failed.");
   assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
+  const quotePage = await fetch(`${base}/quote`);
+  assert(quotePage.ok && (await quotePage.text()).includes("Private customer review"), "Private customer quote page failed.");
   const adminAsset = await fetch(`${base}/admin.js?v=smoke-test`);
   assert(adminAsset.ok && adminAsset.headers.get("cache-control") === "no-cache", "Updated assets could remain stale in the control desk.");
 
@@ -260,7 +262,7 @@ try {
     body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", estimatedHours: 4, customerRate: 30, cleanerRate: 18, otherCosts: 10, note: "Draft only" })
   });
   const proposalBody = await validProposal.json();
-  assert(validProposal.status === 201 && proposalBody.proposal.contribution === 38, "Valid draft proposal failed or calculated incorrectly.");
+  assert(validProposal.status === 201 && proposalBody.proposal.contribution === 38 && /^[A-Za-z0-9_-]{32}$/.test(proposalBody.proposal.reviewToken), "Valid draft proposal failed, calculated incorrectly or omitted its private review token.");
 
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, insuranceStatus: "in-progress" }) });
   const blockedDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
@@ -306,12 +308,34 @@ try {
   assert(reversedBriefReview.status === 422, "Reviewed brief history was overwritten instead of requiring a new submission.");
   const readyProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
   assert(readyProposal.ok, "Ready proposal status failed after launch checks passed.");
+  const quotePreview = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
+  const quotePreviewBody = await quotePreview.json();
+  assert(quotePreview.ok && quotePreviewBody.quote.reference === proposalBody.proposal.id && quotePreviewBody.quote.decisionAllowed === false && quotePreviewBody.quote.checklist.includes("Wipe every kitchen worktop"), "Private customer quote preview omitted the approved scope or opened decisions too early.");
   const skippedTransition = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "accepted" }) });
   assert(skippedTransition.status === 422, "Proposal status skipped the sent step.");
   const sentProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "sent" }) });
   assert(sentProposal.ok, "Sent proposal status failed.");
-  const acceptedProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "accepted" }) });
-  assert(acceptedProposal.ok, "Accepted proposal status failed.");
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, cancellationPolicy: "A later rule that must not rewrite an already-sent quote." }) });
+  const frozenQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
+  const frozenQuoteBody = await frozenQuote.json();
+  assert(frozenQuote.ok && frozenQuoteBody.quote.cancellationPolicy === completeConfig.cancellationPolicy, "An already-sent quote changed when operating settings were edited.");
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
+  const adminAcceptedProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "accepted" }) });
+  assert(adminAcceptedProposal.status === 422, "Control desk fabricated customer acceptance without the private quote flow.");
+  const invalidQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": "not-a-private-quote-token" } });
+  assert(invalidQuote.status === 404, "Invalid private quote token exposed proposal data.");
+  const wrongNameDecision = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Someone Else", scopeConfirmed: true, termsAccepted: true }) });
+  assert(wrongNameDecision.status === 422, "Private quote accepted a mismatched customer name.");
+  const incompleteDecision = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Customer", scopeConfirmed: true, termsAccepted: false }) });
+  assert(incompleteDecision.status === 422, "Private quote accepted without both customer confirmations.");
+  const acceptedProposal = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Customer", scopeConfirmed: true, termsAccepted: true }) });
+  const acceptedProposalBody = await acceptedProposal.json();
+  assert(acceptedProposal.ok && acceptedProposalBody.status === "accepted", "Audited private customer acceptance failed.");
+  const duplicateDecision = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "declined", typedName: "Test Customer" }) });
+  assert(duplicateDecision.status === 409, "A completed customer decision was overwritten.");
+  const acceptedQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
+  const acceptedQuoteBody = await acceptedQuote.json();
+  assert(acceptedQuote.ok && acceptedQuoteBody.quote.decision?.status === "accepted" && acceptedQuoteBody.quote.decisionAllowed === false, "Accepted quote did not become a locked read-only record.");
 
   const readyDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
   const readyDraftsBody = await readyDrafts.json();
@@ -367,7 +391,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, matching, profitable proposals, audited customer quote decisions, booking confirmations and actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));
