@@ -243,6 +243,63 @@ async function changeProposalStatus(proposal, select) {
   }
 }
 
+async function copyDraft(text, button) {
+  const original = button.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = "Copied — nothing was sent";
+  } catch {
+    button.textContent = "Copy unavailable — select the text";
+  }
+  window.setTimeout(() => { button.textContent = original; }, 2400);
+}
+
+function draftSection(title, draft) {
+  const section = document.createElement("section");
+  section.className = "draft-section";
+  addText(section, "h4", title);
+  addText(section, "span", `Subject: ${draft.subject}`, "draft-subject");
+  const textarea = document.createElement("textarea");
+  textarea.readOnly = true;
+  textarea.rows = 14;
+  textarea.value = draft.body;
+  textarea.setAttribute("aria-label", `${title} body`);
+  const copyButton = document.createElement("button");
+  copyButton.type = "button";
+  copyButton.className = "button button-small button-outline";
+  copyButton.textContent = `Copy ${title.toLowerCase()} — does not send`;
+  copyButton.addEventListener("click", () => copyDraft(`${draft.subject}\n\n${draft.body}`, copyButton));
+  section.append(textarea, copyButton);
+  return section;
+}
+
+async function loadProposalDrafts(proposal, target, button) {
+  button.disabled = true;
+  target.replaceChildren();
+  addText(target, "span", "Preparing review-only drafts…");
+  try {
+    const response = await fetch(`/api/admin/proposal-drafts?proposalId=${encodeURIComponent(proposal.id)}`, { headers: adminHeaders({ "Accept": "application/json" }) });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Drafts could not be prepared.");
+    target.replaceChildren();
+    const safety = document.createElement("div");
+    safety.className = result.sendAllowed ? "draft-safety draft-ready" : "draft-safety draft-blocked";
+    addText(safety, "strong", result.sendAllowed ? "Internally ready for your review" : "Review only — not ready to use");
+    addText(safety, "span", "Tideway does not send these messages automatically.");
+    if (result.warnings.length) {
+      const list = document.createElement("ul");
+      result.warnings.forEach((warning) => addText(list, "li", warning));
+      safety.append(list);
+    }
+    target.append(safety, draftSection("Customer quote draft", result.customer), draftSection("Cleaner opportunity draft", result.cleaner));
+  } catch (error) {
+    target.replaceChildren();
+    addText(target, "strong", error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function changeStatus(record, select) {
   const previous = record.status;
   select.disabled = true;
@@ -352,7 +409,19 @@ function buildCard(record) {
     }
     proposalStatus.addEventListener("change", () => changeProposalStatus(proposal, proposalStatus));
     proposalStatusLabel.append(proposalStatus);
-    proposalSummary.append(proposalStatusLabel);
+    const draftDetails = document.createElement("details");
+    draftDetails.className = "message-drafts";
+    const draftSummary = document.createElement("summary");
+    draftSummary.textContent = "Review unsent customer and cleaner drafts";
+    const loadDraftButton = document.createElement("button");
+    loadDraftButton.type = "button";
+    loadDraftButton.className = "button button-small button-light";
+    loadDraftButton.textContent = "Prepare review-only drafts";
+    const draftTarget = document.createElement("div");
+    draftTarget.className = "draft-target";
+    loadDraftButton.addEventListener("click", () => loadProposalDrafts(proposal, draftTarget, loadDraftButton));
+    draftDetails.append(draftSummary, loadDraftButton, draftTarget);
+    proposalSummary.append(proposalStatusLabel, draftDetails);
     card.append(proposalSummary);
   }
 

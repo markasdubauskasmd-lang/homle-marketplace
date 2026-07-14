@@ -266,6 +266,20 @@ textarea { resize: vertical; }
 .proposal-summary span { color: #d8eee8; font-size: .83rem; }
 .proposal-summary label { max-width: 360px; margin-top: 8px; color: #fff; }
 .proposal-summary select { padding-block: .55rem; }
+.message-drafts { margin-top: 8px; border-top: 1px solid rgba(255,255,255,.22); }
+.message-drafts summary { padding: 12px 0; color: #fff; font-size: .86rem; font-weight: 800; cursor: pointer; }
+.draft-target { display: grid; gap: 12px; margin-top: 10px; }
+.draft-safety { padding: 13px; border-radius: 9px; color: var(--ink); background: #fff; }
+.draft-safety strong, .draft-safety span { display: block; color: inherit; }
+.draft-safety span { margin-top: 3px; }
+.draft-safety ul { margin-bottom: 0; padding-left: 20px; }
+.draft-blocked { border-left: 5px solid var(--focus); }
+.draft-ready { border-left: 5px solid var(--green); }
+.draft-section { display: grid; gap: 8px; padding: 14px; border-radius: 10px; color: var(--ink); background: #fff; }
+.draft-section h4 { margin: 0; }
+.draft-section .draft-subject { color: var(--muted); font-weight: 700; }
+.draft-section textarea { min-height: 260px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .8rem; line-height: 1.5; }
+.draft-section button { justify-self: start; }
 .admin-guidance { margin-top: 28px; padding: 28px; color: #fff; border-radius: 20px; background: var(--green-dark); }
 .admin-guidance h2 { font-size: 1.55rem; }
 .admin-guidance ol { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin: 0; padding-left: 22px; }

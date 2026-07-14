@@ -236,6 +236,81 @@ async function updateAdminProposalStatus(request, response) {
   return json(response, 200, { ok: true, proposalId, status });
 }
 
+async function getAdminProposalDrafts(request, response, proposalId) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  const [proposals, proposalUpdates, customerRequests, cleaners, config] = await Promise.all([
+    readRecords("match-proposals.ndjson"),
+    readRecords("proposal-status.ndjson"),
+    readRecords("cleaning-requests.ndjson"),
+    readRecords("cleaner-applications.ndjson"),
+    readJsonFile("business-config.json", {})
+  ]);
+  const proposal = proposals.find((record) => record.id === proposalId);
+  if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
+  const customerRequest = customerRequests.find((record) => record.id === proposal.requestId);
+  const cleaner = cleaners.find((record) => record.id === proposal.cleanerId);
+  if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Proposal parties were not found." });
+  let proposalStatus = proposal.status || "draft";
+  for (const update of proposalUpdates) if (update.proposalId === proposalId) proposalStatus = update.status;
+
+  const readiness = launchReadiness(config);
+  const warnings = [];
+  if (!readiness.ready) warnings.push("Complete all six launch-readiness checks before using these drafts.");
+  if (!["ready", "sent", "accepted"].includes(proposalStatus)) warnings.push("The proposal is still a draft and has not been internally approved.");
+  if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
+  if (!config.paymentTiming) warnings.push("Add the customer payment timing.");
+  if (!config.supportEmail || !config.supportPhone) warnings.push("Add verified support contact details.");
+
+  const money = (value) => `£${Number(value).toFixed(2)}`;
+  const signoff = [config.legalBusinessName || "Tideway", config.supportEmail, config.supportPhone].filter(Boolean).join("\n");
+  const customerBody = [
+    `Hello ${customerRequest.contactName},`,
+    "",
+    `Thank you for requesting ${customerRequest.service.toLowerCase()} in ${customerRequest.postcode}.`,
+    "",
+    `Proposed date: ${proposal.proposedDate}`,
+    `Estimated cleaning time: ${proposal.estimatedHours} hours`,
+    `Proposed customer total: ${money(proposal.customerTotal)}`,
+    "",
+    `Cancellation: ${config.cancellationPolicy || "[Add the approved cancellation rule before sending]"}`,
+    `Payment timing: ${config.paymentTiming || "[Add the approved payment timing before sending]"}`,
+    "",
+    "This is a proposal, not a confirmed booking. Tideway will only confirm after you accept the scope and price and an approved cleaner has confirmed availability.",
+    "",
+    "Kind regards,",
+    signoff
+  ].join("\n");
+  const outwardCode = customerRequest.postcode.replace(/\s+/g, " ").split(" ")[0];
+  const cleanerBody = [
+    `Hello ${cleaner.fullName},`,
+    "",
+    "A Tideway pilot cleaning opportunity may suit your services and work area.",
+    "",
+    `Service: ${customerRequest.service}`,
+    `Area: ${outwardCode}`,
+    `Proposed date: ${proposal.proposedDate}`,
+    `Estimated time: ${proposal.estimatedHours} hours`,
+    `Proposed cleaner pay: ${money(proposal.cleanerPay)} total (${money(proposal.cleanerRate)} per hour)`,
+    "",
+    "This is an invitation to consider the opportunity, not a confirmed assignment. You may accept or decline. Full access details are shared only after both sides confirm.",
+    "",
+    `Tideway operating model: ${config.cleanerModel || "[Confirm the approved cleaner engagement model before sending]"}`,
+    "",
+    "Kind regards,",
+    signoff
+  ].join("\n");
+
+  return json(response, 200, {
+    ok: true,
+    proposalId,
+    proposalStatus,
+    sendAllowed: readiness.ready && ["ready", "sent", "accepted"].includes(proposalStatus),
+    warnings,
+    customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody },
+    cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody }
+  });
+}
+
 async function createAdminProposal(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   ensureSameOrigin(request);
@@ -564,6 +639,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/proposals/status") {
       return await updateAdminProposalStatus(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/admin/proposal-drafts") {
+      return await getAdminProposalDrafts(request, response, text(requestUrl.searchParams.get("proposalId"), 40));
     }
     if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/status") {
       return await updateAdminStatus(request, response);

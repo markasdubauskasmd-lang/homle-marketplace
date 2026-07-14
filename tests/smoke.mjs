@@ -134,6 +134,9 @@ try {
   assert(validProposal.status === 201 && proposalBody.proposal.contribution === 38, "Valid draft proposal failed or calculated incorrectly.");
 
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, insuranceStatus: "in-progress" }) });
+  const blockedDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
+  const blockedDraftsBody = await blockedDrafts.json();
+  assert(blockedDrafts.ok && blockedDraftsBody.sendAllowed === false && blockedDraftsBody.warnings.length > 0, "Unready proposal drafts were not clearly blocked.");
   const readinessBlocked = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
   assert(readinessBlocked.status === 422, "Incomplete launch readiness did not block proposal advancement.");
 
@@ -146,6 +149,12 @@ try {
   assert(sentProposal.ok, "Sent proposal status failed.");
   const acceptedProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "accepted" }) });
   assert(acceptedProposal.ok, "Accepted proposal status failed.");
+
+  const readyDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
+  const readyDraftsBody = await readyDrafts.json();
+  assert(readyDrafts.ok && readyDraftsBody.sendAllowed === true, "Ready proposal drafts were not available for review.");
+  assert(readyDraftsBody.customer.body.includes("Test Customer") && readyDraftsBody.customer.body.includes("£120.00"), "Customer quote draft omitted required proposal details.");
+  assert(readyDraftsBody.cleaner.body.includes("£72.00") && !readyDraftsBody.cleaner.body.includes("customer@example.com") && !readyDraftsBody.cleaner.body.includes("Test Customer"), "Cleaner draft omitted pay or leaked customer identity.");
 
   const activityUpdate = await fetch(`${base}/api/admin/activity`, {
     method: "POST",
@@ -161,7 +170,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.id.startsWith("PRO-"), "Draft proposal was not retained on the customer request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.status === "accepted", "Proposal status progression was not retained.");
 
-  console.log("Smoke tests passed: public pages, forms, admin security, lead workflow, launch settings, matching, profitable proposals and readiness-gated status transitions.");
+  console.log("Smoke tests passed: public pages, forms, admin security, lead workflow, launch settings, matching, profitable proposals, readiness gates and privacy-safe unsent message drafts.");
 } finally {
   child.kill("SIGTERM");
   await rm(path.join(root, "data", "cleaning-requests.ndjson"), { force: true });
