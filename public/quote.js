@@ -8,6 +8,7 @@ const form = document.querySelector("#quote-decision");
 const locked = document.querySelector("#quote-locked");
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "long" });
+const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeStyle: "short" });
 
 function setText(selector, value) {
   document.querySelector(selector).textContent = value || "—";
@@ -32,6 +33,9 @@ function renderQuote(quote) {
   setText("[data-proposed-date]", date.format(new Date(`${quote.proposedDate}T12:00:00`)));
   setText("[data-proposed-time]", `${quote.proposedStartTime}–${quote.proposedEndTime}`);
   setText("[data-estimated-hours]", `${quote.estimatedHours} hours`);
+  const expiryRow = document.querySelector("[data-expiry-row]");
+  expiryRow.hidden = !quote.offerExpiresAt;
+  if (quote.offerExpiresAt) setText("[data-offer-expires]", dateTime.format(new Date(quote.offerExpiresAt)));
   setText("[data-customer-total]", money.format(quote.customerTotal));
   setText("[data-cancellation]", quote.cancellationPolicy);
   setText("[data-payment]", quote.paymentTiming);
@@ -55,6 +59,8 @@ function renderQuote(quote) {
       locked.innerHTML = "<strong>Quote accepted.</strong><span>Tideway recorded your decision. This is not yet a confirmed booking and no payment was taken.</span>";
     } else if (quote.decision?.status === "declined") {
       locked.innerHTML = "<strong>Quote declined.</strong><span>Tideway recorded your decision and no booking was made.</span>";
+    } else if (quote.expired) {
+      locked.innerHTML = "<strong>This quote has expired.</strong><span>Tideway must recheck availability, scope and pricing before issuing a new proposal.</span>";
     } else if (quote.status === "ready") {
       locked.innerHTML = "<strong>Preview only.</strong><span>Tideway has not yet recorded this quote as sent, so no decision can be submitted.</span>";
     } else {

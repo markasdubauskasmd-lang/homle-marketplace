@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript } from "../public/checklist.js";
 import { clearBriefHandoff, readBriefHandoff, saveBriefHandoff } from "../public/brief-handoff.js";
+import { decisionWasInTime, offerDeadline, offerIsOpen } from "../offer-expiry.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const testDataDir = await mkdtemp(path.join(tmpdir(), "tideway-smoke-"));
@@ -29,6 +30,13 @@ function assert(condition, message) {
 
 try {
   await waitForServer();
+
+  const fixedSentAt = "2026-07-14T10:00:00.000Z";
+  const fixedVisitStart = Date.parse("2026-07-16T09:00:00.000Z");
+  const fixedDeadline = offerDeadline(fixedSentAt, 24, fixedVisitStart);
+  assert(fixedDeadline === "2026-07-15T10:00:00.000Z" && offerIsOpen(fixedDeadline, Date.parse("2026-07-15T09:59:59.999Z")) && !offerIsOpen(fixedDeadline, Date.parse(fixedDeadline)), "Offer response window did not close exactly at its frozen deadline.");
+  assert(offerDeadline(fixedSentAt, 72, fixedVisitStart) === "2026-07-16T09:00:00.000Z", "Offer deadline was not capped at the proposed visit start.");
+  assert(decisionWasInTime("2026-07-15T09:59:59.999Z", fixedDeadline) && !decisionWasInTime(fixedDeadline, fixedDeadline), "Booking audit did not distinguish timely and stale acceptances.");
 
   const conciseTasks = checklistFromTranscript("Um, so in the kitchen, please wipe every worktop, degrease the hob, clean inside the microwave and mop the floor. In the bathroom, remove limescale from the shower screen and disinfect the toilet. Finally do not move the locked cupboard.");
   assert(JSON.stringify(conciseTasks) === JSON.stringify([
@@ -172,7 +180,7 @@ try {
   const initialConfigBody = await initialConfig.json();
   assert(initialConfig.ok && initialConfigBody.readiness.completed === 0, "Initial launch readiness was incorrect.");
 
-  const completeConfig = { legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW1A, SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", paymentProviderName: "TestPay", paymentProviderStatus: "live", refundProcess: "Owner approves and records refunds within five working days.", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, minimumContributionMarginPercent: 25, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion" };
+  const completeConfig = { legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW1A, SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", paymentProviderName: "TestPay", paymentProviderStatus: "live", refundProcess: "Owner approves and records refunds within five working days.", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, minimumContributionMarginPercent: 25, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion", customerQuoteValidityHours: 24, cleanerOpportunityValidityHours: 12 };
   const savedConfig = await fetch(`${base}/api/admin/config`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
@@ -197,6 +205,11 @@ try {
   const undecidedCleanerModel = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, cleanerModel: "Undecided" }) });
   const undecidedCleanerModelBody = await undecidedCleanerModel.json();
   assert(undecidedCleanerModel.ok && undecidedCleanerModelBody.readiness.ready === false && undecidedCleanerModelBody.readiness.checks.operatingRules === false, "Undecided cleaner engagement model passed launch readiness.");
+  const missingOfferWindows = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, customerQuoteValidityHours: 0, cleanerOpportunityValidityHours: 0 }) });
+  const missingOfferWindowsBody = await missingOfferWindows.json();
+  assert(missingOfferWindows.ok && missingOfferWindowsBody.readiness.ready === false && missingOfferWindowsBody.readiness.checks.operatingRules === false, "Missing founder-controlled offer windows passed launch readiness.");
+  const excessiveOfferWindow = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, customerQuoteValidityHours: 169 }) });
+  assert(excessiveOfferWindow.status === 422, "An excessive customer response window was accepted.");
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
 
   const statusUpdate = await fetch(`${base}/api/admin/status`, {
@@ -383,18 +396,25 @@ try {
   assert(pausedCleanerSend.status === 422, "Proposal was sent after the selected cleaner was paused.");
   const restoredCleaner = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "approved" }) });
   assert(restoredCleaner.ok, "Paused cleaner could not return to approved status after revalidation test.");
+  const sentAtLowerBound = Date.now();
   const sentProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "sent" }) });
   assert(sentProposal.ok, "Sent proposal status failed.");
   const quoteReadyTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
   const quoteReadyTrackerBody = await quoteReadyTracker.json();
   assert(quoteReadyTracker.ok && quoteReadyTrackerBody.current.stage === "quote-review" && quoteReadyTrackerBody.links.quoteToken === proposalBody.proposal.reviewToken && !JSON.stringify(quoteReadyTrackerBody).includes(cleanerBody.reference) && !JSON.stringify(quoteReadyTrackerBody).includes("cleaner@example.com"), "Customer tracker did not expose the ready quote safely or leaked cleaner details.");
+  const sentQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
+  const sentQuoteBody = await sentQuote.json();
+  const sentOpportunity = await fetch(`${base}/api/opportunity`, { headers: { "x-opportunity-token": proposalBody.proposal.cleanerReviewToken } });
+  const sentOpportunityBody = await sentOpportunity.json();
+  assert(sentQuote.ok && sentQuoteBody.quote.decisionAllowed === true && Date.parse(sentQuoteBody.quote.offerExpiresAt) >= sentAtLowerBound + 24 * 60 * 60 * 1000 - 2000 && sentQuoteBody.quote.expired === false, "Sent customer quote did not expose its frozen 24-hour response deadline.");
+  assert(sentOpportunity.ok && sentOpportunityBody.opportunity.decisionAllowed === true && Date.parse(sentOpportunityBody.opportunity.offerExpiresAt) >= sentAtLowerBound + 12 * 60 * 60 * 1000 - 2000 && sentOpportunityBody.opportunity.expired === false, "Sent cleaner opportunity did not expose its frozen 12-hour response deadline.");
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, cancellationPolicy: "A later rule that must not rewrite an already-sent quote.", cleanerModel: "A later model that must not rewrite a sent opportunity." }) });
   const frozenQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
   const frozenQuoteBody = await frozenQuote.json();
-  assert(frozenQuote.ok && frozenQuoteBody.quote.cancellationPolicy === completeConfig.cancellationPolicy, "An already-sent quote changed when operating settings were edited.");
+  assert(frozenQuote.ok && frozenQuoteBody.quote.cancellationPolicy === completeConfig.cancellationPolicy && frozenQuoteBody.quote.offerExpiresAt === sentQuoteBody.quote.offerExpiresAt, "An already-sent quote changed when operating settings were edited.");
   const frozenOpportunity = await fetch(`${base}/api/opportunity`, { headers: { "x-opportunity-token": proposalBody.proposal.cleanerReviewToken } });
   const frozenOpportunityBody = await frozenOpportunity.json();
-  assert(frozenOpportunity.ok && frozenOpportunityBody.opportunity.cleanerModel === completeConfig.cleanerModel && frozenOpportunityBody.opportunity.decisionAllowed === true, "An already-sent cleaner opportunity changed when operating settings were edited or remained closed.");
+  assert(frozenOpportunity.ok && frozenOpportunityBody.opportunity.cleanerModel === completeConfig.cleanerModel && frozenOpportunityBody.opportunity.offerExpiresAt === sentOpportunityBody.opportunity.offerExpiresAt && frozenOpportunityBody.opportunity.decisionAllowed === true, "An already-sent cleaner opportunity changed when operating settings were edited or remained closed.");
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
   await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "paused" }) });
   const acceptanceWhileCleanerPaused = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Customer", scopeConfirmed: true, termsAccepted: true }) });
@@ -473,8 +493,8 @@ try {
   const readyDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
   const readyDraftsBody = await readyDrafts.json();
   assert(readyDrafts.ok && readyDraftsBody.sendAllowed === true, "Ready proposal drafts were not available for review.");
-  assert(readyDraftsBody.customer.body.includes("Test Customer") && readyDraftsBody.customer.body.includes("£120.00") && readyDraftsBody.customer.body.includes("09:00–13:00"), "Customer quote draft omitted required proposal or schedule details.");
-  assert(readyDraftsBody.cleaner.body.includes("£72.00") && readyDraftsBody.cleaner.body.includes("09:00–13:00") && readyDraftsBody.cleaner.body.includes("None known") && readyDraftsBody.cleaner.body.includes("Tideway-reviewed cleaner checklist") && readyDraftsBody.cleaner.body.includes("Kitchen: Wipe every kitchen worktop") && readyDraftsBody.cleaner.body.includes("Photo references held privately: 1") && !readyDraftsBody.cleaner.body.includes("customer@example.com") && !readyDraftsBody.cleaner.body.includes("Test Customer") && !readyDraftsBody.cleaner.body.includes("base64"), "Cleaner draft omitted reviewed schedule/pay/photo checklist scope or leaked customer identity or image data.");
+  assert(readyDraftsBody.customer.body.includes("Test Customer") && readyDraftsBody.customer.body.includes("£120.00") && readyDraftsBody.customer.body.includes("09:00–13:00") && readyDraftsBody.customer.body.includes("Respond by:"), "Customer quote draft omitted required proposal, schedule or response-deadline details.");
+  assert(readyDraftsBody.cleaner.body.includes("£72.00") && readyDraftsBody.cleaner.body.includes("09:00–13:00") && readyDraftsBody.cleaner.body.includes("Respond by:") && readyDraftsBody.cleaner.body.includes("None known") && readyDraftsBody.cleaner.body.includes("Tideway-reviewed cleaner checklist") && readyDraftsBody.cleaner.body.includes("Kitchen: Wipe every kitchen worktop") && readyDraftsBody.cleaner.body.includes("Photo references held privately: 1") && !readyDraftsBody.cleaner.body.includes("customer@example.com") && !readyDraftsBody.cleaner.body.includes("Test Customer") && !readyDraftsBody.cleaner.body.includes("base64"), "Cleaner draft omitted reviewed schedule/pay/photo checklist scope or leaked customer identity or image data.");
 
   const bookingAudit = await fetch(`${base}/api/admin/booking-audit?proposalId=${proposalBody.proposal.id}`);
   const bookingAuditBody = await bookingAudit.json();
@@ -616,7 +636,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, admin security, pricing controls, exact job schedules, frozen offer deadlines, stale-decision protection, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

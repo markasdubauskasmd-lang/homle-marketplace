@@ -8,6 +8,7 @@ const form = document.querySelector("#opportunity-decision");
 const locked = document.querySelector("#opportunity-locked");
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "long" });
+const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeStyle: "short" });
 
 function setText(selector, value) {
   document.querySelector(selector).textContent = value || "—";
@@ -33,6 +34,9 @@ function renderOpportunity(opportunity) {
   setText("[data-proposed-date]", date.format(new Date(`${opportunity.proposedDate}T12:00:00`)));
   setText("[data-proposed-time]", `${opportunity.proposedStartTime}–${opportunity.proposedEndTime}`);
   setText("[data-estimated-hours]", `${opportunity.estimatedHours} hours`);
+  const expiryRow = document.querySelector("[data-expiry-row]");
+  expiryRow.hidden = !opportunity.offerExpiresAt;
+  if (opportunity.offerExpiresAt) setText("[data-offer-expires]", dateTime.format(new Date(opportunity.offerExpiresAt)));
   setText("[data-cleaner-rate]", `${money.format(opportunity.cleanerRate)} per hour`);
   setText("[data-cleaner-pay]", money.format(opportunity.cleanerPay));
   setText("[data-cleaner-model]", opportunity.cleanerModel);
@@ -61,6 +65,8 @@ function renderOpportunity(opportunity) {
       locked.innerHTML = "<strong>Opportunity accepted.</strong><span>Tideway recorded your decision. This is not yet a confirmed assignment.</span>";
     } else if (opportunity.decision?.status === "declined") {
       locked.innerHTML = "<strong>Opportunity declined.</strong><span>Tideway recorded your decision and no assignment was made.</span>";
+    } else if (opportunity.expired) {
+      locked.innerHTML = "<strong>This opportunity has expired.</strong><span>Tideway must recheck availability and issue a new controlled opportunity.</span>";
     } else if (opportunity.status === "ready") {
       locked.innerHTML = "<strong>Preview only.</strong><span>Tideway has not yet recorded this opportunity as sent, so no decision can be submitted.</span>";
     } else {

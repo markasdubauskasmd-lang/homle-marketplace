@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript, normaliseChecklistTask } from "./public/checklist.js";
+import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, "public");
@@ -425,7 +426,7 @@ function launchReadiness(config) {
     economics: Boolean(config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.minimumHours > 0 && config.minimumContributionMarginPercent > 0 && config.minimumContributionMarginPercent < 100 && config.customerHourlyRate > config.cleanerHourlyPay),
     insurance: config.insuranceStatus === "active",
     payments: Boolean(config.paymentProviderStatus === "live" && config.paymentProviderName && config.refundProcess),
-    operatingRules: Boolean(config.cleanerModel && config.cleanerModel !== "Undecided" && config.cancellationPolicy && config.paymentTiming)
+    operatingRules: Boolean(config.cleanerModel && config.cleanerModel !== "Undecided" && config.cancellationPolicy && config.paymentTiming && Number.isInteger(config.customerQuoteValidityHours) && config.customerQuoteValidityHours >= 1 && config.customerQuoteValidityHours <= 168 && Number.isInteger(config.cleanerOpportunityValidityHours) && config.cleanerOpportunityValidityHours >= 1 && config.cleanerOpportunityValidityHours <= 168)
   };
   return { checks, completed: Object.values(checks).filter(Boolean).length, total: Object.keys(checks).length, ready: Object.values(checks).every(Boolean) };
 }
@@ -680,6 +681,16 @@ async function updateAdminProposalStatus(request, response) {
   if (["ready", "sent"].includes(status) && scheduleConflict) {
     return json(response, 422, { ok: false, error: `The selected cleaner already has accepted work that overlaps this proposed time (${scheduleConflict.id}).` });
   }
+  const updatedAt = new Date().toISOString();
+  const schedule = jobSchedule(proposal);
+  if (status === "sent" && (!schedule || schedule.startMs <= Date.parse(updatedAt))) {
+    return json(response, 422, { ok: false, error: "The proposed visit must start in the future before these offers can be sent." });
+  }
+  const customerOfferExpiresAt = status === "sent" ? offerDeadline(updatedAt, config.customerQuoteValidityHours, schedule.startMs) : "";
+  const cleanerOfferExpiresAt = status === "sent" ? offerDeadline(updatedAt, config.cleanerOpportunityValidityHours, schedule.startMs) : "";
+  if (status === "sent" && (!customerOfferExpiresAt || !cleanerOfferExpiresAt)) {
+    return json(response, 422, { ok: false, error: "Set valid customer and cleaner response windows before sending these offers." });
+  }
   const update = {
     proposalId,
     requestId: proposal.requestId,
@@ -699,7 +710,8 @@ async function updateAdminProposalStatus(request, response) {
         paymentTiming: config.paymentTiming,
         legalBusinessName: config.legalBusinessName,
         supportEmail: config.supportEmail,
-        supportPhone: config.supportPhone
+        supportPhone: config.supportPhone,
+        offerExpiresAt: customerOfferExpiresAt
       },
       cleanerOpportunitySnapshot: {
         cleanerName: cleaner.fullName,
@@ -718,10 +730,11 @@ async function updateAdminProposalStatus(request, response) {
         cleanerModel: config.cleanerModel,
         legalBusinessName: config.legalBusinessName,
         supportEmail: config.supportEmail,
-        supportPhone: config.supportPhone
+        supportPhone: config.supportPhone,
+        offerExpiresAt: cleanerOfferExpiresAt
       }
     } : {}),
-    updatedAt: new Date().toISOString()
+    updatedAt
   };
   await saveRecord("proposal-status.ndjson", update);
   return json(response, 200, { ok: true, proposalId, status });
@@ -815,8 +828,10 @@ function publicQuote(context) {
       supportEmail: displayed.supportEmail,
       supportPhone: displayed.supportPhone,
       legalBusinessName: displayed.legalBusinessName,
+      offerExpiresAt: displayed.offerExpiresAt || "",
+      expired: proposalStatus === "sent" && !offerIsOpen(displayed.offerExpiresAt),
       checklist: latestBrief?.status === "reviewed" ? latestBrief.checklist : [],
-      decisionAllowed: proposalStatus === "sent" && Object.values(readyChecks).every(Boolean),
+      decisionAllowed: proposalStatus === "sent" && offerIsOpen(displayed.offerExpiresAt) && Object.values(readyChecks).every(Boolean),
       decision: latestDecision ? { status: latestDecision.status, decidedAt: latestDecision.updatedAt, typedName: latestDecision.typedName } : null
     }
   };
@@ -836,6 +851,7 @@ async function decidePrivateQuote(request, response) {
   const context = await getQuoteContext(token);
   if (!context.ok) return json(response, context.statusCode, { ok: false, error: context.error });
   if (context.proposalStatus !== "sent") return json(response, 409, { ok: false, error: "This quote is not awaiting a decision." });
+  if (!offerIsOpen(context.quoteSnapshot?.offerExpiresAt)) return json(response, 409, { ok: false, error: "This quote's response window has ended. Tideway must review and issue a new proposal." });
   if (!Object.values(context.readyChecks).every(Boolean)) return json(response, 409, { ok: false, error: "This quote changed and must be reviewed by Tideway before you decide." });
 
   const decision = text(input.decision, 20);
@@ -873,7 +889,8 @@ async function decidePrivateQuote(request, response) {
       paymentTiming: context.config.paymentTiming,
       legalBusinessName: context.config.legalBusinessName,
       supportEmail: context.config.supportEmail,
-      supportPhone: context.config.supportPhone
+      supportPhone: context.config.supportPhone,
+      offerExpiresAt: context.quoteSnapshot?.offerExpiresAt || ""
     }) : null,
     updatedAt
   };
@@ -975,7 +992,9 @@ function publicCleanerOpportunity(context) {
       legalBusinessName: displayed.legalBusinessName,
       supportEmail: displayed.supportEmail,
       supportPhone: displayed.supportPhone,
-      decisionAllowed: ["sent", "accepted"].includes(proposalStatus) && !decision && Object.values(readyChecks).every(Boolean),
+      offerExpiresAt: displayed.offerExpiresAt || "",
+      expired: ["sent", "accepted"].includes(proposalStatus) && !decision && !offerIsOpen(displayed.offerExpiresAt),
+      decisionAllowed: ["sent", "accepted"].includes(proposalStatus) && !decision && offerIsOpen(displayed.offerExpiresAt) && Object.values(readyChecks).every(Boolean),
       decision: decision ? { status: decision.status, decidedAt: decision.updatedAt, typedName: decision.typedName } : null
     }
   };
@@ -996,6 +1015,7 @@ async function decidePrivateCleanerOpportunity(request, response) {
   if (!context.ok) return json(response, context.statusCode, { ok: false, error: context.error });
   if (!["sent", "accepted"].includes(context.proposalStatus)) return json(response, 409, { ok: false, error: "This opportunity is not awaiting a decision." });
   if (context.decision) return json(response, 409, { ok: false, error: "This private decision has already been recorded." });
+  if (!offerIsOpen(context.opportunitySnapshot?.offerExpiresAt)) return json(response, 409, { ok: false, error: "This opportunity's response window has ended. Tideway must review and issue a new opportunity." });
   if (!Object.values(context.readyChecks).every(Boolean)) return json(response, 409, { ok: false, error: "This opportunity changed and must be reviewed by Tideway before you decide." });
 
   const decision = text(input.decision, 20);
@@ -1033,7 +1053,8 @@ async function decidePrivateCleanerOpportunity(request, response) {
       cleanerPay: displayed.cleanerPay,
       cleanerRate: displayed.cleanerRate,
       checklist: displayed.checklist,
-      cleanerModel: displayed.cleanerModel
+      cleanerModel: displayed.cleanerModel,
+      offerExpiresAt: displayed.offerExpiresAt
     } : null,
     updatedAt
   };
@@ -1058,7 +1079,14 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   const cleaner = cleaners.find((record) => record.id === proposal.cleanerId);
   if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Proposal parties were not found." });
   let proposalStatus = proposal.status || "draft";
-  for (const update of proposalUpdates) if (update.proposalId === proposalId) proposalStatus = update.status;
+  let quoteSnapshot = null;
+  let opportunitySnapshot = null;
+  for (const update of proposalUpdates) {
+    if (update.proposalId !== proposalId) continue;
+    proposalStatus = update.status;
+    if (update.quoteSnapshot) quoteSnapshot = update.quoteSnapshot;
+    if (update.cleanerOpportunitySnapshot) opportunitySnapshot = update.cleanerOpportunitySnapshot;
+  }
 
   const readiness = launchReadiness(config);
   const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
@@ -1076,9 +1104,14 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
   if (!config.paymentTiming) warnings.push("Add the customer payment timing.");
   if (!config.supportEmail || !config.supportPhone) warnings.push("Add verified support contact details.");
+  if (proposalStatus === "sent" && !offerIsOpen(quoteSnapshot?.offerExpiresAt)) warnings.push("The customer quote response window has ended; prepare a newly reviewed proposal instead of reusing this draft.");
+  if (["sent", "accepted"].includes(proposalStatus) && !offerIsOpen(opportunitySnapshot?.offerExpiresAt)) warnings.push("The cleaner opportunity response window has ended; recheck availability before issuing a new opportunity.");
 
   const money = (value) => `£${Number(value).toFixed(2)}`;
   const signoff = [config.legalBusinessName || "Tideway", config.supportEmail, config.supportPhone].filter(Boolean).join("\n");
+  const responseDeadline = (expiresAt, validityHours) => expiresAt
+    ? new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(expiresAt))
+    : `${validityHours || "[set]"} hours after Tideway records the offer as sent, never later than the visit start`;
   const customerBody = [
     `Hello ${customerRequest.contactName},`,
     "",
@@ -1092,6 +1125,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     "",
     `Cancellation: ${config.cancellationPolicy || "[Add the approved cancellation rule before sending]"}`,
     `Payment timing: ${config.paymentTiming || "[Add the approved payment timing before sending]"}`,
+    `Respond by: ${responseDeadline(quoteSnapshot?.offerExpiresAt, config.customerQuoteValidityHours)}`,
     "",
     "This is a proposal, not a confirmed booking. Tideway will only confirm after you accept the scope and price and an approved cleaner has confirmed availability.",
     "",
@@ -1112,6 +1146,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Proposed time: ${proposal.proposedStartTime}–${proposal.proposedEndTime}`,
     `Estimated time: ${proposal.estimatedHours} hours`,
     `Proposed cleaner pay: ${money(proposal.cleanerPay)} total (${money(proposal.cleanerRate)} per hour)`,
+    `Respond by: ${responseDeadline(opportunitySnapshot?.offerExpiresAt, config.cleanerOpportunityValidityHours)}`,
     ...(latestBrief ? ["", latestBrief.status === "reviewed" ? "Tideway-reviewed cleaner checklist:" : "Landlord-draft cleaner checklist (Tideway review required):", ...latestBrief.checklist.map((task) => `- ${task}`), `Photo references held privately: ${latestBrief.photos.length}. Share only through the approved secure process after confirmation.`] : []),
     "",
     "This is an invitation to consider the opportunity, not a confirmed assignment. You may accept or decline. Full access details are shared only after both sides confirm.",
@@ -1153,7 +1188,16 @@ async function buildBookingAudit(proposalId) {
   const cleaner = cleaners.find((record) => record.id === proposal.cleanerId);
   if (!customerRequest || !cleaner) return { statusCode: 404, error: "Proposal parties were not found." };
   let proposalStatus = proposal.status || "draft";
-  for (const update of proposalUpdates) if (update.proposalId === proposalId) proposalStatus = update.status;
+  let customerDecision = null;
+  let quoteSnapshot = null;
+  let opportunitySnapshot = null;
+  for (const update of proposalUpdates) {
+    if (update.proposalId !== proposalId) continue;
+    proposalStatus = update.status;
+    if (update.quoteSnapshot) quoteSnapshot = update.quoteSnapshot;
+    if (update.cleanerOpportunitySnapshot) opportunitySnapshot = update.cleanerOpportunitySnapshot;
+    if (update.source === "customer-private-quote") customerDecision = update;
+  }
   let cleanerStatus = cleaner.status || "new";
   for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
   const requiredService = requestServiceMap[customerRequest.service] || "";
@@ -1164,6 +1208,8 @@ async function buildBookingAudit(proposalId) {
     launchReady: launchReadiness(config).ready,
     customerAccepted: proposalStatus === "accepted",
     cleanerAccepted: cleanerDecision?.status === "accepted",
+    customerAcceptedBeforeExpiry: customerDecision?.status === "accepted" && decisionWasInTime(customerDecision.updatedAt, quoteSnapshot?.offerExpiresAt),
+    cleanerAcceptedBeforeExpiry: cleanerDecision?.status === "accepted" && decisionWasInTime(cleanerDecision.updatedAt, opportunitySnapshot?.offerExpiresAt),
     cleanerApproved: cleanerStatus === "approved",
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
@@ -1393,14 +1439,23 @@ async function getPrivateRequestStatus(request, response) {
   const proposalPriority = { accepted: 6, sent: 5, ready: 4, draft: 3, declined: 2, cancelled: 1 };
   const requestProposals = proposals.filter((proposal) => proposal.requestId === customerRequest.id).map((proposal) => {
     let status = proposal.status || "draft";
-    for (const update of proposalUpdates) if (update.proposalId === proposal.id) status = update.status;
-    return { ...proposal, status };
+    let quoteExpiresAt = "";
+    let cleanerExpiresAt = "";
+    for (const update of proposalUpdates) {
+      if (update.proposalId !== proposal.id) continue;
+      status = update.status;
+      if (update.quoteSnapshot?.offerExpiresAt) quoteExpiresAt = update.quoteSnapshot.offerExpiresAt;
+      if (update.cleanerOpportunitySnapshot?.offerExpiresAt) cleanerExpiresAt = update.cleanerOpportunitySnapshot.offerExpiresAt;
+    }
+    return { ...proposal, status, quoteExpiresAt, cleanerExpiresAt };
   }).sort((left, right) => (proposalPriority[right.status] || 0) - (proposalPriority[left.status] || 0) || right.createdAt.localeCompare(left.createdAt));
   const booking = bookings.find((record) => record.requestId === customerRequest.id) || null;
   const proposal = booking ? requestProposals.find((record) => record.id === booking.proposalId) || requestProposals[0] || null : requestProposals[0] || null;
   const cleanerDecision = proposal ? cleanerDecisions.find((record) => record.proposalId === proposal.id) || null : null;
   const outcome = booking ? outcomes.find((record) => record.bookingId === booking.id) || null : null;
   const jobProgress = booking ? bookingJobProgress(booking.id, jobEvents) : {};
+  const quoteExpired = proposal?.status === "sent" && !offerIsOpen(proposal.quoteExpiresAt);
+  const cleanerOfferExpired = proposal?.status === "accepted" && !cleanerDecision && !offerIsOpen(proposal.cleanerExpiresAt);
 
   let currentStage = "room-scan";
   let headline = "Complete the room scan";
@@ -1422,6 +1477,10 @@ async function getPrivateRequestStatus(request, response) {
     currentStage = "quote-preparation";
     headline = "Quote being prepared";
     nextAction = "Tideway is checking the schedule, cleaner and job economics before making the quote available.";
+  } else if (quoteExpired) {
+    currentStage = "quote-expired";
+    headline = "Quote response window ended";
+    nextAction = "Tideway must recheck the scope, cleaner availability and pricing before issuing a new proposal.";
   } else if (proposal?.status === "sent") {
     currentStage = "quote-review";
     headline = "Your quote is ready to review";
@@ -1439,6 +1498,10 @@ async function getPrivateRequestStatus(request, response) {
     currentStage = "rematching";
     headline = "Cleaner unavailable — rematching required";
     nextAction = "Tideway must select another screened cleaner and issue a new controlled opportunity before booking.";
+  } else if (cleanerOfferExpired) {
+    currentStage = "rematching";
+    headline = "Cleaner response window ended";
+    nextAction = "Tideway must recheck cleaner availability and issue a new controlled opportunity before booking.";
   } else if (proposal?.status === "accepted" && cleanerDecision?.status === "accepted") {
     currentStage = "finalising-booking";
     headline = "Both sides accepted — final checks underway";
@@ -1482,7 +1545,7 @@ async function getPrivateRequestStatus(request, response) {
   const steps = [
     { key: "request", label: "Request received", state: "complete", detail: `Reference ${customerRequest.id}` },
     { key: "scan", label: "Room scan reviewed", state: scanComplete ? "complete" : ["room-scan", "scan-revision"].includes(currentStage) ? "action" : "current", detail: !latestBrief ? "Photos and spoken notes required" : latestBrief.status === "reviewed" ? `${latestBrief.checklist.length} tasks · ${latestBrief.scopeEstimateHours} reviewed hours` : latestBrief.status === "needs-revision" ? "Revision requested" : "Awaiting Tideway review" },
-    { key: "quote", label: "Quote accepted", state: quoteComplete ? "complete" : currentStage === "quote-review" ? "action" : proposal ? "current" : "waiting", detail: proposal ? proposal.status : "Not prepared yet" },
+    { key: "quote", label: "Quote accepted", state: quoteComplete ? "complete" : ["quote-review", "quote-expired"].includes(currentStage) ? "action" : proposal ? "current" : "waiting", detail: quoteExpired ? "Response window ended" : proposal ? proposal.status : "Not prepared yet" },
     { key: "cleaner", label: "Cleaner confirmed", state: cleanerComplete ? "complete" : cleanerDecision?.status === "declined" ? "action" : quoteComplete ? "current" : "waiting", detail: cleanerDecision?.status || "Awaiting an accepted quote" },
     { key: "booking", label: "Visit confirmed", state: bookingComplete ? "complete" : cleanerComplete ? "current" : "waiting", detail: booking ? `${booking.proposedDate} · ${booking.proposedStartTime}–${booking.proposedEndTime}` : "Final checks pending" },
     { key: "clean", label: "Clean completed", state: cleanComplete ? "complete" : bookingComplete ? "current" : "waiting", detail: cleanComplete ? "Completion recorded" : bookingComplete ? "Visit not completed yet" : "Waiting for a confirmed visit" }
@@ -1497,7 +1560,7 @@ async function getPrivateRequestStatus(request, response) {
     visit: booking ? { reference: booking.id, proposedDate: booking.proposedDate, proposedStartTime: booking.proposedStartTime, proposedEndTime: booking.proposedEndTime, jobProgress } : null,
     links: {
       roomScanRequired: !latestBrief || latestBrief.status === "needs-revision",
-      quoteToken: proposal && ["sent", "accepted"].includes(proposal.status) ? proposal.reviewToken : "",
+      quoteToken: proposal && ["sent", "accepted"].includes(proposal.status) && !quoteExpired ? proposal.reviewToken : "",
       bookingToken: booking?.customerViewToken || ""
     }
   });
@@ -1830,6 +1893,8 @@ async function updateAdminConfig(request, response) {
     cleanerHourlyPay: Math.max(0, Number(input.cleanerHourlyPay) || 0),
     minimumHours: Math.max(0, Number(input.minimumHours) || 0),
     minimumContributionMarginPercent: Math.max(0, Number(input.minimumContributionMarginPercent) || 0),
+    customerQuoteValidityHours: Number(input.customerQuoteValidityHours) || 0,
+    cleanerOpportunityValidityHours: Number(input.cleanerOpportunityValidityHours) || 0,
     cancellationPolicy: text(input.cancellationPolicy, 1000),
     paymentTiming: text(input.paymentTiming, 100),
     updatedAt: new Date().toISOString()
@@ -1841,6 +1906,8 @@ async function updateAdminConfig(request, response) {
   if (pilotCoverage.invalidCodes.length) errors.push(`Use comma-separated outward postcode codes only, for example SW2, SW4. Invalid: ${pilotCoverage.invalidCodes.join(", ")}.`);
   if (config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.customerHourlyRate <= config.cleanerHourlyPay) errors.push("Customer rate must be higher than cleaner pay before other costs.");
   if (config.minimumContributionMarginPercent >= 100) errors.push("Minimum contribution margin must be below 100%.");
+  if (config.customerQuoteValidityHours && (!Number.isInteger(config.customerQuoteValidityHours) || config.customerQuoteValidityHours < 1 || config.customerQuoteValidityHours > 168)) errors.push("Customer quote response window must be a whole number from 1 to 168 hours.");
+  if (config.cleanerOpportunityValidityHours && (!Number.isInteger(config.cleanerOpportunityValidityHours) || config.cleanerOpportunityValidityHours < 1 || config.cleanerOpportunityValidityHours > 168)) errors.push("Cleaner opportunity response window must be a whole number from 1 to 168 hours.");
   if (config.paymentProviderStatus === "live" && (!config.paymentProviderName || !config.refundProcess)) errors.push("Add the live payment provider and refund process.");
   if (errors.length) return json(response, 422, { ok: false, errors });
   await saveJsonFile("business-config.json", config);
