@@ -30,6 +30,7 @@ try {
   await rm(path.join(root, "data", "status-updates.ndjson"), { force: true });
   await rm(path.join(root, "data", "lead-activity.ndjson"), { force: true });
   await rm(path.join(root, "data", "business-config.json"), { force: true });
+  await rm(path.join(root, "data", "match-proposals.ndjson"), { force: true });
   await waitForServer();
 
   const home = await fetch(base);
@@ -115,6 +116,21 @@ try {
   assert(matching.ok && matchingBody.matches.length === 1, "Approved cleaner match was not returned.");
   assert(matchingBody.matches[0].score === 100 && matchingBody.matches[0].coverage === "Postcode listed", "Cleaner match score was incorrect.");
 
+  const losingProposal = await fetch(`${base}/api/admin/proposals`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", estimatedHours: 4, customerRate: 15, cleanerRate: 18, otherCosts: 0 })
+  });
+  assert(losingProposal.status === 422, "Loss-making proposal was not rejected.");
+
+  const validProposal = await fetch(`${base}/api/admin/proposals`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", estimatedHours: 4, customerRate: 30, cleanerRate: 18, otherCosts: 10, note: "Draft only" })
+  });
+  const proposalBody = await validProposal.json();
+  assert(validProposal.status === 201 && proposalBody.proposal.contribution === 38, "Valid draft proposal failed or calculated incorrectly.");
+
   const activityUpdate = await fetch(`${base}/api/admin/activity`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -126,8 +142,9 @@ try {
   const refreshedBody = await refreshedAdmin.json();
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.status === "contacted", "Updated status was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.activities?.[0]?.note.includes("confirmed the scope"), "Lead activity was not retained.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.id.startsWith("PRO-"), "Draft proposal was not retained on the customer request.");
 
-  console.log("Smoke tests passed: public pages, forms, admin security, lead workflow, launch settings and cleaner matching.");
+  console.log("Smoke tests passed: public pages, forms, admin security, lead workflow, launch settings, cleaner matching and profitable draft proposals.");
 } finally {
   child.kill("SIGTERM");
   await rm(path.join(root, "data", "cleaning-requests.ndjson"), { force: true });
@@ -135,4 +152,5 @@ try {
   await rm(path.join(root, "data", "status-updates.ndjson"), { force: true });
   await rm(path.join(root, "data", "lead-activity.ndjson"), { force: true });
   await rm(path.join(root, "data", "business-config.json"), { force: true });
+  await rm(path.join(root, "data", "match-proposals.ndjson"), { force: true });
 }

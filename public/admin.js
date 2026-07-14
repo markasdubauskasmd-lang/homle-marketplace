@@ -1,4 +1,4 @@
-const state = { records: [], kind: "all", status: "all" };
+const state = { records: [], kind: "all", status: "all", config: {} };
 
 const leadList = document.querySelector("#lead-list");
 const errorBox = document.querySelector("#admin-error");
@@ -34,11 +34,72 @@ function showContent() {
 }
 
 function populateConfig(config = {}) {
+  state.config = config;
   const form = document.querySelector("#business-config-form");
   Object.entries(config).forEach(([name, value]) => {
     const field = form.elements.namedItem(name);
     if (field && value !== undefined && value !== null) field.value = value;
   });
+}
+
+function proposalField(labelText, name, type = "number", value = "") {
+  const label = document.createElement("label");
+  label.append(document.createTextNode(labelText));
+  const input = document.createElement("input");
+  input.name = name;
+  input.type = type;
+  input.required = true;
+  if (type === "number") { input.min = "0"; input.step = name === "estimatedHours" ? "0.5" : "0.01"; }
+  input.value = value || "";
+  label.append(input);
+  return label;
+}
+
+function showProposalForm(record, match, target) {
+  target.replaceChildren();
+  const form = document.createElement("form");
+  form.className = "proposal-form";
+  form.append(
+    proposalField("Proposed date", "proposedDate", "date"),
+    proposalField("Estimated hours", "estimatedHours"),
+    proposalField("Customer rate per hour (£)", "customerRate", "number", state.config.customerHourlyRate),
+    proposalField("Cleaner pay per hour (£)", "cleanerRate", "number", state.config.cleanerHourlyPay),
+    proposalField("Other job costs (£)", "otherCosts", "number", "0")
+  );
+  const noteLabel = document.createElement("label");
+  noteLabel.append(document.createTextNode("Internal proposal note"));
+  const note = document.createElement("textarea");
+  note.name = "note";
+  note.rows = 2;
+  noteLabel.append(note);
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.className = "button button-small";
+  submit.textContent = `Save draft with ${match.fullName}`;
+  form.append(noteLabel, submit);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    submit.disabled = true;
+    try {
+      const body = Object.fromEntries(new FormData(form).entries());
+      body.requestId = record.id;
+      body.cleanerId = match.id;
+      const response = await fetch("/api/admin/proposals", { method: "POST", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "Proposal could not be saved.");
+      target.replaceChildren();
+      const success = document.createElement("div");
+      success.className = "success-panel";
+      addText(success, "strong", "Draft proposal saved.");
+      addText(success, "span", `${money.format(result.proposal.customerTotal)} customer total · ${money.format(result.proposal.cleanerPay)} cleaner pay · ${money.format(result.proposal.contribution)} contribution (${result.proposal.marginPercent.toFixed(1)}%).`);
+      target.append(success);
+    } catch (error) {
+      showAdminError(error.message);
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  target.append(form);
 }
 
 function renderReadiness(readiness) {
@@ -147,6 +208,14 @@ async function findMatches(record, results, button) {
       addText(item, "span", `${match.travelAreas} · ${match.availability}`);
       addText(item, "span", match.services.join(", "));
       addText(item, "span", `${match.email} · ${match.phone}`);
+      const proposalTarget = document.createElement("div");
+      proposalTarget.className = "proposal-target";
+      const prepareButton = document.createElement("button");
+      prepareButton.type = "button";
+      prepareButton.className = "button button-small button-outline";
+      prepareButton.textContent = "Prepare draft proposal";
+      prepareButton.addEventListener("click", () => showProposalForm(record, match, proposalTarget));
+      item.append(prepareButton, proposalTarget);
       results.append(item);
     }
   } catch (error) {
@@ -230,6 +299,16 @@ function buildCard(record) {
     addDetail(details, "Notes", record.notes);
   }
   card.append(details);
+
+  if (record.kind === "request" && record.proposals?.length) {
+    const proposal = record.proposals[0];
+    const proposalSummary = document.createElement("div");
+    proposalSummary.className = "proposal-summary";
+    addText(proposalSummary, "strong", `Draft proposal · ${proposal.cleanerName}`);
+    addText(proposalSummary, "span", `${proposal.proposedDate} · ${proposal.estimatedHours} hours · ${money.format(proposal.customerTotal)} customer total`);
+    addText(proposalSummary, "span", `${money.format(proposal.cleanerPay)} cleaner pay · ${money.format(proposal.contribution)} contribution · ${proposal.marginPercent.toFixed(1)}% margin`);
+    card.append(proposalSummary);
+  }
 
   if (record.nextActionAt || record.activities?.length) {
     const activitySummary = document.createElement("div");

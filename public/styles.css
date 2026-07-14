@@ -255,6 +255,15 @@ textarea { resize: vertical; }
 .match-result { display: grid; gap: 5px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--mint-pale); }
 .match-result > div { display: flex; justify-content: space-between; gap: 12px; }
 .match-result span { color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
+.match-result > button { justify-self: start; margin-top: 5px; }
+.proposal-target { margin-top: 5px; }
+.proposal-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.proposal-form label { font-size: .78rem; }
+.proposal-form textarea { min-height: 70px; }
+.proposal-form label:nth-last-of-type(1) { grid-column: 1 / -1; }
+.proposal-form button { justify-self: start; }
+.proposal-summary { display: grid; gap: 4px; margin-top: 18px; padding: 15px 16px; color: #fff; border-radius: 11px; background: var(--green); }
+.proposal-summary span { color: #d8eee8; font-size: .83rem; }
 .admin-guidance { margin-top: 28px; padding: 28px; color: #fff; border-radius: 20px; background: var(--green-dark); }
 .admin-guidance h2 { font-size: 1.55rem; }
 .admin-guidance ol { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin: 0; padding-left: 22px; }
@@ -284,6 +293,7 @@ textarea { resize: vertical; }
   .quote-results div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .lead-details { grid-template-columns: 1fr 1fr; }
   .lead-followup form { grid-template-columns: 1fr 1fr; }
+  .proposal-form { grid-template-columns: 1fr 1fr; }
   .lead-followup button { grid-column: 1 / -1; justify-self: start; }
   .admin-guidance ol { grid-template-columns: 1fr 1fr; }
 }
@@ -333,6 +343,8 @@ textarea { resize: vertical; }
   .card-status { width: 100%; }
   .lead-details { grid-template-columns: 1fr; }
   .lead-followup form { grid-template-columns: 1fr; }
+  .proposal-form { grid-template-columns: 1fr; }
+  .proposal-form label:nth-last-of-type(1) { grid-column: auto; }
   .lead-followup button { grid-column: auto; width: 100%; }
   .admin-guidance ol { grid-template-columns: 1fr; }
 }

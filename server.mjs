@@ -168,11 +168,12 @@ function isAdminAuthorised(request) {
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
-    readRecords("lead-activity.ndjson")
+    readRecords("lead-activity.ndjson"),
+    readRecords("match-proposals.ndjson")
   ]);
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
@@ -182,15 +183,82 @@ async function getAdminRecords(request, response) {
     list.push(activity);
     activitiesById.set(activity.id, list);
   }
+  const proposalsByRequest = new Map();
+  for (const proposal of proposals) {
+    const list = proposalsByRequest.get(proposal.requestId) || [];
+    list.push(proposal);
+    proposalsByRequest.set(proposal.requestId, list);
+  }
   const merge = (record, kind) => {
     const leadActivities = (activitiesById.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "" };
+    const leadProposals = (proposalsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5) };
   };
   const records = [
     ...requests.map((record) => merge(record, "request")),
     ...cleaners.map((record) => merge(record, "cleaner"))
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   return json(response, 200, { ok: true, records });
+}
+
+async function createAdminProposal(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const requestId = text(input.requestId, 40);
+  const cleanerId = text(input.cleanerId, 40);
+  const proposedDate = text(input.proposedDate, 20);
+  const estimatedHours = Math.max(0, Number(input.estimatedHours) || 0);
+  const customerRate = Math.max(0, Number(input.customerRate) || 0);
+  const cleanerRate = Math.max(0, Number(input.cleanerRate) || 0);
+  const otherCosts = Math.max(0, Number(input.otherCosts) || 0);
+  const note = text(input.note, 1000);
+
+  const errors = [];
+  if (!requestId || !cleanerId) errors.push("Customer request and cleaner are required.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(proposedDate)) errors.push("Choose a proposed date.");
+  if (estimatedHours <= 0 || customerRate <= 0 || cleanerRate <= 0) errors.push("Hours, customer rate and cleaner pay must be greater than zero.");
+  if (errors.length) return json(response, 422, { ok: false, errors });
+
+  const [requests, cleaners, updates] = await Promise.all([
+    readRecords("cleaning-requests.ndjson"),
+    readRecords("cleaner-applications.ndjson"),
+    readRecords("status-updates.ndjson")
+  ]);
+  const customerRequest = requests.find((record) => record.id === requestId);
+  const cleaner = cleaners.find((record) => record.id === cleanerId);
+  const latestStatuses = new Map();
+  for (const update of updates) latestStatuses.set(update.id, update.status);
+  if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Customer request or cleaner was not found." });
+  if ((latestStatuses.get(cleaner.id) || cleaner.status) !== "approved") return json(response, 422, { ok: false, error: "Only an approved cleaner can be proposed." });
+  const requiredService = requestServiceMap[customerRequest.service] || "";
+  if (requiredService && !cleaner.services?.includes(requiredService)) return json(response, 422, { ok: false, error: "Cleaner is not approved for the requested service." });
+
+  const customerTotal = estimatedHours * customerRate;
+  const cleanerPay = estimatedHours * cleanerRate;
+  const contribution = customerTotal - cleanerPay - otherCosts;
+  if (contribution <= 0) return json(response, 422, { ok: false, error: "This proposal loses money before overheads. Change the price, pay or scope." });
+  const marginPercent = (contribution / customerTotal) * 100;
+  const proposal = {
+    id: `PRO-${randomUUID().slice(0, 8).toUpperCase()}`,
+    requestId,
+    cleanerId,
+    cleanerName: cleaner.fullName,
+    proposedDate,
+    estimatedHours,
+    customerRate,
+    cleanerRate,
+    otherCosts,
+    customerTotal,
+    cleanerPay,
+    contribution,
+    marginPercent,
+    note,
+    status: "draft",
+    createdAt: new Date().toISOString()
+  };
+  await saveRecord("match-proposals.ndjson", proposal);
+  return json(response, 201, { ok: true, proposal });
 }
 
 async function getAdminMatches(request, response, requestId) {
@@ -455,6 +523,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/matches") {
       return await getAdminMatches(request, response, text(requestUrl.searchParams.get("requestId"), 40));
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/admin/proposals") {
+      return await createAdminProposal(request, response);
     }
     if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/status") {
       return await updateAdminStatus(request, response);
