@@ -341,6 +341,22 @@ function bookingConfirmation(labelText, name) {
   return label;
 }
 
+function bookingDetailField(labelText, name, options = {}) {
+  const label = document.createElement("label");
+  label.append(document.createTextNode(labelText));
+  const input = options.multiline ? document.createElement("textarea") : document.createElement("input");
+  input.name = name;
+  input.required = options.required !== false;
+  input.maxLength = options.maxLength || (options.multiline ? 1000 : 500);
+  if (options.type) input.type = options.type;
+  if (options.autocomplete) input.autocomplete = options.autocomplete;
+  if (options.placeholder) input.placeholder = options.placeholder;
+  if (options.value) input.value = options.value;
+  if (options.multiline) input.rows = 2;
+  label.append(input);
+  return label;
+}
+
 function appendBookingForm(record, proposal, target) {
   if (record.booking) {
     addText(target, "strong", `Booking ${record.booking.id} is already recorded.`, "manual-heading");
@@ -353,8 +369,16 @@ function appendBookingForm(record, proposal, target) {
   const form = document.createElement("form");
   form.className = "booking-confirmation-form";
   addText(form, "strong", "Record the four remaining manual confirmations");
-  addText(form, "span", "Internal record only. This does not send a booking or take payment.");
+  addText(form, "span", "Capture the final visit pack after both sides accept. This does not send a booking or take payment. Never enter alarm codes, key-safe codes or card details here.");
   form.append(
+    bookingDetailField("Full service address", "serviceAddress", { autocomplete: "street-address", placeholder: "Building, street and locality" }),
+    bookingDetailField("Service postcode", "servicePostcode", { autocomplete: "postal-code", value: record.postcode }),
+    bookingDetailField("Named access contact", "accessContactName", { autocomplete: "name" }),
+    bookingDetailField("Access contact phone", "accessContactPhone", { type: "tel", autocomplete: "tel" }),
+    bookingDetailField("Access instructions", "accessInstructions", { multiline: true, placeholder: "Where to meet or who will provide access — no door or alarm codes" }),
+    bookingDetailField("Parking or arrival notes", "parkingNotes", { multiline: true, required: false, maxLength: 500 }),
+    bookingDetailField("Products and equipment", "productsAndEquipment", { multiline: true, placeholder: "Who supplies products, vacuum, mop and any site-specific equipment" }),
+    bookingDetailField("Emergency and issue instructions", "emergencyInstructions", { multiline: true, placeholder: "Who to call and when work must stop" }),
     bookingConfirmation("Exact address and named access contact confirmed securely", "addressAndAccessConfirmed"),
     bookingConfirmation("Final checklist, exclusions, products and equipment confirmed", "finalChecklistConfirmed"),
     bookingConfirmation("Payment authorisation confirmed externally; no card details stored here", "paymentAuthorisationConfirmed"),
@@ -375,6 +399,7 @@ function appendBookingForm(record, proposal, target) {
     submit.disabled = true;
     const data = new FormData(form);
     const body = { proposalId: proposal.id, internalNote: data.get("internalNote") || "" };
+    ["serviceAddress", "servicePostcode", "accessContactName", "accessContactPhone", "accessInstructions", "parkingNotes", "productsAndEquipment", "emergencyInstructions"].forEach((name) => { body[name] = data.get(name) || ""; });
     ["addressAndAccessConfirmed", "finalChecklistConfirmed", "paymentAuthorisationConfirmed", "emergencyInstructionsConfirmed"].forEach((name) => { body[name] = data.has(name); });
     try {
       const response = await fetch("/api/admin/bookings", { method: "POST", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
@@ -433,6 +458,41 @@ function numberField(labelText, name, value = "0") {
   input.value = value;
   label.append(input);
   return label;
+}
+
+function buildBookingPackPanel(record) {
+  const booking = record.booking;
+  const panel = document.createElement("details");
+  panel.className = "booking-audit";
+  const summary = document.createElement("summary");
+  summary.textContent = "Private confirmed-booking packs";
+  panel.append(summary);
+  addText(panel, "strong", `${booking.id} · ${booking.proposedDate} · ${booking.proposedStartTime}–${booking.proposedEndTime}`);
+  addText(panel, "span", `${booking.details?.serviceAddress || "Address unavailable"}, ${booking.details?.servicePostcode || ""}`);
+  addText(panel, "span", "These links contain visit details. Share each link only with its named recipient and never paste it into public notes.");
+  for (const view of [
+    { label: "Customer booking confirmation", path: "booking-confirmation", token: booking.customerViewToken },
+    { label: "Cleaner assignment pack", path: "assignment", token: booking.cleanerViewToken }
+  ]) {
+    if (!view.token) continue;
+    const section = document.createElement("div");
+    section.className = "quote-review-link";
+    addText(section, "strong", view.label);
+    const url = `${location.origin}/${view.path}#${view.token}`;
+    const field = document.createElement("input");
+    field.type = "text";
+    field.readOnly = true;
+    field.value = url;
+    field.setAttribute("aria-label", `${view.label} for ${booking.id}`);
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "button button-small button-outline";
+    copy.textContent = "Copy private link — does not send";
+    copy.addEventListener("click", () => copyDraft(url, copy));
+    section.append(field, copy);
+    panel.append(section);
+  }
+  return panel;
 }
 
 function buildJobOutcome(record) {
@@ -851,7 +911,7 @@ function buildCard(record) {
     card.append(proposalSummary);
   }
 
-  if (record.kind === "request" && record.booking) card.append(buildJobOutcome(record));
+  if (record.kind === "request" && record.booking) card.append(buildBookingPackPanel(record), buildJobOutcome(record));
 
   if (record.nextActionAt || record.activities?.length) {
     const activitySummary = document.createElement("div");

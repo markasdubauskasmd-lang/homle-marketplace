@@ -39,6 +39,8 @@ Then open `http://127.0.0.1:4173`.
 - Structured site scope, access and hazard collection plus a read-only accepted-proposal booking audit
 - Safe lead-status transitions that prevent requests or cleaners skipping required workflow stages
 - Internal confirmed-booking records that require separate customer and cleaner acceptance, a profitable passed audit and four remaining manual confirmations
+- Structured confirmed-booking packs for the final address, matching postcode, access contact, arrival instructions, equipment plan and emergency instructions; duplicate bookings are rejected atomically
+- Separate fragment-token customer and cleaner booking views: the customer view hides cleaner contact/pay, while the cleaner view exposes only the visit and access information needed after confirmation
 - Completed-job records for actual customer receipts, cleaner pay, costs, refunds, contribution and margin; recording never moves money
 - Private data backup script and documented recovery procedure
 - Responsive, accessible website

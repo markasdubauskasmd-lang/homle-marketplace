@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#0e665b">
+  <title>Private Tideway booking pack</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260714-23">
+  <script src="/booking-pack.js?v=20260714-23" type="module"></script>
+</head>
+<body class="quote-page">
+  <a class="skip-link" href="#main">Skip to booking details</a>
+  <header class="site-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a>
+      <span class="status-pill">Private booking</span>
+    </div>
+  </header>
+
+  <main id="main" class="section shell quote-shell">
+    <section class="quote-card" aria-labelledby="pack-title">
+      <div id="pack-loading" class="quote-state" role="status">
+        <p class="eyebrow">Protected visit details</p>
+        <h1 id="pack-title">Loading the booking pack…</h1>
+        <p>Please wait while Tideway checks this private link.</p>
+      </div>
+
+      <div id="pack-error" class="quote-state" role="alert" hidden>
+        <p class="eyebrow">Booking unavailable</p>
+        <h1>We could not open this booking pack.</h1>
+        <p data-error-message>The private link may be incomplete or no longer available.</p>
+        <p>Please contact Tideway using the details in the message that brought you here.</p>
+      </div>
+
+      <div id="pack-content" hidden>
+        <p class="eyebrow" data-audience-label>Confirmed booking</p>
+        <h1 data-pack-heading>Booking details</h1>
+        <p class="quote-intro" data-greeting></p>
+
+        <dl class="quote-details">
+          <div><dt>Booking reference</dt><dd data-booking-id></dd></div>
+          <div><dt>Service</dt><dd data-service></dd></div>
+          <div><dt>Date</dt><dd data-proposed-date></dd></div>
+          <div><dt>Arrival and finish</dt><dd data-proposed-time></dd></div>
+          <div><dt>Estimated time</dt><dd data-estimated-hours></dd></div>
+          <div><dt>Site scope</dt><dd data-site-size></dd></div>
+          <div class="quote-total" data-customer-total-row hidden><dt>Confirmed customer total</dt><dd data-customer-total></dd></div>
+          <div class="quote-total" data-cleaner-pay-row hidden><dt>Confirmed cleaner pay</dt><dd data-cleaner-pay></dd></div>
+        </dl>
+
+        <section class="quote-rules">
+          <h2>Service address</h2>
+          <p><strong data-service-address></strong><br><span data-service-postcode></span></p>
+          <div data-cleaner-contact hidden>
+            <p><strong>Named access contact:</strong> <span data-access-contact></span></p>
+          </div>
+          <p><strong>Access:</strong> <span data-access-instructions></span></p>
+          <p><strong>Parking or arrival:</strong> <span data-parking-notes></span></p>
+        </section>
+
+        <section class="quote-scope" data-checklist-section hidden>
+          <h2>Final cleaning checklist</h2>
+          <ul data-checklist></ul>
+        </section>
+
+        <section class="quote-rules">
+          <h2>Visit instructions</h2>
+          <p data-cleaner-hazards-row hidden><strong>Known hazards:</strong> <span data-hazards></span></p>
+          <p><strong>Products and equipment:</strong> <span data-products></span></p>
+          <p><strong>Emergency or issue instructions:</strong> <span data-emergency></span></p>
+        </section>
+
+        <section class="quote-rules" data-customer-rules hidden>
+          <h2>Customer terms</h2>
+          <p><strong>Cancellation:</strong> <span data-cancellation></span></p>
+          <p><strong>Payment timing:</strong> <span data-payment></span></p>
+        </section>
+
+        <div class="quote-result"><strong>Booking recorded by Tideway.</strong><span>This page does not collect payment. Contact Tideway immediately if any detail is wrong or access conditions change.</span></div>
+        <footer class="quote-contact"><span data-business-name></span><span data-support></span></footer>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -190,6 +190,19 @@ async function saveCleanerDecisionOnce(record) {
   return operation;
 }
 
+async function saveBookingOnce(booking) {
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    const bookings = await readRecords("bookings.ndjson");
+    if (bookings.some((item) => item.requestId === booking.requestId || item.proposalId === booking.proposalId)) {
+      throw Object.assign(new Error("A booking is already recorded for this request or proposal."), { statusCode: 409 });
+    }
+    await appendFile(path.join(dataDir, "bookings.ndjson"), `${JSON.stringify(booking)}\n`, { encoding: "utf8", mode: 0o600 });
+  });
+  writeQueue = operation;
+  return operation;
+}
+
 async function readRecords(filename) {
   try {
     const contents = await readFile(path.join(dataDir, filename), "utf8");
@@ -1058,14 +1071,14 @@ async function buildBookingAudit(proposalId) {
     "Confirm the customer payment authorisation without storing card details in Tideway notes.",
     "Share emergency and issue-reporting instructions before the visit."
   ];
-  return { ok: true, proposal, customerRequest, cleaner, proposalId, proposalStatus, cleanerDecision: cleanerDecision ? { status: cleanerDecision.status, decidedAt: cleanerDecision.updatedAt } : null, automatedReady, checks, manualChecklist };
+  return { ok: true, proposal, customerRequest, cleaner, config, latestBrief, proposalId, proposalStatus, cleanerDecision: cleanerDecision ? { status: cleanerDecision.status, decidedAt: cleanerDecision.updatedAt } : null, automatedReady, checks, manualChecklist };
 }
 
 async function getAdminBookingAudit(request, response, proposalId) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   const audit = await buildBookingAudit(proposalId);
   if (!audit.ok) return json(response, audit.statusCode, { ok: false, error: audit.error });
-  const { proposal, customerRequest, cleaner, ...publicAudit } = audit;
+  const { proposal, customerRequest, cleaner, config, latestBrief, ...publicAudit } = audit;
   return json(response, 200, publicAudit);
 }
 
@@ -1074,6 +1087,16 @@ async function createAdminBooking(request, response) {
   ensureSameOrigin(request);
   const input = await readJson(request);
   const proposalId = text(input.proposalId, 40);
+  const details = {
+    serviceAddress: text(input.serviceAddress, 500),
+    servicePostcode: text(input.servicePostcode, 20).toUpperCase(),
+    accessContactName: text(input.accessContactName, 120),
+    accessContactPhone: text(input.accessContactPhone, 40),
+    accessInstructions: text(input.accessInstructions, 1000),
+    parkingNotes: text(input.parkingNotes, 500),
+    productsAndEquipment: text(input.productsAndEquipment, 1000),
+    emergencyInstructions: text(input.emergencyInstructions, 1000)
+  };
   const confirmations = {
     addressAndAccessConfirmed: input.addressAndAccessConfirmed === true,
     finalChecklistConfirmed: input.finalChecklistConfirmed === true,
@@ -1083,20 +1106,26 @@ async function createAdminBooking(request, response) {
   if (!proposalId || !Object.values(confirmations).every(Boolean)) {
     return json(response, 422, { ok: false, error: "Complete every manual booking confirmation before recording a booking." });
   }
+  if (!details.serviceAddress || !isUkPostcode(details.servicePostcode) || !details.accessContactName || !isPhone(details.accessContactPhone) || !details.accessInstructions || !details.productsAndEquipment || !details.emergencyInstructions) {
+    return json(response, 422, { ok: false, error: "Add the full service address, matching postcode, valid access contact, access instructions, products/equipment and emergency instructions." });
+  }
   const audit = await buildBookingAudit(proposalId);
   if (!audit.ok) return json(response, audit.statusCode, { ok: false, error: audit.error });
   if (!audit.automatedReady) return json(response, 422, { ok: false, error: "The automated booking audit must pass before recording a booking.", checks: audit.checks });
+  if (details.servicePostcode.replace(/\s+/g, "") !== audit.customerRequest.postcode.replace(/\s+/g, "")) {
+    return json(response, 422, { ok: false, error: "The final service postcode must match the postcode accepted in the customer quote." });
+  }
 
   const [updates, bookings] = await Promise.all([
     readRecords("status-updates.ndjson"),
     readRecords("bookings.ndjson")
   ]);
-  let requestStatus = audit.customerRequest.status || "new";
-  for (const update of updates) if (update.id === audit.customerRequest.id) requestStatus = update.status;
-  if (requestStatus !== "quoted") return json(response, 422, { ok: false, error: "Move the customer request through contacted to quoted before recording a booking." });
   if (bookings.some((booking) => booking.requestId === audit.customerRequest.id || booking.proposalId === proposalId)) {
     return json(response, 409, { ok: false, error: "A booking is already recorded for this request or proposal." });
   }
+  let requestStatus = audit.customerRequest.status || "new";
+  for (const update of updates) if (update.id === audit.customerRequest.id) requestStatus = update.status;
+  if (requestStatus !== "quoted") return json(response, 422, { ok: false, error: "Move the customer request through contacted to quoted before recording a booking." });
 
   const booking = {
     id: `BKG-${randomUUID().slice(0, 8).toUpperCase()}`,
@@ -1110,13 +1139,78 @@ async function createAdminBooking(request, response) {
     plannedCustomerTotal: audit.proposal.customerTotal,
     plannedCleanerPay: audit.proposal.cleanerPay,
     plannedContribution: audit.proposal.contribution,
+    details,
+    customerViewToken: randomBytes(24).toString("base64url"),
+    cleanerViewToken: randomBytes(24).toString("base64url"),
+    customerBookingPack: {
+      audience: "customer",
+      customerName: audit.customerRequest.contactName,
+      service: audit.customerRequest.service,
+      serviceAddress: details.serviceAddress,
+      servicePostcode: details.servicePostcode,
+      siteSize: audit.customerRequest.siteSize,
+      proposedDate: audit.proposal.proposedDate,
+      proposedStartTime: audit.proposal.proposedStartTime,
+      proposedEndTime: audit.proposal.proposedEndTime,
+      estimatedHours: audit.proposal.estimatedHours,
+      customerTotal: audit.proposal.customerTotal,
+      checklist: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.checklist : [],
+      accessInstructions: details.accessInstructions,
+      parkingNotes: details.parkingNotes,
+      productsAndEquipment: details.productsAndEquipment,
+      emergencyInstructions: details.emergencyInstructions,
+      cancellationPolicy: audit.config.cancellationPolicy,
+      paymentTiming: audit.config.paymentTiming,
+      legalBusinessName: audit.config.legalBusinessName,
+      supportEmail: audit.config.supportEmail,
+      supportPhone: audit.config.supportPhone
+    },
+    cleanerBookingPack: {
+      audience: "cleaner",
+      cleanerName: audit.cleaner.fullName,
+      service: audit.customerRequest.service,
+      serviceAddress: details.serviceAddress,
+      servicePostcode: details.servicePostcode,
+      siteSize: audit.customerRequest.siteSize,
+      hazards: audit.customerRequest.hazards,
+      proposedDate: audit.proposal.proposedDate,
+      proposedStartTime: audit.proposal.proposedStartTime,
+      proposedEndTime: audit.proposal.proposedEndTime,
+      estimatedHours: audit.proposal.estimatedHours,
+      cleanerPay: audit.proposal.cleanerPay,
+      cleanerRate: audit.proposal.cleanerRate,
+      checklist: audit.latestBrief?.status === "reviewed" ? audit.latestBrief.checklist : [],
+      accessContactName: details.accessContactName,
+      accessContactPhone: details.accessContactPhone,
+      accessInstructions: details.accessInstructions,
+      parkingNotes: details.parkingNotes,
+      productsAndEquipment: details.productsAndEquipment,
+      emergencyInstructions: details.emergencyInstructions,
+      cleanerModel: audit.config.cleanerModel,
+      legalBusinessName: audit.config.legalBusinessName,
+      supportEmail: audit.config.supportEmail,
+      supportPhone: audit.config.supportPhone
+    },
     confirmations,
     internalNote: text(input.internalNote, 1000),
     createdAt: new Date().toISOString()
   };
-  await saveRecord("bookings.ndjson", booking);
+  booking.customerBookingPack.bookingId = booking.id;
+  booking.cleanerBookingPack.bookingId = booking.id;
+  await saveBookingOnce(booking);
   await saveRecord("status-updates.ndjson", { id: booking.requestId, kind: "request", status: "booked", previousStatus: requestStatus, source: "booking-confirmation", updatedAt: booking.createdAt });
   return json(response, 201, { ok: true, booking });
+}
+
+async function getPrivateBookingPack(request, response) {
+  const token = text(request.headers["x-booking-token"], 80);
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private booking link is invalid." });
+  const bookings = await readRecords("bookings.ndjson");
+  const booking = bookings.find((record) => record.customerViewToken === token || record.cleanerViewToken === token);
+  if (!booking) return json(response, 404, { ok: false, error: "This private booking link is invalid." });
+  const pack = booking.customerViewToken === token ? booking.customerBookingPack : booking.cleanerBookingPack;
+  if (!pack) return json(response, 404, { ok: false, error: "This booking pack is unavailable." });
+  return json(response, 200, { ok: true, booking: { ...pack, confirmedAt: booking.createdAt } });
 }
 
 async function createAdminJobOutcome(request, response) {
@@ -1576,6 +1670,8 @@ async function serveFile(requestPath, response) {
     "/brief": "brief.html",
     "/quote": "quote.html",
     "/opportunity": "opportunity.html",
+    "/booking-confirmation": "booking-pack.html",
+    "/assignment": "booking-pack.html",
     "/admin": "admin.html",
     "/privacy": "privacy.html",
     "/terms": "terms.html"
@@ -1628,6 +1724,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/opportunity/decision") {
       return await decidePrivateCleanerOpportunity(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/booking-pack") {
+      return await getPrivateBookingPack(request, response);
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/records") {
       return await getAdminRecords(request, response);

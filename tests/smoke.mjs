@@ -77,6 +77,9 @@ try {
   assert(quotePage.ok && (await quotePage.text()).includes("Private customer review"), "Private customer quote page failed.");
   const opportunityPage = await fetch(`${base}/opportunity`);
   assert(opportunityPage.ok && (await opportunityPage.text()).includes("Private cleaner review"), "Private cleaner opportunity page failed.");
+  const customerBookingPage = await fetch(`${base}/booking-confirmation`);
+  const cleanerAssignmentPage = await fetch(`${base}/assignment`);
+  assert(customerBookingPage.ok && cleanerAssignmentPage.ok && (await customerBookingPage.text()).includes("Protected visit details") && (await cleanerAssignmentPage.text()).includes("Protected visit details"), "Private confirmed-booking pages failed.");
   const adminAsset = await fetch(`${base}/admin.js?v=smoke-test`);
   assert(adminAsset.ok && adminAsset.headers.get("cache-control") === "no-cache", "Updated assets could remain stale in the control desk.");
 
@@ -415,13 +418,30 @@ try {
   assert(quotedStatus.ok, "Customer request could not move from contacted to quoted.");
   const incompleteBooking = await fetch(`${base}/api/admin/bookings`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, addressAndAccessConfirmed: true }) });
   assert(incompleteBooking.status === 422, "Incomplete manual confirmations created a booking.");
+  const bookingInput = { proposalId: proposalBody.proposal.id, serviceAddress: "10 Clean Street, Westminster, London", servicePostcode: "SW1A 1AA", accessContactName: "Site Manager", accessContactPhone: "07123456781", accessInstructions: "Meet the site manager at reception. No access codes stored.", parkingNotes: "Paid parking nearby.", productsAndEquipment: "Cleaner brings standard products and equipment; customer provides site-specific consumables.", emergencyInstructions: "Stop work and call Tideway support if the site is unsafe or materially different.", addressAndAccessConfirmed: true, finalChecklistConfirmed: true, paymentAuthorisationConfirmed: true, emergencyInstructionsConfirmed: true, internalNote: "Test confirmation only" };
+  const mismatchedBookingPostcode = await fetch(`${base}/api/admin/bookings`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...bookingInput, servicePostcode: "SW2 1AA" }) });
+  assert(mismatchedBookingPostcode.status === 422, "Booking pack changed the accepted service postcode.");
   const confirmedBooking = await fetch(`${base}/api/admin/bookings`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ proposalId: proposalBody.proposal.id, addressAndAccessConfirmed: true, finalChecklistConfirmed: true, paymentAuthorisationConfirmed: true, emergencyInstructionsConfirmed: true, internalNote: "Test confirmation only" })
+    body: JSON.stringify(bookingInput)
   });
   const confirmedBookingBody = await confirmedBooking.json();
-  assert(confirmedBooking.status === 201 && confirmedBookingBody.booking.id.startsWith("BKG-"), "Fully confirmed booking was not recorded.");
+  assert(confirmedBooking.status === 201 && confirmedBookingBody.booking.id.startsWith("BKG-") && /^[A-Za-z0-9_-]{32}$/.test(confirmedBookingBody.booking.customerViewToken) && /^[A-Za-z0-9_-]{32}$/.test(confirmedBookingBody.booking.cleanerViewToken), "Fully confirmed booking or its private view tokens were not recorded.");
+  const invalidBookingPack = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": "not-a-booking-pack-token" } });
+  assert(invalidBookingPack.status === 404, "Invalid booking-pack token exposed visit details.");
+  const customerPack = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.customerViewToken } });
+  const customerPackBody = await customerPack.json();
+  assert(customerPack.ok && customerPackBody.booking.audience === "customer" && customerPackBody.booking.serviceAddress === "10 Clean Street, Westminster, London" && customerPackBody.booking.customerTotal === 120 && customerPackBody.booking.checklist.includes("Wipe every kitchen worktop"), "Customer booking pack omitted confirmed address, price or checklist details.");
+  const customerPackSerialised = JSON.stringify(customerPackBody);
+  assert(!customerPackSerialised.includes("cleaner@example.com") && !customerPackSerialised.includes("cleanerPay") && !customerPackSerialised.includes("cleanerRate") && !customerPackSerialised.includes("07123456781"), "Customer booking pack exposed cleaner economics or private access-contact data.");
+  const cleanerPack = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.cleanerViewToken } });
+  const cleanerPackBody = await cleanerPack.json();
+  assert(cleanerPack.ok && cleanerPackBody.booking.audience === "cleaner" && cleanerPackBody.booking.serviceAddress === "10 Clean Street, Westminster, London" && cleanerPackBody.booking.accessContactName === "Site Manager" && cleanerPackBody.booking.accessContactPhone === "07123456781" && cleanerPackBody.booking.cleanerPay === 72, "Cleaner assignment pack omitted confirmed visit, access or pay details.");
+  const cleanerPackSerialised = JSON.stringify(cleanerPackBody);
+  assert(!cleanerPackSerialised.includes("customer@example.com") && !cleanerPackSerialised.includes("Test Customer") && !cleanerPackSerialised.includes("customerTotal"), "Cleaner assignment pack exposed customer identity or customer price.");
+  const duplicateBooking = await fetch(`${base}/api/admin/bookings`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bookingInput) });
+  assert(duplicateBooking.status === 409, "A duplicate confirmed booking was not rejected.");
 
   const unsafeCompletionStatus = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: requestBody.reference, kind: "request", status: "completed" }) });
   assert(unsafeCompletionStatus.status === 422, "Request bypassed the completed-job workflow.");
@@ -451,11 +471,12 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.cleanerDecision?.status === "accepted", "Cleaner opportunity decision was not attached to the proposal.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "reviewed", "Job-brief review status was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.details?.serviceAddress === "10 Clean Street, Westminster, London" && refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.cleanerViewToken === confirmedBookingBody.booking.cleanerViewToken, "Structured booking pack was not retained in the control desk.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, booking confirmations and actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));
