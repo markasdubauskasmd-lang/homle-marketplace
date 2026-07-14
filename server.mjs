@@ -602,6 +602,84 @@ function launchReadiness(config) {
   return { checks, completed: Object.values(checks).filter(Boolean).length, total: Object.keys(checks).length, ready: Object.values(checks).every(Boolean) };
 }
 
+function dispatchActionsForRecord({ kind, status, nextActionAt, proposals = [], briefs = [], booking = null, outcome = null, screening = null, cleanerAvailability = [], pilotCoverage = null }) {
+  const actions = [];
+  const add = (code, severity, group, title, detail) => {
+    if (!actions.some((action) => action.code === code)) actions.push({ code, severity, group, title, detail });
+  };
+  const today = new Date().toISOString().slice(0, 10);
+  const closed = ["completed", "lost", "rejected"].includes(status);
+  if (!closed && nextActionAt && nextActionAt <= today) add("follow-up-due", "high", "lead", "Follow-up is due", `The recorded next-action date was ${nextActionAt}. Review the lead before making any promise.`);
+
+  if (kind === "cleaner") {
+    if (closed || status === "paused") return actions;
+    if (status === "new") add("review-cleaner", "high", "supply", "Review new cleaner application", "Check the application without approving, rejecting or contacting the applicant unless the founder authorises that action.");
+    else if (["contacted", "screening"].includes(status) && !screening?.complete) add("complete-screening", "high", "supply", "Cleaner screening is incomplete", "Complete the seven recorded checks before approval, matching or availability confirmation.");
+    else if (status === "approved" && screening?.complete && cleanerAvailability.length === 0) add("availability-needed", "high", "supply", "Approved cleaner has no confirmed availability", "Record only an explicitly verified future availability window before matching this cleaner.");
+    return actions;
+  }
+
+  if (booking) {
+    const openChanges = booking.changeRequests?.filter((change) => ["open", "reviewing"].includes(change.status)) || [];
+    if (openChanges.some((change) => change.type === "safety-issue")) add("safety-review", "urgent", "safety", "Safety report requires review", "Keep job progress and financial completion blocked until the safety report is reviewed and closed with a clear response.");
+    else if (openChanges.length) add("booking-change-review", "high", "booking", "Booking change requires review", "Review the protected change queue; submission alone does not cancel, reschedule, refund or alter the booking.");
+    if (!outcome && booking.jobProgress?.readyForOutcome && openChanges.length === 0) add("record-economics", "high", "booking", "Completed visit needs actual economics", "Record actual receipts, cleaner pay, fees, travel, supplies, other costs and refunds; this action does not move money.");
+    else if (!outcome && booking.jobProgress?.cleanerCompletedAt && !booking.jobProgress?.customerCompletedAt) add("customer-completion-pending", "monitor", "booking", "Customer completion acknowledgement pending", "The cleaner recorded completion; the customer has not yet acknowledged the visit through the protected booking pack.");
+    else if (!outcome && booking.proposedDate < today && !booking.jobProgress?.cleanerCompletedAt) add("visit-progress-overdue", "high", "booking", "Visit progress is overdue", "The scheduled date has passed without a cleaner completion event. Review the booking and any incident before recording an outcome.");
+    return actions;
+  }
+
+  if (closed) return actions;
+  if (pilotCoverage?.configured && !pilotCoverage.covered) add("outside-pilot", "high", "matching", "Request is outside the pilot area", "Do not promise coverage. Close the request or obtain an explicit founder decision before changing the configured pilot area.");
+  const latestBrief = briefs[0] || null;
+  if (!latestBrief) {
+    if (status === "new") add("review-request", "high", "scan", "Review new request and room-scan handoff", "Check the request and make sure the customer has the private route to submit required photos and spoken notes.");
+    else add("scan-pending", "monitor", "scan", "Required room scan is still pending", "A quote cannot advance until the customer submits photos and spoken notes and Tideway reviews the resulting room-by-room tasks.");
+    return actions;
+  }
+  if (latestBrief.status === "landlord-draft") {
+    add("review-scan", "high", "scan", "Room scan is waiting for review", "Review every room photo, concise task, hazards, cleaning-time estimate and scope confidence before matching.");
+    return actions;
+  }
+  if (latestBrief.status === "needs-revision") {
+    add("scan-revision-pending", "monitor", "scan", "Revised room scan is pending", "The customer must correct the recorded scope issue before Tideway can prepare another quote.");
+    return actions;
+  }
+
+  const activeProposal = proposals.find((proposal) => ["accepted", "sent", "ready", "draft"].includes(proposal.status) && !proposal.exhausted);
+  const exhaustedProposal = proposals.find((proposal) => ["accepted", "sent"].includes(proposal.status) && proposal.exhausted);
+  if (!activeProposal) {
+    if (exhaustedProposal) add("rematch", "high", "rematching", "Cleaner rematch and replacement offer required", "The previous offer is no longer actionable. Recheck scope, confirmed availability and economics before issuing one replacement.");
+    else add("find-match", "high", "matching", "Reviewed request needs a cleaner match", "Find a fully screened cleaner with confirmed availability before preparing a profitable proposal.");
+    return actions;
+  }
+  if (["ready", "sent", "accepted"].includes(activeProposal.status) && !activeProposal.availabilityCovered) {
+    add("rematch", "high", "rematching", "Cleaner availability changed", "The current offer is blocked. Select a screened cleaner with a confirmed window and prepare one replacement proposal.");
+  } else if (["ready", "sent", "accepted"].includes(activeProposal.status) && !activeProposal.costModelCurrent) {
+    add("reprice", "high", "matching", "Proposal needs recalculation", "Founder cost assumptions changed. Prepare a replacement using the current payment, travel, supplies and risk costs.");
+  } else if (activeProposal.status === "accepted" && activeProposal.cleanerDecision?.status === "accepted") {
+    add("finalise-booking", "high", "booking", "Both sides accepted — run final booking checks", "Confirm address, access, emergency instructions and payment authorisation before recording the protected booking pack.");
+  } else if (activeProposal.status === "accepted") {
+    add("cleaner-decision-pending", "monitor", "matching", "Cleaner decision is pending", "The customer accepted, but the proposed cleaner must independently confirm scope, pay and availability before booking.");
+  } else if (activeProposal.status === "sent") {
+    add("offer-responses-pending", "monitor", "matching", "Offer responses are pending", "Monitor the frozen customer and cleaner deadlines. Do not record acceptance on either party's behalf.");
+  } else if (activeProposal.status === "ready") {
+    add("proposal-ready", "high", "matching", "Reviewed proposal is ready for an approved send", "Check the frozen quote and opportunity before any authorised manual outreach. The control desk does not send them.");
+  } else {
+    add("review-proposal", "high", "matching", "Draft proposal needs review", "Verify schedule, scope, cleaner availability and contribution margin before marking the proposal ready.");
+  }
+  return actions;
+}
+
+function proposalDispatchPriority(proposal) {
+  if (proposal.status === "accepted" && !proposal.exhausted) return 6;
+  if (proposal.status === "sent" && !proposal.exhausted) return 5;
+  if (proposal.status === "ready") return 4;
+  if (proposal.status === "draft") return 3;
+  if (["accepted", "sent"].includes(proposal.status) && proposal.exhausted) return 2;
+  return 1;
+}
+
 function applyBriefStatus(brief, updates) {
   let status = brief.status || "landlord-draft";
   let reviewNote = "";
@@ -676,7 +754,18 @@ async function getAdminRecords(request, response) {
   for (const proposal of proposals) {
     const list = proposalsByRequest.get(proposal.requestId) || [];
     const latestUpdate = latestProposalUpdates.get(proposal.id) || null;
-    list.push({ ...proposal, status: latestUpdate?.status || proposal.status || "draft", statusNote: latestUpdate?.note || "", statusUpdatedAt: latestUpdate?.updatedAt || proposal.createdAt, cleanerDecision: cleanerDecisionsByProposal.get(proposal.id) || null });
+    list.push({
+      ...proposal,
+      status: latestUpdate?.status || proposal.status || "draft",
+      statusNote: latestUpdate?.note || "",
+      statusUpdatedAt: latestUpdate?.updatedAt || proposal.createdAt,
+      quoteExpiresAt: latestUpdate?.quoteSnapshot?.offerExpiresAt || "",
+      cleanerOfferExpiresAt: latestUpdate?.cleanerOpportunitySnapshot?.offerExpiresAt || "",
+      cleanerDecision: cleanerDecisionsByProposal.get(proposal.id) || null,
+      availabilityCovered: Boolean(findCleanerAvailabilitySlot(proposal.cleanerId, proposal, availabilityEvents)),
+      costModelCurrent: proposalCostModelCurrent(proposal, config),
+      exhausted: proposalOfferIsExhausted(proposal, proposalUpdates, cleanerDecisions)
+    });
     proposalsByRequest.set(proposal.requestId, list);
   }
   const bookingsByRequest = new Map();
@@ -700,20 +789,24 @@ async function getAdminRecords(request, response) {
   }
   const merge = (record, kind) => {
     const leadActivities = (activitiesById.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-    const leadProposals = (proposalsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const leadProposals = (proposalsByRequest.get(record.id) || []).sort((left, right) => proposalDispatchPriority(right) - proposalDispatchPriority(left) || right.createdAt.localeCompare(left.createdAt));
     const booking = kind === "request" ? bookingsByRequest.get(record.id) || null : null;
     const outcome = booking ? outcomesByBooking.get(booking.id) || null : null;
     const leadBriefs = kind === "request" ? (briefsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 5) : [];
     const screening = kind === "cleaner" ? latestCleanerScreening(record.id, screenings) : null;
     const cleanerAvailability = kind === "cleaner" ? activeCleanerAvailability(availabilityEvents, record.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > Date.now()) : [];
     const pilotCoverage = kind === "request" ? pilotPostcodeCoverage(record.postcode, config.pilotPostcodes) : null;
-    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, cleanerAvailability, pilotCoverage, booking, outcome };
+    const status = latestStatuses.get(record.id) || record.status || "new";
+    const nextActionAt = leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "";
+    const dispatchActions = dispatchActionsForRecord({ kind, status, nextActionAt, proposals: leadProposals, briefs: leadBriefs, booking, outcome, screening, cleanerAvailability, pilotCoverage });
+    return { ...record, kind, status, activities: leadActivities.slice(0, 10), nextActionAt, proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, cleanerAvailability, pilotCoverage, booking, outcome, dispatchActions };
   };
   const records = [
     ...requests.map((record) => merge(record, "request")),
     ...cleaners.map((record) => merge(record, "cleaner"))
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-  return json(response, 200, { ok: true, records });
+  const dispatchActions = records.flatMap((record) => record.dispatchActions.map((action) => ({ ...action, recordId: record.id, kind: record.kind })));
+  return json(response, 200, { ok: true, records, dispatchSummary: { urgent: dispatchActions.filter((action) => action.severity === "urgent").length, high: dispatchActions.filter((action) => action.severity === "high").length, monitor: dispatchActions.filter((action) => action.severity === "monitor").length, total: dispatchActions.length } });
 }
 
 async function updateAdminCleanerScreening(request, response) {

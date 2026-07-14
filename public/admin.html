@@ -6,8 +6,8 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Tideway control desk</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260714-31">
-  <script src="/admin.js?v=20260714-32" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=20260714-32">
+  <script src="/admin.js?v=20260714-33" defer></script>
 </head>
 <body class="admin-page">
   <a class="skip-link" href="#admin-main">Skip to leads</a>
@@ -39,7 +39,12 @@
       <article><span>Customer requests</span><strong id="request-count">—</strong><small id="new-request-count">Loading…</small></article>
       <article><span>Cleaner applications</span><strong id="cleaner-count">—</strong><small id="new-cleaner-count">Loading…</small></article>
       <article><span>Matches booked</span><strong id="booked-count">—</strong><small>Confirmed pilot work</small></article>
-      <article><span>Needs attention</span><strong id="attention-count">—</strong><small>New records to review</small></article>
+      <article><span>Needs attention</span><strong id="attention-count">—</strong><small id="attention-detail">Prioritising founder actions…</small></article>
+    </section>
+
+    <section class="dispatch-queue" aria-labelledby="dispatch-heading">
+      <div class="dispatch-heading"><div><p class="eyebrow">Dispatch control</p><h2 id="dispatch-heading">Founder-action queue</h2><p>Prioritised from recorded scan, matching, offer, booking and safety events. Nothing here sends a message, changes a booking or moves money.</p></div><span class="status-pill">Private operations</span></div>
+      <div id="dispatch-queue-list" class="dispatch-queue-list" aria-live="polite"><div class="dispatch-empty"><strong>Loading dispatch actions…</strong></div></div>
     </section>
 
     <section class="launch-setup" aria-labelledby="launch-setup-heading">
@@ -109,7 +114,7 @@
           <button type="button" role="tab" aria-selected="false" data-kind="request">Customers</button>
           <button type="button" role="tab" aria-selected="false" data-kind="cleaner">Cleaners</button>
         </div>
-        <label class="filter-label">Status<select id="status-filter"><option value="all">All statuses</option><option value="new">New</option><option value="contacted">Contacted</option><option value="quoted">Quoted</option><option value="booked">Booked</option><option value="screening">Screening</option><option value="approved">Approved</option><option value="completed">Completed</option><option value="paused">Paused</option><option value="lost">Lost</option><option value="rejected">Rejected</option></select></label>
+        <div class="lead-filters"><label class="filter-label">Status<select id="status-filter"><option value="all">All statuses</option><option value="new">New</option><option value="contacted">Contacted</option><option value="quoted">Quoted</option><option value="booked">Booked</option><option value="screening">Screening</option><option value="approved">Approved</option><option value="completed">Completed</option><option value="paused">Paused</option><option value="lost">Lost</option><option value="rejected">Rejected</option></select></label><label class="filter-label">Founder action<select id="action-filter"><option value="all">All records</option><option value="needs-action">Needs action</option><option value="urgent">Urgent only</option><option value="rematching">Rematching</option><option value="booking">Booking and safety</option></select></label></div>
       </div>
       <div id="lead-list" class="lead-list" aria-live="polite"><div class="loading-state">Loading Tideway leads…</div></div>
     </section>

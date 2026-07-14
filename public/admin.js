@@ -1,6 +1,7 @@
-const state = { records: [], kind: "all", status: "all", config: {} };
+const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {} };
 
 const leadList = document.querySelector("#lead-list");
+const dispatchQueueList = document.querySelector("#dispatch-queue-list");
 const errorBox = document.querySelector("#admin-error");
 const refreshButton = document.querySelector("#refresh-records");
 const adminAuth = document.querySelector("#admin-auth");
@@ -184,11 +185,71 @@ function updateStats() {
   document.querySelector("#request-count").textContent = requests.length;
   document.querySelector("#cleaner-count").textContent = cleaners.length;
   document.querySelector("#booked-count").textContent = requests.filter((record) => record.status === "booked" || record.status === "completed").length;
-  const today = new Date().toISOString().slice(0, 10);
-  const closedStatuses = new Set(["completed", "lost", "rejected"]);
-  document.querySelector("#attention-count").textContent = state.records.filter((record) => !closedStatuses.has(record.status) && (record.status === "new" || (record.nextActionAt && record.nextActionAt <= today))).length;
+  document.querySelector("#attention-count").textContent = state.records.filter((record) => record.dispatchActions?.some((action) => ["urgent", "high"].includes(action.severity))).length;
+  document.querySelector("#attention-detail").textContent = `${state.dispatchSummary.urgent || 0} urgent · ${state.dispatchSummary.high || 0} high priority`;
   document.querySelector("#new-request-count").textContent = `${requests.filter((record) => record.status === "new").length} new to review`;
   document.querySelector("#new-cleaner-count").textContent = `${cleaners.filter((record) => record.status === "new").length} new to review`;
+}
+
+function actionMatchesFilter(record) {
+  if (state.action === "all") return true;
+  const actions = record.dispatchActions || [];
+  if (state.action === "needs-action") return actions.some((action) => ["urgent", "high"].includes(action.severity));
+  if (state.action === "urgent") return actions.some((action) => action.severity === "urgent");
+  if (state.action === "rematching") return actions.some((action) => action.group === "rematching");
+  if (state.action === "booking") return actions.some((action) => ["booking", "safety"].includes(action.group));
+  return true;
+}
+
+function showDispatchRecord(recordId) {
+  state.kind = "all";
+  state.status = "all";
+  state.action = "all";
+  document.querySelectorAll("[role=tab]").forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.kind === "all")));
+  document.querySelector("#status-filter").value = "all";
+  document.querySelector("#action-filter").value = "all";
+  renderRecords();
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`#record-${recordId}`);
+    if (!card) return;
+    card.tabIndex = -1;
+    card.focus({ preventScroll: true });
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+function renderDispatchQueue() {
+  const severityWeight = { urgent: 3, high: 2, monitor: 1 };
+  const entries = state.records.flatMap((record) => (record.dispatchActions || []).map((action) => ({ record, action })))
+    .sort((left, right) => (severityWeight[right.action.severity] || 0) - (severityWeight[left.action.severity] || 0) || right.record.createdAt.localeCompare(left.record.createdAt));
+  dispatchQueueList.replaceChildren();
+  if (!entries.length) {
+    const empty = document.createElement("div");
+    empty.className = "dispatch-empty";
+    addText(empty, "strong", "No founder actions are queued.");
+    addText(empty, "span", "New scans, rematching needs, booking checks and safety reports will appear here automatically.");
+    dispatchQueueList.append(empty);
+    return;
+  }
+  for (const { record, action } of entries) {
+    const item = document.createElement("article");
+    item.className = `dispatch-item dispatch-${action.severity}`;
+    const copy = document.createElement("div");
+    const meta = document.createElement("div");
+    meta.className = "dispatch-meta";
+    addText(meta, "span", action.severity === "urgent" ? "Urgent" : action.severity === "high" ? "Founder action" : "Monitoring", `dispatch-severity dispatch-severity-${action.severity}`);
+    addText(meta, "span", `${record.kind === "request" ? "Customer request" : "Cleaner application"} · ${record.id}`);
+    copy.append(meta);
+    addText(copy, "strong", action.title);
+    addText(copy, "span", action.detail);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button button-small button-outline";
+    button.textContent = "Open record";
+    button.addEventListener("click", () => showDispatchRecord(record.id));
+    item.append(copy, button);
+    dispatchQueueList.append(item);
+  }
 }
 
 async function addActivity(record, form) {
@@ -891,6 +952,8 @@ function buildCleanerAvailability(record) {
 function buildCard(record) {
   const card = document.createElement("article");
   card.className = `lead-card lead-${record.kind}`;
+  card.id = `record-${record.id}`;
+  if (record.dispatchActions?.some((action) => action.severity === "urgent")) card.classList.add("lead-urgent");
 
   const heading = document.createElement("div");
   heading.className = "lead-card-heading";
@@ -916,6 +979,19 @@ function buildCard(record) {
   statusLabel.append(statusSelect);
   heading.append(statusLabel);
   card.append(heading);
+
+  if (record.dispatchActions?.length) {
+    const actionPanel = document.createElement("div");
+    actionPanel.className = "record-actions";
+    for (const action of record.dispatchActions) {
+      const item = document.createElement("div");
+      item.className = `record-action record-action-${action.severity}`;
+      addText(item, "strong", action.title);
+      addText(item, "span", action.detail);
+      actionPanel.append(item);
+    }
+    card.append(actionPanel);
+  }
 
   const details = document.createElement("div");
   details.className = "lead-details";
@@ -1221,13 +1297,13 @@ function buildCard(record) {
 }
 
 function renderRecords() {
-  const filtered = state.records.filter((record) => (state.kind === "all" || record.kind === state.kind) && (state.status === "all" || record.status === state.status));
+  const filtered = state.records.filter((record) => (state.kind === "all" || record.kind === state.kind) && (state.status === "all" || record.status === state.status) && actionMatchesFilter(record));
   leadList.replaceChildren();
   if (!filtered.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
     addText(empty, "strong", state.records.length ? "No leads match this filter." : "No pilot leads yet.");
-    addText(empty, "span", state.records.length ? "Try another lead type or status." : "Customer requests and cleaner applications will appear here automatically.");
+    addText(empty, "span", state.records.length ? "Try another lead type, status or founder-action filter." : "Customer requests and cleaner applications will appear here automatically.");
     leadList.append(empty);
     return;
   }
@@ -1247,7 +1323,9 @@ async function loadRecords() {
     if (!response.ok || !result.ok) throw new Error(result.error || "Leads could not be loaded.");
     showContent();
     state.records = result.records;
+    state.dispatchSummary = result.dispatchSummary || {};
     updateStats();
+    renderDispatchQueue();
     renderRecords();
   } catch (error) {
     showAdminError(error.message);
@@ -1267,6 +1345,11 @@ document.querySelectorAll("[role=tab]").forEach((tab) => {
 
 document.querySelector("#status-filter").addEventListener("change", (event) => {
   state.status = event.target.value;
+  renderRecords();
+});
+
+document.querySelector("#action-filter").addEventListener("change", (event) => {
+  state.action = event.target.value;
   renderRecords();
 });
 

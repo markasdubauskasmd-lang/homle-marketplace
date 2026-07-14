@@ -77,7 +77,8 @@ try {
   assert(terms.ok && (await terms.text()).includes("Pilot terms"), "Terms page failed.");
 
   const adminPage = await fetch(`${base}/admin`);
-  assert(adminPage.ok && (await adminPage.text()).includes("Lead control desk"), "Admin page failed.");
+  const adminPageText = await adminPage.text();
+  assert(adminPage.ok && adminPageText.includes("Lead control desk") && adminPageText.includes("Founder-action queue") && adminPageText.includes('id="action-filter"'), "Admin dispatch control page failed.");
   const briefPage = await fetch(`${base}/brief`);
   assert(briefPage.ok && (await briefPage.text()).includes("Request details carried over."), "Photo job-brief page or private handoff notice failed.");
   assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
@@ -169,6 +170,10 @@ try {
   assert(adminRecords.ok && adminBody.records.length === 2, "Admin records did not load.");
   assert(adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.id === briefBody.reference, "Photo job brief was not attached to its customer request.");
   assert(adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "landlord-draft", "New photo job brief did not enter the human review queue.");
+  assert(adminBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.some((action) => action.code === "review-scan" && action.severity === "high"), "Submitted room scan was missing from the founder-action queue.");
+  assert(adminBody.records.find((record) => record.id === cleanerBody.reference)?.dispatchActions?.some((action) => action.code === "review-cleaner" && action.severity === "high"), "New cleaner application was missing from the founder-action queue.");
+  assert(adminBody.dispatchSummary.high >= 2 && adminBody.dispatchSummary.urgent === 0, "Dispatch summary did not prioritise initial scan and supply review correctly.");
+  assert(!JSON.stringify(adminBody.records.flatMap((record) => record.dispatchActions || [])).includes("customer@example.com"), "Dispatch actions leaked customer contact data into operational labels.");
 
   const proxiedAdmin = await fetch(`${base}/api/admin/records`, { headers: { "x-forwarded-for": "203.0.113.10" } });
   assert(proxiedAdmin.status === 401, "Proxied admin request bypassed authentication.");
@@ -589,6 +594,9 @@ try {
   const bothAcceptedTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
   const bothAcceptedTrackerBody = await bothAcceptedTracker.json();
   assert(bothAcceptedTracker.ok && bothAcceptedTrackerBody.current.stage === "finalising-booking" && bothAcceptedTrackerBody.steps.find((step) => step.key === "cleaner")?.state === "complete", "Customer tracker did not show final booking checks after both private acceptances.");
+  const finalisationQueue = await fetch(`${base}/api/admin/records`);
+  const finalisationQueueBody = await finalisationQueue.json();
+  assert(finalisationQueue.ok && finalisationQueueBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.some((action) => action.code === "finalise-booking" && action.group === "booking"), "Both-side acceptance did not create a final booking-check action.");
   const overlappingCleanerDecision = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": overlapProposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Cleaner", scopeConfirmed: true, payConfirmed: true, availabilityConfirmed: true }) });
   assert(overlappingCleanerDecision.status === 409, "Cleaner accepted a second opportunity that overlaps already-accepted work.");
   const duplicateCleanerDecision = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": proposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "declined", typedName: "Test Cleaner" }) });
@@ -653,6 +661,9 @@ try {
   const cleanerSafetyRequest = await fetch(`${base}/api/booking-change-requests`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.cleanerViewToken }, body: JSON.stringify({ type: "safety-issue", message: "Please review a potential site safety concern before arrival." }) });
   const cleanerSafetyBody = await cleanerSafetyRequest.json();
   assert(cleanerSafetyRequest.status === 201 && cleanerSafetyBody.reference.startsWith("CHG-"), "Valid cleaner safety request was not recorded.");
+  const safetyQueue = await fetch(`${base}/api/admin/records`);
+  const safetyQueueBody = await safetyQueue.json();
+  assert(safetyQueue.ok && safetyQueueBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.some((action) => action.code === "safety-review" && action.severity === "urgent") && safetyQueueBody.dispatchSummary.urgent >= 1, "Open safety report did not become the highest-priority dispatch action.");
   const customerPackWithRequest = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.customerViewToken } });
   const customerPackWithRequestBody = await customerPackWithRequest.json();
   const cleanerPackWithRequest = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.cleanerViewToken } });
@@ -749,8 +760,10 @@ try {
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.cleanerAvailability?.length === 3, "Active confirmed availability windows were not attached to the cleaner control-desk record.");
   const withdrawnAdminProposal = refreshedBody.records.find((record) => record.id === overlapRequestBody.reference)?.proposals?.find((proposal) => proposal.id === replacementProposalBody.proposal.id);
   assert(withdrawnAdminProposal?.status === "cancelled" && withdrawnAdminProposal.statusNote === "Test-only withdrawal before a booking was recorded.", "Control desk did not retain the audited pre-booking withdrawal reason.");
+  assert(refreshedBody.records.find((record) => record.id === overlapRequestBody.reference)?.dispatchActions?.some((action) => action.code === "rematch" && action.group === "rematching"), "Exhausted and withdrawn offers did not remain visible in the rematching queue.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.length === 0, "Completed profitable work remained in the active founder-action queue.");
 
-  console.log("Smoke tests passed: public pages, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));
