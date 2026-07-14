@@ -391,7 +391,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
+    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -428,10 +428,12 @@ function buildJobOutcome(record) {
   const panel = document.createElement("div");
   panel.className = "job-outcome";
   if (record.outcome) {
-    panel.classList.add(record.outcome.profitable ? "job-profitable" : "job-loss");
-    addText(panel, "strong", `${record.outcome.profitable ? "Profitable" : "Loss-making"} completed job · ${record.outcome.id}`);
+    const performance = !record.outcome.profitable ? "Loss-making" : record.outcome.metTargetMargin ? "Margin target met" : "Positive, below margin target";
+    panel.classList.add(!record.outcome.profitable ? "job-loss" : record.outcome.metTargetMargin ? "job-profitable" : "job-below-target");
+    addText(panel, "strong", `${performance} · ${record.outcome.id}`);
     addText(panel, "span", `${record.outcome.actualHours} actual hours · ${money.format(record.outcome.customerCollected)} collected · ${money.format(record.outcome.cleanerPaid)} cleaner pay`);
     addText(panel, "span", `${money.format(record.outcome.refundAmount)} refunds · ${money.format(record.outcome.otherCosts)} other costs · ${money.format(record.outcome.contribution)} contribution (${record.outcome.marginPercent.toFixed(1)}%)`);
+    if (record.outcome.targetMarginPercent > 0) addText(panel, "span", `Founder margin floor at completion: ${record.outcome.targetMarginPercent.toFixed(1)}%`);
     return panel;
   }
   addText(panel, "strong", `Confirmed booking ${record.booking.id}`);
@@ -741,7 +743,9 @@ document.querySelector("#business-config-form").addEventListener("submit", async
     const response = await fetch("/api/admin/config", { method: "PUT", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "Launch details could not be saved.");
+    state.config = result.config;
     renderReadiness(result.readiness);
+    updateQuoteCalculator();
     resultPanel.hidden = false;
     resultPanel.focus();
   } catch (error) {
@@ -766,14 +770,21 @@ function updateQuoteCalculator() {
   document.querySelector("#quote-margin").textContent = `${margin.toFixed(1)}%`;
 
   const guidance = document.querySelector("#quote-guidance");
+  const minimumMargin = Math.max(0, Number(state.config.minimumContributionMarginPercent) || 0);
   guidance.className = "quote-guidance";
   if (!customerTotal) {
     guidance.textContent = "Enter the expected hours and rates before promising a price.";
   } else if (contribution <= 0) {
     guidance.textContent = "This quote loses money before overheads. Change the price, pay or scope before sending it.";
     guidance.classList.add("quote-danger");
+  } else if (!minimumMargin) {
+    guidance.textContent = "Set the founder-approved minimum contribution margin in launch details before approving a quote.";
+    guidance.classList.add("quote-danger");
+  } else if (margin < minimumMargin) {
+    guidance.textContent = `This quote is below the ${minimumMargin.toFixed(1)}% contribution-margin floor. Change the price, pay, costs or scope.`;
+    guidance.classList.add("quote-danger");
   } else {
-    guidance.textContent = "Positive contribution before insurance, admin, tax, refunds and other overheads. Check those costs separately.";
+    guidance.textContent = `This quote meets the ${minimumMargin.toFixed(1)}% contribution-margin floor before insurance, admin, tax, refunds and other overheads.`;
     guidance.classList.add("quote-positive");
   }
 }

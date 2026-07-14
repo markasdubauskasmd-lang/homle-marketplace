@@ -1,12 +1,12 @@
 import { createServer } from "node:http";
-import { appendFile, mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, "public");
-const dataDir = path.join(root, "data");
+const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(root, "data");
 const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || 4173);
 const maxBodyBytes = 64 * 1024;
@@ -158,12 +158,19 @@ async function saveJsonFile(filename, value) {
   return operation;
 }
 
+async function cleanupStaleTemporaryFiles() {
+  await mkdir(dataDir, { recursive: true });
+  const filenames = await readdir(dataDir);
+  const stale = filenames.filter((filename) => /^business-config\.json\.[0-9a-f-]+\.tmp$/i.test(filename));
+  await Promise.all(stale.map((filename) => unlink(path.join(dataDir, filename)).catch(() => {})));
+}
+
 function launchReadiness(config) {
   const checks = {
     identity: Boolean(config.legalOwnerName && config.businessStructure && config.legalBusinessName && config.tradingAddress),
     contact: Boolean(config.supportEmail && isEmail(config.supportEmail) && config.supportPhone && isPhone(config.supportPhone)),
     pilotArea: Boolean(config.pilotPostcodes),
-    economics: Boolean(config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.minimumHours > 0 && config.customerHourlyRate > config.cleanerHourlyPay),
+    economics: Boolean(config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.minimumHours > 0 && config.minimumContributionMarginPercent > 0 && config.minimumContributionMarginPercent < 100 && config.customerHourlyRate > config.cleanerHourlyPay),
     insurance: config.insuranceStatus === "active",
     payments: Boolean(config.paymentProviderStatus === "live" && config.paymentProviderName && config.refundProcess),
     operatingRules: Boolean(config.cleanerModel && config.cancellationPolicy && config.paymentTiming)
@@ -258,6 +265,10 @@ async function updateAdminProposalStatus(request, response) {
   if (!transitions[currentStatus]?.has(status)) return json(response, 422, { ok: false, error: `Proposal cannot move from ${currentStatus} to ${status}.` });
   if (["ready", "sent", "accepted"].includes(status) && !launchReadiness(config).ready) {
     return json(response, 422, { ok: false, error: "Complete all seven launch-readiness checks before advancing this proposal." });
+  }
+  if (["ready", "sent", "accepted"].includes(status) && (!Number.isFinite(proposal.marginPercent) || proposal.marginPercent < config.minimumContributionMarginPercent)) {
+    const proposalMargin = Number.isFinite(proposal.marginPercent) ? `${proposal.marginPercent.toFixed(1)}%` : "unrecorded";
+    return json(response, 422, { ok: false, error: `This proposal's ${proposalMargin} contribution margin is below the ${config.minimumContributionMarginPercent.toFixed(1)}% minimum.` });
   }
   const update = { proposalId, requestId: proposal.requestId, status, previousStatus: currentStatus, updatedAt: new Date().toISOString() };
   await saveRecord("proposal-status.ndjson", update);
@@ -367,6 +378,7 @@ async function buildBookingAudit(proposalId) {
     cleanerApproved: cleanerStatus === "approved",
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     profitable: proposal.contribution > 0,
+    marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
     scopeCaptured: Boolean(customerRequest.siteSize),
     accessCaptured: Boolean(customerRequest.accessNotes),
     hazardsCaptured: Boolean(customerRequest.hazards)
@@ -452,10 +464,11 @@ async function createAdminJobOutcome(request, response) {
   if (!bookingId || values.some((value) => !Number.isFinite(value)) || actualHours <= 0 || customerCollected <= 0 || cleanerPaid < 0 || otherCosts < 0 || refundAmount < 0) {
     return json(response, 422, { ok: false, error: "Enter valid actual hours and non-negative job amounts; customer collected must be greater than zero." });
   }
-  const [bookings, outcomes, updates] = await Promise.all([
+  const [bookings, outcomes, updates, config] = await Promise.all([
     readRecords("bookings.ndjson"),
     readRecords("job-outcomes.ndjson"),
-    readRecords("status-updates.ndjson")
+    readRecords("status-updates.ndjson"),
+    readJsonFile("business-config.json", {})
   ]);
   const booking = bookings.find((record) => record.id === bookingId);
   if (!booking) return json(response, 404, { ok: false, error: "Booking not found." });
@@ -465,6 +478,7 @@ async function createAdminJobOutcome(request, response) {
   if (requestStatus !== "booked") return json(response, 422, { ok: false, error: "Only a booked request can be completed." });
 
   const contribution = customerCollected - cleanerPaid - otherCosts - refundAmount;
+  const marginPercent = (contribution / customerCollected) * 100;
   const outcome = {
     id: `JOB-${randomUUID().slice(0, 8).toUpperCase()}`,
     bookingId,
@@ -476,8 +490,10 @@ async function createAdminJobOutcome(request, response) {
     otherCosts,
     refundAmount,
     contribution,
-    marginPercent: (contribution / customerCollected) * 100,
+    marginPercent,
     profitable: contribution > 0,
+    targetMarginPercent: config.minimumContributionMarginPercent || 0,
+    metTargetMargin: config.minimumContributionMarginPercent > 0 && marginPercent >= config.minimumContributionMarginPercent,
     internalNote: text(input.internalNote, 1000),
     createdAt: new Date().toISOString()
   };
@@ -505,10 +521,11 @@ async function createAdminProposal(request, response) {
   if (estimatedHours <= 0 || customerRate <= 0 || cleanerRate <= 0) errors.push("Hours, customer rate and cleaner pay must be greater than zero.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
-  const [requests, cleaners, updates] = await Promise.all([
+  const [requests, cleaners, updates, config] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
-    readRecords("status-updates.ndjson")
+    readRecords("status-updates.ndjson"),
+    readJsonFile("business-config.json", {})
   ]);
   const customerRequest = requests.find((record) => record.id === requestId);
   const cleaner = cleaners.find((record) => record.id === cleanerId);
@@ -524,6 +541,9 @@ async function createAdminProposal(request, response) {
   const contribution = customerTotal - cleanerPay - otherCosts;
   if (contribution <= 0) return json(response, 422, { ok: false, error: "This proposal loses money before overheads. Change the price, pay or scope." });
   const marginPercent = (contribution / customerTotal) * 100;
+  if (config.minimumContributionMarginPercent > 0 && marginPercent < config.minimumContributionMarginPercent) {
+    return json(response, 422, { ok: false, error: `This proposal's ${marginPercent.toFixed(1)}% contribution margin is below the ${config.minimumContributionMarginPercent.toFixed(1)}% minimum.` });
+  }
   const proposal = {
     id: `PRO-${randomUUID().slice(0, 8).toUpperCase()}`,
     requestId,
@@ -641,6 +661,7 @@ async function updateAdminConfig(request, response) {
     customerHourlyRate: Math.max(0, Number(input.customerHourlyRate) || 0),
     cleanerHourlyPay: Math.max(0, Number(input.cleanerHourlyPay) || 0),
     minimumHours: Math.max(0, Number(input.minimumHours) || 0),
+    minimumContributionMarginPercent: Math.max(0, Number(input.minimumContributionMarginPercent) || 0),
     cancellationPolicy: text(input.cancellationPolicy, 1000),
     paymentTiming: text(input.paymentTiming, 100),
     updatedAt: new Date().toISOString()
@@ -649,6 +670,7 @@ async function updateAdminConfig(request, response) {
   if (config.supportEmail && !isEmail(config.supportEmail)) errors.push("Enter a valid support email.");
   if (config.supportPhone && !isPhone(config.supportPhone)) errors.push("Enter a valid support phone number.");
   if (config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.customerHourlyRate <= config.cleanerHourlyPay) errors.push("Customer rate must be higher than cleaner pay before other costs.");
+  if (config.minimumContributionMarginPercent >= 100) errors.push("Minimum contribution margin must be below 100%.");
   if (config.paymentProviderStatus === "live" && (!config.paymentProviderName || !config.refundProcess)) errors.push("Add the live payment provider and refund process.");
   if (errors.length) return json(response, 422, { ok: false, errors });
   await saveJsonFile("business-config.json", config);
@@ -867,6 +889,7 @@ const server = createServer(async (request, response) => {
   }
 });
 
+await cleanupStaleTemporaryFiles();
 server.listen(port, host, () => {
   console.log(`Tideway is running at http://${host}:${port}`);
 });

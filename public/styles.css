@@ -202,6 +202,7 @@ textarea { resize: vertical; }
 .setup-details form { margin-top: 18px; padding: 24px; border-radius: 14px; background: #fff; }
 .setup-details label { color: var(--ink); }
 .setup-details .three-fields { grid-template-columns: repeat(3, 1fr); }
+.setup-details .four-fields { grid-template-columns: repeat(4, 1fr); }
 .quote-calculator { display: grid; grid-template-columns: .7fr 1.3fr; gap: 25px 40px; margin-bottom: 24px; padding: 28px; border: 1px solid #b9cfc7; border-radius: 20px; background: var(--mint-pale); }
 .quote-calculator h2 { margin-bottom: 8px; font-size: 1.55rem; }
 .quote-calculator > div:first-child > p:last-child { margin: 0; color: var(--muted); font-size: .9rem; }
@@ -301,6 +302,7 @@ textarea { resize: vertical; }
 .job-outcome { display: grid; gap: 5px; margin-top: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
 .job-outcome > span { color: var(--muted); font-size: .85rem; }
 .job-profitable { border-color: #72b99f; background: var(--mint); }
+.job-below-target { border-color: #d5aa51; background: #fff8e8; }
 .job-loss { border-color: #d29a91; background: #fff0ec; }
 .job-outcome-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
 .job-outcome-form label { font-size: .78rem; }
@@ -377,7 +379,7 @@ textarea { resize: vertical; }
   .readiness-score { text-align: left; }
   .readiness-list { grid-template-columns: 1fr 1fr; }
   .setup-details form { padding: 18px 14px; }
-  .setup-details .three-fields { grid-template-columns: 1fr; }
+  .setup-details .three-fields, .setup-details .four-fields { grid-template-columns: 1fr; }
   .quote-inputs { grid-template-columns: 1fr; }
   .lead-toolbar { align-items: stretch; flex-direction: column; }
   .tab-list { display: grid; grid-template-columns: repeat(3, 1fr); }

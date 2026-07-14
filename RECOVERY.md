@@ -28,3 +28,5 @@ The archive itself is sensitive. Store it only in an access-controlled location.
 ## Production requirement
 
 Local files are appropriate only for development and a tightly controlled manual pilot. Before public launch, move personal data to an encrypted production database with access controls, automated backups, retention rules and an audit trail.
+
+Automated smoke tests use a separate temporary `DATA_DIR` and must never read, overwrite or delete the live local `data/` folder.

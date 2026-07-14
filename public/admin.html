@@ -6,8 +6,8 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Tideway control desk</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260714-12">
-  <script src="/admin.js?v=20260714-12" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=20260714-13">
+  <script src="/admin.js?v=20260714-13" defer></script>
 </head>
 <body class="admin-page">
   <a class="skip-link" href="#admin-main">Skip to leads</a>
@@ -67,7 +67,7 @@
           <div class="field-row"><label>Cleaner engagement model<select name="cleanerModel"><option value="">Choose after advice</option><option>Employee</option><option>Worker</option><option>Self-employed contractor</option><option>Undecided</option></select></label><label>Public liability insurance<select name="insuranceStatus"><option value="not-arranged">Not arranged</option><option value="in-progress">In progress</option><option value="active">Active and verified</option></select></label></div>
           <div class="field-row"><label>Payment provider<input name="paymentProviderName" placeholder="For example: Stripe"></label><label>Payment provider status<select name="paymentProviderStatus"><option value="not-ready">Not ready</option><option value="testing">Test mode only</option><option value="live">Live and verified</option></select></label></div>
           <label>Refund process<textarea name="refundProcess" rows="2" placeholder="Who approves refunds, how they are recorded, and the expected customer timescale"></textarea></label>
-          <div class="field-row three-fields"><label>Customer hourly rate (£)<input name="customerHourlyRate" type="number" min="0" step="0.01" inputmode="decimal"></label><label>Cleaner hourly pay (£)<input name="cleanerHourlyPay" type="number" min="0" step="0.01" inputmode="decimal"></label><label>Minimum hours<input name="minimumHours" type="number" min="0" step="0.5" inputmode="decimal"></label></div>
+          <div class="field-row four-fields"><label>Customer hourly rate (£)<input name="customerHourlyRate" type="number" min="0" step="0.01" inputmode="decimal"></label><label>Cleaner hourly pay (£)<input name="cleanerHourlyPay" type="number" min="0" step="0.01" inputmode="decimal"></label><label>Minimum hours<input name="minimumHours" type="number" min="0" step="0.5" inputmode="decimal"></label><label>Minimum contribution margin (%)<input name="minimumContributionMarginPercent" type="number" min="0" max="99.9" step="0.1" inputmode="decimal" placeholder="Founder decision required"></label></div>
           <label>Cancellation rule<textarea name="cancellationPolicy" rows="3" placeholder="When customers may cancel and what happens to cleaner pay"></textarea></label>
           <label>Customer payment timing<select name="paymentTiming"><option value="">Choose one</option><option>Payment authorised at booking and captured after completion</option><option>Payment taken at booking</option><option>Invoice after completion</option><option>Other — document before launch</option></select></label>
           <button class="button" type="submit">Save launch details locally</button>

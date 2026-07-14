@@ -1,12 +1,14 @@
 import { spawn } from "node:child_process";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const testDataDir = await mkdtemp(path.join(tmpdir(), "tideway-smoke-"));
 const port = 4279;
 const base = `http://127.0.0.1:${port}`;
-const child = spawn(process.execPath, ["server.mjs"], { cwd: root, env: { ...process.env, PORT: String(port), ADMIN_KEY: "test-admin-key" }, stdio: "pipe" });
+const child = spawn(process.execPath, ["server.mjs"], { cwd: root, env: { ...process.env, PORT: String(port), ADMIN_KEY: "test-admin-key", DATA_DIR: testDataDir }, stdio: "pipe" });
 
 async function waitForServer() {
   for (let index = 0; index < 50; index += 1) {
@@ -24,16 +26,6 @@ function assert(condition, message) {
 }
 
 try {
-  await mkdir(path.join(root, "data"), { recursive: true });
-  await rm(path.join(root, "data", "cleaning-requests.ndjson"), { force: true });
-  await rm(path.join(root, "data", "cleaner-applications.ndjson"), { force: true });
-  await rm(path.join(root, "data", "status-updates.ndjson"), { force: true });
-  await rm(path.join(root, "data", "lead-activity.ndjson"), { force: true });
-  await rm(path.join(root, "data", "business-config.json"), { force: true });
-  await rm(path.join(root, "data", "match-proposals.ndjson"), { force: true });
-  await rm(path.join(root, "data", "proposal-status.ndjson"), { force: true });
-  await rm(path.join(root, "data", "bookings.ndjson"), { force: true });
-  await rm(path.join(root, "data", "job-outcomes.ndjson"), { force: true });
   await waitForServer();
 
   const home = await fetch(base);
@@ -94,7 +86,7 @@ try {
   const initialConfigBody = await initialConfig.json();
   assert(initialConfig.ok && initialConfigBody.readiness.completed === 0, "Initial launch readiness was incorrect.");
 
-  const completeConfig = { legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", paymentProviderName: "TestPay", paymentProviderStatus: "live", refundProcess: "Owner approves and records refunds within five working days.", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion" };
+  const completeConfig = { legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", paymentProviderName: "TestPay", paymentProviderStatus: "live", refundProcess: "Owner approves and records refunds within five working days.", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, minimumContributionMarginPercent: 25, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion" };
   const savedConfig = await fetch(`${base}/api/admin/config`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
@@ -102,6 +94,13 @@ try {
   });
   const savedConfigBody = await savedConfig.json();
   assert(savedConfig.ok && savedConfigBody.readiness.ready === true, "Complete launch settings did not pass readiness checks.");
+
+  const missingMarginFloor = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, minimumContributionMarginPercent: 0 }) });
+  const missingMarginFloorBody = await missingMarginFloor.json();
+  assert(missingMarginFloor.ok && missingMarginFloorBody.readiness.ready === false && missingMarginFloorBody.readiness.checks.economics === false, "Missing founder margin floor did not block launch readiness.");
+  const impossibleMarginFloor = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, minimumContributionMarginPercent: 100 }) });
+  assert(impossibleMarginFloor.status === 422, "Impossible contribution-margin floor was accepted.");
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
 
   const testOnlyPayments = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, paymentProviderStatus: "testing" }) });
   const testOnlyPaymentsBody = await testOnlyPayments.json();
@@ -147,6 +146,13 @@ try {
   });
   assert(losingProposal.status === 422, "Loss-making proposal was not rejected.");
 
+  const thinMarginProposal = await fetch(`${base}/api/admin/proposals`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", estimatedHours: 4, customerRate: 30, cleanerRate: 23.5, otherCosts: 0 })
+  });
+  assert(thinMarginProposal.status === 422, "Proposal below the founder margin floor was accepted.");
+
   const validProposal = await fetch(`${base}/api/admin/proposals`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -161,6 +167,10 @@ try {
   assert(blockedDrafts.ok && blockedDraftsBody.sendAllowed === false && blockedDraftsBody.warnings.length > 0, "Unready proposal drafts were not clearly blocked.");
   const readinessBlocked = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
   assert(readinessBlocked.status === 422, "Incomplete launch readiness did not block proposal advancement.");
+
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, minimumContributionMarginPercent: 40 }) });
+  const increasedFloorBlocked = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
+  assert(increasedFloorBlocked.status === 422, "Existing proposal bypassed a newly increased founder margin floor.");
 
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
   const readyProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
@@ -205,7 +215,7 @@ try {
     body: JSON.stringify({ bookingId: confirmedBookingBody.booking.id, actualHours: 4.5, customerCollected: 120, cleanerPaid: 72, otherCosts: 10, refundAmount: 5, internalNote: "Test completion only" })
   });
   const completedJobBody = await completedJob.json();
-  assert(completedJob.status === 201 && completedJobBody.outcome.contribution === 33 && completedJobBody.outcome.profitable === true, "Completed-job actual contribution was not calculated correctly.");
+  assert(completedJob.status === 201 && completedJobBody.outcome.contribution === 33 && completedJobBody.outcome.profitable === true && completedJobBody.outcome.metTargetMargin === true, "Completed-job actual contribution or target comparison was not calculated correctly.");
 
   const activityUpdate = await fetch(`${base}/api/admin/activity`, {
     method: "POST",
@@ -223,16 +233,12 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
 
-  console.log("Smoke tests passed: public pages, scoped requests, admin security, payment readiness, matching, profitable proposals, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, scoped requests, admin security, founder margin floors, matching, profitable proposals, booking confirmations and actual completed-job economics.");
 } finally {
-  child.kill("SIGTERM");
-  await rm(path.join(root, "data", "cleaning-requests.ndjson"), { force: true });
-  await rm(path.join(root, "data", "cleaner-applications.ndjson"), { force: true });
-  await rm(path.join(root, "data", "status-updates.ndjson"), { force: true });
-  await rm(path.join(root, "data", "lead-activity.ndjson"), { force: true });
-  await rm(path.join(root, "data", "business-config.json"), { force: true });
-  await rm(path.join(root, "data", "match-proposals.ndjson"), { force: true });
-  await rm(path.join(root, "data", "proposal-status.ndjson"), { force: true });
-  await rm(path.join(root, "data", "bookings.ndjson"), { force: true });
-  await rm(path.join(root, "data", "job-outcomes.ndjson"), { force: true });
+  if (child.exitCode === null) {
+    const exited = new Promise((resolve) => child.once("exit", resolve));
+    child.kill("SIGTERM");
+    await exited;
+  }
+  await rm(testDataDir, { recursive: true, force: true });
 }
