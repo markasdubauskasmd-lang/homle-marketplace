@@ -43,6 +43,8 @@ Then open `http://127.0.0.1:4173`.
 - Separate fragment-token customer and cleaner booking views: the customer view hides cleaner contact/pay, while the cleaner view exposes only the visit and access information needed after confirmation
 - Private reschedule, cancellation, access, scope and safety request submission from either booking pack; submissions never mutate the confirmed booking, schedule or payment state automatically
 - Local admin change-request queue with open, reviewing and permanently closed audit states plus a customer-visible response note
+- Append-only job-day timeline: cleaners must confirm arrival and a safe start before recording completion, then the customer acknowledges the completed visit from their own protected booking pack
+- Completed-job economics remain locked until the three job-day confirmations are present and every change or safety request is closed
 - Completed-job records for actual customer receipts, cleaner pay, costs, refunds, contribution and margin; recording never moves money
 - Private data backup script and documented recovery procedure
 - Responsive, accessible website

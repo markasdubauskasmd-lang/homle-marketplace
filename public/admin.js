@@ -470,6 +470,14 @@ function buildBookingPackPanel(record) {
   addText(panel, "strong", `${booking.id} · ${booking.proposedDate} · ${booking.proposedStartTime}–${booking.proposedEndTime}`);
   addText(panel, "span", `${booking.details?.serviceAddress || "Address unavailable"}, ${booking.details?.servicePostcode || ""}`);
   addText(panel, "span", "These links contain visit details. Share each link only with its named recipient and never paste it into public notes.");
+  const progress = document.createElement("ol");
+  const progressSteps = [
+    ["Cleaner arrival", booking.jobProgress?.cleanerArrivedAt],
+    ["Cleaner completion", booking.jobProgress?.cleanerCompletedAt],
+    ["Customer completion acknowledgement", booking.jobProgress?.customerCompletedAt]
+  ];
+  progressSteps.forEach(([label, timestamp]) => addText(progress, "li", timestamp ? `✓ ${label} · ${formatDate(timestamp)}` : `○ ${label} · awaiting`));
+  panel.append(progress);
   for (const view of [
     { label: "Customer booking confirmation", path: "booking-confirmation", token: booking.customerViewToken },
     { label: "Cleaner assignment pack", path: "assignment", token: booking.cleanerViewToken }
@@ -559,6 +567,14 @@ function buildJobOutcome(record) {
   }
   addText(panel, "strong", `Confirmed booking ${record.booking.id}`);
   addText(panel, "span", "Record actual figures only after the job and external money movements are complete. This form never charges or pays anyone.");
+  if (!record.booking.jobProgress?.readyForOutcome) {
+    addText(panel, "span", "Blocked: cleaner arrival, cleaner completion and customer completion acknowledgement must all be recorded through the private booking packs.");
+    return panel;
+  }
+  if (record.booking.changeRequests?.some((change) => ["open", "reviewing"].includes(change.status))) {
+    addText(panel, "span", "Blocked: resolve every open booking change or safety request before final job economics.");
+    return panel;
+  }
   const form = document.createElement("form");
   form.className = "job-outcome-form";
   form.append(

@@ -469,6 +469,33 @@ try {
   const duplicateBooking = await fetch(`${base}/api/admin/bookings`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bookingInput) });
   assert(duplicateBooking.status === 409, "A duplicate confirmed booking was not rejected.");
 
+  const prematureOutcome = await fetch(`${base}/api/admin/job-outcomes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bookingId: confirmedBookingBody.booking.id, actualHours: 4, customerCollected: 120, cleanerPaid: 72, otherCosts: 10, refundAmount: 0 }) });
+  assert(prematureOutcome.status === 422, "Final job economics were recorded before the operational completion timeline.");
+  const wrongAudienceEvent = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.customerViewToken }, body: JSON.stringify({ type: "cleaner-arrived", addressConfirmed: true, safeToStart: true, scopeAccessible: true }) });
+  assert(wrongAudienceEvent.status === 403, "Customer booking link recorded a cleaner-only job event.");
+  const completedBeforeArrival = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.cleanerViewToken }, body: JSON.stringify({ type: "cleaner-completed", checklistCompleted: true, siteSecured: true, issuesDisclosed: true }) });
+  assert(completedBeforeArrival.status === 409, "Cleaner completion was recorded before arrival.");
+  const arrivalBlockedBySafety = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.cleanerViewToken }, body: JSON.stringify({ type: "cleaner-arrived", addressConfirmed: true, safeToStart: true, scopeAccessible: true }) });
+  assert(arrivalBlockedBySafety.status === 409, "Cleaner started while a safety request remained open.");
+  const closedSafety = await fetch(`${base}/api/admin/booking-change-requests/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ changeRequestId: cleanerSafetyBody.reference, status: "closed", note: "Safety concern reviewed and resolved before the cleaner records arrival." }) });
+  assert(closedSafety.ok, "Safety request could not be resolved before job start.");
+  const incompleteArrival = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.cleanerViewToken }, body: JSON.stringify({ type: "cleaner-arrived", addressConfirmed: true }) });
+  assert(incompleteArrival.status === 422, "Cleaner arrival was recorded without all safe-start confirmations.");
+  const cleanerArrival = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.cleanerViewToken }, body: JSON.stringify({ type: "cleaner-arrived", addressConfirmed: true, safeToStart: true, scopeAccessible: true, note: "Test arrival only" }) });
+  const cleanerArrivalBody = await cleanerArrival.json();
+  assert(cleanerArrival.status === 201 && cleanerArrivalBody.reference.startsWith("EVT-"), "Valid cleaner arrival was not recorded.");
+  const duplicateArrival = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.cleanerViewToken }, body: JSON.stringify({ type: "cleaner-arrived", addressConfirmed: true, safeToStart: true, scopeAccessible: true }) });
+  assert(duplicateArrival.status === 409, "Duplicate cleaner arrival overwrote the timeline.");
+  const earlyCustomerCompletion = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.customerViewToken }, body: JSON.stringify({ type: "customer-completed", serviceReceived: true, completionDetailsAccurate: true }) });
+  assert(earlyCustomerCompletion.status === 409, "Customer acknowledged completion before the cleaner finished.");
+  const cleanerCompletion = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.cleanerViewToken }, body: JSON.stringify({ type: "cleaner-completed", checklistCompleted: true, siteSecured: true, issuesDisclosed: true, note: "Test completion only" }) });
+  assert(cleanerCompletion.status === 201, "Valid cleaner completion was not recorded.");
+  const customerCompletion = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.customerViewToken }, body: JSON.stringify({ type: "customer-completed", serviceReceived: true, completionDetailsAccurate: true }) });
+  assert(customerCompletion.status === 201, "Valid customer completion acknowledgement was not recorded.");
+  const packAfterCompletion = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.customerViewToken } });
+  const packAfterCompletionBody = await packAfterCompletion.json();
+  assert(packAfterCompletionBody.booking.jobProgress.readyForOutcome === true && packAfterCompletionBody.booking.jobProgress.cleanerArrivedAt && packAfterCompletionBody.booking.jobProgress.cleanerCompletedAt && packAfterCompletionBody.booking.jobProgress.customerCompletedAt, "Private booking pack did not show the completed job timeline.");
+
   const unsafeCompletionStatus = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: requestBody.reference, kind: "request", status: "completed" }) });
   assert(unsafeCompletionStatus.status === 422, "Request bypassed the completed-job workflow.");
   const invalidOutcome = await fetch(`${base}/api/admin/job-outcomes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bookingId: confirmedBookingBody.booking.id, actualHours: 4, customerCollected: 0, cleanerPaid: 72 }) });
@@ -498,12 +525,13 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "reviewed", "Job-brief review status was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.details?.serviceAddress === "10 Clean Street, Westminster, London" && refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.cleanerViewToken === confirmedBookingBody.booking.cleanerViewToken, "Structured booking pack was not retained in the control desk.");
-  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.changeRequests?.length === 2 && refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.changeRequests?.some((change) => change.type === "safety-issue" && change.status === "open"), "Booking change and safety queue was not retained in the control desk.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.changeRequests?.length === 2 && refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.changeRequests?.some((change) => change.type === "safety-issue" && change.status === "closed"), "Booking change and safety queue was not retained in the control desk.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.jobEvents?.length === 3 && refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.jobProgress?.readyForOutcome === true, "Append-only job progress was not retained in the control desk.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

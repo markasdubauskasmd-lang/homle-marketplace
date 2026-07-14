@@ -8,6 +8,8 @@ const changeForm = document.querySelector("#booking-change-form");
 const changeType = changeForm.querySelector('select[name="type"]');
 const rescheduleFields = changeForm.querySelector("[data-reschedule-fields]");
 let currentRequests = [];
+let currentProgress = {};
+let currentAudience = "";
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "long" });
 
@@ -57,6 +59,136 @@ function renderChangeHistory(requests) {
   section.hidden = false;
 }
 
+const jobEventDefinitions = {
+  "cleaner-arrived": {
+    title: "Record arrival and safe start",
+    checks: [
+      ["addressConfirmed", "I am at the confirmed service address."],
+      ["safeToStart", "I have checked the immediate conditions and it is safe to start."],
+      ["scopeAccessible", "The agreed scope is accessible or all differences have been reported."]
+    ],
+    button: "Record arrival — does not use location tracking"
+  },
+  "cleaner-completed": {
+    title: "Record cleaner completion",
+    checks: [
+      ["checklistCompleted", "I completed the agreed checklist or explained every exception."],
+      ["siteSecured", "I left the site secured according to the access instructions."],
+      ["issuesDisclosed", "I reported every known issue, damage or incomplete item to Tideway."]
+    ],
+    button: "Record cleaner completion"
+  },
+  "customer-completed": {
+    title: "Acknowledge service completion",
+    checks: [
+      ["serviceReceived", "The cleaning visit took place."],
+      ["completionDetailsAccurate", "The completion details shown by Tideway are accurate to my knowledge."]
+    ],
+    button: "Acknowledge completion"
+  }
+};
+
+function eventForm(type) {
+  const definition = jobEventDefinitions[type];
+  const form = document.createElement("form");
+  form.className = "quote-decision";
+  const heading = document.createElement("h3");
+  heading.textContent = definition.title;
+  const guidance = document.createElement("p");
+  guidance.textContent = "This records a timestamped operational event. It does not collect payment.";
+  form.append(heading, guidance);
+  for (const [name, text] of definition.checks) {
+    const label = document.createElement("label");
+    label.className = "checkbox";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.name = name;
+    input.required = true;
+    label.append(input, document.createElement("span"));
+    label.lastElementChild.textContent = text;
+    form.append(label);
+  }
+  const noteLabel = document.createElement("label");
+  noteLabel.append(document.createTextNode("Optional operational note"));
+  const note = document.createElement("textarea");
+  note.name = "note";
+  note.rows = 3;
+  note.maxLength = 1000;
+  note.placeholder = "Do not include security codes, card details or identity documents";
+  noteLabel.append(note);
+  const error = document.createElement("div");
+  error.className = "error-summary";
+  error.setAttribute("role", "alert");
+  error.tabIndex = -1;
+  error.hidden = true;
+  const submit = document.createElement("button");
+  submit.type = "submit";
+  submit.className = "button";
+  submit.textContent = definition.button;
+  form.append(noteLabel, error, submit);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    error.hidden = true;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      error.textContent = "Complete every confirmation before recording this event.";
+      error.hidden = false;
+      error.focus();
+      return;
+    }
+    const data = new FormData(form);
+    const body = { type, note: data.get("note") || "" };
+    definition.checks.forEach(([name]) => { body[name] = data.has(name); });
+    submit.disabled = true;
+    try {
+      const response = await fetch("/api/job-events", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json", "X-Booking-Token": token }, body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "The job event could not be recorded.");
+      if (type === "cleaner-arrived") currentProgress.cleanerArrivedAt = result.recordedAt;
+      if (type === "cleaner-completed") currentProgress.cleanerCompletedAt = result.recordedAt;
+      if (type === "customer-completed") currentProgress.customerCompletedAt = result.recordedAt;
+      currentProgress.readyForOutcome = Boolean(currentProgress.cleanerArrivedAt && currentProgress.cleanerCompletedAt && currentProgress.customerCompletedAt);
+      renderJobProgress(currentProgress, currentAudience);
+    } catch (requestError) {
+      error.textContent = requestError.message;
+      error.hidden = false;
+      error.focus();
+      submit.disabled = false;
+    }
+  });
+  return form;
+}
+
+function renderJobProgress(progress = {}, audience) {
+  currentProgress = { ...progress };
+  currentAudience = audience;
+  const list = document.querySelector("[data-job-progress]");
+  const actions = document.querySelector("[data-job-actions]");
+  list.replaceChildren();
+  actions.replaceChildren();
+  const steps = [
+    ["Cleaner arrival and safe-start check", progress.cleanerArrivedAt],
+    ["Cleaner completion", progress.cleanerCompletedAt],
+    ["Customer completion acknowledgement", progress.customerCompletedAt]
+  ];
+  steps.forEach(([label, timestamp]) => {
+    const item = document.createElement("li");
+    item.textContent = timestamp ? `✓ ${label} · ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(timestamp))}` : `○ ${label} · awaiting`;
+    list.append(item);
+  });
+  if (audience === "cleaner") {
+    if (!progress.cleanerArrivedAt) actions.append(eventForm("cleaner-arrived"));
+    else if (!progress.cleanerCompletedAt) actions.append(eventForm("cleaner-completed"));
+    else actions.textContent = "Cleaner completion has been recorded. The customer can now acknowledge that the visit took place.";
+  } else if (!progress.cleanerCompletedAt) {
+    actions.textContent = "Customer acknowledgement opens after the cleaner records completion.";
+  } else if (!progress.customerCompletedAt) {
+    actions.append(eventForm("customer-completed"));
+  } else {
+    actions.textContent = "Completion has been acknowledged. Tideway can now review final job economics after all open change or safety requests are closed.";
+  }
+}
+
 function renderBooking(booking) {
   loading.hidden = true;
   errorState.hidden = true;
@@ -80,6 +212,7 @@ function renderBooking(booking) {
   setText("[data-business-name]", booking.legalBusinessName);
   setText("[data-support]", [booking.supportEmail, booking.supportPhone].filter(Boolean).join(" · "));
   renderChangeHistory(booking.changeRequests);
+  renderJobProgress(booking.jobProgress, booking.audience);
 
   if (booking.checklist?.length) {
     const list = document.querySelector("[data-checklist]");

@@ -234,6 +234,48 @@ async function saveBookingChangeRequest(record) {
   return operation;
 }
 
+function bookingJobProgress(bookingId, events) {
+  const own = events.filter((event) => event.bookingId === bookingId);
+  const find = (type) => own.find((event) => event.type === type) || null;
+  const arrived = find("cleaner-arrived");
+  const cleanerCompleted = find("cleaner-completed");
+  const customerCompleted = find("customer-completed");
+  return {
+    cleanerArrivedAt: arrived?.createdAt || "",
+    cleanerCompletedAt: cleanerCompleted?.createdAt || "",
+    customerCompletedAt: customerCompleted?.createdAt || "",
+    readyForOutcome: Boolean(arrived && cleanerCompleted && customerCompleted)
+  };
+}
+
+async function saveJobEvent(record) {
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    const [events, changes, changeUpdates] = await Promise.all([
+      readRecords("job-events.ndjson"),
+      readRecords("booking-change-requests.ndjson"),
+      readRecords("booking-change-status.ndjson")
+    ]);
+    if (events.some((event) => event.bookingId === record.bookingId && event.type === record.type)) {
+      throw Object.assign(new Error("This job event has already been recorded."), { statusCode: 409 });
+    }
+    const progress = bookingJobProgress(record.bookingId, events);
+    if (record.type === "cleaner-arrived") {
+      const unresolved = changes.filter((change) => change.bookingId === record.bookingId).map((change) => applyBookingChangeStatus(change, changeUpdates)).filter((change) => ["open", "reviewing"].includes(change.status));
+      if (unresolved.length) throw Object.assign(new Error("Resolve all open booking change and safety requests before recording job start."), { statusCode: 409 });
+    }
+    if (record.type === "cleaner-completed" && !progress.cleanerArrivedAt) {
+      throw Object.assign(new Error("Record cleaner arrival before completion."), { statusCode: 409 });
+    }
+    if (record.type === "customer-completed" && !progress.cleanerCompletedAt) {
+      throw Object.assign(new Error("Customer completion cannot be recorded before the cleaner finishes."), { statusCode: 409 });
+    }
+    await appendFile(path.join(dataDir, "job-events.ndjson"), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+  });
+  writeQueue = operation;
+  return operation;
+}
+
 async function readRecords(filename) {
   try {
     const contents = await readFile(path.join(dataDir, filename), "utf8");
@@ -421,7 +463,7 @@ function isAdminAuthorised(request) {
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, bookingChanges, bookingChangeUpdates, config] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, bookingChanges, bookingChangeUpdates, jobEvents, config] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
@@ -436,6 +478,7 @@ async function getAdminRecords(request, response) {
     readRecords("cleaner-opportunity-decisions.ndjson"),
     readRecords("booking-change-requests.ndjson"),
     readRecords("booking-change-status.ndjson"),
+    readRecords("job-events.ndjson"),
     readJsonFile("business-config.json", {})
   ]);
   const latestStatuses = new Map();
@@ -462,7 +505,10 @@ async function getAdminRecords(request, response) {
     list.push(applyBookingChangeStatus(change, bookingChangeUpdates));
     bookingChangesByBooking.set(change.bookingId, list);
   }
-  for (const booking of bookings) bookingsByRequest.set(booking.requestId, { ...booking, changeRequests: (bookingChangesByBooking.get(booking.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)) });
+  for (const booking of bookings) {
+    const ownEvents = jobEvents.filter((event) => event.bookingId === booking.id).sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+    bookingsByRequest.set(booking.requestId, { ...booking, changeRequests: (bookingChangesByBooking.get(booking.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)), jobEvents: ownEvents, jobProgress: bookingJobProgress(booking.id, jobEvents) });
+  }
   const outcomesByBooking = new Map();
   for (const outcome of outcomes) outcomesByBooking.set(outcome.bookingId, outcome);
   const briefsByRequest = new Map();
@@ -1255,16 +1301,17 @@ async function getPrivateBookingPack(request, response) {
   const token = text(request.headers["x-booking-token"], 80);
   const context = await findPrivateBooking(token);
   if (!context) return json(response, 404, { ok: false, error: "This private booking link is invalid." });
-  const [changes, updates] = await Promise.all([
+  const [changes, updates, jobEvents] = await Promise.all([
     readRecords("booking-change-requests.ndjson"),
-    readRecords("booking-change-status.ndjson")
+    readRecords("booking-change-status.ndjson"),
+    readRecords("job-events.ndjson")
   ]);
   const ownRequests = changes
     .filter((record) => record.bookingId === context.booking.id && record.audience === context.audience)
     .map((record) => applyBookingChangeStatus(record, updates))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .map(({ bookingId, requestId, cleanerId, audience, ...record }) => record);
-  return json(response, 200, { ok: true, booking: { ...context.pack, confirmedAt: context.booking.createdAt, changeRequests: ownRequests } });
+  return json(response, 200, { ok: true, booking: { ...context.pack, confirmedAt: context.booking.createdAt, changeRequests: ownRequests, jobProgress: bookingJobProgress(context.booking.id, jobEvents) } });
 }
 
 async function createPrivateBookingChangeRequest(request, response) {
@@ -1304,6 +1351,37 @@ async function createPrivateBookingChangeRequest(request, response) {
   return json(response, 201, { ok: true, reference: record.id, status: record.status });
 }
 
+async function createPrivateJobEvent(request, response) {
+  ensureSameOrigin(request);
+  const token = text(request.headers["x-booking-token"], 80);
+  const context = await findPrivateBooking(token);
+  if (!context) return json(response, 404, { ok: false, error: "This private booking link is invalid." });
+  const input = await readJson(request);
+  const type = text(input.type, 40);
+  const allowed = context.audience === "cleaner" ? new Set(["cleaner-arrived", "cleaner-completed"]) : new Set(["customer-completed"]);
+  if (!allowed.has(type)) return json(response, 403, { ok: false, error: "This booking view cannot record that job event." });
+  const requiredByType = {
+    "cleaner-arrived": ["addressConfirmed", "safeToStart", "scopeAccessible"],
+    "cleaner-completed": ["checklistCompleted", "siteSecured", "issuesDisclosed"],
+    "customer-completed": ["serviceReceived", "completionDetailsAccurate"]
+  };
+  const confirmations = Object.fromEntries(requiredByType[type].map((name) => [name, input[name] === true]));
+  if (!Object.values(confirmations).every(Boolean)) return json(response, 422, { ok: false, error: "Complete every job-event confirmation before submitting." });
+  const record = {
+    id: `EVT-${randomUUID().slice(0, 8).toUpperCase()}`,
+    bookingId: context.booking.id,
+    requestId: context.booking.requestId,
+    cleanerId: context.booking.cleanerId,
+    audience: context.audience,
+    type,
+    confirmations,
+    note: text(input.note, 1000),
+    createdAt: new Date().toISOString()
+  };
+  await saveJobEvent(record);
+  return json(response, 201, { ok: true, reference: record.id, type, recordedAt: record.createdAt });
+}
+
 async function updateAdminBookingChangeStatus(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   ensureSameOrigin(request);
@@ -1340,15 +1418,22 @@ async function createAdminJobOutcome(request, response) {
   if (!bookingId || values.some((value) => !Number.isFinite(value)) || actualHours <= 0 || customerCollected <= 0 || cleanerPaid < 0 || otherCosts < 0 || refundAmount < 0) {
     return json(response, 422, { ok: false, error: "Enter valid actual hours and non-negative job amounts; customer collected must be greater than zero." });
   }
-  const [bookings, outcomes, updates, config] = await Promise.all([
+  const [bookings, outcomes, updates, config, jobEvents, bookingChanges, bookingChangeUpdates] = await Promise.all([
     readRecords("bookings.ndjson"),
     readRecords("job-outcomes.ndjson"),
     readRecords("status-updates.ndjson"),
-    readJsonFile("business-config.json", {})
+    readJsonFile("business-config.json", {}),
+    readRecords("job-events.ndjson"),
+    readRecords("booking-change-requests.ndjson"),
+    readRecords("booking-change-status.ndjson")
   ]);
   const booking = bookings.find((record) => record.id === bookingId);
   if (!booking) return json(response, 404, { ok: false, error: "Booking not found." });
   if (outcomes.some((record) => record.bookingId === bookingId)) return json(response, 409, { ok: false, error: "A completed-job outcome is already recorded for this booking." });
+  const progress = bookingJobProgress(booking.id, jobEvents);
+  if (!progress.readyForOutcome) return json(response, 422, { ok: false, error: "Cleaner arrival, cleaner completion and customer completion acknowledgement must all be recorded before job economics." });
+  const unresolvedChanges = bookingChanges.filter((change) => change.bookingId === booking.id).map((change) => applyBookingChangeStatus(change, bookingChangeUpdates)).filter((change) => ["open", "reviewing"].includes(change.status));
+  if (unresolvedChanges.length) return json(response, 422, { ok: false, error: "Resolve every open booking change or safety request before recording final job economics." });
   let requestStatus = "new";
   for (const update of updates) if (update.id === booking.requestId) requestStatus = update.status;
   if (requestStatus !== "booked") return json(response, 422, { ok: false, error: "Only a booked request can be completed." });
@@ -1843,6 +1928,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/booking-change-requests") {
       return await createPrivateBookingChangeRequest(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/job-events") {
+      return await createPrivateJobEvent(request, response);
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/records") {
       return await getAdminRecords(request, response);
