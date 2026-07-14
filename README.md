@@ -18,10 +18,10 @@ Then open `http://127.0.0.1:4173`.
 - Cleaner application form with server-side validation
 - Local private submission files in `data/`
 - Private local control desk at `/admin` with lead filters, status tracking, internal notes and next-action dates
-- Internal quote calculator for checking cleaner pay, job contribution and the founder-approved minimum contribution margin before sending a price
+- Internal quote calculator that pre-fills approved rates, enforces minimum hours and calculates the customer total and hourly rate needed to meet the founder-approved contribution margin
 - Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules
 - Human-reviewed matching suggestions using approved cleaners, requested service type and postcode coverage
-- Internal draft proposals that link a request to an approved cleaner and reject loss-making or below-target job economics
+- Internal draft proposals that link a request to an approved cleaner and reject work below the minimum hours, loss-making economics or a below-target contribution margin
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until all seven launch checks pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
 - Structured site scope, access and hazard collection plus a read-only accepted-proposal booking audit

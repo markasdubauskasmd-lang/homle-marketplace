@@ -214,6 +214,11 @@ textarea { resize: vertical; }
 .quote-results span, .quote-results strong { display: block; }
 .quote-results span { color: var(--muted); font-size: .74rem; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
 .quote-results strong { margin-top: 5px; font-size: 1.2rem; }
+.quote-target-results { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; overflow: hidden; border: 1px solid #bdd6ce; border-radius: 12px; background: #bdd6ce; }
+.quote-target-results div { padding: 14px 18px; background: #fff; }
+.quote-target-results span, .quote-target-results strong { display: block; }
+.quote-target-results span { color: var(--muted); font-size: .74rem; font-weight: 750; text-transform: uppercase; letter-spacing: .05em; }
+.quote-target-results strong { margin-top: 4px; color: var(--green-dark); }
 .quote-guidance { grid-column: 1 / -1; margin: -8px 0 0; color: var(--muted); font-size: .87rem; }
 .quote-danger { color: #8a231d; font-weight: 750; }
 .quote-positive { color: var(--green-dark); font-weight: 650; }

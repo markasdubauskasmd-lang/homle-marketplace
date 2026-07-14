@@ -266,6 +266,9 @@ async function updateAdminProposalStatus(request, response) {
   if (["ready", "sent", "accepted"].includes(status) && !launchReadiness(config).ready) {
     return json(response, 422, { ok: false, error: "Complete all seven launch-readiness checks before advancing this proposal." });
   }
+  if (["ready", "sent", "accepted"].includes(status) && proposal.estimatedHours < config.minimumHours) {
+    return json(response, 422, { ok: false, error: `This proposal's ${proposal.estimatedHours} estimated hours are below the ${config.minimumHours}-hour minimum.` });
+  }
   if (["ready", "sent", "accepted"].includes(status) && (!Number.isFinite(proposal.marginPercent) || proposal.marginPercent < config.minimumContributionMarginPercent)) {
     const proposalMargin = Number.isFinite(proposal.marginPercent) ? `${proposal.marginPercent.toFixed(1)}%` : "unrecorded";
     return json(response, 422, { ok: false, error: `This proposal's ${proposalMargin} contribution margin is below the ${config.minimumContributionMarginPercent.toFixed(1)}% minimum.` });
@@ -379,6 +382,7 @@ async function buildBookingAudit(proposalId) {
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
+    minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
     scopeCaptured: Boolean(customerRequest.siteSize),
     accessCaptured: Boolean(customerRequest.accessNotes),
     hazardsCaptured: Boolean(customerRequest.hazards)
@@ -533,6 +537,7 @@ async function createAdminProposal(request, response) {
   for (const update of updates) latestStatuses.set(update.id, update.status);
   if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Customer request or cleaner was not found." });
   if ((latestStatuses.get(cleaner.id) || cleaner.status) !== "approved") return json(response, 422, { ok: false, error: "Only an approved cleaner can be proposed." });
+  if (config.minimumHours > 0 && estimatedHours < config.minimumHours) return json(response, 422, { ok: false, error: `Estimated hours must meet the ${config.minimumHours}-hour minimum.` });
   const requiredService = requestServiceMap[customerRequest.service] || "";
   if (requiredService && !cleaner.services?.includes(requiredService)) return json(response, 422, { ok: false, error: "Cleaner is not approved for the requested service." });
 

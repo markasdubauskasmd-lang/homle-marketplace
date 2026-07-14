@@ -146,6 +146,13 @@ try {
   });
   assert(losingProposal.status === 422, "Loss-making proposal was not rejected.");
 
+  const belowMinimumHoursProposal = await fetch(`${base}/api/admin/proposals`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", estimatedHours: 1, customerRate: 30, cleanerRate: 18, otherCosts: 0 })
+  });
+  assert(belowMinimumHoursProposal.status === 422, "Proposal below the founder minimum hours was accepted.");
+
   const thinMarginProposal = await fetch(`${base}/api/admin/proposals`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -167,6 +174,10 @@ try {
   assert(blockedDrafts.ok && blockedDraftsBody.sendAllowed === false && blockedDraftsBody.warnings.length > 0, "Unready proposal drafts were not clearly blocked.");
   const readinessBlocked = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
   assert(readinessBlocked.status === 422, "Incomplete launch readiness did not block proposal advancement.");
+
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, minimumHours: 5 }) });
+  const increasedHoursBlocked = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
+  assert(increasedHoursBlocked.status === 422, "Existing proposal bypassed a newly increased minimum-hours rule.");
 
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, minimumContributionMarginPercent: 40 }) });
   const increasedFloorBlocked = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
@@ -233,7 +244,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
 
-  console.log("Smoke tests passed: public pages, scoped requests, admin security, founder margin floors, matching, profitable proposals, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, scoped requests, admin security, founder margin and minimum-hours controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

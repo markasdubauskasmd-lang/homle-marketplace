@@ -79,7 +79,7 @@ function showProposalForm(record, match, target) {
   form.className = "proposal-form";
   form.append(
     proposalField("Proposed date", "proposedDate", "date"),
-    proposalField("Estimated hours", "estimatedHours"),
+    proposalField("Estimated hours", "estimatedHours", "number", state.config.minimumHours),
     proposalField("Customer rate per hour (£)", "customerRate", "number", state.config.customerHourlyRate),
     proposalField("Cleaner pay per hour (£)", "cleanerRate", "number", state.config.cleanerHourlyPay),
     proposalField("Other job costs (£)", "otherCosts", "number", "0")
@@ -136,7 +136,9 @@ async function loadConfig() {
     if (response.status === 401) { showAuth(); return; }
     if (!response.ok || !result.ok) throw new Error(result.error || "Launch settings could not be loaded.");
     populateConfig(result.config);
+    syncQuoteDefaults(result.config);
     renderReadiness(result.readiness);
+    updateQuoteCalculator();
   } catch (error) {
     showAdminError(error.message);
   }
@@ -391,7 +393,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
+    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -744,6 +746,7 @@ document.querySelector("#business-config-form").addEventListener("submit", async
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "Launch details could not be saved.");
     state.config = result.config;
+    syncQuoteDefaults(result.config);
     renderReadiness(result.readiness);
     updateQuoteCalculator();
     resultPanel.hidden = false;
@@ -758,6 +761,13 @@ document.querySelector("#business-config-form").addEventListener("submit", async
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 const quoteFields = ["#quote-hours", "#quote-customer-rate", "#quote-cleaner-rate", "#quote-costs"].map((selector) => document.querySelector(selector));
 
+function syncQuoteDefaults(config = {}) {
+  const defaults = [config.minimumHours, config.customerHourlyRate, config.cleanerHourlyPay, 0];
+  quoteFields.forEach((field, index) => {
+    if (!field.value && Number(defaults[index]) > 0) field.value = String(defaults[index]);
+  });
+}
+
 function updateQuoteCalculator() {
   const [hours, customerRate, cleanerRate, costs] = quoteFields.map((field) => Math.max(0, Number(field.value) || 0));
   const customerTotal = hours * customerRate;
@@ -771,9 +781,18 @@ function updateQuoteCalculator() {
 
   const guidance = document.querySelector("#quote-guidance");
   const minimumMargin = Math.max(0, Number(state.config.minimumContributionMarginPercent) || 0);
+  const minimumHours = Math.max(0, Number(state.config.minimumHours) || 0);
+  const targetFactor = minimumMargin > 0 && minimumMargin < 100 ? 1 - (minimumMargin / 100) : 0;
+  const requiredRate = hours > 0 && targetFactor > 0 ? Math.ceil(((cleanerPay + costs) / hours / targetFactor) * 100) / 100 : 0;
+  const requiredTotal = requiredRate * hours;
+  document.querySelector("#quote-required-total").textContent = requiredTotal ? money.format(requiredTotal) : "Set margin floor";
+  document.querySelector("#quote-required-rate").textContent = requiredRate ? `${money.format(requiredRate)}/hour` : "Set margin floor";
   guidance.className = "quote-guidance";
   if (!customerTotal) {
     guidance.textContent = "Enter the expected hours and rates before promising a price.";
+  } else if (minimumHours > 0 && hours < minimumHours) {
+    guidance.textContent = `The ${hours}-hour estimate is below the ${minimumHours}-hour minimum. Increase the scoped hours before preparing a proposal.`;
+    guidance.classList.add("quote-danger");
   } else if (contribution <= 0) {
     guidance.textContent = "This quote loses money before overheads. Change the price, pay or scope before sending it.";
     guidance.classList.add("quote-danger");
@@ -781,10 +800,10 @@ function updateQuoteCalculator() {
     guidance.textContent = "Set the founder-approved minimum contribution margin in launch details before approving a quote.";
     guidance.classList.add("quote-danger");
   } else if (margin < minimumMargin) {
-    guidance.textContent = `This quote is below the ${minimumMargin.toFixed(1)}% contribution-margin floor. Change the price, pay, costs or scope.`;
+    guidance.textContent = `This quote is below the ${minimumMargin.toFixed(1)}% contribution-margin floor. These inputs require at least ${money.format(requiredTotal)} total (${money.format(requiredRate)}/hour).`;
     guidance.classList.add("quote-danger");
   } else {
-    guidance.textContent = `This quote meets the ${minimumMargin.toFixed(1)}% contribution-margin floor before insurance, admin, tax, refunds and other overheads.`;
+    guidance.textContent = `This quote meets the ${minimumMargin.toFixed(1)}% contribution-margin floor. The calculated minimum is ${money.format(requiredTotal)} total (${money.format(requiredRate)}/hour), before insurance, admin, tax, refunds and other overheads.`;
     guidance.classList.add("quote-positive");
   }
 }
