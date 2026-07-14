@@ -87,7 +87,7 @@ function showProposalForm(record, match, target) {
   const preferredAvailability = match.availabilitySlots?.find((slot) => slot.availableDate === record.preferredDate) || match.availabilitySlots?.[0] || null;
   form.append(
     proposalField("Proposed date", "proposedDate", "date", preferredAvailability?.availableDate || record.preferredDate),
-    proposalField("Exact start time", "proposedStartTime", "time", preferredAvailability?.startTime || (record.preferredTimeWindow?.startsWith("Afternoon") ? "13:00" : record.preferredTimeWindow?.startsWith("Evening") ? "17:00" : "09:00")),
+    proposalField("Exact start time", "proposedStartTime", "time", preferredAvailability?.suggestedStartTime || preferredAvailability?.startTime || (record.preferredTimeWindow?.startsWith("Afternoon") ? "13:00" : record.preferredTimeWindow?.startsWith("Evening") ? "17:00" : "09:00")),
     proposalField("Estimated hours", "estimatedHours", "number", Math.max(Number(state.config.minimumHours) || 0, reviewedScanHours)),
     proposalField("Customer rate per hour (£)", "customerRate", "number", state.config.customerHourlyRate),
     proposalField("Cleaner pay per hour (£)", "cleanerRate", "number", state.config.cleanerHourlyPay),
@@ -286,9 +286,15 @@ async function findMatches(record, results, button) {
       if (result.pilotCoverage && !result.pilotCoverage.covered) {
         addText(results, "strong", "Request is outside the configured pilot area.");
         addText(results, "span", `${result.pilotCoverage.outwardCode || "This postcode"} is not included in ${result.pilotCoverage.allowedCodes.join(", ") || "the pilot postcode list"}. Do not promise coverage.`);
+      } else if (result.matchGate?.reason === "reviewed-room-scan-required") {
+        addText(results, "strong", "Review the room scan before matching.");
+        addText(results, "span", "Tideway needs the reviewed cleaning-time estimate before it can prove that a cleaner window is long enough.");
+      } else if (result.matchGate?.reason === "no-schedulable-window") {
+        addText(results, "strong", "No confirmed window fits this request yet.");
+        addText(results, "span", `${result.matchGate.requiredHours} reviewed hours must fit${result.request.preferredDate ? ` on ${result.request.preferredDate}` : " a future date"}${result.request.preferredTimeWindow && result.request.preferredTimeWindow !== "Flexible" ? ` with a ${result.request.preferredTimeWindow.toLowerCase()} arrival` : ""}. Do not promise a different time without customer approval.`);
       } else {
         addText(results, "strong", "No approved service matches yet.");
-        addText(results, "span", "Approve suitable cleaner applications first, then check coverage manually.");
+        addText(results, "span", "A fully screened cleaner must have the right service, coverage and a confirmed window that holds the reviewed duration.");
       }
       return;
     }
@@ -300,7 +306,8 @@ async function findMatches(record, results, button) {
       addText(heading, "span", `${match.score}/100 · ${match.coverage}`);
       item.append(heading);
       addText(item, "span", `${match.travelAreas} · ${match.availability}`);
-      addText(item, "span", `Confirmed windows: ${match.availabilitySlots.map((slot) => `${slot.availableDate} ${slot.startTime}-${slot.endTime}`).join(", ")}`);
+      addText(item, "strong", match.scheduleFit);
+      addText(item, "span", `Schedulable visits: ${match.availabilitySlots.map((slot) => `${slot.availableDate} ${slot.suggestedStartTime}-${slot.suggestedEndTime} inside confirmed ${slot.startTime}-${slot.endTime}`).join(", ")}`);
       addText(item, "span", match.services.join(", "));
       addText(item, "span", `${match.email} · ${match.phone}`);
       const proposalTarget = document.createElement("div");

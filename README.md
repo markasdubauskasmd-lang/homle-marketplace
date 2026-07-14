@@ -29,7 +29,8 @@ Then open `http://127.0.0.1:4173`.
 - Internal quote calculator that pre-fills approved rates, includes founder-confirmed payment fees, travel, supplies, risk contingency and additional job costs, and solves the customer total/hourly rate needed to meet the contribution-margin floor
 - Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules
 - Founder-configured outward-postcode enforcement that blocks out-of-area matching, proposal use and booking readiness
-- Human-reviewed matching suggestions using fully screened approved cleaners, requested service type and postcode coverage
+- Human-reviewed matching stays closed until the room scan supplies a reviewed duration, then returns only fully screened approved cleaners whose confirmed availability can hold the job on the requested date with a start inside the customer's arrival preference
+- Match results provide a feasible suggested start and finish inside the cleaner's confirmed window; proposal drafts prefill from that schedulable visit rather than the raw availability start
 - Append-only cleaner availability windows with evidence notes and auditable withdrawal; matching returns only approved cleaners with a future confirmed window, and proposals must fit fully inside one
 - Internal draft proposals freeze a complete cost breakdown and reject work below minimum hours, loss-making economics or the margin floor; changed founder cost assumptions close the stale proposal across drafts, private decisions and booking
 - Exact proposal start and calculated finish times, with past-date and same-day duration validation

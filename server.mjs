@@ -478,6 +478,52 @@ function findCleanerAvailabilitySlot(cleanerId, record, events) {
   }) || null;
 }
 
+const preferredArrivalWindows = {
+  "Flexible": null,
+  "Morning (8am–12pm)": { startTime: "08:00", endTime: "12:00", label: "morning arrival" },
+  "Afternoon (12pm–5pm)": { startTime: "12:00", endTime: "17:00", label: "afternoon arrival" },
+  "Evening (5pm–8pm)": { startTime: "17:00", endTime: "20:00", label: "evening arrival" }
+};
+
+function utcTimeOnDate(date, time) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return NaN;
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  return Date.UTC(year, month - 1, day, hour, minute);
+}
+
+function utcTimeLabel(value) {
+  const date = new Date(value);
+  return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
+}
+
+function schedulableAvailability(slot, customerRequest, requiredHours, nowMs = Date.now()) {
+  const schedule = availabilitySlotSchedule(slot);
+  if (!schedule || !Number.isFinite(requiredHours) || requiredHours <= 0) return null;
+  if (customerRequest.preferredDate && slot.availableDate !== customerRequest.preferredDate) return null;
+  const arrivalPreference = customerRequest.preferredTimeWindow || "Flexible";
+  if (!Object.hasOwn(preferredArrivalWindows, arrivalPreference)) return null;
+  const arrivalWindow = preferredArrivalWindows[arrivalPreference];
+  const windowStartMs = arrivalWindow ? utcTimeOnDate(slot.availableDate, arrivalWindow.startTime) : schedule.startMs;
+  const windowEndMs = arrivalWindow ? utcTimeOnDate(slot.availableDate, arrivalWindow.endTime) : schedule.endMs;
+  const quarterHourMs = 15 * 60 * 1000;
+  const earliestBookableMs = Math.ceil((nowMs + quarterHourMs) / quarterHourMs) * quarterHourMs;
+  const suggestedStartMs = Math.max(schedule.startMs, windowStartMs, earliestBookableMs);
+  const suggestedEndMs = suggestedStartMs + requiredHours * 60 * 60 * 1000;
+  if (suggestedStartMs >= windowEndMs || suggestedEndMs > schedule.endMs) return null;
+  return {
+    id: slot.id,
+    availableDate: slot.availableDate,
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+    suggestedStartTime: utcTimeLabel(suggestedStartMs),
+    suggestedEndTime: utcTimeLabel(suggestedEndMs),
+    requiredHours,
+    arrivalWindowFit: true,
+    dateFit: !customerRequest.preferredDate || slot.availableDate === customerRequest.preferredDate
+  };
+}
+
 function moneyValue(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
@@ -2216,19 +2262,28 @@ async function createAdminProposal(request, response) {
 
 async function getAdminMatches(request, response, requestId) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, screenings, availabilityEvents] = await Promise.all([
+  const [requests, cleaners, updates, screenings, availabilityEvents, briefs, briefUpdates] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
     readRecords("cleaner-screening.ndjson"),
-    readRecords("cleaner-availability.ndjson")
+    readRecords("cleaner-availability.ndjson"),
+    readRecords("job-briefs.ndjson"),
+    readRecords("job-brief-status.ndjson")
   ]);
   const customerRequest = requests.find((record) => record.id === requestId);
   if (!customerRequest) return json(response, 404, { ok: false, error: "Customer request not found." });
   const config = await readJsonFile("business-config.json", {});
   const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
   if (!pilotCoverage.covered) {
-    return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service }, pilotCoverage, matches: [] });
+    return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "outside-pilot-area", requiredHours: null }, matches: [] });
+  }
+
+  const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
+  const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
+  const requiredHours = latestBrief?.status === "reviewed" && Number.isFinite(latestBrief.scopeEstimateHours) ? latestBrief.scopeEstimateHours : null;
+  if (!requiredHours) {
+    return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "reviewed-room-scan-required", requiredHours: null }, matches: [] });
   }
 
   const latestStatuses = new Map();
@@ -2241,18 +2296,20 @@ async function getAdminMatches(request, response, requestId) {
   const matches = cleaners
     .filter((cleaner) => (latestStatuses.get(cleaner.id) || cleaner.status) === "approved" && latestCleanerScreening(cleaner.id, screenings)?.complete)
     .map((cleaner) => {
-      const availabilitySlots = activeCleanerAvailability(availabilityEvents, cleaner.id).filter((slot) => {
-        const schedule = availabilitySlotSchedule(slot);
-        return schedule?.endMs > nowMs && (!customerRequest.preferredDate || slot.availableDate === customerRequest.preferredDate);
-      });
+      const availabilitySlots = activeCleanerAvailability(availabilityEvents, cleaner.id)
+        .map((slot) => schedulableAvailability(slot, customerRequest, requiredHours, nowMs))
+        .filter(Boolean)
+        .sort((left, right) => left.availableDate.localeCompare(right.availableDate) || left.suggestedStartTime.localeCompare(right.suggestedStartTime));
       const services = Array.isArray(cleaner.services) ? cleaner.services : [];
       const serviceMatch = !requiredService || services.includes(requiredService);
       const coverageText = cleaner.travelAreas.toUpperCase();
       const exactCoverage = Boolean(outwardCode && coverageText.includes(outwardCode));
       const areaCoverage = Boolean(postcodeArea && new RegExp(`(^|[^A-Z])${postcodeArea}([^A-Z]|$)`).test(coverageText));
-      const coverageScore = exactCoverage ? 60 : areaCoverage ? 35 : 0;
-      const serviceScore = serviceMatch ? 30 : 0;
-      const score = 10 + coverageScore + serviceScore;
+      const coverageScore = exactCoverage ? 35 : areaCoverage ? 20 : 0;
+      const serviceScore = serviceMatch ? 25 : 0;
+      const dateScore = customerRequest.preferredDate ? 20 : 10;
+      const scheduleScore = availabilitySlots.length ? 20 : 0;
+      const score = dateScore + scheduleScore + coverageScore + serviceScore;
       return {
         id: cleaner.id,
         fullName: cleaner.fullName,
@@ -2261,7 +2318,10 @@ async function getAdminMatches(request, response, requestId) {
         postcode: cleaner.postcode,
         travelAreas: cleaner.travelAreas,
         availability: cleaner.availability,
-        availabilitySlots: availabilitySlots.map(({ id, availableDate, startTime, endTime }) => ({ id, availableDate, startTime, endTime })),
+        availabilitySlots,
+        scheduleFit: customerRequest.preferredDate
+          ? `${requiredHours} reviewed hours fit ${customerRequest.preferredDate}${customerRequest.preferredTimeWindow && customerRequest.preferredTimeWindow !== "Flexible" ? ` within the ${preferredArrivalWindows[customerRequest.preferredTimeWindow]?.label || "requested arrival window"}` : ""}`
+          : `${requiredHours} reviewed hours fit this confirmed window`,
         experience: cleaner.experience,
         services,
         serviceMatch,
@@ -2273,7 +2333,7 @@ async function getAdminMatches(request, response, requestId) {
     .sort((left, right) => right.score - left.score || left.fullName.localeCompare(right.fullName))
     .slice(0, 10);
 
-  return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "" }, pilotCoverage, matches });
+  return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: true, reason: matches.length ? "schedulable-matches-found" : "no-schedulable-window", requiredHours }, matches });
 }
 
 async function addAdminActivity(request, response) {
@@ -2511,6 +2571,7 @@ async function handleCleaningRequest(request, response) {
   if (record.phone && !isPhone(record.phone)) errors.push("Enter a valid phone number.");
   if (record.postcode && !isUkPostcode(record.postcode)) errors.push("Enter a valid UK postcode.");
   if (record.preferredDate && (!/^\d{4}-\d{2}-\d{2}$/.test(record.preferredDate) || record.preferredDate < localDateToday())) errors.push("Preferred date must be today or later.");
+  if (record.preferredTimeWindow && !Object.hasOwn(preferredArrivalWindows, record.preferredTimeWindow)) errors.push("Choose a supported preferred arrival window.");
   if (!record.consent) errors.push("Privacy consent is required.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 

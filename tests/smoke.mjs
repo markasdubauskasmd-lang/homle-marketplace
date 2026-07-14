@@ -100,6 +100,12 @@ try {
     body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "123", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms and 1 bathroom", accessNotes: "Collect keys from the office", hazards: "None known", consent: true })
   });
   assert(invalidPhone.status === 422, "Invalid phone number was not rejected.");
+  const invalidArrivalWindow = await fetch(`${base}/api/cleaning-requests`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms and 1 bathroom", accessNotes: "Collect keys from the office", hazards: "None known", preferredTimeWindow: "Before sunrise", consent: true })
+  });
+  assert(invalidArrivalWindow.status === 422, "Unsupported customer arrival preference was accepted.");
 
   const invalid = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
   assert(invalid.status === 422, "Invalid cleaning request was not rejected.");
@@ -110,7 +116,7 @@ try {
   const validRequest = await fetch(`${base}/api/cleaning-requests`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms and 1 bathroom", accessNotes: "Collect keys from the office", hazards: "None known", consent: true })
+    body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms and 1 bathroom", accessNotes: "Collect keys from the office", hazards: "None known", preferredDate: "2026-07-20", preferredTimeWindow: "Morning (8am–12pm)", consent: true })
   });
   const requestBody = await validRequest.json();
   assert(validRequest.status === 201 && requestBody.reference.startsWith("REQ-") && /^[A-Za-z0-9_-]{32}$/.test(requestBody.customerStatusToken), "Valid cleaning request failed or omitted its private tracker token.");
@@ -323,8 +329,7 @@ try {
 
   const matching = await fetch(`${base}/api/admin/matches?requestId=${requestBody.reference}`);
   const matchingBody = await matching.json();
-  assert(matching.ok && matchingBody.matches.length === 1, "Approved cleaner match was not returned.");
-  assert(matchingBody.matches[0].score === 100 && matchingBody.matches[0].coverage === "Postcode listed" && matchingBody.matches[0].availabilitySlots.length === 3, "Cleaner match score or confirmed availability windows were incorrect.");
+  assert(matching.ok && matchingBody.matches.length === 0 && matchingBody.matchGate.ready === false && matchingBody.matchGate.reason === "reviewed-room-scan-required", "Matching opened before the room scan supplied a reviewed duration.");
 
   const losingProposal = await fetch(`${base}/api/admin/proposals`, {
     method: "POST",
@@ -404,6 +409,20 @@ try {
   });
   const reviewedBriefBody = await reviewedBrief.json();
   assert(reviewedBrief.ok && reviewedBriefBody.status === "reviewed" && reviewedBriefBody.scopeEstimateHours === 3.5 && reviewedBriefBody.scopeConfidence === "high", "Structured human scan approval was not recorded.");
+  const schedulableMatching = await fetch(`${base}/api/admin/matches?requestId=${requestBody.reference}`);
+  const schedulableMatchingBody = await schedulableMatching.json();
+  const schedulableSlot = schedulableMatchingBody.matches?.[0]?.availabilitySlots?.[0];
+  assert(schedulableMatching.ok && schedulableMatchingBody.matchGate.ready === true && schedulableMatchingBody.matchGate.requiredHours === 3.5 && schedulableMatchingBody.matches.length === 1, "Reviewed room scan did not open schedulable matching.");
+  assert(schedulableMatchingBody.matches[0].score === 100 && schedulableMatchingBody.matches[0].coverage === "Postcode listed" && schedulableMatchingBody.matches[0].availabilitySlots.length === 1 && schedulableSlot.availableDate === "2026-07-20" && schedulableSlot.suggestedStartTime === "08:00" && schedulableSlot.suggestedEndTime === "11:30" && schedulableSlot.arrivalWindowFit === true, "Match did not fit the preferred date, morning arrival and reviewed duration inside confirmed availability.");
+  const eveningRequest = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contactName: "Evening Customer", email: "evening@example.com", phone: "07123456777", postcode: "SW1A 2AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "1 bedroom and 1 bathroom", accessNotes: "Test access only", hazards: "None known", preferredDate: "2026-07-22", preferredTimeWindow: "Evening (5pm–8pm)", consent: true }) });
+  const eveningRequestBody = await eveningRequest.json();
+  const eveningBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: eveningRequestBody.reference, email: "evening@example.com", transcript: "In the kitchen wipe the worktops and mop the floor.", photos: [{ area: "Kitchen", note: "Worktops and floor need cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true }) });
+  const eveningBriefBody = await eveningBrief.json();
+  const reviewedEveningBrief = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: eveningBriefBody.reference, status: "reviewed", note: "Test-only two-hour evening scope estimate.", scopeEstimateHours: 2, scopeConfidence: "medium" }) });
+  assert(eveningRequest.status === 201 && eveningBrief.status === 201 && reviewedEveningBrief.ok, "Evening scheduling test request could not reach reviewed scope.");
+  const noEveningMatch = await fetch(`${base}/api/admin/matches?requestId=${eveningRequestBody.reference}`);
+  const noEveningMatchBody = await noEveningMatch.json();
+  assert(noEveningMatch.ok && noEveningMatchBody.matchGate.ready === true && noEveningMatchBody.matchGate.reason === "no-schedulable-window" && noEveningMatchBody.matchGate.requiredHours === 2 && noEveningMatchBody.matches.length === 0, "Morning-only cleaner availability was incorrectly suggested for an evening arrival request.");
   const reviewedTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
   const reviewedTrackerBody = await reviewedTracker.json();
   assert(reviewedTracker.ok && reviewedTrackerBody.current.stage === "quote-preparation" && reviewedTrackerBody.roomScan.status === "reviewed" && reviewedTrackerBody.roomScan.reviewedHours === 3.5 && reviewedTrackerBody.steps.find((step) => step.key === "scan")?.state === "complete", "Customer tracker did not reflect the reviewed scan and quote-preparation stage.");
@@ -763,7 +782,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === overlapRequestBody.reference)?.dispatchActions?.some((action) => action.code === "rematch" && action.group === "rematching"), "Exhausted and withdrawn offers did not remain visible in the rematching queue.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.length === 0, "Completed profitable work remained in the active founder-action queue.");
 
-  console.log("Smoke tests passed: public pages, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, reviewed-scan matching gates, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));
