@@ -434,13 +434,17 @@ function applyBriefStatus(brief, updates) {
   let status = brief.status || "landlord-draft";
   let reviewNote = "";
   let reviewedAt = "";
+  let scopeEstimateHours = null;
+  let scopeConfidence = "";
   for (const update of updates) {
     if (update.briefId !== brief.id) continue;
     status = update.status;
     reviewNote = update.note || "";
     reviewedAt = update.updatedAt;
+    scopeEstimateHours = Number.isFinite(update.scopeEstimateHours) ? update.scopeEstimateHours : null;
+    scopeConfidence = update.scopeConfidence || "";
   }
-  return { ...brief, status, reviewNote, reviewedAt };
+  return { ...brief, status, reviewNote, reviewedAt, scopeEstimateHours, scopeConfidence };
 }
 
 function latestCleanerScreening(cleanerId, screenings) {
@@ -567,6 +571,9 @@ async function updateAdminJobBriefStatus(request, response) {
   const briefId = text(input.briefId, 40);
   const status = text(input.status, 30);
   const note = text(input.note, 1000);
+  const rawScopeEstimateHours = Number(input.scopeEstimateHours);
+  const scopeEstimateHours = Number.isFinite(rawScopeEstimateHours) ? Math.round(rawScopeEstimateHours * 4) / 4 : null;
+  const scopeConfidence = text(input.scopeConfidence, 20).toLowerCase();
   const transitions = {
     "landlord-draft": new Set(["reviewed", "needs-revision"]),
     reviewed: new Set([]),
@@ -585,9 +592,18 @@ async function updateAdminJobBriefStatus(request, response) {
   if (status === "needs-revision" && !note) {
     return json(response, 422, { ok: false, error: "Add a clear revision note so the landlord knows what must be corrected." });
   }
-  const update = { briefId, requestId: brief.requestId, status, previousStatus: currentStatus, note, updatedAt: new Date().toISOString() };
+  if (status === "reviewed" && (!Number.isFinite(scopeEstimateHours) || scopeEstimateHours < 0.5 || scopeEstimateHours > 24)) {
+    return json(response, 422, { ok: false, error: "Add a reviewed cleaning-time estimate between 0.5 and 24 hours." });
+  }
+  if (status === "reviewed" && !["medium", "high"].includes(scopeConfidence)) {
+    return json(response, 422, { ok: false, error: "Choose medium or high scope confidence. Request a revised scan when confidence is low." });
+  }
+  if (status === "reviewed" && note.length < 10) {
+    return json(response, 422, { ok: false, error: "Add a short review note explaining the scope estimate." });
+  }
+  const update = { briefId, requestId: brief.requestId, status, previousStatus: currentStatus, note, scopeEstimateHours: status === "reviewed" ? scopeEstimateHours : null, scopeConfidence: status === "reviewed" ? scopeConfidence : "", updatedAt: new Date().toISOString() };
   await saveRecord("job-brief-status.ndjson", update);
-  return json(response, 200, { ok: true, briefId, status, reviewNote: note, reviewedAt: update.updatedAt });
+  return json(response, 200, { ok: true, briefId, status, reviewNote: note, scopeEstimateHours: update.scopeEstimateHours, scopeConfidence: update.scopeConfidence, reviewedAt: update.updatedAt });
 }
 
 async function updateAdminProposalStatus(request, response) {
@@ -648,6 +664,10 @@ async function updateAdminProposalStatus(request, response) {
   const reviewedBrief = latestBrief ? applyBriefStatus(latestBrief, briefUpdates) : null;
   if (["ready", "sent", "accepted"].includes(status) && (!reviewedBrief || reviewedBrief.status !== "reviewed")) {
     return json(response, 422, { ok: false, error: "A completed and reviewed room scan is required before advancing this proposal." });
+  }
+  if (["ready", "sent", "accepted"].includes(status) && (!Number.isFinite(reviewedBrief.scopeEstimateHours) || proposal.estimatedHours < reviewedBrief.scopeEstimateHours)) {
+    const reviewedHours = Number.isFinite(reviewedBrief.scopeEstimateHours) ? `${reviewedBrief.scopeEstimateHours} hours` : "a recorded scope estimate";
+    return json(response, 422, { ok: false, error: `This proposal must allow at least ${reviewedHours} from the reviewed room scan.` });
   }
   if (["ready", "sent", "accepted"].includes(status) && proposal.estimatedHours < config.minimumHours) {
     return json(response, 422, { ok: false, error: `This proposal's ${proposal.estimatedHours} estimated hours are below the ${config.minimumHours}-hour minimum.` });
@@ -749,6 +769,7 @@ async function getQuoteContext(token) {
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
+    scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
@@ -900,6 +921,7 @@ async function getCleanerOpportunityContext(token) {
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
+    scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
@@ -1043,12 +1065,14 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
   const briefReviewed = Boolean(latestBrief && latestBrief.status === "reviewed");
+  const scanHoursCovered = Boolean(briefReviewed && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours);
   const warnings = [];
   if (!readiness.ready) warnings.push("Complete all seven launch-readiness checks before using these drafts.");
   if (!pilotCoverage.covered) warnings.push(`${pilotCoverage.outwardCode || "This postcode"} is outside the configured Tideway pilot area.`);
   if (!["ready", "sent", "accepted"].includes(proposalStatus)) warnings.push("The proposal is still a draft and has not been internally approved.");
   if (!latestBrief) warnings.push("The customer must complete the room scan before a cleaner-ready proposal can be used.");
   else if (!briefReviewed) warnings.push("Review and approve the latest customer room scan before using the cleaner draft.");
+  else if (!scanHoursCovered) warnings.push(`Allow at least ${latestBrief.scopeEstimateHours || "the reviewed"} hours from the room-scan scope estimate before using this proposal.`);
   if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
   if (!config.paymentTiming) warnings.push("Add the customer payment timing.");
   if (!config.supportEmail || !config.supportPhone) warnings.push("Add verified support contact details.");
@@ -1102,7 +1126,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     ok: true,
     proposalId,
     proposalStatus,
-    sendAllowed: readiness.ready && pilotCoverage.covered && briefReviewed && ["ready", "sent", "accepted"].includes(proposalStatus),
+    sendAllowed: readiness.ready && pilotCoverage.covered && briefReviewed && scanHoursCovered && ["ready", "sent", "accepted"].includes(proposalStatus),
     warnings,
     customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody },
     cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody }
@@ -1148,6 +1172,7 @@ async function buildBookingAudit(proposalId) {
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
+    scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
     scopeCaptured: Boolean(customerRequest.siteSize),
     accessCaptured: Boolean(customerRequest.accessNotes),
     hazardsCaptured: Boolean(customerRequest.hazards),

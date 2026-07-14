@@ -81,10 +81,11 @@ function showProposalForm(record, match, target) {
   target.replaceChildren();
   const form = document.createElement("form");
   form.className = "proposal-form";
+  const reviewedScanHours = record.briefs?.[0]?.status === "reviewed" && Number.isFinite(record.briefs[0].scopeEstimateHours) ? record.briefs[0].scopeEstimateHours : 0;
   form.append(
     proposalField("Proposed date", "proposedDate", "date", record.preferredDate),
     proposalField("Exact start time", "proposedStartTime", "time", record.preferredTimeWindow?.startsWith("Afternoon") ? "13:00" : record.preferredTimeWindow?.startsWith("Evening") ? "17:00" : "09:00"),
-    proposalField("Estimated hours", "estimatedHours", "number", state.config.minimumHours),
+    proposalField("Estimated hours", "estimatedHours", "number", Math.max(Number(state.config.minimumHours) || 0, reviewedScanHours)),
     proposalField("Customer rate per hour (£)", "customerRate", "number", state.config.customerHourlyRate),
     proposalField("Cleaner pay per hour (£)", "cleanerRate", "number", state.config.cleanerHourlyPay),
     proposalField("Other job costs (£)", "otherCosts", "number", "0")
@@ -427,7 +428,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
+    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -664,15 +665,15 @@ async function loadBriefPhotos(brief, target, button) {
 }
 
 async function changeBriefStatus(brief, form) {
-  const select = form.querySelector("select");
-  const note = form.querySelector("textarea");
+  const select = form.elements.status;
+  const note = form.elements.note;
   const button = form.querySelector("button");
   button.disabled = true;
   try {
     const response = await fetch("/api/admin/job-briefs/status", {
       method: "PATCH",
       headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }),
-      body: JSON.stringify({ briefId: brief.id, status: select.value, note: note.value.trim() })
+      body: JSON.stringify({ briefId: brief.id, status: select.value, note: note.value.trim(), scopeEstimateHours: form.elements.scopeEstimateHours.value, scopeConfidence: form.elements.scopeConfidence.value })
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "Job brief review could not be saved.");
@@ -853,6 +854,7 @@ function buildCard(record) {
       const statusLabel = document.createElement("label");
       statusLabel.append(document.createTextNode("Review decision"));
       const statusSelect = document.createElement("select");
+      statusSelect.name = "status";
       statusSelect.setAttribute("aria-label", `Review decision for ${brief.id}`);
       for (const [value, label] of [["reviewed", "Approve checklist"], ["needs-revision", "Request a new brief"]]) {
         const option = document.createElement("option");
@@ -861,22 +863,58 @@ function buildCard(record) {
         statusSelect.append(option);
       }
       statusLabel.append(statusSelect);
+      const hoursLabel = document.createElement("label");
+      hoursLabel.append(document.createTextNode("Reviewed cleaning hours"));
+      const hours = document.createElement("input");
+      hours.name = "scopeEstimateHours";
+      hours.type = "number";
+      hours.min = "0.5";
+      hours.max = "24";
+      hours.step = "0.25";
+      hours.required = true;
+      hoursLabel.append(hours);
+      const confidenceLabel = document.createElement("label");
+      confidenceLabel.append(document.createTextNode("Scope confidence"));
+      const confidence = document.createElement("select");
+      confidence.name = "scopeConfidence";
+      for (const [value, label] of [["", "Choose confidence"], ["high", "High · scope is clear"], ["medium", "Medium · allow contingency"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        confidence.append(option);
+      }
+      confidence.required = true;
+      confidenceLabel.append(confidence);
       const noteLabel = document.createElement("label");
+      noteLabel.className = "brief-review-note-field";
       noteLabel.append(document.createTextNode("Internal review note"));
       const note = document.createElement("textarea");
+      note.name = "note";
       note.rows = 2;
       note.maxLength = 1000;
-      note.placeholder = "Required if requesting a new brief; optional when approving";
+      note.minLength = 10;
+      note.required = true;
+      note.placeholder = "Explain the time estimate or what the customer must correct";
       noteLabel.append(note);
       const save = document.createElement("button");
       save.type = "submit";
       save.className = "button button-small";
       save.textContent = "Save review decision";
-      reviewForm.append(statusLabel, noteLabel, save);
+      const syncEstimateFields = () => {
+        const approving = statusSelect.value === "reviewed";
+        hours.disabled = !approving;
+        hours.required = approving;
+        confidence.disabled = !approving;
+        confidence.required = approving;
+      };
+      statusSelect.addEventListener("change", syncEstimateFields);
+      reviewForm.append(statusLabel, hoursLabel, confidenceLabel, noteLabel, save);
+      syncEstimateFields();
       reviewForm.addEventListener("submit", (event) => { event.preventDefault(); changeBriefStatus(brief, reviewForm); });
       briefSummary.append(reviewForm);
-    } else if (brief.reviewNote) {
-      addText(briefSummary, "span", `Review note: ${brief.reviewNote}`, "brief-review-note");
+    } else {
+      if (brief.status === "reviewed") addText(briefSummary, "span", `Reviewed scope: ${brief.scopeEstimateHours} hours · ${brief.scopeConfidence} confidence`, "brief-review-note");
+      if (brief.reviewNote) addText(briefSummary, "span", `Review note: ${brief.reviewNote}`, "brief-review-note");
     }
     card.append(briefSummary);
   }

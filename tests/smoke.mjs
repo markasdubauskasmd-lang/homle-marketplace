@@ -332,15 +332,24 @@ try {
   assert(unreviewedProposal.status === 422, "Unreviewed landlord brief did not block proposal advancement.");
   const revisionWithoutNote = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: briefBody.reference, status: "needs-revision" }) });
   assert(revisionWithoutNote.status === 422, "A revision request was accepted without guidance for the landlord.");
+  const reviewWithoutEstimate = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: briefBody.reference, status: "reviewed", note: "Scope checked but no time estimate supplied." }) });
+  assert(reviewWithoutEstimate.status === 422, "Room scan was approved without a reviewed cleaning-time estimate.");
+  const lowConfidenceReview = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: briefBody.reference, status: "reviewed", note: "The scan is too unclear to quote safely.", scopeEstimateHours: 3.5, scopeConfidence: "low" }) });
+  assert(lowConfidenceReview.status === 422, "Low-confidence room scan was approved instead of requiring revision.");
   const reviewedBrief = await fetch(`${base}/api/admin/job-briefs/status`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ briefId: briefBody.reference, status: "reviewed", note: "Checklist and private photo checked against the submitted scope." })
+    body: JSON.stringify({ briefId: briefBody.reference, status: "reviewed", note: "Checklist and private photo support a three-and-a-half-hour scope floor.", scopeEstimateHours: 3.5, scopeConfidence: "high" })
   });
   const reviewedBriefBody = await reviewedBrief.json();
-  assert(reviewedBrief.ok && reviewedBriefBody.status === "reviewed", "Human brief approval was not recorded.");
+  assert(reviewedBrief.ok && reviewedBriefBody.status === "reviewed" && reviewedBriefBody.scopeEstimateHours === 3.5 && reviewedBriefBody.scopeConfidence === "high", "Structured human scan approval was not recorded.");
   const reversedBriefReview = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: briefBody.reference, status: "needs-revision", note: "Late change" }) });
   assert(reversedBriefReview.status === 422, "Reviewed brief history was overwritten instead of requiring a new submission.");
+  const underScopedProposal = await fetch(`${base}/api/admin/proposals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-23", proposedStartTime: "09:00", estimatedHours: 3, customerRate: 30, cleanerRate: 18, otherCosts: 5 }) });
+  const underScopedProposalBody = await underScopedProposal.json();
+  assert(underScopedProposal.status === 201, "Internal under-scoped draft could not be created for the reviewed-hours gate test.");
+  const underScopedReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: underScopedProposalBody.proposal.id, status: "ready" }) });
+  assert(underScopedReady.status === 422, "Proposal advanced with fewer hours than the reviewed room-scan estimate.");
   const readyProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
   assert(readyProposal.ok, "Ready proposal status failed after launch checks passed.");
   const quotePreview = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
@@ -404,7 +413,7 @@ try {
   });
   const overlapScanBody = await overlapScan.json();
   assert(overlapScan.status === 201, "Overlapping-schedule request room scan failed.");
-  const reviewedOverlapScan = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: overlapScanBody.reference, status: "reviewed", note: "Test-only scan review." }) });
+  const reviewedOverlapScan = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: overlapScanBody.reference, status: "reviewed", note: "Test-only two-hour scan estimate.", scopeEstimateHours: 2, scopeConfidence: "medium" }) });
   assert(reviewedOverlapScan.ok, "Overlapping-schedule request room scan was not reviewed.");
   const overlapProposal = await fetch(`${base}/api/admin/proposals`, {
     method: "POST",
@@ -559,10 +568,10 @@ try {
   const refreshedBody = await refreshedAdmin.json();
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.status === "completed", "Gated booking and completion statuses were not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.activities?.[0]?.note.includes("confirmed the scope"), "Lead activity was not retained.");
-  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.id.startsWith("PRO-"), "Draft proposal was not retained on the customer request.");
-  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.status === "accepted", "Proposal status progression was not retained.");
-  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.cleanerDecision?.status === "accepted", "Cleaner opportunity decision was not attached to the proposal.");
-  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "reviewed", "Job-brief review status was not retained.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.some((proposal) => proposal.id.startsWith("PRO-")), "Draft proposal was not retained on the customer request.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.some((proposal) => proposal.status === "accepted"), "Proposal status progression was not retained.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.some((proposal) => proposal.cleanerDecision?.status === "accepted"), "Cleaner opportunity decision was not attached to the proposal.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "reviewed" && refreshedBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.scopeEstimateHours === 3.5 && refreshedBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.scopeConfidence === "high", "Structured job-brief review was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.details?.serviceAddress === "10 Clean Street, Westminster, London" && refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.cleanerViewToken === confirmedBookingBody.booking.cleanerViewToken, "Structured booking pack was not retained in the control desk.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.changeRequests?.length === 2 && refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.changeRequests?.some((change) => change.type === "safety-issue" && change.status === "closed"), "Booking change and safety queue was not retained in the control desk.");
@@ -571,7 +580,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-scan handoff, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, reviewed room scans, protected booked-room images, pilot-area enforcement, cleaner screening, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-scan handoff, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

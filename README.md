@@ -18,6 +18,7 @@ Then open `http://127.0.0.1:4173`.
 - One-click private handoff from a completed request into the required room scan, with reference and email prefilled for that browser session
 - Photo-and-voice room scan that requires a deliberate room label and specific note for every image, automatically summarises speech and photo notes into concise room-labelled checklist bullets, and blocks saving until every photographed room has a task
 - Audited human review decisions for room scans; a missing or unreviewed scan blocks cleaner-draft use, proposal approval and booking readiness
+- Structured scan review requires a 0.5–24 hour human scope estimate, medium/high confidence and an evidence note; proposal hours default to the higher of this estimate or the founder minimum
 - Cleaner application form with server-side validation
 - Audited seven-check cleaner screening record; approval, matching, proposals and bookings remain blocked until every check is confirmed
 - Local private submission files in `data/`
@@ -30,6 +31,7 @@ Then open `http://127.0.0.1:4173`.
 - Exact proposal start and calculated finish times, with past-date and same-day duration validation
 - Atomic schedule-conflict protection that prevents one cleaner accepting or booking overlapping work, including legacy booking records
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until launch checks, pilot coverage and the latest job-brief review pass
+- Scan-to-quote duration protection blocks any proposal below the reviewed room-scan hours, even when its calculated contribution and margin would otherwise pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
 - Private customer quote-review links that keep the token out of server URLs, require name/scope/terms confirmation, lock after one decision and preserve an acceptance snapshot for the booking audit
 - Customer acceptance can no longer be fabricated from the control desk; accepted and declined states come from the private quote decision flow
