@@ -7,6 +7,7 @@ import { checklistFromTranscript, normaliseChecklistTask } from "./public/checkl
 import { briefRoomOptions, maxBriefPhotos } from "./public/brief-readiness.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "./public/scope-signals.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mjs";
+import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverage.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, "public");
@@ -1146,6 +1147,9 @@ async function updateAdminProposalStatus(request, response) {
   if (["ready", "sent"].includes(status) && requiredService && !cleaner.services?.includes(requiredService)) {
     return json(response, 422, { ok: false, error: "The proposed cleaner is not approved for this service." });
   }
+  if (["ready", "sent", "accepted"].includes(status) && !cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode).covered) {
+    return json(response, 422, { ok: false, error: "The proposed cleaner's stated travel areas no longer cover the customer postcode." });
+  }
   if (["ready", "sent"].includes(status) && !findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)) {
     return json(response, 422, { ok: false, error: "The proposed visit is not fully covered by an active, confirmed cleaner availability window." });
   }
@@ -1291,6 +1295,7 @@ async function getQuoteContext(token) {
     cleanerApproved: cleanerStatus === "approved",
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
+    cleanerTravelCovered: cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode).covered,
     availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
     costModelCurrent: proposalCostModelCurrent(proposal, config),
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
@@ -1466,6 +1471,7 @@ async function getCleanerOpportunityContext(token) {
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
+    cleanerTravelCovered: cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode).covered,
     availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
     costModelCurrent: proposalCostModelCurrent(proposal, config),
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
@@ -1678,6 +1684,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   const customerScopeConfirmed = latestBrief?.customerScopeConfirmed === true;
   const priceSensitiveScopeConfirmed = Boolean(latestBrief?.priceSensitiveScopeConfirmed);
   const scanHoursCovered = Boolean(briefReviewed && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours);
+  const cleanerTravelCovered = cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode).covered;
   const warnings = [];
   if (!readiness.ready) warnings.push("Complete all seven launch-readiness checks before using these drafts.");
   if (!pilotCoverage.covered) warnings.push(`${pilotCoverage.outwardCode || "This postcode"} is outside the configured Tideway pilot area.`);
@@ -1690,6 +1697,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
   if (!config.paymentTiming) warnings.push("Add the customer payment timing.");
   if (!config.supportEmail || !config.supportPhone) warnings.push("Add verified support contact details.");
+  if (!cleanerTravelCovered) warnings.push("The proposed cleaner's stated travel areas do not cover the customer postcode.");
   const availabilityCovered = Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents));
   if (!availabilityCovered) warnings.push("The proposed time is no longer covered by an active, confirmed cleaner availability window.");
   const costModelCurrent = proposalCostModelCurrent(proposal, config);
@@ -1753,7 +1761,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     ok: true,
     proposalId,
     proposalStatus,
-    sendAllowed: readiness.ready && pilotCoverage.covered && briefReviewed && customerScopeConfirmed && priceSensitiveScopeConfirmed && scanHoursCovered && availabilityCovered && costModelCurrent && ["ready", "sent", "accepted"].includes(proposalStatus),
+    sendAllowed: readiness.ready && pilotCoverage.covered && cleanerTravelCovered && briefReviewed && customerScopeConfirmed && priceSensitiveScopeConfirmed && scanHoursCovered && availabilityCovered && costModelCurrent && ["ready", "sent", "accepted"].includes(proposalStatus),
     warnings,
     customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody },
     cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody }
@@ -1807,6 +1815,7 @@ async function buildBookingAudit(proposalId) {
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
+    cleanerTravelCovered: cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode).covered,
     availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
     costModelCurrent: proposalCostModelCurrent(proposal, config),
     profitable: proposal.contribution > 0,
@@ -2416,6 +2425,8 @@ async function createAdminProposal(request, response) {
   if (config.minimumHours > 0 && estimatedHours < config.minimumHours) return json(response, 422, { ok: false, error: `Estimated hours must meet the ${config.minimumHours}-hour minimum.` });
   const requiredService = requestServiceMap[customerRequest.service] || "";
   if (requiredService && !cleaner.services?.includes(requiredService)) return json(response, 422, { ok: false, error: "Cleaner is not approved for the requested service." });
+  const travelCoverage = cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode);
+  if (!travelCoverage.covered) return json(response, 422, { ok: false, error: `The cleaner's stated travel areas do not explicitly cover ${travelCoverage.outwardCode || "the customer postcode"}. Reconfirm their work areas before preparing a proposal.` });
   if (!findCleanerAvailabilitySlot(cleaner.id, { proposedDate, proposedStartTime, estimatedHours }, availabilityEvents)) return json(response, 422, { ok: false, error: "The proposed visit must fit entirely inside an active, confirmed cleaner availability window." });
 
   const economics = calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, otherCosts, config);
@@ -2495,11 +2506,9 @@ async function getAdminMatches(request, response, requestId) {
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
   const requiredService = requestServiceMap[customerRequest.service] || "";
-  const outwardCode = customerRequest.postcode.replace(/\s+/g, " ").split(" ")[0].toUpperCase();
-  const postcodeArea = outwardCode.match(/^[A-Z]+/)?.[0] || "";
   const nowMs = Date.now();
 
-  const matches = cleaners
+  const candidates = cleaners
     .filter((cleaner) => (latestStatuses.get(cleaner.id) || cleaner.status) === "approved" && latestCleanerScreening(cleaner.id, screenings)?.complete)
     .map((cleaner) => {
       const busyIntervals = cleanerBusyIntervals(cleaner.id, proposals, proposalUpdates, cleanerDecisions, bookings);
@@ -2509,10 +2518,8 @@ async function getAdminMatches(request, response, requestId) {
         .sort((left, right) => left.availableDate.localeCompare(right.availableDate) || left.suggestedStartTime.localeCompare(right.suggestedStartTime));
       const services = Array.isArray(cleaner.services) ? cleaner.services : [];
       const serviceMatch = !requiredService || services.includes(requiredService);
-      const coverageText = cleaner.travelAreas.toUpperCase();
-      const exactCoverage = Boolean(outwardCode && coverageText.includes(outwardCode));
-      const areaCoverage = Boolean(postcodeArea && new RegExp(`(^|[^A-Z])${postcodeArea}([^A-Z]|$)`).test(coverageText));
-      const coverageScore = exactCoverage ? 35 : areaCoverage ? 20 : 0;
+      const travelCoverage = cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode);
+      const coverageScore = travelCoverage.exact ? 35 : travelCoverage.area ? 20 : 0;
       const serviceScore = serviceMatch ? 25 : 0;
       const dateScore = customerRequest.preferredDate ? 20 : 10;
       const scheduleScore = availabilitySlots.length ? 20 : 0;
@@ -2532,15 +2539,18 @@ async function getAdminMatches(request, response, requestId) {
         experience: cleaner.experience,
         services,
         serviceMatch,
-        coverage: exactCoverage ? "Postcode listed" : areaCoverage ? "Postcode area listed" : "Coverage needs checking",
+        travelCoverageCovered: travelCoverage.covered,
+        coverage: travelCoverage.exact ? "Postcode district listed" : travelCoverage.area ? "Postcode area listed" : "Outside stated travel area",
         score
       };
-    })
-    .filter((cleaner) => cleaner.serviceMatch && cleaner.availabilitySlots.length > 0)
+    });
+  const matches = candidates
+    .filter((cleaner) => cleaner.serviceMatch && cleaner.travelCoverageCovered && cleaner.availabilitySlots.length > 0)
     .sort((left, right) => right.score - left.score || left.fullName.localeCompare(right.fullName))
     .slice(0, 10);
+  const travelCoverageBlocked = candidates.some((cleaner) => cleaner.serviceMatch && !cleaner.travelCoverageCovered && cleaner.availabilitySlots.length > 0);
 
-  return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: true, reason: matches.length ? "schedulable-matches-found" : "no-schedulable-window", requiredHours, confirmedExtras: latestBrief.scopeSignals.map((signal) => signal.label) }, matches });
+  return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: true, reason: matches.length ? "schedulable-matches-found" : travelCoverageBlocked ? "no-cleaner-travel-coverage" : "no-schedulable-window", requiredHours, confirmedExtras: latestBrief.scopeSignals.map((signal) => signal.label) }, matches });
 }
 
 async function addAdminActivity(request, response) {
@@ -2827,6 +2837,7 @@ async function handleCleanerApplication(request, response) {
   required(record.phone, "Phone", errors);
   required(record.postcode, "Home postcode", errors);
   required(record.travelAreas, "Areas you can work", errors);
+  if (record.travelAreas && !parseCleanerTravelAreas(record.travelAreas).valid) errors.push("List at least one outward postcode district such as SW1A, or a comma-separated postcode area such as SW, SE.");
   required(record.experience, "Experience", errors);
   required(record.availability, "Availability", errors);
   if (!record.services.length) errors.push("Choose at least one type of cleaning work.");

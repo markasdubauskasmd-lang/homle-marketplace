@@ -42,6 +42,7 @@ Then open `http://127.0.0.1:4173`.
 - Internal draft proposals freeze a complete cost breakdown and reject work below minimum hours, loss-making economics or the margin floor; changed founder cost assumptions close the stale proposal across drafts, private decisions and booking
 - Exact proposal start and calculated finish times, with past-date and same-day duration validation
 - Sent and accepted offers temporarily reserve the cleaner's exact interval; matching moves later suggestions around those holds, and cleaner decline, withdrawal or offer expiry releases the time automatically
+- Cleaner travel coverage uses explicit outward postcode districts or comma-separated postcode areas; uncovered cleaners are excluded instead of merely receiving a lower score, and direct proposals outside their stated area are rejected
 - Atomic send and booking checks prevent two overlapping offers or bookings from claiming the same cleaner capacity, including concurrent send attempts and legacy booking records
 - Availability is rechecked when a proposal advances, either side decides and the booking is written; withdrawal closes affected private decisions and moves the customer tracker safely back to rematching
 - One-live-offer control prevents competing ready, sent or accepted proposals for the same request; a cleaner decline immediately locks the affected customer quote and allows a reviewed replacement to take priority

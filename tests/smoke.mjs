@@ -8,6 +8,7 @@ import { clearBriefHandoff, readBriefHandoff, saveBriefHandoff } from "../public
 import { briefReadiness, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos } from "../public/brief-readiness.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "../public/scope-signals.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "../offer-expiry.mjs";
+import { cleanerTravelCoverage, parseCleanerTravelAreas } from "../travel-coverage.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const testDataDir = await mkdtemp(path.join(tmpdir(), "tideway-smoke-"));
@@ -39,6 +40,9 @@ try {
   assert(fixedDeadline === "2026-07-15T10:00:00.000Z" && offerIsOpen(fixedDeadline, Date.parse("2026-07-15T09:59:59.999Z")) && !offerIsOpen(fixedDeadline, Date.parse(fixedDeadline)), "Offer response window did not close exactly at its frozen deadline.");
   assert(offerDeadline(fixedSentAt, 72, fixedVisitStart) === "2026-07-16T09:00:00.000Z", "Offer deadline was not capped at the proposed visit start.");
   assert(decisionWasInTime("2026-07-15T09:59:59.999Z", fixedDeadline) && !decisionWasInTime(fixedDeadline, fixedDeadline), "Booking audit did not distinguish timely and stale acceptances.");
+  assert(cleanerTravelCoverage("SW1A and South London", "SW1A 1AA").exact === true && cleanerTravelCoverage("SW1A and South London", "SW4 1AA").covered === false, "An exact cleaner postcode district incorrectly expanded to an entire postcode area.");
+  assert(cleanerTravelCoverage("SW, SE", "SW4 1AA").area === true && cleanerTravelCoverage("SW, SE", "NE1 1AA").covered === false, "Explicit comma-separated cleaner postcode areas were not enforced correctly.");
+  assert(parseCleanerTravelAreas("South London and nearby").valid === false, "Vague cleaner travel prose was treated as verified postcode coverage.");
 
   const conciseTasks = checklistFromTranscript("Um, so in the kitchen, please wipe every worktop, degrease the hob, clean inside the microwave and mop the floor. In the bathroom, remove limescale from the shower screen and disinfect the toilet. Finally do not move the locked cupboard.");
   assert(JSON.stringify(conciseTasks) === JSON.stringify([
@@ -111,7 +115,8 @@ try {
   assert(sessionValues.size === 0, "Completed request-to-brief handoff was not cleared.");
 
   const home = await fetch(base);
-  assert(home.ok && (await home.text()).includes("Book a clean with every room clearly scoped"), "Homepage failed.");
+  const homeText = await home.text();
+  assert(home.ok && homeText.includes("Book a clean with every room clearly scoped") && homeText.includes("postcode districts or areas") && homeText.includes("SW1A, SW4, or broader areas SW, SE"), "Homepage or structured cleaner travel-area guidance failed.");
   assert(home.headers.get("content-security-policy")?.includes("frame-ancestors 'none'"), "Security headers were missing.");
   assert(home.headers.get("content-security-policy")?.includes("img-src 'self' data: blob:"), "Secure local photo previews were blocked by the content policy.");
 
@@ -225,6 +230,14 @@ try {
   assert(privateBriefImage.ok && privateBriefImage.headers.get("content-type") === "image/png" && (await privateBriefImage.arrayBuffer()).byteLength > 0, "Private job-brief photo could not be retrieved by the local control desk.");
   const proxiedBriefImage = await fetch(`${base}/api/admin/job-brief-image?briefId=${briefBody.reference}&imageId=${briefBody.photos[0].id}`, { headers: { "x-forwarded-for": "203.0.113.10" } });
   assert(proxiedBriefImage.status === 401, "Private job-brief photo bypassed admin authentication.");
+
+  const vagueTravelCleaner = await fetch(`${base}/api/cleaner-applications`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ fullName: "Vague Travel Cleaner", email: "vague@example.com", phone: "07123456780", postcode: "SE1 7PB", travelAreas: "South London and nearby", experience: "1–3 years", availability: "Weekdays", serviceTurnovers: true, rightToWork: true, consent: true })
+  });
+  const vagueTravelCleanerBody = await vagueTravelCleaner.json();
+  assert(vagueTravelCleaner.status === 422 && vagueTravelCleanerBody.errors?.some((error) => error.includes("outward postcode district")), "A cleaner application stored vague travel prose without any matchable postcode coverage.");
 
   const validCleaner = await fetch(`${base}/api/cleaner-applications`, {
     method: "POST",
@@ -345,6 +358,22 @@ try {
     body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "approved" })
   });
   assert(cleanerApproval.ok, "Cleaner approval status failed.");
+
+  const uncoveredCleaner = await fetch(`${base}/api/cleaner-applications`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ fullName: "Outside Area Cleaner", email: "outside@example.com", phone: "07123456782", postcode: "NE1 1AA", travelAreas: "NE1", experience: "1–3 years", availability: "Weekdays", serviceTurnovers: true, rightToWork: true, consent: true })
+  });
+  const uncoveredCleanerBody = await uncoveredCleaner.json();
+  assert(uncoveredCleaner.status === 201, "Out-of-area test cleaner application failed before the travel gate could be tested.");
+  const uncoveredCleanerScreeningStatus = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: uncoveredCleanerBody.reference, kind: "cleaner", status: "screening" }) });
+  const uncoveredCleanerScreening = await fetch(`${base}/api/admin/cleaner-screening`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: uncoveredCleanerBody.reference, identityChecked: true, rightToWorkChecked: true, referencesChecked: true, serviceSkillsChecked: true, availabilityCoverageChecked: true, engagementTermsChecked: true, safeguardingDecisionChecked: true, note: "Test confirmations only for the travel-coverage gate." }) });
+  const uncoveredCleanerApproval = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: uncoveredCleanerBody.reference, kind: "cleaner", status: "approved" }) });
+  const uncoveredCleanerAvailability = await fetch(`${base}/api/admin/cleaner-availability`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: uncoveredCleanerBody.reference, availableDate: "2026-07-20", startTime: "08:00", endTime: "15:00", confirmationNote: "Test-only availability confirmed for the travel-coverage gate." }) });
+  assert(uncoveredCleanerScreeningStatus.ok && uncoveredCleanerScreening.ok && uncoveredCleanerApproval.ok && uncoveredCleanerAvailability.status === 201, "Out-of-area cleaner could not reach the otherwise matchable test state.");
+  const uncoveredCleanerProposal = await fetch(`${base}/api/admin/proposals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, cleanerId: uncoveredCleanerBody.reference, proposedDate: "2026-07-20", proposedStartTime: "09:00", estimatedHours: 4, customerRate: 30, cleanerRate: 18, otherCosts: 0 }) });
+  const uncoveredCleanerProposalBody = await uncoveredCleanerProposal.json();
+  assert(uncoveredCleanerProposal.status === 422 && uncoveredCleanerProposalBody.error?.includes("stated travel areas"), "A direct proposal was created outside the cleaner's explicitly stated travel area.");
 
   const noAvailabilityMatches = await fetch(`${base}/api/admin/matches?requestId=${requestBody.reference}`);
   const noAvailabilityMatchesBody = await noAvailabilityMatches.json();
@@ -478,8 +507,16 @@ try {
   const schedulableMatching = await fetch(`${base}/api/admin/matches?requestId=${requestBody.reference}`);
   const schedulableMatchingBody = await schedulableMatching.json();
   const schedulableSlot = schedulableMatchingBody.matches?.[0]?.availabilitySlots?.[0];
-  assert(schedulableMatching.ok && schedulableMatchingBody.matchGate.ready === true && schedulableMatchingBody.matchGate.requiredHours === 3.5 && schedulableMatchingBody.matchGate.confirmedExtras?.[0] === "Inside oven cleaning" && schedulableMatchingBody.matches.length === 1, "Reviewed room scan and its confirmed price-sensitive scope did not open schedulable matching.");
-  assert(schedulableMatchingBody.matches[0].score === 100 && schedulableMatchingBody.matches[0].coverage === "Postcode listed" && schedulableMatchingBody.matches[0].availabilitySlots.length === 1 && schedulableSlot.availableDate === "2026-07-20" && schedulableSlot.suggestedStartTime === "08:00" && schedulableSlot.suggestedEndTime === "11:30" && schedulableSlot.arrivalWindowFit === true, "Match did not fit the preferred date, morning arrival and reviewed duration inside confirmed availability.");
+  assert(schedulableMatching.ok && schedulableMatchingBody.matchGate.ready === true && schedulableMatchingBody.matchGate.requiredHours === 3.5 && schedulableMatchingBody.matchGate.confirmedExtras?.[0] === "Inside oven cleaning" && schedulableMatchingBody.matches.length === 1 && schedulableMatchingBody.matches[0].id === cleanerBody.reference && schedulableMatchingBody.matches[0].travelCoverageCovered === true, "Reviewed room scan did not open schedulable matching exclusively for the cleaner whose stated travel area covers the customer postcode.");
+  assert(schedulableMatchingBody.matches[0].score === 100 && schedulableMatchingBody.matches[0].coverage === "Postcode district listed" && schedulableMatchingBody.matches[0].availabilitySlots.length === 1 && schedulableSlot.availableDate === "2026-07-20" && schedulableSlot.suggestedStartTime === "08:00" && schedulableSlot.suggestedEndTime === "11:30" && schedulableSlot.arrivalWindowFit === true, "Match did not fit the verified postcode district, preferred date, morning arrival and reviewed duration inside confirmed availability.");
+  const travelGateRequest = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contactName: "Travel Gate Customer", email: "travelgate@example.com", phone: "07123456783", postcode: "SW2 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "1 bedroom and 1 bathroom", accessNotes: "Meet at reception", hazards: "None known", preferredDate: "2026-07-20", preferredTimeWindow: "Morning (8am–12pm)", consent: true }) });
+  const travelGateRequestBody = await travelGateRequest.json();
+  const travelGateBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: travelGateRequestBody.reference, email: "travelgate@example.com", transcript: "In the kitchen wipe the worktops and mop the floor.", photos: [{ area: "Kitchen", note: "Worktops and floor need cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
+  const travelGateBriefBody = await travelGateBrief.json();
+  const reviewedTravelGateBrief = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: travelGateBriefBody.reference, status: "reviewed", note: "Test-only two-hour travel-coverage scope estimate.", scopeEstimateHours: 2, scopeConfidence: "medium" }) });
+  const travelBlockedMatches = await fetch(`${base}/api/admin/matches?requestId=${travelGateRequestBody.reference}`);
+  const travelBlockedMatchesBody = await travelBlockedMatches.json();
+  assert(travelGateRequest.status === 201 && travelGateBrief.status === 201 && reviewedTravelGateBrief.ok && travelBlockedMatches.ok && travelBlockedMatchesBody.matches.length === 0 && travelBlockedMatchesBody.matchGate.reason === "no-cleaner-travel-coverage", "Matching did not distinguish available-but-uncovered cleaners from a missing availability window.");
   const eveningRequest = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contactName: "Evening Customer", email: "evening@example.com", phone: "07123456777", postcode: "SW1A 2AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "1 bedroom and 1 bathroom", accessNotes: "Test access only", hazards: "None known", preferredDate: "2026-07-22", preferredTimeWindow: "Evening (5pm–8pm)", consent: true }) });
   const eveningRequestBody = await eveningRequest.json();
   const eveningBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: eveningRequestBody.reference, email: "evening@example.com", transcript: "In the kitchen wipe the worktops and mop the floor.", photos: [{ area: "Kitchen", note: "Worktops and floor need cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
@@ -726,7 +763,7 @@ try {
 
   const bookingAudit = await fetch(`${base}/api/admin/booking-audit?proposalId=${proposalBody.proposal.id}`);
   const bookingAuditBody = await bookingAudit.json();
-  assert(bookingAudit.ok && bookingAuditBody.automatedReady === true && bookingAuditBody.checks.customerScopeConfirmed === true && Object.values(bookingAuditBody.checks).every(Boolean), "Two-sided accepted proposal did not retain customer scope confirmation or pass the automated booking audit.");
+  assert(bookingAudit.ok && bookingAuditBody.automatedReady === true && bookingAuditBody.checks.customerScopeConfirmed === true && bookingAuditBody.checks.cleanerTravelCovered === true && Object.values(bookingAuditBody.checks).every(Boolean), "Two-sided accepted proposal did not retain customer scope confirmation and cleaner travel coverage or pass the automated booking audit.");
   assert(bookingAuditBody.manualChecklist.length >= 4, "Booking audit omitted required manual confirmations.");
 
   const quotedStatus = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: requestBody.reference, kind: "request", status: "quoted" }) });
@@ -882,7 +919,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === overlapRequestBody.reference)?.dispatchActions?.some((action) => action.code === "rematch" && action.group === "rematching"), "Exhausted and withdrawn offers did not remain visible in the rematching queue.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.length === 0, "Completed profitable work remained in the active founder-action queue.");
 
-  console.log("Smoke tests passed: public pages, eight-item live scan readiness, empty/partial/complete readiness states, stale source-to-checklist detection, harmless-whitespace stability, photo-count and supported-room safeguards, reviewed-scan matching gates, required customer scope-completeness confirmation, stored confirmation timestamps, booking-audit scope confirmation, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, customer-visible price-sensitive scope warnings, supported-signal coverage, false-positive protection, required reviewer confirmations, frozen confirmed extras, explicit selected-cleaner photo consent, frozen opportunity photo scope, token-authorised non-cacheable opportunity images, preview/no-consent/readiness/booking image revocation, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, live cleaner-capacity holds, capacity-aware matching, cleaner-decline capacity release, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, eight-item live scan readiness, empty/partial/complete readiness states, stale source-to-checklist detection, harmless-whitespace stability, photo-count and supported-room safeguards, reviewed-scan matching gates, explicit cleaner postcode declarations, exact/area travel coverage, vague-travel rejection, uncovered-cleaner exclusion, direct out-of-area proposal rejection, booking-audit travel retention, required customer scope-completeness confirmation, stored confirmation timestamps, booking-audit scope confirmation, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, customer-visible price-sensitive scope warnings, supported-signal coverage, false-positive protection, required reviewer confirmations, frozen confirmed extras, explicit selected-cleaner photo consent, frozen opportunity photo scope, token-authorised non-cacheable opportunity images, preview/no-consent/readiness/booking image revocation, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, live cleaner-capacity holds, capacity-aware matching, cleaner-decline capacity release, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

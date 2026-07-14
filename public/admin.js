@@ -295,6 +295,9 @@ async function findMatches(record, results, button) {
       } else if (result.matchGate?.reason === "price-sensitive-scope-review-required") {
         addText(results, "strong", "Confirm the price-sensitive scan items before matching.");
         addText(results, "span", "Every detected extra must be included in the reviewed cleaning-time estimate before Tideway can suggest a cleaner window.");
+      } else if (result.matchGate?.reason === "no-cleaner-travel-coverage") {
+        addText(results, "strong", "No available cleaner covers this postcode yet.");
+        addText(results, "span", "Do not promise the job. Reconfirm a screened cleaner's outward postcode districts or postcode areas before preparing an offer.");
       } else if (result.matchGate?.reason === "no-schedulable-window") {
         addText(results, "strong", "No confirmed window fits this request yet.");
         addText(results, "span", `${result.matchGate.requiredHours} reviewed hours must fit${result.request.preferredDate ? ` on ${result.request.preferredDate}` : " a future date"}${result.request.preferredTimeWindow && result.request.preferredTimeWindow !== "Flexible" ? ` with a ${result.request.preferredTimeWindow.toLowerCase()} arrival` : ""}. Do not promise a different time without customer approval.`);
