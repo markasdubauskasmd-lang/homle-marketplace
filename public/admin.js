@@ -307,7 +307,7 @@ async function findMatches(record, results, button) {
       item.append(heading);
       addText(item, "span", `${match.travelAreas} · ${match.availability}`);
       addText(item, "strong", match.scheduleFit);
-      addText(item, "span", `Schedulable visits: ${match.availabilitySlots.map((slot) => `${slot.availableDate} ${slot.suggestedStartTime}-${slot.suggestedEndTime} inside confirmed ${slot.startTime}-${slot.endTime}`).join(", ")}`);
+      addText(item, "span", `Schedulable visits: ${match.availabilitySlots.map((slot) => `${slot.availableDate} ${slot.suggestedStartTime}-${slot.suggestedEndTime} inside confirmed ${slot.startTime}-${slot.endTime}${slot.capacityAdjusted ? " (after existing held capacity)" : ""}`).join(", ")}`);
       addText(item, "span", match.services.join(", "));
       addText(item, "span", `${match.email} · ${match.phone}`);
       const proposalTarget = document.createElement("div");

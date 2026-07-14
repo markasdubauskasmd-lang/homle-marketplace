@@ -538,16 +538,32 @@ try {
   assert(overlapScan.status === 201, "Overlapping-schedule request room scan failed.");
   const reviewedOverlapScan = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: overlapScanBody.reference, status: "reviewed", note: "Test-only two-hour scan estimate.", scopeEstimateHours: 2, scopeConfidence: "medium" }) });
   assert(reviewedOverlapScan.ok, "Overlapping-schedule request room scan was not reviewed.");
-  const overlapProposal = await fetch(`${base}/api/admin/proposals`, {
+  const heldCapacityProposal = await fetch(`${base}/api/admin/proposals`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ requestId: overlapRequestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", proposedStartTime: "11:00", estimatedHours: 2, customerRate: 30, cleanerRate: 18, otherCosts: 0 })
   });
+  const heldCapacityProposalBody = await heldCapacityProposal.json();
+  const heldCapacityReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: heldCapacityProposalBody.proposal.id, status: "ready" }) });
+  const heldCapacitySent = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: heldCapacityProposalBody.proposal.id, status: "sent" }) });
+  const heldCapacitySentBody = await heldCapacitySent.json();
+  assert(heldCapacityProposal.status === 201 && heldCapacityReady.ok && heldCapacitySent.status === 409 && heldCapacitySentBody.error.includes("capacity is already held"), "An overlapping offer was sent while another live offer already held the cleaner's time.");
+  const cancelledHeldCapacity = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: heldCapacityProposalBody.proposal.id, status: "cancelled", note: "Test-only draft withdrawn after the capacity gate worked." }) });
+  assert(cancelledHeldCapacity.ok, "Capacity-gated proposal could not be withdrawn before rematching.");
+  const overlapProposal = await fetch(`${base}/api/admin/proposals`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: overlapRequestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-22", proposedStartTime: "09:00", estimatedHours: 2, customerRate: 30, cleanerRate: 18, otherCosts: 0 })
+  });
   const overlapProposalBody = await overlapProposal.json();
-  assert(overlapProposal.status === 201 && overlapProposalBody.proposal.proposedEndTime === "13:00", "Overlapping-schedule test proposal failed.");
+  assert(overlapProposal.status === 201 && overlapProposalBody.proposal.proposedEndTime === "11:00", "Held-capacity test proposal failed.");
   const overlapReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: overlapProposalBody.proposal.id, status: "ready" }) });
   const overlapSent = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: overlapProposalBody.proposal.id, status: "sent" }) });
-  assert(overlapReady.ok && overlapSent.ok, "A second opportunity could not reach sent state before either cleaner decision existed.");
+  assert(overlapReady.ok && overlapSent.ok, "A non-overlapping opportunity could not reserve confirmed cleaner capacity.");
+  const capacityAwareMatching = await fetch(`${base}/api/admin/matches?requestId=${overlapRequestBody.reference}`);
+  const capacityAwareMatchingBody = await capacityAwareMatching.json();
+  const firstCapacityAwareSlot = capacityAwareMatchingBody.matches?.[0]?.availabilitySlots?.[0];
+  assert(capacityAwareMatching.ok && firstCapacityAwareSlot?.availableDate === "2026-07-20" && firstCapacityAwareSlot.suggestedStartTime === "13:00" && firstCapacityAwareSlot.suggestedEndTime === "15:00" && firstCapacityAwareSlot.capacityAdjusted === true && firstCapacityAwareSlot.heldIntervalsAvoided === 1, "Matching did not move the next suggested visit around an existing live capacity hold.");
 
   const replacementProposal = await fetch(`${base}/api/admin/proposals`, {
     method: "POST",
@@ -567,7 +583,7 @@ try {
   assert(staleCustomerAcceptance.status === 409, "Customer accepted an unfulfillable quote after the cleaner declined.");
   const replacementReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: replacementProposalBody.proposal.id, status: "ready" }) });
   const replacementSent = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: replacementProposalBody.proposal.id, status: "sent" }) });
-  assert(replacementReady.ok && replacementSent.ok, "Replacement proposal did not advance after the original cleaner decline.");
+  assert(replacementReady.ok && replacementSent.ok, "Replacement proposal did not reuse the released cleaner capacity after the original decline.");
   const replacementTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": overlapRequestBody.customerStatusToken } });
   const replacementTrackerBody = await replacementTracker.json();
   assert(replacementTracker.ok && replacementTrackerBody.current.stage === "quote-review" && replacementTrackerBody.links.quoteToken === replacementProposalBody.proposal.reviewToken, "Customer tracker did not prioritise the replacement quote over the exhausted proposal.");
@@ -617,7 +633,7 @@ try {
   const finalisationQueueBody = await finalisationQueue.json();
   assert(finalisationQueue.ok && finalisationQueueBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.some((action) => action.code === "finalise-booking" && action.group === "booking"), "Both-side acceptance did not create a final booking-check action.");
   const overlappingCleanerDecision = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": overlapProposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Cleaner", scopeConfirmed: true, payConfirmed: true, availabilityConfirmed: true }) });
-  assert(overlappingCleanerDecision.status === 409, "Cleaner accepted a second opportunity that overlaps already-accepted work.");
+  assert(overlappingCleanerDecision.status === 409, "Cleaner changed a completed decline after that opportunity's capacity had been released.");
   const duplicateCleanerDecision = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": proposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "declined", typedName: "Test Cleaner" }) });
   assert(duplicateCleanerDecision.status === 409, "A completed cleaner decision was overwritten.");
   const acceptedOpportunity = await fetch(`${base}/api/opportunity`, { headers: { "x-opportunity-token": proposalBody.proposal.cleanerReviewToken } });
@@ -649,6 +665,10 @@ try {
   });
   const confirmedBookingBody = await confirmedBooking.json();
   assert(confirmedBooking.status === 201 && confirmedBookingBody.booking.id.startsWith("BKG-") && /^[A-Za-z0-9_-]{32}$/.test(confirmedBookingBody.booking.customerViewToken) && /^[A-Za-z0-9_-]{32}$/.test(confirmedBookingBody.booking.cleanerViewToken), "Fully confirmed booking or its private view tokens were not recorded.");
+  const bookedCapacityMatching = await fetch(`${base}/api/admin/matches?requestId=${overlapRequestBody.reference}`);
+  const bookedCapacityMatchingBody = await bookedCapacityMatching.json();
+  const firstBookedCapacitySlot = bookedCapacityMatchingBody.matches?.[0]?.availabilitySlots?.[0];
+  assert(bookedCapacityMatching.ok && firstBookedCapacitySlot?.availableDate === "2026-07-20" && firstBookedCapacitySlot.suggestedStartTime === "13:00" && firstBookedCapacitySlot.suggestedEndTime === "15:00" && firstBookedCapacitySlot.capacityAdjusted === true, "Confirmed booking capacity was not removed from later matching suggestions.");
   const bookedProposalWithdrawal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "cancelled", note: "Test-only attempt to withdraw a confirmed booking." }) });
   assert(bookedProposalWithdrawal.status === 409, "Proposal controls were allowed to cancel an already confirmed booking.");
   const bookedTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
@@ -782,7 +802,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === overlapRequestBody.reference)?.dispatchActions?.some((action) => action.code === "rematch" && action.group === "rematching"), "Exhausted and withdrawn offers did not remain visible in the rematching queue.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.length === 0, "Completed profitable work remained in the active founder-action queue.");
 
-  console.log("Smoke tests passed: public pages, reviewed-scan matching gates, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, reviewed-scan matching gates, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, live cleaner-capacity holds, capacity-aware matching, cleaner-decline capacity release, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

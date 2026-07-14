@@ -34,7 +34,8 @@ Then open `http://127.0.0.1:4173`.
 - Append-only cleaner availability windows with evidence notes and auditable withdrawal; matching returns only approved cleaners with a future confirmed window, and proposals must fit fully inside one
 - Internal draft proposals freeze a complete cost breakdown and reject work below minimum hours, loss-making economics or the margin floor; changed founder cost assumptions close the stale proposal across drafts, private decisions and booking
 - Exact proposal start and calculated finish times, with past-date and same-day duration validation
-- Atomic schedule-conflict protection that prevents one cleaner accepting or booking overlapping work, including legacy booking records
+- Sent and accepted offers temporarily reserve the cleaner's exact interval; matching moves later suggestions around those holds, and cleaner decline, withdrawal or offer expiry releases the time automatically
+- Atomic send and booking checks prevent two overlapping offers or bookings from claiming the same cleaner capacity, including concurrent send attempts and legacy booking records
 - Availability is rechecked when a proposal advances, either side decides and the booking is written; withdrawal closes affected private decisions and moves the customer tracker safely back to rematching
 - One-live-offer control prevents competing ready, sent or accepted proposals for the same request; a cleaner decline immediately locks the affected customer quote and allows a reviewed replacement to take priority
 - Audited pre-booking withdrawal requires a founder reason, preserves any customer acceptance record, closes both private links and returns the request to rematching; a confirmed booking cannot be cancelled through proposal controls

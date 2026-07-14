@@ -144,6 +144,42 @@ async function saveRecord(filename, record) {
   return operation;
 }
 
+async function saveProposalStatusOnce(update) {
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    const [proposals, proposalUpdates, cleanerDecisions, bookings] = await Promise.all([
+      readRecords("match-proposals.ndjson"),
+      readRecords("proposal-status.ndjson"),
+      readRecords("cleaner-opportunity-decisions.ndjson"),
+      readRecords("bookings.ndjson")
+    ]);
+    const proposal = proposals.find((item) => item.id === update.proposalId);
+    if (!proposal) throw Object.assign(new Error("Proposal not found."), { statusCode: 404 });
+    const currentStatus = proposalLifecycle(proposal, proposalUpdates).status;
+    if (currentStatus !== update.previousStatus) {
+      throw Object.assign(new Error(`This proposal changed from ${update.previousStatus} to ${currentStatus}. Refresh before trying again.`), { statusCode: 409 });
+    }
+    if (update.status === "cancelled" && bookings.some((booking) => booking.proposalId === proposal.id)) {
+      throw Object.assign(new Error("A confirmed booking cannot be withdrawn through proposal controls. Use the booking change and safety workflow."), { statusCode: 409 });
+    }
+    if (["ready", "sent"].includes(update.status)) {
+      const competingProposal = proposals.find((candidate) => candidate.id !== proposal.id && candidate.requestId === proposal.requestId && proposalHasLiveOffer(candidate, proposalUpdates, cleanerDecisions));
+      if (competingProposal) {
+        throw Object.assign(new Error(`Close or exhaust the existing live proposal ${competingProposal.id} before advancing another offer for this request.`), { statusCode: 409 });
+      }
+    }
+    if (update.status === "sent") {
+      const capacityConflict = findCleanerLiveCapacityConflict(proposal, proposals, proposalUpdates, cleanerDecisions, bookings);
+      if (capacityConflict) {
+        throw Object.assign(new Error(`This cleaner's capacity is already held by an overlapping live offer or booking (${capacityConflict.id}). Close or exhaust that commitment, or choose another confirmed time.`), { statusCode: 409 });
+      }
+    }
+    await appendFile(path.join(dataDir, "proposal-status.ndjson"), `${JSON.stringify(update)}\n`, { encoding: "utf8", mode: 0o600 });
+  });
+  writeQueue = operation;
+  return operation;
+}
+
 async function saveDecisionOnce(filename, proposalId, record) {
   const operation = writeQueue.catch(() => {}).then(async () => {
     await mkdir(dataDir, { recursive: true });
@@ -248,10 +284,13 @@ async function saveCleanerAvailabilityEvent(event) {
 async function saveBookingOnce(booking) {
   const operation = writeQueue.catch(() => {}).then(async () => {
     await mkdir(dataDir, { recursive: true });
-    const [bookings, availabilityEvents, config] = await Promise.all([
+    const [bookings, availabilityEvents, config, proposals, proposalUpdates, cleanerDecisions] = await Promise.all([
       readRecords("bookings.ndjson"),
       readRecords("cleaner-availability.ndjson"),
-      readJsonFile("business-config.json", {})
+      readJsonFile("business-config.json", {}),
+      readRecords("match-proposals.ndjson"),
+      readRecords("proposal-status.ndjson"),
+      readRecords("cleaner-opportunity-decisions.ndjson")
     ]);
     if (bookings.some((item) => item.requestId === booking.requestId || item.proposalId === booking.proposalId)) {
       throw Object.assign(new Error("A booking is already recorded for this request or proposal."), { statusCode: 409 });
@@ -260,6 +299,10 @@ async function saveBookingOnce(booking) {
       throw Object.assign(new Error("The cleaner's confirmed availability no longer covers this visit."), { statusCode: 409 });
     }
     if (!proposalCostModelCurrent(booking, config)) throw Object.assign(new Error("The proposal cost assumptions changed before booking confirmation."), { statusCode: 409 });
+    const capacityConflict = findCleanerLiveCapacityConflict({ ...booking, id: booking.proposalId }, proposals, proposalUpdates, cleanerDecisions, bookings);
+    if (capacityConflict) {
+      throw Object.assign(new Error(`This cleaner's capacity is already committed to overlapping work (${capacityConflict.id}).`), { statusCode: 409 });
+    }
     await appendFile(path.join(dataDir, "bookings.ndjson"), `${JSON.stringify(booking)}\n`, { encoding: "utf8", mode: 0o600 });
   });
   writeQueue = operation;
@@ -497,7 +540,7 @@ function utcTimeLabel(value) {
   return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
 }
 
-function schedulableAvailability(slot, customerRequest, requiredHours, nowMs = Date.now()) {
+function schedulableAvailability(slot, customerRequest, requiredHours, nowMs = Date.now(), busyIntervals = []) {
   const schedule = availabilitySlotSchedule(slot);
   if (!schedule || !Number.isFinite(requiredHours) || requiredHours <= 0) return null;
   if (customerRequest.preferredDate && slot.availableDate !== customerRequest.preferredDate) return null;
@@ -508,8 +551,21 @@ function schedulableAvailability(slot, customerRequest, requiredHours, nowMs = D
   const windowEndMs = arrivalWindow ? utcTimeOnDate(slot.availableDate, arrivalWindow.endTime) : schedule.endMs;
   const quarterHourMs = 15 * 60 * 1000;
   const earliestBookableMs = Math.ceil((nowMs + quarterHourMs) / quarterHourMs) * quarterHourMs;
-  const suggestedStartMs = Math.max(schedule.startMs, windowStartMs, earliestBookableMs);
-  const suggestedEndMs = suggestedStartMs + requiredHours * 60 * 60 * 1000;
+  const requiredMs = requiredHours * 60 * 60 * 1000;
+  let suggestedStartMs = Math.max(schedule.startMs, windowStartMs, earliestBookableMs);
+  let heldIntervalsAvoided = 0;
+  const relevantBusyIntervals = busyIntervals
+    .filter((interval) => interval.startMs < schedule.endMs && schedule.startMs < interval.endMs)
+    .sort((left, right) => left.startMs - right.startMs || left.endMs - right.endMs);
+  for (const interval of relevantBusyIntervals) {
+    const suggestedEndMs = suggestedStartMs + requiredMs;
+    if (suggestedEndMs <= interval.startMs) break;
+    if (suggestedStartMs < interval.endMs && interval.startMs < suggestedEndMs) {
+      suggestedStartMs = Math.max(suggestedStartMs, interval.endMs);
+      heldIntervalsAvoided += 1;
+    }
+  }
+  const suggestedEndMs = suggestedStartMs + requiredMs;
   if (suggestedStartMs >= windowEndMs || suggestedEndMs > schedule.endMs) return null;
   return {
     id: slot.id,
@@ -519,6 +575,8 @@ function schedulableAvailability(slot, customerRequest, requiredHours, nowMs = D
     suggestedStartTime: utcTimeLabel(suggestedStartMs),
     suggestedEndTime: utcTimeLabel(suggestedEndMs),
     requiredHours,
+    capacityAdjusted: heldIntervalsAvoided > 0,
+    heldIntervalsAvoided,
     arrivalWindowFit: true,
     dateFit: !customerRequest.preferredDate || slot.availableDate === customerRequest.preferredDate
   };
@@ -575,12 +633,16 @@ function schedulesOverlap(left, right) {
 function proposalLifecycle(proposal, proposalUpdates) {
   let status = proposal.status || "draft";
   let latestUpdate = null;
+  let quoteSnapshot = null;
+  let cleanerOpportunitySnapshot = null;
   for (const update of proposalUpdates) {
     if (update.proposalId !== proposal.id) continue;
     status = update.status;
     latestUpdate = update;
+    if (update.quoteSnapshot) quoteSnapshot = update.quoteSnapshot;
+    if (update.cleanerOpportunitySnapshot) cleanerOpportunitySnapshot = update.cleanerOpportunitySnapshot;
   }
-  return { status, latestUpdate };
+  return { status, latestUpdate, quoteSnapshot, cleanerOpportunitySnapshot };
 }
 
 function cleanerDecisionForProposal(proposalId, cleanerDecisions) {
@@ -590,11 +652,11 @@ function cleanerDecisionForProposal(proposalId, cleanerDecisions) {
 }
 
 function proposalOfferIsExhausted(proposal, proposalUpdates, cleanerDecisions) {
-  const { status, latestUpdate } = proposalLifecycle(proposal, proposalUpdates);
+  const { status, quoteSnapshot, cleanerOpportunitySnapshot } = proposalLifecycle(proposal, proposalUpdates);
   const cleanerDecision = cleanerDecisionForProposal(proposal.id, cleanerDecisions);
   if (cleanerDecision?.status === "declined") return true;
-  if (status === "sent" && !offerIsOpen(latestUpdate?.quoteSnapshot?.offerExpiresAt)) return true;
-  if (["sent", "accepted"].includes(status) && !cleanerDecision && !offerIsOpen(latestUpdate?.cleanerOpportunitySnapshot?.offerExpiresAt)) return true;
+  if (status === "sent" && !offerIsOpen(quoteSnapshot?.offerExpiresAt)) return true;
+  if (["sent", "accepted"].includes(status) && !cleanerDecision && !offerIsOpen(cleanerOpportunitySnapshot?.offerExpiresAt)) return true;
   return false;
 }
 
@@ -602,6 +664,40 @@ function proposalHasLiveOffer(proposal, proposalUpdates, cleanerDecisions) {
   const { status } = proposalLifecycle(proposal, proposalUpdates);
   if (!["ready", "sent", "accepted"].includes(status)) return false;
   return !proposalOfferIsExhausted(proposal, proposalUpdates, cleanerDecisions);
+}
+
+function proposalHoldsCleanerCapacity(proposal, proposalUpdates, cleanerDecisions) {
+  const { status } = proposalLifecycle(proposal, proposalUpdates);
+  return ["sent", "accepted"].includes(status) && !proposalOfferIsExhausted(proposal, proposalUpdates, cleanerDecisions);
+}
+
+function fullDaySchedule(date) {
+  const startMs = utcTimeOnDate(date, "00:00");
+  return Number.isFinite(startMs) ? { startMs, endMs: startMs + 24 * 60 * 60 * 1000 } : null;
+}
+
+function cleanerBusyIntervals(cleanerId, proposals, proposalUpdates, cleanerDecisions, bookings, excludeProposalId = "") {
+  const intervals = [];
+  const bookedProposalIds = new Set(bookings.map((booking) => booking.proposalId));
+  for (const proposal of proposals) {
+    if (proposal.id === excludeProposalId || proposal.cleanerId !== cleanerId || bookedProposalIds.has(proposal.id)) continue;
+    if (!proposalHoldsCleanerCapacity(proposal, proposalUpdates, cleanerDecisions)) continue;
+    const schedule = jobSchedule(proposal) || fullDaySchedule(proposal.proposedDate);
+    if (schedule) intervals.push({ id: proposal.id, kind: "live-offer", ...schedule });
+  }
+  for (const booking of bookings) {
+    if (booking.proposalId === excludeProposalId || booking.cleanerId !== cleanerId) continue;
+    const schedule = jobSchedule(booking) || fullDaySchedule(booking.proposedDate);
+    if (schedule) intervals.push({ id: booking.id, kind: "booking", ...schedule });
+  }
+  return intervals.sort((left, right) => left.startMs - right.startMs || left.endMs - right.endMs);
+}
+
+function findCleanerLiveCapacityConflict(target, proposals, proposalUpdates, cleanerDecisions, bookings) {
+  const targetSchedule = jobSchedule(target);
+  if (!targetSchedule) return { id: "invalid-schedule", proposedDate: target.proposedDate };
+  return cleanerBusyIntervals(target.cleanerId, proposals, proposalUpdates, cleanerDecisions, bookings, target.id)
+    .find((interval) => schedulesOverlap(targetSchedule, interval)) || null;
 }
 
 function findCleanerScheduleConflict(target, proposals, proposalUpdates, cleanerDecisions, bookings) {
@@ -1113,7 +1209,7 @@ async function updateAdminProposalStatus(request, response) {
     } : {}),
     updatedAt
   };
-  await saveRecord("proposal-status.ndjson", update);
+  await saveProposalStatusOnce(update);
   return json(response, 200, { ok: true, proposalId, status, note: update.note, updatedAt });
 }
 
@@ -2262,14 +2358,18 @@ async function createAdminProposal(request, response) {
 
 async function getAdminMatches(request, response, requestId) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, screenings, availabilityEvents, briefs, briefUpdates] = await Promise.all([
+  const [requests, cleaners, updates, screenings, availabilityEvents, briefs, briefUpdates, proposals, proposalUpdates, cleanerDecisions, bookings] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
     readRecords("cleaner-screening.ndjson"),
     readRecords("cleaner-availability.ndjson"),
     readRecords("job-briefs.ndjson"),
-    readRecords("job-brief-status.ndjson")
+    readRecords("job-brief-status.ndjson"),
+    readRecords("match-proposals.ndjson"),
+    readRecords("proposal-status.ndjson"),
+    readRecords("cleaner-opportunity-decisions.ndjson"),
+    readRecords("bookings.ndjson")
   ]);
   const customerRequest = requests.find((record) => record.id === requestId);
   if (!customerRequest) return json(response, 404, { ok: false, error: "Customer request not found." });
@@ -2296,8 +2396,9 @@ async function getAdminMatches(request, response, requestId) {
   const matches = cleaners
     .filter((cleaner) => (latestStatuses.get(cleaner.id) || cleaner.status) === "approved" && latestCleanerScreening(cleaner.id, screenings)?.complete)
     .map((cleaner) => {
+      const busyIntervals = cleanerBusyIntervals(cleaner.id, proposals, proposalUpdates, cleanerDecisions, bookings);
       const availabilitySlots = activeCleanerAvailability(availabilityEvents, cleaner.id)
-        .map((slot) => schedulableAvailability(slot, customerRequest, requiredHours, nowMs))
+        .map((slot) => schedulableAvailability(slot, customerRequest, requiredHours, nowMs, busyIntervals))
         .filter(Boolean)
         .sort((left, right) => left.availableDate.localeCompare(right.availableDate) || left.suggestedStartTime.localeCompare(right.suggestedStartTime));
       const services = Array.isArray(cleaner.services) ? cleaner.services : [];
