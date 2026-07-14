@@ -180,7 +180,7 @@ try {
   const initialConfigBody = await initialConfig.json();
   assert(initialConfig.ok && initialConfigBody.readiness.completed === 0, "Initial launch readiness was incorrect.");
 
-  const completeConfig = { legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW1A, SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", paymentProviderName: "TestPay", paymentProviderStatus: "live", refundProcess: "Owner approves and records refunds within five working days.", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, minimumContributionMarginPercent: 25, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion", customerQuoteValidityHours: 24, cleanerOpportunityValidityHours: 12 };
+  const completeConfig = { legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW1A, SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", paymentProviderName: "TestPay", paymentProviderStatus: "live", refundProcess: "Owner approves and records refunds within five working days.", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, minimumContributionMarginPercent: 25, paymentFeePercent: 1, paymentFeeFixed: 0, travelCostPerJob: 1, suppliesCostPerJob: 1, riskContingencyPercent: 1, variableCostsConfirmed: true, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion", customerQuoteValidityHours: 24, cleanerOpportunityValidityHours: 12 };
   const savedConfig = await fetch(`${base}/api/admin/config`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
@@ -196,6 +196,13 @@ try {
   assert(missingMarginFloor.ok && missingMarginFloorBody.readiness.ready === false && missingMarginFloorBody.readiness.checks.economics === false, "Missing founder margin floor did not block launch readiness.");
   const impossibleMarginFloor = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, minimumContributionMarginPercent: 100 }) });
   assert(impossibleMarginFloor.status === 422, "Impossible contribution-margin floor was accepted.");
+  const unconfirmedCosts = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, variableCostsConfirmed: false }) });
+  const unconfirmedCostsBody = await unconfirmedCosts.json();
+  assert(unconfirmedCosts.ok && unconfirmedCostsBody.readiness.ready === false && unconfirmedCostsBody.readiness.checks.economics === false, "Unconfirmed variable-cost assumptions passed launch readiness.");
+  const excessiveContingency = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, riskContingencyPercent: 51 }) });
+  assert(excessiveContingency.status === 422, "An excessive risk contingency assumption was accepted.");
+  const impossibleCostStack = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, minimumContributionMarginPercent: 80, paymentFeePercent: 19, riskContingencyPercent: 1 }) });
+  assert(impossibleCostStack.status === 422, "A margin and percentage-cost stack with no viable price was accepted.");
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
 
   const testOnlyPayments = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, paymentProviderStatus: "testing" }) });
@@ -346,7 +353,7 @@ try {
     body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", proposedStartTime: "09:00", estimatedHours: 4, customerRate: 30, cleanerRate: 18, otherCosts: 10, note: "Draft only" })
   });
   const proposalBody = await validProposal.json();
-  assert(validProposal.status === 201 && proposalBody.proposal.contribution === 38 && proposalBody.proposal.proposedEndTime === "13:00" && /^[A-Za-z0-9_-]{32}$/.test(proposalBody.proposal.reviewToken) && /^[A-Za-z0-9_-]{32}$/.test(proposalBody.proposal.cleanerReviewToken), "Valid draft proposal failed, calculated incorrectly, omitted its schedule or omitted a private review token.");
+  assert(validProposal.status === 201 && proposalBody.proposal.contribution === 33.6 && proposalBody.proposal.paymentFees === 1.2 && proposalBody.proposal.riskContingency === 1.2 && proposalBody.proposal.nonCleanerCosts === 14.4 && proposalBody.proposal.proposedEndTime === "13:00" && /^[A-Za-z0-9_-]{32}$/.test(proposalBody.proposal.reviewToken) && /^[A-Za-z0-9_-]{32}$/.test(proposalBody.proposal.cleanerReviewToken), "Valid draft proposal failed, omitted its full cost breakdown, calculated incorrectly, omitted its schedule or omitted a private review token.");
 
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, insuranceStatus: "in-progress" }) });
   const blockedDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
@@ -412,6 +419,13 @@ try {
   const restoredAvailabilityBody = await restoredAvailability.json();
   assert(restoredAvailability.status === 201, "A withdrawn cleaner availability window could not be safely reconfirmed.");
   activeSlot20Id = restoredAvailabilityBody.slot.id;
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, travelCostPerJob: 2 }) });
+  const staleCostModelReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
+  assert(staleCostModelReady.status === 422, "Proposal advanced after the founder-confirmed cost assumptions changed.");
+  const staleCostDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
+  const staleCostDraftsBody = await staleCostDrafts.json();
+  assert(staleCostDrafts.ok && staleCostDraftsBody.sendAllowed === false && staleCostDraftsBody.warnings.some((warning) => warning.includes("cost assumptions changed")), "Stale proposal economics were not clearly blocked in the control desk.");
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
   const readyProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
   assert(readyProposal.ok, "Ready proposal status failed after launch checks passed.");
   const quotePreview = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
@@ -462,6 +476,16 @@ try {
   assert(wrongNameDecision.status === 422, "Private quote accepted a mismatched customer name.");
   const incompleteDecision = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Customer", scopeConfirmed: true, termsAccepted: false }) });
   assert(incompleteDecision.status === 422, "Private quote accepted without both customer confirmations.");
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, suppliesCostPerJob: 2 }) });
+  const repricedQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
+  const repricedQuoteBody = await repricedQuote.json();
+  assert(repricedQuote.ok && repricedQuoteBody.quote.pricingChanged === true && repricedQuoteBody.quote.decisionAllowed === false, "A sent quote remained actionable after its founder cost model changed.");
+  const repricedTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const repricedTrackerBody = await repricedTracker.json();
+  assert(repricedTracker.ok && repricedTrackerBody.current.headline === "Quote needs recalculation" && repricedTrackerBody.links.quoteToken === "", "Customer tracker exposed a stale-cost quote instead of returning to recalculation.");
+  const staleCostAcceptance = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Customer", scopeConfirmed: true, termsAccepted: true }) });
+  assert(staleCostAcceptance.status === 409, "Customer accepted a quote calculated from stale cost assumptions.");
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
   const acceptedProposal = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Customer", scopeConfirmed: true, termsAccepted: true }) });
   const acceptedProposalBody = await acceptedProposal.json();
   assert(acceptedProposal.ok && acceptedProposalBody.status === "accepted", "Audited private customer acceptance failed.");
@@ -650,13 +674,15 @@ try {
   assert(unsafeCompletionStatus.status === 422, "Request bypassed the completed-job workflow.");
   const invalidOutcome = await fetch(`${base}/api/admin/job-outcomes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bookingId: confirmedBookingBody.booking.id, actualHours: 4, customerCollected: 0, cleanerPaid: 72 }) });
   assert(invalidOutcome.status === 422, "Invalid actual job economics were accepted.");
+  const negativeActualCost = await fetch(`${base}/api/admin/job-outcomes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ bookingId: confirmedBookingBody.booking.id, actualHours: 4, customerCollected: 120, cleanerPaid: 72, paymentFees: -1 }) });
+  assert(negativeActualCost.status === 422, "A negative actual payment fee was accepted.");
   const completedJob = await fetch(`${base}/api/admin/job-outcomes`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ bookingId: confirmedBookingBody.booking.id, actualHours: 4.5, customerCollected: 120, cleanerPaid: 72, otherCosts: 10, refundAmount: 5, internalNote: "Test completion only" })
+    body: JSON.stringify({ bookingId: confirmedBookingBody.booking.id, actualHours: 4.5, customerCollected: 120, cleanerPaid: 72, paymentFees: 2, travelCosts: 1, suppliesCosts: 1, otherCosts: 6, refundAmount: 5, internalNote: "Test completion only" })
   });
   const completedJobBody = await completedJob.json();
-  assert(completedJob.status === 201 && completedJobBody.outcome.contribution === 33 && completedJobBody.outcome.profitable === true && completedJobBody.outcome.metTargetMargin === true, "Completed-job actual contribution or target comparison was not calculated correctly.");
+  assert(completedJob.status === 201 && completedJobBody.outcome.totalDirectCosts === 10 && completedJobBody.outcome.paymentFees === 2 && completedJobBody.outcome.contribution === 33 && completedJobBody.outcome.profitable === true && completedJobBody.outcome.metTargetMargin === true, "Completed-job actual cost breakdown, contribution or target comparison was not calculated correctly.");
   const completedTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
   const completedTrackerBody = await completedTracker.json();
   assert(completedTracker.ok && completedTrackerBody.current.stage === "completed" && completedTrackerBody.links.bookingToken === confirmedBookingBody.booking.customerViewToken, "Customer tracker did not reach completed status after the final job outcome.");
@@ -685,7 +711,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.cleanerAvailability?.length === 3, "Active confirmed availability windows were not attached to the cleaner control-desk record.");
 
-  console.log("Smoke tests passed: public pages, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, pricing controls, exact job schedules, frozen offer deadlines, stale-decision protection, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and categorised actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

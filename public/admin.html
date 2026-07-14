@@ -6,8 +6,8 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Tideway control desk</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260714-30">
-  <script src="/admin.js?v=20260714-30" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=20260714-31">
+  <script src="/admin.js?v=20260714-31" defer></script>
 </head>
 <body class="admin-page">
   <a class="skip-link" href="#admin-main">Skip to leads</a>
@@ -68,6 +68,9 @@
           <div class="field-row"><label>Payment provider<input name="paymentProviderName" placeholder="For example: Stripe"></label><label>Payment provider status<select name="paymentProviderStatus"><option value="not-ready">Not ready</option><option value="testing">Test mode only</option><option value="live">Live and verified</option></select></label></div>
           <label>Refund process<textarea name="refundProcess" rows="2" placeholder="Who approves refunds, how they are recorded, and the expected customer timescale"></textarea></label>
           <div class="field-row four-fields"><label>Customer hourly rate (£)<input name="customerHourlyRate" type="number" min="0" step="0.01" inputmode="decimal"></label><label>Cleaner hourly pay (£)<input name="cleanerHourlyPay" type="number" min="0" step="0.01" inputmode="decimal"></label><label>Minimum hours<input name="minimumHours" type="number" min="0" step="0.5" inputmode="decimal"></label><label>Minimum contribution margin (%)<input name="minimumContributionMarginPercent" type="number" min="0" max="99.9" step="0.1" inputmode="decimal" placeholder="Founder decision required"></label></div>
+          <div class="field-row three-fields"><label>Payment fee (%)<input name="paymentFeePercent" type="number" min="0" max="20" step="0.01" inputmode="decimal"></label><label>Fixed payment fee (£)<input name="paymentFeeFixed" type="number" min="0" max="20" step="0.01" inputmode="decimal"></label><label>Travel cost per job (£)<input name="travelCostPerJob" type="number" min="0" max="200" step="0.01" inputmode="decimal"></label></div>
+          <div class="field-row"><label>Supplies cost per job (£)<input name="suppliesCostPerJob" type="number" min="0" max="200" step="0.01" inputmode="decimal"></label><label>Risk contingency (%)<input name="riskContingencyPercent" type="number" min="0" max="50" step="0.01" inputmode="decimal"></label></div>
+          <label class="checkbox"><input name="variableCostsConfirmed" type="checkbox" value="true"><span>I have reviewed these payment, travel, supplies and risk assumptions. Zero means a deliberate verified £0 assumption, not an unknown cost.</span></label>
           <label>Cancellation rule<textarea name="cancellationPolicy" rows="3" placeholder="When customers may cancel and what happens to cleaner pay"></textarea></label>
           <label>Customer payment timing<select name="paymentTiming"><option value="">Choose one</option><option>Payment authorised at booking and captured after completion</option><option>Payment taken at booking</option><option>Invoice after completion</option><option>Other — document before launch</option></select></label>
           <div class="field-row"><label>Customer quote response window (hours)<input name="customerQuoteValidityHours" type="number" min="1" max="168" step="1" inputmode="numeric" placeholder="For example: 24"></label><label>Cleaner opportunity response window (hours)<input name="cleanerOpportunityValidityHours" type="number" min="1" max="168" step="1" inputmode="numeric" placeholder="For example: 12"></label></div>
@@ -83,7 +86,7 @@
         <label>Estimated hours<input id="quote-hours" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0"></label>
         <label>Customer rate per hour (£)<input id="quote-customer-rate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label>
         <label>Cleaner pay per hour (£)<input id="quote-cleaner-rate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label>
-        <label>Other job costs (£)<input id="quote-costs" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label>
+        <label>Additional job costs (£)<input id="quote-costs" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></label>
       </div>
       <div class="quote-results" aria-live="polite">
         <div><span>Customer total</span><strong id="quote-total">£0.00</strong></div>
@@ -94,6 +97,7 @@
       <div class="quote-target-results" aria-live="polite">
         <div><span>Target-safe customer total</span><strong id="quote-required-total">Set margin floor</strong></div>
         <div><span>Target-safe hourly rate</span><strong id="quote-required-rate">Set margin floor</strong></div>
+        <div><span>Included non-cleaner costs</span><strong id="quote-included-costs">Confirm cost assumptions</strong></div>
       </div>
       <p id="quote-guidance" class="quote-guidance">Enter the expected hours and rates before promising a price.</p>
     </section>

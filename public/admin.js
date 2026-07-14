@@ -56,7 +56,8 @@ function populateConfig(config = {}) {
   const form = document.querySelector("#business-config-form");
   Object.entries(config).forEach(([name, value]) => {
     const field = form.elements.namedItem(name);
-    if (field && value !== undefined && value !== null) field.value = value;
+    if (field?.type === "checkbox") field.checked = value === true;
+    else if (field && value !== undefined && value !== null) field.value = value;
   });
 }
 
@@ -89,7 +90,7 @@ function showProposalForm(record, match, target) {
     proposalField("Estimated hours", "estimatedHours", "number", Math.max(Number(state.config.minimumHours) || 0, reviewedScanHours)),
     proposalField("Customer rate per hour (£)", "customerRate", "number", state.config.customerHourlyRate),
     proposalField("Cleaner pay per hour (£)", "cleanerRate", "number", state.config.cleanerHourlyPay),
-    proposalField("Other job costs (£)", "otherCosts", "number", "0")
+    proposalField("Additional job costs (£)", "otherCosts", "number", "0")
   );
   const noteLabel = document.createElement("label");
   noteLabel.append(document.createTextNode("Internal proposal note"));
@@ -430,7 +431,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", availabilityCovered: "Visit fits an active confirmed availability window", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
+    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", availabilityCovered: "Visit fits an active confirmed availability window", costModelCurrent: "Proposal uses the current founder-confirmed cost assumptions", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -564,7 +565,8 @@ function buildJobOutcome(record) {
     panel.classList.add(!record.outcome.profitable ? "job-loss" : record.outcome.metTargetMargin ? "job-profitable" : "job-below-target");
     addText(panel, "strong", `${performance} · ${record.outcome.id}`);
     addText(panel, "span", `${record.outcome.actualHours} actual hours · ${money.format(record.outcome.customerCollected)} collected · ${money.format(record.outcome.cleanerPaid)} cleaner pay`);
-    addText(panel, "span", `${money.format(record.outcome.refundAmount)} refunds · ${money.format(record.outcome.otherCosts)} other costs · ${money.format(record.outcome.contribution)} contribution (${record.outcome.marginPercent.toFixed(1)}%)`);
+    addText(panel, "span", `${money.format(record.outcome.refundAmount)} refunds · ${money.format(record.outcome.totalDirectCosts ?? record.outcome.otherCosts ?? 0)} total direct costs · ${money.format(record.outcome.contribution)} contribution (${record.outcome.marginPercent.toFixed(1)}%)`);
+    addText(panel, "span", `${money.format(record.outcome.paymentFees || 0)} payment fees · ${money.format(record.outcome.travelCosts || 0)} travel · ${money.format(record.outcome.suppliesCosts || 0)} supplies · ${money.format(record.outcome.otherCosts || 0)} other actual costs`);
     if (record.outcome.targetMarginPercent > 0) addText(panel, "span", `Founder margin floor at completion: ${record.outcome.targetMarginPercent.toFixed(1)}%`);
     return panel;
   }
@@ -584,7 +586,10 @@ function buildJobOutcome(record) {
     numberField("Actual hours", "actualHours", String(record.proposals?.[0]?.estimatedHours || "")),
     numberField("Customer collected (£)", "customerCollected", String(record.booking.plannedCustomerTotal || "")),
     numberField("Cleaner paid (£)", "cleanerPaid", String(record.booking.plannedCleanerPay || "")),
-    numberField("Other actual costs (£)", "otherCosts"),
+    numberField("Payment fees (£)", "paymentFees", String(record.booking.plannedPaymentFees || "")),
+    numberField("Travel costs (£)", "travelCosts", String(record.booking.plannedTravelCosts || "")),
+    numberField("Supplies costs (£)", "suppliesCosts", String(record.booking.plannedSuppliesCosts || "")),
+    numberField("Other actual costs (£)", "otherCosts", String(record.booking.plannedAdditionalCosts || "")),
     numberField("Refunds (£)", "refundAmount")
   );
   const note = document.createElement("textarea");
@@ -1051,6 +1056,7 @@ function buildCard(record) {
     addText(proposalSummary, "strong", `${proposalDisplayLabels[proposal.status] || "Proposal"} · ${proposal.cleanerName}`);
     addText(proposalSummary, "span", `${proposal.proposedDate} · ${proposal.proposedStartTime}–${proposal.proposedEndTime} · ${proposal.estimatedHours} hours · ${money.format(proposal.customerTotal)} customer total`);
     addText(proposalSummary, "span", `${money.format(proposal.cleanerPay)} cleaner pay · ${money.format(proposal.contribution)} contribution · ${proposal.marginPercent.toFixed(1)}% margin`);
+    addText(proposalSummary, "span", `${money.format(proposal.nonCleanerCosts ?? proposal.otherCosts ?? 0)} planned non-cleaner costs: ${money.format(proposal.paymentFees || 0)} payment fees · ${money.format(proposal.travelCosts || 0)} travel · ${money.format(proposal.suppliesCosts || 0)} supplies · ${money.format(proposal.riskContingency || 0)} risk · ${money.format(proposal.otherCosts || 0)} additional`);
     const proposalStatusLabel = document.createElement("label");
     proposalStatusLabel.append(document.createTextNode("Internal proposal status"));
     const proposalStatus = document.createElement("select");
@@ -1294,21 +1300,34 @@ function syncQuoteDefaults(config = {}) {
 }
 
 function updateQuoteCalculator() {
-  const [hours, customerRate, cleanerRate, costs] = quoteFields.map((field) => Math.max(0, Number(field.value) || 0));
+  const [hours, customerRate, cleanerRate, additionalCosts] = quoteFields.map((field) => Math.max(0, Number(field.value) || 0));
   const customerTotal = hours * customerRate;
   const cleanerPay = hours * cleanerRate;
-  const contribution = customerTotal - cleanerPay - costs;
+  const paymentFeePercent = Math.max(0, Number(state.config.paymentFeePercent) || 0);
+  const paymentFeeFixed = Math.max(0, Number(state.config.paymentFeeFixed) || 0);
+  const travelCosts = Math.max(0, Number(state.config.travelCostPerJob) || 0);
+  const suppliesCosts = Math.max(0, Number(state.config.suppliesCostPerJob) || 0);
+  const riskContingencyPercent = Math.max(0, Number(state.config.riskContingencyPercent) || 0);
+  const paymentFees = customerTotal * paymentFeePercent / 100 + paymentFeeFixed;
+  const riskContingency = customerTotal * riskContingencyPercent / 100;
+  const includedCosts = paymentFees + travelCosts + suppliesCosts + riskContingency + additionalCosts;
+  const contribution = customerTotal - cleanerPay - includedCosts;
   const margin = customerTotal ? (contribution / customerTotal) * 100 : 0;
   document.querySelector("#quote-total").textContent = money.format(customerTotal);
   document.querySelector("#quote-pay").textContent = money.format(cleanerPay);
   document.querySelector("#quote-contribution").textContent = money.format(contribution);
   document.querySelector("#quote-margin").textContent = `${margin.toFixed(1)}%`;
+  document.querySelector("#quote-included-costs").textContent = state.config.variableCostsConfirmed
+    ? `${money.format(includedCosts)} · ${money.format(paymentFees)} fees · ${money.format(travelCosts)} travel · ${money.format(suppliesCosts)} supplies · ${money.format(riskContingency)} risk`
+    : "Confirm cost assumptions";
 
   const guidance = document.querySelector("#quote-guidance");
   const minimumMargin = Math.max(0, Number(state.config.minimumContributionMarginPercent) || 0);
   const minimumHours = Math.max(0, Number(state.config.minimumHours) || 0);
-  const targetFactor = minimumMargin > 0 && minimumMargin < 100 ? 1 - (minimumMargin / 100) : 0;
-  const requiredRate = hours > 0 && targetFactor > 0 ? Math.ceil(((cleanerPay + costs) / hours / targetFactor) * 100) / 100 : 0;
+  const variableCostRate = (paymentFeePercent + riskContingencyPercent) / 100;
+  const targetFactor = minimumMargin > 0 && minimumMargin < 100 ? 1 - variableCostRate - (minimumMargin / 100) : 0;
+  const fixedCosts = cleanerPay + additionalCosts + paymentFeeFixed + travelCosts + suppliesCosts;
+  const requiredRate = hours > 0 && targetFactor > 0 ? Math.ceil(((fixedCosts / targetFactor) / hours) * 100) / 100 : 0;
   const requiredTotal = requiredRate * hours;
   document.querySelector("#quote-required-total").textContent = requiredTotal ? money.format(requiredTotal) : "Set margin floor";
   document.querySelector("#quote-required-rate").textContent = requiredRate ? `${money.format(requiredRate)}/hour` : "Set margin floor";
@@ -1317,6 +1336,12 @@ function updateQuoteCalculator() {
     guidance.textContent = "Enter the expected hours and rates before promising a price.";
   } else if (minimumHours > 0 && hours < minimumHours) {
     guidance.textContent = `The ${hours}-hour estimate is below the ${minimumHours}-hour minimum. Increase the scoped hours before preparing a proposal.`;
+    guidance.classList.add("quote-danger");
+  } else if (!state.config.variableCostsConfirmed) {
+    guidance.textContent = "Review and confirm the payment, travel, supplies and risk assumptions before approving a quote.";
+    guidance.classList.add("quote-danger");
+  } else if (targetFactor <= 0) {
+    guidance.textContent = "The margin floor and percentage-based costs leave no viable customer price. Reduce costs or revise the target before quoting.";
     guidance.classList.add("quote-danger");
   } else if (contribution <= 0) {
     guidance.textContent = "This quote loses money before overheads. Change the price, pay or scope before sending it.";
@@ -1328,7 +1353,7 @@ function updateQuoteCalculator() {
     guidance.textContent = `This quote is below the ${minimumMargin.toFixed(1)}% contribution-margin floor. These inputs require at least ${money.format(requiredTotal)} total (${money.format(requiredRate)}/hour).`;
     guidance.classList.add("quote-danger");
   } else {
-    guidance.textContent = `This quote meets the ${minimumMargin.toFixed(1)}% contribution-margin floor. The calculated minimum is ${money.format(requiredTotal)} total (${money.format(requiredRate)}/hour), before insurance, admin, tax, refunds and other overheads.`;
+    guidance.textContent = `This quote meets the ${minimumMargin.toFixed(1)}% contribution-margin floor after the confirmed payment, travel, supplies, risk and additional job costs. The calculated minimum is ${money.format(requiredTotal)} total (${money.format(requiredRate)}/hour), before central admin, tax and unmodelled overheads.`;
     guidance.classList.add("quote-positive");
   }
 }

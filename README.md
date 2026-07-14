@@ -25,12 +25,12 @@ Then open `http://127.0.0.1:4173`.
 - Audited seven-check cleaner screening record; approval, matching, proposals and bookings remain blocked until every check is confirmed
 - Local private submission files in `data/`
 - Private local control desk at `/admin` with lead filters, status tracking, internal notes and next-action dates
-- Internal quote calculator that pre-fills approved rates, enforces minimum hours and calculates the customer total and hourly rate needed to meet the founder-approved contribution margin
+- Internal quote calculator that pre-fills approved rates, includes founder-confirmed payment fees, travel, supplies, risk contingency and additional job costs, and solves the customer total/hourly rate needed to meet the contribution-margin floor
 - Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules
 - Founder-configured outward-postcode enforcement that blocks out-of-area matching, proposal use and booking readiness
 - Human-reviewed matching suggestions using fully screened approved cleaners, requested service type and postcode coverage
 - Append-only cleaner availability windows with evidence notes and auditable withdrawal; matching returns only approved cleaners with a future confirmed window, and proposals must fit fully inside one
-- Internal draft proposals that link a request to an approved cleaner and reject work below the minimum hours, loss-making economics or a below-target contribution margin
+- Internal draft proposals freeze a complete cost breakdown and reject work below minimum hours, loss-making economics or the margin floor; changed founder cost assumptions close the stale proposal across drafts, private decisions and booking
 - Exact proposal start and calculated finish times, with past-date and same-day duration validation
 - Atomic schedule-conflict protection that prevents one cleaner accepting or booking overlapping work, including legacy booking records
 - Availability is rechecked when a proposal advances, either side decides and the booking is written; withdrawal closes affected private decisions and moves the customer tracker safely back to rematching
@@ -53,7 +53,7 @@ Then open `http://127.0.0.1:4173`.
 - Local admin change-request queue with open, reviewing and permanently closed audit states plus a customer-visible response note
 - Append-only job-day timeline: cleaners must confirm arrival and a safe start before recording completion, then the customer acknowledges the completed visit from their own protected booking pack
 - Completed-job economics remain locked until the three job-day confirmations are present and every change or safety request is closed
-- Completed-job records for actual customer receipts, cleaner pay, costs, refunds, contribution and margin; recording never moves money
+- Completed-job records separate actual customer receipts, cleaner pay, payment fees, travel, supplies, other costs and refunds before calculating contribution and margin; recording never moves money
 - Private data backup script and documented recovery procedure
 - Responsive, accessible website
 - Draft privacy notice and pilot terms

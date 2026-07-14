@@ -59,6 +59,8 @@ function renderQuote(quote) {
       locked.innerHTML = "<strong>Quote accepted.</strong><span>Tideway recorded your decision. This is not yet a confirmed booking and no payment was taken.</span>";
     } else if (quote.decision?.status === "declined") {
       locked.innerHTML = "<strong>Quote declined.</strong><span>Tideway recorded your decision and no booking was made.</span>";
+    } else if (quote.pricingChanged) {
+      locked.innerHTML = "<strong>This quote needs recalculation.</strong><span>Tideway must apply the current confirmed cost assumptions and issue a new proposal before you can decide.</span>";
     } else if (quote.availabilityChanged) {
       locked.innerHTML = "<strong>Cleaner availability changed.</strong><span>Tideway must recheck availability and issue a newly controlled proposal before you can decide.</span>";
     } else if (quote.expired) {

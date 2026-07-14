@@ -157,9 +157,10 @@ async function saveDecisionOnce(filename, proposalId, record) {
     const duplicate = existing.some((item) => item.proposalId === proposalId && (!record.source || item.source === record.source));
     if (duplicate) throw Object.assign(new Error("This private decision has already been recorded."), { statusCode: 409 });
     if (record.source === "customer-private-quote") {
-      const [proposals, availabilityEvents] = await Promise.all([
+      const [proposals, availabilityEvents, config] = await Promise.all([
         readRecords("match-proposals.ndjson"),
-        readRecords("cleaner-availability.ndjson")
+        readRecords("cleaner-availability.ndjson"),
+        readJsonFile("business-config.json", {})
       ]);
       const proposal = proposals.find((item) => item.id === proposalId);
       if (!proposal) throw Object.assign(new Error("This cleaning proposal could not be found."), { statusCode: 404 });
@@ -173,6 +174,7 @@ async function saveDecisionOnce(filename, proposalId, record) {
       if (proposalStatus !== "sent" || !offerIsOpen(quoteSnapshot?.offerExpiresAt)) {
         throw Object.assign(new Error("This quote is no longer awaiting a decision."), { statusCode: 409 });
       }
+      if (!proposalCostModelCurrent(proposal, config)) throw Object.assign(new Error("The proposal cost assumptions changed and require a new quote."), { statusCode: 409 });
       if (record.status === "accepted" && !findCleanerAvailabilitySlot(proposal.cleanerId, proposal, availabilityEvents)) {
         throw Object.assign(new Error("The proposed cleaner no longer has confirmed availability covering this visit."), { statusCode: 409 });
       }
@@ -186,12 +188,13 @@ async function saveDecisionOnce(filename, proposalId, record) {
 async function saveCleanerDecisionOnce(record) {
   const operation = writeQueue.catch(() => {}).then(async () => {
     await mkdir(dataDir, { recursive: true });
-    const [proposals, proposalUpdates, decisions, bookings, availabilityEvents] = await Promise.all([
+    const [proposals, proposalUpdates, decisions, bookings, availabilityEvents, config] = await Promise.all([
       readRecords("match-proposals.ndjson"),
       readRecords("proposal-status.ndjson"),
       readRecords("cleaner-opportunity-decisions.ndjson"),
       readRecords("bookings.ndjson"),
-      readRecords("cleaner-availability.ndjson")
+      readRecords("cleaner-availability.ndjson"),
+      readJsonFile("business-config.json", {})
     ]);
     if (decisions.some((item) => item.proposalId === record.proposalId)) {
       throw Object.assign(new Error("This private decision has already been recorded."), { statusCode: 409 });
@@ -209,6 +212,7 @@ async function saveCleanerDecisionOnce(record) {
       throw Object.assign(new Error("This opportunity is no longer awaiting a decision."), { statusCode: 409 });
     }
     if (!offerIsOpen(opportunitySnapshot?.offerExpiresAt)) throw Object.assign(new Error("This opportunity's response window has ended."), { statusCode: 409 });
+    if (!proposalCostModelCurrent(proposal, config)) throw Object.assign(new Error("The proposal cost assumptions changed and require a new opportunity."), { statusCode: 409 });
     if (record.status === "accepted") {
       if (!findCleanerAvailabilitySlot(proposal.cleanerId, proposal, availabilityEvents)) {
         throw Object.assign(new Error("This cleaner no longer has a confirmed availability window covering the proposed visit."), { statusCode: 409 });
@@ -244,9 +248,10 @@ async function saveCleanerAvailabilityEvent(event) {
 async function saveBookingOnce(booking) {
   const operation = writeQueue.catch(() => {}).then(async () => {
     await mkdir(dataDir, { recursive: true });
-    const [bookings, availabilityEvents] = await Promise.all([
+    const [bookings, availabilityEvents, config] = await Promise.all([
       readRecords("bookings.ndjson"),
-      readRecords("cleaner-availability.ndjson")
+      readRecords("cleaner-availability.ndjson"),
+      readJsonFile("business-config.json", {})
     ]);
     if (bookings.some((item) => item.requestId === booking.requestId || item.proposalId === booking.proposalId)) {
       throw Object.assign(new Error("A booking is already recorded for this request or proposal."), { statusCode: 409 });
@@ -254,6 +259,7 @@ async function saveBookingOnce(booking) {
     if (!findCleanerAvailabilitySlot(booking.cleanerId, booking, availabilityEvents)) {
       throw Object.assign(new Error("The cleaner's confirmed availability no longer covers this visit."), { statusCode: 409 });
     }
+    if (!proposalCostModelCurrent(booking, config)) throw Object.assign(new Error("The proposal cost assumptions changed before booking confirmation."), { statusCode: 409 });
     await appendFile(path.join(dataDir, "bookings.ndjson"), `${JSON.stringify(booking)}\n`, { encoding: "utf8", mode: 0o600 });
   });
   writeQueue = operation;
@@ -472,6 +478,50 @@ function findCleanerAvailabilitySlot(cleanerId, record, events) {
   }) || null;
 }
 
+function moneyValue(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function costAssumptionsFromConfig(config) {
+  return {
+    paymentFeePercent: Number(config.paymentFeePercent) || 0,
+    paymentFeeFixed: Number(config.paymentFeeFixed) || 0,
+    travelCostPerJob: Number(config.travelCostPerJob) || 0,
+    suppliesCostPerJob: Number(config.suppliesCostPerJob) || 0,
+    riskContingencyPercent: Number(config.riskContingencyPercent) || 0
+  };
+}
+
+function costAssumptionsConfirmed(config) {
+  const costs = costAssumptionsFromConfig(config);
+  return config.variableCostsConfirmed === true
+    && costs.paymentFeePercent >= 0 && costs.paymentFeePercent <= 20
+    && costs.paymentFeeFixed >= 0 && costs.paymentFeeFixed <= 20
+    && costs.travelCostPerJob >= 0 && costs.travelCostPerJob <= 200
+    && costs.suppliesCostPerJob >= 0 && costs.suppliesCostPerJob <= 200
+    && costs.riskContingencyPercent >= 0 && costs.riskContingencyPercent <= 50;
+}
+
+function proposalCostModelCurrent(proposal, config) {
+  const expected = costAssumptionsFromConfig(config);
+  return Boolean(proposal.costAssumptions) && Object.keys(expected).every((key) => Number(proposal.costAssumptions[key]) === expected[key]);
+}
+
+function calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, additionalCosts, config) {
+  const costAssumptions = costAssumptionsFromConfig(config);
+  const customerTotal = moneyValue(estimatedHours * customerRate);
+  const cleanerPay = moneyValue(estimatedHours * cleanerRate);
+  const paymentFees = moneyValue(customerTotal * costAssumptions.paymentFeePercent / 100 + costAssumptions.paymentFeeFixed);
+  const travelCosts = moneyValue(costAssumptions.travelCostPerJob);
+  const suppliesCosts = moneyValue(costAssumptions.suppliesCostPerJob);
+  const riskContingency = moneyValue(customerTotal * costAssumptions.riskContingencyPercent / 100);
+  const otherCosts = moneyValue(additionalCosts);
+  const nonCleanerCosts = moneyValue(paymentFees + travelCosts + suppliesCosts + riskContingency + otherCosts);
+  const contribution = moneyValue(customerTotal - cleanerPay - nonCleanerCosts);
+  const marginPercent = customerTotal > 0 ? (contribution / customerTotal) * 100 : 0;
+  return { customerTotal, cleanerPay, paymentFees, travelCosts, suppliesCosts, riskContingency, otherCosts, nonCleanerCosts, contribution, marginPercent, costAssumptions };
+}
+
 function schedulesOverlap(left, right) {
   return left.startMs < right.endMs && right.startMs < left.endMs;
 }
@@ -512,7 +562,7 @@ function launchReadiness(config) {
     identity: Boolean(config.legalOwnerName && config.businessStructure && config.legalBusinessName && config.tradingAddress),
     contact: Boolean(config.supportEmail && isEmail(config.supportEmail) && config.supportPhone && isPhone(config.supportPhone)),
     pilotArea: pilotCoverage.configured && pilotCoverage.invalidCodes.length === 0,
-    economics: Boolean(config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.minimumHours > 0 && config.minimumContributionMarginPercent > 0 && config.minimumContributionMarginPercent < 100 && config.customerHourlyRate > config.cleanerHourlyPay),
+    economics: Boolean(config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.minimumHours > 0 && config.minimumContributionMarginPercent > 0 && config.minimumContributionMarginPercent < 100 && config.customerHourlyRate > config.cleanerHourlyPay && costAssumptionsConfirmed(config) && config.minimumContributionMarginPercent + config.paymentFeePercent + config.riskContingencyPercent < 100),
     insurance: config.insuranceStatus === "active",
     payments: Boolean(config.paymentProviderStatus === "live" && config.paymentProviderName && config.refundProcess),
     operatingRules: Boolean(config.cleanerModel && config.cleanerModel !== "Undecided" && config.cancellationPolicy && config.paymentTiming && Number.isInteger(config.customerQuoteValidityHours) && config.customerQuoteValidityHours >= 1 && config.customerQuoteValidityHours <= 168 && Number.isInteger(config.cleanerOpportunityValidityHours) && config.cleanerOpportunityValidityHours >= 1 && config.cleanerOpportunityValidityHours <= 168)
@@ -815,6 +865,9 @@ async function updateAdminProposalStatus(request, response) {
     const proposalMargin = Number.isFinite(proposal.marginPercent) ? `${proposal.marginPercent.toFixed(1)}%` : "unrecorded";
     return json(response, 422, { ok: false, error: `This proposal's ${proposalMargin} contribution margin is below the ${config.minimumContributionMarginPercent.toFixed(1)}% minimum.` });
   }
+  if (["ready", "sent"].includes(status) && !proposalCostModelCurrent(proposal, config)) {
+    return json(response, 422, { ok: false, error: "The founder cost assumptions changed after this proposal was calculated. Prepare a new proposal with the current payment, travel, supplies and risk costs." });
+  }
   const scheduleConflict = findCleanerScheduleConflict(proposal, proposals, updates, cleanerDecisions, bookings);
   if (["ready", "sent"].includes(status) && scheduleConflict) {
     return json(response, 422, { ok: false, error: `The selected cleaner already has accepted work that overlaps this proposed time (${scheduleConflict.id}).` });
@@ -920,6 +973,7 @@ async function getQuoteContext(token) {
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
+    costModelCurrent: proposalCostModelCurrent(proposal, config),
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
     scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
@@ -971,6 +1025,7 @@ function publicQuote(context) {
       offerExpiresAt: displayed.offerExpiresAt || "",
       expired: proposalStatus === "sent" && !offerIsOpen(displayed.offerExpiresAt),
       availabilityChanged: proposalStatus === "sent" && !readyChecks.availabilityCovered,
+      pricingChanged: proposalStatus === "sent" && !readyChecks.costModelCurrent,
       checklist: latestBrief?.status === "reviewed" ? latestBrief.checklist : [],
       decisionAllowed: proposalStatus === "sent" && offerIsOpen(displayed.offerExpiresAt) && Object.values(readyChecks).every(Boolean),
       decision: latestDecision ? { status: latestDecision.status, decidedAt: latestDecision.updatedAt, typedName: latestDecision.typedName } : null
@@ -1080,6 +1135,7 @@ async function getCleanerOpportunityContext(token) {
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
+    costModelCurrent: proposalCostModelCurrent(proposal, config),
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
     scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
     profitable: proposal.contribution > 0,
@@ -1138,6 +1194,7 @@ function publicCleanerOpportunity(context) {
       offerExpiresAt: displayed.offerExpiresAt || "",
       expired: ["sent", "accepted"].includes(proposalStatus) && !decision && !offerIsOpen(displayed.offerExpiresAt),
       availabilityChanged: ["sent", "accepted"].includes(proposalStatus) && !decision && !readyChecks.availabilityCovered,
+      pricingChanged: ["sent", "accepted"].includes(proposalStatus) && !decision && !readyChecks.costModelCurrent,
       decisionAllowed: ["sent", "accepted"].includes(proposalStatus) && !decision && offerIsOpen(displayed.offerExpiresAt) && Object.values(readyChecks).every(Boolean),
       decision: decision ? { status: decision.status, decidedAt: decision.updatedAt, typedName: decision.typedName } : null
     }
@@ -1251,6 +1308,8 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   if (!config.supportEmail || !config.supportPhone) warnings.push("Add verified support contact details.");
   const availabilityCovered = Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents));
   if (!availabilityCovered) warnings.push("The proposed time is no longer covered by an active, confirmed cleaner availability window.");
+  const costModelCurrent = proposalCostModelCurrent(proposal, config);
+  if (!costModelCurrent) warnings.push("The founder cost assumptions changed after this proposal was calculated; prepare a new proposal before using these drafts.");
   if (proposalStatus === "sent" && !offerIsOpen(quoteSnapshot?.offerExpiresAt)) warnings.push("The customer quote response window has ended; prepare a newly reviewed proposal instead of reusing this draft.");
   if (["sent", "accepted"].includes(proposalStatus) && !offerIsOpen(opportunitySnapshot?.offerExpiresAt)) warnings.push("The cleaner opportunity response window has ended; recheck availability before issuing a new opportunity.");
 
@@ -1308,7 +1367,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     ok: true,
     proposalId,
     proposalStatus,
-    sendAllowed: readiness.ready && pilotCoverage.covered && briefReviewed && scanHoursCovered && availabilityCovered && ["ready", "sent", "accepted"].includes(proposalStatus),
+    sendAllowed: readiness.ready && pilotCoverage.covered && briefReviewed && scanHoursCovered && availabilityCovered && costModelCurrent && ["ready", "sent", "accepted"].includes(proposalStatus),
     warnings,
     customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody },
     cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody }
@@ -1363,6 +1422,7 @@ async function buildBookingAudit(proposalId) {
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
+    costModelCurrent: proposalCostModelCurrent(proposal, config),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
@@ -1448,6 +1508,13 @@ async function createAdminBooking(request, response) {
     plannedCustomerTotal: audit.proposal.customerTotal,
     plannedCleanerPay: audit.proposal.cleanerPay,
     plannedContribution: audit.proposal.contribution,
+    plannedPaymentFees: audit.proposal.paymentFees,
+    plannedTravelCosts: audit.proposal.travelCosts,
+    plannedSuppliesCosts: audit.proposal.suppliesCosts,
+    plannedRiskContingency: audit.proposal.riskContingency,
+    plannedAdditionalCosts: audit.proposal.otherCosts,
+    plannedNonCleanerCosts: audit.proposal.nonCleanerCosts,
+    costAssumptions: audit.proposal.costAssumptions,
     roomScanBriefId: audit.latestBrief.id,
     details,
     customerViewToken: randomBytes(24).toString("base64url"),
@@ -1567,7 +1634,7 @@ async function getPrivateBookingPhoto(request, response, imageId) {
 async function getPrivateRequestStatus(request, response) {
   const token = text(request.headers["x-request-token"], 80);
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private request link is invalid." });
-  const [requests, statusUpdates, briefs, briefUpdates, proposals, proposalUpdates, cleanerDecisions, bookings, outcomes, jobEvents, availabilityEvents] = await Promise.all([
+  const [requests, statusUpdates, briefs, briefUpdates, proposals, proposalUpdates, cleanerDecisions, bookings, outcomes, jobEvents, availabilityEvents, config] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("status-updates.ndjson"),
     readRecords("job-briefs.ndjson"),
@@ -1578,7 +1645,8 @@ async function getPrivateRequestStatus(request, response) {
     readRecords("bookings.ndjson"),
     readRecords("job-outcomes.ndjson"),
     readRecords("job-events.ndjson"),
-    readRecords("cleaner-availability.ndjson")
+    readRecords("cleaner-availability.ndjson"),
+    readJsonFile("business-config.json", {})
   ]);
   const customerRequest = requests.find((record) => record.customerStatusToken === token);
   if (!customerRequest) return json(response, 404, { ok: false, error: "This private request link is invalid." });
@@ -1607,8 +1675,11 @@ async function getPrivateRequestStatus(request, response) {
   const quoteExpired = proposal?.status === "sent" && !offerIsOpen(proposal.quoteExpiresAt);
   const cleanerOfferExpired = proposal?.status === "accepted" && !cleanerDecision && !offerIsOpen(proposal.cleanerExpiresAt);
   const proposalAvailabilityCovered = proposal ? Boolean(findCleanerAvailabilitySlot(proposal.cleanerId, proposal, availabilityEvents)) : false;
+  const proposalCostsCurrent = proposal ? proposalCostModelCurrent(proposal, config) : false;
   const quoteAvailabilityLost = proposal?.status === "sent" && !proposalAvailabilityCovered;
   const cleanerAvailabilityLost = proposal?.status === "accepted" && !cleanerDecision && !proposalAvailabilityCovered;
+  const quotePricingChanged = proposal?.status === "sent" && !proposalCostsCurrent;
+  const cleanerPricingChanged = proposal?.status === "accepted" && !cleanerDecision && !proposalCostsCurrent;
 
   let currentStage = "room-scan";
   let headline = "Complete the room scan";
@@ -1630,6 +1701,10 @@ async function getPrivateRequestStatus(request, response) {
     currentStage = "quote-preparation";
     headline = "Quote being prepared";
     nextAction = "Tideway is checking the schedule, cleaner and job economics before making the quote available.";
+  } else if (quotePricingChanged) {
+    currentStage = "quote-preparation";
+    headline = "Quote needs recalculation";
+    nextAction = "Tideway must apply the current confirmed cost assumptions and prepare a new proposal before you can decide.";
   } else if (quoteAvailabilityLost) {
     currentStage = "rematching";
     headline = "Cleaner availability changed";
@@ -1655,6 +1730,10 @@ async function getPrivateRequestStatus(request, response) {
     currentStage = "rematching";
     headline = "Cleaner unavailable — rematching required";
     nextAction = "Tideway must select another screened cleaner and issue a new controlled opportunity before booking.";
+  } else if (cleanerPricingChanged) {
+    currentStage = "rematching";
+    headline = "Proposal needs recalculation";
+    nextAction = "Tideway must recheck the job economics before the booking can proceed.";
   } else if (cleanerAvailabilityLost) {
     currentStage = "rematching";
     headline = "Cleaner availability changed";
@@ -1721,7 +1800,7 @@ async function getPrivateRequestStatus(request, response) {
     visit: booking ? { reference: booking.id, proposedDate: booking.proposedDate, proposedStartTime: booking.proposedStartTime, proposedEndTime: booking.proposedEndTime, jobProgress } : null,
     links: {
       roomScanRequired: !latestBrief || latestBrief.status === "needs-revision",
-      quoteToken: proposal && ["sent", "accepted"].includes(proposal.status) && !quoteExpired && !quoteAvailabilityLost ? proposal.reviewToken : "",
+      quoteToken: proposal && ["sent", "accepted"].includes(proposal.status) && !quoteExpired && !quoteAvailabilityLost && !quotePricingChanged ? proposal.reviewToken : "",
       bookingToken: booking?.customerViewToken || ""
     }
   });
@@ -1825,10 +1904,13 @@ async function createAdminJobOutcome(request, response) {
   const actualHours = Number(input.actualHours);
   const customerCollected = Number(input.customerCollected);
   const cleanerPaid = Number(input.cleanerPaid);
+  const paymentFees = Number(input.paymentFees || 0);
+  const travelCosts = Number(input.travelCosts || 0);
+  const suppliesCosts = Number(input.suppliesCosts || 0);
   const otherCosts = Number(input.otherCosts || 0);
   const refundAmount = Number(input.refundAmount || 0);
-  const values = [actualHours, customerCollected, cleanerPaid, otherCosts, refundAmount];
-  if (!bookingId || values.some((value) => !Number.isFinite(value)) || actualHours <= 0 || customerCollected <= 0 || cleanerPaid < 0 || otherCosts < 0 || refundAmount < 0) {
+  const values = [actualHours, customerCollected, cleanerPaid, paymentFees, travelCosts, suppliesCosts, otherCosts, refundAmount];
+  if (!bookingId || values.some((value) => !Number.isFinite(value)) || actualHours <= 0 || customerCollected <= 0 || values.slice(2).some((value) => value < 0)) {
     return json(response, 422, { ok: false, error: "Enter valid actual hours and non-negative job amounts; customer collected must be greater than zero." });
   }
   const [bookings, outcomes, updates, config, jobEvents, bookingChanges, bookingChangeUpdates] = await Promise.all([
@@ -1851,7 +1933,8 @@ async function createAdminJobOutcome(request, response) {
   for (const update of updates) if (update.id === booking.requestId) requestStatus = update.status;
   if (requestStatus !== "booked") return json(response, 422, { ok: false, error: "Only a booked request can be completed." });
 
-  const contribution = customerCollected - cleanerPaid - otherCosts - refundAmount;
+  const totalDirectCosts = moneyValue(paymentFees + travelCosts + suppliesCosts + otherCosts);
+  const contribution = moneyValue(customerCollected - cleanerPaid - totalDirectCosts - refundAmount);
   const marginPercent = (contribution / customerCollected) * 100;
   const outcome = {
     id: `JOB-${randomUUID().slice(0, 8).toUpperCase()}`,
@@ -1861,7 +1944,11 @@ async function createAdminJobOutcome(request, response) {
     actualHours,
     customerCollected,
     cleanerPaid,
+    paymentFees,
+    travelCosts,
+    suppliesCosts,
     otherCosts,
+    totalDirectCosts,
     refundAmount,
     contribution,
     marginPercent,
@@ -1915,16 +2002,15 @@ async function createAdminProposal(request, response) {
   if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Customer request or cleaner was not found." });
   if ((latestStatuses.get(cleaner.id) || cleaner.status) !== "approved") return json(response, 422, { ok: false, error: "Only an approved cleaner can be proposed." });
   if (!latestCleanerScreening(cleaner.id, screenings)?.complete) return json(response, 422, { ok: false, error: "Only a fully screened cleaner can be proposed." });
+  if (!costAssumptionsConfirmed(config)) return json(response, 422, { ok: false, error: "Confirm the payment, travel, supplies and risk cost assumptions before preparing proposal economics." });
   if (config.minimumHours > 0 && estimatedHours < config.minimumHours) return json(response, 422, { ok: false, error: `Estimated hours must meet the ${config.minimumHours}-hour minimum.` });
   const requiredService = requestServiceMap[customerRequest.service] || "";
   if (requiredService && !cleaner.services?.includes(requiredService)) return json(response, 422, { ok: false, error: "Cleaner is not approved for the requested service." });
   if (!findCleanerAvailabilitySlot(cleaner.id, { proposedDate, proposedStartTime, estimatedHours }, availabilityEvents)) return json(response, 422, { ok: false, error: "The proposed visit must fit entirely inside an active, confirmed cleaner availability window." });
 
-  const customerTotal = estimatedHours * customerRate;
-  const cleanerPay = estimatedHours * cleanerRate;
-  const contribution = customerTotal - cleanerPay - otherCosts;
+  const economics = calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, otherCosts, config);
+  const { customerTotal, cleanerPay, paymentFees, travelCosts, suppliesCosts, riskContingency, nonCleanerCosts, contribution, marginPercent, costAssumptions } = economics;
   if (contribution <= 0) return json(response, 422, { ok: false, error: "This proposal loses money before overheads. Change the price, pay or scope." });
-  const marginPercent = (contribution / customerTotal) * 100;
   if (config.minimumContributionMarginPercent > 0 && marginPercent < config.minimumContributionMarginPercent) {
     return json(response, 422, { ok: false, error: `This proposal's ${marginPercent.toFixed(1)}% contribution margin is below the ${config.minimumContributionMarginPercent.toFixed(1)}% minimum.` });
   }
@@ -1940,6 +2026,12 @@ async function createAdminProposal(request, response) {
     customerRate,
     cleanerRate,
     otherCosts,
+    paymentFees,
+    travelCosts,
+    suppliesCosts,
+    riskContingency,
+    nonCleanerCosts,
+    costAssumptions,
     customerTotal,
     cleanerPay,
     contribution,
@@ -2063,6 +2155,12 @@ async function updateAdminConfig(request, response) {
     cleanerHourlyPay: Math.max(0, Number(input.cleanerHourlyPay) || 0),
     minimumHours: Math.max(0, Number(input.minimumHours) || 0),
     minimumContributionMarginPercent: Math.max(0, Number(input.minimumContributionMarginPercent) || 0),
+    paymentFeePercent: Math.max(0, Number(input.paymentFeePercent) || 0),
+    paymentFeeFixed: Math.max(0, Number(input.paymentFeeFixed) || 0),
+    travelCostPerJob: Math.max(0, Number(input.travelCostPerJob) || 0),
+    suppliesCostPerJob: Math.max(0, Number(input.suppliesCostPerJob) || 0),
+    riskContingencyPercent: Math.max(0, Number(input.riskContingencyPercent) || 0),
+    variableCostsConfirmed: input.variableCostsConfirmed === true || ["true", "on"].includes(text(input.variableCostsConfirmed, 10).toLowerCase()),
     customerQuoteValidityHours: Number(input.customerQuoteValidityHours) || 0,
     cleanerOpportunityValidityHours: Number(input.cleanerOpportunityValidityHours) || 0,
     cancellationPolicy: text(input.cancellationPolicy, 1000),
@@ -2076,6 +2174,11 @@ async function updateAdminConfig(request, response) {
   if (pilotCoverage.invalidCodes.length) errors.push(`Use comma-separated outward postcode codes only, for example SW2, SW4. Invalid: ${pilotCoverage.invalidCodes.join(", ")}.`);
   if (config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.customerHourlyRate <= config.cleanerHourlyPay) errors.push("Customer rate must be higher than cleaner pay before other costs.");
   if (config.minimumContributionMarginPercent >= 100) errors.push("Minimum contribution margin must be below 100%.");
+  if (config.paymentFeePercent > 20) errors.push("Payment fee percentage must be between 0% and 20%.");
+  if (config.paymentFeeFixed > 20) errors.push("Fixed payment fee must be between £0 and £20.");
+  if (config.travelCostPerJob > 200 || config.suppliesCostPerJob > 200) errors.push("Travel and supplies assumptions must each be between £0 and £200 per job.");
+  if (config.riskContingencyPercent > 50) errors.push("Risk contingency must be between 0% and 50%.");
+  if (config.minimumContributionMarginPercent + config.paymentFeePercent + config.riskContingencyPercent >= 100) errors.push("The margin floor plus payment-fee and risk percentages must stay below 100%.");
   if (config.customerQuoteValidityHours && (!Number.isInteger(config.customerQuoteValidityHours) || config.customerQuoteValidityHours < 1 || config.customerQuoteValidityHours > 168)) errors.push("Customer quote response window must be a whole number from 1 to 168 hours.");
   if (config.cleanerOpportunityValidityHours && (!Number.isInteger(config.cleanerOpportunityValidityHours) || config.cleanerOpportunityValidityHours < 1 || config.cleanerOpportunityValidityHours > 168)) errors.push("Cleaner opportunity response window must be a whole number from 1 to 168 hours.");
   if (config.paymentProviderStatus === "live" && (!config.paymentProviderName || !config.refundProcess)) errors.push("Add the live payment provider and refund process.");

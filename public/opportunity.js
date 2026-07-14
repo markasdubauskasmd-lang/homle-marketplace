@@ -65,6 +65,8 @@ function renderOpportunity(opportunity) {
       locked.innerHTML = "<strong>Opportunity accepted.</strong><span>Tideway recorded your decision. This is not yet a confirmed assignment.</span>";
     } else if (opportunity.decision?.status === "declined") {
       locked.innerHTML = "<strong>Opportunity declined.</strong><span>Tideway recorded your decision and no assignment was made.</span>";
+    } else if (opportunity.pricingChanged) {
+      locked.innerHTML = "<strong>This opportunity needs recalculation.</strong><span>Tideway must apply the current confirmed cost assumptions before issuing another controlled opportunity.</span>";
     } else if (opportunity.availabilityChanged) {
       locked.innerHTML = "<strong>This availability is no longer confirmed.</strong><span>Tideway must recheck the visit window before issuing another controlled opportunity.</span>";
     } else if (opportunity.expired) {
