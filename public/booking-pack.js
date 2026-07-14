@@ -4,6 +4,10 @@ if (token) history.replaceState(null, "", location.pathname);
 const loading = document.querySelector("#pack-loading");
 const errorState = document.querySelector("#pack-error");
 const content = document.querySelector("#pack-content");
+const changeForm = document.querySelector("#booking-change-form");
+const changeType = changeForm.querySelector('select[name="type"]');
+const rescheduleFields = changeForm.querySelector("[data-reschedule-fields]");
+let currentRequests = [];
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "long" });
 
@@ -16,6 +20,41 @@ function showError(message) {
   content.hidden = true;
   errorState.hidden = false;
   setText("[data-error-message]", message);
+}
+
+const changeTypeLabels = {
+  reschedule: "Reschedule request",
+  "cancel-request": "Cancellation request",
+  "access-change": "Access change",
+  "scope-change": "Scope change",
+  "safety-issue": "Safety issue",
+  other: "Other issue"
+};
+
+function renderChangeHistory(requests) {
+  currentRequests = requests || [];
+  const section = document.querySelector("[data-change-history-section]");
+  const list = document.querySelector("[data-change-history]");
+  list.replaceChildren();
+  if (!currentRequests.length) {
+    section.hidden = true;
+    return;
+  }
+  for (const request of currentRequests) {
+    const item = document.createElement("li");
+    const heading = document.createElement("strong");
+    heading.textContent = `${changeTypeLabels[request.type] || "Request"} · ${request.status}`;
+    const detail = document.createElement("span");
+    detail.textContent = request.type === "reschedule" ? `${request.proposedDate} at ${request.proposedStartTime} · ${request.message}` : request.message;
+    item.append(heading, document.createTextNode(" — "), detail);
+    if (request.resolutionNote) {
+      const resolution = document.createElement("small");
+      resolution.textContent = ` Tideway response: ${request.resolutionNote}`;
+      item.append(resolution);
+    }
+    list.append(item);
+  }
+  section.hidden = false;
 }
 
 function renderBooking(booking) {
@@ -40,6 +79,7 @@ function renderBooking(booking) {
   setText("[data-emergency]", booking.emergencyInstructions);
   setText("[data-business-name]", booking.legalBusinessName);
   setText("[data-support]", [booking.supportEmail, booking.supportPhone].filter(Boolean).join(" · "));
+  renderChangeHistory(booking.changeRequests);
 
   if (booking.checklist?.length) {
     const list = document.querySelector("[data-checklist]");
@@ -66,6 +106,57 @@ function renderBooking(booking) {
     setText("[data-payment]", booking.paymentTiming);
   }
 }
+
+function syncRescheduleFields() {
+  const active = changeType.value === "reschedule";
+  rescheduleFields.hidden = !active;
+  rescheduleFields.querySelectorAll("input").forEach((input) => { input.required = active; });
+}
+
+changeType.addEventListener("change", syncRescheduleFields);
+const dateInput = changeForm.elements.proposedDate;
+const now = new Date();
+dateInput.min = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
+
+changeForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const summary = changeForm.querySelector(".error-summary");
+  const success = changeForm.querySelector(".success-panel");
+  const submit = changeForm.querySelector('button[type="submit"]');
+  summary.hidden = true;
+  success.hidden = true;
+  if (!changeForm.checkValidity()) {
+    changeForm.reportValidity();
+    summary.textContent = "Complete the request type, explanation and any reschedule date/time.";
+    summary.hidden = false;
+    summary.focus();
+    return;
+  }
+  const data = new FormData(changeForm);
+  const body = Object.fromEntries(data.entries());
+  submit.disabled = true;
+  try {
+    const response = await fetch("/api/booking-change-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "X-Booking-Token": token },
+      body: JSON.stringify(body)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "The request could not be recorded.");
+    success.querySelector("[data-change-reference]").textContent = result.reference;
+    success.hidden = false;
+    success.focus();
+    renderChangeHistory([{ id: result.reference, type: body.type, message: body.message, proposedDate: body.proposedDate || "", proposedStartTime: body.proposedStartTime || "", status: result.status, createdAt: new Date().toISOString() }, ...currentRequests]);
+    changeForm.reset();
+    syncRescheduleFields();
+  } catch (error) {
+    summary.textContent = error.message;
+    summary.hidden = false;
+    summary.focus();
+  } finally {
+    submit.disabled = false;
+  }
+});
 
 async function loadBooking() {
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return showError("This private link is incomplete or invalid.");

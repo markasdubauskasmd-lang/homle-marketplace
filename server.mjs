@@ -203,6 +203,37 @@ async function saveBookingOnce(booking) {
   return operation;
 }
 
+function applyBookingChangeStatus(record, updates) {
+  let status = record.status || "open";
+  let resolutionNote = "";
+  let updatedAt = record.createdAt;
+  for (const update of updates) {
+    if (update.changeRequestId !== record.id) continue;
+    status = update.status;
+    resolutionNote = update.note || "";
+    updatedAt = update.updatedAt;
+  }
+  return { ...record, status, resolutionNote, updatedAt };
+}
+
+async function saveBookingChangeRequest(record) {
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    const [records, updates] = await Promise.all([
+      readRecords("booking-change-requests.ndjson"),
+      readRecords("booking-change-status.ndjson")
+    ]);
+    const sameAudience = records.filter((item) => item.bookingId === record.bookingId && item.audience === record.audience).map((item) => applyBookingChangeStatus(item, updates));
+    if (sameAudience.length >= 10) throw Object.assign(new Error("This booking already has ten change or issue requests. Contact Tideway directly."), { statusCode: 409 });
+    if (sameAudience.filter((item) => ["open", "reviewing"].includes(item.status)).length >= 3) {
+      throw Object.assign(new Error("Three requests are already open for this booking. Wait for Tideway to review them or contact support."), { statusCode: 409 });
+    }
+    await appendFile(path.join(dataDir, "booking-change-requests.ndjson"), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+  });
+  writeQueue = operation;
+  return operation;
+}
+
 async function readRecords(filename) {
   try {
     const contents = await readFile(path.join(dataDir, filename), "utf8");
@@ -390,7 +421,7 @@ function isAdminAuthorised(request) {
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, config] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, bookingChanges, bookingChangeUpdates, config] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
@@ -403,6 +434,8 @@ async function getAdminRecords(request, response) {
     readRecords("job-brief-status.ndjson"),
     readRecords("cleaner-screening.ndjson"),
     readRecords("cleaner-opportunity-decisions.ndjson"),
+    readRecords("booking-change-requests.ndjson"),
+    readRecords("booking-change-status.ndjson"),
     readJsonFile("business-config.json", {})
   ]);
   const latestStatuses = new Map();
@@ -423,7 +456,13 @@ async function getAdminRecords(request, response) {
     proposalsByRequest.set(proposal.requestId, list);
   }
   const bookingsByRequest = new Map();
-  for (const booking of bookings) bookingsByRequest.set(booking.requestId, booking);
+  const bookingChangesByBooking = new Map();
+  for (const change of bookingChanges) {
+    const list = bookingChangesByBooking.get(change.bookingId) || [];
+    list.push(applyBookingChangeStatus(change, bookingChangeUpdates));
+    bookingChangesByBooking.set(change.bookingId, list);
+  }
+  for (const booking of bookings) bookingsByRequest.set(booking.requestId, { ...booking, changeRequests: (bookingChangesByBooking.get(booking.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)) });
   const outcomesByBooking = new Map();
   for (const outcome of outcomes) outcomesByBooking.set(outcome.bookingId, outcome);
   const briefsByRequest = new Map();
@@ -1202,15 +1241,89 @@ async function createAdminBooking(request, response) {
   return json(response, 201, { ok: true, booking });
 }
 
-async function getPrivateBookingPack(request, response) {
-  const token = text(request.headers["x-booking-token"], 80);
-  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private booking link is invalid." });
+async function findPrivateBooking(token) {
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return null;
   const bookings = await readRecords("bookings.ndjson");
   const booking = bookings.find((record) => record.customerViewToken === token || record.cleanerViewToken === token);
-  if (!booking) return json(response, 404, { ok: false, error: "This private booking link is invalid." });
-  const pack = booking.customerViewToken === token ? booking.customerBookingPack : booking.cleanerBookingPack;
-  if (!pack) return json(response, 404, { ok: false, error: "This booking pack is unavailable." });
-  return json(response, 200, { ok: true, booking: { ...pack, confirmedAt: booking.createdAt } });
+  if (!booking) return null;
+  const audience = booking.customerViewToken === token ? "customer" : "cleaner";
+  const pack = audience === "customer" ? booking.customerBookingPack : booking.cleanerBookingPack;
+  return pack ? { booking, audience, pack } : null;
+}
+
+async function getPrivateBookingPack(request, response) {
+  const token = text(request.headers["x-booking-token"], 80);
+  const context = await findPrivateBooking(token);
+  if (!context) return json(response, 404, { ok: false, error: "This private booking link is invalid." });
+  const [changes, updates] = await Promise.all([
+    readRecords("booking-change-requests.ndjson"),
+    readRecords("booking-change-status.ndjson")
+  ]);
+  const ownRequests = changes
+    .filter((record) => record.bookingId === context.booking.id && record.audience === context.audience)
+    .map((record) => applyBookingChangeStatus(record, updates))
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .map(({ bookingId, requestId, cleanerId, audience, ...record }) => record);
+  return json(response, 200, { ok: true, booking: { ...context.pack, confirmedAt: context.booking.createdAt, changeRequests: ownRequests } });
+}
+
+async function createPrivateBookingChangeRequest(request, response) {
+  ensureSameOrigin(request);
+  const token = text(request.headers["x-booking-token"], 80);
+  const context = await findPrivateBooking(token);
+  if (!context) return json(response, 404, { ok: false, error: "This private booking link is invalid." });
+  const input = await readJson(request);
+  const type = text(input.type, 40);
+  const message = text(input.message, 1200);
+  const proposedDate = text(input.proposedDate, 20);
+  const proposedStartTime = text(input.proposedStartTime, 10);
+  const allowedTypes = new Set(["reschedule", "cancel-request", "access-change", "scope-change", "safety-issue", "other"]);
+  const errors = [];
+  if (!allowedTypes.has(type)) errors.push("Choose a valid request type.");
+  if (message.length < 10) errors.push("Explain the requested change or issue in at least 10 characters.");
+  if (type === "reschedule") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(proposedDate) || proposedDate < localDateToday()) errors.push("Choose a proposed reschedule date of today or later.");
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(proposedStartTime)) errors.push("Choose a proposed reschedule start time.");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(proposedDate) && /^([01]\d|2[0-3]):[0-5]\d$/.test(proposedStartTime) && !jobSchedule({ proposedDate, proposedStartTime, estimatedHours: 1 })) errors.push("Choose a real calendar date and time.");
+  }
+  if (errors.length) return json(response, 422, { ok: false, errors });
+  const record = {
+    id: `CHG-${randomUUID().slice(0, 8).toUpperCase()}`,
+    bookingId: context.booking.id,
+    requestId: context.booking.requestId,
+    cleanerId: context.booking.cleanerId,
+    audience: context.audience,
+    type,
+    message,
+    proposedDate: type === "reschedule" ? proposedDate : "",
+    proposedStartTime: type === "reschedule" ? proposedStartTime : "",
+    status: "open",
+    createdAt: new Date().toISOString()
+  };
+  await saveBookingChangeRequest(record);
+  return json(response, 201, { ok: true, reference: record.id, status: record.status });
+}
+
+async function updateAdminBookingChangeStatus(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const changeRequestId = text(input.changeRequestId, 40);
+  const status = text(input.status, 30);
+  const note = text(input.note, 1000);
+  const [records, updates] = await Promise.all([
+    readRecords("booking-change-requests.ndjson"),
+    readRecords("booking-change-status.ndjson")
+  ]);
+  const record = records.find((item) => item.id === changeRequestId);
+  if (!record) return json(response, 404, { ok: false, error: "Booking change request not found." });
+  const current = applyBookingChangeStatus(record, updates).status;
+  const transitions = { open: new Set(["reviewing", "closed"]), reviewing: new Set(["open", "closed"]), closed: new Set([]) };
+  if (!transitions[current]?.has(status)) return json(response, 422, { ok: false, error: `Change request cannot move from ${current} to ${status}.` });
+  if (status === "closed" && note.length < 10) return json(response, 422, { ok: false, error: "Add a clear closure note of at least 10 characters." });
+  const update = { changeRequestId, bookingId: record.bookingId, status, previousStatus: current, note, updatedAt: new Date().toISOString() };
+  await saveRecord("booking-change-status.ndjson", update);
+  return json(response, 200, { ok: true, changeRequestId, status, resolutionNote: note, updatedAt: update.updatedAt });
 }
 
 async function createAdminJobOutcome(request, response) {
@@ -1728,6 +1841,9 @@ const server = createServer(async (request, response) => {
     if (request.method === "GET" && requestUrl.pathname === "/api/booking-pack") {
       return await getPrivateBookingPack(request, response);
     }
+    if (request.method === "POST" && requestUrl.pathname === "/api/booking-change-requests") {
+      return await createPrivateBookingChangeRequest(request, response);
+    }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/records") {
       return await getAdminRecords(request, response);
     }
@@ -1754,6 +1870,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/admin/bookings") {
       return await createAdminBooking(request, response);
+    }
+    if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/booking-change-requests/status") {
+      return await updateAdminBookingChangeStatus(request, response);
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/admin/job-outcomes") {
       return await createAdminJobOutcome(request, response);

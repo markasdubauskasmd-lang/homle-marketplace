@@ -492,6 +492,56 @@ function buildBookingPackPanel(record) {
     section.append(field, copy);
     panel.append(section);
   }
+  if (booking.changeRequests?.length) {
+    const heading = document.createElement("h4");
+    heading.textContent = `Booking change and issue queue · ${booking.changeRequests.length}`;
+    panel.append(heading);
+    for (const change of booking.changeRequests) {
+      const item = document.createElement("section");
+      item.className = `quote-review-link${change.type === "safety-issue" ? " draft-blocked" : ""}`;
+      addText(item, "strong", `${change.type.replaceAll("-", " ")} · ${change.audience} · ${change.status}`);
+      addText(item, "span", change.type === "reschedule" ? `${change.proposedDate} at ${change.proposedStartTime} · ${change.message}` : change.message);
+      if (change.resolutionNote) addText(item, "span", `Tideway response: ${change.resolutionNote}`);
+      const allowed = change.status === "open" ? ["reviewing", "closed"] : change.status === "reviewing" ? ["open", "closed"] : [];
+      if (allowed.length) {
+        const form = document.createElement("form");
+        form.className = "brief-review-form";
+        const select = document.createElement("select");
+        select.name = "status";
+        allowed.forEach((status) => {
+          const option = document.createElement("option");
+          option.value = status;
+          option.textContent = status === "reviewing" ? "Mark under review" : status === "open" ? "Return to open" : "Close with response";
+          select.append(option);
+        });
+        const note = document.createElement("textarea");
+        note.name = "note";
+        note.rows = 2;
+        note.maxLength = 1000;
+        note.placeholder = "Required when closing: explain what was agreed or the next safe route";
+        const button = document.createElement("button");
+        button.type = "submit";
+        button.className = "button button-small";
+        button.textContent = "Save queue status";
+        form.append(select, note, button);
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          button.disabled = true;
+          try {
+            const response = await fetch("/api/admin/booking-change-requests/status", { method: "PATCH", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify({ changeRequestId: change.id, status: select.value, note: note.value.trim() }) });
+            const result = await response.json();
+            if (!response.ok || !result.ok) throw new Error(result.error || "Queue status could not be saved.");
+            await loadRecords();
+          } catch (error) {
+            showAdminError(error.message);
+            button.disabled = false;
+          }
+        });
+        item.append(form);
+      }
+      panel.append(item);
+    }
+  }
   return panel;
 }
 

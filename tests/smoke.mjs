@@ -440,6 +440,32 @@ try {
   assert(cleanerPack.ok && cleanerPackBody.booking.audience === "cleaner" && cleanerPackBody.booking.serviceAddress === "10 Clean Street, Westminster, London" && cleanerPackBody.booking.accessContactName === "Site Manager" && cleanerPackBody.booking.accessContactPhone === "07123456781" && cleanerPackBody.booking.cleanerPay === 72, "Cleaner assignment pack omitted confirmed visit, access or pay details.");
   const cleanerPackSerialised = JSON.stringify(cleanerPackBody);
   assert(!cleanerPackSerialised.includes("customer@example.com") && !cleanerPackSerialised.includes("Test Customer") && !cleanerPackSerialised.includes("customerTotal"), "Cleaner assignment pack exposed customer identity or customer price.");
+  const invalidChangeRequest = await fetch(`${base}/api/booking-change-requests`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.customerViewToken }, body: JSON.stringify({ type: "reschedule", message: "Short" }) });
+  assert(invalidChangeRequest.status === 422, "Invalid or incomplete booking change request was accepted.");
+  const customerChangeRequest = await fetch(`${base}/api/booking-change-requests`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.customerViewToken }, body: JSON.stringify({ type: "reschedule", message: "Please review whether the visit can move to the following morning.", proposedDate: "2026-07-21", proposedStartTime: "10:00" }) });
+  const customerChangeBody = await customerChangeRequest.json();
+  assert(customerChangeRequest.status === 201 && customerChangeBody.reference.startsWith("CHG-") && customerChangeBody.status === "open", "Valid customer reschedule request was not recorded.");
+  const cleanerSafetyRequest = await fetch(`${base}/api/booking-change-requests`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.cleanerViewToken }, body: JSON.stringify({ type: "safety-issue", message: "Please review a potential site safety concern before arrival." }) });
+  const cleanerSafetyBody = await cleanerSafetyRequest.json();
+  assert(cleanerSafetyRequest.status === 201 && cleanerSafetyBody.reference.startsWith("CHG-"), "Valid cleaner safety request was not recorded.");
+  const customerPackWithRequest = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.customerViewToken } });
+  const customerPackWithRequestBody = await customerPackWithRequest.json();
+  const cleanerPackWithRequest = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.cleanerViewToken } });
+  const cleanerPackWithRequestBody = await cleanerPackWithRequest.json();
+  assert(customerPackWithRequestBody.booking.changeRequests.length === 1 && customerPackWithRequestBody.booking.changeRequests[0].id === customerChangeBody.reference && !JSON.stringify(customerPackWithRequestBody).includes(cleanerSafetyBody.reference), "Customer booking pack exposed another audience's request or lost its own.");
+  assert(cleanerPackWithRequestBody.booking.changeRequests.length === 1 && cleanerPackWithRequestBody.booking.changeRequests[0].id === cleanerSafetyBody.reference && !JSON.stringify(cleanerPackWithRequestBody).includes(customerChangeBody.reference), "Cleaner booking pack exposed another audience's request or lost its own.");
+  assert(customerPackWithRequestBody.booking.proposedDate === "2026-07-20" && customerPackWithRequestBody.booking.proposedStartTime === "09:00", "A reschedule request silently changed the confirmed booking.");
+  const closeWithoutNote = await fetch(`${base}/api/admin/booking-change-requests/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ changeRequestId: customerChangeBody.reference, status: "closed" }) });
+  assert(closeWithoutNote.status === 422, "Booking change request closed without a clear response note.");
+  const reviewingChange = await fetch(`${base}/api/admin/booking-change-requests/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ changeRequestId: customerChangeBody.reference, status: "reviewing" }) });
+  assert(reviewingChange.ok, "Booking change request could not move into review.");
+  const closedChange = await fetch(`${base}/api/admin/booking-change-requests/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ changeRequestId: customerChangeBody.reference, status: "closed", note: "Tideway recorded the request; the original booking remains unchanged pending a separately accepted proposal." }) });
+  assert(closedChange.ok, "Booking change request could not close with a response note.");
+  const reopenClosedChange = await fetch(`${base}/api/admin/booking-change-requests/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ changeRequestId: customerChangeBody.reference, status: "open" }) });
+  assert(reopenClosedChange.status === 422, "Closed booking change history was overwritten.");
+  const resolvedCustomerPack = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.customerViewToken } });
+  const resolvedCustomerPackBody = await resolvedCustomerPack.json();
+  assert(resolvedCustomerPackBody.booking.changeRequests[0].status === "closed" && resolvedCustomerPackBody.booking.changeRequests[0].resolutionNote.includes("original booking remains unchanged"), "Customer could not see the reviewed change-request outcome.");
   const duplicateBooking = await fetch(`${base}/api/admin/bookings`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bookingInput) });
   assert(duplicateBooking.status === 409, "A duplicate confirmed booking was not rejected.");
 
@@ -472,11 +498,12 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "reviewed", "Job-brief review status was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.details?.serviceAddress === "10 Clean Street, Westminster, London" && refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.cleanerViewToken === confirmedBookingBody.booking.cleanerViewToken, "Structured booking pack was not retained in the control desk.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.changeRequests?.length === 2 && refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.changeRequests?.some((change) => change.type === "safety-issue" && change.status === "open"), "Booking change and safety queue was not retained in the control desk.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-brief handoff, automatic concise speech bullets, pilot-area enforcement, photo-and-voice job briefs, cleaner screening and brief review gates, private images, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, booking confirmations and actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));
