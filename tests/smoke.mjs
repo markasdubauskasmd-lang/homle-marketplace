@@ -132,6 +132,10 @@ try {
   const briefPage = await fetch(`${base}/brief`);
   const briefPageText = await briefPage.text();
   assert(briefPage.ok && briefPageText.includes("Request details carried over.") && briefPageText.includes('id="photo-count">0/10') && briefPageText.includes("Checking room scan") && briefPageText.includes("summarise again so the cleaner receives the latest scope") && briefPageText.includes("Extra time may be needed") && briefPageText.includes("require this confirmation again"), "Photo job-brief page, ten-photo whole-property limit, checklist-freshness guidance, live readiness panel, private handoff notice, customer-facing scope warning or change-sensitive scope confirmation failed.");
+  assert(briefPageText.includes('id="job-brief-form" action="/api/job-briefs" method="post" novalidate') && !briefPageText.includes('id="save-brief" class="button submit-button" type="submit" disabled'), "Room-scan submission was blocked before it could explain incomplete readiness.");
+  const briefScript = await fetch(`${base}/brief.js?v=smoke-test`);
+  const briefScriptText = await briefScript.text();
+  assert(briefScript.ok && briefScriptText.includes('saveButton.disabled = submitting || submissionComplete') && briefScriptText.includes("new AbortController()") && briefScriptText.includes("took too long to prepare"), "Room-scan button recovery or bounded photo/upload handling was missing.");
   assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
   const scopeSignalAsset = await fetch(`${base}/scope-signals.js`);
   assert(scopeSignalAsset.ok && (await scopeSignalAsset.text()).includes("detectPriceSensitiveScope"), "Shared customer/server scope detection asset failed.");

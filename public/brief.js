@@ -91,7 +91,12 @@ function renderReadiness() {
     item.append(marker, document.createTextNode(check.label));
     scanReadinessList.append(item);
   });
-  saveButton.disabled = submitting || submissionComplete || !readiness.ready;
+  saveButton.disabled = submitting || submissionComplete;
+  saveButton.setAttribute("aria-busy", submitting ? "true" : "false");
+  if (submitting) saveButton.textContent = "Preparing private room scan...";
+  else if (submissionComplete) saveButton.textContent = "Room scan submitted";
+  else if (!readiness.ready) saveButton.textContent = `Check ${readiness.remaining} remaining ${readiness.remaining === 1 ? "item" : "items"}`;
+  else saveButton.textContent = "Complete private room scan";
   return readiness;
 }
 
@@ -230,20 +235,35 @@ photoInput.addEventListener("change", () => {
 function photoDataUrl(photo) {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.onload = () => {
-      const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const context = canvas.getContext("2d", { alpha: false });
-      context.fillStyle = "#fff";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(image.src);
-      resolve(canvas.toDataURL("image/jpeg", 0.76));
+    const objectUrl = URL.createObjectURL(photo.file);
+    let settled = false;
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      URL.revokeObjectURL(objectUrl);
+      callback();
     };
-    image.onerror = () => reject(new Error("A selected photo could not be read."));
-    image.src = URL.createObjectURL(photo.file);
+    const timer = setTimeout(() => finish(() => reject(new Error("A selected photo took too long to prepare. Remove it and try a smaller photo."))), 15000);
+    image.onload = () => {
+      try {
+        const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const context = canvas.getContext("2d", { alpha: false });
+        if (!context) throw new Error("This browser could not prepare the selected photo.");
+        context.fillStyle = "#fff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.76);
+        finish(() => resolve(dataUrl));
+      } catch (error) {
+        finish(() => reject(error));
+      }
+    };
+    image.onerror = () => finish(() => reject(new Error("A selected photo could not be read. Remove it and choose another photo.")));
+    image.src = objectUrl;
   });
 }
 
@@ -313,12 +333,28 @@ form.addEventListener("submit", async (event) => {
   saveButton.textContent = "Preparing private room scan…";
   try {
     const encodedPhotos = [];
-    for (const photo of photos) encodedPhotos.push({ area: photo.area, note: photo.note.trim(), dataUrl: await photoDataUrl(photo) });
-    const response = await fetch(form.action, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ requestId: form.elements.requestId.value, email: form.elements.email.value, transcript: transcript.value, checklist: tasks, photos: encodedPhotos, scopeCompleteConfirmed: form.elements.scopeCompleteConfirmed.checked, consent: form.elements.consent.checked, sharePhotosWithSelectedCleaner: form.elements.sharePhotosWithSelectedCleaner.checked })
-    });
+    for (let index = 0; index < photos.length; index += 1) {
+      saveButton.textContent = `Preparing photo ${index + 1} of ${photos.length}…`;
+      const photo = photos[index];
+      encodedPhotos.push({ area: photo.area, note: photo.note.trim(), dataUrl: await photoDataUrl(photo) });
+    }
+    saveButton.textContent = "Saving private room scan…";
+    const controller = new AbortController();
+    const requestTimer = setTimeout(() => controller.abort(), 30000);
+    let response;
+    try {
+      response = await fetch(form.action, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ requestId: form.elements.requestId.value, email: form.elements.email.value, transcript: transcript.value, checklist: tasks, photos: encodedPhotos, scopeCompleteConfirmed: form.elements.scopeCompleteConfirmed.checked, consent: form.elements.consent.checked, sharePhotosWithSelectedCleaner: form.elements.sharePhotosWithSelectedCleaner.checked }),
+        signal: controller.signal
+      });
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("The room scan took too long to save. Your entries are still here—check the connection and try again.");
+      throw error;
+    } finally {
+      clearTimeout(requestTimer);
+    }
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "The job brief could not be saved.");
     successBox.querySelector("[data-brief-reference]").textContent = result.reference;
@@ -336,7 +372,6 @@ form.addEventListener("submit", async (event) => {
   } finally {
     submitting = false;
     renderReadiness();
-    saveButton.textContent = "Complete private room scan";
   }
 });
 

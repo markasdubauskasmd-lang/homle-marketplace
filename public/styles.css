@@ -132,7 +132,8 @@ textarea { resize: vertical; }
 .service-options legend { padding: 0 6px; color: #203f39; font-size: .88rem; font-weight: 760; }
 .service-options legend span { color: var(--muted); font-weight: 500; }
 .submit-button { justify-self: start; min-width: 220px; }
-.submit-button[disabled] { cursor: wait; opacity: .65; transform: none; }
+.submit-button[disabled] { cursor: not-allowed; opacity: .65; transform: none; }
+.submit-button[aria-busy="true"] { cursor: progress; }
 .error-summary { padding: 14px 16px; color: #7b1e17; border: 1px solid #e1aaa5; border-radius: 9px; background: #fff0ee; font-weight: 650; }
 .success-panel { padding: 20px; color: var(--green-dark); border: 1px solid #9bcdbf; border-radius: 12px; background: var(--mint-pale); }
 .success-panel strong, .success-panel span { display: block; }
