@@ -31,6 +31,10 @@ export function briefReadiness({ requestId = "", email = "", transcript = "", ta
     scopeConfirmed: scopeCompleteConfirmed === true,
     privacyConsent: consent === true
   };
-  const items = Object.entries(checks).map(([key, complete]) => ({ key, label: labels[key], complete }));
+  const itemLabels = { ...labels };
+  if (uncoveredAreas.length) {
+    itemLabels.roomCoverage = `Add cleaner ${uncoveredAreas.length === 1 ? "task" : "tasks"} for: ${uncoveredAreas.join(", ")}`;
+  }
+  const items = Object.entries(checks).map(([key, complete]) => ({ key, label: itemLabels[key], complete }));
   return { ready: items.every((item) => item.complete), remaining: items.filter((item) => !item.complete).length, checks, items, uncoveredAreas };
 }
