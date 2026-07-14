@@ -31,6 +31,7 @@ try {
   await rm(path.join(root, "data", "lead-activity.ndjson"), { force: true });
   await rm(path.join(root, "data", "business-config.json"), { force: true });
   await rm(path.join(root, "data", "match-proposals.ndjson"), { force: true });
+  await rm(path.join(root, "data", "proposal-status.ndjson"), { force: true });
   await waitForServer();
 
   const home = await fetch(base);
@@ -89,10 +90,11 @@ try {
   const initialConfigBody = await initialConfig.json();
   assert(initialConfig.ok && initialConfigBody.readiness.completed === 0, "Initial launch readiness was incorrect.");
 
+  const completeConfig = { legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion" };
   const savedConfig = await fetch(`${base}/api/admin/config`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion" })
+    body: JSON.stringify(completeConfig)
   });
   const savedConfigBody = await savedConfig.json();
   assert(savedConfig.ok && savedConfigBody.readiness.ready === true, "Complete launch settings did not pass readiness checks.");
@@ -131,6 +133,20 @@ try {
   const proposalBody = await validProposal.json();
   assert(validProposal.status === 201 && proposalBody.proposal.contribution === 38, "Valid draft proposal failed or calculated incorrectly.");
 
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, insuranceStatus: "in-progress" }) });
+  const readinessBlocked = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
+  assert(readinessBlocked.status === 422, "Incomplete launch readiness did not block proposal advancement.");
+
+  await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
+  const readyProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
+  assert(readyProposal.ok, "Ready proposal status failed after launch checks passed.");
+  const skippedTransition = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "accepted" }) });
+  assert(skippedTransition.status === 422, "Proposal status skipped the sent step.");
+  const sentProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "sent" }) });
+  assert(sentProposal.ok, "Sent proposal status failed.");
+  const acceptedProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "accepted" }) });
+  assert(acceptedProposal.ok, "Accepted proposal status failed.");
+
   const activityUpdate = await fetch(`${base}/api/admin/activity`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -143,8 +159,9 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.status === "contacted", "Updated status was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.activities?.[0]?.note.includes("confirmed the scope"), "Lead activity was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.id.startsWith("PRO-"), "Draft proposal was not retained on the customer request.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.status === "accepted", "Proposal status progression was not retained.");
 
-  console.log("Smoke tests passed: public pages, forms, admin security, lead workflow, launch settings, cleaner matching and profitable draft proposals.");
+  console.log("Smoke tests passed: public pages, forms, admin security, lead workflow, launch settings, matching, profitable proposals and readiness-gated status transitions.");
 } finally {
   child.kill("SIGTERM");
   await rm(path.join(root, "data", "cleaning-requests.ndjson"), { force: true });
@@ -153,4 +170,5 @@ try {
   await rm(path.join(root, "data", "lead-activity.ndjson"), { force: true });
   await rm(path.join(root, "data", "business-config.json"), { force: true });
   await rm(path.join(root, "data", "match-proposals.ndjson"), { force: true });
+  await rm(path.join(root, "data", "proposal-status.ndjson"), { force: true });
 }

@@ -168,12 +168,13 @@ function isAdminAuthorised(request) {
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals, proposalUpdates] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
     readRecords("lead-activity.ndjson"),
-    readRecords("match-proposals.ndjson")
+    readRecords("match-proposals.ndjson"),
+    readRecords("proposal-status.ndjson")
   ]);
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
@@ -184,9 +185,11 @@ async function getAdminRecords(request, response) {
     activitiesById.set(activity.id, list);
   }
   const proposalsByRequest = new Map();
+  const latestProposalStatuses = new Map();
+  for (const update of proposalUpdates) latestProposalStatuses.set(update.proposalId, update.status);
   for (const proposal of proposals) {
     const list = proposalsByRequest.get(proposal.requestId) || [];
-    list.push(proposal);
+    list.push({ ...proposal, status: latestProposalStatuses.get(proposal.id) || proposal.status || "draft" });
     proposalsByRequest.set(proposal.requestId, list);
   }
   const merge = (record, kind) => {
@@ -199,6 +202,38 @@ async function getAdminRecords(request, response) {
     ...cleaners.map((record) => merge(record, "cleaner"))
   ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   return json(response, 200, { ok: true, records });
+}
+
+async function updateAdminProposalStatus(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const proposalId = text(input.proposalId, 40);
+  const status = text(input.status, 30);
+  const transitions = {
+    draft: new Set(["ready", "cancelled"]),
+    ready: new Set(["draft", "sent", "cancelled"]),
+    sent: new Set(["accepted", "declined", "cancelled"]),
+    accepted: new Set([]),
+    declined: new Set([]),
+    cancelled: new Set([])
+  };
+  const [proposals, updates, config] = await Promise.all([
+    readRecords("match-proposals.ndjson"),
+    readRecords("proposal-status.ndjson"),
+    readJsonFile("business-config.json", {})
+  ]);
+  const proposal = proposals.find((record) => record.id === proposalId);
+  if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
+  let currentStatus = proposal.status || "draft";
+  for (const update of updates) if (update.proposalId === proposalId) currentStatus = update.status;
+  if (!transitions[currentStatus]?.has(status)) return json(response, 422, { ok: false, error: `Proposal cannot move from ${currentStatus} to ${status}.` });
+  if (["ready", "sent", "accepted"].includes(status) && !launchReadiness(config).ready) {
+    return json(response, 422, { ok: false, error: "Complete all six launch-readiness checks before advancing this proposal." });
+  }
+  const update = { proposalId, requestId: proposal.requestId, status, previousStatus: currentStatus, updatedAt: new Date().toISOString() };
+  await saveRecord("proposal-status.ndjson", update);
+  return json(response, 200, { ok: true, proposalId, status });
 }
 
 async function createAdminProposal(request, response) {
@@ -526,6 +561,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/admin/proposals") {
       return await createAdminProposal(request, response);
+    }
+    if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/proposals/status") {
+      return await updateAdminProposalStatus(request, response);
     }
     if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/status") {
       return await updateAdminStatus(request, response);

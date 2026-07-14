@@ -264,6 +264,8 @@ textarea { resize: vertical; }
 .proposal-form button { justify-self: start; }
 .proposal-summary { display: grid; gap: 4px; margin-top: 18px; padding: 15px 16px; color: #fff; border-radius: 11px; background: var(--green); }
 .proposal-summary span { color: #d8eee8; font-size: .83rem; }
+.proposal-summary label { max-width: 360px; margin-top: 8px; color: #fff; }
+.proposal-summary select { padding-block: .55rem; }
 .admin-guidance { margin-top: 28px; padding: 28px; color: #fff; border-radius: 20px; background: var(--green-dark); }
 .admin-guidance h2 { font-size: 1.55rem; }
 .admin-guidance ol { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin: 0; padding-left: 22px; }

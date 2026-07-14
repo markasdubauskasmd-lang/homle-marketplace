@@ -226,6 +226,23 @@ async function findMatches(record, results, button) {
   }
 }
 
+async function changeProposalStatus(proposal, select) {
+  const previous = proposal.status;
+  select.disabled = true;
+  try {
+    const response = await fetch("/api/admin/proposals/status", { method: "PATCH", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify({ proposalId: proposal.id, status: select.value }) });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Proposal status could not be saved.");
+    proposal.status = result.status;
+    await loadRecords();
+  } catch (error) {
+    select.value = previous;
+    showAdminError(error.message);
+  } finally {
+    select.disabled = false;
+  }
+}
+
 async function changeStatus(record, select) {
   const previous = record.status;
   select.disabled = true;
@@ -304,9 +321,38 @@ function buildCard(record) {
     const proposal = record.proposals[0];
     const proposalSummary = document.createElement("div");
     proposalSummary.className = "proposal-summary";
-    addText(proposalSummary, "strong", `Draft proposal · ${proposal.cleanerName}`);
+    const proposalDisplayLabels = { draft: "Draft proposal", ready: "Ready proposal", sent: "Sent proposal", accepted: "Accepted proposal", declined: "Declined proposal", cancelled: "Cancelled proposal" };
+    addText(proposalSummary, "strong", `${proposalDisplayLabels[proposal.status] || "Proposal"} · ${proposal.cleanerName}`);
     addText(proposalSummary, "span", `${proposal.proposedDate} · ${proposal.estimatedHours} hours · ${money.format(proposal.customerTotal)} customer total`);
     addText(proposalSummary, "span", `${money.format(proposal.cleanerPay)} cleaner pay · ${money.format(proposal.contribution)} contribution · ${proposal.marginPercent.toFixed(1)}% margin`);
+    const proposalStatusLabel = document.createElement("label");
+    proposalStatusLabel.append(document.createTextNode("Internal proposal status"));
+    const proposalStatus = document.createElement("select");
+    proposalStatus.setAttribute("aria-label", `Proposal status for ${proposal.id}`);
+    const proposalStatusOptions = {
+      draft: "Draft",
+      ready: "Ready to send — internally approved",
+      sent: "Sent manually",
+      accepted: "Accepted by both sides",
+      declined: "Declined",
+      cancelled: "Cancelled"
+    };
+    const allowedByCurrent = {
+      draft: ["draft", "ready", "cancelled"],
+      ready: ["ready", "draft", "sent", "cancelled"],
+      sent: ["sent", "accepted", "declined", "cancelled"],
+      accepted: ["accepted"], declined: ["declined"], cancelled: ["cancelled"]
+    };
+    for (const status of allowedByCurrent[proposal.status] || [proposal.status]) {
+      const option = document.createElement("option");
+      option.value = status;
+      option.textContent = proposalStatusOptions[status] || status;
+      option.selected = status === proposal.status;
+      proposalStatus.append(option);
+    }
+    proposalStatus.addEventListener("change", () => changeProposalStatus(proposal, proposalStatus));
+    proposalStatusLabel.append(proposalStatus);
+    proposalSummary.append(proposalStatusLabel);
     card.append(proposalSummary);
   }
 

@@ -22,6 +22,7 @@ Then open `http://127.0.0.1:4173`.
 - Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance and operating rules
 - Human-reviewed matching suggestions using approved cleaners, requested service type and postcode coverage
 - Internal draft proposals that link a request to an approved cleaner and reject loss-making job economics
+- Proposal status gates that prevent a draft becoming ready, sent or accepted until all six launch checks pass
 - Private data backup script and documented recovery procedure
 - Responsive, accessible website
 - Draft privacy notice and pilot terms
