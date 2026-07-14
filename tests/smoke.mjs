@@ -265,6 +265,30 @@ try {
   });
   assert(cleanerApproval.ok, "Cleaner approval status failed.");
 
+  const noAvailabilityMatches = await fetch(`${base}/api/admin/matches?requestId=${requestBody.reference}`);
+  const noAvailabilityMatchesBody = await noAvailabilityMatches.json();
+  assert(noAvailabilityMatches.ok && noAvailabilityMatchesBody.matches.length === 0, "Matching returned a cleaner without a structured confirmed availability window.");
+  const noAvailabilityProposal = await fetch(`${base}/api/admin/proposals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", proposedStartTime: "09:00", estimatedHours: 4, customerRate: 30, cleanerRate: 18, otherCosts: 10 }) });
+  assert(noAvailabilityProposal.status === 422, "A proposal was created without confirmed cleaner availability.");
+  const unverifiedAvailability = await fetch(`${base}/api/admin/cleaner-availability`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, availableDate: "2026-07-20", startTime: "08:00", endTime: "15:00", confirmationNote: "short" }) });
+  assert(unverifiedAvailability.status === 422, "Cleaner availability was recorded without a meaningful confirmation note.");
+  const availabilityWindows = [
+    { availableDate: "2026-07-20", startTime: "08:00", endTime: "15:00" },
+    { availableDate: "2026-07-22", startTime: "08:00", endTime: "13:00" },
+    { availableDate: "2026-07-23", startTime: "08:00", endTime: "13:00" }
+  ];
+  let activeSlot20Id = "";
+  for (const window of availabilityWindows) {
+    const savedWindow = await fetch(`${base}/api/admin/cleaner-availability`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, ...window, confirmationNote: "Test-only cleaner confirmation recorded for this exact window." }) });
+    const savedWindowBody = await savedWindow.json();
+    assert(savedWindow.status === 201 && savedWindowBody.slot.status === "active", `Confirmed availability window ${window.availableDate} was not saved.`);
+    if (window.availableDate === "2026-07-20") activeSlot20Id = savedWindowBody.slot.id;
+  }
+  const overlappingAvailability = await fetch(`${base}/api/admin/cleaner-availability`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, availableDate: "2026-07-20", startTime: "10:00", endTime: "16:00", confirmationNote: "Test-only overlapping availability confirmation window." }) });
+  assert(overlappingAvailability.status === 409, "Overlapping confirmed availability windows were accepted.");
+  const outsideAvailabilityProposal = await fetch(`${base}/api/admin/proposals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", proposedStartTime: "14:00", estimatedHours: 2, customerRate: 30, cleanerRate: 18, otherCosts: 0 }) });
+  assert(outsideAvailabilityProposal.status === 422, "A proposal extended beyond the cleaner's confirmed availability window.");
+
   const unscannedRequest = await fetch(`${base}/api/cleaning-requests`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -288,7 +312,7 @@ try {
   const matching = await fetch(`${base}/api/admin/matches?requestId=${requestBody.reference}`);
   const matchingBody = await matching.json();
   assert(matching.ok && matchingBody.matches.length === 1, "Approved cleaner match was not returned.");
-  assert(matchingBody.matches[0].score === 100 && matchingBody.matches[0].coverage === "Postcode listed", "Cleaner match score was incorrect.");
+  assert(matchingBody.matches[0].score === 100 && matchingBody.matches[0].coverage === "Postcode listed" && matchingBody.matches[0].availabilitySlots.length === 3, "Cleaner match score or confirmed availability windows were incorrect.");
 
   const losingProposal = await fetch(`${base}/api/admin/proposals`, {
     method: "POST",
@@ -378,6 +402,16 @@ try {
   assert(underScopedProposal.status === 201, "Internal under-scoped draft could not be created for the reviewed-hours gate test.");
   const underScopedReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: underScopedProposalBody.proposal.id, status: "ready" }) });
   assert(underScopedReady.status === 422, "Proposal advanced with fewer hours than the reviewed room-scan estimate.");
+  const withdrawnAvailability = await fetch(`${base}/api/admin/cleaner-availability`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, slotId: activeSlot20Id, note: "Test-only withdrawal before proposal approval." }) });
+  assert(withdrawnAvailability.ok, "Confirmed availability could not be withdrawn.");
+  const duplicateWithdrawal = await fetch(`${base}/api/admin/cleaner-availability`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, slotId: activeSlot20Id, note: "Test-only duplicate withdrawal should be blocked." }) });
+  assert(duplicateWithdrawal.status === 409, "An already-withdrawn availability window was withdrawn again.");
+  const availabilityBlockedReady = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
+  assert(availabilityBlockedReady.status === 422, "Proposal advanced after its cleaner availability window was withdrawn.");
+  const restoredAvailability = await fetch(`${base}/api/admin/cleaner-availability`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, availableDate: "2026-07-20", startTime: "08:00", endTime: "15:00", confirmationNote: "Test-only cleaner reconfirmed this exact availability window." }) });
+  const restoredAvailabilityBody = await restoredAvailability.json();
+  assert(restoredAvailability.status === 201, "A withdrawn cleaner availability window could not be safely reconfirmed.");
+  activeSlot20Id = restoredAvailabilityBody.slot.id;
   const readyProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
   assert(readyProposal.ok, "Ready proposal status failed after launch checks passed.");
   const quotePreview = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
@@ -476,6 +510,20 @@ try {
   assert(wrongCleanerName.status === 422, "Cleaner opportunity accepted a mismatched application name.");
   const incompleteCleanerDecision = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": proposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Cleaner", scopeConfirmed: true, payConfirmed: true, availabilityConfirmed: false }) });
   assert(incompleteCleanerDecision.status === 422, "Cleaner opportunity accepted without scope, pay and availability confirmations.");
+  const availabilityWithdrawnBeforeDecision = await fetch(`${base}/api/admin/cleaner-availability`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, slotId: activeSlot20Id, note: "Test-only withdrawal before cleaner decision." }) });
+  assert(availabilityWithdrawnBeforeDecision.ok, "Availability could not be withdrawn before the cleaner decision test.");
+  const unavailableOpportunity = await fetch(`${base}/api/opportunity`, { headers: { "x-opportunity-token": proposalBody.proposal.cleanerReviewToken } });
+  const unavailableOpportunityBody = await unavailableOpportunity.json();
+  assert(unavailableOpportunity.ok && unavailableOpportunityBody.opportunity.availabilityChanged === true && unavailableOpportunityBody.opportunity.decisionAllowed === false, "Withdrawn availability did not close the private cleaner opportunity clearly.");
+  const unavailableTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const unavailableTrackerBody = await unavailableTracker.json();
+  assert(unavailableTracker.ok && unavailableTrackerBody.current.stage === "rematching" && unavailableTrackerBody.current.headline === "Cleaner availability changed", "Customer tracker did not move to safe rematching after availability withdrawal.");
+  const staleAvailabilityDecision = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": proposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Cleaner", scopeConfirmed: true, payConfirmed: true, availabilityConfirmed: true }) });
+  assert(staleAvailabilityDecision.status === 409, "Cleaner accepted an opportunity after the confirmed availability window was withdrawn.");
+  const reverifiedAvailability = await fetch(`${base}/api/admin/cleaner-availability`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, availableDate: "2026-07-20", startTime: "08:00", endTime: "15:00", confirmationNote: "Test-only availability reverified before cleaner acceptance." }) });
+  const reverifiedAvailabilityBody = await reverifiedAvailability.json();
+  assert(reverifiedAvailability.status === 201, "Cleaner availability could not be reverified before acceptance.");
+  activeSlot20Id = reverifiedAvailabilityBody.slot.id;
   const acceptedCleaner = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": proposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Cleaner", scopeConfirmed: true, payConfirmed: true, availabilityConfirmed: true }) });
   const acceptedCleanerBody = await acceptedCleaner.json();
   assert(acceptedCleaner.ok && acceptedCleanerBody.status === "accepted", "Audited private cleaner acceptance failed.");
@@ -635,8 +683,9 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
+  assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.cleanerAvailability?.length === 3, "Active confirmed availability windows were not attached to the cleaner control-desk record.");
 
-  console.log("Smoke tests passed: public pages, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, admin security, pricing controls, exact job schedules, frozen offer deadlines, stale-decision protection, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, pricing controls, exact job schedules, frozen offer deadlines, stale-decision protection, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

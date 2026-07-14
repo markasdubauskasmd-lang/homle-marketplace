@@ -29,9 +29,11 @@ Then open `http://127.0.0.1:4173`.
 - Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules
 - Founder-configured outward-postcode enforcement that blocks out-of-area matching, proposal use and booking readiness
 - Human-reviewed matching suggestions using fully screened approved cleaners, requested service type and postcode coverage
+- Append-only cleaner availability windows with evidence notes and auditable withdrawal; matching returns only approved cleaners with a future confirmed window, and proposals must fit fully inside one
 - Internal draft proposals that link a request to an approved cleaner and reject work below the minimum hours, loss-making economics or a below-target contribution margin
 - Exact proposal start and calculated finish times, with past-date and same-day duration validation
 - Atomic schedule-conflict protection that prevents one cleaner accepting or booking overlapping work, including legacy booking records
+- Availability is rechecked when a proposal advances, either side decides and the booking is written; withdrawal closes affected private decisions and moves the customer tracker safely back to rematching
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until launch checks, pilot coverage and the latest job-brief review pass
 - Scan-to-quote duration protection blocks any proposal below the reviewed room-scan hours, even when its calculated contribution and margin would otherwise pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability

@@ -156,6 +156,27 @@ async function saveDecisionOnce(filename, proposalId, record) {
     }
     const duplicate = existing.some((item) => item.proposalId === proposalId && (!record.source || item.source === record.source));
     if (duplicate) throw Object.assign(new Error("This private decision has already been recorded."), { statusCode: 409 });
+    if (record.source === "customer-private-quote") {
+      const [proposals, availabilityEvents] = await Promise.all([
+        readRecords("match-proposals.ndjson"),
+        readRecords("cleaner-availability.ndjson")
+      ]);
+      const proposal = proposals.find((item) => item.id === proposalId);
+      if (!proposal) throw Object.assign(new Error("This cleaning proposal could not be found."), { statusCode: 404 });
+      let proposalStatus = proposal.status || "draft";
+      let quoteSnapshot = null;
+      for (const update of existing) {
+        if (update.proposalId !== proposalId) continue;
+        proposalStatus = update.status;
+        if (update.quoteSnapshot) quoteSnapshot = update.quoteSnapshot;
+      }
+      if (proposalStatus !== "sent" || !offerIsOpen(quoteSnapshot?.offerExpiresAt)) {
+        throw Object.assign(new Error("This quote is no longer awaiting a decision."), { statusCode: 409 });
+      }
+      if (record.status === "accepted" && !findCleanerAvailabilitySlot(proposal.cleanerId, proposal, availabilityEvents)) {
+        throw Object.assign(new Error("The proposed cleaner no longer has confirmed availability covering this visit."), { statusCode: 409 });
+      }
+    }
     await appendFile(path.join(dataDir, filename), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
   });
   writeQueue = operation;
@@ -165,11 +186,12 @@ async function saveDecisionOnce(filename, proposalId, record) {
 async function saveCleanerDecisionOnce(record) {
   const operation = writeQueue.catch(() => {}).then(async () => {
     await mkdir(dataDir, { recursive: true });
-    const [proposals, proposalUpdates, decisions, bookings] = await Promise.all([
+    const [proposals, proposalUpdates, decisions, bookings, availabilityEvents] = await Promise.all([
       readRecords("match-proposals.ndjson"),
       readRecords("proposal-status.ndjson"),
       readRecords("cleaner-opportunity-decisions.ndjson"),
-      readRecords("bookings.ndjson")
+      readRecords("bookings.ndjson"),
+      readRecords("cleaner-availability.ndjson")
     ]);
     if (decisions.some((item) => item.proposalId === record.proposalId)) {
       throw Object.assign(new Error("This private decision has already been recorded."), { statusCode: 409 });
@@ -177,11 +199,20 @@ async function saveCleanerDecisionOnce(record) {
     const proposal = proposals.find((item) => item.id === record.proposalId);
     if (!proposal) throw Object.assign(new Error("This cleaning opportunity could not be found."), { statusCode: 404 });
     let proposalStatus = proposal.status || "draft";
-    for (const update of proposalUpdates) if (update.proposalId === proposal.id) proposalStatus = update.status;
+    let opportunitySnapshot = null;
+    for (const update of proposalUpdates) {
+      if (update.proposalId !== proposal.id) continue;
+      proposalStatus = update.status;
+      if (update.cleanerOpportunitySnapshot) opportunitySnapshot = update.cleanerOpportunitySnapshot;
+    }
     if (!["sent", "accepted"].includes(proposalStatus)) {
       throw Object.assign(new Error("This opportunity is no longer awaiting a decision."), { statusCode: 409 });
     }
+    if (!offerIsOpen(opportunitySnapshot?.offerExpiresAt)) throw Object.assign(new Error("This opportunity's response window has ended."), { statusCode: 409 });
     if (record.status === "accepted") {
+      if (!findCleanerAvailabilitySlot(proposal.cleanerId, proposal, availabilityEvents)) {
+        throw Object.assign(new Error("This cleaner no longer has a confirmed availability window covering the proposed visit."), { statusCode: 409 });
+      }
       const conflict = findCleanerScheduleConflict(proposal, proposals, proposalUpdates, decisions, bookings);
       if (conflict) throw Object.assign(new Error(`This cleaner already has accepted work that overlaps this time (${conflict.id}).`), { statusCode: 409 });
     }
@@ -191,12 +222,37 @@ async function saveCleanerDecisionOnce(record) {
   return operation;
 }
 
+async function saveCleanerAvailabilityEvent(event) {
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    const existing = await readRecords("cleaner-availability.ndjson");
+    const active = activeCleanerAvailability(existing);
+    if (event.action === "confirmed") {
+      const schedule = availabilitySlotSchedule(event);
+      const overlap = active.find((slot) => slot.cleanerId === event.cleanerId && schedulesOverlap(schedule, availabilitySlotSchedule(slot)));
+      if (overlap) throw Object.assign(new Error(`This availability overlaps the active window ${overlap.id}.`), { statusCode: 409 });
+    } else if (event.action === "withdrawn") {
+      const current = active.find((slot) => slot.id === event.slotId && slot.cleanerId === event.cleanerId);
+      if (!current) throw Object.assign(new Error("This availability window is already withdrawn or could not be found."), { statusCode: 409 });
+    }
+    await appendFile(path.join(dataDir, "cleaner-availability.ndjson"), `${JSON.stringify(event)}\n`, { encoding: "utf8", mode: 0o600 });
+  });
+  writeQueue = operation;
+  return operation;
+}
+
 async function saveBookingOnce(booking) {
   const operation = writeQueue.catch(() => {}).then(async () => {
     await mkdir(dataDir, { recursive: true });
-    const bookings = await readRecords("bookings.ndjson");
+    const [bookings, availabilityEvents] = await Promise.all([
+      readRecords("bookings.ndjson"),
+      readRecords("cleaner-availability.ndjson")
+    ]);
     if (bookings.some((item) => item.requestId === booking.requestId || item.proposalId === booking.proposalId)) {
       throw Object.assign(new Error("A booking is already recorded for this request or proposal."), { statusCode: 409 });
+    }
+    if (!findCleanerAvailabilitySlot(booking.cleanerId, booking, availabilityEvents)) {
+      throw Object.assign(new Error("The cleaner's confirmed availability no longer covers this visit."), { statusCode: 409 });
     }
     await appendFile(path.join(dataDir, "bookings.ndjson"), `${JSON.stringify(booking)}\n`, { encoding: "utf8", mode: 0o600 });
   });
@@ -383,6 +439,39 @@ function jobSchedule(record) {
   return { proposedDate, proposedStartTime, proposedEndTime, startMs, endMs };
 }
 
+function availabilitySlotSchedule(record) {
+  const availableDate = text(record?.availableDate, 20);
+  const startTime = text(record?.startTime, 10);
+  const endTime = text(record?.endTime, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(availableDate) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(endTime)) return null;
+  const [year, month, day] = availableDate.split("-").map(Number);
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  const [endHour, endMinute] = endTime.split(":").map(Number);
+  const startMs = Date.UTC(year, month - 1, day, startHour, startMinute);
+  const endMs = Date.UTC(year, month - 1, day, endHour, endMinute);
+  const parsed = new Date(startMs);
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day || endMs <= startMs) return null;
+  return { proposedDate: availableDate, proposedStartTime: startTime, proposedEndTime: endTime, startMs, endMs };
+}
+
+function activeCleanerAvailability(events, cleanerId = "") {
+  const slots = new Map();
+  for (const event of events) {
+    if (event.action === "confirmed" && availabilitySlotSchedule(event)) slots.set(event.id, { ...event, status: "active" });
+    if (event.action === "withdrawn" && slots.has(event.slotId)) slots.set(event.slotId, { ...slots.get(event.slotId), status: "withdrawn", withdrawalNote: event.note, withdrawnAt: event.updatedAt });
+  }
+  return [...slots.values()].filter((slot) => slot.status === "active" && (!cleanerId || slot.cleanerId === cleanerId)).sort((left, right) => left.availableDate.localeCompare(right.availableDate) || left.startTime.localeCompare(right.startTime));
+}
+
+function findCleanerAvailabilitySlot(cleanerId, record, events) {
+  const proposed = jobSchedule(record);
+  if (!proposed) return null;
+  return activeCleanerAvailability(events, cleanerId).find((slot) => {
+    const available = availabilitySlotSchedule(slot);
+    return available && available.startMs <= proposed.startMs && available.endMs >= proposed.endMs;
+  }) || null;
+}
+
 function schedulesOverlap(left, right) {
   return left.startMs < right.endMs && right.startMs < left.endMs;
 }
@@ -471,7 +560,7 @@ function isAdminAuthorised(request) {
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, bookingChanges, bookingChangeUpdates, jobEvents, config] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, bookingChanges, bookingChangeUpdates, jobEvents, config, availabilityEvents] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
@@ -487,7 +576,8 @@ async function getAdminRecords(request, response) {
     readRecords("booking-change-requests.ndjson"),
     readRecords("booking-change-status.ndjson"),
     readRecords("job-events.ndjson"),
-    readJsonFile("business-config.json", {})
+    readJsonFile("business-config.json", {}),
+    readRecords("cleaner-availability.ndjson")
   ]);
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
@@ -532,8 +622,9 @@ async function getAdminRecords(request, response) {
     const outcome = booking ? outcomesByBooking.get(booking.id) || null : null;
     const leadBriefs = kind === "request" ? (briefsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 5) : [];
     const screening = kind === "cleaner" ? latestCleanerScreening(record.id, screenings) : null;
+    const cleanerAvailability = kind === "cleaner" ? activeCleanerAvailability(availabilityEvents, record.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > Date.now()) : [];
     const pilotCoverage = kind === "request" ? pilotPostcodeCoverage(record.postcode, config.pilotPostcodes) : null;
-    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, pilotCoverage, booking, outcome };
+    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, cleanerAvailability, pilotCoverage, booking, outcome };
   };
   const records = [
     ...requests.map((record) => merge(record, "request")),
@@ -563,6 +654,49 @@ async function updateAdminCleanerScreening(request, response) {
   };
   await saveRecord("cleaner-screening.ndjson", screening);
   return json(response, 200, { ok: true, screening });
+}
+
+async function createAdminCleanerAvailability(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const cleanerId = text(input.cleanerId, 40);
+  const availableDate = text(input.availableDate, 20);
+  const startTime = text(input.startTime, 10);
+  const endTime = text(input.endTime, 10);
+  const confirmationNote = text(input.confirmationNote, 500);
+  const schedule = availabilitySlotSchedule({ availableDate, startTime, endTime });
+  if (!schedule || schedule.endMs <= Date.now()) return json(response, 422, { ok: false, error: "Add a valid future availability window with an end time after its start time." });
+  if (confirmationNote.length < 10) return json(response, 422, { ok: false, error: "Add a confirmation note of at least 10 characters explaining how this availability was verified." });
+  const [cleaners, updates, screenings] = await Promise.all([
+    readRecords("cleaner-applications.ndjson"),
+    readRecords("status-updates.ndjson"),
+    readRecords("cleaner-screening.ndjson")
+  ]);
+  const cleaner = cleaners.find((record) => record.id === cleanerId);
+  if (!cleaner) return json(response, 404, { ok: false, error: "Cleaner application not found." });
+  let cleanerStatus = cleaner.status || "new";
+  for (const update of updates) if (update.id === cleanerId) cleanerStatus = update.status;
+  if (cleanerStatus !== "approved" || !latestCleanerScreening(cleanerId, screenings)?.complete) {
+    return json(response, 422, { ok: false, error: "Only a fully screened, approved cleaner can receive confirmed availability windows." });
+  }
+  const slot = { id: `AVL-${randomUUID().slice(0, 8).toUpperCase()}`, cleanerId, action: "confirmed", status: "active", availableDate, startTime, endTime, confirmationNote, createdAt: new Date().toISOString() };
+  await saveCleanerAvailabilityEvent(slot);
+  return json(response, 201, { ok: true, slot });
+}
+
+async function withdrawAdminCleanerAvailability(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const cleanerId = text(input.cleanerId, 40);
+  const slotId = text(input.slotId, 40);
+  const note = text(input.note, 500);
+  if (!cleanerId || !slotId) return json(response, 422, { ok: false, error: "Cleaner and availability window are required." });
+  if (note.length < 10) return json(response, 422, { ok: false, error: "Add a withdrawal note of at least 10 characters." });
+  const event = { slotId, cleanerId, action: "withdrawn", status: "withdrawn", note, updatedAt: new Date().toISOString() };
+  await saveCleanerAvailabilityEvent(event);
+  return json(response, 200, { ok: true, slotId, status: "withdrawn", updatedAt: event.updatedAt });
 }
 
 async function updateAdminJobBriefStatus(request, response) {
@@ -621,7 +755,7 @@ async function updateAdminProposalStatus(request, response) {
     declined: new Set([]),
     cancelled: new Set([])
   };
-  const [proposals, updates, config, briefs, briefUpdates, customerRequests, cleaners, cleanerUpdates, screenings, cleanerDecisions, bookings] = await Promise.all([
+  const [proposals, updates, config, briefs, briefUpdates, customerRequests, cleaners, cleanerUpdates, screenings, cleanerDecisions, bookings, availabilityEvents] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readJsonFile("business-config.json", {}),
@@ -632,7 +766,8 @@ async function updateAdminProposalStatus(request, response) {
     readRecords("status-updates.ndjson"),
     readRecords("cleaner-screening.ndjson"),
     readRecords("cleaner-opportunity-decisions.ndjson"),
-    readRecords("bookings.ndjson")
+    readRecords("bookings.ndjson"),
+    readRecords("cleaner-availability.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
@@ -656,6 +791,9 @@ async function updateAdminProposalStatus(request, response) {
   }
   if (["ready", "sent"].includes(status) && requiredService && !cleaner.services?.includes(requiredService)) {
     return json(response, 422, { ok: false, error: "The proposed cleaner is not approved for this service." });
+  }
+  if (["ready", "sent"].includes(status) && !findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)) {
+    return json(response, 422, { ok: false, error: "The proposed visit is not fully covered by an active, confirmed cleaner availability window." });
   }
   const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
   if (["ready", "sent", "accepted"].includes(status) && !pilotCoverage.covered) {
@@ -742,7 +880,7 @@ async function updateAdminProposalStatus(request, response) {
 
 async function getQuoteContext(token) {
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return { ok: false, statusCode: 404, error: "This private quote link is invalid." };
-  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, screenings, cleanerDecisions, bookings, config, briefs, briefUpdates] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, screenings, cleanerDecisions, bookings, config, briefs, briefUpdates, availabilityEvents] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
@@ -753,7 +891,8 @@ async function getQuoteContext(token) {
     readRecords("bookings.ndjson"),
     readJsonFile("business-config.json", {}),
     readRecords("job-briefs.ndjson"),
-    readRecords("job-brief-status.ndjson")
+    readRecords("job-brief-status.ndjson"),
+    readRecords("cleaner-availability.ndjson")
   ]);
   const proposal = proposals.find((record) => record.reviewToken === token);
   if (!proposal) return { ok: false, statusCode: 404, error: "This private quote link is invalid." };
@@ -780,6 +919,7 @@ async function getQuoteContext(token) {
     cleanerApproved: cleanerStatus === "approved",
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
+    availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
     scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
@@ -830,6 +970,7 @@ function publicQuote(context) {
       legalBusinessName: displayed.legalBusinessName,
       offerExpiresAt: displayed.offerExpiresAt || "",
       expired: proposalStatus === "sent" && !offerIsOpen(displayed.offerExpiresAt),
+      availabilityChanged: proposalStatus === "sent" && !readyChecks.availabilityCovered,
       checklist: latestBrief?.status === "reviewed" ? latestBrief.checklist : [],
       decisionAllowed: proposalStatus === "sent" && offerIsOpen(displayed.offerExpiresAt) && Object.values(readyChecks).every(Boolean),
       decision: latestDecision ? { status: latestDecision.status, decidedAt: latestDecision.updatedAt, typedName: latestDecision.typedName } : null
@@ -900,7 +1041,7 @@ async function decidePrivateQuote(request, response) {
 
 async function getCleanerOpportunityContext(token) {
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return { ok: false, statusCode: 404, error: "This private opportunity link is invalid." };
-  const [proposals, proposalUpdates, decisions, bookings, customerRequests, cleaners, cleanerUpdates, screenings, config, briefs, briefUpdates] = await Promise.all([
+  const [proposals, proposalUpdates, decisions, bookings, customerRequests, cleaners, cleanerUpdates, screenings, config, briefs, briefUpdates, availabilityEvents] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaner-opportunity-decisions.ndjson"),
@@ -911,7 +1052,8 @@ async function getCleanerOpportunityContext(token) {
     readRecords("cleaner-screening.ndjson"),
     readJsonFile("business-config.json", {}),
     readRecords("job-briefs.ndjson"),
-    readRecords("job-brief-status.ndjson")
+    readRecords("job-brief-status.ndjson"),
+    readRecords("cleaner-availability.ndjson")
   ]);
   const proposal = proposals.find((record) => record.cleanerReviewToken === token);
   if (!proposal) return { ok: false, statusCode: 404, error: "This private opportunity link is invalid." };
@@ -937,6 +1079,7 @@ async function getCleanerOpportunityContext(token) {
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
+    availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
     scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
     profitable: proposal.contribution > 0,
@@ -994,6 +1137,7 @@ function publicCleanerOpportunity(context) {
       supportPhone: displayed.supportPhone,
       offerExpiresAt: displayed.offerExpiresAt || "",
       expired: ["sent", "accepted"].includes(proposalStatus) && !decision && !offerIsOpen(displayed.offerExpiresAt),
+      availabilityChanged: ["sent", "accepted"].includes(proposalStatus) && !decision && !readyChecks.availabilityCovered,
       decisionAllowed: ["sent", "accepted"].includes(proposalStatus) && !decision && offerIsOpen(displayed.offerExpiresAt) && Object.values(readyChecks).every(Boolean),
       decision: decision ? { status: decision.status, decidedAt: decision.updatedAt, typedName: decision.typedName } : null
     }
@@ -1064,14 +1208,15 @@ async function decidePrivateCleanerOpportunity(request, response) {
 
 async function getAdminProposalDrafts(request, response, proposalId) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [proposals, proposalUpdates, customerRequests, cleaners, config, briefs, briefUpdates] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, config, briefs, briefUpdates, availabilityEvents] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readJsonFile("business-config.json", {}),
     readRecords("job-briefs.ndjson"),
-    readRecords("job-brief-status.ndjson")
+    readRecords("job-brief-status.ndjson"),
+    readRecords("cleaner-availability.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
@@ -1104,6 +1249,8 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
   if (!config.paymentTiming) warnings.push("Add the customer payment timing.");
   if (!config.supportEmail || !config.supportPhone) warnings.push("Add verified support contact details.");
+  const availabilityCovered = Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents));
+  if (!availabilityCovered) warnings.push("The proposed time is no longer covered by an active, confirmed cleaner availability window.");
   if (proposalStatus === "sent" && !offerIsOpen(quoteSnapshot?.offerExpiresAt)) warnings.push("The customer quote response window has ended; prepare a newly reviewed proposal instead of reusing this draft.");
   if (["sent", "accepted"].includes(proposalStatus) && !offerIsOpen(opportunitySnapshot?.offerExpiresAt)) warnings.push("The cleaner opportunity response window has ended; recheck availability before issuing a new opportunity.");
 
@@ -1161,7 +1308,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     ok: true,
     proposalId,
     proposalStatus,
-    sendAllowed: readiness.ready && pilotCoverage.covered && briefReviewed && scanHoursCovered && ["ready", "sent", "accepted"].includes(proposalStatus),
+    sendAllowed: readiness.ready && pilotCoverage.covered && briefReviewed && scanHoursCovered && availabilityCovered && ["ready", "sent", "accepted"].includes(proposalStatus),
     warnings,
     customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody },
     cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody }
@@ -1169,7 +1316,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
 }
 
 async function buildBookingAudit(proposalId) {
-  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config, briefs, briefUpdates, screenings, cleanerDecisions, bookings] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config, briefs, briefUpdates, screenings, cleanerDecisions, bookings, availabilityEvents] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
@@ -1180,7 +1327,8 @@ async function buildBookingAudit(proposalId) {
     readRecords("job-brief-status.ndjson"),
     readRecords("cleaner-screening.ndjson"),
     readRecords("cleaner-opportunity-decisions.ndjson"),
-    readRecords("bookings.ndjson")
+    readRecords("bookings.ndjson"),
+    readRecords("cleaner-availability.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return { statusCode: 404, error: "Proposal not found." };
@@ -1214,6 +1362,7 @@ async function buildBookingAudit(proposalId) {
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
+    availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
@@ -1418,7 +1567,7 @@ async function getPrivateBookingPhoto(request, response, imageId) {
 async function getPrivateRequestStatus(request, response) {
   const token = text(request.headers["x-request-token"], 80);
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private request link is invalid." });
-  const [requests, statusUpdates, briefs, briefUpdates, proposals, proposalUpdates, cleanerDecisions, bookings, outcomes, jobEvents] = await Promise.all([
+  const [requests, statusUpdates, briefs, briefUpdates, proposals, proposalUpdates, cleanerDecisions, bookings, outcomes, jobEvents, availabilityEvents] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("status-updates.ndjson"),
     readRecords("job-briefs.ndjson"),
@@ -1428,7 +1577,8 @@ async function getPrivateRequestStatus(request, response) {
     readRecords("cleaner-opportunity-decisions.ndjson"),
     readRecords("bookings.ndjson"),
     readRecords("job-outcomes.ndjson"),
-    readRecords("job-events.ndjson")
+    readRecords("job-events.ndjson"),
+    readRecords("cleaner-availability.ndjson")
   ]);
   const customerRequest = requests.find((record) => record.customerStatusToken === token);
   if (!customerRequest) return json(response, 404, { ok: false, error: "This private request link is invalid." });
@@ -1456,6 +1606,9 @@ async function getPrivateRequestStatus(request, response) {
   const jobProgress = booking ? bookingJobProgress(booking.id, jobEvents) : {};
   const quoteExpired = proposal?.status === "sent" && !offerIsOpen(proposal.quoteExpiresAt);
   const cleanerOfferExpired = proposal?.status === "accepted" && !cleanerDecision && !offerIsOpen(proposal.cleanerExpiresAt);
+  const proposalAvailabilityCovered = proposal ? Boolean(findCleanerAvailabilitySlot(proposal.cleanerId, proposal, availabilityEvents)) : false;
+  const quoteAvailabilityLost = proposal?.status === "sent" && !proposalAvailabilityCovered;
+  const cleanerAvailabilityLost = proposal?.status === "accepted" && !cleanerDecision && !proposalAvailabilityCovered;
 
   let currentStage = "room-scan";
   let headline = "Complete the room scan";
@@ -1477,6 +1630,10 @@ async function getPrivateRequestStatus(request, response) {
     currentStage = "quote-preparation";
     headline = "Quote being prepared";
     nextAction = "Tideway is checking the schedule, cleaner and job economics before making the quote available.";
+  } else if (quoteAvailabilityLost) {
+    currentStage = "rematching";
+    headline = "Cleaner availability changed";
+    nextAction = "Tideway must recheck availability and issue a newly controlled proposal before you can decide.";
   } else if (quoteExpired) {
     currentStage = "quote-expired";
     headline = "Quote response window ended";
@@ -1498,6 +1655,10 @@ async function getPrivateRequestStatus(request, response) {
     currentStage = "rematching";
     headline = "Cleaner unavailable — rematching required";
     nextAction = "Tideway must select another screened cleaner and issue a new controlled opportunity before booking.";
+  } else if (cleanerAvailabilityLost) {
+    currentStage = "rematching";
+    headline = "Cleaner availability changed";
+    nextAction = "Tideway must select a confirmed available cleaner before the booking can proceed.";
   } else if (cleanerOfferExpired) {
     currentStage = "rematching";
     headline = "Cleaner response window ended";
@@ -1560,7 +1721,7 @@ async function getPrivateRequestStatus(request, response) {
     visit: booking ? { reference: booking.id, proposedDate: booking.proposedDate, proposedStartTime: booking.proposedStartTime, proposedEndTime: booking.proposedEndTime, jobProgress } : null,
     links: {
       roomScanRequired: !latestBrief || latestBrief.status === "needs-revision",
-      quoteToken: proposal && ["sent", "accepted"].includes(proposal.status) && !quoteExpired ? proposal.reviewToken : "",
+      quoteToken: proposal && ["sent", "accepted"].includes(proposal.status) && !quoteExpired && !quoteAvailabilityLost ? proposal.reviewToken : "",
       bookingToken: booking?.customerViewToken || ""
     }
   });
@@ -1739,12 +1900,13 @@ async function createAdminProposal(request, response) {
   if (proposedDate && proposedStartTime && estimatedHours > 0 && !schedule) errors.push("The proposed cleaning must start and finish on a valid calendar date.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
-  const [requests, cleaners, updates, config, screenings] = await Promise.all([
+  const [requests, cleaners, updates, config, screenings, availabilityEvents] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
     readJsonFile("business-config.json", {}),
-    readRecords("cleaner-screening.ndjson")
+    readRecords("cleaner-screening.ndjson"),
+    readRecords("cleaner-availability.ndjson")
   ]);
   const customerRequest = requests.find((record) => record.id === requestId);
   const cleaner = cleaners.find((record) => record.id === cleanerId);
@@ -1756,6 +1918,7 @@ async function createAdminProposal(request, response) {
   if (config.minimumHours > 0 && estimatedHours < config.minimumHours) return json(response, 422, { ok: false, error: `Estimated hours must meet the ${config.minimumHours}-hour minimum.` });
   const requiredService = requestServiceMap[customerRequest.service] || "";
   if (requiredService && !cleaner.services?.includes(requiredService)) return json(response, 422, { ok: false, error: "Cleaner is not approved for the requested service." });
+  if (!findCleanerAvailabilitySlot(cleaner.id, { proposedDate, proposedStartTime, estimatedHours }, availabilityEvents)) return json(response, 422, { ok: false, error: "The proposed visit must fit entirely inside an active, confirmed cleaner availability window." });
 
   const customerTotal = estimatedHours * customerRate;
   const cleanerPay = estimatedHours * cleanerRate;
@@ -1793,11 +1956,12 @@ async function createAdminProposal(request, response) {
 
 async function getAdminMatches(request, response, requestId) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, screenings] = await Promise.all([
+  const [requests, cleaners, updates, screenings, availabilityEvents] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
-    readRecords("cleaner-screening.ndjson")
+    readRecords("cleaner-screening.ndjson"),
+    readRecords("cleaner-availability.ndjson")
   ]);
   const customerRequest = requests.find((record) => record.id === requestId);
   if (!customerRequest) return json(response, 404, { ok: false, error: "Customer request not found." });
@@ -1812,10 +1976,15 @@ async function getAdminMatches(request, response, requestId) {
   const requiredService = requestServiceMap[customerRequest.service] || "";
   const outwardCode = customerRequest.postcode.replace(/\s+/g, " ").split(" ")[0].toUpperCase();
   const postcodeArea = outwardCode.match(/^[A-Z]+/)?.[0] || "";
+  const nowMs = Date.now();
 
   const matches = cleaners
     .filter((cleaner) => (latestStatuses.get(cleaner.id) || cleaner.status) === "approved" && latestCleanerScreening(cleaner.id, screenings)?.complete)
     .map((cleaner) => {
+      const availabilitySlots = activeCleanerAvailability(availabilityEvents, cleaner.id).filter((slot) => {
+        const schedule = availabilitySlotSchedule(slot);
+        return schedule?.endMs > nowMs && (!customerRequest.preferredDate || slot.availableDate === customerRequest.preferredDate);
+      });
       const services = Array.isArray(cleaner.services) ? cleaner.services : [];
       const serviceMatch = !requiredService || services.includes(requiredService);
       const coverageText = cleaner.travelAreas.toUpperCase();
@@ -1832,6 +2001,7 @@ async function getAdminMatches(request, response, requestId) {
         postcode: cleaner.postcode,
         travelAreas: cleaner.travelAreas,
         availability: cleaner.availability,
+        availabilitySlots: availabilitySlots.map(({ id, availableDate, startTime, endTime }) => ({ id, availableDate, startTime, endTime })),
         experience: cleaner.experience,
         services,
         serviceMatch,
@@ -1839,11 +2009,11 @@ async function getAdminMatches(request, response, requestId) {
         score
       };
     })
-    .filter((cleaner) => cleaner.serviceMatch)
+    .filter((cleaner) => cleaner.serviceMatch && cleaner.availabilitySlots.length > 0)
     .sort((left, right) => right.score - left.score || left.fullName.localeCompare(right.fullName))
     .slice(0, 10);
 
-  return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service }, pilotCoverage, matches });
+  return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "" }, pilotCoverage, matches });
 }
 
 async function addAdminActivity(request, response) {
@@ -2240,6 +2410,12 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "PUT" && requestUrl.pathname === "/api/admin/cleaner-screening") {
       return await updateAdminCleanerScreening(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/admin/cleaner-availability") {
+      return await createAdminCleanerAvailability(request, response);
+    }
+    if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/cleaner-availability") {
+      return await withdrawAdminCleanerAvailability(request, response);
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/admin/activity") {
       return await addAdminActivity(request, response);

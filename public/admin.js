@@ -82,9 +82,10 @@ function showProposalForm(record, match, target) {
   const form = document.createElement("form");
   form.className = "proposal-form";
   const reviewedScanHours = record.briefs?.[0]?.status === "reviewed" && Number.isFinite(record.briefs[0].scopeEstimateHours) ? record.briefs[0].scopeEstimateHours : 0;
+  const preferredAvailability = match.availabilitySlots?.find((slot) => slot.availableDate === record.preferredDate) || match.availabilitySlots?.[0] || null;
   form.append(
-    proposalField("Proposed date", "proposedDate", "date", record.preferredDate),
-    proposalField("Exact start time", "proposedStartTime", "time", record.preferredTimeWindow?.startsWith("Afternoon") ? "13:00" : record.preferredTimeWindow?.startsWith("Evening") ? "17:00" : "09:00"),
+    proposalField("Proposed date", "proposedDate", "date", preferredAvailability?.availableDate || record.preferredDate),
+    proposalField("Exact start time", "proposedStartTime", "time", preferredAvailability?.startTime || (record.preferredTimeWindow?.startsWith("Afternoon") ? "13:00" : record.preferredTimeWindow?.startsWith("Evening") ? "17:00" : "09:00")),
     proposalField("Estimated hours", "estimatedHours", "number", Math.max(Number(state.config.minimumHours) || 0, reviewedScanHours)),
     proposalField("Customer rate per hour (£)", "customerRate", "number", state.config.customerHourlyRate),
     proposalField("Cleaner pay per hour (£)", "cleanerRate", "number", state.config.cleanerHourlyPay),
@@ -237,6 +238,7 @@ async function findMatches(record, results, button) {
       addText(heading, "span", `${match.score}/100 · ${match.coverage}`);
       item.append(heading);
       addText(item, "span", `${match.travelAreas} · ${match.availability}`);
+      addText(item, "span", `Confirmed windows: ${match.availabilitySlots.map((slot) => `${slot.availableDate} ${slot.startTime}-${slot.endTime}`).join(", ")}`);
       addText(item, "span", match.services.join(", "));
       addText(item, "span", `${match.email} · ${match.phone}`);
       const proposalTarget = document.createElement("div");
@@ -428,7 +430,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
+    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", availabilityCovered: "Visit fits an active confirmed availability window", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -758,6 +760,128 @@ function buildCleanerScreening(record) {
   return panel;
 }
 
+async function saveCleanerAvailability(record, form) {
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    const body = Object.fromEntries(new FormData(form).entries());
+    body.cleanerId = record.id;
+    const response = await fetch("/api/admin/cleaner-availability", {
+      method: "POST",
+      headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }),
+      body: JSON.stringify(body)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Cleaner availability could not be saved.");
+    await loadRecords();
+  } catch (error) {
+    showAdminError(error.message);
+    button.disabled = false;
+  }
+}
+
+async function withdrawCleanerAvailability(record, slot, form) {
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/admin/cleaner-availability", {
+      method: "PATCH",
+      headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }),
+      body: JSON.stringify({ cleanerId: record.id, slotId: slot.id, note: form.elements.note.value.trim() })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Cleaner availability could not be withdrawn.");
+    await loadRecords();
+  } catch (error) {
+    showAdminError(error.message);
+    button.disabled = false;
+  }
+}
+
+function availabilityField(labelText, name, type) {
+  const label = document.createElement("label");
+  label.append(document.createTextNode(labelText));
+  const input = document.createElement("input");
+  input.name = name;
+  input.type = type;
+  input.required = true;
+  if (type === "date") {
+    const now = new Date();
+    input.min = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
+  }
+  label.append(input);
+  return label;
+}
+
+function buildCleanerAvailability(record) {
+  const slots = record.cleanerAvailability || [];
+  const panel = document.createElement("details");
+  panel.className = `cleaner-availability${slots.length ? " availability-confirmed" : ""}`;
+  const summary = document.createElement("summary");
+  summary.textContent = `Confirmed availability · ${slots.length} active window${slots.length === 1 ? "" : "s"}`;
+  const guidance = document.createElement("p");
+  guidance.textContent = "Record only a window the cleaner has explicitly confirmed. A proposal must fit fully inside an active window, and withdrawal immediately closes affected decisions and bookings.";
+  panel.append(summary, guidance);
+
+  if (slots.length) {
+    const list = document.createElement("div");
+    list.className = "availability-list";
+    for (const slot of slots) {
+      const item = document.createElement("section");
+      item.className = "availability-item";
+      addText(item, "strong", `${slot.availableDate} · ${slot.startTime}-${slot.endTime}`);
+      addText(item, "span", `Confirmation note: ${slot.confirmationNote}`);
+      const withdrawForm = document.createElement("form");
+      withdrawForm.className = "availability-withdraw-form";
+      const note = document.createElement("input");
+      note.name = "note";
+      note.required = true;
+      note.minLength = 10;
+      note.maxLength = 500;
+      note.placeholder = "Why this window is no longer confirmed";
+      note.setAttribute("aria-label", `Withdrawal note for ${slot.availableDate} ${slot.startTime}-${slot.endTime}`);
+      const withdraw = document.createElement("button");
+      withdraw.type = "submit";
+      withdraw.className = "button button-small button-outline";
+      withdraw.textContent = "Withdraw window";
+      withdrawForm.append(note, withdraw);
+      withdrawForm.addEventListener("submit", (event) => { event.preventDefault(); withdrawCleanerAvailability(record, slot, withdrawForm); });
+      item.append(withdrawForm);
+      list.append(item);
+    }
+    panel.append(list);
+  }
+
+  if (record.status === "approved" && record.screening?.complete) {
+    const form = document.createElement("form");
+    form.className = "availability-form";
+    form.append(
+      availabilityField("Available date", "availableDate", "date"),
+      availabilityField("Start time", "startTime", "time"),
+      availabilityField("End time", "endTime", "time")
+    );
+    const noteLabel = document.createElement("label");
+    noteLabel.append(document.createTextNode("Confirmation note"));
+    const note = document.createElement("input");
+    note.name = "confirmationNote";
+    note.required = true;
+    note.minLength = 10;
+    note.maxLength = 500;
+    note.placeholder = "How and when the cleaner confirmed this window";
+    noteLabel.append(note);
+    const save = document.createElement("button");
+    save.type = "submit";
+    save.className = "button button-small";
+    save.textContent = "Add confirmed window";
+    form.append(noteLabel, save);
+    form.addEventListener("submit", (event) => { event.preventDefault(); saveCleanerAvailability(record, form); });
+    panel.append(form);
+  } else {
+    addText(panel, "span", "Availability windows can be added after all screening checks pass and the cleaner is approved.", "screening-note");
+  }
+  return panel;
+}
+
 function buildCard(record) {
   const card = document.createElement("article");
   card.className = `lead-card lead-${record.kind}`;
@@ -821,7 +945,7 @@ function buildCard(record) {
   }
   card.append(details);
 
-  if (record.kind === "cleaner") card.append(buildCleanerScreening(record));
+  if (record.kind === "cleaner") card.append(buildCleanerScreening(record), buildCleanerAvailability(record));
 
   if (record.kind === "request" && record.briefs?.length) {
     const brief = record.briefs[0];
