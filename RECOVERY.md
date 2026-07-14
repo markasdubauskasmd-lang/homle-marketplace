@@ -14,7 +14,7 @@ Run the following from the Tideway project folder. It creates a timestamped devi
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\backup-data.ps1
 ```
 
-The archive itself is sensitive. Store it only in an access-controlled location. Do not email it or upload it to a public drive.
+The archive itself is sensitive. It includes customer and cleaner records plus any private property photos saved in job briefs. Store it only in an access-controlled location. Do not email it or upload it to a public drive.
 
 ## Recovery order
 

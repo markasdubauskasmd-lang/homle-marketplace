@@ -15,6 +15,7 @@ Then open `http://127.0.0.1:4173`.
 ## What works
 
 - Customer cleaning request form with server-side validation
+- Photo-and-voice job brief builder that turns reviewed landlord instructions into cleaner checklist bullets and privately stores resized room photos
 - Cleaner application form with server-side validation
 - Local private submission files in `data/`
 - Private local control desk at `/admin` with lead filters, status tracking, internal notes and next-action dates
@@ -24,6 +25,7 @@ Then open `http://127.0.0.1:4173`.
 - Internal draft proposals that link a request to an approved cleaner and reject work below the minimum hours, loss-making economics or a below-target contribution margin
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until all seven launch checks pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
+- Latest landlord checklist included in the review-only cleaner opportunity draft; photos remain separately protected for deliberate review
 - Structured site scope, access and hazard collection plus a read-only accepted-proposal booking audit
 - Safe lead-status transitions that prevent requests or cleaners skipping required workflow stages
 - Internal confirmed-booking records that require an accepted profitable proposal, a passed audit and five manual confirmations
@@ -40,7 +42,8 @@ Then open `http://127.0.0.1:4173`.
 3. Confirm public liability and any other required insurance.
 4. Approve pricing, cleaner pay, cancellation, complaint and re-clean rules.
 5. Replace local file storage with an encrypted production database and access controls.
-6. Add transactional email/SMS only after the sending account is approved.
-7. Complete a real pilot in one small service area before making broader coverage claims.
+6. Document and approve any production speech-recognition provider, photo storage and retention controls.
+7. Add transactional email/SMS only after the sending account is approved.
+8. Complete a real pilot in one small service area before making broader coverage claims.
 
 If the server is ever bound to a public interface, set a strong `ADMIN_KEY`. Local control-desk access is automatic only when the server, request hostname and network connection are all verified as loopback and no proxy headers are present.

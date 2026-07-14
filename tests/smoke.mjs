@@ -31,6 +31,7 @@ try {
   const home = await fetch(base);
   assert(home.ok && (await home.text()).includes("Cleaning work, matched and managed properly"), "Homepage failed.");
   assert(home.headers.get("content-security-policy")?.includes("frame-ancestors 'none'"), "Security headers were missing.");
+  assert(home.headers.get("content-security-policy")?.includes("img-src 'self' data: blob:"), "Secure local photo previews were blocked by the content policy.");
 
   const privacy = await fetch(`${base}/privacy`);
   assert(privacy.ok && (await privacy.text()).includes("Privacy notice"), "Privacy page failed.");
@@ -40,6 +41,9 @@ try {
 
   const adminPage = await fetch(`${base}/admin`);
   assert(adminPage.ok && (await adminPage.text()).includes("Lead control desk"), "Admin page failed.");
+  const briefPage = await fetch(`${base}/brief`);
+  assert(briefPage.ok && (await briefPage.text()).includes("Show the property. Say what needs cleaning."), "Photo job-brief page failed.");
+  assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
   const adminAsset = await fetch(`${base}/admin.js?v=smoke-test`);
   assert(adminAsset.ok && adminAsset.headers.get("cache-control") === "no-cache", "Updated assets could remain stale in the control desk.");
 
@@ -64,6 +68,33 @@ try {
   const requestBody = await validRequest.json();
   assert(validRequest.status === 201 && requestBody.reference.startsWith("REQ-"), "Valid cleaning request failed.");
 
+  const unmatchedBrief = await fetch(`${base}/api/job-briefs`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: requestBody.reference, email: "wrong@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Clean the kitchen worktops"], photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true })
+  });
+  assert(unmatchedBrief.status === 404, "A job brief attached without matching the request email.");
+
+  const invalidPhotoBrief = await fetch(`${base}/api/job-briefs`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Clean the kitchen worktops"], photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,SGVsbG8=" }], consent: true })
+  });
+  assert(invalidPhotoBrief.status === 422, "Invalid image content was accepted as a property photo.");
+
+  const validBrief = await fetch(`${base}/api/job-briefs`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Please wipe every kitchen worktop. Also mop the kitchen floor.", photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true })
+  });
+  const briefBody = await validBrief.json();
+  assert(validBrief.status === 201 && briefBody.reference.startsWith("BRF-") && briefBody.checklist.length === 2, "Valid photo job brief failed or checklist bullets were not generated.");
+
+  const privateBriefImage = await fetch(`${base}/api/admin/job-brief-image?briefId=${briefBody.reference}&imageId=${briefBody.photos[0].id}`);
+  assert(privateBriefImage.ok && privateBriefImage.headers.get("content-type") === "image/png" && (await privateBriefImage.arrayBuffer()).byteLength > 0, "Private job-brief photo could not be retrieved by the local control desk.");
+  const proxiedBriefImage = await fetch(`${base}/api/admin/job-brief-image?briefId=${briefBody.reference}&imageId=${briefBody.photos[0].id}`, { headers: { "x-forwarded-for": "203.0.113.10" } });
+  assert(proxiedBriefImage.status === 401, "Private job-brief photo bypassed admin authentication.");
+
   const validCleaner = await fetch(`${base}/api/cleaner-applications`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -75,6 +106,7 @@ try {
   const adminRecords = await fetch(`${base}/api/admin/records`);
   const adminBody = await adminRecords.json();
   assert(adminRecords.ok && adminBody.records.length === 2, "Admin records did not load.");
+  assert(adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.id === briefBody.reference, "Photo job brief was not attached to its customer request.");
 
   const proxiedAdmin = await fetch(`${base}/api/admin/records`, { headers: { "x-forwarded-for": "203.0.113.10" } });
   assert(proxiedAdmin.status === 401, "Proxied admin request bypassed authentication.");
@@ -197,7 +229,7 @@ try {
   const readyDraftsBody = await readyDrafts.json();
   assert(readyDrafts.ok && readyDraftsBody.sendAllowed === true, "Ready proposal drafts were not available for review.");
   assert(readyDraftsBody.customer.body.includes("Test Customer") && readyDraftsBody.customer.body.includes("£120.00"), "Customer quote draft omitted required proposal details.");
-  assert(readyDraftsBody.cleaner.body.includes("£72.00") && readyDraftsBody.cleaner.body.includes("None known") && !readyDraftsBody.cleaner.body.includes("customer@example.com") && !readyDraftsBody.cleaner.body.includes("Test Customer"), "Cleaner draft omitted pay/safety scope or leaked customer identity.");
+  assert(readyDraftsBody.cleaner.body.includes("£72.00") && readyDraftsBody.cleaner.body.includes("None known") && readyDraftsBody.cleaner.body.includes("Wipe every kitchen worktop") && readyDraftsBody.cleaner.body.includes("Photo references held privately: 1") && !readyDraftsBody.cleaner.body.includes("customer@example.com") && !readyDraftsBody.cleaner.body.includes("Test Customer") && !readyDraftsBody.cleaner.body.includes("base64"), "Cleaner draft omitted pay/photo checklist scope or leaked customer identity or image data.");
 
   const bookingAudit = await fetch(`${base}/api/admin/booking-audit?proposalId=${proposalBody.proposal.id}`);
   const bookingAuditBody = await bookingAudit.json();
@@ -244,7 +276,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
 
-  console.log("Smoke tests passed: public pages, scoped requests, admin security, founder margin and minimum-hours controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, photo-and-voice job briefs, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

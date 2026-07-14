@@ -500,6 +500,30 @@ async function changeStatus(record, select) {
   }
 }
 
+async function loadBriefPhotos(brief, target, button) {
+  button.disabled = true;
+  target.replaceChildren();
+  try {
+    for (const photo of brief.photos || []) {
+      const response = await fetch(`/api/admin/job-brief-image?briefId=${encodeURIComponent(brief.id)}&imageId=${encodeURIComponent(photo.id)}`, { headers: adminHeaders({ "Accept": "image/*" }) });
+      if (!response.ok) throw new Error("A private brief photo could not be loaded.");
+      const figure = document.createElement("figure");
+      const image = document.createElement("img");
+      image.src = URL.createObjectURL(await response.blob());
+      image.alt = `${photo.area} visual reference`;
+      image.loading = "lazy";
+      const caption = document.createElement("figcaption");
+      caption.textContent = photo.area;
+      figure.append(image, caption);
+      target.append(figure);
+    }
+    button.remove();
+  } catch (error) {
+    addText(target, "strong", error.message);
+    button.disabled = false;
+  }
+}
+
 function buildCard(record) {
   const card = document.createElement("article");
   card.className = `lead-card lead-${record.kind}`;
@@ -554,6 +578,29 @@ function buildCard(record) {
     addDetail(details, "Notes", record.notes);
   }
   card.append(details);
+
+  if (record.kind === "request" && record.briefs?.length) {
+    const brief = record.briefs[0];
+    const briefSummary = document.createElement("details");
+    briefSummary.className = "brief-summary";
+    const summary = document.createElement("summary");
+    summary.textContent = `Photo job brief · ${brief.checklist.length} tasks · ${brief.photos.length} photos`;
+    addText(briefSummary, "strong", `${brief.id} · Landlord draft for Tideway review`);
+    const tasks = document.createElement("ul");
+    brief.checklist.forEach((task) => addText(tasks, "li", task));
+    briefSummary.append(summary, tasks);
+    if (brief.photos.length) {
+      const loadPhotos = document.createElement("button");
+      loadPhotos.type = "button";
+      loadPhotos.className = "button button-small button-outline";
+      loadPhotos.textContent = "Load private photo previews";
+      const photoGrid = document.createElement("div");
+      photoGrid.className = "admin-brief-photos";
+      loadPhotos.addEventListener("click", () => loadBriefPhotos(brief, photoGrid, loadPhotos));
+      briefSummary.append(loadPhotos, photoGrid);
+    }
+    card.append(briefSummary);
+  }
 
   if (record.kind === "request" && record.proposals?.length) {
     const proposal = record.proposals[0];

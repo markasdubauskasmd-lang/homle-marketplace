@@ -10,6 +10,7 @@ const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path
 const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || 4173);
 const maxBodyBytes = 64 * 1024;
+const maxBriefBodyBytes = 8 * 1024 * 1024;
 let writeQueue = Promise.resolve();
 
 const statusOptions = {
@@ -62,12 +63,12 @@ const mimeTypes = {
   ".webmanifest": "application/manifest+json; charset=utf-8"
 };
 
-function setSecurityHeaders(response) {
-  response.setHeader("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+function setSecurityHeaders(response, requestPath = "") {
+  response.setHeader("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
   response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Frame-Options", "DENY");
-  response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  response.setHeader("Permissions-Policy", requestPath === "/brief" ? "camera=(self), microphone=(self), geolocation=()" : "camera=(), microphone=(), geolocation=()");
 }
 
 function json(response, statusCode, body) {
@@ -75,12 +76,12 @@ function json(response, statusCode, body) {
   response.end(JSON.stringify(body));
 }
 
-async function readJson(request) {
+async function readJson(request, limit = maxBodyBytes) {
   const chunks = [];
   let bytes = 0;
   for await (const chunk of request) {
     bytes += chunk.length;
-    if (bytes > maxBodyBytes) throw Object.assign(new Error("Request is too large."), { statusCode: 413 });
+    if (bytes > limit) throw Object.assign(new Error("Request is too large."), { statusCode: 413 });
     chunks.push(chunk);
   }
   try {
@@ -165,6 +166,53 @@ async function cleanupStaleTemporaryFiles() {
   await Promise.all(stale.map((filename) => unlink(path.join(dataDir, filename)).catch(() => {})));
 }
 
+function normaliseChecklistTask(value) {
+  const task = text(value, 300).replace(/^[-*•\d.)\s]+/, "").replace(/\s+/g, " ").replace(/^(?:please|could you|can you|the cleaner should)\s+/i, "").trim();
+  if (task.length < 3) return "";
+  return `${task.charAt(0).toUpperCase()}${task.slice(1)}`.replace(/[.!?]+$/, "");
+}
+
+function checklistFromTranscript(value) {
+  return text(value, 5000)
+    .replace(/\b(?:and then|after that|next|also|finally)\b/gi, ".")
+    .split(/[.!?;\n]+/)
+    .map(normaliseChecklistTask)
+    .filter((task, index, tasks) => task && tasks.findIndex((item) => item.toLowerCase() === task.toLowerCase()) === index)
+    .slice(0, 40);
+}
+
+function decodeBriefPhoto(input, index) {
+  const area = text(input?.area, 80) || `Photo ${index + 1}`;
+  const dataUrl = typeof input?.dataUrl === "string" ? input.dataUrl : "";
+  const match = dataUrl.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw Object.assign(new Error(`Photo ${index + 1} must be a JPEG, PNG or WebP image.`), { statusCode: 422 });
+  const bytes = Buffer.from(match[2], "base64");
+  if (!bytes.length || bytes.length > 900 * 1024) throw Object.assign(new Error(`Photo ${index + 1} must be under 900 KB after resizing.`), { statusCode: 422 });
+  const mimeType = match[1];
+  const validSignature = mimeType === "image/jpeg"
+    ? bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+    : mimeType === "image/png"
+      ? bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+      : bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP";
+  if (!validSignature) throw Object.assign(new Error(`Photo ${index + 1} is not a valid ${mimeType.replace("image/", "").toUpperCase()} image.`), { statusCode: 422 });
+  const extension = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" }[mimeType];
+  const id = `IMG-${randomUUID().slice(0, 8).toUpperCase()}`;
+  return { id, area, mimeType, extension, bytes };
+}
+
+async function saveJobBrief(record, images) {
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    const briefDirectory = path.join(dataDir, "job-brief-images", record.id);
+    await mkdir(briefDirectory, { recursive: true, mode: 0o700 });
+    for (const image of images) {
+      await writeFile(path.join(briefDirectory, `${image.id}${image.extension}`), image.bytes, { mode: 0o600 });
+    }
+    await appendFile(path.join(dataDir, "job-briefs.ndjson"), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+  });
+  writeQueue = operation;
+  return operation;
+}
+
 function launchReadiness(config) {
   const checks = {
     identity: Boolean(config.legalOwnerName && config.businessStructure && config.legalBusinessName && config.tradingAddress),
@@ -195,7 +243,7 @@ function isAdminAuthorised(request) {
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
@@ -203,7 +251,8 @@ async function getAdminRecords(request, response) {
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("bookings.ndjson"),
-    readRecords("job-outcomes.ndjson")
+    readRecords("job-outcomes.ndjson"),
+    readRecords("job-briefs.ndjson")
   ]);
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
@@ -225,12 +274,19 @@ async function getAdminRecords(request, response) {
   for (const booking of bookings) bookingsByRequest.set(booking.requestId, booking);
   const outcomesByBooking = new Map();
   for (const outcome of outcomes) outcomesByBooking.set(outcome.bookingId, outcome);
+  const briefsByRequest = new Map();
+  for (const brief of briefs) {
+    const list = briefsByRequest.get(brief.requestId) || [];
+    list.push(brief);
+    briefsByRequest.set(brief.requestId, list);
+  }
   const merge = (record, kind) => {
     const leadActivities = (activitiesById.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
     const leadProposals = (proposalsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
     const booking = kind === "request" ? bookingsByRequest.get(record.id) || null : null;
     const outcome = booking ? outcomesByBooking.get(booking.id) || null : null;
-    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5), booking, outcome };
+    const leadBriefs = kind === "request" ? (briefsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 5) : [];
+    return { ...record, kind, status: latestStatuses.get(record.id) || record.status || "new", activities: leadActivities.slice(0, 10), nextActionAt: leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "", proposals: leadProposals.slice(0, 5), briefs: leadBriefs, booking, outcome };
   };
   const records = [
     ...requests.map((record) => merge(record, "request")),
@@ -280,12 +336,13 @@ async function updateAdminProposalStatus(request, response) {
 
 async function getAdminProposalDrafts(request, response, proposalId) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [proposals, proposalUpdates, customerRequests, cleaners, config] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, config, briefs] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
-    readJsonFile("business-config.json", {})
+    readJsonFile("business-config.json", {}),
+    readRecords("job-briefs.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
@@ -296,6 +353,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   for (const update of proposalUpdates) if (update.proposalId === proposalId) proposalStatus = update.status;
 
   const readiness = launchReadiness(config);
+  const latestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const warnings = [];
   if (!readiness.ready) warnings.push("Complete all seven launch-readiness checks before using these drafts.");
   if (!["ready", "sent", "accepted"].includes(proposalStatus)) warnings.push("The proposal is still a draft and has not been internally approved.");
@@ -336,6 +394,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Proposed date: ${proposal.proposedDate}`,
     `Estimated time: ${proposal.estimatedHours} hours`,
     `Proposed cleaner pay: ${money(proposal.cleanerPay)} total (${money(proposal.cleanerRate)} per hour)`,
+    ...(latestBrief ? ["", "Landlord-draft cleaner checklist (Tideway review required):", ...latestBrief.checklist.map((task) => `- ${task}`), `Photo references held privately: ${latestBrief.photos.length}. Share only through the approved secure process after confirmation.`] : []),
     "",
     "This is an invitation to consider the opportunity, not a confirmed assignment. You may accept or decline. Full access details are shared only after both sides confirm.",
     "",
@@ -707,6 +766,80 @@ async function updateAdminStatus(request, response) {
   return json(response, 200, { ok: true, id, status });
 }
 
+async function handleJobBrief(request, response) {
+  ensureSameOrigin(request);
+  const input = await readJson(request, maxBriefBodyBytes);
+  const requestId = text(input.requestId, 40).toUpperCase();
+  const email = text(input.email, 160).toLowerCase();
+  const transcript = text(input.transcript, 5000);
+  const consent = input.consent === true;
+  const suppliedTasks = Array.isArray(input.checklist) ? input.checklist.map(normaliseChecklistTask).filter(Boolean) : [];
+  const checklist = [...new Map((suppliedTasks.length ? suppliedTasks : checklistFromTranscript(transcript)).map((task) => [task.toLowerCase(), task])).values()].slice(0, 40);
+  const photoInputs = Array.isArray(input.photos) ? input.photos.slice(0, 7) : [];
+  const errors = [];
+  if (!/^REQ-[A-Z0-9]{8}$/.test(requestId)) errors.push("Enter a valid Tideway cleaning-request reference.");
+  if (!isEmail(email)) errors.push("Enter the email used for the cleaning request.");
+  if (!transcript) errors.push("Add or dictate the cleaning instructions.");
+  if (!checklist.length) errors.push("Generate and review at least one checklist task.");
+  if (!photoInputs.length) errors.push("Add at least one property photo.");
+  if (photoInputs.length > 6) errors.push("Add no more than six property photos.");
+  if (!consent) errors.push("Confirm that you may share these property photos and instructions.");
+  if (errors.length) return json(response, 422, { ok: false, errors });
+
+  const [requests, updates, existingBriefs] = await Promise.all([
+    readRecords("cleaning-requests.ndjson"),
+    readRecords("status-updates.ndjson"),
+    readRecords("job-briefs.ndjson")
+  ]);
+  const customerRequest = requests.find((record) => record.id === requestId && record.email === email);
+  if (!customerRequest) return json(response, 404, { ok: false, error: "The request reference and email could not be matched." });
+  let requestStatus = customerRequest.status || "new";
+  for (const update of updates) if (update.id === requestId) requestStatus = update.status;
+  if (["completed", "lost"].includes(requestStatus)) return json(response, 422, { ok: false, error: "This request is closed and cannot accept a new job brief." });
+  if (existingBriefs.filter((brief) => brief.requestId === requestId).length >= 5) return json(response, 422, { ok: false, error: "This request already has five job-brief versions. Review them in the control desk before adding another." });
+
+  const images = photoInputs.map(decodeBriefPhoto);
+  const totalImageBytes = images.reduce((total, image) => total + image.bytes.length, 0);
+  if (totalImageBytes > 5 * 1024 * 1024) return json(response, 422, { ok: false, error: "The resized photos must total no more than 5 MB." });
+  const briefId = `BRF-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const photos = images.map((image) => ({
+    id: image.id,
+    area: image.area,
+    mimeType: image.mimeType,
+    storedPath: path.posix.join("job-brief-images", briefId, `${image.id}${image.extension}`)
+  }));
+  const brief = {
+    id: briefId,
+    requestId,
+    transcript,
+    checklist,
+    photos,
+    status: "landlord-draft",
+    createdAt: new Date().toISOString()
+  };
+  await saveJobBrief(brief, images);
+  return json(response, 201, { ok: true, reference: brief.id, checklist: brief.checklist, photos: brief.photos.map(({ id, area }) => ({ id, area })) });
+}
+
+async function getAdminJobBriefImage(request, response, briefId, imageId) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  const briefs = await readRecords("job-briefs.ndjson");
+  const brief = briefs.find((record) => record.id === briefId);
+  const photo = brief?.photos?.find((item) => item.id === imageId);
+  if (!photo) return json(response, 404, { ok: false, error: "Brief photo not found." });
+  const resolvedDataDir = path.resolve(dataDir);
+  const imagePath = path.resolve(dataDir, photo.storedPath);
+  if (!imagePath.startsWith(`${resolvedDataDir}${path.sep}`)) return json(response, 403, { ok: false, error: "Invalid photo path." });
+  try {
+    const body = await readFile(imagePath);
+    response.writeHead(200, { "Content-Type": photo.mimeType, "Content-Length": body.length, "Cache-Control": "private, no-store" });
+    response.end(body);
+  } catch (error) {
+    if (error.code === "ENOENT") return json(response, 404, { ok: false, error: "Brief photo file not found." });
+    throw error;
+  }
+}
+
 function required(value, label, errors) {
   if (!value) errors.push(`${label} is required.`);
 }
@@ -810,6 +943,7 @@ async function serveFile(requestPath, response) {
     "/": "index.html",
     "/request": "index.html",
     "/join": "index.html",
+    "/brief": "brief.html",
     "/admin": "admin.html",
     "/privacy": "privacy.html",
     "/terms": "terms.html"
@@ -835,8 +969,8 @@ async function serveFile(requestPath, response) {
 }
 
 const server = createServer(async (request, response) => {
-  setSecurityHeaders(response);
   const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
+  setSecurityHeaders(response, requestUrl.pathname);
 
   try {
     if (request.method === "GET" && requestUrl.pathname === "/api/health") {
@@ -847,6 +981,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/cleaner-applications") {
       return await handleCleanerApplication(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/job-briefs") {
+      return await handleJobBrief(request, response);
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/records") {
       return await getAdminRecords(request, response);
@@ -865,6 +1002,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/booking-audit") {
       return await getAdminBookingAudit(request, response, text(requestUrl.searchParams.get("proposalId"), 40));
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/admin/job-brief-image") {
+      return await getAdminJobBriefImage(request, response, text(requestUrl.searchParams.get("briefId"), 40), text(requestUrl.searchParams.get("imageId"), 40));
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/admin/bookings") {
       return await createAdminBooking(request, response);

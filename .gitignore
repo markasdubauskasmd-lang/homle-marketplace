@@ -2,6 +2,7 @@ data/*.ndjson
 data/business-config.json
 data/match-proposals.ndjson
 data/proposal-status.ndjson
+data/job-brief-images/
 !data/.gitkeep
 .env
 node_modules/

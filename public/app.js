@@ -70,6 +70,8 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
 
       form.reset();
       success.querySelector("[data-reference]").textContent = result.reference;
+      const briefLink = success.querySelector("[data-brief-link]");
+      if (briefLink) briefLink.href = `/brief?reference=${encodeURIComponent(result.reference)}`;
       success.hidden = false;
       success.focus();
     } catch (error) {
