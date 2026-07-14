@@ -1369,6 +1369,140 @@ async function getPrivateBookingPhoto(request, response, imageId) {
   }
 }
 
+async function getPrivateRequestStatus(request, response) {
+  const token = text(request.headers["x-request-token"], 80);
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private request link is invalid." });
+  const [requests, statusUpdates, briefs, briefUpdates, proposals, proposalUpdates, cleanerDecisions, bookings, outcomes, jobEvents] = await Promise.all([
+    readRecords("cleaning-requests.ndjson"),
+    readRecords("status-updates.ndjson"),
+    readRecords("job-briefs.ndjson"),
+    readRecords("job-brief-status.ndjson"),
+    readRecords("match-proposals.ndjson"),
+    readRecords("proposal-status.ndjson"),
+    readRecords("cleaner-opportunity-decisions.ndjson"),
+    readRecords("bookings.ndjson"),
+    readRecords("job-outcomes.ndjson"),
+    readRecords("job-events.ndjson")
+  ]);
+  const customerRequest = requests.find((record) => record.customerStatusToken === token);
+  if (!customerRequest) return json(response, 404, { ok: false, error: "This private request link is invalid." });
+  let requestStatus = customerRequest.status || "new";
+  for (const update of statusUpdates) if (update.id === customerRequest.id) requestStatus = update.status;
+  const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
+  const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
+  const proposalPriority = { accepted: 6, sent: 5, ready: 4, draft: 3, declined: 2, cancelled: 1 };
+  const requestProposals = proposals.filter((proposal) => proposal.requestId === customerRequest.id).map((proposal) => {
+    let status = proposal.status || "draft";
+    for (const update of proposalUpdates) if (update.proposalId === proposal.id) status = update.status;
+    return { ...proposal, status };
+  }).sort((left, right) => (proposalPriority[right.status] || 0) - (proposalPriority[left.status] || 0) || right.createdAt.localeCompare(left.createdAt));
+  const booking = bookings.find((record) => record.requestId === customerRequest.id) || null;
+  const proposal = booking ? requestProposals.find((record) => record.id === booking.proposalId) || requestProposals[0] || null : requestProposals[0] || null;
+  const cleanerDecision = proposal ? cleanerDecisions.find((record) => record.proposalId === proposal.id) || null : null;
+  const outcome = booking ? outcomes.find((record) => record.bookingId === booking.id) || null : null;
+  const jobProgress = booking ? bookingJobProgress(booking.id, jobEvents) : {};
+
+  let currentStage = "room-scan";
+  let headline = "Complete the room scan";
+  let nextAction = "Add room photos and spoken notes so Tideway can review the cleaning scope.";
+  if (latestBrief?.status === "landlord-draft") {
+    currentStage = "scan-review";
+    headline = "Room scan received";
+    nextAction = "Tideway must review the images, tasks and cleaning-time estimate before preparing a quote.";
+  } else if (latestBrief?.status === "needs-revision") {
+    currentStage = "scan-revision";
+    headline = "Room scan needs an update";
+    nextAction = latestBrief.reviewNote || "Submit a revised room scan before Tideway can prepare a quote.";
+  } else if (latestBrief?.status === "reviewed") {
+    currentStage = "matching";
+    headline = "Scope reviewed — matching in progress";
+    nextAction = "Tideway is checking cleaner suitability, availability and profitable quote terms.";
+  }
+  if (proposal?.status === "draft" || proposal?.status === "ready") {
+    currentStage = "quote-preparation";
+    headline = "Quote being prepared";
+    nextAction = "Tideway is checking the schedule, cleaner and job economics before making the quote available.";
+  } else if (proposal?.status === "sent") {
+    currentStage = "quote-review";
+    headline = "Your quote is ready to review";
+    nextAction = "Review the scope, timing, total and terms, then accept or decline through the private quote.";
+  } else if (proposal?.status === "accepted") {
+    currentStage = "cleaner-confirmation";
+    headline = "Quote accepted — cleaner confirmation pending";
+    nextAction = "The proposed cleaner must independently confirm the scope, pay and availability.";
+  } else if (proposal?.status === "declined") {
+    currentStage = "quote-declined";
+    headline = "Quote declined";
+    nextAction = "No booking was created. Tideway can prepare a different proposal only after the scope and terms are reviewed again.";
+  }
+  if (proposal?.status === "accepted" && cleanerDecision?.status === "declined") {
+    currentStage = "rematching";
+    headline = "Cleaner unavailable — rematching required";
+    nextAction = "Tideway must select another screened cleaner and issue a new controlled opportunity before booking.";
+  } else if (proposal?.status === "accepted" && cleanerDecision?.status === "accepted") {
+    currentStage = "finalising-booking";
+    headline = "Both sides accepted — final checks underway";
+    nextAction = "Tideway must confirm the final address, access, emergency instructions and payment authorisation before recording the booking.";
+  }
+  if (booking) {
+    currentStage = "booking-confirmed";
+    headline = "Cleaning visit confirmed";
+    nextAction = "Review the protected booking pack and report any scope, access or safety change before arrival.";
+    if (jobProgress.cleanerArrivedAt) {
+      currentStage = "clean-in-progress";
+      headline = "Cleaner arrival recorded";
+      nextAction = "The cleaner is working through the agreed checklist. Use the protected booking pack to report a material issue.";
+    }
+    if (jobProgress.cleanerCompletedAt) {
+      currentStage = "customer-confirmation";
+      headline = "Cleaner completion recorded";
+      nextAction = "Review the visit details in the booking pack and acknowledge that the service took place.";
+    }
+    if (jobProgress.customerCompletedAt) {
+      currentStage = "completion-recorded";
+      headline = "Visit completion acknowledged";
+      nextAction = "Tideway can now review the actual job economics after all open change or safety requests are closed.";
+    }
+  }
+  if (outcome) {
+    currentStage = "completed";
+    headline = "Cleaning job completed";
+    nextAction = "The operational and financial outcome has been recorded. No payment action is available on this tracker.";
+  } else if (requestStatus === "lost") {
+    currentStage = "closed";
+    headline = "Request closed";
+    nextAction = "No active booking is attached to this request.";
+  }
+
+  const scanComplete = latestBrief?.status === "reviewed";
+  const quoteComplete = proposal?.status === "accepted";
+  const cleanerComplete = cleanerDecision?.status === "accepted";
+  const bookingComplete = Boolean(booking);
+  const cleanComplete = Boolean(outcome || jobProgress.customerCompletedAt);
+  const steps = [
+    { key: "request", label: "Request received", state: "complete", detail: `Reference ${customerRequest.id}` },
+    { key: "scan", label: "Room scan reviewed", state: scanComplete ? "complete" : ["room-scan", "scan-revision"].includes(currentStage) ? "action" : "current", detail: !latestBrief ? "Photos and spoken notes required" : latestBrief.status === "reviewed" ? `${latestBrief.checklist.length} tasks · ${latestBrief.scopeEstimateHours} reviewed hours` : latestBrief.status === "needs-revision" ? "Revision requested" : "Awaiting Tideway review" },
+    { key: "quote", label: "Quote accepted", state: quoteComplete ? "complete" : currentStage === "quote-review" ? "action" : proposal ? "current" : "waiting", detail: proposal ? proposal.status : "Not prepared yet" },
+    { key: "cleaner", label: "Cleaner confirmed", state: cleanerComplete ? "complete" : cleanerDecision?.status === "declined" ? "action" : quoteComplete ? "current" : "waiting", detail: cleanerDecision?.status || "Awaiting an accepted quote" },
+    { key: "booking", label: "Visit confirmed", state: bookingComplete ? "complete" : cleanerComplete ? "current" : "waiting", detail: booking ? `${booking.proposedDate} · ${booking.proposedStartTime}–${booking.proposedEndTime}` : "Final checks pending" },
+    { key: "clean", label: "Clean completed", state: cleanComplete ? "complete" : bookingComplete ? "current" : "waiting", detail: cleanComplete ? "Completion recorded" : bookingComplete ? "Visit not completed yet" : "Waiting for a confirmed visit" }
+  ];
+  const outwardCode = customerRequest.postcode.replace(/\s+/g, "").slice(0, -3);
+  return json(response, 200, {
+    ok: true,
+    request: { reference: customerRequest.id, service: customerRequest.service, propertyType: customerRequest.propertyType, siteSize: customerRequest.siteSize, outwardCode, preferredDate: customerRequest.preferredDate || "" },
+    current: { stage: currentStage, headline, nextAction },
+    steps,
+    roomScan: latestBrief ? { status: latestBrief.status, reference: latestBrief.id, taskCount: latestBrief.checklist.length, photoCount: latestBrief.photos.length, reviewedHours: latestBrief.scopeEstimateHours, confidence: latestBrief.scopeConfidence, revisionNote: latestBrief.status === "needs-revision" ? latestBrief.reviewNote : "" } : null,
+    visit: booking ? { reference: booking.id, proposedDate: booking.proposedDate, proposedStartTime: booking.proposedStartTime, proposedEndTime: booking.proposedEndTime, jobProgress } : null,
+    links: {
+      roomScanRequired: !latestBrief || latestBrief.status === "needs-revision",
+      quoteToken: proposal && ["sent", "accepted"].includes(proposal.status) ? proposal.reviewToken : "",
+      bookingToken: booking?.customerViewToken || ""
+    }
+  });
+}
+
 async function createPrivateBookingChangeRequest(request, response) {
   ensureSameOrigin(request);
   const token = text(request.headers["x-booking-token"], 80);
@@ -1799,7 +1933,7 @@ async function handleJobBrief(request, response) {
     createdAt: new Date().toISOString()
   };
   await saveJobBrief(brief, images);
-  return json(response, 201, { ok: true, reference: brief.id, checklist: brief.checklist, photos: brief.photos.map(({ id, area, note }) => ({ id, area, note })) });
+  return json(response, 201, { ok: true, reference: brief.id, customerStatusToken: customerRequest.customerStatusToken || "", checklist: brief.checklist, photos: brief.photos.map(({ id, area, note }) => ({ id, area, note })) });
 }
 
 async function getAdminJobBriefImage(request, response, briefId, imageId) {
@@ -1833,6 +1967,7 @@ async function handleCleaningRequest(request, response) {
 
   const record = {
     id: `REQ-${randomUUID().slice(0, 8).toUpperCase()}`,
+    customerStatusToken: randomBytes(24).toString("base64url"),
     createdAt: new Date().toISOString(),
     status: "new",
     contactName: text(input.contactName, 120),
@@ -1872,7 +2007,7 @@ async function handleCleaningRequest(request, response) {
   if (errors.length) return json(response, 422, { ok: false, errors });
 
   await saveRecord("cleaning-requests.ndjson", record);
-  return json(response, 201, { ok: true, reference: record.id });
+  return json(response, 201, { ok: true, reference: record.id, customerStatusToken: record.customerStatusToken });
 }
 
 async function handleCleanerApplication(request, response) {
@@ -1927,6 +2062,7 @@ async function serveFile(requestPath, response) {
     "/request": "index.html",
     "/join": "index.html",
     "/brief": "brief.html",
+    "/request-status": "request-status.html",
     "/quote": "quote.html",
     "/opportunity": "opportunity.html",
     "/booking-confirmation": "booking-pack.html",
@@ -1971,6 +2107,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/job-briefs") {
       return await handleJobBrief(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/request-status") {
+      return await getPrivateRequestStatus(request, response);
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/quote") {
       return await getPrivateQuote(request, response);

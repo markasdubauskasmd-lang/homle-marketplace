@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Privately follow a Tideway cleaning request from room scan to confirmed visit and completion.">
+  <meta name="theme-color" content="#0e665b">
+  <title>Track your cleaning request — Tideway</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260714-29">
+  <script src="/request-status.js?v=20260714-29" type="module"></script>
+</head>
+<body class="quote-page">
+  <a class="skip-link" href="#status-main">Skip to request status</a>
+  <header class="site-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a>
+      <nav class="main-nav brief-nav" aria-label="Status navigation"><a href="/">Website</a><button class="button button-small button-outline status-refresh" type="button" data-refresh hidden>Refresh status</button></nav>
+    </div>
+  </header>
+
+  <main id="status-main" class="section shell quote-shell">
+    <article class="quote-card request-status-card">
+      <div id="status-loading" class="quote-state">
+        <p class="eyebrow">Private request tracker</p>
+        <h1>Checking your cleaning request…</h1>
+        <p>Please wait while Tideway loads the latest recorded stage.</p>
+      </div>
+
+      <div id="status-error" class="quote-state" role="alert" hidden>
+        <p class="eyebrow">Tracker unavailable</p>
+        <h1>We could not open this request.</h1>
+        <p data-error-message>The private link may be incomplete or invalid.</p>
+        <a class="button button-outline" href="/request#request-cleaning">Start a new cleaning request</a>
+      </div>
+
+      <div id="status-content" hidden>
+        <p class="eyebrow">Private request tracker</p>
+        <h1 data-headline>Your cleaning request</h1>
+        <p class="quote-intro" data-next-action></p>
+
+        <dl class="quote-details request-status-details">
+          <div><dt>Request reference</dt><dd data-reference></dd></div>
+          <div><dt>Service</dt><dd data-service></dd></div>
+          <div><dt>Property</dt><dd data-property></dd></div>
+          <div><dt>Area</dt><dd data-area></dd></div>
+        </dl>
+
+        <section class="quote-scope">
+          <h2>Journey progress</h2>
+          <ol class="request-timeline" data-timeline></ol>
+        </section>
+
+        <section class="quote-rules" data-scan-summary hidden>
+          <h2>Room-scan summary</h2>
+          <p data-scan-detail></p>
+          <p data-revision-note hidden></p>
+        </section>
+
+        <div class="request-status-actions" data-actions></div>
+        <div class="quote-result"><strong>This tracker does not take payment.</strong><span>It shows only stages recorded by Tideway. A request, accepted quote or cleaner response is not a confirmed booking until a protected booking pack appears here.</span></div>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer"><div class="shell footer-bottom"><span>© <span data-year></span> Tideway. Pilot service.</span><span>Keep this private tracker link confidential.</span></div></footer>
+</body>
+</html>

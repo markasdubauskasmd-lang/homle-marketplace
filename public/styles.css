@@ -413,6 +413,21 @@ textarea { resize: vertical; }
 .booking-room-photos figcaption strong, .booking-room-photos figcaption span { display: block; }
 .booking-room-photos figcaption span { margin-top: 5px; color: var(--muted); font-size: .86rem; }
 .room-photo-unavailable { display: grid; min-height: 140px; place-items: center; padding: 18px; color: var(--muted); text-align: center; }
+.request-status-card { min-height: 620px; }
+.request-status-details { margin-bottom: 24px; }
+.request-timeline { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.request-step { display: grid; grid-template-columns: 38px 1fr; gap: 12px; position: relative; min-height: 70px; padding-bottom: 18px; }
+.request-step::after { content: ""; position: absolute; top: 34px; bottom: 0; left: 16px; width: 2px; background: var(--line); }
+.request-step:last-child { min-height: auto; padding-bottom: 0; }
+.request-step:last-child::after { display: none; }
+.request-step > span { display: grid; z-index: 1; width: 34px; height: 34px; place-items: center; border: 2px solid var(--line); border-radius: 50%; background: #fff; color: var(--muted); font-weight: 900; }
+.request-step strong, .request-step small { display: block; }
+.request-step small { margin-top: 4px; color: var(--muted); }
+.request-step-complete > span { color: #fff; border-color: var(--green); background: var(--green); }
+.request-step-current > span { color: var(--green-dark); border-color: #72b99f; background: var(--mint-pale); }
+.request-step-action > span { color: #fff; border-color: #b06a16; background: #b06a16; }
+.request-status-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 26px 0; }
+.request-status-actions p { margin: 0; color: var(--muted); }
 .quote-decision { display: grid; gap: 16px; margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); }
 .quote-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .quote-result { display: grid; gap: 8px; margin-top: 28px; padding: 20px; color: var(--green-dark); border: 1px solid #a8d2c6; border-radius: 14px; background: var(--mint-pale); }
@@ -512,6 +527,7 @@ textarea { resize: vertical; }
   .brief-panel-heading { display: grid; }
   .photo-preview { grid-template-columns: 1fr; }
   .brief-nav .button { display: none; }
+  .brief-nav .status-refresh { display: inline-flex; }
   .booking-checks { grid-template-columns: 1fr; }
   .proposal-form label:nth-last-of-type(1) { grid-column: auto; }
   .lead-followup button { grid-column: auto; width: 100%; }

@@ -15,7 +15,9 @@ Then open `http://127.0.0.1:4173`.
 ## What works
 
 - Customer cleaning request form with server-side validation
+- High-entropy private customer tracker created with each request; it follows the real journey from required room scan through quote, cleaner confirmation, protected booking, job progress and completion
 - One-click private handoff from a completed request into the required room scan, with reference and email prefilled for that browser session
+- Tracker links keep their token in the browser fragment, remove it before the first server request and return no customer contact/access data, cleaner identity/pay or tracker authorisation token
 - Photo-and-voice room scan that requires a deliberate room label and specific note for every image, automatically summarises speech and photo notes into concise room-labelled checklist bullets, and blocks saving until every photographed room has a task
 - Audited human review decisions for room scans; a missing or unreviewed scan blocks cleaner-draft use, proposal approval and booking readiness
 - Structured scan review requires a 0.5–24 hour human scope estimate, medium/high confidence and an evidence note; proposal hours default to the higher of this estimate or the founder minimum
@@ -53,6 +55,7 @@ Then open `http://127.0.0.1:4173`.
 - Responsive, accessible website
 - Draft privacy notice and pilot terms
 - No payment collection and no fabricated reviews, cleaner profiles or business claims
+- Tracker stages are informational only: they expose a quote or confirmed customer booking link only after the corresponding audited record exists and never represent payment collection
 
 ## Before public launch
 

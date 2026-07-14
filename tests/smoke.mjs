@@ -73,6 +73,8 @@ try {
   const briefPage = await fetch(`${base}/brief`);
   assert(briefPage.ok && (await briefPage.text()).includes("Request details carried over."), "Photo job-brief page or private handoff notice failed.");
   assert(briefPage.headers.get("permissions-policy")?.includes("microphone=(self)"), "Job-brief page did not allow its requested microphone feature.");
+  const requestStatusPage = await fetch(`${base}/request-status`);
+  assert(requestStatusPage.ok && (await requestStatusPage.text()).includes("Private request tracker"), "Private customer request tracker page failed.");
   const quotePage = await fetch(`${base}/quote`);
   assert(quotePage.ok && (await quotePage.text()).includes("Private customer review"), "Private customer quote page failed.");
   const opportunityPage = await fetch(`${base}/opportunity`);
@@ -102,7 +104,14 @@ try {
     body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms and 1 bathroom", accessNotes: "Collect keys from the office", hazards: "None known", consent: true })
   });
   const requestBody = await validRequest.json();
-  assert(validRequest.status === 201 && requestBody.reference.startsWith("REQ-"), "Valid cleaning request failed.");
+  assert(validRequest.status === 201 && requestBody.reference.startsWith("REQ-") && /^[A-Za-z0-9_-]{32}$/.test(requestBody.customerStatusToken), "Valid cleaning request failed or omitted its private tracker token.");
+  const invalidRequestStatus = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": "not-a-private-request-token" } });
+  assert(invalidRequestStatus.status === 404, "Invalid customer tracker token exposed request status.");
+  const initialRequestStatus = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const initialRequestStatusBody = await initialRequestStatus.json();
+  assert(initialRequestStatus.ok && initialRequestStatusBody.current.stage === "room-scan" && initialRequestStatusBody.links.roomScanRequired === true && initialRequestStatusBody.request.reference === requestBody.reference, "New request tracker did not open at the required room-scan stage.");
+  const initialTrackerSerialised = JSON.stringify(initialRequestStatusBody);
+  assert(!initialTrackerSerialised.includes("customer@example.com") && !initialTrackerSerialised.includes("07123456789") && !initialTrackerSerialised.includes("Collect keys") && !initialTrackerSerialised.includes("customerStatusToken"), "Customer tracker exposed contact, access or authorisation-token data.");
 
   const unmatchedBrief = await fetch(`${base}/api/job-briefs`, {
     method: "POST",
@@ -129,7 +138,10 @@ try {
     body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Please wipe every kitchen worktop. Also mop the kitchen floor.", checklist: ["Kitchen: Wipe every kitchen worktop", "Kitchen: Mop the kitchen floor"], photos: [{ area: "Kitchen", note: "Worktops and floor need attention", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true })
   });
   const briefBody = await validBrief.json();
-  assert(validBrief.status === 201 && briefBody.reference.startsWith("BRF-") && briefBody.checklist.length === 2, "Valid photo job brief failed or checklist bullets were not generated.");
+  assert(validBrief.status === 201 && briefBody.reference.startsWith("BRF-") && briefBody.checklist.length === 2 && briefBody.customerStatusToken === requestBody.customerStatusToken, "Valid photo job brief failed, omitted checklist bullets or lost the private tracker handoff.");
+  const scanReviewStatus = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const scanReviewStatusBody = await scanReviewStatus.json();
+  assert(scanReviewStatus.ok && scanReviewStatusBody.current.stage === "scan-review" && scanReviewStatusBody.roomScan.reference === briefBody.reference && scanReviewStatusBody.roomScan.taskCount === 2 && scanReviewStatusBody.links.roomScanRequired === false, "Customer tracker did not show the submitted room scan awaiting review without requesting a duplicate scan.");
 
   const privateBriefImage = await fetch(`${base}/api/admin/job-brief-image?briefId=${briefBody.reference}&imageId=${briefBody.photos[0].id}`);
   assert(privateBriefImage.ok && privateBriefImage.headers.get("content-type") === "image/png" && (await privateBriefImage.arrayBuffer()).byteLength > 0, "Private job-brief photo could not be retrieved by the local control desk.");
@@ -343,6 +355,9 @@ try {
   });
   const reviewedBriefBody = await reviewedBrief.json();
   assert(reviewedBrief.ok && reviewedBriefBody.status === "reviewed" && reviewedBriefBody.scopeEstimateHours === 3.5 && reviewedBriefBody.scopeConfidence === "high", "Structured human scan approval was not recorded.");
+  const reviewedTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const reviewedTrackerBody = await reviewedTracker.json();
+  assert(reviewedTracker.ok && reviewedTrackerBody.current.stage === "quote-preparation" && reviewedTrackerBody.roomScan.status === "reviewed" && reviewedTrackerBody.roomScan.reviewedHours === 3.5 && reviewedTrackerBody.steps.find((step) => step.key === "scan")?.state === "complete", "Customer tracker did not reflect the reviewed scan and quote-preparation stage.");
   const reversedBriefReview = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: briefBody.reference, status: "needs-revision", note: "Late change" }) });
   assert(reversedBriefReview.status === 422, "Reviewed brief history was overwritten instead of requiring a new submission.");
   const underScopedProposal = await fetch(`${base}/api/admin/proposals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-23", proposedStartTime: "09:00", estimatedHours: 3, customerRate: 30, cleanerRate: 18, otherCosts: 5 }) });
@@ -370,6 +385,9 @@ try {
   assert(restoredCleaner.ok, "Paused cleaner could not return to approved status after revalidation test.");
   const sentProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "sent" }) });
   assert(sentProposal.ok, "Sent proposal status failed.");
+  const quoteReadyTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const quoteReadyTrackerBody = await quoteReadyTracker.json();
+  assert(quoteReadyTracker.ok && quoteReadyTrackerBody.current.stage === "quote-review" && quoteReadyTrackerBody.links.quoteToken === proposalBody.proposal.reviewToken && !JSON.stringify(quoteReadyTrackerBody).includes(cleanerBody.reference) && !JSON.stringify(quoteReadyTrackerBody).includes("cleaner@example.com"), "Customer tracker did not expose the ready quote safely or leaked cleaner details.");
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, cancellationPolicy: "A later rule that must not rewrite an already-sent quote.", cleanerModel: "A later model that must not rewrite a sent opportunity." }) });
   const frozenQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
   const frozenQuoteBody = await frozenQuote.json();
@@ -393,6 +411,9 @@ try {
   const acceptedProposal = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Customer", scopeConfirmed: true, termsAccepted: true }) });
   const acceptedProposalBody = await acceptedProposal.json();
   assert(acceptedProposal.ok && acceptedProposalBody.status === "accepted", "Audited private customer acceptance failed.");
+  const acceptedQuoteTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const acceptedQuoteTrackerBody = await acceptedQuoteTracker.json();
+  assert(acceptedQuoteTracker.ok && acceptedQuoteTrackerBody.current.stage === "cleaner-confirmation" && acceptedQuoteTrackerBody.steps.find((step) => step.key === "quote")?.state === "complete", "Customer tracker did not move to cleaner confirmation after quote acceptance.");
   const duplicateDecision = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": proposalBody.proposal.reviewToken }, body: JSON.stringify({ decision: "declined", typedName: "Test Customer" }) });
   assert(duplicateDecision.status === 409, "A completed customer decision was overwritten.");
   const acceptedQuote = await fetch(`${base}/api/quote`, { headers: { "x-quote-token": proposalBody.proposal.reviewToken } });
@@ -438,6 +459,9 @@ try {
   const acceptedCleaner = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": proposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Cleaner", scopeConfirmed: true, payConfirmed: true, availabilityConfirmed: true }) });
   const acceptedCleanerBody = await acceptedCleaner.json();
   assert(acceptedCleaner.ok && acceptedCleanerBody.status === "accepted", "Audited private cleaner acceptance failed.");
+  const bothAcceptedTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const bothAcceptedTrackerBody = await bothAcceptedTracker.json();
+  assert(bothAcceptedTracker.ok && bothAcceptedTrackerBody.current.stage === "finalising-booking" && bothAcceptedTrackerBody.steps.find((step) => step.key === "cleaner")?.state === "complete", "Customer tracker did not show final booking checks after both private acceptances.");
   const overlappingCleanerDecision = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": overlapProposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "accepted", typedName: "Test Cleaner", scopeConfirmed: true, payConfirmed: true, availabilityConfirmed: true }) });
   assert(overlappingCleanerDecision.status === 409, "Cleaner accepted a second opportunity that overlaps already-accepted work.");
   const duplicateCleanerDecision = await fetch(`${base}/api/opportunity/decision`, { method: "POST", headers: { "content-type": "application/json", "x-opportunity-token": proposalBody.proposal.cleanerReviewToken }, body: JSON.stringify({ decision: "declined", typedName: "Test Cleaner" }) });
@@ -471,6 +495,9 @@ try {
   });
   const confirmedBookingBody = await confirmedBooking.json();
   assert(confirmedBooking.status === 201 && confirmedBookingBody.booking.id.startsWith("BKG-") && /^[A-Za-z0-9_-]{32}$/.test(confirmedBookingBody.booking.customerViewToken) && /^[A-Za-z0-9_-]{32}$/.test(confirmedBookingBody.booking.cleanerViewToken), "Fully confirmed booking or its private view tokens were not recorded.");
+  const bookedTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const bookedTrackerBody = await bookedTracker.json();
+  assert(bookedTracker.ok && bookedTrackerBody.current.stage === "booking-confirmed" && bookedTrackerBody.links.bookingToken === confirmedBookingBody.booking.customerViewToken && bookedTrackerBody.visit.reference === confirmedBookingBody.booking.id && !JSON.stringify(bookedTrackerBody).includes("cleanerViewToken"), "Customer tracker did not link the confirmed customer booking safely.");
   const invalidBookingPack = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": "not-a-booking-pack-token" } });
   assert(invalidBookingPack.status === 404, "Invalid booking-pack token exposed visit details.");
   const customerPack = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.customerViewToken } });
@@ -533,6 +560,9 @@ try {
   const cleanerArrival = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.cleanerViewToken }, body: JSON.stringify({ type: "cleaner-arrived", addressConfirmed: true, safeToStart: true, scopeAccessible: true, note: "Test arrival only" }) });
   const cleanerArrivalBody = await cleanerArrival.json();
   assert(cleanerArrival.status === 201 && cleanerArrivalBody.reference.startsWith("EVT-"), "Valid cleaner arrival was not recorded.");
+  const arrivalTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const arrivalTrackerBody = await arrivalTracker.json();
+  assert(arrivalTracker.ok && arrivalTrackerBody.current.stage === "clean-in-progress" && arrivalTrackerBody.visit.jobProgress.cleanerArrivedAt, "Customer tracker did not show the recorded cleaner arrival.");
   const duplicateArrival = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.cleanerViewToken }, body: JSON.stringify({ type: "cleaner-arrived", addressConfirmed: true, safeToStart: true, scopeAccessible: true }) });
   assert(duplicateArrival.status === 409, "Duplicate cleaner arrival overwrote the timeline.");
   const earlyCustomerCompletion = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.customerViewToken }, body: JSON.stringify({ type: "customer-completed", serviceReceived: true, completionDetailsAccurate: true }) });
@@ -541,6 +571,9 @@ try {
   assert(cleanerCompletion.status === 201, "Valid cleaner completion was not recorded.");
   const customerCompletion = await fetch(`${base}/api/job-events`, { method: "POST", headers: { "content-type": "application/json", "x-booking-token": confirmedBookingBody.booking.customerViewToken }, body: JSON.stringify({ type: "customer-completed", serviceReceived: true, completionDetailsAccurate: true }) });
   assert(customerCompletion.status === 201, "Valid customer completion acknowledgement was not recorded.");
+  const acknowledgedTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const acknowledgedTrackerBody = await acknowledgedTracker.json();
+  assert(acknowledgedTracker.ok && acknowledgedTrackerBody.current.stage === "completion-recorded" && acknowledgedTrackerBody.steps.find((step) => step.key === "clean")?.state === "complete", "Customer tracker did not show acknowledged completion.");
   const packAfterCompletion = await fetch(`${base}/api/booking-pack`, { headers: { "x-booking-token": confirmedBookingBody.booking.customerViewToken } });
   const packAfterCompletionBody = await packAfterCompletion.json();
   assert(packAfterCompletionBody.booking.jobProgress.readyForOutcome === true && packAfterCompletionBody.booking.jobProgress.cleanerArrivedAt && packAfterCompletionBody.booking.jobProgress.cleanerCompletedAt && packAfterCompletionBody.booking.jobProgress.customerCompletedAt, "Private booking pack did not show the completed job timeline.");
@@ -556,6 +589,9 @@ try {
   });
   const completedJobBody = await completedJob.json();
   assert(completedJob.status === 201 && completedJobBody.outcome.contribution === 33 && completedJobBody.outcome.profitable === true && completedJobBody.outcome.metTargetMargin === true, "Completed-job actual contribution or target comparison was not calculated correctly.");
+  const completedTracker = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
+  const completedTrackerBody = await completedTracker.json();
+  assert(completedTracker.ok && completedTrackerBody.current.stage === "completed" && completedTrackerBody.links.bookingToken === confirmedBookingBody.booking.customerViewToken, "Customer tracker did not reach completed status after the final job outcome.");
 
   const activityUpdate = await fetch(`${base}/api/admin/activity`, {
     method: "POST",
@@ -580,7 +616,7 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.pilotCoverage?.covered === true, "Configured pilot coverage was not attached to the customer request.");
   assert(refreshedBody.records.find((record) => record.id === cleanerBody.reference)?.screening?.complete === true, "Latest cleaner screening was not attached to the application.");
 
-  console.log("Smoke tests passed: public pages, private request-to-scan handoff, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-photo notes, photographed-room task coverage, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room images, pilot-area enforcement, cleaner screening, admin security, pricing controls, exact job schedules, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations and gated actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

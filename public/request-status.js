@@ -1,0 +1,103 @@
+const token = location.hash.slice(1);
+if (token) history.replaceState(null, "", location.pathname);
+
+const loading = document.querySelector("#status-loading");
+const errorState = document.querySelector("#status-error");
+const content = document.querySelector("#status-content");
+const refresh = document.querySelector("[data-refresh]");
+
+document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
+
+function setText(selector, value) {
+  document.querySelector(selector).textContent = value || "—";
+}
+
+function showError(message) {
+  loading.hidden = true;
+  content.hidden = true;
+  refresh.hidden = true;
+  errorState.hidden = false;
+  setText("[data-error-message]", message);
+}
+
+function actionLink(label, href, primary = false) {
+  const link = document.createElement("a");
+  link.className = primary ? "button" : "button button-outline";
+  link.href = href;
+  link.textContent = label;
+  return link;
+}
+
+function renderStatus(result) {
+  loading.hidden = true;
+  errorState.hidden = true;
+  content.hidden = false;
+  refresh.hidden = false;
+  setText("[data-headline]", result.current.headline);
+  setText("[data-next-action]", result.current.nextAction);
+  setText("[data-reference]", result.request.reference);
+  setText("[data-service]", result.request.service);
+  setText("[data-property]", `${result.request.propertyType} · ${result.request.siteSize}`);
+  setText("[data-area]", result.request.outwardCode);
+
+  const timeline = document.querySelector("[data-timeline]");
+  timeline.replaceChildren();
+  for (const step of result.steps) {
+    const item = document.createElement("li");
+    item.className = `request-step request-step-${step.state}`;
+    const marker = document.createElement("span");
+    marker.textContent = step.state === "complete" ? "✓" : step.state === "action" ? "!" : "•";
+    marker.setAttribute("aria-hidden", "true");
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = step.label;
+    const detail = document.createElement("small");
+    detail.textContent = step.detail;
+    copy.append(title, detail);
+    item.append(marker, copy);
+    timeline.append(item);
+  }
+
+  const scanSection = document.querySelector("[data-scan-summary]");
+  if (result.roomScan) {
+    const reviewed = result.roomScan.status === "reviewed";
+    setText("[data-scan-detail]", reviewed
+      ? `${result.roomScan.photoCount} photos · ${result.roomScan.taskCount} cleaner tasks · ${result.roomScan.reviewedHours} reviewed hours · ${result.roomScan.confidence} confidence`
+      : `${result.roomScan.photoCount} photos · ${result.roomScan.taskCount} cleaner tasks · ${result.roomScan.status}`);
+    const revision = document.querySelector("[data-revision-note]");
+    revision.hidden = !result.roomScan.revisionNote;
+    revision.textContent = result.roomScan.revisionNote ? `Revision requested: ${result.roomScan.revisionNote}` : "";
+    scanSection.hidden = false;
+  } else {
+    scanSection.hidden = true;
+  }
+
+  const actions = document.querySelector("[data-actions]");
+  actions.replaceChildren();
+  if (result.links.bookingToken) actions.append(actionLink("Open confirmed booking", `/booking-confirmation#${result.links.bookingToken}`, true));
+  else if (result.links.quoteToken) actions.append(actionLink("Review private quote", `/quote#${result.links.quoteToken}`, true));
+  if (result.links.roomScanRequired) actions.append(actionLink(result.roomScan?.status === "needs-revision" ? "Submit revised room scan" : "Complete room scan", `/brief?reference=${encodeURIComponent(result.request.reference)}`, !actions.children.length));
+  if (!actions.children.length) {
+    const waiting = document.createElement("p");
+    waiting.textContent = "No customer action is currently required. Refresh this private page after Tideway records the next stage.";
+    actions.append(waiting);
+  }
+}
+
+async function loadStatus() {
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return showError("This private tracker link is incomplete or invalid.");
+  refresh.disabled = true;
+  try {
+    const response = await fetch("/api/request-status", { headers: { "Accept": "application/json", "X-Request-Token": token } });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "The request status could not be loaded.");
+    renderStatus(result);
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    refresh.disabled = false;
+  }
+}
+
+refresh.addEventListener("click", loadStatus);
+loadStatus();

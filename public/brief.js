@@ -236,6 +236,11 @@ form.addEventListener("submit", async (event) => {
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "The job brief could not be saved.");
     successBox.querySelector("[data-brief-reference]").textContent = result.reference;
+    const statusLink = successBox.querySelector("[data-status-link]");
+    if (statusLink && result.customerStatusToken) {
+      statusLink.href = `/request-status#${result.customerStatusToken}`;
+      statusLink.hidden = false;
+    }
     try { clearBriefHandoff(window.sessionStorage); } catch {}
     successBox.hidden = false;
     successBox.focus();

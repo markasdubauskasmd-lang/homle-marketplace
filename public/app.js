@@ -83,6 +83,11 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
         try { saveBriefHandoff(window.sessionStorage, result.reference, submission.email); } catch {}
         briefLink.href = `/brief?reference=${encodeURIComponent(result.reference)}`;
       }
+      const statusLink = success.querySelector("[data-status-link]");
+      if (statusLink && result.customerStatusToken) {
+        statusLink.href = `/request-status#${result.customerStatusToken}`;
+        statusLink.hidden = false;
+      }
       success.hidden = false;
       success.focus();
     } catch (error) {
