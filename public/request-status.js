@@ -64,6 +64,9 @@ function renderStatus(result) {
     setText("[data-scan-detail]", reviewed
       ? `${result.roomScan.photoCount} photos · ${result.roomScan.taskCount} cleaner tasks · ${result.roomScan.reviewedHours} reviewed hours · ${result.roomScan.confidence} confidence`
       : `${result.roomScan.photoCount} photos · ${result.roomScan.taskCount} cleaner tasks · ${result.roomScan.status}`);
+    const confirmedExtras = document.querySelector("[data-confirmed-extras]");
+    confirmedExtras.hidden = !result.roomScan.confirmedExtras?.length;
+    confirmedExtras.textContent = result.roomScan.confirmedExtras?.length ? `Included in the reviewed time: ${result.roomScan.confirmedExtras.join(", ")}.` : "";
     const revision = document.querySelector("[data-revision-note]");
     revision.hidden = !result.roomScan.revisionNote;
     revision.textContent = result.roomScan.revisionNote ? `Revision requested: ${result.roomScan.revisionNote}` : "";

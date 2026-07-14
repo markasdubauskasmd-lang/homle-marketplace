@@ -51,6 +51,16 @@ function renderQuote(quote) {
     });
     document.querySelector("[data-checklist-section]").hidden = false;
   }
+  if (quote.confirmedExtras?.length) {
+    const extras = document.querySelector("[data-confirmed-extras]");
+    const list = document.querySelector("[data-confirmed-extras-list]");
+    quote.confirmedExtras.forEach((signal) => {
+      const item = document.createElement("li");
+      item.textContent = signal.label;
+      list.append(item);
+    });
+    extras.hidden = false;
+  }
 
   if (quote.decision || !quote.decisionAllowed) {
     form.hidden = true;

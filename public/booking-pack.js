@@ -260,6 +260,16 @@ async function renderBooking(booking) {
     });
     document.querySelector("[data-checklist-section]").hidden = false;
   }
+  if (booking.confirmedExtras?.length) {
+    const extras = document.querySelector("[data-confirmed-extras]");
+    const list = document.querySelector("[data-confirmed-extras-list]");
+    booking.confirmedExtras.forEach((signal) => {
+      const item = document.createElement("li");
+      item.textContent = signal.label;
+      list.append(item);
+    });
+    extras.hidden = false;
+  }
 
   if (cleanerView) {
     document.querySelector("[data-cleaner-pay-row]").hidden = false;

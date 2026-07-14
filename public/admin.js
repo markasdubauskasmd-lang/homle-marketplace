@@ -289,6 +289,9 @@ async function findMatches(record, results, button) {
       } else if (result.matchGate?.reason === "reviewed-room-scan-required") {
         addText(results, "strong", "Review the room scan before matching.");
         addText(results, "span", "Tideway needs the reviewed cleaning-time estimate before it can prove that a cleaner window is long enough.");
+      } else if (result.matchGate?.reason === "price-sensitive-scope-review-required") {
+        addText(results, "strong", "Confirm the price-sensitive scan items before matching.");
+        addText(results, "span", "Every detected extra must be included in the reviewed cleaning-time estimate before Tideway can suggest a cleaner window.");
       } else if (result.matchGate?.reason === "no-schedulable-window") {
         addText(results, "strong", "No confirmed window fits this request yet.");
         addText(results, "span", `${result.matchGate.requiredHours} reviewed hours must fit${result.request.preferredDate ? ` on ${result.request.preferredDate}` : " a future date"}${result.request.preferredTimeWindow && result.request.preferredTimeWindow !== "Flexible" ? ` with a ${result.request.preferredTimeWindow.toLowerCase()} arrival` : ""}. Do not promise a different time without customer approval.`);
@@ -298,6 +301,7 @@ async function findMatches(record, results, button) {
       }
       return;
     }
+    if (result.matchGate?.confirmedExtras?.length) addText(results, "span", `Reviewed extras included in the time estimate: ${result.matchGate.confirmedExtras.join(", ")}.`, "scope-signal-summary");
     for (const match of result.matches) {
       const item = document.createElement("article");
       item.className = "match-result";
@@ -500,7 +504,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", availabilityCovered: "Visit fits an active confirmed availability window", costModelCurrent: "Proposal uses the current founder-confirmed cost assumptions", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
+    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", availabilityCovered: "Visit fits an active confirmed availability window", costModelCurrent: "Proposal uses the current founder-confirmed cost assumptions", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", priceSensitiveScopeConfirmed: "Detected price-sensitive scan items included in reviewed hours", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -749,7 +753,7 @@ async function changeBriefStatus(brief, form) {
     const response = await fetch("/api/admin/job-briefs/status", {
       method: "PATCH",
       headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }),
-      body: JSON.stringify({ briefId: brief.id, status: select.value, note: note.value.trim(), scopeEstimateHours: form.elements.scopeEstimateHours.value, scopeConfidence: form.elements.scopeConfidence.value })
+      body: JSON.stringify({ briefId: brief.id, status: select.value, note: note.value.trim(), scopeEstimateHours: form.elements.scopeEstimateHours.value, scopeConfidence: form.elements.scopeConfidence.value, scopeSignalConfirmations: [...form.querySelectorAll('input[name="scopeSignalConfirmation"]:checked')].map((input) => input.value) })
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "Job brief review could not be saved.");
@@ -1052,6 +1056,16 @@ function buildCard(record) {
     const tasks = document.createElement("ul");
     brief.checklist.forEach((task) => addText(tasks, "li", task));
     briefSummary.append(summary, tasks);
+    if (brief.scopeSignals?.length) {
+      const scopeSignalSummary = document.createElement("div");
+      scopeSignalSummary.className = "scope-signal-summary";
+      addText(scopeSignalSummary, "strong", "Price-sensitive scope detected");
+      addText(scopeSignalSummary, "span", "Detected from the transcript, checklist or photo notes. This is a review warning, not an automatic price.");
+      const signalList = document.createElement("ul");
+      brief.scopeSignals.forEach((signal) => addText(signalList, "li", signal.label));
+      scopeSignalSummary.append(signalList);
+      briefSummary.append(scopeSignalSummary);
+    }
     if (brief.photos.length) {
       const loadPhotos = document.createElement("button");
       loadPhotos.type = "button";
@@ -1110,6 +1124,27 @@ function buildCard(record) {
       note.required = true;
       note.placeholder = "Explain the time estimate or what the customer must correct";
       noteLabel.append(note);
+      const signalFieldset = document.createElement("fieldset");
+      signalFieldset.className = "scope-signal-confirmations";
+      const signalLegend = document.createElement("legend");
+      signalLegend.textContent = "Price-sensitive scope included in reviewed hours";
+      signalFieldset.append(signalLegend);
+      if (brief.scopeSignals?.length) {
+        brief.scopeSignals.forEach((signal) => {
+          const label = document.createElement("label");
+          label.className = "checkbox";
+          const input = document.createElement("input");
+          input.type = "checkbox";
+          input.name = "scopeSignalConfirmation";
+          input.value = signal.code;
+          const copy = document.createElement("span");
+          copy.textContent = `${signal.label} is included in the reviewed hours`;
+          label.append(input, copy);
+          signalFieldset.append(label);
+        });
+      } else {
+        addText(signalFieldset, "span", "No price-sensitive extras were detected in this scan.");
+      }
       const save = document.createElement("button");
       save.type = "submit";
       save.className = "button button-small";
@@ -1120,14 +1155,21 @@ function buildCard(record) {
         hours.required = approving;
         confidence.disabled = !approving;
         confidence.required = approving;
+        signalFieldset.querySelectorAll("input").forEach((input) => {
+          input.disabled = !approving;
+          input.required = approving;
+        });
       };
       statusSelect.addEventListener("change", syncEstimateFields);
-      reviewForm.append(statusLabel, hoursLabel, confidenceLabel, noteLabel, save);
+      reviewForm.append(statusLabel, hoursLabel, confidenceLabel, signalFieldset, noteLabel, save);
       syncEstimateFields();
       reviewForm.addEventListener("submit", (event) => { event.preventDefault(); changeBriefStatus(brief, reviewForm); });
       briefSummary.append(reviewForm);
     } else {
-      if (brief.status === "reviewed") addText(briefSummary, "span", `Reviewed scope: ${brief.scopeEstimateHours} hours · ${brief.scopeConfidence} confidence`, "brief-review-note");
+      if (brief.status === "reviewed") {
+        addText(briefSummary, "span", `Reviewed scope: ${brief.scopeEstimateHours} hours · ${brief.scopeConfidence} confidence`, "brief-review-note");
+        if (brief.scopeSignals?.length) addText(briefSummary, "span", `Confirmed inside reviewed hours: ${brief.scopeSignals.map((signal) => signal.label).join(", ")}`, "brief-review-note");
+      }
       if (brief.reviewNote) addText(briefSummary, "span", `Review note: ${brief.reviewNote}`, "brief-review-note");
     }
     card.append(briefSummary);

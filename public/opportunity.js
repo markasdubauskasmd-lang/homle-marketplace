@@ -96,6 +96,16 @@ function renderOpportunity(opportunity) {
           : "No private photo references are attached.");
     document.querySelector("[data-checklist-section]").hidden = false;
   }
+  if (opportunity.confirmedExtras?.length) {
+    const extras = document.querySelector("[data-confirmed-extras]");
+    const list = document.querySelector("[data-confirmed-extras-list]");
+    opportunity.confirmedExtras.forEach((signal) => {
+      const item = document.createElement("li");
+      item.textContent = signal.label;
+      list.append(item);
+    });
+    extras.hidden = false;
+  }
 
   if (opportunity.photoAccessAllowed && opportunity.roomPhotos?.length) loadRoomPhotos(opportunity.roomPhotos);
 

@@ -277,10 +277,17 @@ textarea { resize: vertical; }
 .brief-summary > strong { display: block; margin-top: 13px; }
 .brief-summary ul { margin: 10px 0 14px; padding-left: 22px; }
 .brief-summary li { margin-bottom: 6px; }
+.scope-signal-summary { display: block; margin: 12px 0; padding: 12px; border-left: 4px solid #d97706; border-radius: 8px; background: #fff8e8; color: #74410a; }
+.scope-signal-summary strong, .scope-signal-summary span { display: block; }
+.scope-signal-summary span { margin-top: 4px; font-size: .84rem; }
+.scope-signal-summary ul { margin-bottom: 0; }
 .brief-review-form { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 10px; align-items: end; margin-top: 14px; padding-top: 14px; border-top: 1px solid #9bcdbf; }
 .brief-review-form label { font-size: .78rem; }
 .brief-review-form select, .brief-review-form textarea { padding-block: .6rem; }
 .brief-review-note-field { grid-column: 1 / -1; }
+.scope-signal-confirmations { grid-column: 1 / -1; margin: 0; padding: 12px; border: 1px solid #e2b48f; border-radius: 9px; background: #fffaf2; }
+.scope-signal-confirmations legend { padding: 0 5px; color: #74410a; font-size: .82rem; font-weight: 850; }
+.scope-signal-confirmations .checkbox { margin-top: 8px; }
 .brief-review-form button { min-height: 42px; }
 .brief-review-note { display: block; margin-top: 12px; color: var(--muted); font-size: .86rem; }
 .cleaner-screening { margin-top: 16px; padding: 15px; border: 1px solid #e2b48f; border-radius: 11px; background: #fff7ef; }
