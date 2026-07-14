@@ -6,8 +6,8 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Tideway control desk</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260714-9">
-  <script src="/admin.js?v=20260714-9" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=20260714-10">
+  <script src="/admin.js?v=20260714-10" defer></script>
 </head>
 <body class="admin-page">
   <a class="skip-link" href="#admin-main">Skip to leads</a>
@@ -45,7 +45,7 @@
     <section class="launch-setup" aria-labelledby="launch-setup-heading">
       <div class="launch-setup-heading">
         <div><p class="eyebrow">Launch gate</p><h2 id="launch-setup-heading">Business readiness</h2><p>These details stay local. They must be complete and verified before Tideway is published or takes money.</p></div>
-        <div class="readiness-score"><strong id="readiness-score">0/6</strong><span>launch areas ready</span></div>
+        <div class="readiness-score"><strong id="readiness-score">0/7</strong><span>launch areas ready</span></div>
       </div>
       <ul class="readiness-list" id="readiness-list">
         <li data-check="identity"><span>○</span>Legal identity</li>
@@ -53,6 +53,7 @@
         <li data-check="pilotArea"><span>○</span>Pilot area</li>
         <li data-check="economics"><span>○</span>Pricing and pay</li>
         <li data-check="insurance"><span>○</span>Insurance active</li>
+        <li data-check="payments"><span>○</span>Payments ready</li>
         <li data-check="operatingRules"><span>○</span>Operating rules</li>
       </ul>
       <details class="setup-details">
@@ -64,6 +65,8 @@
           <div class="field-row"><label>Support email<input name="supportEmail" type="email" autocomplete="email"></label><label>Support phone<input name="supportPhone" type="tel" autocomplete="tel"></label></div>
           <label>Pilot postcode areas<input name="pilotPostcodes" placeholder="For example: SW2, SW4, SW9"></label>
           <div class="field-row"><label>Cleaner engagement model<select name="cleanerModel"><option value="">Choose after advice</option><option>Employee</option><option>Worker</option><option>Self-employed contractor</option><option>Undecided</option></select></label><label>Public liability insurance<select name="insuranceStatus"><option value="not-arranged">Not arranged</option><option value="in-progress">In progress</option><option value="active">Active and verified</option></select></label></div>
+          <div class="field-row"><label>Payment provider<input name="paymentProviderName" placeholder="For example: Stripe"></label><label>Payment provider status<select name="paymentProviderStatus"><option value="not-ready">Not ready</option><option value="testing">Test mode only</option><option value="live">Live and verified</option></select></label></div>
+          <label>Refund process<textarea name="refundProcess" rows="2" placeholder="Who approves refunds, how they are recorded, and the expected customer timescale"></textarea></label>
           <div class="field-row three-fields"><label>Customer hourly rate (£)<input name="customerHourlyRate" type="number" min="0" step="0.01" inputmode="decimal"></label><label>Cleaner hourly pay (£)<input name="cleanerHourlyPay" type="number" min="0" step="0.01" inputmode="decimal"></label><label>Minimum hours<input name="minimumHours" type="number" min="0" step="0.5" inputmode="decimal"></label></div>
           <label>Cancellation rule<textarea name="cancellationPolicy" rows="3" placeholder="When customers may cancel and what happens to cleaner pay"></textarea></label>
           <label>Customer payment timing<select name="paymentTiming"><option value="">Choose one</option><option>Payment authorised at booking and captured after completion</option><option>Payment taken at booking</option><option>Invoice after completion</option><option>Other — document before launch</option></select></label>

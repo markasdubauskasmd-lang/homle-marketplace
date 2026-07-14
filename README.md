@@ -19,10 +19,10 @@ Then open `http://127.0.0.1:4173`.
 - Local private submission files in `data/`
 - Private local control desk at `/admin` with lead filters, status tracking, internal notes and next-action dates
 - Internal quote calculator for checking cleaner pay and job contribution before sending a price
-- Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance and operating rules
+- Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules
 - Human-reviewed matching suggestions using approved cleaners, requested service type and postcode coverage
 - Internal draft proposals that link a request to an approved cleaner and reject loss-making job economics
-- Proposal status gates that prevent a draft becoming ready, sent or accepted until all six launch checks pass
+- Proposal status gates that prevent a draft becoming ready, sent or accepted until all seven launch checks pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
 - Private data backup script and documented recovery procedure
 - Responsive, accessible website

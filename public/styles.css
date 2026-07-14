@@ -192,7 +192,7 @@ textarea { resize: vertical; }
 .readiness-score strong, .readiness-score span { display: block; }
 .readiness-score strong { color: #9ee8d4; font-size: 2rem; }
 .readiness-score span { color: #c6dcd6; font-size: .76rem; }
-.readiness-list { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 24px 0 0; padding: 0; list-style: none; }
+.readiness-list { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin: 24px 0 0; padding: 0; list-style: none; }
 .readiness-list li { padding: 10px; border: 1px solid rgba(255,255,255,.15); border-radius: 9px; color: #c6dcd6; font-size: .8rem; }
 .readiness-list li span { margin-right: 5px; }
 .readiness-list li.ready { color: #fff; border-color: rgba(158,232,212,.6); background: rgba(158,232,212,.1); }

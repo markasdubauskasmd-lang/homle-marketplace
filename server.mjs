@@ -146,6 +146,7 @@ function launchReadiness(config) {
     pilotArea: Boolean(config.pilotPostcodes),
     economics: Boolean(config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.minimumHours > 0 && config.customerHourlyRate > config.cleanerHourlyPay),
     insurance: config.insuranceStatus === "active",
+    payments: Boolean(config.paymentProviderStatus === "live" && config.paymentProviderName && config.refundProcess),
     operatingRules: Boolean(config.cleanerModel && config.cancellationPolicy && config.paymentTiming)
   };
   return { checks, completed: Object.values(checks).filter(Boolean).length, total: Object.keys(checks).length, ready: Object.values(checks).every(Boolean) };
@@ -229,7 +230,7 @@ async function updateAdminProposalStatus(request, response) {
   for (const update of updates) if (update.proposalId === proposalId) currentStatus = update.status;
   if (!transitions[currentStatus]?.has(status)) return json(response, 422, { ok: false, error: `Proposal cannot move from ${currentStatus} to ${status}.` });
   if (["ready", "sent", "accepted"].includes(status) && !launchReadiness(config).ready) {
-    return json(response, 422, { ok: false, error: "Complete all six launch-readiness checks before advancing this proposal." });
+    return json(response, 422, { ok: false, error: "Complete all seven launch-readiness checks before advancing this proposal." });
   }
   const update = { proposalId, requestId: proposal.requestId, status, previousStatus: currentStatus, updatedAt: new Date().toISOString() };
   await saveRecord("proposal-status.ndjson", update);
@@ -255,7 +256,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
 
   const readiness = launchReadiness(config);
   const warnings = [];
-  if (!readiness.ready) warnings.push("Complete all six launch-readiness checks before using these drafts.");
+  if (!readiness.ready) warnings.push("Complete all seven launch-readiness checks before using these drafts.");
   if (!["ready", "sent", "accepted"].includes(proposalStatus)) warnings.push("The proposal is still a draft and has not been internally approved.");
   if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
   if (!config.paymentTiming) warnings.push("Add the customer payment timing.");
@@ -460,6 +461,9 @@ async function updateAdminConfig(request, response) {
     pilotPostcodes: text(input.pilotPostcodes, 400).toUpperCase(),
     cleanerModel: text(input.cleanerModel, 80),
     insuranceStatus: text(input.insuranceStatus, 40),
+    paymentProviderName: text(input.paymentProviderName, 120),
+    paymentProviderStatus: text(input.paymentProviderStatus, 40),
+    refundProcess: text(input.refundProcess, 800),
     customerHourlyRate: Math.max(0, Number(input.customerHourlyRate) || 0),
     cleanerHourlyPay: Math.max(0, Number(input.cleanerHourlyPay) || 0),
     minimumHours: Math.max(0, Number(input.minimumHours) || 0),
@@ -471,6 +475,7 @@ async function updateAdminConfig(request, response) {
   if (config.supportEmail && !isEmail(config.supportEmail)) errors.push("Enter a valid support email.");
   if (config.supportPhone && !isPhone(config.supportPhone)) errors.push("Enter a valid support phone number.");
   if (config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.customerHourlyRate <= config.cleanerHourlyPay) errors.push("Customer rate must be higher than cleaner pay before other costs.");
+  if (config.paymentProviderStatus === "live" && (!config.paymentProviderName || !config.refundProcess)) errors.push("Add the live payment provider and refund process.");
   if (errors.length) return json(response, 422, { ok: false, errors });
   await saveJsonFile("business-config.json", config);
   return json(response, 200, { ok: true, config, readiness: launchReadiness(config) });
