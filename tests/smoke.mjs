@@ -107,6 +107,7 @@ try {
   const adminBody = await adminRecords.json();
   assert(adminRecords.ok && adminBody.records.length === 2, "Admin records did not load.");
   assert(adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.id === briefBody.reference, "Photo job brief was not attached to its customer request.");
+  assert(adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "landlord-draft", "New photo job brief did not enter the human review queue.");
 
   const proxiedAdmin = await fetch(`${base}/api/admin/records`, { headers: { "x-forwarded-for": "203.0.113.10" } });
   assert(proxiedAdmin.status === 401, "Proxied admin request bypassed authentication.");
@@ -216,6 +217,22 @@ try {
   assert(increasedFloorBlocked.status === 422, "Existing proposal bypassed a newly increased founder margin floor.");
 
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
+  const briefBlockedDrafts = await fetch(`${base}/api/admin/proposal-drafts?proposalId=${proposalBody.proposal.id}`);
+  const briefBlockedDraftsBody = await briefBlockedDrafts.json();
+  assert(briefBlockedDrafts.ok && briefBlockedDraftsBody.sendAllowed === false && briefBlockedDraftsBody.warnings.some((warning) => warning.includes("photo job brief")), "Unreviewed landlord brief did not block cleaner-draft use.");
+  const unreviewedProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
+  assert(unreviewedProposal.status === 422, "Unreviewed landlord brief did not block proposal advancement.");
+  const revisionWithoutNote = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: briefBody.reference, status: "needs-revision" }) });
+  assert(revisionWithoutNote.status === 422, "A revision request was accepted without guidance for the landlord.");
+  const reviewedBrief = await fetch(`${base}/api/admin/job-briefs/status`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ briefId: briefBody.reference, status: "reviewed", note: "Checklist and private photo checked against the submitted scope." })
+  });
+  const reviewedBriefBody = await reviewedBrief.json();
+  assert(reviewedBrief.ok && reviewedBriefBody.status === "reviewed", "Human brief approval was not recorded.");
+  const reversedBriefReview = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: briefBody.reference, status: "needs-revision", note: "Late change" }) });
+  assert(reversedBriefReview.status === 422, "Reviewed brief history was overwritten instead of requiring a new submission.");
   const readyProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "ready" }) });
   assert(readyProposal.ok, "Ready proposal status failed after launch checks passed.");
   const skippedTransition = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "accepted" }) });
@@ -229,7 +246,7 @@ try {
   const readyDraftsBody = await readyDrafts.json();
   assert(readyDrafts.ok && readyDraftsBody.sendAllowed === true, "Ready proposal drafts were not available for review.");
   assert(readyDraftsBody.customer.body.includes("Test Customer") && readyDraftsBody.customer.body.includes("£120.00"), "Customer quote draft omitted required proposal details.");
-  assert(readyDraftsBody.cleaner.body.includes("£72.00") && readyDraftsBody.cleaner.body.includes("None known") && readyDraftsBody.cleaner.body.includes("Wipe every kitchen worktop") && readyDraftsBody.cleaner.body.includes("Photo references held privately: 1") && !readyDraftsBody.cleaner.body.includes("customer@example.com") && !readyDraftsBody.cleaner.body.includes("Test Customer") && !readyDraftsBody.cleaner.body.includes("base64"), "Cleaner draft omitted pay/photo checklist scope or leaked customer identity or image data.");
+  assert(readyDraftsBody.cleaner.body.includes("£72.00") && readyDraftsBody.cleaner.body.includes("None known") && readyDraftsBody.cleaner.body.includes("Tideway-reviewed cleaner checklist") && readyDraftsBody.cleaner.body.includes("Wipe every kitchen worktop") && readyDraftsBody.cleaner.body.includes("Photo references held privately: 1") && !readyDraftsBody.cleaner.body.includes("customer@example.com") && !readyDraftsBody.cleaner.body.includes("Test Customer") && !readyDraftsBody.cleaner.body.includes("base64"), "Cleaner draft omitted reviewed pay/photo checklist scope or leaked customer identity or image data.");
 
   const bookingAudit = await fetch(`${base}/api/admin/booking-audit?proposalId=${proposalBody.proposal.id}`);
   const bookingAuditBody = await bookingAudit.json();
@@ -273,10 +290,11 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.activities?.[0]?.note.includes("confirmed the scope"), "Lead activity was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.id.startsWith("PRO-"), "Draft proposal was not retained on the customer request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.proposals?.[0]?.status === "accepted", "Proposal status progression was not retained.");
+  assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "reviewed", "Job-brief review status was not retained.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.booking?.id === confirmedBookingBody.booking.id, "Confirmed booking was not attached to the request.");
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.outcome?.contribution === 33, "Actual job outcome was not attached to the request.");
 
-  console.log("Smoke tests passed: public pages, photo-and-voice job briefs, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, photo-and-voice job briefs, human brief review gates, private images, admin security, pricing controls, matching, profitable proposals, booking confirmations and actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

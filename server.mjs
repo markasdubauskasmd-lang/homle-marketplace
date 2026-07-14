@@ -226,6 +226,19 @@ function launchReadiness(config) {
   return { checks, completed: Object.values(checks).filter(Boolean).length, total: Object.keys(checks).length, ready: Object.values(checks).every(Boolean) };
 }
 
+function applyBriefStatus(brief, updates) {
+  let status = brief.status || "landlord-draft";
+  let reviewNote = "";
+  let reviewedAt = "";
+  for (const update of updates) {
+    if (update.briefId !== brief.id) continue;
+    status = update.status;
+    reviewNote = update.note || "";
+    reviewedAt = update.updatedAt;
+  }
+  return { ...brief, status, reviewNote, reviewedAt };
+}
+
 function isAdminAuthorised(request) {
   const remoteAddress = request.socket.remoteAddress || "";
   const isLoopbackAddress = remoteAddress === "127.0.0.1" || remoteAddress === "::1" || remoteAddress === "::ffff:127.0.0.1";
@@ -243,7 +256,7 @@ function isAdminAuthorised(request) {
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs] = await Promise.all([
+  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
@@ -252,7 +265,8 @@ async function getAdminRecords(request, response) {
     readRecords("proposal-status.ndjson"),
     readRecords("bookings.ndjson"),
     readRecords("job-outcomes.ndjson"),
-    readRecords("job-briefs.ndjson")
+    readRecords("job-briefs.ndjson"),
+    readRecords("job-brief-status.ndjson")
   ]);
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
@@ -277,7 +291,7 @@ async function getAdminRecords(request, response) {
   const briefsByRequest = new Map();
   for (const brief of briefs) {
     const list = briefsByRequest.get(brief.requestId) || [];
-    list.push(brief);
+    list.push(applyBriefStatus(brief, briefUpdates));
     briefsByRequest.set(brief.requestId, list);
   }
   const merge = (record, kind) => {
@@ -295,6 +309,36 @@ async function getAdminRecords(request, response) {
   return json(response, 200, { ok: true, records });
 }
 
+async function updateAdminJobBriefStatus(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const briefId = text(input.briefId, 40);
+  const status = text(input.status, 30);
+  const note = text(input.note, 1000);
+  const transitions = {
+    "landlord-draft": new Set(["reviewed", "needs-revision"]),
+    reviewed: new Set([]),
+    "needs-revision": new Set([])
+  };
+  const [briefs, updates] = await Promise.all([
+    readRecords("job-briefs.ndjson"),
+    readRecords("job-brief-status.ndjson")
+  ]);
+  const brief = briefs.find((record) => record.id === briefId);
+  if (!brief) return json(response, 404, { ok: false, error: "Job brief not found." });
+  const currentStatus = applyBriefStatus(brief, updates).status;
+  if (!transitions[currentStatus]?.has(status)) {
+    return json(response, 422, { ok: false, error: `Job brief cannot move from ${currentStatus} to ${status}. Submit a new brief when revisions are needed.` });
+  }
+  if (status === "needs-revision" && !note) {
+    return json(response, 422, { ok: false, error: "Add a clear revision note so the landlord knows what must be corrected." });
+  }
+  const update = { briefId, requestId: brief.requestId, status, previousStatus: currentStatus, note, updatedAt: new Date().toISOString() };
+  await saveRecord("job-brief-status.ndjson", update);
+  return json(response, 200, { ok: true, briefId, status, reviewNote: note, reviewedAt: update.updatedAt });
+}
+
 async function updateAdminProposalStatus(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   ensureSameOrigin(request);
@@ -309,10 +353,12 @@ async function updateAdminProposalStatus(request, response) {
     declined: new Set([]),
     cancelled: new Set([])
   };
-  const [proposals, updates, config] = await Promise.all([
+  const [proposals, updates, config, briefs, briefUpdates] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
-    readJsonFile("business-config.json", {})
+    readJsonFile("business-config.json", {}),
+    readRecords("job-briefs.ndjson"),
+    readRecords("job-brief-status.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
@@ -321,6 +367,10 @@ async function updateAdminProposalStatus(request, response) {
   if (!transitions[currentStatus]?.has(status)) return json(response, 422, { ok: false, error: `Proposal cannot move from ${currentStatus} to ${status}.` });
   if (["ready", "sent", "accepted"].includes(status) && !launchReadiness(config).ready) {
     return json(response, 422, { ok: false, error: "Complete all seven launch-readiness checks before advancing this proposal." });
+  }
+  const latestBrief = briefs.filter((brief) => brief.requestId === proposal.requestId).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
+  if (["ready", "sent", "accepted"].includes(status) && latestBrief && applyBriefStatus(latestBrief, briefUpdates).status !== "reviewed") {
+    return json(response, 422, { ok: false, error: "Review and approve the latest landlord photo job brief before advancing this proposal." });
   }
   if (["ready", "sent", "accepted"].includes(status) && proposal.estimatedHours < config.minimumHours) {
     return json(response, 422, { ok: false, error: `This proposal's ${proposal.estimatedHours} estimated hours are below the ${config.minimumHours}-hour minimum.` });
@@ -336,13 +386,14 @@ async function updateAdminProposalStatus(request, response) {
 
 async function getAdminProposalDrafts(request, response, proposalId) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [proposals, proposalUpdates, customerRequests, cleaners, config, briefs] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, config, briefs, briefUpdates] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readJsonFile("business-config.json", {}),
-    readRecords("job-briefs.ndjson")
+    readRecords("job-briefs.ndjson"),
+    readRecords("job-brief-status.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
@@ -353,10 +404,13 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   for (const update of proposalUpdates) if (update.proposalId === proposalId) proposalStatus = update.status;
 
   const readiness = launchReadiness(config);
-  const latestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
+  const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
+  const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
+  const briefReviewed = !latestBrief || latestBrief.status === "reviewed";
   const warnings = [];
   if (!readiness.ready) warnings.push("Complete all seven launch-readiness checks before using these drafts.");
   if (!["ready", "sent", "accepted"].includes(proposalStatus)) warnings.push("The proposal is still a draft and has not been internally approved.");
+  if (!briefReviewed) warnings.push("Review and approve the latest landlord photo job brief before using the cleaner draft.");
   if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
   if (!config.paymentTiming) warnings.push("Add the customer payment timing.");
   if (!config.supportEmail || !config.supportPhone) warnings.push("Add verified support contact details.");
@@ -394,7 +448,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Proposed date: ${proposal.proposedDate}`,
     `Estimated time: ${proposal.estimatedHours} hours`,
     `Proposed cleaner pay: ${money(proposal.cleanerPay)} total (${money(proposal.cleanerRate)} per hour)`,
-    ...(latestBrief ? ["", "Landlord-draft cleaner checklist (Tideway review required):", ...latestBrief.checklist.map((task) => `- ${task}`), `Photo references held privately: ${latestBrief.photos.length}. Share only through the approved secure process after confirmation.`] : []),
+    ...(latestBrief ? ["", latestBrief.status === "reviewed" ? "Tideway-reviewed cleaner checklist:" : "Landlord-draft cleaner checklist (Tideway review required):", ...latestBrief.checklist.map((task) => `- ${task}`), `Photo references held privately: ${latestBrief.photos.length}. Share only through the approved secure process after confirmation.`] : []),
     "",
     "This is an invitation to consider the opportunity, not a confirmed assignment. You may accept or decline. Full access details are shared only after both sides confirm.",
     "",
@@ -408,7 +462,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     ok: true,
     proposalId,
     proposalStatus,
-    sendAllowed: readiness.ready && ["ready", "sent", "accepted"].includes(proposalStatus),
+    sendAllowed: readiness.ready && briefReviewed && ["ready", "sent", "accepted"].includes(proposalStatus),
     warnings,
     customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody },
     cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody }
@@ -416,13 +470,15 @@ async function getAdminProposalDrafts(request, response, proposalId) {
 }
 
 async function buildBookingAudit(proposalId) {
-  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config, briefs, briefUpdates] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
     readRecords("status-updates.ndjson"),
-    readJsonFile("business-config.json", {})
+    readJsonFile("business-config.json", {}),
+    readRecords("job-briefs.ndjson"),
+    readRecords("job-brief-status.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return { statusCode: 404, error: "Proposal not found." };
@@ -434,6 +490,8 @@ async function buildBookingAudit(proposalId) {
   let cleanerStatus = cleaner.status || "new";
   for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
   const requiredService = requestServiceMap[customerRequest.service] || "";
+  const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
+  const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
   const checks = {
     launchReady: launchReadiness(config).ready,
     proposalAccepted: proposalStatus === "accepted",
@@ -442,6 +500,7 @@ async function buildBookingAudit(proposalId) {
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
+    briefReviewed: !latestBrief || latestBrief.status === "reviewed",
     scopeCaptured: Boolean(customerRequest.siteSize),
     accessCaptured: Boolean(customerRequest.accessNotes),
     hazardsCaptured: Boolean(customerRequest.hazards)
@@ -996,6 +1055,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/proposals/status") {
       return await updateAdminProposalStatus(request, response);
+    }
+    if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/job-briefs/status") {
+      return await updateAdminJobBriefStatus(request, response);
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/proposal-drafts") {
       return await getAdminProposalDrafts(request, response, text(requestUrl.searchParams.get("proposalId"), 40));

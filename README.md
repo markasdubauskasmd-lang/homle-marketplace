@@ -15,7 +15,8 @@ Then open `http://127.0.0.1:4173`.
 ## What works
 
 - Customer cleaning request form with server-side validation
-- Photo-and-voice job brief builder that turns reviewed landlord instructions into cleaner checklist bullets and privately stores resized room photos
+- Photo-and-voice job brief builder that turns landlord instructions into checklist bullets and privately stores resized room photos
+- Audited human review decisions for photo job briefs; unreviewed briefs block cleaner-draft use, proposal approval and booking readiness
 - Cleaner application form with server-side validation
 - Local private submission files in `data/`
 - Private local control desk at `/admin` with lead filters, status tracking, internal notes and next-action dates
@@ -23,9 +24,9 @@ Then open `http://127.0.0.1:4173`.
 - Local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules
 - Human-reviewed matching suggestions using approved cleaners, requested service type and postcode coverage
 - Internal draft proposals that link a request to an approved cleaner and reject work below the minimum hours, loss-making economics or a below-target contribution margin
-- Proposal status gates that prevent a draft becoming ready, sent or accepted until all seven launch checks pass
+- Proposal status gates that prevent a draft becoming ready, sent or accepted until all seven launch checks and the latest job-brief review pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
-- Latest landlord checklist included in the review-only cleaner opportunity draft; photos remain separately protected for deliberate review
+- Latest approved landlord checklist included in the review-only cleaner opportunity draft; photos remain separately protected for deliberate review
 - Structured site scope, access and hazard collection plus a read-only accepted-proposal booking audit
 - Safe lead-status transitions that prevent requests or cleaners skipping required workflow stages
 - Internal confirmed-booking records that require an accepted profitable proposal, a passed audit and five manual confirmations

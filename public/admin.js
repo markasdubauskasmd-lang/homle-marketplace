@@ -393,7 +393,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
+    const checkLabels = { launchReady: "Seven launch checks complete", proposalAccepted: "Proposal accepted by both sides", cleanerApproved: "Cleaner approved", serviceApproved: "Cleaner approved for service", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Latest photo job brief reviewed", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -524,6 +524,26 @@ async function loadBriefPhotos(brief, target, button) {
   }
 }
 
+async function changeBriefStatus(brief, form) {
+  const select = form.querySelector("select");
+  const note = form.querySelector("textarea");
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/admin/job-briefs/status", {
+      method: "PATCH",
+      headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }),
+      body: JSON.stringify({ briefId: brief.id, status: select.value, note: note.value.trim() })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Job brief review could not be saved.");
+    await loadRecords();
+  } catch (error) {
+    showAdminError(error.message);
+    button.disabled = false;
+  }
+}
+
 function buildCard(record) {
   const card = document.createElement("article");
   card.className = `lead-card lead-${record.kind}`;
@@ -581,11 +601,16 @@ function buildCard(record) {
 
   if (record.kind === "request" && record.briefs?.length) {
     const brief = record.briefs[0];
+    const briefStatusLabels = {
+      "landlord-draft": "Awaiting Tideway review",
+      reviewed: "Reviewed and approved",
+      "needs-revision": "Revision requested"
+    };
     const briefSummary = document.createElement("details");
     briefSummary.className = "brief-summary";
     const summary = document.createElement("summary");
     summary.textContent = `Photo job brief · ${brief.checklist.length} tasks · ${brief.photos.length} photos`;
-    addText(briefSummary, "strong", `${brief.id} · Landlord draft for Tideway review`);
+    addText(briefSummary, "strong", `${brief.id} · ${briefStatusLabels[brief.status] || brief.status}`);
     const tasks = document.createElement("ul");
     brief.checklist.forEach((task) => addText(tasks, "li", task));
     briefSummary.append(summary, tasks);
@@ -598,6 +623,37 @@ function buildCard(record) {
       photoGrid.className = "admin-brief-photos";
       loadPhotos.addEventListener("click", () => loadBriefPhotos(brief, photoGrid, loadPhotos));
       briefSummary.append(loadPhotos, photoGrid);
+    }
+    if (brief.status === "landlord-draft") {
+      const reviewForm = document.createElement("form");
+      reviewForm.className = "brief-review-form";
+      const statusLabel = document.createElement("label");
+      statusLabel.append(document.createTextNode("Review decision"));
+      const statusSelect = document.createElement("select");
+      statusSelect.setAttribute("aria-label", `Review decision for ${brief.id}`);
+      for (const [value, label] of [["reviewed", "Approve checklist"], ["needs-revision", "Request a new brief"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        statusSelect.append(option);
+      }
+      statusLabel.append(statusSelect);
+      const noteLabel = document.createElement("label");
+      noteLabel.append(document.createTextNode("Internal review note"));
+      const note = document.createElement("textarea");
+      note.rows = 2;
+      note.maxLength = 1000;
+      note.placeholder = "Required if requesting a new brief; optional when approving";
+      noteLabel.append(note);
+      const save = document.createElement("button");
+      save.type = "submit";
+      save.className = "button button-small";
+      save.textContent = "Save review decision";
+      reviewForm.append(statusLabel, noteLabel, save);
+      reviewForm.addEventListener("submit", (event) => { event.preventDefault(); changeBriefStatus(brief, reviewForm); });
+      briefSummary.append(reviewForm);
+    } else if (brief.reviewNote) {
+      addText(briefSummary, "span", `Review note: ${brief.reviewNote}`, "brief-review-note");
     }
     card.append(briefSummary);
   }
