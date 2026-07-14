@@ -88,10 +88,18 @@
           <label>Cancellation rule<textarea name="cancellationPolicy" rows="3" placeholder="When customers may cancel and what happens to cleaner pay"></textarea></label>
           <label>Customer payment timing<select name="paymentTiming"><option value="">Choose one</option><option>Payment authorised at booking and captured after completion</option><option>Payment taken at booking</option><option>Invoice after completion</option><option>Other — document before launch</option></select></label>
           <div class="field-row"><label>Customer quote response window (hours)<input name="customerQuoteValidityHours" type="number" min="1" max="168" step="1" inputmode="numeric" placeholder="For example: 24"></label><label>Cleaner opportunity response window (hours)<input name="cleanerOpportunityValidityHours" type="number" min="1" max="168" step="1" inputmode="numeric" placeholder="For example: 12"></label></div>
+          <div class="evidence-panel"><div><strong>Private room-media retention</strong><span>Set the documented schedule. Tideway never deletes media automatically; deletion requires a verified backup and an exact-reference confirmation in the retention desk.</span></div><div class="field-row"><label>Inactive enquiry media (days)<input name="inactiveMediaRetentionDays" type="number" min="1" max="3650" step="1" inputmode="numeric" placeholder="For example: 90"></label><label>Completed booking media (days)<input name="completedMediaRetentionDays" type="number" min="1" max="3650" step="1" inputmode="numeric" placeholder="For example: 365"></label></div></div>
           <button class="button" type="submit">Save launch details locally</button>
           <div id="config-result" class="success-panel" role="status" tabindex="-1" hidden><strong>Launch details saved.</strong><span>The readiness checks have been updated.</span></div>
         </form>
       </details>
+    </section>
+
+    <section class="media-retention" aria-labelledby="media-retention-heading">
+      <div class="media-retention-heading"><div><p class="eyebrow">Private data lifecycle</p><h2 id="media-retention-heading">Room-media retention</h2><p>Audit photos and videos against the founder-approved schedule. No media is deleted automatically.</p></div><button id="refresh-media-retention" class="button button-small button-outline" type="button">Refresh audit</button></div>
+      <div id="media-retention-summary" class="media-retention-summary" aria-live="polite"><div><strong>Checking</strong><span>private room media</span></div></div>
+      <p class="media-retention-warning"><strong>Deletion safety:</strong> create and verify a private backup first. Eligible deletion requires the exact scan reference and a recorded reason. Text records and the deletion audit remain intact.</p>
+      <div id="media-retention-list" class="media-retention-list"><div class="loading-state">Loading the private media audit…</div></div>
     </section>
 
     <section class="quote-calculator" aria-labelledby="quote-heading">

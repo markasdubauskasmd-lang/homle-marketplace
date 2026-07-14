@@ -68,6 +68,7 @@ Then open `http://127.0.0.1:4173`.
 - Structured confirmed-booking packs for the final address, matching postcode, access contact, arrival instructions, equipment plan and emergency instructions; duplicate bookings are rejected atomically
 - Separate fragment-token customer and cleaner booking views: the customer view hides cleaner contact/pay, while the cleaner view exposes only the visit and access information needed after confirmation
 - Reviewed room photos, short videos and their specific notes become visible to both sides only inside the confirmed protected booking packs; media requests require the private booking token and are never cached
+- Private room-media lifecycle desk classifies active, scheduled, deletion-eligible and already-deleted scans against separate founder-set inactive-enquiry and completed-booking periods; nothing is deleted automatically, and manual deletion requires a verified backup, the exact scan reference and a written append-only audit reason
 - Private reschedule, cancellation, access, scope and safety request submission from either booking pack; submissions never mutate the confirmed booking, schedule or payment state automatically
 - Local admin change-request queue with open, reviewing and permanently closed audit states plus a customer-visible response note
 - Append-only job-day timeline: cleaners must confirm arrival and a safe start before recording completion, then the customer acknowledges the completed visit from their own protected booking pack
@@ -86,7 +87,7 @@ Then open `http://127.0.0.1:4173`.
 3. Confirm public liability and any other required insurance.
 4. Approve pricing, cleaner pay, cancellation, complaint and re-clean rules.
 5. Replace local file storage with an encrypted production database and access controls.
-6. Document and approve any production speech-recognition provider, photo storage and retention controls.
+6. Approve the inactive-enquiry and completed-booking media periods already enforced by the local retention desk, then document the production speech-recognition provider, encrypted photo storage and the complete record-retention schedule.
 7. Add transactional email/SMS only after the sending account is approved.
 8. Complete a real pilot in one small service area before making broader coverage claims.
 

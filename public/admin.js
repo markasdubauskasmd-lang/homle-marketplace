@@ -1,4 +1,4 @@
-const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null };
+const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null };
 
 const leadList = document.querySelector("#lead-list");
 const dispatchQueueList = document.querySelector("#dispatch-queue-list");
@@ -155,6 +155,112 @@ async function loadConfig() {
     syncQuoteDefaults(result.config);
     renderReadiness(result.readiness);
     updateQuoteCalculator();
+  } catch (error) {
+    showAdminError(error.message);
+  }
+}
+
+function mediaStateLabel(item) {
+  if (item.state === "eligible") return "Eligible after policy period";
+  if (item.state === "scheduled") return `Scheduled after ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(item.deleteAfter))}`;
+  if (item.state === "purged") return `Media deleted ${formatDate(item.purgedAt)}`;
+  if (item.state === "decision-required") return "Retention period not set";
+  return "Active request — retained";
+}
+
+function renderMediaRetention(audit) {
+  state.mediaRetention = audit;
+  const summary = document.querySelector("#media-retention-summary");
+  const list = document.querySelector("#media-retention-list");
+  summary.replaceChildren();
+  for (const [value, label] of [[audit.summary.availableMedia, "available files"], [audit.summary.bytes ? `${(audit.summary.bytes / 1048576).toFixed(2)} MB` : "0 MB", "private storage"], [audit.summary.eligible, "eligible scans"], [audit.summary.purged, "audited deletions"]]) {
+    const item = document.createElement("div");
+    addText(item, "strong", String(value));
+    addText(item, "span", label);
+    summary.append(item);
+  }
+  list.replaceChildren();
+  if (!audit.items.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    addText(empty, "strong", "No room media has been stored.");
+    addText(empty, "span", "Submitted room photos and videos will appear here for lifecycle review.");
+    list.append(empty);
+    return;
+  }
+  for (const item of audit.items) {
+    const card = document.createElement("article");
+    card.className = `media-retention-item media-state-${item.state}`;
+    const heading = document.createElement("div");
+    const copy = document.createElement("div");
+    addText(copy, "strong", item.briefId);
+    addText(copy, "span", `${item.mediaCount} recorded file${item.mediaCount === 1 ? "" : "s"} · ${item.availableCount} available · ${item.missingCount} unavailable`);
+    addText(heading, "span", mediaStateLabel(item), "status-pill");
+    card.append(copy, heading);
+    if (item.state === "eligible") {
+      const details = document.createElement("details");
+      const detailsSummary = document.createElement("summary");
+      detailsSummary.textContent = "Prepare audited media deletion";
+      const form = document.createElement("form");
+      form.className = "media-purge-form";
+      const referenceLabel = document.createElement("label");
+      referenceLabel.append(document.createTextNode(`Type ${item.briefId} exactly`));
+      const reference = document.createElement("input");
+      reference.name = "typedReference";
+      reference.required = true;
+      reference.autocomplete = "off";
+      referenceLabel.append(reference);
+      const reasonLabel = document.createElement("label");
+      reasonLabel.append(document.createTextNode("Deletion reason"));
+      const reason = document.createElement("textarea");
+      reason.name = "reason";
+      reason.required = true;
+      reason.minLength = 20;
+      reason.maxLength = 500;
+      reason.rows = 2;
+      reason.placeholder = "Explain why the recorded retention schedule permits deletion";
+      reasonLabel.append(reason);
+      const backupLabel = document.createElement("label");
+      backupLabel.className = "checkbox";
+      const backup = document.createElement("input");
+      backup.type = "checkbox";
+      backup.name = "backupConfirmed";
+      backup.required = true;
+      const backupText = document.createElement("span");
+      backupText.textContent = "I created and verified a current private backup before this irreversible media deletion.";
+      backupLabel.append(backup, backupText);
+      const submit = document.createElement("button");
+      submit.type = "submit";
+      submit.className = "button button-small danger-button";
+      submit.textContent = "Delete eligible media only";
+      form.append(referenceLabel, reasonLabel, backupLabel, submit);
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        submit.disabled = true;
+        try {
+          const response = await fetch("/api/admin/media-retention/purge", { method: "POST", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify({ briefId: item.briefId, typedReference: reference.value.trim(), reason: reason.value.trim(), backupConfirmed: backup.checked }) });
+          const result = await response.json();
+          if (!response.ok || !result.ok) throw new Error(result.error || "Private media could not be deleted.");
+          await Promise.all([loadMediaRetention(), loadRecords()]);
+        } catch (error) {
+          showAdminError(error.message);
+          submit.disabled = false;
+        }
+      });
+      details.append(detailsSummary, form);
+      card.append(details);
+    }
+    list.append(card);
+  }
+}
+
+async function loadMediaRetention() {
+  try {
+    const response = await fetch("/api/admin/media-retention", { headers: adminHeaders({ "Accept": "application/json" }) });
+    const result = await response.json();
+    if (response.status === 401) { showAuth(); return; }
+    if (!response.ok || !result.ok) throw new Error(result.error || "Private media audit could not be loaded.");
+    renderMediaRetention(result.audit);
   } catch (error) {
     showAdminError(error.message);
   }
@@ -1471,12 +1577,13 @@ document.querySelector("#action-filter").addEventListener("change", (event) => {
 });
 
 refreshButton.addEventListener("click", loadRecords);
+document.querySelector("#refresh-media-retention").addEventListener("click", loadMediaRetention);
 
 document.querySelector("#admin-auth-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   adminKey = adminKeyField.value;
   sessionStorage.setItem("tidewayAdminKey", adminKey);
-  await Promise.all([loadRecords(), loadConfig()]);
+  await Promise.all([loadRecords(), loadConfig(), loadMediaRetention()]);
 });
 
 document.querySelector("#business-config-form").addEventListener("submit", async (event) => {
@@ -1574,4 +1681,4 @@ function updateQuoteCalculator() {
 }
 
 quoteFields.forEach((field) => field.addEventListener("input", updateQuoteCalculator));
-Promise.all([loadRecords(), loadConfig()]);
+Promise.all([loadRecords(), loadConfig(), loadMediaRetention()]);

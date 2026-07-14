@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { appendFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -128,7 +128,7 @@ try {
 
   const adminPage = await fetch(`${base}/admin`);
   const adminPageText = await adminPage.text();
-  assert(adminPage.ok && adminPageText.includes("Lead control desk") && adminPageText.includes("First profitable booking") && adminPageText.includes('id="launch-funnel-stages"') && adminPageText.includes('id="readiness-next"') && adminPageText.includes("Insurance verification") && adminPageText.includes("Never enter passwords, card details") && adminPageText.includes("Founder-action queue") && adminPageText.includes('id="action-filter"'), "Admin launch-runway, evidence-based readiness or dispatch control page failed.");
+  assert(adminPage.ok && adminPageText.includes("Lead control desk") && adminPageText.includes("First profitable booking") && adminPageText.includes('id="launch-funnel-stages"') && adminPageText.includes('id="readiness-next"') && adminPageText.includes("Insurance verification") && adminPageText.includes("Never enter passwords, card details") && adminPageText.includes("Founder-action queue") && adminPageText.includes('id="action-filter"') && adminPageText.includes("Room-media retention") && adminPageText.includes("No media is deleted automatically"), "Admin launch-runway, evidence-based readiness, dispatch control or private media-retention page failed.");
   const briefPage = await fetch(`${base}/brief`);
   const briefPageText = await briefPage.text();
   assert(briefPage.ok && briefPageText.includes("Request details carried over.") && briefPageText.includes('id="photo-count">0/10') && briefPageText.includes("no more than two videos of 30 seconds and 15 MB each") && briefPageText.includes("complete upload is capped at 20 MB") && briefPageText.includes("Checking room scan") && briefPageText.includes("summarise again so the cleaner receives the latest scope") && briefPageText.includes("Extra time may be needed") && briefPageText.includes("require this confirmation again"), "Photo/video job-brief page, bounded whole-property limits, checklist-freshness guidance, live readiness panel, private handoff notice, customer-facing scope warning or change-sensitive scope confirmation failed.");
@@ -289,7 +289,7 @@ try {
   const initialConfigBody = await initialConfig.json();
   assert(initialConfig.ok && initialConfigBody.readiness.completed === 0 && initialConfigBody.readiness.next?.key === "identity" && initialConfigBody.readiness.missing?.identity?.includes("legal owner name") && initialConfigBody.readiness.missing?.insurance?.includes("insurance provider") && initialConfigBody.readiness.missing?.payments?.includes("provider verification date"), "Initial launch readiness did not expose its exact missing founder decisions and evidence.");
 
-  const completeConfig = { legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW1A, SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", insuranceProvider: "Test Insurer", insuranceEvidenceNote: "Test policy cover, limit and securely stored certificate were reviewed.", insuranceReviewDate: "2026-12-31", paymentProviderName: "TestPay", paymentProviderStatus: "live", paymentProviderEvidenceNote: "Test live account, payout destination and refund route were reviewed.", paymentProviderVerifiedDate: "2026-07-14", refundProcess: "Owner approves and records refunds within five working days.", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, minimumContributionMarginPercent: 25, paymentFeePercent: 1, paymentFeeFixed: 0, travelCostPerJob: 1, suppliesCostPerJob: 1, riskContingencyPercent: 1, variableCostsConfirmed: true, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion", customerQuoteValidityHours: 24, cleanerOpportunityValidityHours: 12 };
+  const completeConfig = { legalOwnerName: "Test Owner", businessStructure: "Sole trader", legalBusinessName: "Test Tideway", tradingAddress: "1 Test Street, London", supportEmail: "support@example.com", supportPhone: "07123456789", pilotPostcodes: "SW1A, SW2, SW4", cleanerModel: "Worker", insuranceStatus: "active", insuranceProvider: "Test Insurer", insuranceEvidenceNote: "Test policy cover, limit and securely stored certificate were reviewed.", insuranceReviewDate: "2026-12-31", paymentProviderName: "TestPay", paymentProviderStatus: "live", paymentProviderEvidenceNote: "Test live account, payout destination and refund route were reviewed.", paymentProviderVerifiedDate: "2026-07-14", refundProcess: "Owner approves and records refunds within five working days.", customerHourlyRate: 30, cleanerHourlyPay: 18, minimumHours: 2, minimumContributionMarginPercent: 25, paymentFeePercent: 1, paymentFeeFixed: 0, travelCostPerJob: 1, suppliesCostPerJob: 1, riskContingencyPercent: 1, variableCostsConfirmed: true, cancellationPolicy: "24 hours notice.", paymentTiming: "Payment authorised at booking and captured after completion", customerQuoteValidityHours: 24, cleanerOpportunityValidityHours: 12, inactiveMediaRetentionDays: 90, completedMediaRetentionDays: 365 };
   const savedConfig = await fetch(`${base}/api/admin/config`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
@@ -337,7 +337,42 @@ try {
   assert(missingOfferWindows.ok && missingOfferWindowsBody.readiness.ready === false && missingOfferWindowsBody.readiness.checks.operatingRules === false, "Missing founder-controlled offer windows passed launch readiness.");
   const excessiveOfferWindow = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, customerQuoteValidityHours: 169 }) });
   assert(excessiveOfferWindow.status === 422, "An excessive customer response window was accepted.");
+  const missingMediaRetention = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, inactiveMediaRetentionDays: 0, completedMediaRetentionDays: 0 }) });
+  const missingMediaRetentionBody = await missingMediaRetention.json();
+  assert(missingMediaRetention.ok && missingMediaRetentionBody.readiness.checks.operatingRules === false && missingMediaRetentionBody.readiness.missing.operatingRules.includes("inactive-enquiry media retention period"), "Missing private-media retention decisions passed launch readiness.");
+  const invalidMediaRetention = await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...completeConfig, inactiveMediaRetentionDays: 3651 }) });
+  assert(invalidMediaRetention.status === 422, "An excessive private-media retention period was accepted.");
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
+
+  const retentionRequest = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contactName: "Retention Test", email: "retention@example.com", phone: "07123456788", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "Studio", accessNotes: "Test-only access note", hazards: "None known", consent: true }) });
+  const retentionRequestBody = await retentionRequest.json();
+  const retentionBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: retentionRequestBody.reference, email: "retention@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Test-only worktop photo", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
+  const retentionBriefBody = await retentionBrief.json();
+  const closeRetentionRequest = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: retentionRequestBody.reference, kind: "request", status: "lost" }) });
+  assert(retentionRequest.status === 201 && retentionBrief.status === 201 && closeRetentionRequest.ok, "Test-only media-retention fixture could not be created and closed.");
+  await appendFile(path.join(testDataDir, "status-updates.ndjson"), `${JSON.stringify({ id: retentionRequestBody.reference, kind: "request", status: "lost", previousStatus: "new", source: "test-only", updatedAt: "2020-01-01T00:00:00.000Z" })}\n`);
+  const mediaAudit = await fetch(`${base}/api/admin/media-retention`);
+  const mediaAuditBody = await mediaAudit.json();
+  const retentionItem = mediaAuditBody.audit.items.find((item) => item.briefId === retentionBriefBody.reference);
+  const serialisedMediaAudit = JSON.stringify(mediaAuditBody);
+  assert(mediaAudit.ok && retentionItem?.state === "eligible" && retentionItem.availableCount === 1 && mediaAuditBody.audit.policy.automaticDeletion === false, "Closed room media was not safely classified against the recorded retention schedule.");
+  assert(!serialisedMediaAudit.includes("retention@example.com") && !serialisedMediaAudit.includes("storedPath") && !serialisedMediaAudit.includes("job-brief-images"), "Private media audit exposed contact details or storage paths.");
+  const protectedMediaAudit = await fetch(`${base}/api/admin/media-retention`, { headers: { "x-forwarded-for": "203.0.113.11" } });
+  assert(protectedMediaAudit.status === 401, "Private media-retention audit bypassed admin authentication.");
+  const unsafeMediaPurge = await fetch(`${base}/api/admin/media-retention/purge`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: retentionBriefBody.reference, typedReference: "WRONG", reason: "Test-only eligible retention deletion.", backupConfirmed: true }) });
+  assert(unsafeMediaPurge.status === 422, "Private media deletion accepted the wrong scan confirmation reference.");
+  const unbackedMediaPurge = await fetch(`${base}/api/admin/media-retention/purge`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: retentionBriefBody.reference, typedReference: retentionBriefBody.reference, reason: "Test-only eligible retention deletion.", backupConfirmed: false }) });
+  assert(unbackedMediaPurge.status === 422, "Private media deletion proceeded without backup confirmation.");
+  const mediaPurge = await fetch(`${base}/api/admin/media-retention/purge`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: retentionBriefBody.reference, typedReference: retentionBriefBody.reference, reason: "Test-only eligible retention deletion.", backupConfirmed: true }) });
+  const mediaPurgeBody = await mediaPurge.json();
+  assert(mediaPurge.ok && mediaPurgeBody.event.deletedFiles === 1 && mediaPurgeBody.event.backupConfirmed === true, "Eligible private media was not deleted with an append-only audit record.");
+  const purgedMedia = await fetch(`${base}/api/admin/job-brief-image?briefId=${retentionBriefBody.reference}&imageId=${retentionBriefBody.photos[0].id}`);
+  assert(purgedMedia.status === 404, "Deleted private room media remained retrievable.");
+  const auditAfterPurge = await fetch(`${base}/api/admin/media-retention`);
+  const auditAfterPurgeBody = await auditAfterPurge.json();
+  assert(auditAfterPurgeBody.audit.items.find((item) => item.briefId === retentionBriefBody.reference)?.state === "purged", "Private media deletion did not remain visible in the retention audit.");
+  const repeatMediaPurge = await fetch(`${base}/api/admin/media-retention/purge`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: retentionBriefBody.reference, typedReference: retentionBriefBody.reference, reason: "Test-only repeat deletion attempt.", backupConfirmed: true }) });
+  assert(repeatMediaPurge.status === 409, "A completed private-media deletion was not idempotently blocked.");
 
   const statusUpdate = await fetch(`${base}/api/admin/status`, {
     method: "PATCH",

@@ -486,6 +486,102 @@ async function saveJobBrief(record, images) {
   return operation;
 }
 
+function validRetentionDays(value) {
+  return Number.isInteger(value) && value >= 1 && value <= 3650;
+}
+
+async function buildMediaRetentionAudit(now = new Date()) {
+  const [requests, updates, bookings, outcomes, briefs, purges, config] = await Promise.all([
+    readRecords("cleaning-requests.ndjson"),
+    readRecords("status-updates.ndjson"),
+    readRecords("bookings.ndjson"),
+    readRecords("job-outcomes.ndjson"),
+    readRecords("job-briefs.ndjson"),
+    readRecords("media-retention.ndjson"),
+    readJsonFile("business-config.json", {})
+  ]);
+  const requestStatuses = new Map(requests.map((record) => [record.id, { status: record.status || "new", at: record.createdAt }]));
+  for (const update of updates) if (update.kind === "request") requestStatuses.set(update.id, { status: update.status, at: update.updatedAt });
+  const outcomesByRequest = new Map();
+  const bookingsById = new Map(bookings.map((booking) => [booking.id, booking]));
+  for (const outcome of outcomes) {
+    const booking = bookingsById.get(outcome.bookingId);
+    if (booking) outcomesByRequest.set(booking.requestId, outcome);
+  }
+  const latestPurge = new Map();
+  for (const purge of purges) latestPurge.set(purge.briefId, purge);
+  const nowMs = now.getTime();
+  const items = [];
+  for (const brief of briefs.filter((record) => Array.isArray(record.photos) && record.photos.length)) {
+    const purge = latestPurge.get(brief.id);
+    const media = [];
+    for (const photo of brief.photos) {
+      const candidate = path.resolve(dataDir, text(photo.storedPath, 500));
+      const insidePrivateData = candidate.startsWith(`${path.resolve(dataDir)}${path.sep}`);
+      let bytes = 0;
+      let available = false;
+      if (insidePrivateData && !purge) {
+        try {
+          const details = await stat(candidate);
+          available = details.isFile();
+          bytes = available ? details.size : 0;
+        } catch (error) {
+          if (error.code !== "ENOENT") throw error;
+        }
+      }
+      media.push({ available, bytes });
+    }
+    let basis = "active-request";
+    let closedAt = "";
+    let retentionDays = 0;
+    const completedOutcome = outcomesByRequest.get(brief.requestId);
+    const requestStatus = requestStatuses.get(brief.requestId);
+    if (completedOutcome) {
+      basis = "completed-booking";
+      closedAt = completedOutcome.createdAt;
+      retentionDays = Number(config.completedMediaRetentionDays) || 0;
+    } else if (requestStatus?.status === "lost") {
+      basis = "inactive-enquiry";
+      closedAt = requestStatus.at;
+      retentionDays = Number(config.inactiveMediaRetentionDays) || 0;
+    }
+    const deadlineMs = Date.parse(closedAt) + retentionDays * 86400000;
+    const configured = validRetentionDays(retentionDays) && Number.isFinite(deadlineMs);
+    const state = purge ? "purged" : basis === "active-request" ? "active" : !configured ? "decision-required" : nowMs >= deadlineMs ? "eligible" : "scheduled";
+    items.push({
+      briefId: brief.id,
+      state,
+      basis,
+      closedAt,
+      retentionDays,
+      deleteAfter: configured ? new Date(deadlineMs).toISOString() : "",
+      mediaCount: media.length,
+      availableCount: media.filter((item) => item.available).length,
+      missingCount: media.filter((item) => !item.available).length,
+      bytes: media.reduce((total, item) => total + item.bytes, 0),
+      purgedAt: purge?.deletedAt || "",
+      purgeReason: purge?.reason || ""
+    });
+  }
+  const counts = (state) => items.filter((item) => item.state === state).length;
+  return {
+    generatedAt: now.toISOString(),
+    policy: { inactiveDays: Number(config.inactiveMediaRetentionDays) || 0, completedDays: Number(config.completedMediaRetentionDays) || 0, automaticDeletion: false },
+    summary: {
+      briefs: items.length,
+      media: items.reduce((total, item) => total + item.mediaCount, 0),
+      availableMedia: items.reduce((total, item) => total + item.availableCount, 0),
+      bytes: items.reduce((total, item) => total + item.bytes, 0),
+      active: counts("active"),
+      scheduled: counts("scheduled"),
+      eligible: counts("eligible"),
+      decisionRequired: counts("decision-required"),
+      purged: counts("purged")
+    },
+    items: items.sort((left, right) => left.briefId.localeCompare(right.briefId))
+  };
+}
+
 function pilotPostcodeCoverage(postcode, configuredPostcodes) {
   const rawCodes = text(configuredPostcodes, 400).toUpperCase().split(/[,;\n]+/).map((code) => code.trim()).filter(Boolean);
   const allowedCodes = [...new Set(rawCodes.map((code) => code.replace(/\s+/g, "")).filter((code) => /^[A-Z]{1,2}\d[A-Z\d]?$/.test(code)))];
@@ -842,7 +938,9 @@ function launchReadiness(config) {
       { label: "customer cancellation rule", complete: Boolean(config.cancellationPolicy) },
       { label: "customer payment timing", complete: Boolean(config.paymentTiming) },
       { label: "customer quote response window", complete: Number.isInteger(config.customerQuoteValidityHours) && config.customerQuoteValidityHours >= 1 && config.customerQuoteValidityHours <= 168 },
-      { label: "cleaner opportunity response window", complete: Number.isInteger(config.cleanerOpportunityValidityHours) && config.cleanerOpportunityValidityHours >= 1 && config.cleanerOpportunityValidityHours <= 168 }
+      { label: "cleaner opportunity response window", complete: Number.isInteger(config.cleanerOpportunityValidityHours) && config.cleanerOpportunityValidityHours >= 1 && config.cleanerOpportunityValidityHours <= 168 },
+      { label: "inactive-enquiry media retention period", complete: validRetentionDays(config.inactiveMediaRetentionDays) },
+      { label: "completed-booking media retention period", complete: validRetentionDays(config.completedMediaRetentionDays) }
     ]
   };
   const checks = Object.fromEntries(Object.entries(requirements).map(([key, items]) => [key, items.every((item) => item.complete)]));
@@ -2820,6 +2918,51 @@ async function getAdminConfig(request, response) {
   return json(response, 200, { ok: true, config, readiness: launchReadiness(config) });
 }
 
+async function getAdminMediaRetention(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  return json(response, 200, { ok: true, audit: await buildMediaRetentionAudit() });
+}
+
+async function purgeAdminMedia(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const briefId = text(input.briefId, 40).toUpperCase();
+  const typedReference = text(input.typedReference, 40).toUpperCase();
+  const reason = text(input.reason, 500);
+  if (!/^BRF-[A-Z0-9]{8}$/.test(briefId) || typedReference !== briefId) return json(response, 422, { ok: false, error: "Type the exact scan reference to confirm this deletion." });
+  if (input.backupConfirmed !== true) return json(response, 422, { ok: false, error: "Confirm that a current private backup was created and verified first." });
+  if (reason.length < 20) return json(response, 422, { ok: false, error: "Record a deletion reason of at least 20 characters." });
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    const audit = await buildMediaRetentionAudit();
+    const item = audit.items.find((entry) => entry.briefId === briefId);
+    if (!item) throw Object.assign(new Error("Room scan was not found."), { statusCode: 404 });
+    if (item.state === "purged") throw Object.assign(new Error("This room-scan media was already deleted."), { statusCode: 409 });
+    if (item.state !== "eligible") throw Object.assign(new Error("This room-scan media is not yet eligible for deletion under the recorded retention policy."), { statusCode: 409 });
+    const briefs = await readRecords("job-briefs.ndjson");
+    const brief = briefs.find((record) => record.id === briefId);
+    const resolvedDataDir = path.resolve(dataDir);
+    let deletedFiles = 0;
+    for (const photo of brief?.photos || []) {
+      const filePath = path.resolve(dataDir, text(photo.storedPath, 500));
+      if (!filePath.startsWith(`${resolvedDataDir}${path.sep}`)) throw Object.assign(new Error("Invalid private media path."), { statusCode: 403 });
+      try {
+        await unlink(filePath);
+        deletedFiles += 1;
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+    }
+    const event = { id: `RET-${randomUUID().slice(0, 8).toUpperCase()}`, briefId, action: "media-purged", basis: item.basis, retentionDays: item.retentionDays, eligibleAfter: item.deleteAfter, mediaRecords: item.mediaCount, deletedFiles, backupConfirmed: true, reason, deletedAt: new Date().toISOString() };
+    await mkdir(dataDir, { recursive: true });
+    await appendFile(path.join(dataDir, "media-retention.ndjson"), `${JSON.stringify(event)}\n`, { encoding: "utf8", mode: 0o600 });
+    return event;
+  });
+  writeQueue = operation;
+  const event = await operation;
+  return json(response, 200, { ok: true, event });
+}
+
 async function updateAdminConfig(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   ensureSameOrigin(request);
@@ -2854,6 +2997,8 @@ async function updateAdminConfig(request, response) {
     variableCostsConfirmed: input.variableCostsConfirmed === true || ["true", "on"].includes(text(input.variableCostsConfirmed, 10).toLowerCase()),
     customerQuoteValidityHours: Number(input.customerQuoteValidityHours) || 0,
     cleanerOpportunityValidityHours: Number(input.cleanerOpportunityValidityHours) || 0,
+    inactiveMediaRetentionDays: Number(input.inactiveMediaRetentionDays) || 0,
+    completedMediaRetentionDays: Number(input.completedMediaRetentionDays) || 0,
     cancellationPolicy: text(input.cancellationPolicy, 1000),
     paymentTiming: text(input.paymentTiming, 100),
     updatedAt: new Date().toISOString()
@@ -2874,6 +3019,8 @@ async function updateAdminConfig(request, response) {
   if (config.minimumContributionMarginPercent + config.paymentFeePercent + config.riskContingencyPercent >= 100) errors.push("The margin floor plus payment-fee and risk percentages must stay below 100%.");
   if (config.customerQuoteValidityHours && (!Number.isInteger(config.customerQuoteValidityHours) || config.customerQuoteValidityHours < 1 || config.customerQuoteValidityHours > 168)) errors.push("Customer quote response window must be a whole number from 1 to 168 hours.");
   if (config.cleanerOpportunityValidityHours && (!Number.isInteger(config.cleanerOpportunityValidityHours) || config.cleanerOpportunityValidityHours < 1 || config.cleanerOpportunityValidityHours > 168)) errors.push("Cleaner opportunity response window must be a whole number from 1 to 168 hours.");
+  if (config.inactiveMediaRetentionDays && !validRetentionDays(config.inactiveMediaRetentionDays)) errors.push("Inactive-enquiry media retention must be a whole number from 1 to 3650 days.");
+  if (config.completedMediaRetentionDays && !validRetentionDays(config.completedMediaRetentionDays)) errors.push("Completed-booking media retention must be a whole number from 1 to 3650 days.");
   if (config.paymentProviderStatus === "live" && (!config.paymentProviderName || !config.refundProcess)) errors.push("Add the live payment provider and refund process.");
   if (errors.length) return json(response, 422, { ok: false, errors });
   await saveJsonFile("business-config.json", config);
@@ -2985,7 +3132,8 @@ async function handleJobBrief(request, response) {
 
 async function getAdminJobBriefImage(request, response, briefId, imageId) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const briefs = await readRecords("job-briefs.ndjson");
+  const [briefs, purges] = await Promise.all([readRecords("job-briefs.ndjson"), readRecords("media-retention.ndjson")]);
+  if (purges.some((record) => record.briefId === briefId)) return json(response, 404, { ok: false, error: "Brief media has been deleted under the recorded retention policy." });
   const brief = briefs.find((record) => record.id === briefId);
   const photo = brief?.photos?.find((item) => item.id === imageId);
   if (!photo) return json(response, 404, { ok: false, error: "Brief photo not found." });
@@ -3211,6 +3359,12 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/job-brief-image") {
       return await getAdminJobBriefImage(request, response, text(requestUrl.searchParams.get("briefId"), 40), text(requestUrl.searchParams.get("imageId"), 40));
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/admin/media-retention") {
+      return await getAdminMediaRetention(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/admin/media-retention/purge") {
+      return await purgeAdminMedia(request, response);
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/admin/bookings") {
       return await createAdminBooking(request, response);
