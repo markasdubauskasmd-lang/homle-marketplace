@@ -3499,11 +3499,12 @@ async function getPrivateCleanerStatus(request, response) {
   const approvalRecorded = status === "approved" || status === "paused" || ownStatusUpdates.some((update) => update.status === "approved");
   const futureAvailability = activeCleanerAvailability(availabilityEvents, cleaner.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > businessWallClockMs());
   const pendingAvailabilityRequests = cleanerAvailabilityRequests(availabilityEvents, cleaner.id).filter((item) => item.status === "pending" && availabilitySlotSchedule(item)?.endMs > businessWallClockMs());
+  const firstAvailabilityCaptured = Boolean(cleaner.firstAvailableDate && cleaner.firstAvailableStartTime && cleaner.firstAvailableEndTime);
   const readyForOpportunities = status === "approved" && screeningComplete && futureAvailability.length > 0;
 
   let stage = "application-review";
   let headline = "Application received";
-  let nextAction = "Tideway has received the application. Screening and exact availability have not yet been confirmed.";
+  let nextAction = firstAvailabilityCaptured ? "Tideway has received the application and its first exact window. Screening, approval and separate availability confirmation are still required." : "Tideway has received the application. Screening and exact availability have not yet been confirmed.";
   if (status === "contacted") {
     stage = "screening";
     headline = "Contact step recorded";
@@ -3540,16 +3541,16 @@ async function getPrivateCleanerStatus(request, response) {
     { key: "application", label: "Application received", state: "complete", detail: `Reference ${cleaner.id}` },
     { key: "screening", label: "Screening checks", state: screeningComplete ? "complete" : screeningReached ? "current" : "waiting", detail: screeningComplete ? "Required checks recorded" : screeningReached ? "Checks not yet complete" : "Not started" },
     { key: "approval", label: "Approval decision", state: approvalRecorded ? "complete" : screeningComplete ? "current" : "waiting", detail: approvalRecorded ? (status === "approved" ? "Currently approved" : "Approval was previously recorded") : status === "rejected" ? "No approval recorded" : "Decision not recorded" },
-    { key: "availability", label: "Exact availability confirmed", state: readyForOpportunities ? "complete" : status === "approved" ? "current" : "waiting", detail: readyForOpportunities ? `${futureAvailability.length} future confirmed ${futureAvailability.length === 1 ? "window" : "windows"}` : pendingAvailabilityRequests.length ? `${pendingAvailabilityRequests.length} submitted — awaiting Tideway confirmation` : "Not confirmed for matching" },
+    { key: "availability", label: "Exact availability confirmed", state: readyForOpportunities ? "complete" : status === "approved" ? "current" : "waiting", detail: readyForOpportunities ? `${futureAvailability.length} future confirmed ${futureAvailability.length === 1 ? "window" : "windows"}` : pendingAvailabilityRequests.length ? `${pendingAvailabilityRequests.length} submitted — awaiting Tideway confirmation` : firstAvailabilityCaptured ? "First window captured — not confirmed for matching" : "Not confirmed for matching" },
     { key: "opportunities", label: "Suitable opportunities", state: readyForOpportunities ? "current" : "waiting", detail: readyForOpportunities ? "Eligible to be considered — work is not guaranteed" : inactive ? "Not active for matching" : "Waiting for screening, approval and availability" }
   ];
 
   return json(response, 200, {
     ok: true,
-    application: { reference: cleaner.id },
+    application: { reference: cleaner.id, firstAvailability: firstAvailabilityCaptured ? { availableDate: cleaner.firstAvailableDate, startTime: cleaner.firstAvailableStartTime, endTime: cleaner.firstAvailableEndTime, status: "unconfirmed" } : null },
     current: { stage, headline, nextAction },
     steps,
-    readiness: { screeningComplete, approvalRecorded: status === "approved", confirmedAvailabilityWindows: readyForOpportunities ? futureAvailability.length : 0, pendingAvailabilityWindows: pendingAvailabilityRequests.length, readyForOpportunities },
+    readiness: { screeningComplete, approvalRecorded: status === "approved", firstAvailabilityCaptured, confirmedAvailabilityWindows: readyForOpportunities ? futureAvailability.length : 0, pendingAvailabilityWindows: pendingAvailabilityRequests.length, readyForOpportunities },
     availabilityRequests: pendingAvailabilityRequests.map((item) => ({ reference: item.id, availableDate: item.availableDate, startTime: item.startTime, endTime: item.endTime, status: "pending" })),
     links: { availabilitySubmissionAllowed: status === "approved" && screeningComplete }
   });
@@ -4374,6 +4375,9 @@ async function handleCleanerApplication(request, response) {
     travelAreas: text(input.travelAreas, 240),
     experience: text(input.experience, 80),
     availability: text(input.availability, 240),
+    firstAvailableDate: text(input.firstAvailableDate, 10),
+    firstAvailableStartTime: text(input.firstAvailableStartTime, 5),
+    firstAvailableEndTime: text(input.firstAvailableEndTime, 5),
     transport: text(input.transport, 80),
     services: Array.isArray(input.services)
       ? input.services.map((service) => text(service, 80)).filter((service) => Object.values(cleanerServiceFields).includes(service))
@@ -4391,7 +4395,13 @@ async function handleCleanerApplication(request, response) {
   required(record.travelAreas, "Areas you can work", errors);
   if (record.travelAreas && !parseCleanerTravelAreas(record.travelAreas).valid) errors.push("List at least one outward postcode district such as SW1A, or a comma-separated postcode area such as SW, SE.");
   required(record.experience, "Experience", errors);
-  required(record.availability, "Availability", errors);
+  required(record.firstAvailableDate, "First available date", errors);
+  required(record.firstAvailableStartTime, "First available start time", errors);
+  required(record.firstAvailableEndTime, "First available end time", errors);
+  const firstAvailability = availabilitySlotSchedule({ availableDate: record.firstAvailableDate, startTime: record.firstAvailableStartTime, endTime: record.firstAvailableEndTime });
+  if (record.firstAvailableDate && record.firstAvailableStartTime && record.firstAvailableEndTime && (!firstAvailability || firstAvailability.startMs <= businessWallClockMs() || firstAvailability.endMs - firstAvailability.startMs > 16 * 60 * 60 * 1000)) {
+    errors.push("Choose a complete future first-availability window with an end time after its start time and no more than 16 hours long.");
+  }
   if (!record.services.length) errors.push("Choose at least one type of cleaning work.");
   if (record.email && !isEmail(record.email)) errors.push("Enter a valid email address.");
   if (record.phone && !isPhone(record.phone)) errors.push("Enter a valid phone number.");

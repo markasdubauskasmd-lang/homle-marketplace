@@ -1331,13 +1331,14 @@ async function decideCleanerAvailabilityRequest(requestItem, form) {
   }
 }
 
-function availabilityField(labelText, name, type) {
+function availabilityField(labelText, name, type, value = "") {
   const label = document.createElement("label");
   label.append(document.createTextNode(labelText));
   const input = document.createElement("input");
   input.name = name;
   input.type = type;
   input.required = true;
+  input.value = value;
   if (type === "date") {
     const now = new Date();
     input.min = new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
@@ -1356,6 +1357,13 @@ function buildCleanerAvailability(record) {
   const guidance = document.createElement("p");
   guidance.textContent = "A cleaner-submitted time stays pending until it is reviewed here. Only a confirmed window can be used for matching; withdrawal immediately closes affected decisions and bookings.";
   panel.append(summary, guidance);
+  if (record.firstAvailableDate && record.firstAvailableStartTime && record.firstAvailableEndTime) {
+    const applicationWindow = document.createElement("div");
+    applicationWindow.className = "availability-item availability-request-item";
+    addText(applicationWindow, "strong", `First window supplied with application · ${record.firstAvailableDate} · ${record.firstAvailableStartTime}-${record.firstAvailableEndTime}`);
+    addText(applicationWindow, "span", "Unconfirmed — verify directly before recording it below. It is not available to matching.");
+    panel.append(applicationWindow);
+  }
 
   if (requests.length) {
     const requestList = document.createElement("div");
@@ -1429,9 +1437,9 @@ function buildCleanerAvailability(record) {
     const form = document.createElement("form");
     form.className = "availability-form";
     form.append(
-      availabilityField("Available date", "availableDate", "date"),
-      availabilityField("Start time", "startTime", "time"),
-      availabilityField("End time", "endTime", "time")
+      availabilityField("Available date", "availableDate", "date", record.firstAvailableDate),
+      availabilityField("Start time", "startTime", "time", record.firstAvailableStartTime),
+      availabilityField("End time", "endTime", "time", record.firstAvailableEndTime)
     );
     const noteLabel = document.createElement("label");
     noteLabel.append(document.createTextNode("Confirmation note"));
@@ -1440,7 +1448,7 @@ function buildCleanerAvailability(record) {
     note.required = true;
     note.minLength = 10;
     note.maxLength = 500;
-    note.placeholder = "How and when the cleaner confirmed this window";
+    note.placeholder = "How and when this exact window was re-confirmed";
     noteLabel.append(note);
     const save = document.createElement("button");
     save.type = "submit";
@@ -1527,6 +1535,7 @@ function buildCard(record) {
     addDetail(details, "Work areas", record.travelAreas);
     addDetail(details, "Experience", record.experience);
     addDetail(details, "Availability", record.availability);
+    addDetail(details, "First exact window", record.firstAvailableDate && record.firstAvailableStartTime && record.firstAvailableEndTime ? `${record.firstAvailableDate} · ${record.firstAvailableStartTime}-${record.firstAvailableEndTime} · unconfirmed` : "Not supplied");
     addDetail(details, "Transport", record.transport);
     addDetail(details, "Services", Array.isArray(record.services) ? record.services.join(", ") : "");
     addDetail(details, "Notes", record.notes);

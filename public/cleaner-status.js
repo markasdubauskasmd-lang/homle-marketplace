@@ -36,6 +36,8 @@ function renderStatus(result) {
   setText("[data-headline]", result.current.headline);
   setText("[data-next-action]", result.current.nextAction);
   setText("[data-reference]", result.application.reference);
+  const firstAvailability = result.application.firstAvailability;
+  setText("[data-first-availability]", firstAvailability ? `${firstAvailability.availableDate} · ${firstAvailability.startTime}-${firstAvailability.endTime} · awaiting verification` : "Not supplied");
 
   const timeline = document.querySelector("[data-timeline]");
   timeline.replaceChildren();
@@ -58,6 +60,7 @@ function renderStatus(result) {
   const readiness = document.querySelector("[data-readiness]");
   readiness.replaceChildren();
   const items = [
+    result.readiness.firstAvailabilityCaptured ? "One exact first-available window was captured with the application; it is not yet confirmed for matching." : "No first-available window was captured with this application.",
     result.readiness.screeningComplete ? "Required screening checks are recorded." : "Screening checks are not yet complete.",
     result.readiness.approvalRecorded ? "The application is currently approved." : "No current approval is recorded.",
     result.readiness.confirmedAvailabilityWindows > 0
@@ -78,6 +81,11 @@ function renderStatus(result) {
     const item = document.createElement("li");
     item.textContent = `${request.availableDate} · ${request.startTime}-${request.endTime} · pending`;
     pendingList.append(item);
+  }
+  if (result.links?.availabilitySubmissionAllowed && firstAvailability && pending.length === 0 && result.readiness.confirmedAvailabilityWindows === 0) {
+    availabilityForm.elements.availableDate.value = firstAvailability.availableDate;
+    availabilityForm.elements.startTime.value = firstAvailability.startTime;
+    availabilityForm.elements.endTime.value = firstAvailability.endTime;
   }
 }
 

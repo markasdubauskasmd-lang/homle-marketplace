@@ -191,7 +191,7 @@
           <div class="form-intro">
             <p class="eyebrow">For cleaners</p>
             <h2>Apply in three short steps</h2>
-            <p>Share your details, the cleaning work you want and when you are usually available. No identity documents or bank details are requested here.</p>
+            <p>Share your details, the cleaning work you want and one exact first time you could work. No identity documents or bank details are requested here.</p>
             <div class="form-promise"><strong>You stay in control</strong><span>Applying does not commit you to accept work.</span></div>
           </div>
           <form data-api-form data-guided-form data-guided-kind="cleaner" action="/api/cleaner-applications" method="post" novalidate>
@@ -249,10 +249,15 @@
             <section class="guided-form-step" data-guided-step="3" aria-labelledby="cleaner-step-3-title">
               <div class="guided-step-heading" tabindex="-1">
                 <span>Step 3 of 3</span>
-                <h3 id="cleaner-step-3-title">When do you usually want work?</h3>
-                <p>This is general availability only. Every real opportunity still needs your separate acceptance.</p>
+                <h3 id="cleaner-step-3-title">When could you first work?</h3>
+                <p>Give one exact future window so Tideway can avoid unsuitable timing later. It will not be used for matching until screening, approval and a separate Tideway confirmation are complete.</p>
               </div>
-              <label>Usual availability <input name="availability" required placeholder="For example: weekdays 8am–3pm, weekends by arrangement"></label>
+              <div class="field-row">
+                <label>First available date <input name="firstAvailableDate" type="date" required></label>
+                <label>Start time <input name="firstAvailableStartTime" type="time" required></label>
+                <label>End time <input name="firstAvailableEndTime" type="time" required></label>
+              </div>
+              <label>Usual availability <span>(optional)</span><input name="availability" placeholder="For example: weekdays 8am–3pm, weekends by arrangement"></label>
               <label>Anything else? <span>(optional)</span><textarea name="notes" rows="4" placeholder="Types of cleaning you prefer, languages, equipment or questions"></textarea></label>
               <label class="checkbox"><input name="rightToWork" type="checkbox" required><span>I confirm that I have the right to work in the UK. Evidence will only be requested later through a secure process.</span></label>
               <label class="checkbox"><input name="consent" type="checkbox" required><span>I agree that Tideway may use these details to assess my application and contact me about suitable work. See the <a href="/privacy">privacy notice</a>.</span></label>
