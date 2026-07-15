@@ -1,6 +1,7 @@
 import { saveBriefHandoff } from "./brief-handoff.js";
 import { newSubmissionKey } from "./submission-key.js";
 import { parseCleanerTravelAreas } from "./travel-coverage.js";
+import { isPhone, isUkPostcode } from "./contact-validation.js";
 
 const pendingSubmissions = new WeakMap();
 
@@ -59,6 +60,25 @@ function showError(form, messages) {
 
 const guidedForms = new WeakMap();
 
+function validateStructuredContactFields(form, scope = form) {
+  const checks = [
+    { input: scope.querySelector('input[name="postcode"]'), valid: isUkPostcode, message: "Enter a valid UK postcode, for example SW1A 1AA." },
+    { input: scope.querySelector('input[name="phone"]'), valid: isPhone, message: "Enter a valid phone number with 10 to 15 digits." }
+  ];
+  for (const check of checks) {
+    if (!check.input) continue;
+    check.input.setCustomValidity("");
+    if (check.input.value.trim() && !check.valid(check.input.value)) {
+      check.input.setCustomValidity(check.message);
+      showError(form, check.message);
+      check.input.reportValidity();
+      check.input.focus();
+      return false;
+    }
+  }
+  return true;
+}
+
 function enhanceGuidedForm(form) {
   const steps = Array.from(form.querySelectorAll("[data-guided-step]"));
   const progress = form.querySelector("[data-guided-progress]");
@@ -90,6 +110,7 @@ function enhanceGuidedForm(form) {
   }
 
   function validateCurrentStep() {
+    if (!validateStructuredContactFields(form, steps[currentStep - 1])) return false;
     const travelAreas = steps[currentStep - 1].querySelector('input[name="travelAreas"]');
     if (travelAreas) {
       travelAreas.setCustomValidity("");
@@ -153,6 +174,10 @@ function enhanceGuidedForm(form) {
 
 document.querySelectorAll("[data-guided-form]").forEach(enhanceGuidedForm);
 
+document.querySelectorAll('input[name="postcode"], input[name="phone"]').forEach((input) => {
+  input.addEventListener("input", () => input.setCustomValidity(""));
+});
+
 document.querySelectorAll("[data-api-form]").forEach((form) => {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -166,6 +191,8 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
     const submitButton = form.querySelector(".submit-button");
     summary.hidden = true;
     success.hidden = true;
+
+    if (!validateStructuredContactFields(form)) return;
 
     const serviceGroup = form.querySelector("[data-service-group]");
     if (serviceGroup && !serviceGroup.querySelector('input[type="checkbox"]:checked')) {

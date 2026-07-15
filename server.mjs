@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { checklistFromTranscript, normaliseChecklistTask } from "./public/checklist.js";
 import { briefRoomOptions, maxBriefPhotos, maxBriefVideos } from "./public/brief-readiness.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "./public/scope-signals.js";
+import { isEmail, isPhone, isUkPostcode } from "./public/contact-validation.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mjs";
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverage.mjs";
 import { businessDateToday, businessEpochFromWallClock, businessWallClockMs, earliestBookableWallClockMs } from "./business-clock.mjs";
@@ -254,10 +255,6 @@ function isIsoCalendarDate(value) {
   return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
 }
 
-function isEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
 function verifiedPublicSiteOrigin(value) {
   const supplied = text(value, 300);
   if (!supplied) return "";
@@ -283,15 +280,6 @@ function publicSiteVerification(config) {
     evidenceMatches: Boolean(hostname && evidenceNote.length >= 20 && evidenceNote.toLowerCase().includes(hostname)),
     dateValid: Boolean(isIsoCalendarDate(verifiedDate) && verifiedDate <= localDateToday())
   };
-}
-
-function isUkPostcode(value) {
-  return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(value);
-}
-
-function isPhone(value) {
-  const digits = value.replace(/\D/g, "");
-  return digits.length >= 10 && digits.length <= 15;
 }
 
 function ensureSameOrigin(request) {
