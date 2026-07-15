@@ -2,6 +2,12 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 
 const defaultSessionTtlMs = 30 * 60 * 1000;
 const defaultPointTtlMs = 2 * 60 * 1000;
+const sampleCleaningTasks = Object.freeze([
+  Object.freeze({ id: "kitchen", room: "Kitchen", task: "Clean worktops, sink and visible surfaces" }),
+  Object.freeze({ id: "bathroom", room: "Bathroom", task: "Clean basin, toilet and shower or bath" }),
+  Object.freeze({ id: "main-bedroom", room: "Main bedroom", task: "Dust accessible surfaces and vacuum the floor" }),
+  Object.freeze({ id: "living-room", room: "Living room", task: "Dust accessible surfaces and vacuum the floor" })
+]);
 
 function tokenDigest(token) {
   return createHash("sha256").update(String(token || "")).digest();
@@ -57,6 +63,16 @@ export function createTrackingTestStore(options = {}) {
     const timestamp = now();
     const locationCurrent = session.location && timestamp < session.location.expiresAtMs;
     const state = session.state === "live" && !locationCurrent ? "stale" : session.state;
+    const tasks = sampleCleaningTasks.map((definition) => {
+      const update = session.taskUpdates.get(definition.id);
+      return Object.freeze({
+        ...definition,
+        status: update?.status || "pending",
+        updatedAt: update ? new Date(update.updatedAtMs).toISOString() : null
+      });
+    });
+    const completedTasks = tasks.filter((task) => task.status === "completed").length;
+    const issueTasks = tasks.filter((task) => task.status === "issue").length;
     return Object.freeze({
       reference: session.id,
       role,
@@ -64,13 +80,24 @@ export function createTrackingTestStore(options = {}) {
       createdAt: new Date(session.createdAtMs).toISOString(),
       expiresAt: new Date(session.expiresAtMs).toISOString(),
       stoppedAt: session.stoppedAtMs ? new Date(session.stoppedAtMs).toISOString() : null,
+      arrivedAt: session.arrivedAtMs ? new Date(session.arrivedAtMs).toISOString() : null,
       location: locationCurrent ? Object.freeze({
         latitude: session.location.latitude,
         longitude: session.location.longitude,
         accuracyMetres: session.location.accuracyMetres,
         recordedAt: new Date(session.location.recordedAtMs).toISOString(),
         expiresAt: new Date(session.location.expiresAtMs).toISOString()
-      }) : null
+      }) : null,
+      job: Object.freeze({
+        phase: session.jobPhase,
+        startedAt: session.cleaningStartedAtMs ? new Date(session.cleaningStartedAtMs).toISOString() : null,
+        finishedAt: session.cleaningFinishedAtMs ? new Date(session.cleaningFinishedAtMs).toISOString() : null,
+        totalTasks: tasks.length,
+        completedTasks,
+        issueTasks,
+        percent: Math.round(completedTasks / tasks.length * 100),
+        tasks: Object.freeze(tasks)
+      })
     });
   }
 
@@ -94,6 +121,11 @@ export function createTrackingTestStore(options = {}) {
       createdAtMs,
       expiresAtMs: createdAtMs + sessionTtlMs,
       stoppedAtMs: null,
+      arrivedAtMs: null,
+      cleaningStartedAtMs: null,
+      cleaningFinishedAtMs: null,
+      jobPhase: "not-started",
+      taskUpdates: new Map(),
       state: "waiting",
       location: null,
       subscribers: new Set()
@@ -117,6 +149,7 @@ export function createTrackingTestStore(options = {}) {
     const { session, role } = findAccess(token);
     if (role !== "cleaner") throw trackingError("Only the Cleaner test controller may update location.", 403);
     if (session.state === "stopped") throw trackingError("This tracking test has stopped. Create a new test to share location again.", 409);
+    if (!["waiting", "live"].includes(session.state)) throw trackingError("Location sharing is no longer available after stopping or arriving.", 409);
     const recordedAtMs = now();
     session.location = {
       latitude: finiteNumber(input.latitude, -90, 90, "Latitude"),
@@ -131,9 +164,60 @@ export function createTrackingTestStore(options = {}) {
     return snapshotFor(session, role);
   }
 
+  function arrive(token) {
+    const { session, role } = findAccess(token);
+    if (role !== "cleaner") throw trackingError("Only the Cleaner test controller may confirm arrival.", 403);
+    if (session.state !== "live") throw trackingError("Start the journey and share a current point before confirming arrival.", 409);
+    session.location = null;
+    session.state = "arrived";
+    session.arrivedAtMs = now();
+    session.stoppedAtMs = session.arrivedAtMs;
+    notify(session);
+    return snapshotFor(session, role);
+  }
+
+  function startCleaning(token) {
+    const { session, role } = findAccess(token);
+    if (role !== "cleaner") throw trackingError("Only the Cleaner test controller may start cleaning.", 403);
+    if (session.state !== "arrived" || session.jobPhase !== "not-started") throw trackingError("Cleaning can start once, after the Cleaner has arrived.", 409);
+    session.jobPhase = "in-progress";
+    session.cleaningStartedAtMs = now();
+    notify(session);
+    return snapshotFor(session, role);
+  }
+
+  function updateTask(token, input = {}) {
+    const { session, role } = findAccess(token);
+    if (role !== "cleaner") throw trackingError("Only the Cleaner test controller may update cleaning tasks.", 403);
+    if (session.jobPhase !== "in-progress") throw trackingError("Tasks can be updated only while cleaning is in progress.", 409);
+    const taskId = String(input.taskId || "");
+    if (!sampleCleaningTasks.some((task) => task.id === taskId)) throw trackingError("Cleaning task is invalid.", 422);
+    const status = String(input.status || "");
+    if (!["pending", "completed", "issue"].includes(status)) throw trackingError("Cleaning task status is invalid.", 422);
+    if (status === "pending") session.taskUpdates.delete(taskId);
+    else session.taskUpdates.set(taskId, { status, updatedAtMs: now() });
+    notify(session);
+    return snapshotFor(session, role);
+  }
+
+  function finishCleaning(token) {
+    const { session, role } = findAccess(token);
+    if (role !== "cleaner") throw trackingError("Only the Cleaner test controller may finish cleaning.", 403);
+    if (session.jobPhase !== "in-progress") throw trackingError("Cleaning is not currently in progress.", 409);
+    const unresolved = sampleCleaningTasks.filter((task) => session.taskUpdates.get(task.id)?.status !== "completed");
+    if (unresolved.length) throw trackingError(`Resolve all ${unresolved.length} remaining task${unresolved.length === 1 ? "" : "s"} before finishing.`, 409);
+    session.jobPhase = "finished";
+    session.cleaningFinishedAtMs = now();
+    session.state = "finished";
+    session.location = null;
+    notify(session);
+    return snapshotFor(session, role);
+  }
+
   function stop(token) {
     const { session, role } = findAccess(token);
     if (role !== "cleaner") throw trackingError("Only the Cleaner test controller may stop location sharing.", 403);
+    if (!["waiting", "live", "stopped"].includes(session.state)) throw trackingError("Location sharing already ended when the Cleaner arrived.", 409);
     session.location = null;
     session.state = "stopped";
     session.stoppedAtMs ||= now();
@@ -175,7 +259,7 @@ export function createTrackingTestStore(options = {}) {
     return sessions.size;
   }
 
-  return Object.freeze({ createSession, getSnapshot, updateLocation, stop, destroy, subscribe, close, activeSessionCount });
+  return Object.freeze({ createSession, getSnapshot, updateLocation, arrive, startCleaning, updateTask, finishCleaning, stop, destroy, subscribe, close, activeSessionCount });
 }
 
-export { defaultPointTtlMs, defaultSessionTtlMs };
+export { defaultPointTtlMs, defaultSessionTtlMs, sampleCleaningTasks };

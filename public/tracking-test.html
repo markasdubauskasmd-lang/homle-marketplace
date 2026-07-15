@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="theme-color" content="#0e665b">
-  <title>Tideway real location test</title>
+  <title>Tideway real journey and cleaning test</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-56">
-  <script src="/tracking-test.js?v=20260715-2" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-57">
+  <script src="/tracking-test.js?v=20260715-3" type="module"></script>
 </head>
 <body class="tracking-test-page">
   <a class="skip-link" href="#main">Skip to tracking test</a>
@@ -23,8 +23,8 @@
   <main id="main" class="tracking-test-main shell">
     <section class="tracking-test-disclosure" aria-labelledby="tracking-test-title">
       <p class="eyebrow">Functional localhost lab</p>
-      <h1 id="tracking-test-title">Real location test</h1>
-      <p>This uses the Cleaner browser's real geolocation and streams the latest point to one private Landlord viewer. It is not a booking and it does not contact anyone.</p>
+      <h1 id="tracking-test-title">Real journey and cleaning test</h1>
+      <p>This uses the Cleaner browser's real geolocation and streams the latest point and cleaning progress to one private Landlord viewer. It is not a booking and it does not contact anyone.</p>
       <ul>
         <li>Foreground browser use only—background phone tracking is not promised.</li>
         <li>Only the latest point is held in server memory; no route history is written to disk.</li>
@@ -66,7 +66,7 @@
             <p class="eyebrow">Cleaner controller</p>
             <h2>Share this browser's location</h2>
             <label class="checkbox tracking-test-consent"><input type="checkbox" data-location-consent><span>I consent to share my current position in this temporary local test. I understand it remains foreground-only.</span></label>
-            <div class="tracking-test-actions"><button class="button" type="button" data-start-location disabled>Start real journey</button><button class="button button-outline" type="button" data-stop-location disabled>Stop and remove point</button></div>
+            <div class="tracking-test-actions"><button class="button" type="button" data-start-location disabled>Start real journey</button><button class="button button-outline" type="button" data-arrive disabled>I have arrived</button><button class="button button-outline" type="button" data-stop-location disabled>Stop and remove point</button></div>
             <p class="form-message" data-controller-message role="status"></p>
           </section>
 
@@ -89,6 +89,26 @@
           <button class="tracking-test-delete" type="button" data-delete-test hidden>End and delete this test</button>
         </aside>
       </div>
+
+      <section class="tracking-test-progress-card" aria-labelledby="tracking-progress-title">
+        <div class="tracking-test-progress-heading">
+          <div><p class="eyebrow">Live cleaning progress</p><h2 id="tracking-progress-title" data-job-heading>Waiting for arrival</h2><p data-job-detail>The Cleaner starts this sample checklist after arriving. The Landlord view updates automatically.</p></div>
+          <strong data-job-percent>0%</strong>
+        </div>
+        <div class="tracking-test-progress-bar" role="progressbar" aria-label="Cleaning tasks completed" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-job-progress><span></span></div>
+        <div class="tracking-test-job-actions" data-job-controller hidden>
+          <button class="button" type="button" data-start-cleaning disabled>Start cleaning</button>
+          <button class="button button-outline" type="button" data-finish-cleaning disabled>Finish cleaning</button>
+          <p class="form-message" data-job-message role="status"></p>
+        </div>
+        <ol class="tracking-test-task-list" data-task-list>
+          <li data-live-task="kitchen"><span class="tracking-test-task-status" data-task-status>Pending</span><div><strong>Kitchen</strong><p>Clean worktops, sink and visible surfaces</p><small data-task-updated>Not started</small></div><div class="tracking-test-task-actions" data-task-actions hidden><button type="button" data-task-complete>Complete</button><button type="button" data-task-issue>Report issue</button><button type="button" data-task-reset>Reset</button></div></li>
+          <li data-live-task="bathroom"><span class="tracking-test-task-status" data-task-status>Pending</span><div><strong>Bathroom</strong><p>Clean basin, toilet and shower or bath</p><small data-task-updated>Not started</small></div><div class="tracking-test-task-actions" data-task-actions hidden><button type="button" data-task-complete>Complete</button><button type="button" data-task-issue>Report issue</button><button type="button" data-task-reset>Reset</button></div></li>
+          <li data-live-task="main-bedroom"><span class="tracking-test-task-status" data-task-status>Pending</span><div><strong>Main bedroom</strong><p>Dust accessible surfaces and vacuum the floor</p><small data-task-updated>Not started</small></div><div class="tracking-test-task-actions" data-task-actions hidden><button type="button" data-task-complete>Complete</button><button type="button" data-task-issue>Report issue</button><button type="button" data-task-reset>Reset</button></div></li>
+          <li data-live-task="living-room"><span class="tracking-test-task-status" data-task-status>Pending</span><div><strong>Living room</strong><p>Dust accessible surfaces and vacuum the floor</p><small data-task-updated>Not started</small></div><div class="tracking-test-task-actions" data-task-actions hidden><button type="button" data-task-complete>Complete</button><button type="button" data-task-issue>Report issue</button><button type="button" data-task-reset>Reset</button></div></li>
+        </ol>
+        <p class="tracking-test-progress-note">Functional test only. No job, payment, customer record, cleaner record or saved location history is created.</p>
+      </section>
     </section>
   </main>
 </body>

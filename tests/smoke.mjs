@@ -221,7 +221,7 @@ try {
   assert(homeText.includes('href="/tracking-test"') && homeText.includes("Test real location locally"), "The functional local tracking test is not reachable from the website.");
   const trackingTestPage = await fetch(`${base}/tracking-test`);
   const trackingTestPageText = await trackingTestPage.text();
-  assert(trackingTestPage.ok && trackingTestPage.headers.get("permissions-policy")?.includes("geolocation=(self)") && trackingTestPageText.includes("Real location test") && trackingTestPageText.includes("Only the latest point") && trackingTestPageText.includes("I consent"), "The local tracking-test page did not expose its exact permission, consent and current-only storage boundaries.");
+  assert(trackingTestPage.ok && trackingTestPage.headers.get("permissions-policy")?.includes("geolocation=(self)") && trackingTestPageText.includes("Real journey and cleaning test") && trackingTestPageText.includes("Only the latest point") && trackingTestPageText.includes("I consent") && trackingTestPageText.includes("Live cleaning progress"), "The local tracking-test page did not expose its exact permission, consent, current-only storage and live progress boundaries.");
   const trackingTestCreated = await fetch(`${base}/api/tracking-test/session`, { method: "POST" });
   const trackingTestCreatedBody = await trackingTestCreated.json();
   assert(trackingTestCreated.status === 201 && /^[A-Za-z0-9_-]{43}$/.test(trackingTestCreatedBody.controllerToken) && /^[A-Za-z0-9_-]{43}$/.test(trackingTestCreatedBody.viewerToken) && trackingTestCreatedBody.snapshot?.state === "waiting" && Array.isArray(trackingTestCreatedBody.viewerOrigins) && trackingTestCreatedBody.viewerOrigins.every((origin) => origin.endsWith(`:${lanPort}`)) && !JSON.stringify(trackingTestCreatedBody.snapshot).includes(trackingTestCreatedBody.viewerToken), "A private in-memory tracking test did not create separate opaque role tokens or safe same-Wi-Fi viewer origins.");
@@ -237,10 +237,29 @@ try {
   const trackingTestUpdatedBody = await trackingTestUpdated.json();
   const liveTrackingChunk = trackingTestDecoder.decode((await trackingTestReader.read()).value || new Uint8Array());
   assert(trackingTestUpdated.ok && trackingTestUpdatedBody.state === "live" && trackingTestUpdatedBody.location?.latitude === 51.50123 && liveTrackingChunk.includes('"state":"live"') && liveTrackingChunk.includes('"latitude":51.50123'), "A real current point did not reach the authorized live viewer stream.");
+  const trackingTestArrived = await fetch(`${base}/api/tracking-test/arrive`, { method: "POST", headers: { "x-tracking-test-token": trackingTestCreatedBody.controllerToken } });
+  const trackingTestArrivedBody = await trackingTestArrived.json();
+  const arrivedTrackingChunk = trackingTestDecoder.decode((await trackingTestReader.read()).value || new Uint8Array());
+  assert(trackingTestArrived.ok && trackingTestArrivedBody.state === "arrived" && trackingTestArrivedBody.location === null && arrivedTrackingChunk.includes('"state":"arrived"') && arrivedTrackingChunk.includes('"location":null'), "Arrival did not stop location or reach the authorized Landlord stream.");
   await trackingTestReader.cancel();
-  const trackingTestStopped = await fetch(`${base}/api/tracking-test/stop`, { method: "POST", headers: { "x-tracking-test-token": trackingTestCreatedBody.controllerToken } });
-  const trackingTestStoppedBody = await trackingTestStopped.json();
-  assert(trackingTestStopped.ok && trackingTestStoppedBody.state === "stopped" && trackingTestStoppedBody.location === null, "Stopping the location test did not delete its current point.");
+  const trackingTestViewerStart = await fetch(`${base}/api/tracking-test/cleaning/start`, { method: "POST", headers: { "x-tracking-test-token": trackingTestCreatedBody.viewerToken } });
+  assert(trackingTestViewerStart.status === 403, "A read-only Landlord token started cleaning.");
+  const trackingTestCleaningStarted = await fetch(`${base}/api/tracking-test/cleaning/start`, { method: "POST", headers: { "x-tracking-test-token": trackingTestCreatedBody.controllerToken } });
+  const trackingTestCleaningStartedBody = await trackingTestCleaningStarted.json();
+  assert(trackingTestCleaningStarted.ok && trackingTestCleaningStartedBody.job?.phase === "in-progress", "The Cleaner could not start the sample cleaning checklist after arrival.");
+  const trackingTestViewerTask = await fetch(`${base}/api/tracking-test/task`, { method: "PUT", headers: { "content-type": "application/json", "x-tracking-test-token": trackingTestCreatedBody.viewerToken }, body: JSON.stringify({ taskId: "kitchen", status: "completed" }) });
+  assert(trackingTestViewerTask.status === 403, "A read-only Landlord token changed a cleaning task.");
+  const prematureTrackingFinish = await fetch(`${base}/api/tracking-test/cleaning/finish`, { method: "POST", headers: { "x-tracking-test-token": trackingTestCreatedBody.controllerToken } });
+  assert(prematureTrackingFinish.status === 409, "The cleaning test finished with unresolved tasks.");
+  for (const taskId of ["kitchen", "bathroom", "main-bedroom", "living-room"]) {
+    const taskUpdate = await fetch(`${base}/api/tracking-test/task`, { method: "PUT", headers: { "content-type": "application/json", "x-tracking-test-token": trackingTestCreatedBody.controllerToken }, body: JSON.stringify({ taskId, status: "completed" }) });
+    assert(taskUpdate.ok, `The Cleaner could not complete the ${taskId} sample task.`);
+  }
+  const trackingTestFinished = await fetch(`${base}/api/tracking-test/cleaning/finish`, { method: "POST", headers: { "x-tracking-test-token": trackingTestCreatedBody.controllerToken } });
+  const trackingTestFinishedBody = await trackingTestFinished.json();
+  const trackingTestViewerFinal = await fetch(`${base}/api/tracking-test/snapshot`, { headers: { "x-tracking-test-token": trackingTestCreatedBody.viewerToken } });
+  const trackingTestViewerFinalBody = await trackingTestViewerFinal.json();
+  assert(trackingTestFinished.ok && trackingTestFinishedBody.state === "finished" && trackingTestFinishedBody.job?.percent === 100 && trackingTestViewerFinal.ok && trackingTestViewerFinalBody.role === "landlord" && trackingTestViewerFinalBody.job?.phase === "finished", "The guarded 100% finish did not reach the Landlord snapshot.");
   const trackingTestDeleted = await fetch(`${base}/api/tracking-test/session`, { method: "DELETE", headers: { "x-tracking-test-token": trackingTestCreatedBody.controllerToken } });
   const trackingTestDeletedViewer = await fetch(`${base}/api/tracking-test/snapshot`, { headers: { "x-tracking-test-token": trackingTestCreatedBody.viewerToken } });
   assert(trackingTestDeleted.ok && trackingTestDeletedViewer.status === 401, "Deleting a tracking test left its viewer token authorized.");

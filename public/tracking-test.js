@@ -13,9 +13,14 @@ const viewerLinkPanel = document.querySelector("[data-viewer-link-panel]");
 const viewerLinkInput = document.querySelector("[data-viewer-link]");
 const startButton = document.querySelector("[data-start-location]");
 const stopButton = document.querySelector("[data-stop-location]");
+const arriveButton = document.querySelector("[data-arrive]");
 const deleteButton = document.querySelector("[data-delete-test]");
 const consent = document.querySelector("[data-location-consent]");
 const controllerMessage = document.querySelector("[data-controller-message]");
+const jobController = document.querySelector("[data-job-controller]");
+const startCleaningButton = document.querySelector("[data-start-cleaning]");
+const finishCleaningButton = document.querySelector("[data-finish-cleaning]");
+const jobMessage = document.querySelector("[data-job-message]");
 
 let privateToken = fragmentToken;
 let viewerLink = "";
@@ -25,6 +30,7 @@ let streamController = null;
 let sendingLocation = false;
 let firstPoint = null;
 let deleted = false;
+let latestSnapshot = null;
 
 function isLoopbackPage() {
   return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname);
@@ -45,13 +51,45 @@ function formatTime(value) {
   return Number.isNaN(date.getTime()) ? "Unavailable" : new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(date);
 }
 
+function renderJob(snapshot) {
+  const job = snapshot.job;
+  if (!job) return;
+  const phaseLabels = { "not-started": snapshot.state === "arrived" ? "Ready to start cleaning" : "Waiting for arrival", "in-progress": "Cleaning in progress", finished: "Cleaning test finished" };
+  document.querySelector("[data-job-heading]").textContent = phaseLabels[job.phase] || "Cleaning progress";
+  document.querySelector("[data-job-detail]").textContent = job.phase === "finished"
+    ? `All ${job.totalTasks} sample tasks completed at ${formatTime(job.finishedAt)}.`
+    : job.phase === "in-progress"
+      ? `${job.completedTasks} of ${job.totalTasks} tasks complete${job.issueTasks ? ` · ${job.issueTasks} issue${job.issueTasks === 1 ? "" : "s"} to resolve` : ""}.`
+      : snapshot.state === "arrived" ? "The Cleaner has arrived and can start the sample checklist." : "The Cleaner starts this sample checklist after arriving. The Landlord view updates automatically.";
+  document.querySelector("[data-job-percent]").textContent = `${job.percent}%`;
+  const progress = document.querySelector("[data-job-progress]");
+  progress.setAttribute("aria-valuenow", String(job.percent));
+  progress.querySelector("span").style.width = `${job.percent}%`;
+  jobController.hidden = snapshot.role !== "cleaner";
+  startCleaningButton.disabled = snapshot.state !== "arrived" || job.phase !== "not-started";
+  finishCleaningButton.disabled = job.phase !== "in-progress" || job.completedTasks !== job.totalTasks || job.issueTasks > 0;
+  for (const task of job.tasks) {
+    const row = document.querySelector(`[data-live-task="${task.id}"]`);
+    if (!row) continue;
+    row.dataset.status = task.status;
+    row.querySelector("[data-task-status]").textContent = task.status === "completed" ? "Complete" : task.status === "issue" ? "Issue" : "Pending";
+    row.querySelector("[data-task-updated]").textContent = task.updatedAt ? `Updated ${formatTime(task.updatedAt)}` : "Not started";
+    const actions = row.querySelector("[data-task-actions]");
+    actions.hidden = snapshot.role !== "cleaner" || job.phase !== "in-progress";
+    row.querySelector("[data-task-complete]").disabled = task.status === "completed";
+    row.querySelector("[data-task-issue]").disabled = task.status === "issue";
+    row.querySelector("[data-task-reset]").disabled = task.status === "pending";
+  }
+}
+
 function renderSnapshot(snapshot) {
   if (!snapshot || deleted) return;
+  latestSnapshot = snapshot;
   sessionPanel.hidden = false;
   setup.hidden = true;
   document.querySelector("[data-role-label]").textContent = snapshot.role === "cleaner" ? "Cleaner controller" : "Landlord viewer";
   document.querySelector("[data-session-reference]").textContent = `Test reference ${snapshot.reference} · expires ${formatTime(snapshot.expiresAt)}`;
-  const stateLabels = { waiting: "Waiting for location", live: "Location sharing live", stale: "Latest point expired", stopped: "Location sharing stopped", deleted: "Test deleted", expired: "Test expired" };
+  const stateLabels = { waiting: "Waiting for location", live: "Location sharing live", stale: "Latest point expired", stopped: "Location sharing stopped", arrived: "Cleaner has arrived", finished: "Cleaning test finished", deleted: "Test deleted", expired: "Test expired" };
   const heading = stateLabels[snapshot.state] || "Private location test";
   document.querySelector("[data-session-heading]").textContent = heading;
   document.querySelector("[data-session-state]").textContent = snapshot.state;
@@ -77,10 +115,13 @@ function renderSnapshot(snapshot) {
     document.querySelector("[data-latitude]").textContent = "Waiting";
     document.querySelector("[data-longitude]").textContent = "Waiting";
     document.querySelector("[data-accuracy]").textContent = "Waiting";
-    document.querySelector("[data-recorded-at]").textContent = snapshot.state === "stopped" ? "Point removed" : "No current point";
+    document.querySelector("[data-recorded-at]").textContent = ["stopped", "arrived", "finished"].includes(snapshot.state) ? "Point removed" : "No current point";
     setConnection(snapshot.state === "stopped" ? "Sharing stopped" : "Private stream connected", heading, snapshot.state);
   }
   stopButton.disabled = locationWatchId === null;
+  arriveButton.disabled = snapshot.role !== "cleaner" || snapshot.state !== "live";
+  startButton.disabled = snapshot.role !== "cleaner" || !consent.checked || locationWatchId !== null || !["waiting", "live"].includes(snapshot.state);
+  renderJob(snapshot);
 }
 
 async function readError(response) {
@@ -138,6 +179,48 @@ async function stopLocation() {
   if (!response.ok) return void (controllerMessage.textContent = await readError(response));
   renderSnapshot(await response.json());
   controllerMessage.textContent = "Location sharing stopped and the current point was removed.";
+}
+
+async function postControllerAction(path, successMessage) {
+  const response = await fetch(path, { method: "POST", headers: tokenHeaders() });
+  if (!response.ok) throw new Error(await readError(response));
+  const snapshot = await response.json();
+  renderSnapshot(snapshot);
+  jobMessage.textContent = successMessage;
+  return snapshot;
+}
+
+async function arrive() {
+  stopBrowserWatch();
+  try {
+    await postControllerAction("/api/tracking-test/arrive", "Arrival recorded. The current location point was removed automatically.");
+    controllerMessage.textContent = "Arrived. Location sharing is off and the current point has been removed.";
+  } catch (error) {
+    controllerMessage.textContent = error.message;
+  }
+}
+
+async function startCleaning() {
+  try { await postControllerAction("/api/tracking-test/cleaning/start", "Cleaning started. Task actions are now available."); }
+  catch (error) { jobMessage.textContent = error.message; }
+}
+
+async function updateTask(taskId, status) {
+  try {
+    const response = await fetch("/api/tracking-test/task", {
+      method: "PUT",
+      headers: { ...tokenHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ taskId, status })
+    });
+    if (!response.ok) throw new Error(await readError(response));
+    renderSnapshot(await response.json());
+    jobMessage.textContent = status === "completed" ? "Task marked complete." : status === "issue" ? "Issue reported. Resolve it by completing or resetting the task." : "Task reset to pending.";
+  } catch (error) { jobMessage.textContent = error.message; }
+}
+
+async function finishCleaning() {
+  try { await postControllerAction("/api/tracking-test/cleaning/finish", "Cleaning test completed. The Landlord view has the final 100% update."); }
+  catch (error) { jobMessage.textContent = error.message; }
 }
 
 async function deleteTest() {
@@ -244,9 +327,19 @@ async function createTest() {
 }
 
 createButton.addEventListener("click", createTest);
-consent.addEventListener("change", () => { startButton.disabled = !consent.checked || locationWatchId !== null; });
+consent.addEventListener("change", () => { startButton.disabled = !consent.checked || locationWatchId !== null || !["waiting", "live"].includes(latestSnapshot?.state); });
 startButton.addEventListener("click", startLocation);
 stopButton.addEventListener("click", stopLocation);
+arriveButton.addEventListener("click", arrive);
+startCleaningButton.addEventListener("click", startCleaning);
+finishCleaningButton.addEventListener("click", finishCleaning);
+document.querySelector("[data-task-list]").addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  const row = event.target.closest("[data-live-task]");
+  if (!button || !row || role !== "cleaner" || latestSnapshot?.job?.phase !== "in-progress") return;
+  const status = button.hasAttribute("data-task-complete") ? "completed" : button.hasAttribute("data-task-issue") ? "issue" : button.hasAttribute("data-task-reset") ? "pending" : "";
+  if (status) updateTask(row.dataset.liveTask, status);
+});
 deleteButton.addEventListener("click", deleteTest);
 document.querySelector("[data-open-viewer]").addEventListener("click", () => { if (viewerLink) window.open(viewerLink, "_blank", "noopener"); });
 document.querySelector("[data-copy-viewer]").addEventListener("click", async () => {

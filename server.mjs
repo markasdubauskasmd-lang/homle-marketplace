@@ -198,7 +198,7 @@ function rateLimitPolicyFor(request, pathname) {
   }
   if (request.method === "POST" && pathname === "/api/tracking-test/session") return { name: "tracking-test-create", ...apiRateLimitPolicies.trackingTestCreate };
   if (request.method === "PUT" && pathname === "/api/tracking-test/location") return { name: "tracking-test-location", ...apiRateLimitPolicies.trackingTestLocation };
-  if (["GET", "POST", "DELETE"].includes(request.method || "") && pathname.startsWith("/api/tracking-test/")) return { name: `tracking-test:${pathname}`, ...apiRateLimitPolicies.trackingTestRead };
+  if (["GET", "POST", "PUT", "DELETE"].includes(request.method || "") && pathname.startsWith("/api/tracking-test/")) return { name: `tracking-test:${pathname}`, ...apiRateLimitPolicies.trackingTestRead };
   return null;
 }
 
@@ -4626,6 +4626,31 @@ async function updateTrackingTestLocation(request, response) {
   return json(response, 200, snapshot);
 }
 
+function arriveTrackingTest(request, response) {
+  ensureSameOrigin(request);
+  requireLoopbackTrackingController(request);
+  return json(response, 200, trackingTestStore.arrive(trackingTestToken(request)));
+}
+
+function startTrackingTestCleaning(request, response) {
+  ensureSameOrigin(request);
+  requireLoopbackTrackingController(request);
+  return json(response, 200, trackingTestStore.startCleaning(trackingTestToken(request)));
+}
+
+async function updateTrackingTestTask(request, response) {
+  ensureSameOrigin(request);
+  requireLoopbackTrackingController(request);
+  const input = await readJson(request, 4 * 1024);
+  return json(response, 200, trackingTestStore.updateTask(trackingTestToken(request), input));
+}
+
+function finishTrackingTestCleaning(request, response) {
+  ensureSameOrigin(request);
+  requireLoopbackTrackingController(request);
+  return json(response, 200, trackingTestStore.finishCleaning(trackingTestToken(request)));
+}
+
 function stopTrackingTest(request, response) {
   ensureSameOrigin(request);
   requireLoopbackTrackingController(request);
@@ -4753,6 +4778,18 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "PUT" && requestUrl.pathname === "/api/tracking-test/location") {
       return await updateTrackingTestLocation(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/tracking-test/arrive") {
+      return arriveTrackingTest(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/tracking-test/cleaning/start") {
+      return startTrackingTestCleaning(request, response);
+    }
+    if (request.method === "PUT" && requestUrl.pathname === "/api/tracking-test/task") {
+      return await updateTrackingTestTask(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/tracking-test/cleaning/finish") {
+      return finishTrackingTestCleaning(request, response);
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/tracking-test/stop") {
       return stopTrackingTest(request, response);
