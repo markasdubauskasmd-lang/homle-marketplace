@@ -124,16 +124,19 @@ try {
   const home = await fetch(base);
   const homeText = await home.text();
   const guidedStepCount = (homeText.match(/data-guided-step=/g) || []).length;
-  assert(home.ok && homeText.includes("Book a clean with every room clearly scoped") && homeText.includes('data-guided-kind="customer"') && homeText.includes('data-guided-kind="cleaner"') && guidedStepCount === 6 && homeText.includes("What needs cleaning?") && homeText.includes("When and how can the cleaner enter?") && homeText.includes("Where should we send the next step?") && homeText.includes("How can Tideway reach you?") && homeText.includes("What cleaning work suits you?") && homeText.includes("When do you usually want work?") && !homeText.includes('href="/brief">Scan my rooms') && homeText.includes("postcode districts or areas") && homeText.includes("SW1A, SW4, or broader areas SW, SE"), "Uber-simple three-stage customer and cleaner journeys, guarded scan entry or structured cleaner travel-area guidance failed.");
+  assert(home.ok && homeText.includes("Book a clean with every room clearly scoped") && homeText.includes('data-guided-kind="customer"') && homeText.includes('data-guided-kind="cleaner"') && homeText.includes("data-cleaner-status-link") && guidedStepCount === 6 && homeText.includes("What needs cleaning?") && homeText.includes("When and how can the cleaner enter?") && homeText.includes("Where should we send the next step?") && homeText.includes("How can Tideway reach you?") && homeText.includes("What cleaning work suits you?") && homeText.includes("When do you usually want work?") && !homeText.includes('href="/brief">Scan my rooms') && homeText.includes("postcode districts or areas") && homeText.includes("SW1A, SW4, or broader areas SW, SE"), "Uber-simple three-stage customer and cleaner journeys, private cleaner-tracker handoff, guarded scan entry or structured cleaner travel-area guidance failed.");
   assert(home.headers.get("content-security-policy")?.includes("frame-ancestors 'none'"), "Security headers were missing.");
   assert(home.headers.get("content-security-policy")?.includes("img-src 'self' data: blob:"), "Secure local photo previews were blocked by the content policy.");
+  const sharedStyles = await fetch(`${base}/styles.css?v=smoke-test`);
+  assert(sharedStyles.ok && (await sharedStyles.text()).includes("[hidden] { display: none !important; }"), "Shared styling allowed hidden private actions or form stages to remain visible.");
 
   const privacy = await fetch(`${base}/privacy`);
   const privacyText = await privacy.text();
-  assert(privacy.ok && privacyText.includes("Privacy notice") && privacyText.includes("temporarily holds a client network address in memory"), "Privacy page failed or omitted the local anti-abuse data disclosure.");
+  assert(privacy.ok && privacyText.includes("Privacy notice") && privacyText.includes("temporarily holds a client network address in memory") && privacyText.includes("private cleaner tracker") && privacyText.includes("screening-note or authorisation-token data"), "Privacy page failed or omitted the local anti-abuse or private cleaner-tracker disclosure.");
 
   const terms = await fetch(`${base}/terms`);
-  assert(terms.ok && (await terms.text()).includes("Pilot terms"), "Terms page failed.");
+  const termsText = await terms.text();
+  assert(terms.ok && termsText.includes("Pilot terms") && termsText.includes("private customer and cleaner trackers") && termsText.includes("does not guarantee work"), "Terms page failed or implied that tracker status guarantees work.");
 
   const adminPage = await fetch(`${base}/admin`);
   const adminPageText = await adminPage.text();
@@ -157,6 +160,12 @@ try {
   assert(briefReadinessAsset.ok && briefReadinessAssetText.includes("briefReadiness") && briefReadinessAssetText.includes("maxBriefPhotos = 10") && briefReadinessAssetText.includes("maxBriefVideos = 2"), "Shared room-scan readiness or whole-property media-limit asset failed.");
   const requestStatusPage = await fetch(`${base}/request-status`);
   assert(requestStatusPage.ok && (await requestStatusPage.text()).includes("Private request tracker"), "Private customer request tracker page failed.");
+  const cleanerStatusPage = await fetch(`${base}/cleaner-status`);
+  const cleanerStatusPageText = await cleanerStatusPage.text();
+  assert(cleanerStatusPage.ok && cleanerStatusPageText.includes("Private cleaner tracker") && cleanerStatusPageText.includes("This tracker does not approve, assign or promise work."), "Private cleaner application tracker page failed or implied work approval.");
+  const cleanerStatusAsset = await fetch(`${base}/cleaner-status.js?v=smoke-test`);
+  const cleanerStatusAssetText = await cleanerStatusAsset.text();
+  assert(cleanerStatusAsset.ok && cleanerStatusAssetText.includes("X-Cleaner-Status-Token") && cleanerStatusAssetText.includes("history.replaceState") && cleanerStatusAssetText.includes("confirmedAvailabilityWindows"), "Cleaner tracker did not keep its token out of request URLs or render readiness safely.");
   const quotePage = await fetch(`${base}/quote`);
   const quotePageText = await quotePage.text();
   assert(quotePage.ok && quotePageText.includes("Private customer review") && quotePageText.includes("This is a replacement quote") && quotePageText.includes("A fresh decision is required."), "Private customer quote or replacement-review page failed.");
@@ -173,7 +182,7 @@ try {
   assert(adminAsset.ok && adminAsset.headers.get("cache-control") === "no-cache" && adminAssetText.includes("Later refunds, re-cleans and costs") && adminAssetText.includes("/api/admin/job-outcome-adjustments") && adminAssetText.includes("paymentEvidenceReference") && adminAssetText.includes("Externally verified amount") && adminAssetText.includes("customerReceiptReference") && adminAssetText.includes("cleanerPayoutReference"), "Updated control-desk assets, booking payment evidence, final settlement evidence or post-completion adjustment workflow could remain stale or missing.");
   const publicFormAsset = await fetch(`${base}/app.js?v=smoke-test`);
   const publicFormAssetText = await publicFormAsset.text();
-  assert(publicFormAsset.ok && publicFormAssetText.includes("enhanceGuidedForm") && publicFormAssetText.includes("step.dataset.guidedStep") && publicFormAssetText.includes("validateCurrentStep") && publicFormAssetText.includes("Choose at least one type of cleaning work before continuing.") && publicFormAssetText.includes("guidedForm?.complete()") && publicFormAssetText.includes('"Idempotency-Key": pending.key') && publicFormAssetText.includes("pendingSubmissions.delete(form)"), "Progressive customer/cleaner journeys, visible current-stage selection, per-stage service validation or safe retry-key handling failed.");
+  assert(publicFormAsset.ok && publicFormAssetText.includes("enhanceGuidedForm") && publicFormAssetText.includes("step.dataset.guidedStep") && publicFormAssetText.includes("validateCurrentStep") && publicFormAssetText.includes("Choose at least one type of cleaning work before continuing.") && publicFormAssetText.includes("data-cleaner-status-link") && publicFormAssetText.includes("cleanerStatusToken") && publicFormAssetText.includes("guidedForm?.complete()") && publicFormAssetText.includes('"Idempotency-Key": pending.key') && publicFormAssetText.includes("pendingSubmissions.delete(form)"), "Progressive customer/cleaner journeys, visible current-stage selection, cleaner-tracker handoff, per-stage service validation or safe retry-key handling failed.");
 
   const invalidPhone = await fetch(`${base}/api/cleaning-requests`, {
     method: "POST",
@@ -294,15 +303,22 @@ try {
   assert(validCleaner && replayedCleaner, "Concurrent cleaner retries were not reduced to one application.");
   const cleanerBody = await validCleaner.json();
   const replayedCleanerBody = await replayedCleaner.json();
-  assert(validCleaner.status === 201 && cleanerBody.reference.startsWith("CLN-"), "Valid cleaner application failed.");
-  assert(replayedCleanerBody.replayed === true && replayedCleanerBody.reference === cleanerBody.reference, "Cleaner retry did not return the original application reference.");
+  assert(validCleaner.status === 201 && cleanerBody.reference.startsWith("CLN-") && /^[A-Za-z0-9_-]{32}$/.test(cleanerBody.cleanerStatusToken), "Valid cleaner application failed or omitted its private tracker token.");
+  assert(replayedCleanerBody.replayed === true && replayedCleanerBody.reference === cleanerBody.reference && replayedCleanerBody.cleanerStatusToken === cleanerBody.cleanerStatusToken, "Cleaner retry did not return the original application reference and private tracker token.");
   const changedCleanerWithReusedKey = await fetch(`${base}/api/cleaner-applications`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": cleanerSubmissionKey }, body: JSON.stringify({ ...validCleanerInput, availability: "Weekends" }) });
   assert(changedCleanerWithReusedKey.status === 409, "A cleaner retry key was reused for different application details.");
+  const invalidCleanerStatus = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": "not-a-private-cleaner-token" } });
+  assert(invalidCleanerStatus.status === 404, "Invalid cleaner tracker token exposed application status.");
+  const initialCleanerStatus = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": cleanerBody.cleanerStatusToken } });
+  const initialCleanerStatusBody = await initialCleanerStatus.json();
+  assert(initialCleanerStatus.ok && initialCleanerStatusBody.current.stage === "application-review" && initialCleanerStatusBody.application.reference === cleanerBody.reference && initialCleanerStatusBody.readiness.readyForOpportunities === false && initialCleanerStatusBody.steps.find((step) => step.key === "application")?.state === "complete", "New cleaner tracker did not open at received-but-not-screened status.");
+  const initialCleanerTrackerSerialised = JSON.stringify(initialCleanerStatusBody);
+  assert(!initialCleanerTrackerSerialised.includes("Test Cleaner") && !initialCleanerTrackerSerialised.includes("cleaner@example.com") && !initialCleanerTrackerSerialised.includes("07123456789") && !initialCleanerTrackerSerialised.includes("SE1 7PB") && !initialCleanerTrackerSerialised.includes("SW1A") && !initialCleanerTrackerSerialised.includes("cleanerStatusToken"), "Cleaner tracker exposed identity, contact, travel or authorisation-token data.");
 
   const adminRecords = await fetch(`${base}/api/admin/records`);
   const adminBody = await adminRecords.json();
   assert(adminRecords.ok && adminBody.records.length === 2, "Admin records did not load.");
-  assert(!JSON.stringify(adminBody.records).includes("submissionKey") && !JSON.stringify(adminBody.records).includes("submissionFingerprint"), "Internal retry metadata leaked into the control-desk records API.");
+  assert(!JSON.stringify(adminBody.records).includes("submissionKey") && !JSON.stringify(adminBody.records).includes("submissionFingerprint") && !JSON.stringify(adminBody.records).includes("customerStatusToken") && !JSON.stringify(adminBody.records).includes("cleanerStatusToken"), "Internal retry or private tracker authorisation metadata leaked into the control-desk records API.");
   assert(adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.length === 1 && adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.id === briefBody.reference && adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.customerScopeConfirmed === true && Date.parse(adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.customerScopeConfirmedAt) > 0, "Photo job brief or its customer scope confirmation was not attached to the request, or an unconfirmed attempt was stored.");
   assert(adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "landlord-draft", "New photo job brief did not enter the human review queue.");
   assert(adminBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.some((action) => action.code === "review-scan" && action.severity === "high"), "Submitted room scan was missing from the founder-action queue.");
@@ -427,6 +443,9 @@ try {
     body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "screening" })
   });
   assert(cleanerScreening.ok, "Cleaner screening status failed.");
+  const screeningCleanerStatus = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": cleanerBody.cleanerStatusToken } });
+  const screeningCleanerStatusBody = await screeningCleanerStatus.json();
+  assert(screeningCleanerStatus.ok && screeningCleanerStatusBody.current.stage === "screening" && screeningCleanerStatusBody.readiness.screeningComplete === false && screeningCleanerStatusBody.steps.find((step) => step.key === "screening")?.state === "current", "Cleaner tracker did not show incomplete screening without implying approval.");
   const unscreenedApproval = await fetch(`${base}/api/admin/status`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
@@ -453,12 +472,18 @@ try {
   });
   const completeScreeningBody = await completeScreening.json();
   assert(completeScreening.ok && completeScreeningBody.screening.complete === true && completeScreeningBody.screening.completed === 7, "Complete cleaner screening did not pass all seven checks.");
+  const screenedCleanerStatus = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": cleanerBody.cleanerStatusToken } });
+  const screenedCleanerStatusBody = await screenedCleanerStatus.json();
+  assert(screenedCleanerStatus.ok && screenedCleanerStatusBody.current.stage === "approval-review" && screenedCleanerStatusBody.readiness.screeningComplete === true && screenedCleanerStatusBody.readiness.approvalRecorded === false && screenedCleanerStatusBody.steps.find((step) => step.key === "approval")?.state === "current", "Completed cleaner screening incorrectly implied approval or failed to surface the pending decision.");
   const cleanerApproval = await fetch(`${base}/api/admin/status`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "approved" })
   });
   assert(cleanerApproval.ok, "Cleaner approval status failed.");
+  const approvedCleanerStatus = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": cleanerBody.cleanerStatusToken } });
+  const approvedCleanerStatusBody = await approvedCleanerStatus.json();
+  assert(approvedCleanerStatus.ok && approvedCleanerStatusBody.current.stage === "availability" && approvedCleanerStatusBody.readiness.approvalRecorded === true && approvedCleanerStatusBody.readiness.confirmedAvailabilityWindows === 0 && approvedCleanerStatusBody.steps.find((step) => step.key === "availability")?.state === "current", "Approved cleaner tracker skipped the exact-availability requirement or implied work readiness early.");
 
   const uncoveredCleaner = await fetch(`${base}/api/cleaner-applications`, {
     method: "POST",
@@ -495,6 +520,9 @@ try {
     assert(savedWindow.status === 201 && savedWindowBody.slot.status === "active", `Confirmed availability window ${window.availableDate} was not saved.`);
     if (window.availableDate === "2026-07-20") activeSlot20Id = savedWindowBody.slot.id;
   }
+  const readyCleanerStatus = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": cleanerBody.cleanerStatusToken } });
+  const readyCleanerStatusBody = await readyCleanerStatus.json();
+  assert(readyCleanerStatus.ok && readyCleanerStatusBody.current.stage === "ready" && readyCleanerStatusBody.readiness.readyForOpportunities === true && readyCleanerStatusBody.readiness.confirmedAvailabilityWindows === 3 && readyCleanerStatusBody.steps.find((step) => step.key === "opportunities")?.state === "current" && readyCleanerStatusBody.current.nextAction.includes("No work is guaranteed"), "Cleaner tracker did not reach evidence-backed opportunity readiness or promised work.");
   const overlappingAvailability = await fetch(`${base}/api/admin/cleaner-availability`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, availableDate: "2026-07-20", startTime: "10:00", endTime: "16:00", confirmationNote: "Test-only overlapping availability confirmation window." }) });
   assert(overlappingAvailability.status === 409, "Overlapping confirmed availability windows were accepted.");
   const outsideAvailabilityProposal = await fetch(`${base}/api/admin/proposals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", proposedStartTime: "14:00", estimatedHours: 2, customerRate: 30, cleanerRate: 18, otherCosts: 0 }) });
@@ -670,10 +698,15 @@ try {
   assert(skippedTransition.status === 422, "Proposal status skipped the sent step.");
   const pausedCleaner = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "paused" }) });
   assert(pausedCleaner.ok, "Approved cleaner could not be paused for proposal revalidation test.");
+  const pausedOwnTracker = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": cleanerBody.cleanerStatusToken } });
+  const pausedOwnTrackerBody = await pausedOwnTracker.json();
+  assert(pausedOwnTracker.ok && pausedOwnTrackerBody.current.stage === "paused" && pausedOwnTrackerBody.readiness.approvalRecorded === false && pausedOwnTrackerBody.readiness.confirmedAvailabilityWindows === 0 && pausedOwnTrackerBody.steps.find((step) => step.key === "opportunities")?.detail === "Not active for matching" && !JSON.stringify(pausedOwnTrackerBody).includes("Test confirmations only"), "Paused cleaner tracker remained match-ready or exposed private screening notes.");
   const pausedCleanerSend = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "sent" }) });
   assert(pausedCleanerSend.status === 422, "Proposal was sent after the selected cleaner was paused.");
   const restoredCleaner = await fetch(`${base}/api/admin/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cleanerBody.reference, kind: "cleaner", status: "approved" }) });
   assert(restoredCleaner.ok, "Paused cleaner could not return to approved status after revalidation test.");
+  const restoredOwnTracker = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": cleanerBody.cleanerStatusToken } });
+  assert(restoredOwnTracker.ok && (await restoredOwnTracker.json()).current.stage === "ready", "Cleaner tracker did not return to evidence-backed readiness after approval was restored.");
   const sentAtLowerBound = Date.now();
   const sentProposal = await fetch(`${base}/api/admin/proposals/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ proposalId: proposalBody.proposal.id, status: "sent" }) });
   assert(sentProposal.ok, "Sent proposal status failed.");

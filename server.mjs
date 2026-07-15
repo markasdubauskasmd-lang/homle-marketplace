@@ -162,7 +162,7 @@ function rateLimitPolicyFor(request, pathname) {
   if (request.method === "POST" && ["/api/quote/decision", "/api/opportunity/decision", "/api/booking-change-requests", "/api/job-events"].includes(pathname)) {
     return { name: `private-write:${pathname}`, ...apiRateLimitPolicies.privateWrite };
   }
-  if (request.method === "GET" && ["/api/request-status", "/api/quote", "/api/opportunity", "/api/opportunity-photo", "/api/booking-pack", "/api/booking-photo"].includes(pathname)) {
+  if (request.method === "GET" && ["/api/request-status", "/api/cleaner-status", "/api/quote", "/api/opportunity", "/api/opportunity-photo", "/api/booking-pack", "/api/booking-photo"].includes(pathname)) {
     return { name: `private-read:${pathname}`, ...apiRateLimitPolicies.privateRead };
   }
   return null;
@@ -224,7 +224,7 @@ function submissionFingerprint(value) {
 }
 
 function publicRecordFingerprint(record) {
-  const { id, customerStatusToken, createdAt, status, submissionKey: ignoredKey, submissionFingerprint: ignoredFingerprint, ...payload } = record;
+  const { id, customerStatusToken, cleanerStatusToken, createdAt, status, submissionKey: ignoredKey, submissionFingerprint: ignoredFingerprint, ...payload } = record;
   return submissionFingerprint(payload);
 }
 
@@ -1658,7 +1658,7 @@ async function getAdminRecords(request, response) {
     briefsByRequest.set(brief.requestId, list);
   }
   const merge = (record, kind) => {
-    const { submissionKey: ignoredSubmissionKey, submissionFingerprint: ignoredSubmissionFingerprint, ...privateLead } = record;
+    const { customerStatusToken: ignoredCustomerStatusToken, cleanerStatusToken: ignoredCleanerStatusToken, submissionKey: ignoredSubmissionKey, submissionFingerprint: ignoredSubmissionFingerprint, ...privateLead } = record;
     const leadActivities = (activitiesById.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
     const leadProposals = (proposalsByRequest.get(record.id) || []).sort((left, right) => proposalDispatchPriority(right) - proposalDispatchPriority(left) || right.createdAt.localeCompare(left.createdAt));
     const booking = kind === "request" ? bookingsByRequest.get(record.id) || null : null;
@@ -3002,6 +3002,79 @@ async function getPrivateRequestStatus(request, response) {
   });
 }
 
+async function getPrivateCleanerStatus(request, response) {
+  const token = text(request.headers["x-cleaner-status-token"], 80);
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private cleaner link is invalid." });
+  const [cleaners, statusUpdates, screenings, availabilityEvents] = await Promise.all([
+    readRecords("cleaner-applications.ndjson"),
+    readRecords("status-updates.ndjson"),
+    readRecords("cleaner-screening.ndjson"),
+    readRecords("cleaner-availability.ndjson")
+  ]);
+  const cleaner = cleaners.find((record) => record.cleanerStatusToken === token);
+  if (!cleaner) return json(response, 404, { ok: false, error: "This private cleaner link is invalid." });
+
+  const ownStatusUpdates = statusUpdates.filter((update) => update.id === cleaner.id && update.kind === "cleaner");
+  let status = cleaner.status || "new";
+  for (const update of ownStatusUpdates) status = update.status;
+  const screening = latestCleanerScreening(cleaner.id, screenings);
+  const screeningComplete = screening?.complete === true;
+  const approvalRecorded = status === "approved" || status === "paused" || ownStatusUpdates.some((update) => update.status === "approved");
+  const futureAvailability = activeCleanerAvailability(availabilityEvents, cleaner.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > Date.now());
+  const readyForOpportunities = status === "approved" && screeningComplete && futureAvailability.length > 0;
+
+  let stage = "application-review";
+  let headline = "Application received";
+  let nextAction = "Tideway has received the application. Screening and exact availability have not yet been confirmed.";
+  if (status === "contacted") {
+    stage = "screening";
+    headline = "Contact step recorded";
+    nextAction = "Tideway must still complete the required screening checks before any approval decision.";
+  } else if (status === "screening" && !screeningComplete) {
+    stage = "screening";
+    headline = "Screening in progress";
+    nextAction = "Tideway must complete and record every required screening check before approval can be considered.";
+  } else if (status === "screening" && screeningComplete) {
+    stage = "approval-review";
+    headline = "Screening checks recorded";
+    nextAction = "Tideway must record a separate approval decision. Completed checks alone do not approve or assign work.";
+  } else if (status === "approved" && !futureAvailability.length) {
+    stage = "availability";
+    headline = "Application approved — availability needed";
+    nextAction = "Approval does not create work. Tideway must separately confirm exact future availability windows before matching.";
+  } else if (readyForOpportunities) {
+    stage = "ready";
+    headline = "Ready for suitable opportunities";
+    nextAction = "No work is guaranteed. Tideway may send a separate private opportunity when a suitable job, scope, area and time align.";
+  } else if (status === "paused") {
+    stage = "paused";
+    headline = "Application paused";
+    nextAction = "No matching or assignment is active while this application is paused.";
+  } else if (status === "rejected") {
+    stage = "closed";
+    headline = "Application closed";
+    nextAction = "No matching or assignment is active for this application.";
+  }
+
+  const screeningReached = status === "screening" || approvalRecorded || ownStatusUpdates.some((update) => update.status === "screening");
+  const inactive = status === "paused" || status === "rejected";
+  const steps = [
+    { key: "application", label: "Application received", state: "complete", detail: `Reference ${cleaner.id}` },
+    { key: "screening", label: "Screening checks", state: screeningComplete ? "complete" : screeningReached ? "current" : "waiting", detail: screeningComplete ? "Required checks recorded" : screeningReached ? "Checks not yet complete" : "Not started" },
+    { key: "approval", label: "Approval decision", state: approvalRecorded ? "complete" : screeningComplete ? "current" : "waiting", detail: approvalRecorded ? (status === "approved" ? "Currently approved" : "Approval was previously recorded") : status === "rejected" ? "No approval recorded" : "Decision not recorded" },
+    { key: "availability", label: "Exact availability confirmed", state: readyForOpportunities ? "complete" : status === "approved" ? "current" : "waiting", detail: readyForOpportunities ? `${futureAvailability.length} future confirmed ${futureAvailability.length === 1 ? "window" : "windows"}` : "Not confirmed for matching" },
+    { key: "opportunities", label: "Suitable opportunities", state: readyForOpportunities ? "current" : "waiting", detail: readyForOpportunities ? "Eligible to be considered — work is not guaranteed" : inactive ? "Not active for matching" : "Waiting for screening, approval and availability" }
+  ];
+
+  return json(response, 200, {
+    ok: true,
+    application: { reference: cleaner.id },
+    current: { stage, headline, nextAction },
+    steps,
+    readiness: { screeningComplete, approvalRecorded: status === "approved", confirmedAvailabilityWindows: readyForOpportunities ? futureAvailability.length : 0, readyForOpportunities }
+  });
+}
+
 async function createPrivateBookingChangeRequest(request, response) {
   ensureSameOrigin(request);
   const token = text(request.headers["x-booking-token"], 80);
@@ -3774,6 +3847,7 @@ async function handleCleanerApplication(request, response) {
 
   const record = {
     id: `CLN-${randomUUID().slice(0, 8).toUpperCase()}`,
+    cleanerStatusToken: randomBytes(24).toString("base64url"),
     createdAt: new Date().toISOString(),
     status: "new",
     fullName: text(input.fullName, 120),
@@ -3812,7 +3886,7 @@ async function handleCleanerApplication(request, response) {
   record.submissionKey = submissionKey(request);
   record.submissionFingerprint = publicRecordFingerprint(record);
   const saved = await savePublicSubmissionOnce("cleaner-applications.ndjson", record);
-  return json(response, saved.replayed ? 200 : 201, { ok: true, replayed: saved.replayed, reference: saved.record.id });
+  return json(response, saved.replayed ? 200 : 201, { ok: true, replayed: saved.replayed, reference: saved.record.id, cleanerStatusToken: saved.record.cleanerStatusToken });
 }
 
 async function serveFile(requestPath, response) {
@@ -3823,6 +3897,7 @@ async function serveFile(requestPath, response) {
     "/brief": "brief.html",
     "/brief-complete": "brief-complete.html",
     "/request-status": "request-status.html",
+    "/cleaner-status": "cleaner-status.html",
     "/quote": "quote.html",
     "/opportunity": "opportunity.html",
     "/booking-confirmation": "booking-pack.html",
@@ -3878,6 +3953,9 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/request-status") {
       return await getPrivateRequestStatus(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/cleaner-status") {
+      return await getPrivateCleanerStatus(request, response);
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/quote") {
       return await getPrivateQuote(request, response);

@@ -183,6 +183,11 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
         statusLink.href = `/request-status#${result.customerStatusToken}`;
         statusLink.hidden = false;
       }
+      const cleanerStatusLink = success.querySelector("[data-cleaner-status-link]");
+      if (cleanerStatusLink && /^[A-Za-z0-9_-]{32}$/.test(result.cleanerStatusToken || "")) {
+        cleanerStatusLink.href = `/cleaner-status#${result.cleanerStatusToken}`;
+        cleanerStatusLink.hidden = false;
+      }
       guidedForm?.complete();
       success.hidden = false;
       success.focus();
