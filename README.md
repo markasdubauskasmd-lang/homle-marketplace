@@ -28,6 +28,8 @@ The authentication runtime also includes trusted session issuance, exact logout,
 
 Email authentication handlers are now prepared behind the same detached runtime: generic signup, verification resend/confirmation, login, password-reset request/confirmation, logout and role onboarding. Replacement verification invalidates older unused links, email tokens travel only in URL fragments, and the controller requires trusted delivery, shared rate limiting and a server-derived client key together. No account control appears on the live site before those dependencies and PostgreSQL pass staging.
 
+The [capability-gated account interface](docs/ACCOUNT_UI.md) prepares responsive login, signup, verification/recovery, reset and role-onboarding forms without exposing dead controls. Server-rendered forms remain hidden and disabled until the complete email-password runtime reports ready; private fragments are removed immediately and failed CSRF storage closes the new session safely.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

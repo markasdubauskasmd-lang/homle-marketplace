@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Tideway account access</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-46">
-  <script src="/auth-entry.js?v=20260715-1" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-47">
+  <script src="/auth-entry.js?v=20260715-2" type="module"></script>
 </head>
 <body class="account-page">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -30,6 +30,77 @@
           <span class="account-state-mark" aria-hidden="true">i</span>
           <div><strong data-account-state-title>Checking account readiness…</strong><p data-account-state-copy>No sign-in form will appear unless every security dependency is ready.</p></div>
         </div>
+
+        <section class="account-runtime" data-account-runtime hidden aria-label="Secure account form">
+          <div class="account-feedback" data-account-feedback role="status" aria-live="polite" hidden></div>
+
+          <form class="account-form" data-account-form="login" hidden novalidate>
+            <fieldset data-account-controls disabled>
+              <legend>Sign in securely</legend>
+              <label>Email address<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+              <label>Password<input name="password" type="password" autocomplete="current-password" minlength="12" maxlength="128" required></label>
+              <button class="button" type="submit">Sign in</button>
+              <p class="account-form-link"><a href="/reset-password">Forgot your password?</a> <a href="/signup">Create an account</a></p>
+            </fieldset>
+          </form>
+
+          <form class="account-form" data-account-form="signup" hidden novalidate>
+            <fieldset data-account-controls disabled>
+              <legend>Create your account</legend>
+              <label>Full name<input name="displayName" autocomplete="name" maxlength="120" required></label>
+              <label>Email address<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+              <label>Password<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" aria-describedby="password-help" required></label>
+              <small id="password-help">Use 12 to 128 characters and a password you do not use elsewhere.</small>
+              <button class="button" type="submit">Create account</button>
+              <p class="account-form-link">Already registered? <a href="/login">Sign in</a></p>
+            </fieldset>
+          </form>
+
+          <form class="account-form" data-account-form="verify" hidden novalidate>
+            <fieldset data-account-controls disabled>
+              <legend>Verify your email</legend>
+              <p>The private verification token has been removed from the address bar. Confirm below to use it once.</p>
+              <button class="button" type="submit">Verify email</button>
+            </fieldset>
+          </form>
+
+          <form class="account-form" data-account-form="verification-request" hidden novalidate>
+            <fieldset data-account-controls disabled>
+              <legend>Send a new verification link</legend>
+              <label>Email address<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+              <button class="button" type="submit">Send verification link</button>
+              <p class="account-form-link"><a href="/login">Back to sign in</a></p>
+            </fieldset>
+          </form>
+
+          <form class="account-form" data-account-form="reset" hidden novalidate>
+            <fieldset data-account-controls disabled>
+              <legend>Choose a new password</legend>
+              <label>New password<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+              <label>Confirm new password<input name="passwordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+              <button class="button" type="submit">Replace password</button>
+            </fieldset>
+          </form>
+
+          <form class="account-form" data-account-form="reset-request" hidden novalidate>
+            <fieldset data-account-controls disabled>
+              <legend>Reset your password</legend>
+              <label>Email address<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+              <button class="button" type="submit">Send reset link</button>
+              <p class="account-form-link"><a href="/login">Back to sign in</a></p>
+            </fieldset>
+          </form>
+
+          <form class="account-form" data-account-form="onboarding" hidden novalidate>
+            <fieldset data-account-controls disabled>
+              <legend>How will you use Tideway?</legend>
+              <p>Choose once so Tideway can open the correct private workspace. Administrator access cannot be selected here.</p>
+              <label class="account-role"><input name="role" type="radio" value="landlord" required><span><strong>Landlord or property manager</strong><small>Add properties, scan rooms and book cleaners.</small></span></label>
+              <label class="account-role"><input name="role" type="radio" value="cleaner" required><span><strong>Cleaner</strong><small>Build a professional profile and choose suitable work.</small></span></label>
+              <button class="button" type="submit">Continue</button>
+            </fieldset>
+          </form>
+        </section>
 
         <div class="account-actions" data-pilot-actions>
           <a class="button" href="/request">Request a clean</a>

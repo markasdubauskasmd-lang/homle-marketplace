@@ -179,6 +179,22 @@ textarea { resize: vertical; }
 .account-state strong, .account-state p { display: block; }
 .account-state p { margin: 5px 0 0; color: #38534c; font-size: .9rem; }
 .account-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+.account-runtime { margin-top: 24px; }
+.account-feedback { margin-bottom: 16px; padding: 13px 15px; border: 1px solid #9bcdbf; border-radius: 11px; background: var(--mint-pale); color: #164a42; font-weight: 700; }
+.account-feedback[data-kind="error"] { color: #7b1e17; border-color: #e1aaa5; background: #fff0ee; }
+.account-feedback[data-kind="success"] { color: #0c554b; border-color: #87c9b9; background: #ecfaf5; }
+.account-form fieldset { display: grid; gap: 16px; margin: 0; padding: 0; border: 0; }
+.account-form legend { margin-bottom: 18px; color: var(--green-dark); font-family: Georgia, 'Times New Roman', serif; font-size: 1.75rem; font-weight: 800; }
+.account-form small { color: var(--muted); line-height: 1.45; }
+.account-form .button { justify-self: start; min-width: 150px; }
+.account-form button:disabled { cursor: wait; opacity: .68; transform: none; }
+.account-form-link { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; font-size: .9rem; }
+.account-form-link a { color: var(--green-dark); font-weight: 800; }
+.account-role { grid-template-columns: 22px 1fr; align-items: start; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: #fbfdfc; cursor: pointer; }
+.account-role:has(input:checked) { border-color: var(--green); box-shadow: 0 0 0 3px rgba(14, 102, 91, .1); background: var(--mint-pale); }
+.account-role input { width: 19px; height: 19px; margin-top: 2px; accent-color: var(--green); }
+.account-role strong, .account-role small { display: block; }
+.account-role small { margin-top: 4px; }
 .account-side { color: #fff; background: linear-gradient(160deg, var(--green), #084c45); }
 .account-side h2 { margin: 9px 0 26px; color: #fff; font-size: clamp(1.8rem, 4vw, 2.8rem); }
 .account-steps { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
@@ -762,6 +778,7 @@ textarea { resize: vertical; }
   .account-card, .account-side { padding: 26px 20px; border-radius: 19px; }
   .account-card h1 { font-size: clamp(2.15rem, 12vw, 3.25rem); }
   .account-actions .button { width: 100%; }
+  .account-form .button { width: 100%; }
   .guided-progress li { grid-template-columns: 30px 1fr; gap: 6px; font-size: .75rem; }
   .guided-progress li span { width: 30px; height: 30px; }
   .guided-progress li::after { top: 14px; right: calc(100% - 2px); width: calc(100% - 32px); }
