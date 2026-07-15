@@ -22,6 +22,9 @@ const lanHost = process.env.LAN_HOST || "0.0.0.0";
 if (lanPort && (!Number.isInteger(lanPort) || lanPort < 1 || lanPort > 65535 || lanPort === port)) throw new Error("LAN_PORT must be a valid port different from PORT.");
 const maxBodyBytes = 64 * 1024;
 const maxBriefBodyBytes = 28 * 1024 * 1024;
+const maxProposalHours = 16;
+const maxProposalHourlyRate = 10000;
+const maxProposalAdditionalCosts = 100000;
 let writeQueue = Promise.resolve();
 const rateLimitBuckets = new Map();
 const trustProxy = process.env.TRUST_PROXY === "true";
@@ -3702,7 +3705,10 @@ async function createAdminProposal(request, response) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(proposedDate)) errors.push("Choose a proposed date.");
   if (proposedDate && proposedDate < localDateToday()) errors.push("Proposed date cannot be in the past.");
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(proposedStartTime)) errors.push("Choose an exact proposed start time.");
-  if (estimatedHours <= 0 || estimatedHours > 16 || customerRate <= 0 || cleanerRate <= 0) errors.push("Hours must be between 0 and 16, and customer rate and cleaner pay must be greater than zero.");
+  const proposalNumbers = [estimatedHours, customerRate, cleanerRate, otherCosts];
+  if (proposalNumbers.some((value) => !Number.isFinite(value))) errors.push("Hours, rates and additional job costs must be finite numbers.");
+  if (estimatedHours <= 0 || estimatedHours > maxProposalHours || customerRate <= 0 || cleanerRate <= 0) errors.push(`Hours must be between 0 and ${maxProposalHours}, and customer rate and cleaner pay must be greater than zero.`);
+  if (customerRate > maxProposalHourlyRate || cleanerRate > maxProposalHourlyRate || otherCosts > maxProposalAdditionalCosts) errors.push("Proposal rates or additional costs exceed the supported financial limits.");
   const schedule = jobSchedule({ proposedDate, proposedStartTime, estimatedHours });
   if (proposedDate && proposedStartTime && estimatedHours > 0 && !schedule) errors.push("The proposed cleaning must start and finish on a valid calendar date.");
   if (schedule && schedule.startMs < earliestBookableWallClockMs()) errors.push("The proposed cleaning must start at least 15 minutes in the future in UK local time.");
@@ -3736,6 +3742,9 @@ async function createAdminProposal(request, response) {
 
   const economics = calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, otherCosts, config);
   const { customerTotal, cleanerPay, paymentFees, travelCosts, suppliesCosts, riskContingency, nonCleanerCosts, contribution, marginPercent, costAssumptions } = economics;
+  if ([customerTotal, cleanerPay, paymentFees, travelCosts, suppliesCosts, riskContingency, nonCleanerCosts, contribution, marginPercent].some((value) => !Number.isFinite(value))) {
+    return json(response, 422, { ok: false, error: "The proposal economics could not be represented safely. Use smaller finite pricing inputs." });
+  }
   if (contribution <= 0) return json(response, 422, { ok: false, error: "This proposal loses money before overheads. Change the price, pay or scope." });
   if (config.minimumContributionMarginPercent > 0 && marginPercent < config.minimumContributionMarginPercent) {
     return json(response, 422, { ok: false, error: `This proposal's ${marginPercent.toFixed(1)}% contribution margin is below the ${config.minimumContributionMarginPercent.toFixed(1)}% minimum.` });
@@ -3982,6 +3991,8 @@ async function updateAdminConfig(request, response) {
     updatedAt: new Date().toISOString()
   };
   const errors = [];
+  const numericConfigValues = [config.customerHourlyRate, config.cleanerHourlyPay, config.minimumHours, config.minimumContributionMarginPercent, config.paymentFeePercent, config.paymentFeeFixed, config.travelCostPerJob, config.suppliesCostPerJob, config.riskContingencyPercent, config.customerQuoteValidityHours, config.cleanerOpportunityValidityHours, config.inactiveMediaRetentionDays, config.completedMediaRetentionDays];
+  if (numericConfigValues.some((value) => !Number.isFinite(value))) errors.push("Pricing, cost, response-window and retention values must be finite numbers.");
   if (config.supportEmail && !isEmail(config.supportEmail)) errors.push("Enter a valid support email.");
   if (config.supportPhone && !isPhone(config.supportPhone)) errors.push("Enter a valid support phone number.");
   if (config.publicSiteUrl && !verifiedPublicSiteOrigin(config.publicSiteUrl)) errors.push("Public website origin must be HTTPS with no path, query, login details or fragment, for example https://www.example.com.");
@@ -3992,6 +4003,8 @@ async function updateAdminConfig(request, response) {
   if (config.paymentProviderVerifiedDate && (!isIsoCalendarDate(config.paymentProviderVerifiedDate) || config.paymentProviderVerifiedDate > localDateToday())) errors.push("Payment-provider verification date must be a valid date no later than today.");
   const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
   if (pilotCoverage.invalidCodes.length) errors.push(`Use comma-separated outward postcode codes only, for example SW2, SW4. Invalid: ${pilotCoverage.invalidCodes.join(", ")}.`);
+  if (config.customerHourlyRate > maxProposalHourlyRate || config.cleanerHourlyPay > maxProposalHourlyRate) errors.push(`Customer and cleaner hourly rates must not exceed £${maxProposalHourlyRate.toLocaleString("en-GB")}.`);
+  if (config.minimumHours > maxProposalHours) errors.push(`Minimum hours must not exceed the ${maxProposalHours}-hour proposal limit.`);
   if (config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.customerHourlyRate <= config.cleanerHourlyPay) errors.push("Customer rate must be higher than cleaner pay before other costs.");
   if (config.minimumContributionMarginPercent >= 100) errors.push("Minimum contribution margin must be below 100%.");
   if (config.paymentFeePercent > 20) errors.push("Payment fee percentage must be between 0% and 20%.");
