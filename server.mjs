@@ -871,6 +871,21 @@ async function auditDataIntegrity() {
   checkReferences("job-outcome-adjustments.ndjson", "bookingId", "bookings.ndjson");
   checkReferences("media-retention.ndjson", "briefId", "job-briefs.ndjson");
 
+  const briefRecords = parsedFiles.get("job-briefs.ndjson");
+  const briefStatusRecords = parsedFiles.get("job-brief-status.ndjson");
+  if (briefRecords?.valid && briefStatusRecords?.valid) {
+    const briefVisualIds = new Map(briefRecords.records.map(({ record }) => [text(record.id, 80), Array.isArray(record.photos) ? record.photos.map((photo) => text(photo.id, 80)).filter(Boolean) : []]));
+    for (const { record, line } of briefStatusRecords.records) {
+      if (record.status !== "reviewed" || Number(record.visualEvidenceVersion) < 1) continue;
+      const expectedIds = briefVisualIds.get(text(record.briefId, 80)) || [];
+      const reviewedIds = Array.isArray(record.reviewedVisualIds) ? record.reviewedVisualIds.map((id) => text(id, 80)).filter(Boolean) : [];
+      const reviewedSet = new Set(reviewedIds);
+      if (reviewedSet.size !== reviewedIds.length || reviewedSet.size !== expectedIds.length || expectedIds.some((id) => !reviewedSet.has(id))) {
+        recordIssue({ code: "invalid-visual-review-evidence", file: "job-brief-status.ndjson", line, reference: text(record.briefId, 80), message: "A reviewed room scan does not contain the exact per-visual evidence set." });
+      }
+    }
+  }
+
   const hasFiniteNumber = (record, field) => typeof record?.[field] === "number" && Number.isFinite(record[field]);
   const moneyMatches = (left, right) => Number.isFinite(Number(left)) && Number.isFinite(Number(right)) && moneyValue(left) === moneyValue(right);
   const financialIssue = (file, line, record, message) => recordIssue({
@@ -1766,6 +1781,8 @@ function applyBriefStatus(brief, updates) {
   let scopeConfidence = "";
   let scopeSignalConfirmations = [];
   let visualsReviewed = false;
+  let reviewedVisualIds = [];
+  let visualEvidenceVersion = 0;
   let checklistReviewed = false;
   for (const update of updates) {
     if (update.briefId !== brief.id) continue;
@@ -1776,13 +1793,18 @@ function applyBriefStatus(brief, updates) {
     scopeConfidence = update.scopeConfidence || "";
     scopeSignalConfirmations = Array.isArray(update.scopeSignalConfirmations) ? update.scopeSignalConfirmations : [];
     visualsReviewed = update.visualsReviewed === true;
+    reviewedVisualIds = Array.isArray(update.reviewedVisualIds) ? update.reviewedVisualIds : [];
+    visualEvidenceVersion = Number(update.visualEvidenceVersion) || 0;
     checklistReviewed = update.checklistReviewed === true;
   }
   const scopeSignals = briefScopeSignals(brief);
   const confirmedCodes = new Set(scopeSignalConfirmations);
   const priceSensitiveScopeConfirmed = scopeSignals.every((signal) => confirmedCodes.has(signal.code));
-  const reviewEvidenceConfirmed = visualsReviewed && checklistReviewed;
-  return { ...brief, scopeSignals, status, reviewNote, reviewedAt, scopeEstimateHours, scopeConfidence, scopeSignalConfirmations: [...confirmedCodes], priceSensitiveScopeConfirmed, visualsReviewed, checklistReviewed, reviewEvidenceConfirmed };
+  const expectedVisualIds = brief.photos.map((photo) => photo.id);
+  const reviewedVisualIdSet = new Set(reviewedVisualIds);
+  const perVisualReviewEvidenceConfirmed = visualEvidenceVersion < 1 || (reviewedVisualIdSet.size === expectedVisualIds.length && expectedVisualIds.every((id) => reviewedVisualIdSet.has(id)));
+  const reviewEvidenceConfirmed = visualsReviewed && checklistReviewed && perVisualReviewEvidenceConfirmed;
+  return { ...brief, scopeSignals, status, reviewNote, reviewedAt, scopeEstimateHours, scopeConfidence, scopeSignalConfirmations: [...confirmedCodes], priceSensitiveScopeConfirmed, visualsReviewed, reviewedVisualIds: [...reviewedVisualIdSet], perVisualReviewEvidenceConfirmed, checklistReviewed, reviewEvidenceConfirmed };
 }
 
 function latestCleanerScreening(cleanerId, screenings) {
@@ -2096,6 +2118,7 @@ async function updateAdminJobBriefStatus(request, response) {
   const scopeConfidence = text(input.scopeConfidence, 20).toLowerCase();
   const suppliedScopeSignalConfirmations = Array.isArray(input.scopeSignalConfirmations) ? input.scopeSignalConfirmations.map((code) => text(code, 50)) : [];
   const visualsReviewed = input.visualsReviewed === true;
+  const suppliedReviewedVisualIds = Array.isArray(input.reviewedVisualIds) ? input.reviewedVisualIds.map((id) => text(id, 80)) : [];
   const checklistReviewed = input.checklistReviewed === true;
   const transitions = {
     "landlord-draft": new Set(["reviewed", "needs-revision"]),
@@ -2130,6 +2153,12 @@ async function updateAdminJobBriefStatus(request, response) {
   if (status === "reviewed" && (!visualsReviewed || !checklistReviewed)) {
     return json(response, 422, { ok: false, error: "Open every private room visual and note, then confirm the concise checklist was checked against the spoken notes, room notes and shown rooms before approving this scan." });
   }
+  const expectedVisualIds = brief.photos.map((photo) => photo.id);
+  const expectedVisualIdSet = new Set(expectedVisualIds);
+  const reviewedVisualIds = [...new Set(suppliedReviewedVisualIds.filter((id) => expectedVisualIdSet.has(id)))];
+  if (status === "reviewed" && (reviewedVisualIds.length !== expectedVisualIds.length || expectedVisualIds.some((id) => !reviewedVisualIds.includes(id)))) {
+    return json(response, 422, { ok: false, error: "Confirm each private room visual and its room note individually before approving this scan." });
+  }
   const scopeSignals = briefScopeSignals(brief);
   const scopeSignalCodes = new Set(scopeSignals.map((signal) => signal.code));
   const scopeSignalConfirmations = [...new Set(suppliedScopeSignalConfirmations.filter((code) => scopeSignalCodes.has(code)))];
@@ -2137,9 +2166,9 @@ async function updateAdminJobBriefStatus(request, response) {
   if (status === "reviewed" && unconfirmedSignals.length) {
     return json(response, 422, { ok: false, error: `Confirm that the reviewed cleaning hours include: ${unconfirmedSignals.map((signal) => signal.label).join(", ")}. Otherwise request a revised scan.` });
   }
-  const update = { briefId, requestId: brief.requestId, status, previousStatus: currentStatus, note, scopeEstimateHours: status === "reviewed" ? scopeEstimateHours : null, scopeConfidence: status === "reviewed" ? scopeConfidence : "", scopeSignalConfirmations: status === "reviewed" ? scopeSignalConfirmations : [], visualsReviewed: status === "reviewed" && visualsReviewed, checklistReviewed: status === "reviewed" && checklistReviewed, updatedAt: new Date().toISOString() };
+  const update = { briefId, requestId: brief.requestId, status, previousStatus: currentStatus, note, scopeEstimateHours: status === "reviewed" ? scopeEstimateHours : null, scopeConfidence: status === "reviewed" ? scopeConfidence : "", scopeSignalConfirmations: status === "reviewed" ? scopeSignalConfirmations : [], visualsReviewed: status === "reviewed" && visualsReviewed, reviewedVisualIds: status === "reviewed" ? reviewedVisualIds : [], visualEvidenceVersion: status === "reviewed" ? 1 : 0, checklistReviewed: status === "reviewed" && checklistReviewed, updatedAt: new Date().toISOString() };
   await saveRecord("job-brief-status.ndjson", update);
-  return json(response, 200, { ok: true, briefId, status, reviewNote: note, scopeEstimateHours: update.scopeEstimateHours, scopeConfidence: update.scopeConfidence, scopeSignals, scopeSignalConfirmations: update.scopeSignalConfirmations, visualsReviewed: update.visualsReviewed, checklistReviewed: update.checklistReviewed, reviewEvidenceConfirmed: update.visualsReviewed && update.checklistReviewed, reviewedAt: update.updatedAt });
+  return json(response, 200, { ok: true, briefId, status, reviewNote: note, scopeEstimateHours: update.scopeEstimateHours, scopeConfidence: update.scopeConfidence, scopeSignals, scopeSignalConfirmations: update.scopeSignalConfirmations, visualsReviewed: update.visualsReviewed, reviewedVisualIds: update.reviewedVisualIds, perVisualReviewEvidenceConfirmed: status === "reviewed", checklistReviewed: update.checklistReviewed, reviewEvidenceConfirmed: update.visualsReviewed && update.checklistReviewed, reviewedAt: update.updatedAt });
 }
 
 async function updateAdminProposalStatus(request, response) {

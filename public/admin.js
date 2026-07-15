@@ -1233,6 +1233,16 @@ async function loadBriefPhotos(brief, target, button) {
   button.disabled = true;
   target.replaceChildren();
   try {
+    const reviewProgress = document.createElement("p");
+    reviewProgress.className = "visual-review-progress";
+    target.append(reviewProgress);
+    const updateReviewProgress = () => {
+      const reviewChecks = [...target.querySelectorAll("[data-reviewed-visual-id]")];
+      const reviewedCount = reviewChecks.filter((input) => input.checked).length;
+      target.dataset.reviewComplete = String(reviewChecks.length > 0 && reviewedCount === reviewChecks.length);
+      reviewProgress.textContent = `${reviewedCount} of ${reviewChecks.length} room visuals individually confirmed`;
+      target.dispatchEvent(new CustomEvent("brief-visual-review-progress"));
+    };
     for (const photo of brief.photos || []) {
       const response = await fetch(`/api/admin/job-brief-image?briefId=${encodeURIComponent(brief.id)}&imageId=${encodeURIComponent(photo.id)}`, { headers: adminHeaders({ "Accept": "image/*,video/*" }) });
       if (!response.ok) throw new Error("A private room visual could not be loaded.");
@@ -1249,10 +1259,21 @@ async function loadBriefPhotos(brief, target, button) {
       const note = document.createElement("span");
       note.textContent = photo.note || "No room note recorded";
       caption.append(area, note);
-      figure.append(visual, caption);
+      const reviewLabel = document.createElement("label");
+      reviewLabel.className = "checkbox visual-review-check";
+      const reviewCheck = document.createElement("input");
+      reviewCheck.type = "checkbox";
+      reviewCheck.dataset.reviewedVisualId = photo.id;
+      reviewCheck.value = photo.id;
+      const reviewCopy = document.createElement("span");
+      reviewCopy.textContent = "I reviewed this visual and its room note";
+      reviewCheck.addEventListener("change", updateReviewProgress);
+      reviewLabel.append(reviewCheck, reviewCopy);
+      figure.append(visual, caption, reviewLabel);
       target.append(figure);
     }
     target.dataset.loaded = "true";
+    updateReviewProgress();
     target.dispatchEvent(new CustomEvent("brief-visuals-loaded"));
     button.remove();
   } catch (error) {
@@ -1270,7 +1291,7 @@ async function changeBriefStatus(brief, form) {
     const response = await fetch("/api/admin/job-briefs/status", {
       method: "PATCH",
       headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }),
-      body: JSON.stringify({ briefId: brief.id, status: select.value, note: note.value.trim(), scopeEstimateHours: form.elements.scopeEstimateHours.value, scopeConfidence: form.elements.scopeConfidence.value, scopeSignalConfirmations: [...form.querySelectorAll('input[name="scopeSignalConfirmation"]:checked')].map((input) => input.value), visualsReviewed: form.elements.visualsReviewed.checked, checklistReviewed: form.elements.checklistReviewed.checked })
+      body: JSON.stringify({ briefId: brief.id, status: select.value, note: note.value.trim(), scopeEstimateHours: form.elements.scopeEstimateHours.value, scopeConfidence: form.elements.scopeConfidence.value, scopeSignalConfirmations: [...form.querySelectorAll('input[name="scopeSignalConfirmation"]:checked')].map((input) => input.value), visualsReviewed: form.elements.visualsReviewed.checked, reviewedVisualIds: [...form.closest(".brief-summary").querySelectorAll("[data-reviewed-visual-id]:checked")].map((input) => input.value), checklistReviewed: form.elements.checklistReviewed.checked })
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "Job brief review could not be saved.");
@@ -1756,7 +1777,10 @@ function buildCard(record) {
       checklistEvidenceLabel.append(checklistReviewed, checklistEvidenceCopy);
       evidenceFieldset.append(visualEvidenceLabel, checklistEvidenceLabel);
       photoGrid?.addEventListener("brief-visuals-loaded", () => {
-        visualsReviewed.disabled = statusSelect.value !== "reviewed";
+        syncEstimateFields();
+      });
+      photoGrid?.addEventListener("brief-visual-review-progress", () => {
+        syncEstimateFields();
       });
       const save = document.createElement("button");
       save.type = "submit";
@@ -1772,7 +1796,9 @@ function buildCard(record) {
           input.disabled = !approving;
           input.required = approving;
         });
-        visualsReviewed.disabled = !approving || photoGrid?.dataset.loaded !== "true";
+        const everyVisualConfirmed = photoGrid?.dataset.reviewComplete === "true";
+        visualsReviewed.disabled = !approving || !everyVisualConfirmed;
+        if (!everyVisualConfirmed) visualsReviewed.checked = false;
         visualsReviewed.required = approving;
         checklistReviewed.disabled = !approving;
         checklistReviewed.required = approving;
