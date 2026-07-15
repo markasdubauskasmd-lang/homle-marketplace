@@ -930,6 +930,17 @@ function buildJobOutcome(record) {
     addText(panel, "span", `${money.format(record.outcome.refundAmount)} refunds · ${money.format(record.outcome.totalDirectCosts ?? record.outcome.otherCosts ?? 0)} total direct costs · ${money.format(record.outcome.contribution)} contribution (${record.outcome.marginPercent.toFixed(1)}%)`);
     addText(panel, "span", `${money.format(record.outcome.paymentFees || 0)} payment fees · ${money.format(record.outcome.travelCosts || 0)} travel · ${money.format(record.outcome.suppliesCosts || 0)} supplies · ${money.format(record.outcome.otherCosts || 0)} other actual costs`);
     if (record.outcome.targetMarginPercent > 0) addText(panel, "span", `Founder margin floor at completion: ${record.outcome.targetMarginPercent.toFixed(1)}%`);
+    if (record.outcome.settlementEvidence) {
+      const evidence = document.createElement("div");
+      evidence.className = "settlement-evidence-summary";
+      addText(evidence, "strong", "External receipt and cleaner payout verified");
+      addText(evidence, "span", `${record.outcome.settlementEvidence.providerName} · verified ${formatDate(record.outcome.settlementEvidence.verifiedAt)}`);
+      addText(evidence, "span", `Customer receipt ${record.outcome.settlementEvidence.customerReceiptReference} · cleaner payout ${record.outcome.settlementEvidence.cleanerPayoutReference}`);
+      addText(evidence, "span", "Private evidence only; Tideway did not collect or send this money.");
+      panel.append(evidence);
+    } else {
+      addText(panel, "span", "Legacy outcome: external customer receipt and cleaner payout evidence were not recorded. It cannot satisfy the first profitable paid-booking milestone.", "settlement-evidence-warning");
+    }
     if (record.outcome.adjusted) addText(panel, "span", `Original recorded contribution: ${money.format(record.outcome.original.contribution)} · revised by ${record.outcome.adjustmentCount} append-only adjustment${record.outcome.adjustmentCount === 1 ? "" : "s"}.`);
     appendOutcomeAdjustmentDesk(record, panel);
     return panel;
@@ -946,16 +957,39 @@ function buildJobOutcome(record) {
   }
   const form = document.createElement("form");
   form.className = "job-outcome-form";
+  const customerCollectedField = numberField("Customer collected (£)", "customerCollected", String(record.booking.plannedCustomerTotal || ""));
+  const customerCollectedInput = customerCollectedField.querySelector("input");
+  customerCollectedInput.min = String(record.booking.plannedCustomerTotal || 0);
+  customerCollectedInput.max = String(record.booking.plannedCustomerTotal || 0);
+  const cleanerPaidField = numberField("Cleaner paid (£)", "cleanerPaid", String(record.booking.plannedCleanerPay || ""));
+  cleanerPaidField.querySelector("input").min = String(record.booking.plannedCleanerPay || 0);
   form.append(
     numberField("Actual hours", "actualHours", String(record.proposals?.[0]?.estimatedHours || "")),
-    numberField("Customer collected (£)", "customerCollected", String(record.booking.plannedCustomerTotal || "")),
-    numberField("Cleaner paid (£)", "cleanerPaid", String(record.booking.plannedCleanerPay || "")),
+    customerCollectedField,
+    cleanerPaidField,
     numberField("Payment fees (£)", "paymentFees", String(record.booking.plannedPaymentFees || "")),
     numberField("Travel costs (£)", "travelCosts", String(record.booking.plannedTravelCosts || "")),
     numberField("Supplies costs (£)", "suppliesCosts", String(record.booking.plannedSuppliesCosts || "")),
     numberField("Other actual costs (£)", "otherCosts", String(record.booking.plannedAdditionalCosts || "")),
     numberField("Refunds (£)", "refundAmount")
   );
+  const evidenceGuidance = document.createElement("div");
+  evidenceGuidance.className = "settlement-guidance";
+  addText(evidenceGuidance, "strong", "Private external settlement evidence");
+  addText(evidenceGuidance, "span", "Enter provider references only after the customer receipt and cleaner payout have completed outside Tideway. Never enter card details, bank details, passwords or provider credentials.");
+  const receiptReference = bookingDetailField("Customer receipt or capture reference", "customerReceiptReference", { placeholder: "Non-sensitive provider reference", maxLength: 100 });
+  const payoutReference = bookingDetailField("Cleaner payout reference", "cleanerPayoutReference", { placeholder: "Non-sensitive payout reference", maxLength: 100 });
+  const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const verifiedAt = bookingDetailField("Settlement verified at", "settlementVerifiedAt", { type: "datetime-local", value: localNow });
+  const evidenceNote = bookingDetailField("Settlement evidence note", "settlementEvidenceNote", { multiline: true, placeholder: "Explain what was checked and where the two references came from", maxLength: 1000 });
+  receiptReference.querySelector("input").minLength = 6;
+  payoutReference.querySelector("input").minLength = 6;
+  verifiedAt.querySelector("input").max = localNow;
+  evidenceNote.querySelector("textarea").minLength = 20;
+  evidenceNote.classList.add("settlement-note");
+  const settlementConfirmation = bookingConfirmation("I confirm the customer receipt and cleaner payout already occurred outside Tideway, the amounts and references were checked, and this entry only records that evidence.", "settlementConfirmed");
+  settlementConfirmation.classList.add("settlement-confirmation");
+  form.append(evidenceGuidance, receiptReference, payoutReference, verifiedAt, evidenceNote, settlementConfirmation);
   const note = document.createElement("textarea");
   note.name = "internalNote";
   note.rows = 2;
@@ -971,6 +1005,8 @@ function buildJobOutcome(record) {
     submit.disabled = true;
     const body = Object.fromEntries(new FormData(form).entries());
     body.bookingId = record.booking.id;
+    body.settlementVerifiedAt = body.settlementVerifiedAt ? new Date(body.settlementVerifiedAt).toISOString() : "";
+    body.settlementConfirmed = form.elements.settlementConfirmed.checked;
     try {
       const response = await fetch("/api/admin/job-outcomes", { method: "POST", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
       const result = await response.json();

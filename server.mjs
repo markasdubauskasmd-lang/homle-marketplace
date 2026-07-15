@@ -330,6 +330,39 @@ async function saveBookingOnce(booking) {
   return operation;
 }
 
+async function saveJobOutcomeOnce(outcome, statusUpdate) {
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    const [outcomes, statusUpdates, events, changes, changeUpdates] = await Promise.all([
+      readRecords("job-outcomes.ndjson"),
+      readRecords("status-updates.ndjson"),
+      readRecords("job-events.ndjson"),
+      readRecords("booking-change-requests.ndjson"),
+      readRecords("booking-change-status.ndjson")
+    ]);
+    if (outcomes.some((record) => record.bookingId === outcome.bookingId)) {
+      throw Object.assign(new Error("A completed-job outcome is already recorded for this booking."), { statusCode: 409 });
+    }
+    const receiptReference = outcome.settlementEvidence.customerReceiptReference.toLowerCase();
+    const payoutReference = outcome.settlementEvidence.cleanerPayoutReference.toLowerCase();
+    const usedReferences = new Set(outcomes.flatMap((record) => [record.settlementEvidence?.customerReceiptReference, record.settlementEvidence?.cleanerPayoutReference]).filter(Boolean).map((reference) => reference.toLowerCase()));
+    if (usedReferences.has(receiptReference) || usedReferences.has(payoutReference)) {
+      throw Object.assign(new Error("One of those external settlement references is already attached to another completed job."), { statusCode: 409 });
+    }
+    const progress = bookingJobProgress(outcome.bookingId, events);
+    if (!progress.readyForOutcome) throw Object.assign(new Error("The complete job-day timeline is no longer available."), { statusCode: 409 });
+    const unresolvedChanges = changes.filter((change) => change.bookingId === outcome.bookingId).map((change) => applyBookingChangeStatus(change, changeUpdates)).filter((change) => ["open", "reviewing"].includes(change.status));
+    if (unresolvedChanges.length) throw Object.assign(new Error("A booking change or safety request opened before the outcome was saved. Resolve it and try again."), { statusCode: 409 });
+    let requestStatus = "new";
+    for (const update of statusUpdates) if (update.id === outcome.requestId) requestStatus = update.status;
+    if (requestStatus !== statusUpdate.previousStatus) throw Object.assign(new Error(`The request changed from ${statusUpdate.previousStatus} to ${requestStatus}. Refresh before trying again.`), { statusCode: 409 });
+    await appendFile(path.join(dataDir, "job-outcomes.ndjson"), `${JSON.stringify(outcome)}\n`, { encoding: "utf8", mode: 0o600 });
+    await appendFile(path.join(dataDir, "status-updates.ndjson"), `${JSON.stringify(statusUpdate)}\n`, { encoding: "utf8", mode: 0o600 });
+  });
+  writeQueue = operation;
+  return operation;
+}
+
 function applyBookingChangeStatus(record, updates) {
   let status = record.status || "open";
   let resolutionNote = "";
@@ -1155,7 +1188,7 @@ function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, pr
   const bookedRequestIds = new Set(bookings.map((booking) => booking.requestId));
   const completedOutcomes = outcomes.map((outcome) => ({ outcome, requestId: bookingRequestIds.get(outcome.bookingId) })).filter((entry) => entry.requestId);
   const completedRequestIds = new Set(completedOutcomes.map((entry) => entry.requestId));
-  const profitablePaidOutcomes = completedOutcomes.filter(({ outcome }) => Number(outcome.customerCollected) > 0 && outcome.profitable === true && outcome.metTargetMargin === true && Number(outcome.contribution) > 0);
+  const profitablePaidOutcomes = completedOutcomes.filter(({ outcome }) => outcome.settlementEvidence?.confirmedExternally === true && outcome.settlementEvidence.customerReceiptReference && outcome.settlementEvidence.cleanerPayoutReference && moneyValue(outcome.settlementEvidence.customerCollected) === moneyValue(outcome.original?.customerCollected ?? outcome.customerCollected) && moneyValue(outcome.settlementEvidence.cleanerPaid) === moneyValue(outcome.original?.cleanerPaid ?? outcome.cleanerPaid) && Number(outcome.customerCollected) > 0 && outcome.profitable === true && outcome.metTargetMargin === true && Number(outcome.contribution) > 0);
   const profitableRequestIds = new Set(profitablePaidOutcomes.map((entry) => entry.requestId));
   const dispatchReadyCleanerIds = new Set(cleaners.filter((cleaner) => {
     const status = latestStatuses.get(cleaner.id) || cleaner.status || "new";
@@ -2739,9 +2772,29 @@ async function createAdminJobOutcome(request, response) {
   const suppliesCosts = Number(input.suppliesCosts || 0);
   const otherCosts = Number(input.otherCosts || 0);
   const refundAmount = Number(input.refundAmount || 0);
+  const customerReceiptReference = text(input.customerReceiptReference, 100);
+  const cleanerPayoutReference = text(input.cleanerPayoutReference, 100);
+  const settlementEvidenceNote = text(input.settlementEvidenceNote, 1000);
+  const settlementVerifiedAt = text(input.settlementVerifiedAt, 40);
+  const settlementVerifiedMs = Date.parse(settlementVerifiedAt);
   const values = [actualHours, customerCollected, cleanerPaid, paymentFees, travelCosts, suppliesCosts, otherCosts, refundAmount];
   if (!bookingId || values.some((value) => !Number.isFinite(value)) || actualHours <= 0 || customerCollected <= 0 || values.slice(2).some((value) => value < 0)) {
     return json(response, 422, { ok: false, error: "Enter valid actual hours and non-negative job amounts; customer collected must be greater than zero." });
+  }
+  if (customerReceiptReference.length < 6 || cleanerPayoutReference.length < 6) {
+    return json(response, 422, { ok: false, error: "Add the non-sensitive customer receipt and cleaner payout references, each at least six characters." });
+  }
+  if (customerReceiptReference.toLowerCase() === cleanerPayoutReference.toLowerCase()) {
+    return json(response, 422, { ok: false, error: "The customer receipt and cleaner payout must use different external references." });
+  }
+  if (settlementEvidenceNote.length < 20) {
+    return json(response, 422, { ok: false, error: "Add a settlement evidence note of at least 20 characters." });
+  }
+  if (input.settlementConfirmed !== true) {
+    return json(response, 422, { ok: false, error: "Confirm that the customer receipt and cleaner payout already occurred outside Tideway." });
+  }
+  if (!Number.isFinite(settlementVerifiedMs) || settlementVerifiedMs > Date.now()) {
+    return json(response, 422, { ok: false, error: "Enter a valid settlement verification time that is not in the future." });
   }
   const [bookings, outcomes, updates, config, jobEvents, bookingChanges, bookingChangeUpdates] = await Promise.all([
     readRecords("bookings.ndjson"),
@@ -2757,6 +2810,17 @@ async function createAdminJobOutcome(request, response) {
   if (outcomes.some((record) => record.bookingId === bookingId)) return json(response, 409, { ok: false, error: "A completed-job outcome is already recorded for this booking." });
   const progress = bookingJobProgress(booking.id, jobEvents);
   if (!progress.readyForOutcome) return json(response, 422, { ok: false, error: "Cleaner arrival, cleaner completion and customer completion acknowledgement must all be recorded before job economics." });
+  if (settlementVerifiedMs < Date.parse(progress.customerCompletedAt)) {
+    return json(response, 422, { ok: false, error: "Settlement evidence must be verified after the customer acknowledged the completed visit." });
+  }
+  if (moneyValue(customerCollected) !== moneyValue(booking.plannedCustomerTotal)) {
+    return json(response, 422, { ok: false, error: `Customer collected must match the frozen booking total of £${Number(booking.plannedCustomerTotal).toFixed(2)}; record any refund separately.` });
+  }
+  if (moneyValue(cleanerPaid) < moneyValue(booking.plannedCleanerPay)) {
+    return json(response, 422, { ok: false, error: `Cleaner paid cannot be below the agreed booking pay of £${Number(booking.plannedCleanerPay).toFixed(2)}.` });
+  }
+  const settlementProviderName = text(booking.paymentEvidence?.providerName || config.paymentProviderName, 120);
+  if (!settlementProviderName) return json(response, 422, { ok: false, error: "The booking has no verified external payment provider name." });
   const unresolvedChanges = bookingChanges.filter((change) => change.bookingId === booking.id).map((change) => applyBookingChangeStatus(change, bookingChangeUpdates)).filter((change) => ["open", "reviewing"].includes(change.status));
   if (unresolvedChanges.length) return json(response, 422, { ok: false, error: "Resolve every open booking change or safety request before recording final job economics." });
   let requestStatus = "new";
@@ -2785,11 +2849,22 @@ async function createAdminJobOutcome(request, response) {
     profitable: contribution > 0,
     targetMarginPercent: config.minimumContributionMarginPercent || 0,
     metTargetMargin: config.minimumContributionMarginPercent > 0 && marginPercent >= config.minimumContributionMarginPercent,
+    settlementEvidence: {
+      providerName: settlementProviderName,
+      customerReceiptReference,
+      cleanerPayoutReference,
+      customerCollected: moneyValue(customerCollected),
+      cleanerPaid: moneyValue(cleanerPaid),
+      verifiedAt: new Date(settlementVerifiedMs).toISOString(),
+      customerCompletedAt: progress.customerCompletedAt,
+      confirmedExternally: true,
+      note: settlementEvidenceNote,
+      recordedAt: new Date().toISOString()
+    },
     internalNote: text(input.internalNote, 1000),
     createdAt: new Date().toISOString()
   };
-  await saveRecord("job-outcomes.ndjson", outcome);
-  await saveRecord("status-updates.ndjson", { id: booking.requestId, kind: "request", status: "completed", previousStatus: requestStatus, source: "job-outcome", updatedAt: outcome.createdAt });
+  await saveJobOutcomeOnce(outcome, { id: booking.requestId, kind: "request", status: "completed", previousStatus: requestStatus, source: "job-outcome", updatedAt: outcome.createdAt });
   return json(response, 201, { ok: true, outcome });
 }
 

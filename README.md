@@ -74,7 +74,7 @@ Then open `http://127.0.0.1:4173`.
 - Local admin change-request queue with open, reviewing and permanently closed audit states plus a customer-visible response note
 - Append-only job-day timeline: cleaners must confirm arrival and a safe start before recording completion, then the customer acknowledges the completed visit from their own protected booking pack
 - Completed-job economics remain locked until the three job-day confirmations are present and every change or safety request is closed
-- Completed-job records separate actual customer receipts, cleaner pay, payment fees, travel, supplies, other costs and refunds before calculating contribution and margin; recording never moves money
+- Completed-job records separate actual customer receipts, cleaner pay, payment fees, travel, supplies, other costs and refunds before calculating contribution and margin; the initial outcome requires private, distinct customer-receipt and cleaner-payout references, a verification time after customer acknowledgement, the exact frozen customer total and at least the agreed cleaner pay, while recording never moves money
 - Append-only post-completion adjustments record later refunds, re-clean work, complaint resolutions and provider costs only after the external action occurred; unique evidence references prevent duplicates, optional resolved-issue links preserve context, and the effective contribution, margin and first-profitable-booking runway recalculate immediately without rewriting the original outcome
 - Private data backup script and documented recovery procedure
 - Responsive, accessible website

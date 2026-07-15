@@ -467,6 +467,10 @@ textarea { resize: vertical; }
 .job-outcome-form label { font-size: .78rem; }
 .job-outcome-form textarea { grid-column: 1 / -1; min-height: 65px; }
 .job-outcome-form button { justify-self: start; }
+.settlement-guidance, .settlement-evidence-summary { display: grid; grid-column: 1 / -1; gap: 4px; padding: 12px 14px; border: 1px solid #abd4c8; border-radius: 9px; background: var(--mint-pale); }
+.settlement-guidance span, .settlement-evidence-summary span { color: var(--muted); font-size: .8rem; }
+.job-outcome-form .settlement-note, .job-outcome-form .settlement-confirmation { grid-column: 1 / -1; }
+.settlement-evidence-warning { padding: 10px 12px; color: #8a4b00 !important; border-left: 4px solid #d97706; background: #fff7e6; }
 .outcome-adjustment-desk { margin-top: 10px; border-top: 1px solid var(--line); }
 .outcome-adjustment-desk > summary { padding-top: 12px; color: var(--green-dark); font-weight: 800; cursor: pointer; }
 .outcome-adjustment-desk > p { margin: 10px 0; color: var(--muted); font-size: .82rem; }
