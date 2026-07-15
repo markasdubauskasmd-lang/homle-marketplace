@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "postgresqlMajor": 16,
+  "migrations": [
+    { "order": 1, "file": "001_marketplace_schema.sql", "sha256": "b8ed46fffefa4b5eae44331e93d3fc879959ddfc10288f84561c98e92d51a43c" },
+    { "order": 2, "file": "002_marketplace_row_level_security.sql", "sha256": "ef09b851e2fae8774426f6bd4152c25d11bdf0ff3652d8fec245d2ef3953978c" },
+    { "order": 3, "file": "003_authentication_lookup_functions.sql", "sha256": "8906b0ac9f6c46335c90e39930e199b493215a9f2562fe1de7759ae0062aadb0" },
+    { "order": 4, "file": "004_social_identity_and_onboarding.sql", "sha256": "12a8b80242a4c54da3c676dc306f085f4a4b1b8aeb47010e0fcf708297a947ce" },
+    { "order": 5, "file": "005_email_password_lifecycle.sql", "sha256": "cd0c34a5ab38ac55c97748cc5d38ab5050b9d390b58ec7a4346f1ccf649ca36c" },
+    { "order": 6, "file": "006_cleaner_directory.sql", "sha256": "8274d4d24750f30a79023f72d840553672f3d3182674d56faa863d3ecb11eb3a" },
+    { "order": 7, "file": "007_email_verification_resend.sql", "sha256": "e5adc39fad4ea2adb6afc3a87b133e0a66f9ce543b5d32a26ddee2dc9399d1d9" },
+    { "order": 8, "file": "008_account_cleaning_requests.sql", "sha256": "669fc29762e8abddbf13f01af3c46e79078015ff44a5884ba22728c2d3d6de3f" },
+    { "order": 9, "file": "009_booking_invitation_and_acceptance.sql", "sha256": "fc1fc1de94a23a2b8ecca441ce9ffea1d6d025d01c6d52d18dacca1e6a6d963c" },
+    { "order": 10, "file": "010_request_cleaner_matching.sql", "sha256": "00c554acadee2d5250f5b90ebeec929966233dfdc8b038e46a3fbe800980a413" },
+    { "order": 11, "file": "011_invitation_expiry_and_requeue.sql", "sha256": "21affb2ce2777de32834ed7800074aec8f7c090ae6deb04987f174e87a5f5f73" },
+    { "order": 12, "file": "012_live_journey_tracking.sql", "sha256": "e88963f3476e2bd62b411e555657a066eda7b98cf4b4bb348d7ce00dcf0e6eb2" },
+    { "order": 13, "file": "013_live_cleaning_progress.sql", "sha256": "ad5ec514a935e00f7b5fa5947a5b6d4bc478775f95362423ffcc1d1a56c28dc5" },
+    { "order": 14, "file": "014_private_job_media.sql", "sha256": "e691b3b02d7bb228a1f22a1494389f2a71b5c0913f60ea9f47ce333f4d890b60" },
+    { "order": 15, "file": "015_booking_messaging.sql", "sha256": "940ab0b746d32bdbb56bd677eb49782f69930320be510c7726aa66c0ca9dbf1f" },
+    { "order": 16, "file": "016_booking_realtime_events.sql", "sha256": "3695f235c18bf25c705a90bdb757a2fe0c508cc58dfb136dcda4da44d501d326" },
+    { "order": 17, "file": "017_notification_inbox_and_outbox.sql", "sha256": "f8aad411d7bd3da04e02aa00dd6305c88477d9b2f71172475a7f0e5f7e421f51" },
+    { "order": 18, "file": "018_verified_booking_reviews.sql", "sha256": "c58148952e690770a4873be9f5ec8190537b42fc6fc8c43c5a6527e58c3c5a46" }
+  ],
+  "grantFiles": [
+    { "file": "runtime-role-grants.sql", "sha256": "64eee2f8c59134dbb7896686c1cc09bedcea09a35a6bb96f300e5aaa3919c9aa" },
+    { "file": "worker-role-grants.sql", "sha256": "ebd777b5c31172c6b45dff92a4ae8a26b7e73068b368f172a46a91f881a42273" }
+  ]
+}

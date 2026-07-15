@@ -14,6 +14,14 @@ The existing local NDJSON pilot remains the active data store. The PostgreSQL ma
 
 ## Apply in staging
 
+Before any migration-owner connection is used, verify that the complete ordered SQL set and both least-privilege role scripts still match the reviewed repository lock:
+
+```text
+node tools/check-database-assets.mjs
+```
+
+This dependency-free check requires all 18 consecutively numbered migrations, rejects missing or unlocked SQL files, verifies the SHA-256 of every migration and role-grant script, and requires each file to retain its explicit `BEGIN;`/`COMMIT;` boundary. An intentional SQL change must be reviewed and receive an explicit matching lock update in the same commit. This is a source-integrity gate only; it does not replace executing the migrations and security/concurrency tests against a real PostgreSQL database.
+
 Create the database and restricted runtime role using administrator tooling, then run these files as the migration owner in this order:
 
 ```text
