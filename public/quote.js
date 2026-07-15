@@ -28,6 +28,7 @@ function renderQuote(quote) {
   setText("[data-customer-name]", quote.customerName);
   setText("[data-reference]", quote.reference);
   setText("[data-service]", quote.service);
+  setText("[data-frequency]", quote.frequency || "One-off");
   setText("[data-postcode]", quote.postcode);
   setText("[data-site-size]", quote.siteSize);
   setText("[data-proposed-date]", date.format(new Date(`${quote.proposedDate}T12:00:00`)));

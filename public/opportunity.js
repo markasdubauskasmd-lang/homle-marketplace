@@ -66,6 +66,7 @@ function renderOpportunity(opportunity) {
   setText("[data-cleaner-name]", opportunity.cleanerName);
   setText("[data-reference]", opportunity.reference);
   setText("[data-service]", opportunity.service);
+  setText("[data-frequency]", opportunity.frequency || "One-off");
   setText("[data-area]", opportunity.area);
   setText("[data-site-size]", opportunity.siteSize);
   setText("[data-hazards]", opportunity.hazards);

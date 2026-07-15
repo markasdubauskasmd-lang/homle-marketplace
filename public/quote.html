@@ -49,6 +49,7 @@
         <dl class="quote-details">
           <div><dt>Quote reference</dt><dd data-reference></dd></div>
           <div><dt>Service</dt><dd data-service></dd></div>
+          <div><dt>Requested frequency</dt><dd data-frequency></dd></div>
           <div><dt>Area</dt><dd data-postcode></dd></div>
           <div><dt>Site scope</dt><dd data-site-size></dd></div>
           <div><dt>Proposed date</dt><dd data-proposed-date></dd></div>
@@ -68,6 +69,7 @@
           <h2>Important terms for this quote</h2>
           <p><strong>Cancellation:</strong> <span data-cancellation></span></p>
           <p><strong>Payment timing:</strong> <span data-payment></span></p>
+          <p><strong>One-visit rule:</strong> this quote covers only the dated visit shown above. A weekly, fortnightly or turnover preference does not create future bookings; each repeat visit needs a separately confirmed schedule.</p>
           <p>Read the <a href="/terms" target="_blank" rel="noopener">Tideway pilot terms</a>. Accepting the quote records your agreement to this scope and price, but Tideway must still confirm the cleaner and booking separately.</p>
         </section>
 
@@ -78,7 +80,7 @@
           <label>Type the contact name used for the request
             <input name="typedName" autocomplete="name" required>
           </label>
-          <label class="checkbox"><input name="scopeConfirmed" type="checkbox" required><span>I have checked and agree to the service, scope, date, estimated time and proposed total shown above.</span></label>
+          <label class="checkbox"><input name="scopeConfirmed" type="checkbox" required><span>I have checked and agree to the service, scope, requested frequency, single visit date, estimated time and proposed total shown above.</span></label>
           <label class="checkbox"><input name="termsAccepted" type="checkbox" required><span>I agree to the Tideway pilot terms, cancellation rule and payment timing shown above.</span></label>
           <label>Optional note or reason for declining
             <textarea name="reason" rows="3" maxlength="500"></textarea>

@@ -109,6 +109,13 @@ const requestServiceMap = {
   "One-off deep clean": "Deep cleans"
 };
 
+const requestFrequencies = new Set(["One-off", "Weekly", "Several times a week", "Fortnightly", "As properties turn over", "Not sure yet"]);
+
+function requestFrequency(record) {
+  const value = text(record?.frequency, 80);
+  return requestFrequencies.has(value) ? value : "One-off";
+}
+
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -1350,6 +1357,7 @@ function replacementOfferSummary(proposal, proposals, proposalUpdates, currentTe
     if (Number(previousTerms.estimatedHours) !== Number(currentTerms.estimatedHours)) changes.push({ key: "duration", label: "The estimated cleaning time changed." });
     if (Number(previousTerms.customerTotal) !== Number(currentTerms.customerTotal)) changes.push({ key: "customer-total", label: "The proposed customer total changed." });
     if (previousTerms.service !== currentTerms.service || previousTerms.siteSize !== currentTerms.siteSize) changes.push({ key: "site-scope", label: "The service or site scope changed." });
+    if (previousTerms.frequency !== currentTerms.frequency) changes.push({ key: "frequency", label: "The requested cleaning frequency changed; this offer still covers one dated visit only." });
     if (JSON.stringify(previousTerms.checklist || []) !== JSON.stringify(currentTerms.checklist || [])) changes.push({ key: "checklist", label: "The cleaner checklist changed; review every task again." });
     if (JSON.stringify(normalisePriceSensitiveScopeSignals(previousTerms.scopeSignals || [])) !== JSON.stringify(normalisePriceSensitiveScopeSignals(currentTerms.scopeSignals || []))) changes.push({ key: "extras", label: "The price-sensitive items included in the quote changed." });
     if (previousTerms.cancellationPolicy !== currentTerms.cancellationPolicy || previousTerms.paymentTiming !== currentTerms.paymentTiming) changes.push({ key: "terms", label: "The cancellation or payment terms changed." });
@@ -2073,6 +2081,7 @@ async function updateAdminProposalStatus(request, response) {
   }
   const frozenQuoteTerms = status === "sent" ? {
     service: customerRequest.service,
+    frequency: requestFrequency(customerRequest),
     postcode: customerRequest.postcode,
     siteSize: customerRequest.siteSize,
     proposedDate: proposal.proposedDate,
@@ -2105,6 +2114,7 @@ async function updateAdminProposalStatus(request, response) {
       cleanerOpportunitySnapshot: {
         cleanerName: cleaner.fullName,
         service: customerRequest.service,
+        frequency: requestFrequency(customerRequest),
         area: pilotCoverage.outwardCode,
         siteSize: customerRequest.siteSize,
         hazards: customerRequest.hazards,
@@ -2194,6 +2204,7 @@ async function getQuoteContext(token) {
   const cleanerOfferClosed = ["sent", "accepted"].includes(proposalStatus) && !cleanerDecision && !offerIsOpen(cleanerOpportunitySnapshot?.offerExpiresAt);
   const previewTerms = quoteSnapshot || {
     service: customerRequest.service,
+    frequency: requestFrequency(customerRequest),
     postcode: customerRequest.postcode,
     siteSize: customerRequest.siteSize,
     proposedDate: proposal.proposedDate,
@@ -2214,6 +2225,7 @@ function publicQuote(context) {
   const { proposal, proposalStatus, customerRequest, config, latestBrief, latestDecision, cleanerDecision, cleanerOfferClosed, quoteSnapshot, replacement, readyChecks } = context;
   const displayed = quoteSnapshot || {
     service: customerRequest.service,
+    frequency: requestFrequency(customerRequest),
     postcode: customerRequest.postcode,
     siteSize: customerRequest.siteSize,
     proposedDate: proposal.proposedDate,
@@ -2236,6 +2248,7 @@ function publicQuote(context) {
       status: proposalStatus,
       customerName: customerRequest.contactName,
       service: displayed.service,
+      frequency: displayed.frequency || requestFrequency(customerRequest),
       postcode: displayed.postcode,
       siteSize: displayed.siteSize,
       preferredDate: customerRequest.preferredDate,
@@ -2307,6 +2320,7 @@ async function decidePrivateQuote(request, response) {
     reason: text(input.reason, 500),
     acceptedSnapshot: decision === "accepted" ? (context.quoteSnapshot || {
       service: context.customerRequest.service,
+      frequency: requestFrequency(context.customerRequest),
       postcode: context.customerRequest.postcode,
       siteSize: context.customerRequest.siteSize,
       proposedDate: context.proposal.proposedDate,
@@ -2392,6 +2406,7 @@ function publicCleanerOpportunity(context) {
   const displayed = opportunitySnapshot || {
     cleanerName: cleaner.fullName,
     service: customerRequest.service,
+    frequency: requestFrequency(customerRequest),
     area: pilotCoverage.outwardCode,
     siteSize: customerRequest.siteSize,
     hazards: customerRequest.hazards,
@@ -2426,6 +2441,7 @@ function publicCleanerOpportunity(context) {
       status: proposalStatus,
       cleanerName: displayed.cleanerName,
       service: displayed.service,
+      frequency: displayed.frequency || requestFrequency(customerRequest),
       area: displayed.area,
       siteSize: displayed.siteSize,
       hazards: displayed.hazards,
@@ -2525,6 +2541,7 @@ async function decidePrivateCleanerOpportunity(request, response) {
     reason: text(input.reason, 500),
     acceptedSnapshot: decision === "accepted" ? {
       service: displayed.service,
+      frequency: displayed.frequency,
       area: displayed.area,
       siteSize: displayed.siteSize,
       hazards: displayed.hazards,
@@ -2626,6 +2643,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     "",
     `Proposed date: ${proposal.proposedDate}`,
     `Proposed time: ${proposal.proposedStartTime}–${proposal.proposedEndTime}`,
+    `Requested frequency: ${requestFrequency(customerRequest)}`,
     `Site scope: ${customerRequest.siteSize || "[Confirm site size before sending]"}`,
     `Estimated cleaning time: ${proposal.estimatedHours} hours`,
     `Proposed customer total: ${money(proposal.customerTotal)}`,
@@ -2635,6 +2653,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Payment timing: ${config.paymentTiming || "[Add the approved payment timing before sending]"}`,
     `Respond by: ${responseDeadline(quoteSnapshot?.offerExpiresAt, config.customerQuoteValidityHours)}`,
     "",
+    "This proposal covers the one dated visit above. A repeat schedule requires separate confirmed visits.",
     "This is a proposal, not a confirmed booking. Tideway will only confirm after you accept the scope and price and an approved cleaner has confirmed availability.",
     "",
     "Kind regards,",
@@ -2647,6 +2666,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     "A Tideway pilot cleaning opportunity may suit your services and work area.",
     "",
     `Service: ${customerRequest.service}`,
+    `Requested frequency: ${requestFrequency(customerRequest)}`,
     `Area: ${outwardCode}`,
     `Site scope: ${customerRequest.siteSize || "Confirm before accepting"}`,
     `Known hazards: ${customerRequest.hazards || "Confirm before accepting"}`,
@@ -2658,6 +2678,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Respond by: ${responseDeadline(opportunitySnapshot?.offerExpiresAt, config.cleanerOpportunityValidityHours)}`,
     ...(latestBrief ? ["", latestBrief.status === "reviewed" ? "Tideway-reviewed cleaner checklist:" : "Landlord-draft cleaner checklist (Tideway review required):", ...latestBrief.checklist.map((task) => `- ${task}`), latestBrief.cleanerPhotoSharingConsent === true ? `Customer-authorised room visuals: ${latestBrief.photos.length}. View photos and short videos only through the private opportunity link after Tideway sends it.` : `Room visuals held privately: ${latestBrief.photos.length}. The customer has not authorised pre-booking cleaner access.`] : []),
     "",
+    "This opportunity covers the one dated visit above. A repeat schedule requires separate confirmed assignments.",
     "This is an invitation to consider the opportunity, not a confirmed assignment. You may accept or decline. Full access details are shared only after both sides confirm.",
     "",
     `Tideway operating model: ${config.cleanerModel || "[Confirm the approved cleaner engagement model before sending]"}`,
@@ -2707,11 +2728,13 @@ async function getAdminBookingDrafts(request, response, bookingId) {
     "",
     `Booking reference: ${booking.id}`,
     `Service: ${customerPack.service || customerRequest.service}`,
+    `Requested frequency: ${customerPack.frequency || requestFrequency(customerRequest)}`,
     `Date: ${booking.proposedDate}`,
     `Time: ${booking.proposedStartTime}–${booking.proposedEndTime}`,
     `Estimated cleaning time: ${booking.estimatedHours} hours`,
     "",
     "Open your private booking pack to review the confirmed address, checklist, access plan and support route. Keep the link private.",
+    "This confirmation covers this one dated visit only. Any repeat schedule needs another confirmed booking.",
     "Tideway recorded the agreed external payment step; opening this link does not charge you.",
     "A change request is reviewed separately and does not automatically cancel or reschedule the visit.",
     "",
@@ -2725,12 +2748,14 @@ async function getAdminBookingDrafts(request, response, bookingId) {
     "",
     `Booking reference: ${booking.id}`,
     `Service: ${cleanerPack.service || customerRequest.service}`,
+    `Requested frequency: ${cleanerPack.frequency || requestFrequency(customerRequest)}`,
     `Date: ${booking.proposedDate}`,
     `Time: ${booking.proposedStartTime}–${booking.proposedEndTime}`,
     `Estimated cleaning time: ${booking.estimatedHours} hours`,
     `Agreed cleaner pay: £${Number(booking.plannedCleanerPay).toFixed(2)}`,
     "",
     "Open your private assignment pack to review the full address, access plan, hazards, equipment plan and cleaner checklist. Keep the link private.",
+    "This confirmation covers this one dated assignment only. Any repeat schedule needs another confirmed assignment.",
     "Report a material scope, access or safety issue through the private pack before starting where possible.",
     "",
     "Kind regards,",
@@ -2801,6 +2826,7 @@ async function buildBookingAudit(proposalId) {
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
     serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
     cleanerTravelCovered: cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode).covered,
+    frequencyCaptured: requestFrequencies.has(customerRequest.frequency || "One-off"),
     availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
     costModelCurrent: proposalCostModelCurrent(proposal, config),
     profitable: proposal.contribution > 0,
@@ -2914,6 +2940,7 @@ async function createAdminBooking(request, response) {
     costAssumptions: audit.proposal.costAssumptions,
     roomScanBriefId: audit.latestBrief.id,
     publicSiteUrl: audit.publicSiteUrl,
+    frequency: requestFrequency(audit.customerRequest),
     paymentEvidence: {
       providerName: audit.config.paymentProviderName,
       timing: audit.config.paymentTiming,
@@ -2931,6 +2958,7 @@ async function createAdminBooking(request, response) {
       audience: "customer",
       customerName: audit.customerRequest.contactName,
       service: audit.customerRequest.service,
+      frequency: requestFrequency(audit.customerRequest),
       serviceAddress: details.serviceAddress,
       servicePostcode: details.servicePostcode,
       siteSize: audit.customerRequest.siteSize,
@@ -2956,6 +2984,7 @@ async function createAdminBooking(request, response) {
       audience: "cleaner",
       cleanerName: audit.cleaner.fullName,
       service: audit.customerRequest.service,
+      frequency: requestFrequency(audit.customerRequest),
       serviceAddress: details.serviceAddress,
       servicePostcode: details.servicePostcode,
       siteSize: audit.customerRequest.siteSize,
@@ -3015,7 +3044,7 @@ async function getPrivateBookingPack(request, response) {
     .map((record) => applyBookingChangeStatus(record, updates))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .map(({ bookingId, requestId, cleanerId, audience, ...record }) => record);
-  return json(response, 200, { ok: true, booking: { ...context.pack, confirmedAt: context.booking.createdAt, changeRequests: ownRequests, jobProgress: bookingJobProgress(context.booking.id, jobEvents) } });
+  return json(response, 200, { ok: true, booking: { ...context.pack, frequency: context.pack.frequency || context.booking.frequency || "Not recorded", confirmedAt: context.booking.createdAt, changeRequests: ownRequests, jobProgress: bookingJobProgress(context.booking.id, jobEvents) } });
 }
 
 async function getPrivateBookingPhoto(request, response, imageId) {
@@ -3238,7 +3267,7 @@ async function getPrivateRequestStatus(request, response) {
   const outwardCode = customerRequest.postcode.replace(/\s+/g, "").slice(0, -3);
   return json(response, 200, {
     ok: true,
-    request: { reference: customerRequest.id, service: customerRequest.service, propertyType: customerRequest.propertyType, siteSize: customerRequest.siteSize, outwardCode, preferredDate: customerRequest.preferredDate || "" },
+    request: { reference: customerRequest.id, service: customerRequest.service, frequency: requestFrequency(customerRequest), propertyType: customerRequest.propertyType, siteSize: customerRequest.siteSize, outwardCode, preferredDate: customerRequest.preferredDate || "" },
     current: { stage: currentStage, headline, nextAction },
     steps,
     roomScan: latestBrief ? { status: latestBrief.status, reference: latestBrief.id, taskCount: latestBrief.checklist.length, photoCount: latestBrief.photos.length, reviewedHours: latestBrief.scopeEstimateHours, confidence: latestBrief.scopeConfidence, confirmedExtras: latestBrief.status === "reviewed" && latestBrief.priceSensitiveScopeConfirmed ? latestBrief.scopeSignals.map((signal) => signal.label) : [], revisionNote: latestBrief.status === "needs-revision" ? latestBrief.reviewNote : "" } : null,
@@ -4096,7 +4125,7 @@ async function handleCleaningRequest(request, response) {
     siteSize: text(input.siteSize, 160),
     accessNotes: text(input.accessNotes, 500),
     hazards: text(input.hazards, 120),
-    frequency: text(input.frequency, 80),
+    frequency: text(input.frequency, 80) || "One-off",
     preferredDate: text(input.preferredDate, 20),
     preferredTimeWindow: text(input.preferredTimeWindow, 80),
     details: text(input.details, 1200),
@@ -4119,6 +4148,7 @@ async function handleCleaningRequest(request, response) {
   if (record.postcode && !isUkPostcode(record.postcode)) errors.push("Enter a valid UK postcode.");
   if (record.preferredDate && (!/^\d{4}-\d{2}-\d{2}$/.test(record.preferredDate) || record.preferredDate < localDateToday())) errors.push("Preferred date must be today or later.");
   if (record.preferredTimeWindow && !Object.hasOwn(preferredArrivalWindows, record.preferredTimeWindow)) errors.push("Choose a supported preferred arrival window.");
+  if (!requestFrequencies.has(record.frequency)) errors.push("Choose a supported cleaning frequency.");
   if (!record.consent) errors.push("Privacy consent is required.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 

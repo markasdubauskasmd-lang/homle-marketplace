@@ -42,6 +42,7 @@
         <dl class="quote-details">
           <div><dt>Reference</dt><dd data-reference></dd></div>
           <div><dt>Service</dt><dd data-service></dd></div>
+          <div><dt>Requested frequency</dt><dd data-frequency></dd></div>
           <div><dt>Area only</dt><dd data-area></dd></div>
           <div><dt>Site scope</dt><dd data-site-size></dd></div>
           <div><dt>Known hazards</dt><dd data-hazards></dd></div>
@@ -69,6 +70,7 @@
         <section class="quote-rules">
           <h2>Before you respond</h2>
           <p><strong>Tideway operating model:</strong> <span data-cleaner-model></span></p>
+          <p><strong>One-visit rule:</strong> this opportunity covers only the dated visit above. A repeat preference does not assign future work; every later visit needs a separate confirmed opportunity.</p>
           <p>The customer’s identity, exact address and access details are deliberately withheld at this stage. Tideway shares them securely only after both sides agree and the booking checks pass.</p>
           <p>Accepting records your interest in this exact opportunity. It does not create an assignment, employment relationship or payment. Tideway must still issue a separate booking confirmation.</p>
         </section>
@@ -80,7 +82,7 @@
           <label>Type the full name used on your cleaner application
             <input name="typedName" autocomplete="name" required>
           </label>
-          <label class="checkbox"><input name="scopeConfirmed" type="checkbox" required><span>I have reviewed the service, area, site scope, hazards, checklist and any customer-authorised room media shown above.</span></label>
+          <label class="checkbox"><input name="scopeConfirmed" type="checkbox" required><span>I have reviewed the service, requested frequency, single visit date, area, site scope, hazards, checklist and any customer-authorised room media shown above.</span></label>
           <label class="checkbox"><input name="payConfirmed" type="checkbox" required><span>I have reviewed and agree to the proposed hours, hourly pay and total pay for this opportunity.</span></label>
           <label class="checkbox"><input name="availabilityConfirmed" type="checkbox" required><span>I am currently available for the proposed date, subject to Tideway’s final booking confirmation.</span></label>
           <label>Optional note or reason for declining

@@ -37,6 +37,7 @@ function renderStatus(result) {
   setText("[data-next-action]", result.current.nextAction);
   setText("[data-reference]", result.request.reference);
   setText("[data-service]", result.request.service);
+  setText("[data-frequency]", result.request.frequency || "One-off");
   setText("[data-property]", `${result.request.propertyType} · ${result.request.siteSize}`);
   setText("[data-area]", result.request.outwardCode);
 

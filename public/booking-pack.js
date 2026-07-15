@@ -240,6 +240,7 @@ async function renderBooking(booking) {
   setText("[data-greeting]", `Hello ${cleanerView ? booking.cleanerName : booking.customerName}. These are the visit details recorded by Tideway.`);
   setText("[data-booking-id]", booking.bookingId);
   setText("[data-service]", booking.service);
+  setText("[data-frequency]", booking.frequency || "Not recorded");
   setText("[data-proposed-date]", date.format(new Date(`${booking.proposedDate}T12:00:00`)));
   setText("[data-proposed-time]", `${booking.proposedStartTime}–${booking.proposedEndTime}`);
   setText("[data-estimated-hours]", `${booking.estimatedHours} hours`);
