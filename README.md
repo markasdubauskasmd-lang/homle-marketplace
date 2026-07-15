@@ -22,6 +22,8 @@ Phase 2 has started with the [cleaner directory privacy boundary](docs/CLEANER_D
 
 The [landlord property privacy boundary](docs/PROPERTY_PRIVACY.md) now adds owner-bound profile/property services, validated saved checklists, AES-256-GCM entry-instruction encryption and booking-scoped exact-address/access projections. Assigned cleaners receive protected visit details only during an active accepted booking, with matching property/photo RLS expiry. Property pages remain disabled until the PostgreSQL account runtime, authenticated routes, private object storage and real RLS integration tests are ready.
 
+The [account marketplace HTTP runtime](docs/MARKETPLACE_HTTP_RUNTIME.md) now composes these modules behind an isolated native-Node controller with session, exact-origin, CSRF and server-side role checks, bounded JSON and safe errors. Its public Cleaner search and private profile/property route contracts are tested but deliberately not attached to the live pilot: a real PostgreSQL driver, staging migrations/RLS evidence, login/session routes and genuine account-backed data are required first.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

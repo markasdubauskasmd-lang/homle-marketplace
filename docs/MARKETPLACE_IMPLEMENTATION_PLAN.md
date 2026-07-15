@@ -79,10 +79,18 @@ Implemented landlord/property privacy checkpoint:
 - Property-photo and property-row RLS policies now use the same active window and remove access after completion/dispute.
 - Contract/static tests in `tests/property-service.mjs` and the enablement boundary in `docs/PROPERTY_PRIVACY.md`.
 
-Not yet enabled: profile/search/property HTTP routes or pages, real PostgreSQL execution, geocoding, an authenticated marketplace account, object storage, or genuine public cleaner supply.
+Implemented account HTTP composition checkpoint:
+
+- Isolated native-Node `/api/marketplace/` controller for restricted public cleaner search, own Cleaner profile update, own Landlord profile/property operations and booking-participant property projection.
+- Existing opaque session, exact-origin, CSRF and server-side role middleware protects every account mutation; request-body owner IDs cannot select the affected account.
+- JSON content/type/size boundaries, explicit methods, no-store responses and sanitized unexpected errors.
+- Fail-closed runtime factory composes one database/security/repository/service/controller graph only when database, session, exact-origin and encryption configuration exists.
+- Contract tests in `tests/marketplace-http.mjs` and staged enablement procedure in `docs/MARKETPLACE_HTTP_RUNTIME.md`.
+
+Not yet enabled: server attachment of the prepared account routes, login/session mutation routes, account pages beyond honest closed entry states, real PostgreSQL execution/driver, geocoding, an authenticated marketplace account, object storage, or genuine public cleaner supply.
 
 - Add cleaner profile, services, service areas, availability and completion calculator APIs/pages.
-- Compose landlord profile and multi-property services into authenticated CRUD routes/pages; add validated private object-storage photos.
+- Attach the prepared account routes after real PostgreSQL/session staging tests; add authenticated mobile pages and validated private object-storage photos.
 - Add `/cleaners` and `/cleaners/:cleanerId` search with location, availability, rating, price, service, distance and verification filters.
 - Never return cleaner email, phone or home address in public projections.
 - Add landlord dashboard, cleaner dashboard, profile, availability, properties and property detail pages.

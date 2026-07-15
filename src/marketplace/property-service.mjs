@@ -119,14 +119,21 @@ function bookingFromRecord(record) {
   };
 }
 
+function landlordProfileProjection(record) {
+  return {
+    organisationName: record?.organisation_name ?? record?.organisationName ?? null,
+    biography: record?.biography || ""
+  };
+}
+
 export function createPropertyService(repository, options) {
   if (!repository || typeof repository.saveLandlordProfile !== "function" || typeof repository.createProperty !== "function" || typeof repository.updateOwnProperty !== "function" || typeof repository.listOwnProperties !== "function" || typeof repository.getBookingProperty !== "function") throw new TypeError("A complete property repository is required.");
   const dataEncryptionSecret = options?.dataEncryptionSecret;
   assertPropertyEncryptionSecret(dataEncryptionSecret);
   return {
-    saveLandlordProfile(actor, input) {
+    async saveLandlordProfile(actor, input) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required.");
-      return repository.saveLandlordProfile(actor, normalizedLandlordProfile(input));
+      return landlordProfileProjection(await repository.saveLandlordProfile(actor, normalizedLandlordProfile(input)));
     },
     async createProperty(actor, input) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required.");
