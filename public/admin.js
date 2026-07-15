@@ -771,7 +771,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", frequencyCaptured: "Requested frequency captured with a one-visit booking rule", availabilityCovered: "Visit fits an active confirmed availability window", costModelCurrent: "Proposal uses the current founder-confirmed cost assumptions", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", customerScopeConfirmed: "Customer confirmed the final concise checklist", priceSensitiveScopeConfirmed: "Detected price-sensitive scan items included in reviewed hours", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", publicOriginFrozen: "Customer and cleaner handoffs share one frozen verified public host", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
+    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", frequencyCaptured: "Requested frequency captured with a one-visit booking rule", availabilityCovered: "Visit fits an active confirmed availability window", costModelCurrent: "Proposal uses the current founder-confirmed cost assumptions", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", reviewEvidenceConfirmed: "Every room visual and note opened; concise checklist reconciled", customerScopeConfirmed: "Customer confirmed the final concise checklist", priceSensitiveScopeConfirmed: "Detected price-sensitive scan items included in reviewed hours", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", publicOriginFrozen: "Customer and cleaner handoffs share one frozen verified public host", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -1172,6 +1172,8 @@ async function loadBriefPhotos(brief, target, button) {
       figure.append(visual, caption);
       target.append(figure);
     }
+    target.dataset.loaded = "true";
+    target.dispatchEvent(new CustomEvent("brief-visuals-loaded"));
     button.remove();
   } catch (error) {
     addText(target, "strong", error.message);
@@ -1188,7 +1190,7 @@ async function changeBriefStatus(brief, form) {
     const response = await fetch("/api/admin/job-briefs/status", {
       method: "PATCH",
       headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }),
-      body: JSON.stringify({ briefId: brief.id, status: select.value, note: note.value.trim(), scopeEstimateHours: form.elements.scopeEstimateHours.value, scopeConfidence: form.elements.scopeConfidence.value, scopeSignalConfirmations: [...form.querySelectorAll('input[name="scopeSignalConfirmation"]:checked')].map((input) => input.value) })
+      body: JSON.stringify({ briefId: brief.id, status: select.value, note: note.value.trim(), scopeEstimateHours: form.elements.scopeEstimateHours.value, scopeConfidence: form.elements.scopeConfidence.value, scopeSignalConfirmations: [...form.querySelectorAll('input[name="scopeSignalConfirmation"]:checked')].map((input) => input.value), visualsReviewed: form.elements.visualsReviewed.checked, checklistReviewed: form.elements.checklistReviewed.checked })
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "Job brief review could not be saved.");
@@ -1561,12 +1563,13 @@ function buildCard(record) {
       scopeSignalSummary.append(signalList);
       briefSummary.append(scopeSignalSummary);
     }
+    let photoGrid = null;
     if (brief.photos.length) {
       const loadPhotos = document.createElement("button");
       loadPhotos.type = "button";
       loadPhotos.className = "button button-small button-outline";
       loadPhotos.textContent = "Load private room visuals";
-      const photoGrid = document.createElement("div");
+      photoGrid = document.createElement("div");
       photoGrid.className = "admin-brief-photos";
       loadPhotos.addEventListener("click", () => loadBriefPhotos(brief, photoGrid, loadPhotos));
       briefSummary.append(loadPhotos, photoGrid);
@@ -1640,6 +1643,32 @@ function buildCard(record) {
       } else {
         addText(signalFieldset, "span", "No price-sensitive extras were detected in this scan.");
       }
+      const evidenceFieldset = document.createElement("fieldset");
+      evidenceFieldset.className = "scope-signal-confirmations";
+      const evidenceLegend = document.createElement("legend");
+      evidenceLegend.textContent = "Founder review evidence";
+      evidenceFieldset.append(evidenceLegend);
+      const visualEvidenceLabel = document.createElement("label");
+      visualEvidenceLabel.className = "checkbox";
+      const visualsReviewed = document.createElement("input");
+      visualsReviewed.type = "checkbox";
+      visualsReviewed.name = "visualsReviewed";
+      visualsReviewed.disabled = true;
+      const visualEvidenceCopy = document.createElement("span");
+      visualEvidenceCopy.textContent = "I opened every private room visual and reviewed its room note";
+      visualEvidenceLabel.append(visualsReviewed, visualEvidenceCopy);
+      const checklistEvidenceLabel = document.createElement("label");
+      checklistEvidenceLabel.className = "checkbox";
+      const checklistReviewed = document.createElement("input");
+      checklistReviewed.type = "checkbox";
+      checklistReviewed.name = "checklistReviewed";
+      const checklistEvidenceCopy = document.createElement("span");
+      checklistEvidenceCopy.textContent = "I checked the concise checklist against the spoken notes, room notes and shown rooms";
+      checklistEvidenceLabel.append(checklistReviewed, checklistEvidenceCopy);
+      evidenceFieldset.append(visualEvidenceLabel, checklistEvidenceLabel);
+      photoGrid?.addEventListener("brief-visuals-loaded", () => {
+        visualsReviewed.disabled = statusSelect.value !== "reviewed";
+      });
       const save = document.createElement("button");
       save.type = "submit";
       save.className = "button button-small";
@@ -1654,15 +1683,20 @@ function buildCard(record) {
           input.disabled = !approving;
           input.required = approving;
         });
+        visualsReviewed.disabled = !approving || photoGrid?.dataset.loaded !== "true";
+        visualsReviewed.required = approving;
+        checklistReviewed.disabled = !approving;
+        checklistReviewed.required = approving;
       };
       statusSelect.addEventListener("change", syncEstimateFields);
-      reviewForm.append(statusLabel, hoursLabel, confidenceLabel, signalFieldset, noteLabel, save);
+      reviewForm.append(statusLabel, hoursLabel, confidenceLabel, signalFieldset, evidenceFieldset, noteLabel, save);
       syncEstimateFields();
       reviewForm.addEventListener("submit", (event) => { event.preventDefault(); changeBriefStatus(brief, reviewForm); });
       briefSummary.append(reviewForm);
     } else {
       if (brief.status === "reviewed") {
         addText(briefSummary, "span", `Reviewed scope: ${brief.scopeEstimateHours} hours · ${brief.scopeConfidence} confidence`, "brief-review-note");
+        addText(briefSummary, "span", brief.reviewEvidenceConfirmed === true ? "Founder opened every room visual and note, then reconciled the concise checklist." : "Founder visual-and-checklist review evidence is missing; downstream use remains blocked.", brief.reviewEvidenceConfirmed === true ? "brief-review-note" : "scope-signal-summary");
         if (brief.scopeSignals?.length) addText(briefSummary, "span", `Confirmed inside reviewed hours: ${brief.scopeSignals.map((signal) => signal.label).join(", ")}`, "brief-review-note");
       }
       if (brief.reviewNote) addText(briefSummary, "span", `Review note: ${brief.reviewNote}`, "brief-review-note");
