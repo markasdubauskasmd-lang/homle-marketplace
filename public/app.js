@@ -187,13 +187,14 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
       form.reset();
       success.querySelector("[data-reference]").textContent = result.reference;
       const briefLink = success.querySelector("[data-brief-link]");
+      const customerStatusToken = /^[A-Za-z0-9_-]{32}$/.test(result.customerStatusToken || "") ? result.customerStatusToken : "";
       if (briefLink) {
         try { saveBriefHandoff(window.sessionStorage, result.reference, submission.email); } catch {}
-        briefLink.href = `/brief?reference=${encodeURIComponent(result.reference)}`;
+        briefLink.href = `/brief?reference=${encodeURIComponent(result.reference)}${customerStatusToken ? `#${customerStatusToken}` : ""}`;
       }
       const statusLink = success.querySelector("[data-status-link]");
-      if (statusLink && result.customerStatusToken) {
-        statusLink.href = `/request-status#${result.customerStatusToken}`;
+      if (statusLink && customerStatusToken) {
+        statusLink.href = `/request-status#${customerStatusToken}`;
         statusLink.hidden = false;
       }
       const cleanerStatusLink = success.querySelector("[data-cleaner-status-link]");
@@ -205,6 +206,12 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
       success.hidden = false;
       success.focus();
       pendingSubmissions.delete(form);
+      if (briefLink) {
+        const destination = briefLink.href;
+        window.setTimeout(() => {
+          if (!success.hidden && document.contains(form)) window.location.assign(destination);
+        }, 900);
+      }
     } catch (error) {
       showError(form, `${error.message} Please try again.`);
     } finally {
