@@ -115,7 +115,17 @@ const reviewService = {
   async moderateReview(actor, reviewId, input) { calls.push({ kind: "review-moderate", actor, reviewId, input }); return { reviewId, bookingId: "55555555-5555-4555-8555-555555555555", cleanerId: "22222222-2222-4222-8222-222222222222", rating: 5, moderationStatus: input.decision, createdAt: "2026-07-15T19:00:00.000Z" }; }
 };
 let unexpectedError;
-const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService }, { onUnexpectedError(error) { unexpectedError = error; } });
+let rateLimitedScope = "";
+let limiterFailure = null;
+let trustedClientKey = "198.51.100.20";
+const rateLimiter = {
+  async consume(input) {
+    calls.push({ kind: "rate-limit", input });
+    if (limiterFailure) throw limiterFailure;
+    return input.scope === rateLimitedScope ? { allowed: false, retryAfterSeconds: 99999 } : { allowed: true };
+  }
+};
+const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService, rateLimiter }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
   origin: "http://127.0.0.1:4173",
@@ -132,6 +142,25 @@ const badBoolean = await dispatch(router, "GET", "/api/marketplace/cleaners?veri
 assert(badBoolean.response.statusCode === 422 && badBoolean.body.code === "validation-failed", "Cleaner discovery accepted an ambiguous boolean filter.");
 const publicReviews = await dispatch(router, "GET", "/api/marketplace/cleaners/22222222-2222-4222-8222-222222222222/reviews?limit=10");
 assert(publicReviews.response.statusCode === 200 && publicReviews.body.reviews.length === 0 && calls.at(-1).kind === "review-public" && calls.at(-1).input.limit === "10", "Public approved-review routing lost its safe Cleaner ID or cursor.");
+assert(calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-directory" && call.input.key === trustedClientKey) && calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-reviews" && call.input.key === trustedClientKey), "Public marketplace reads did not use separate trusted shared-limiter scopes.");
+
+const searchesBeforeThrottle = calls.filter((call) => call.kind === "search").length;
+rateLimitedScope = "marketplace-public:cleaner-directory";
+const throttledDirectory = await dispatch(router, "GET", "/api/marketplace/cleaners?limit=10");
+assert(throttledDirectory.response.statusCode === 429 && throttledDirectory.body.code === "rate-limited" && throttledDirectory.response.headers["Retry-After"] === "3600" && calls.filter((call) => call.kind === "search").length === searchesBeforeThrottle, "Throttled Cleaner discovery reached the service or lost its bounded Retry-After response.");
+rateLimitedScope = "";
+
+limiterFailure = new Error("private shared-limiter outage");
+unexpectedError = null;
+const unavailableReviews = await dispatch(router, "GET", "/api/marketplace/cleaners/22222222-2222-4222-8222-222222222222/reviews");
+assert(unavailableReviews.response.statusCode === 503 && unavailableReviews.body.code === "abuse-control-unavailable" && !unavailableReviews.response.body.includes("private shared-limiter outage") && unexpectedError === limiterFailure, "A shared-limiter outage did not fail closed or leaked private failure detail.");
+limiterFailure = null;
+
+trustedClientKey = "";
+unexpectedError = null;
+const missingClientKey = await dispatch(router, "GET", "/api/marketplace/cleaners");
+assert(missingClientKey.response.statusCode === 503 && missingClientKey.body.code === "abuse-control-unavailable" && unexpectedError instanceof TypeError, "A missing trusted client key did not stop public discovery safely.");
+trustedClientKey = "198.51.100.20";
 
 const noSession = await dispatch(router, "GET", "/api/marketplace/properties");
 assert(noSession.response.statusCode === 401 && noSession.body.code === "authentication-required" && noSession.response.headers["Cache-Control"] === "no-store", "Private property listing accepted a missing session or allowed caching.");
@@ -237,17 +266,20 @@ const baseEnvironment = {
   APP_ORIGIN: "http://127.0.0.1:4173"
 };
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
-const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment });
+const runtimeAbuseControl = { rateLimiter: { async consume() { return { allowed: true }; } }, clientKey: () => "test-client" };
+const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl });
 assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews and HTTP layers or safely keep incomplete authentication delivery detached.");
-let partialAuthenticationRejected = false;
-try { createMarketplaceRuntime(pool, { env: baseEnvironment, emailDelivery: { send() {} } }); } catch (error) { partialAuthenticationRejected = error.message.includes("requires email delivery, shared rate limiting"); }
-assert(partialAuthenticationRejected, "A partially supplied authentication HTTP boundary was silently enabled.");
+let unconfiguredEmailRejected = false;
+try { createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl, emailDelivery: { send() {} } }); } catch (error) { unconfiguredEmailRejected = error.message.includes("requires SMTP_URL and EMAIL_FROM"); }
+assert(unconfiguredEmailRejected, "An email authentication boundary was enabled without trusted delivery configuration.");
+let missingAbuseControl = false;
+try { createMarketplaceRuntime(pool, { env: baseEnvironment }); } catch (error) { missingAbuseControl = error.message.includes("shared rate limiter and trusted client-key resolver"); }
+assert(missingAbuseControl, "Marketplace runtime composed public reads without shared abuse control.");
 const enabledEnvironment = { ...baseEnvironment, SMTP_URL: "smtps://mail.example.com", EMAIL_FROM: "Tideway <hello@example.com>" };
 const enabledRuntime = createMarketplaceRuntime(pool, {
   env: enabledEnvironment,
   emailDelivery: { async send() {} },
-  rateLimiter: { async consume() { return { allowed: true }; } },
-  clientKey: () => "test-client"
+  ...runtimeAbuseControl
 });
 assert(enabledRuntime.authenticationHttpReady && enabledRuntime.authenticationRouter && enabledRuntime.router !== enabledRuntime.marketplaceRouter, "A complete trusted email/rate/client boundary did not compose the isolated authentication controller into the runtime chain.");
 let missingRuntime = false;

@@ -1,4 +1,5 @@
 import { errorResponse, methodNotAllowed, readJsonObject, sendJson } from "./http-support.mjs";
+import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 
 const prefix = "/api/marketplace/auth/";
 const genericAccepted = Object.freeze({ ok: true, accepted: true, message: "If the account can use this action, the next step will be sent privately." });
@@ -49,28 +50,13 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   if (!identity || typeof identity.completeOnboarding !== "function") throw new TypeError("Authentication HTTP routes require the identity service.");
   if (!sessions || ["establish", "rotate", "logout", "logoutAll"].some((method) => typeof sessions[method] !== "function")) throw new TypeError("Authentication HTTP routes require the session service.");
   if (!emailDelivery || typeof emailDelivery.send !== "function") throw new TypeError("Authentication HTTP routes require a trusted email-delivery adapter.");
-  if (!rateLimiter || typeof rateLimiter.consume !== "function") throw new TypeError("Authentication HTTP routes require a shared rate limiter.");
-  if (typeof options.clientKey !== "function") throw new TypeError("Authentication HTTP routes require a trusted client-key resolver.");
   const appOrigin = exactOrigin(options.appOrigin);
   const minimumPublicResponseMs = options.minimumPublicResponseMs ?? 500;
   if (!Number.isInteger(minimumPublicResponseMs) || minimumPublicResponseMs < 0 || minimumPublicResponseMs > 5000) throw new RangeError("Public authentication response delay is outside the supported range.");
   const now = options.now || (() => Date.now());
   const wait = options.wait || ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
-
-  function clientKey(request) {
-    const key = String(options.clientKey(request) || "");
-    if (!key || key.length > 200 || /[\u0000-\u001f\u007f]/.test(key)) throw new TypeError("The trusted authentication client key is invalid.");
-    return key;
-  }
-
-  async function limit(request, scope) {
-    const result = await rateLimiter.consume({ scope, key: clientKey(request) });
-    if (result?.allowed !== true) {
-      const retryAfterSeconds = Math.max(1, Math.min(3600, Number(result?.retryAfterSeconds) || 60));
-      throw Object.assign(new Error("Too many attempts. Try again later."), { statusCode: 429, code: "rate-limited", retryAfterSeconds });
-    }
-  }
+  const limit = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
 
   async function privateDelivery(delivery) {
     if (!delivery) return;
@@ -83,7 +69,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   }
 
   function metadata(request) {
-    return { userAgent: header(request, "user-agent"), ipAddress: clientKey(request) };
+    return { userAgent: header(request, "user-agent"), ipAddress: limit.clientKey(request) };
   }
 
   return {

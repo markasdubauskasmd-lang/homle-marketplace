@@ -6,7 +6,8 @@ This checkpoint composes the existing PostgreSQL, session security, cleaner prof
 
 | Route | Access | Server boundary |
 | --- | --- | --- |
-| `GET /api/marketplace/cleaners` | Public | Restricted directory function and public projection only |
+| `GET /api/marketplace/cleaners` | Public | Trusted client key, shared rate limit, restricted directory function and public projection only |
+| `GET /api/marketplace/cleaners/:cleanerId/reviews` | Public | Separate shared rate-limit scope and approved-review public projection only |
 | `PUT /api/marketplace/cleaner/profile` | Cleaner | Session, exact origin, CSRF and Cleaner role |
 | `PUT /api/marketplace/landlord/profile` | Landlord | Session, exact origin, CSRF and Landlord role |
 | `GET /api/marketplace/properties` | Landlord | Session and Landlord role; authenticated owner selected server-side |
@@ -18,7 +19,7 @@ This checkpoint composes the existing PostgreSQL, session security, cleaner prof
 
 Prepared authentication routes use `POST` only: `/api/marketplace/auth/signup`, verification resend/confirmation, login, password-reset request/confirmation, logout, logout-all, and `/api/marketplace/onboarding`. They are attached to the runtime chain only when trusted email delivery, shared rate limiting and a server-derived client key are configured together.
 
-The controller owns the `/api/marketplace/` namespace and does not intercept any existing pilot route. It accepts JSON objects only, limits bodies to 64 KiB, returns explicit method/validation/authentication errors, disables response caching and hides unexpected database details behind a generic error while forwarding the original error to the private monitoring hook.
+The controller owns the `/api/marketplace/` namespace and does not intercept any existing pilot route. It accepts JSON objects only, limits bodies to 64 KiB, returns explicit method/validation/authentication errors, disables response caching and hides unexpected database details behind a generic error while forwarding the original error to the private monitoring hook. Cleaner discovery and public approved-review reads use separate scopes in the same trusted shared-limiter boundary as authentication. A denied request receives a bounded `Retry-After`; a missing client key, malformed limiter decision or limiter outage fails closed with a generic 503 while the private cause reaches monitoring. The Cleaner query/review service is never called after that failure.
 
 ## Runtime composition
 
@@ -31,7 +32,7 @@ The controller owns the `/api/marketplace/` namespace and does not intercept any
 5. property repository/service;
 6. marketplace HTTP router.
 
-Composition fails closed unless `DATABASE_URL`, separate 32+ character `SESSION_SECRET` and `AUTH_TOKEN_SECRET`, exact `APP_ORIGIN` and distinct 32+ character `DATA_ENCRYPTION_KEY` are present. It does not connect eagerly or enable public authentication capability flags. Session issuance stores only token/CSRF hashes and keyed metadata hashes; logout and role-change rotation revoke database sessions before clearing or replacing cookies.
+Composition fails closed unless `DATABASE_URL`, separate 32+ character `SESSION_SECRET` and `AUTH_TOKEN_SECRET`, exact `APP_ORIGIN`, distinct 32+ character `DATA_ENCRYPTION_KEY`, a shared rate-limiter adapter and a trusted server-derived client-key resolver are present. It does not connect eagerly or enable public authentication capability flags. Session issuance stores only token/CSRF hashes and keyed metadata hashes; logout and role-change rotation revoke database sessions before clearing or replacing cookies.
 
 Public signup, verification resend and password-reset request return the same generic response regardless of account existence. Trusted delivery receives a fragment-token HTTPS link; raw delivery material is never placed in the API response. A 500 ms minimum response window and the mandatory shared limiter reduce enumeration/abuse exposure. The replacement-verification migration invalidates older unused links atomically.
 
@@ -43,7 +44,7 @@ These controllers are not attached to the live pilot server yet. Complete all of
 2. Apply migrations and runtime grants in the documented order, then run real RLS and concurrent-overlap integration tests.
 3. Add and lock a maintained PostgreSQL Node driver through the approved dependency workflow; the current dependency-free pilot has no package installer or database driver.
 4. Put database/session/token/encryption secrets in the deployment secret manager and use an exact HTTPS `APP_ORIGIN` in production.
-5. Connect the prepared authentication controller to the approved SMTP adapter and shared limiter, then prove generic-response, delivery-failure and session-cookie behavior under HTTPS.
+5. Connect a persistent cross-instance limiter and a proxy-aware server-derived client key, prove denial across two application instances, then connect the prepared authentication controller to the approved SMTP adapter and prove generic-response, delivery-failure and session-cookie behavior under HTTPS. Never trust a browser-supplied forwarding header directly.
 6. Attach the composed router before legacy API dispatch and add structured private error monitoring.
 7. Add mobile-first pages and browser tests using genuine staging accounts. Keep `/cleaners` closed until at least one real, completed, public Cleaner profile exists.
 

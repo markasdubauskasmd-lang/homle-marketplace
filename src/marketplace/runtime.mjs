@@ -45,6 +45,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   if (!environment.appOrigin) required.push("APP_ORIGIN");
   if (!environment.encryptionConfigured) required.push("DATA_ENCRYPTION_KEY");
   if (required.length) throw new TypeError(`Marketplace runtime is unavailable; configure ${required.join(", ")}.`);
+  if (!options.rateLimiter || typeof options.rateLimiter.consume !== "function" || typeof options.clientKey !== "function") throw new TypeError("Marketplace runtime composition requires a shared rate limiter and trusted client-key resolver.");
 
   const database = createMarketplaceDatabase(pool);
   const authenticationRepository = createAuthenticationRepository(database);
@@ -82,12 +83,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const notificationService = createNotificationService(notificationRepository);
   const reviewRepository = createReviewRepository(database);
   const reviewService = createReviewService(reviewRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService }, { onUnexpectedError: options.onUnexpectedError });
-  const authenticationDependencies = [options.emailDelivery, options.rateLimiter, options.clientKey];
-  const suppliedAuthenticationDependencies = authenticationDependencies.filter(Boolean).length;
-  if (suppliedAuthenticationDependencies > 0 && suppliedAuthenticationDependencies < authenticationDependencies.length) throw new TypeError("Authentication HTTP composition requires email delivery, shared rate limiting and a trusted client-key resolver together.");
-  if (suppliedAuthenticationDependencies === authenticationDependencies.length && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires SMTP_URL and EMAIL_FROM configuration.");
-  const authenticationRouter = suppliedAuthenticationDependencies === authenticationDependencies.length
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires SMTP_URL and EMAIL_FROM configuration.");
+  const authenticationRouter = options.emailDelivery
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
     : null;
   const router = authenticationRouter ? {

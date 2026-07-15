@@ -1,4 +1,5 @@
 import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, sendJson } from "./http-support.mjs";
+import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
@@ -57,6 +58,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const realtime = dependencies?.realtimeService;
   const notifications = dependencies?.notificationService;
   const reviews = dependencies?.reviewService;
+  const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
@@ -71,6 +73,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
+  const limitPublicRead = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
 
   return {
     async handle(request, response, suppliedUrl) {
@@ -80,6 +83,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
       try {
         if (pathname === "/api/marketplace/cleaners") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          await limitPublicRead(request, "marketplace-public:cleaner-directory");
           const results = await cleaners.searchPublicProfiles(queryFilters(url));
           sendJson(response, 200, { ok: true, cleaners: results });
           return true;
@@ -87,6 +91,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         const selectedCleanerReviews = pathname.match(cleanerReviewsPath);
         if (selectedCleanerReviews) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          await limitPublicRead(request, "marketplace-public:cleaner-reviews");
           const page = await reviews.getPublicReviews(selectedCleanerReviews[1], {
             beforeCreatedAt: url.searchParams.get("beforeCreatedAt"),
             beforeReviewId: url.searchParams.get("beforeReviewId"),
@@ -383,7 +388,8 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
       } catch (error) {
         const mapped = errorResponse(error);
         if (mapped.statusCode === 500) onUnexpectedError(error);
-        sendJson(response, mapped.statusCode, { ok: false, code: mapped.code, error: mapped.message });
+        const headers = error?.retryAfterSeconds ? { "Retry-After": String(error.retryAfterSeconds) } : {};
+        sendJson(response, mapped.statusCode, { ok: false, code: mapped.code, error: mapped.message }, headers);
         return true;
       }
     }
