@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Track your cleaner application — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-44">
-  <script src="/cleaner-status.js?v=20260715-1" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-45">
+  <script src="/cleaner-status.js?v=20260715-2" type="module"></script>
 </head>
 <body class="quote-page">
   <a class="skip-link" href="#cleaner-status-main">Skip to application status</a>
@@ -52,6 +52,26 @@
         <section class="quote-rules">
           <h2>Current readiness</h2>
           <ul data-readiness></ul>
+        </section>
+
+        <section class="quote-decision cleaner-availability-action" data-availability-action hidden>
+          <div>
+            <p class="eyebrow">Your exact times</p>
+            <h2>When are you available?</h2>
+            <p>Submit one exact future window at a time. It stays pending until Tideway confirms it and will not be used to match a job yet.</p>
+          </div>
+          <div class="pending-availability" data-pending-availability hidden>
+            <strong>Waiting for Tideway confirmation</strong>
+            <ul data-pending-list></ul>
+          </div>
+          <form class="cleaner-availability-request-form" data-availability-form>
+            <label>Date<input type="date" name="availableDate" required></label>
+            <label>Start time<input type="time" name="startTime" required></label>
+            <label>End time<input type="time" name="endTime" required></label>
+            <label class="availability-request-note">Optional note<span>For example, any travel or timing detail Tideway should check.</span><textarea name="note" rows="2" maxlength="500"></textarea></label>
+            <button class="button" type="submit">Submit time for confirmation</button>
+          </form>
+          <p class="form-message" data-availability-message role="status" aria-live="polite"></p>
         </section>
 
         <div class="quote-result"><strong>This tracker does not approve, assign or promise work.</strong><span>A real cleaning opportunity uses a separate private link and always requires the cleaner's own decision on the scope, pay and time.</span></div>

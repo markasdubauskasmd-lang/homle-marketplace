@@ -428,6 +428,10 @@ textarea { resize: vertical; }
 .availability-item > span { color: var(--muted); font-size: .8rem; }
 .availability-withdraw-form { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 8px; align-items: end; }
 .availability-withdraw-form input { min-height: 40px; }
+.availability-request-list { padding: 10px; border: 1px solid #e2b48f; border-radius: 10px; background: #fff7ef; }
+.availability-request-item { border-color: #e2b48f; }
+.availability-request-form { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(200px, 1.3fr) auto; gap: 8px; align-items: end; }
+.availability-request-form select, .availability-request-form input { min-height: 40px; }
 .availability-form { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 9px; padding-top: 12px; border-top: 1px solid #9bcdbf; align-items: end; }
 .availability-form label:nth-of-type(4) { grid-column: 1 / -1; }
 .availability-form button { justify-self: start; }
@@ -630,6 +634,14 @@ textarea { resize: vertical; }
 .request-step-action > span { color: #fff; border-color: #b06a16; background: #b06a16; }
 .request-status-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 26px 0; }
 .request-status-actions p { margin: 0; color: var(--muted); }
+.cleaner-availability-action { padding: 22px; border: 1px solid #9bcdbf; border-radius: 14px; background: var(--mint-pale); }
+.cleaner-availability-action > div > p:last-child { margin-bottom: 0; color: var(--muted); }
+.pending-availability { padding: 14px; border-radius: 10px; background: #fff; }
+.pending-availability ul { margin: 8px 0 0; padding-left: 22px; }
+.cleaner-availability-request-form { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 12px; align-items: end; }
+.cleaner-availability-request-form .availability-request-note { grid-column: 1 / -1; }
+.cleaner-availability-request-form button { justify-self: start; }
+.cleaner-availability-action .form-message { margin: 0; color: var(--green-dark); font-weight: 750; }
 .quote-decision { display: grid; gap: 16px; margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); }
 .quote-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .quote-result { display: grid; gap: 8px; margin-top: 28px; padding: 20px; color: var(--green-dark); border: 1px solid #a8d2c6; border-radius: 14px; background: var(--mint-pale); }
@@ -750,9 +762,10 @@ textarea { resize: vertical; }
   .brief-review-form button { grid-column: auto; width: 100%; }
   .lead-followup form { grid-template-columns: 1fr; }
   .proposal-form { grid-template-columns: 1fr; }
-  .availability-form, .availability-withdraw-form { grid-template-columns: 1fr; }
+  .availability-form, .availability-withdraw-form, .availability-request-form, .cleaner-availability-request-form { grid-template-columns: 1fr; }
   .availability-form label:nth-of-type(4) { grid-column: auto; }
-  .availability-form button, .availability-withdraw-form button { width: 100%; }
+  .cleaner-availability-request-form .availability-request-note { grid-column: auto; }
+  .availability-form button, .availability-withdraw-form button, .availability-request-form button, .cleaner-availability-request-form button { width: 100%; }
   .job-outcome-form { grid-template-columns: 1fr; }
   .outcome-adjustment-form { grid-template-columns: 1fr; }
   .outcome-adjustment-form .adjustment-note, .outcome-adjustment-form .adjustment-confirmation, .outcome-adjustment-form button { grid-column: auto; }

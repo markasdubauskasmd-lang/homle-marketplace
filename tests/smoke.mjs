@@ -132,7 +132,7 @@ try {
 
   const privacy = await fetch(`${base}/privacy`);
   const privacyText = await privacy.text();
-  assert(privacy.ok && privacyText.includes("Privacy notice") && privacyText.includes("temporarily holds a client network address in memory") && privacyText.includes("private cleaner tracker") && privacyText.includes("screening-note or authorisation-token data"), "Privacy page failed or omitted the local anti-abuse or private cleaner-tracker disclosure.");
+  assert(privacy.ok && privacyText.includes("Privacy notice") && privacyText.includes("temporarily holds a client network address in memory") && privacyText.includes("private cleaner tracker") && privacyText.includes("screening-note, decision-note or authorisation-token data") && privacyText.includes("never used for matching until Tideway records a separate confirmation"), "Privacy page failed or omitted the local anti-abuse, pending-availability or private cleaner-tracker disclosure.");
 
   const terms = await fetch(`${base}/terms`);
   const termsText = await terms.text();
@@ -162,10 +162,10 @@ try {
   assert(requestStatusPage.ok && (await requestStatusPage.text()).includes("Private request tracker"), "Private customer request tracker page failed.");
   const cleanerStatusPage = await fetch(`${base}/cleaner-status`);
   const cleanerStatusPageText = await cleanerStatusPage.text();
-  assert(cleanerStatusPage.ok && cleanerStatusPageText.includes("Private cleaner tracker") && cleanerStatusPageText.includes("This tracker does not approve, assign or promise work."), "Private cleaner application tracker page failed or implied work approval.");
+  assert(cleanerStatusPage.ok && cleanerStatusPageText.includes("Private cleaner tracker") && cleanerStatusPageText.includes("When are you available?") && cleanerStatusPageText.includes("It stays pending until Tideway confirms it") && cleanerStatusPageText.includes("This tracker does not approve, assign or promise work."), "Private cleaner application tracker page failed, omitted the pending exact-time action or implied work approval.");
   const cleanerStatusAsset = await fetch(`${base}/cleaner-status.js?v=smoke-test`);
   const cleanerStatusAssetText = await cleanerStatusAsset.text();
-  assert(cleanerStatusAsset.ok && cleanerStatusAssetText.includes("X-Cleaner-Status-Token") && cleanerStatusAssetText.includes("history.replaceState") && cleanerStatusAssetText.includes("confirmedAvailabilityWindows"), "Cleaner tracker did not keep its token out of request URLs or render readiness safely.");
+  assert(cleanerStatusAsset.ok && cleanerStatusAssetText.includes("X-Cleaner-Status-Token") && cleanerStatusAssetText.includes("history.replaceState") && cleanerStatusAssetText.includes("confirmedAvailabilityWindows") && cleanerStatusAssetText.includes("/api/cleaner-availability-requests") && cleanerStatusAssetText.includes("Idempotency-Key"), "Cleaner tracker did not keep its token out of request URLs, render readiness safely or submit retry-safe pending availability.");
   const quotePage = await fetch(`${base}/quote`);
   const quotePageText = await quotePage.text();
   assert(quotePage.ok && quotePageText.includes("Private customer review") && quotePageText.includes("This is a replacement quote") && quotePageText.includes("A fresh decision is required."), "Private customer quote or replacement-review page failed.");
@@ -179,7 +179,7 @@ try {
   assert(customerBookingPage.ok && cleanerAssignmentPage.ok && customerBookingPageText.includes("Protected visit details") && customerBookingPageText.includes("Report a cleaning quality issue") && (await cleanerAssignmentPage.text()).includes("Protected visit details"), "Private confirmed-booking pages or cleaning-quality reporting route failed.");
   const adminAsset = await fetch(`${base}/admin.js?v=smoke-test`);
   const adminAssetText = await adminAsset.text();
-  assert(adminAsset.ok && adminAsset.headers.get("cache-control") === "no-cache" && adminAssetText.includes("Later refunds, re-cleans and costs") && adminAssetText.includes("/api/admin/job-outcome-adjustments") && adminAssetText.includes("paymentEvidenceReference") && adminAssetText.includes("Externally verified amount") && adminAssetText.includes("customerReceiptReference") && adminAssetText.includes("cleanerPayoutReference"), "Updated control-desk assets, booking payment evidence, final settlement evidence or post-completion adjustment workflow could remain stale or missing.");
+  assert(adminAsset.ok && adminAsset.headers.get("cache-control") === "no-cache" && adminAssetText.includes("Later refunds, re-cleans and costs") && adminAssetText.includes("/api/admin/job-outcome-adjustments") && adminAssetText.includes("/api/admin/cleaner-availability-requests") && adminAssetText.includes("Pending only — not available to matching") && adminAssetText.includes("paymentEvidenceReference") && adminAssetText.includes("Externally verified amount") && adminAssetText.includes("customerReceiptReference") && adminAssetText.includes("cleanerPayoutReference"), "Updated control-desk assets, pending availability confirmation, booking payment evidence, final settlement evidence or post-completion adjustment workflow could remain stale or missing.");
   const publicFormAsset = await fetch(`${base}/app.js?v=smoke-test`);
   const publicFormAssetText = await publicFormAsset.text();
   assert(publicFormAsset.ok && publicFormAssetText.includes("enhanceGuidedForm") && publicFormAssetText.includes("step.dataset.guidedStep") && publicFormAssetText.includes("validateCurrentStep") && publicFormAssetText.includes("Choose at least one type of cleaning work before continuing.") && publicFormAssetText.includes("data-cleaner-status-link") && publicFormAssetText.includes("cleanerStatusToken") && publicFormAssetText.includes("guidedForm?.complete()") && publicFormAssetText.includes('"Idempotency-Key": pending.key') && publicFormAssetText.includes("pendingSubmissions.delete(form)"), "Progressive customer/cleaner journeys, visible current-stage selection, cleaner-tracker handoff, per-stage service validation or safe retry-key handling failed.");
@@ -314,6 +314,8 @@ try {
   assert(initialCleanerStatus.ok && initialCleanerStatusBody.current.stage === "application-review" && initialCleanerStatusBody.application.reference === cleanerBody.reference && initialCleanerStatusBody.readiness.readyForOpportunities === false && initialCleanerStatusBody.steps.find((step) => step.key === "application")?.state === "complete", "New cleaner tracker did not open at received-but-not-screened status.");
   const initialCleanerTrackerSerialised = JSON.stringify(initialCleanerStatusBody);
   assert(!initialCleanerTrackerSerialised.includes("Test Cleaner") && !initialCleanerTrackerSerialised.includes("cleaner@example.com") && !initialCleanerTrackerSerialised.includes("07123456789") && !initialCleanerTrackerSerialised.includes("SE1 7PB") && !initialCleanerTrackerSerialised.includes("SW1A") && !initialCleanerTrackerSerialised.includes("cleanerStatusToken"), "Cleaner tracker exposed identity, contact, travel or authorisation-token data.");
+  const earlyAvailability = await fetch(`${base}/api/cleaner-availability-requests`, { method: "POST", headers: { "content-type": "application/json", "x-cleaner-status-token": cleanerBody.cleanerStatusToken, "idempotency-key": "44444444-4444-4444-8444-444444444444" }, body: JSON.stringify({ availableDate: "2026-07-20", startTime: "08:00", endTime: "15:00" }) });
+  assert(earlyAvailability.status === 422, "An unapproved cleaner submitted exact availability through the private tracker.");
 
   const adminRecords = await fetch(`${base}/api/admin/records`);
   const adminBody = await adminRecords.json();
@@ -483,7 +485,25 @@ try {
   assert(cleanerApproval.ok, "Cleaner approval status failed.");
   const approvedCleanerStatus = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": cleanerBody.cleanerStatusToken } });
   const approvedCleanerStatusBody = await approvedCleanerStatus.json();
-  assert(approvedCleanerStatus.ok && approvedCleanerStatusBody.current.stage === "availability" && approvedCleanerStatusBody.readiness.approvalRecorded === true && approvedCleanerStatusBody.readiness.confirmedAvailabilityWindows === 0 && approvedCleanerStatusBody.steps.find((step) => step.key === "availability")?.state === "current", "Approved cleaner tracker skipped the exact-availability requirement or implied work readiness early.");
+  assert(approvedCleanerStatus.ok && approvedCleanerStatusBody.current.stage === "availability" && approvedCleanerStatusBody.readiness.approvalRecorded === true && approvedCleanerStatusBody.readiness.confirmedAvailabilityWindows === 0 && approvedCleanerStatusBody.readiness.pendingAvailabilityWindows === 0 && approvedCleanerStatusBody.links.availabilitySubmissionAllowed === true && approvedCleanerStatusBody.steps.find((step) => step.key === "availability")?.state === "current", "Approved cleaner tracker skipped the exact-availability requirement, hid its safe submission action or implied work readiness early.");
+  const availabilityRequestKey = "55555555-5555-4555-8555-555555555555";
+  const availabilityRequestInput = { availableDate: "2026-07-20", startTime: "08:00", endTime: "15:00", note: "Available after the morning train." };
+  const availabilityRequest = await fetch(`${base}/api/cleaner-availability-requests`, { method: "POST", headers: { "content-type": "application/json", "x-cleaner-status-token": cleanerBody.cleanerStatusToken, "idempotency-key": availabilityRequestKey }, body: JSON.stringify(availabilityRequestInput) });
+  const availabilityRequestBody = await availabilityRequest.json();
+  const availabilityRequestReplay = await fetch(`${base}/api/cleaner-availability-requests`, { method: "POST", headers: { "content-type": "application/json", "x-cleaner-status-token": cleanerBody.cleanerStatusToken, "idempotency-key": availabilityRequestKey }, body: JSON.stringify(availabilityRequestInput) });
+  const availabilityRequestReplayBody = await availabilityRequestReplay.json();
+  assert(availabilityRequest.status === 201 && availabilityRequestBody.request.reference.startsWith("AVR-") && availabilityRequestReplay.status === 200 && availabilityRequestReplayBody.replayed === true && availabilityRequestReplayBody.request.reference === availabilityRequestBody.request.reference, "Cleaner availability submission was not safely idempotent.");
+  const changedAvailabilityReplay = await fetch(`${base}/api/cleaner-availability-requests`, { method: "POST", headers: { "content-type": "application/json", "x-cleaner-status-token": cleanerBody.cleanerStatusToken, "idempotency-key": availabilityRequestKey }, body: JSON.stringify({ ...availabilityRequestInput, endTime: "14:00" }) });
+  assert(changedAvailabilityReplay.status === 409, "An availability retry key was reused for different exact times.");
+  const overlappingPendingAvailability = await fetch(`${base}/api/cleaner-availability-requests`, { method: "POST", headers: { "content-type": "application/json", "x-cleaner-status-token": cleanerBody.cleanerStatusToken, "idempotency-key": "66666666-6666-4666-8666-666666666666" }, body: JSON.stringify({ availableDate: "2026-07-20", startTime: "10:00", endTime: "16:00" }) });
+  assert(overlappingPendingAvailability.status === 409, "Overlapping pending cleaner availability was accepted.");
+  const pendingCleanerStatus = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": cleanerBody.cleanerStatusToken } });
+  const pendingCleanerStatusBody = await pendingCleanerStatus.json();
+  assert(pendingCleanerStatus.ok && pendingCleanerStatusBody.current.stage === "availability" && pendingCleanerStatusBody.readiness.readyForOpportunities === false && pendingCleanerStatusBody.readiness.pendingAvailabilityWindows === 1 && pendingCleanerStatusBody.availabilityRequests[0].reference === availabilityRequestBody.request.reference && !JSON.stringify(pendingCleanerStatusBody).includes("morning train"), "Pending availability was not shown safely or incorrectly made the cleaner match-ready.");
+  const pendingAdminRecords = await fetch(`${base}/api/admin/records`);
+  const pendingAdminBody = await pendingAdminRecords.json();
+  const pendingAdminCleaner = pendingAdminBody.records.find((record) => record.id === cleanerBody.reference);
+  assert(pendingAdminRecords.ok && pendingAdminCleaner.availabilityRequests.length === 1 && pendingAdminCleaner.dispatchActions.some((action) => action.code === "availability-review") && !JSON.stringify(pendingAdminCleaner).includes(availabilityRequestKey) && !JSON.stringify(pendingAdminCleaner).includes("submissionFingerprint"), "Pending availability was missing from the founder queue or exposed retry metadata.");
 
   const uncoveredCleaner = await fetch(`${base}/api/cleaner-applications`, {
     method: "POST",
@@ -505,24 +525,33 @@ try {
   const noAvailabilityMatchesBody = await noAvailabilityMatches.json();
   assert(noAvailabilityMatches.ok && noAvailabilityMatchesBody.matches.length === 0, "Matching returned a cleaner without a structured confirmed availability window.");
   const noAvailabilityProposal = await fetch(`${base}/api/admin/proposals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", proposedStartTime: "09:00", estimatedHours: 4, customerRate: 30, cleanerRate: 18, otherCosts: 10 }) });
-  assert(noAvailabilityProposal.status === 422, "A proposal was created without confirmed cleaner availability.");
+  assert(noAvailabilityProposal.status === 422, "A proposal was created from pending rather than confirmed cleaner availability.");
+  const confirmedAvailabilityRequest = await fetch(`${base}/api/admin/cleaner-availability-requests`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: availabilityRequestBody.request.reference, decision: "confirmed", note: "Test-only exact window verified by Tideway." }) });
+  const confirmedAvailabilityRequestBody = await confirmedAvailabilityRequest.json();
+  assert(confirmedAvailabilityRequest.ok && confirmedAvailabilityRequestBody.status === "confirmed" && confirmedAvailabilityRequestBody.slot.sourceRequestId === availabilityRequestBody.request.reference, "Founder confirmation did not convert the pending request into an auditable confirmed window.");
+  const duplicateAvailabilityDecision = await fetch(`${base}/api/admin/cleaner-availability-requests`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: availabilityRequestBody.request.reference, decision: "declined", note: "Test-only duplicate decision should be blocked." }) });
+  assert(duplicateAvailabilityDecision.status === 409, "A cleaner availability request accepted more than one founder decision.");
   const unverifiedAvailability = await fetch(`${base}/api/admin/cleaner-availability`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, availableDate: "2026-07-20", startTime: "08:00", endTime: "15:00", confirmationNote: "short" }) });
   assert(unverifiedAvailability.status === 422, "Cleaner availability was recorded without a meaningful confirmation note.");
   const availabilityWindows = [
-    { availableDate: "2026-07-20", startTime: "08:00", endTime: "15:00" },
     { availableDate: "2026-07-22", startTime: "08:00", endTime: "13:00" },
     { availableDate: "2026-07-23", startTime: "08:00", endTime: "13:00" }
   ];
-  let activeSlot20Id = "";
+  let activeSlot20Id = confirmedAvailabilityRequestBody.slot.id;
   for (const window of availabilityWindows) {
     const savedWindow = await fetch(`${base}/api/admin/cleaner-availability`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, ...window, confirmationNote: "Test-only cleaner confirmation recorded for this exact window." }) });
     const savedWindowBody = await savedWindow.json();
     assert(savedWindow.status === 201 && savedWindowBody.slot.status === "active", `Confirmed availability window ${window.availableDate} was not saved.`);
-    if (window.availableDate === "2026-07-20") activeSlot20Id = savedWindowBody.slot.id;
   }
   const readyCleanerStatus = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": cleanerBody.cleanerStatusToken } });
   const readyCleanerStatusBody = await readyCleanerStatus.json();
   assert(readyCleanerStatus.ok && readyCleanerStatusBody.current.stage === "ready" && readyCleanerStatusBody.readiness.readyForOpportunities === true && readyCleanerStatusBody.readiness.confirmedAvailabilityWindows === 3 && readyCleanerStatusBody.steps.find((step) => step.key === "opportunities")?.state === "current" && readyCleanerStatusBody.current.nextAction.includes("No work is guaranteed"), "Cleaner tracker did not reach evidence-backed opportunity readiness or promised work.");
+  const declinedRequest = await fetch(`${base}/api/cleaner-availability-requests`, { method: "POST", headers: { "content-type": "application/json", "x-cleaner-status-token": cleanerBody.cleanerStatusToken, "idempotency-key": "77777777-7777-4777-8777-777777777777" }, body: JSON.stringify({ availableDate: "2026-07-24", startTime: "09:00", endTime: "14:00", note: "Test-only later window." }) });
+  const declinedRequestBody = await declinedRequest.json();
+  const declinedDecision = await fetch(`${base}/api/admin/cleaner-availability-requests`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: declinedRequestBody.request.reference, decision: "declined", note: "Test-only window could not be verified." }) });
+  const afterDeclineStatus = await fetch(`${base}/api/cleaner-status`, { headers: { "x-cleaner-status-token": cleanerBody.cleanerStatusToken } });
+  const afterDeclineStatusBody = await afterDeclineStatus.json();
+  assert(declinedRequest.status === 201 && declinedDecision.ok && afterDeclineStatusBody.readiness.confirmedAvailabilityWindows === 3 && afterDeclineStatusBody.readiness.pendingAvailabilityWindows === 0 && afterDeclineStatusBody.availabilityRequests.length === 0, "Declining pending availability changed confirmed matching capacity or remained pending.");
   const overlappingAvailability = await fetch(`${base}/api/admin/cleaner-availability`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cleanerId: cleanerBody.reference, availableDate: "2026-07-20", startTime: "10:00", endTime: "16:00", confirmationNote: "Test-only overlapping availability confirmation window." }) });
   assert(overlappingAvailability.status === 409, "Overlapping confirmed availability windows were accepted.");
   const outsideAvailabilityProposal = await fetch(`${base}/api/admin/proposals`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, cleanerId: cleanerBody.reference, proposedDate: "2026-07-20", proposedStartTime: "14:00", estimatedHours: 2, customerRate: 30, cleanerRate: 18, otherCosts: 0 }) });

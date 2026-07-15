@@ -1264,6 +1264,24 @@ async function withdrawCleanerAvailability(record, slot, form) {
   }
 }
 
+async function decideCleanerAvailabilityRequest(requestItem, form) {
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    const response = await fetch("/api/admin/cleaner-availability-requests", {
+      method: "PATCH",
+      headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }),
+      body: JSON.stringify({ requestId: requestItem.id, decision: form.elements.decision.value, note: form.elements.note.value.trim() })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Cleaner availability request could not be decided.");
+    await loadRecords();
+  } catch (error) {
+    showAdminError(error.message);
+    button.disabled = false;
+  }
+}
+
 function availabilityField(labelText, name, type) {
   const label = document.createElement("label");
   label.append(document.createTextNode(labelText));
@@ -1281,13 +1299,53 @@ function availabilityField(labelText, name, type) {
 
 function buildCleanerAvailability(record) {
   const slots = record.cleanerAvailability || [];
+  const requests = record.availabilityRequests || [];
   const panel = document.createElement("details");
   panel.className = `cleaner-availability${slots.length ? " availability-confirmed" : ""}`;
   const summary = document.createElement("summary");
-  summary.textContent = `Confirmed availability · ${slots.length} active window${slots.length === 1 ? "" : "s"}`;
+  summary.textContent = `Availability · ${requests.length} pending · ${slots.length} confirmed`;
   const guidance = document.createElement("p");
-  guidance.textContent = "Record only a window the cleaner has explicitly confirmed. A proposal must fit fully inside an active window, and withdrawal immediately closes affected decisions and bookings.";
+  guidance.textContent = "A cleaner-submitted time stays pending until it is reviewed here. Only a confirmed window can be used for matching; withdrawal immediately closes affected decisions and bookings.";
   panel.append(summary, guidance);
+
+  if (requests.length) {
+    const requestList = document.createElement("div");
+    requestList.className = "availability-list availability-request-list";
+    for (const requestItem of requests) {
+      const item = document.createElement("section");
+      item.className = "availability-item availability-request-item";
+      addText(item, "strong", `Cleaner submitted · ${requestItem.availableDate} · ${requestItem.startTime}-${requestItem.endTime}`);
+      if (requestItem.note) addText(item, "span", `Cleaner note: ${requestItem.note}`);
+      addText(item, "span", "Pending only — not available to matching.");
+      const form = document.createElement("form");
+      form.className = "availability-request-form";
+      const decision = document.createElement("select");
+      decision.name = "decision";
+      decision.setAttribute("aria-label", `Decision for ${requestItem.availableDate} ${requestItem.startTime}-${requestItem.endTime}`);
+      for (const [value, label] of [["confirmed", "Confirm exact window"], ["declined", "Decline request"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        decision.append(option);
+      }
+      const note = document.createElement("input");
+      note.name = "note";
+      note.required = true;
+      note.minLength = 10;
+      note.maxLength = 500;
+      note.placeholder = "Verification or decline reason";
+      note.setAttribute("aria-label", `Decision note for ${requestItem.availableDate}`);
+      const save = document.createElement("button");
+      save.type = "submit";
+      save.className = "button button-small";
+      save.textContent = "Record decision";
+      form.append(decision, note, save);
+      form.addEventListener("submit", (event) => { event.preventDefault(); decideCleanerAvailabilityRequest(requestItem, form); });
+      item.append(form);
+      requestList.append(item);
+    }
+    panel.append(requestList);
+  }
 
   if (slots.length) {
     const list = document.createElement("div");

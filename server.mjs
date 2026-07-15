@@ -159,7 +159,7 @@ function rateLimitPolicyFor(request, pathname) {
   if (request.method === "POST" && ["/api/cleaning-requests", "/api/cleaner-applications", "/api/job-briefs"].includes(pathname)) {
     return { name: `public-submission:${pathname}`, ...apiRateLimitPolicies.publicSubmission };
   }
-  if (request.method === "POST" && ["/api/quote/decision", "/api/opportunity/decision", "/api/booking-change-requests", "/api/job-events"].includes(pathname)) {
+  if (request.method === "POST" && ["/api/quote/decision", "/api/opportunity/decision", "/api/cleaner-availability-requests", "/api/booking-change-requests", "/api/job-events"].includes(pathname)) {
     return { name: `private-write:${pathname}`, ...apiRateLimitPolicies.privateWrite };
   }
   if (request.method === "GET" && ["/api/request-status", "/api/cleaner-status", "/api/quote", "/api/opportunity", "/api/opportunity-photo", "/api/booking-pack", "/api/booking-photo"].includes(pathname)) {
@@ -438,6 +438,97 @@ async function saveCleanerAvailabilityEvent(event) {
   return operation;
 }
 
+function cleanerAvailabilityRequests(events, cleanerId = "") {
+  const requests = new Map();
+  for (const event of events) {
+    if (event.action === "requested" && availabilitySlotSchedule(event)) {
+      requests.set(event.id, { ...event, status: "pending" });
+      continue;
+    }
+    const requestId = text(event.sourceRequestId || event.requestId, 40);
+    if (!requestId || !requests.has(requestId)) continue;
+    if (event.action === "confirmed") {
+      requests.set(requestId, { ...requests.get(requestId), status: "confirmed", decisionNote: event.confirmationNote, decidedAt: event.createdAt, slotId: event.id });
+    } else if (event.action === "declined") {
+      requests.set(requestId, { ...requests.get(requestId), status: "declined", decisionNote: event.note, decidedAt: event.updatedAt });
+    }
+  }
+  return [...requests.values()].filter((item) => !cleanerId || item.cleanerId === cleanerId).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+async function saveCleanerAvailabilityRequest(record) {
+  let result;
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    const [events, cleaners, updates, screenings] = await Promise.all([
+      readRecords("cleaner-availability.ndjson"),
+      readRecords("cleaner-applications.ndjson"),
+      readRecords("status-updates.ndjson"),
+      readRecords("cleaner-screening.ndjson")
+    ]);
+    const replay = events.find((item) => item.action === "requested" && item.submissionKey === record.submissionKey);
+    if (replay) {
+      if (replay.submissionFingerprint !== record.submissionFingerprint) throw Object.assign(new Error("That retry key was already used for different availability details."), { statusCode: 409 });
+      result = { request: replay, replayed: true };
+      return;
+    }
+    const cleaner = cleaners.find((item) => item.id === record.cleanerId);
+    let cleanerStatus = cleaner?.status || "new";
+    for (const update of updates) if (update.id === record.cleanerId && update.kind === "cleaner") cleanerStatus = update.status;
+    if (!cleaner || cleanerStatus !== "approved" || !latestCleanerScreening(record.cleanerId, screenings)?.complete) {
+      throw Object.assign(new Error("Exact availability can only be submitted after screening and current approval."), { statusCode: 422 });
+    }
+    const proposed = availabilitySlotSchedule(record);
+    const confirmedOverlap = activeCleanerAvailability(events, record.cleanerId).find((slot) => schedulesOverlap(proposed, availabilitySlotSchedule(slot)));
+    if (confirmedOverlap) throw Object.assign(new Error(`This time overlaps a confirmed availability window (${confirmedOverlap.id}).`), { statusCode: 409 });
+    const pendingOverlap = cleanerAvailabilityRequests(events, record.cleanerId).find((item) => item.status === "pending" && schedulesOverlap(proposed, availabilitySlotSchedule(item)));
+    if (pendingOverlap) throw Object.assign(new Error(`This time overlaps pending availability request ${pendingOverlap.id}.`), { statusCode: 409 });
+    await appendFile(path.join(dataDir, "cleaner-availability.ndjson"), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+    result = { request: record, replayed: false };
+  });
+  writeQueue = operation;
+  await operation;
+  return result;
+}
+
+async function decideCleanerAvailabilityRequest({ requestId, decision, note }) {
+  let result;
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    const [events, cleaners, updates, screenings] = await Promise.all([
+      readRecords("cleaner-availability.ndjson"),
+      readRecords("cleaner-applications.ndjson"),
+      readRecords("status-updates.ndjson"),
+      readRecords("cleaner-screening.ndjson")
+    ]);
+    const availabilityRequest = cleanerAvailabilityRequests(events).find((item) => item.id === requestId);
+    if (!availabilityRequest) throw Object.assign(new Error("Availability request not found."), { statusCode: 404 });
+    if (availabilityRequest.status !== "pending") throw Object.assign(new Error("This availability request has already been decided."), { statusCode: 409 });
+    if (decision === "confirmed") {
+      const cleaner = cleaners.find((item) => item.id === availabilityRequest.cleanerId);
+      let cleanerStatus = cleaner?.status || "new";
+      for (const update of updates) if (update.id === availabilityRequest.cleanerId && update.kind === "cleaner") cleanerStatus = update.status;
+      if (!cleaner || cleanerStatus !== "approved" || !latestCleanerScreening(cleaner.id, screenings)?.complete) {
+        throw Object.assign(new Error("Only a currently approved, fully screened cleaner can have this time confirmed."), { statusCode: 422 });
+      }
+      const schedule = availabilitySlotSchedule(availabilityRequest);
+      if (!schedule || schedule.endMs <= Date.now()) throw Object.assign(new Error("This requested availability is no longer a valid future window."), { statusCode: 422 });
+      const overlap = activeCleanerAvailability(events, cleaner.id).find((slot) => schedulesOverlap(schedule, availabilitySlotSchedule(slot)));
+      if (overlap) throw Object.assign(new Error(`This request overlaps confirmed availability window ${overlap.id}.`), { statusCode: 409 });
+      const slot = { id: `AVL-${randomUUID().slice(0, 8).toUpperCase()}`, cleanerId: cleaner.id, sourceRequestId: requestId, action: "confirmed", status: "active", availableDate: availabilityRequest.availableDate, startTime: availabilityRequest.startTime, endTime: availabilityRequest.endTime, confirmationNote: note, createdAt: new Date().toISOString() };
+      await appendFile(path.join(dataDir, "cleaner-availability.ndjson"), `${JSON.stringify(slot)}\n`, { encoding: "utf8", mode: 0o600 });
+      result = { requestId, status: "confirmed", slot };
+      return;
+    }
+    const event = { id: `AVD-${randomUUID().slice(0, 8).toUpperCase()}`, requestId, cleanerId: availabilityRequest.cleanerId, action: "declined", status: "declined", note, updatedAt: new Date().toISOString() };
+    await appendFile(path.join(dataDir, "cleaner-availability.ndjson"), `${JSON.stringify(event)}\n`, { encoding: "utf8", mode: 0o600 });
+    result = { requestId, status: "declined", updatedAt: event.updatedAt };
+  });
+  writeQueue = operation;
+  await operation;
+  return result;
+}
+
 async function saveBookingOnce(booking) {
   const operation = writeQueue.catch(() => {}).then(async () => {
     await mkdir(dataDir, { recursive: true });
@@ -708,6 +799,27 @@ async function auditDataIntegrity() {
   checkReferences("job-outcomes.ndjson", "bookingId", "bookings.ndjson");
   checkReferences("job-outcome-adjustments.ndjson", "bookingId", "bookings.ndjson");
   checkReferences("media-retention.ndjson", "briefId", "job-briefs.ndjson");
+
+  const availabilityFile = parsedFiles.get("cleaner-availability.ndjson");
+  if (availabilityFile?.valid) {
+    const requestLines = new Map();
+    const decidedRequests = new Set();
+    for (const { record, line } of availabilityFile.records) {
+      if (record.action === "requested") {
+        const requestId = text(record.id, 80);
+        if (!requestId) recordIssue({ code: "missing-record-id", file: "cleaner-availability.ndjson", line, message: "A cleaner availability request has no reference." });
+        else if (requestLines.has(requestId)) recordIssue({ code: "duplicate-record-id", file: "cleaner-availability.ndjson", line, reference: requestId, message: `Availability request ${requestId} appears more than once.` });
+        else requestLines.set(requestId, line);
+      }
+    }
+    for (const { record, line } of availabilityFile.records) {
+      const requestId = text(record.sourceRequestId || record.requestId, 80);
+      if (!requestId || !["confirmed", "declined"].includes(record.action)) continue;
+      if (!requestLines.has(requestId)) recordIssue({ code: "orphaned-reference", file: "cleaner-availability.ndjson", line, reference: requestId, message: `Availability decision ${requestId} has no matching cleaner request.` });
+      else if (decidedRequests.has(requestId)) recordIssue({ code: "duplicate-availability-decision", file: "cleaner-availability.ndjson", line, reference: requestId, message: `Availability request ${requestId} has more than one decision.` });
+      else decidedRequests.add(requestId);
+    }
+  }
 
   for (const filename of ["status-updates.ndjson", "lead-activity.ndjson"]) {
     const source = parsedFiles.get(filename);
@@ -1365,7 +1477,7 @@ function launchReadiness(config) {
   return { checks, missing, completed: Object.values(checks).filter(Boolean).length, total: Object.keys(checks).length, ready: Object.values(checks).every(Boolean), next: nextKey ? { key: nextKey, label: labels[nextKey], missing: missing[nextKey] } : null };
 }
 
-function dispatchActionsForRecord({ kind, status, nextActionAt, proposals = [], briefs = [], booking = null, outcome = null, screening = null, cleanerAvailability = [], pilotCoverage = null }) {
+function dispatchActionsForRecord({ kind, status, nextActionAt, proposals = [], briefs = [], booking = null, outcome = null, screening = null, cleanerAvailability = [], availabilityRequests = [], pilotCoverage = null }) {
   const actions = [];
   const add = (code, severity, group, title, detail) => {
     if (!actions.some((action) => action.code === code)) actions.push({ code, severity, group, title, detail });
@@ -1378,7 +1490,8 @@ function dispatchActionsForRecord({ kind, status, nextActionAt, proposals = [], 
     if (closed || status === "paused") return actions;
     if (status === "new") add("review-cleaner", "high", "supply", "Review new cleaner application", "Check the application without approving, rejecting or contacting the applicant unless the founder authorises that action.");
     else if (["contacted", "screening"].includes(status) && !screening?.complete) add("complete-screening", "high", "supply", "Cleaner screening is incomplete", "Complete the seven recorded checks before approval, matching or availability confirmation.");
-    else if (status === "approved" && screening?.complete && cleanerAvailability.length === 0) add("availability-needed", "high", "supply", "Approved cleaner has no confirmed availability", "Record only an explicitly verified future availability window before matching this cleaner.");
+    else if (status === "approved" && screening?.complete && availabilityRequests.some((item) => item.status === "pending")) add("availability-review", "high", "supply", "Cleaner availability needs confirmation", "Confirm or decline the cleaner's submitted exact time. A pending request is never used for matching.");
+    else if (status === "approved" && screening?.complete && cleanerAvailability.length === 0) add("availability-needed", "high", "supply", "Approved cleaner has no confirmed availability", "Ask the cleaner to submit an exact future window through their private tracker, or record only a separately verified window before matching.");
     return actions;
   }
 
@@ -1666,11 +1779,12 @@ async function getAdminRecords(request, response) {
     const leadBriefs = kind === "request" ? (briefsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 5) : [];
     const screening = kind === "cleaner" ? latestCleanerScreening(record.id, screenings) : null;
     const cleanerAvailability = kind === "cleaner" ? activeCleanerAvailability(availabilityEvents, record.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > Date.now()) : [];
+    const availabilityRequests = kind === "cleaner" ? cleanerAvailabilityRequests(availabilityEvents, record.id).filter((item) => item.status === "pending" && availabilitySlotSchedule(item)?.endMs > Date.now()).map(({ submissionKey: ignoredKey, submissionFingerprint: ignoredFingerprint, ...item }) => item) : [];
     const pilotCoverage = kind === "request" ? pilotPostcodeCoverage(record.postcode, config.pilotPostcodes) : null;
     const status = latestStatuses.get(record.id) || record.status || "new";
     const nextActionAt = leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "";
-    const dispatchActions = dispatchActionsForRecord({ kind, status, nextActionAt, proposals: leadProposals, briefs: leadBriefs, booking, outcome, screening, cleanerAvailability, pilotCoverage });
-    return { ...privateLead, kind, status, activities: leadActivities.slice(0, 10), nextActionAt, proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, cleanerAvailability, pilotCoverage, booking, outcome, dispatchActions };
+    const dispatchActions = dispatchActionsForRecord({ kind, status, nextActionAt, proposals: leadProposals, briefs: leadBriefs, booking, outcome, screening, cleanerAvailability, availabilityRequests, pilotCoverage });
+    return { ...privateLead, kind, status, activities: leadActivities.slice(0, 10), nextActionAt, proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, cleanerAvailability, availabilityRequests, pilotCoverage, booking, outcome, dispatchActions };
   };
   const records = [
     ...requests.map((record) => merge(record, "request")),
@@ -1745,6 +1859,19 @@ async function withdrawAdminCleanerAvailability(request, response) {
   const event = { slotId, cleanerId, action: "withdrawn", status: "withdrawn", note, updatedAt: new Date().toISOString() };
   await saveCleanerAvailabilityEvent(event);
   return json(response, 200, { ok: true, slotId, status: "withdrawn", updatedAt: event.updatedAt });
+}
+
+async function decideAdminCleanerAvailabilityRequest(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const input = await readJson(request);
+  const requestId = text(input.requestId, 40);
+  const decision = text(input.decision, 20).toLowerCase();
+  const note = text(input.note, 500);
+  if (!requestId || !["confirmed", "declined"].includes(decision)) return json(response, 422, { ok: false, error: "Choose a pending availability request and confirm or decline it." });
+  if (note.length < 10) return json(response, 422, { ok: false, error: "Add a decision note of at least 10 characters." });
+  const result = await decideCleanerAvailabilityRequest({ requestId, decision, note });
+  return json(response, 200, { ok: true, ...result });
 }
 
 async function updateAdminJobBriefStatus(request, response) {
@@ -3002,6 +3129,36 @@ async function getPrivateRequestStatus(request, response) {
   });
 }
 
+async function createPrivateCleanerAvailabilityRequest(request, response) {
+  ensureSameOrigin(request);
+  const token = text(request.headers["x-cleaner-status-token"], 80);
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private cleaner link is invalid." });
+  const [cleaners, statusUpdates, screenings] = await Promise.all([
+    readRecords("cleaner-applications.ndjson"),
+    readRecords("status-updates.ndjson"),
+    readRecords("cleaner-screening.ndjson")
+  ]);
+  const cleaner = cleaners.find((record) => record.cleanerStatusToken === token);
+  if (!cleaner) return json(response, 404, { ok: false, error: "This private cleaner link is invalid." });
+  let status = cleaner.status || "new";
+  for (const update of statusUpdates) if (update.id === cleaner.id && update.kind === "cleaner") status = update.status;
+  if (status !== "approved" || !latestCleanerScreening(cleaner.id, screenings)?.complete) return json(response, 422, { ok: false, error: "Exact availability can only be submitted after screening and current approval." });
+
+  const input = await readJson(request);
+  const availableDate = text(input.availableDate, 20);
+  const startTime = text(input.startTime, 10);
+  const endTime = text(input.endTime, 10);
+  const note = text(input.note, 500);
+  const schedule = availabilitySlotSchedule({ availableDate, startTime, endTime });
+  if (!schedule || schedule.endMs <= Date.now() || schedule.endMs - schedule.startMs > 16 * 60 * 60 * 1000) return json(response, 422, { ok: false, error: "Choose a valid future availability window of no more than 16 hours." });
+  const key = submissionKey(request);
+  const fingerprint = submissionFingerprint({ cleanerId: cleaner.id, availableDate, startTime, endTime, note });
+  const availabilityRequest = { id: `AVR-${randomUUID().slice(0, 8).toUpperCase()}`, cleanerId: cleaner.id, action: "requested", status: "pending", availableDate, startTime, endTime, note, createdAt: new Date().toISOString(), submissionKey: key, submissionFingerprint: fingerprint };
+  const saved = await saveCleanerAvailabilityRequest(availabilityRequest);
+  const safeRequest = { reference: saved.request.id, availableDate: saved.request.availableDate, startTime: saved.request.startTime, endTime: saved.request.endTime, status: "pending" };
+  return json(response, saved.replayed ? 200 : 201, { ok: true, request: safeRequest, replayed: saved.replayed, message: "Availability submitted for Tideway confirmation. It is not used for matching yet." });
+}
+
 async function getPrivateCleanerStatus(request, response) {
   const token = text(request.headers["x-cleaner-status-token"], 80);
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private cleaner link is invalid." });
@@ -3021,6 +3178,7 @@ async function getPrivateCleanerStatus(request, response) {
   const screeningComplete = screening?.complete === true;
   const approvalRecorded = status === "approved" || status === "paused" || ownStatusUpdates.some((update) => update.status === "approved");
   const futureAvailability = activeCleanerAvailability(availabilityEvents, cleaner.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > Date.now());
+  const pendingAvailabilityRequests = cleanerAvailabilityRequests(availabilityEvents, cleaner.id).filter((item) => item.status === "pending" && availabilitySlotSchedule(item)?.endMs > Date.now());
   const readyForOpportunities = status === "approved" && screeningComplete && futureAvailability.length > 0;
 
   let stage = "application-review";
@@ -3040,8 +3198,8 @@ async function getPrivateCleanerStatus(request, response) {
     nextAction = "Tideway must record a separate approval decision. Completed checks alone do not approve or assign work.";
   } else if (status === "approved" && !futureAvailability.length) {
     stage = "availability";
-    headline = "Application approved — availability needed";
-    nextAction = "Approval does not create work. Tideway must separately confirm exact future availability windows before matching.";
+    headline = pendingAvailabilityRequests.length ? "Availability awaiting confirmation" : "Application approved — availability needed";
+    nextAction = pendingAvailabilityRequests.length ? "Tideway must confirm or decline the submitted exact time before it can be used for matching." : "Submit an exact future time below. Tideway must separately confirm it before matching.";
   } else if (readyForOpportunities) {
     stage = "ready";
     headline = "Ready for suitable opportunities";
@@ -3062,7 +3220,7 @@ async function getPrivateCleanerStatus(request, response) {
     { key: "application", label: "Application received", state: "complete", detail: `Reference ${cleaner.id}` },
     { key: "screening", label: "Screening checks", state: screeningComplete ? "complete" : screeningReached ? "current" : "waiting", detail: screeningComplete ? "Required checks recorded" : screeningReached ? "Checks not yet complete" : "Not started" },
     { key: "approval", label: "Approval decision", state: approvalRecorded ? "complete" : screeningComplete ? "current" : "waiting", detail: approvalRecorded ? (status === "approved" ? "Currently approved" : "Approval was previously recorded") : status === "rejected" ? "No approval recorded" : "Decision not recorded" },
-    { key: "availability", label: "Exact availability confirmed", state: readyForOpportunities ? "complete" : status === "approved" ? "current" : "waiting", detail: readyForOpportunities ? `${futureAvailability.length} future confirmed ${futureAvailability.length === 1 ? "window" : "windows"}` : "Not confirmed for matching" },
+    { key: "availability", label: "Exact availability confirmed", state: readyForOpportunities ? "complete" : status === "approved" ? "current" : "waiting", detail: readyForOpportunities ? `${futureAvailability.length} future confirmed ${futureAvailability.length === 1 ? "window" : "windows"}` : pendingAvailabilityRequests.length ? `${pendingAvailabilityRequests.length} submitted — awaiting Tideway confirmation` : "Not confirmed for matching" },
     { key: "opportunities", label: "Suitable opportunities", state: readyForOpportunities ? "current" : "waiting", detail: readyForOpportunities ? "Eligible to be considered — work is not guaranteed" : inactive ? "Not active for matching" : "Waiting for screening, approval and availability" }
   ];
 
@@ -3071,7 +3229,9 @@ async function getPrivateCleanerStatus(request, response) {
     application: { reference: cleaner.id },
     current: { stage, headline, nextAction },
     steps,
-    readiness: { screeningComplete, approvalRecorded: status === "approved", confirmedAvailabilityWindows: readyForOpportunities ? futureAvailability.length : 0, readyForOpportunities }
+    readiness: { screeningComplete, approvalRecorded: status === "approved", confirmedAvailabilityWindows: readyForOpportunities ? futureAvailability.length : 0, pendingAvailabilityWindows: pendingAvailabilityRequests.length, readyForOpportunities },
+    availabilityRequests: pendingAvailabilityRequests.map((item) => ({ reference: item.id, availableDate: item.availableDate, startTime: item.startTime, endTime: item.endTime, status: "pending" })),
+    links: { availabilitySubmissionAllowed: status === "approved" && screeningComplete }
   });
 }
 
@@ -3957,6 +4117,9 @@ async function handleHttpRequest(request, response) {
     if (request.method === "GET" && requestUrl.pathname === "/api/cleaner-status") {
       return await getPrivateCleanerStatus(request, response);
     }
+    if (request.method === "POST" && requestUrl.pathname === "/api/cleaner-availability-requests") {
+      return await createPrivateCleanerAvailabilityRequest(request, response);
+    }
     if (request.method === "GET" && requestUrl.pathname === "/api/quote") {
       return await getPrivateQuote(request, response);
     }
@@ -4040,6 +4203,9 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/cleaner-availability") {
       return await withdrawAdminCleanerAvailability(request, response);
+    }
+    if (request.method === "PATCH" && requestUrl.pathname === "/api/admin/cleaner-availability-requests") {
+      return await decideAdminCleanerAvailabilityRequest(request, response);
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/admin/activity") {
       return await addAdminActivity(request, response);

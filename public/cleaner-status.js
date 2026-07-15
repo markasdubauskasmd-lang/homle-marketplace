@@ -1,3 +1,5 @@
+import { newSubmissionKey } from "./submission-key.js";
+
 const token = location.hash.slice(1);
 if (token) history.replaceState(null, "", `${location.pathname}${location.search}`);
 
@@ -5,6 +7,12 @@ const loading = document.querySelector("#cleaner-status-loading");
 const errorState = document.querySelector("#cleaner-status-error");
 const content = document.querySelector("#cleaner-status-content");
 const refresh = document.querySelector("[data-refresh]");
+const availabilityAction = document.querySelector("[data-availability-action]");
+const availabilityForm = document.querySelector("[data-availability-form]");
+const availabilityMessage = document.querySelector("[data-availability-message]");
+const pendingAvailability = document.querySelector("[data-pending-availability]");
+const pendingList = document.querySelector("[data-pending-list]");
+let availabilitySubmissionKey = newSubmissionKey();
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 
@@ -61,6 +69,16 @@ function renderStatus(result) {
     item.textContent = value;
     readiness.append(item);
   }
+
+  const pending = result.availabilityRequests || [];
+  availabilityAction.hidden = !result.links?.availabilitySubmissionAllowed;
+  pendingAvailability.hidden = pending.length === 0;
+  pendingList.replaceChildren();
+  for (const request of pending) {
+    const item = document.createElement("li");
+    item.textContent = `${request.availableDate} · ${request.startTime}-${request.endTime} · pending`;
+    pendingList.append(item);
+  }
 }
 
 async function loadStatus() {
@@ -79,4 +97,29 @@ async function loadStatus() {
 }
 
 refresh.addEventListener("click", loadStatus);
+availabilityForm.elements.availableDate.min = new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
+availabilityForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = availabilityForm.querySelector("button");
+  button.disabled = true;
+  availabilityMessage.textContent = "Submitting your time…";
+  try {
+    const body = Object.fromEntries(new FormData(availabilityForm).entries());
+    const response = await fetch("/api/cleaner-availability-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "X-Cleaner-Status-Token": token, "Idempotency-Key": availabilitySubmissionKey },
+      body: JSON.stringify(body)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Your availability could not be submitted.");
+    availabilityForm.reset();
+    availabilitySubmissionKey = newSubmissionKey();
+    availabilityMessage.textContent = result.message;
+    await loadStatus();
+  } catch (error) {
+    availabilityMessage.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
 loadStatus();
