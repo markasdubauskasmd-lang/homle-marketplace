@@ -24,7 +24,7 @@ If the status is **Degraded — writes stopped**:
 
 1. Do not hand-edit, delete, rename or replace the reported file. Tideway has already stopped new writes and will not repair anything automatically.
 2. Create a private backup of the current state with `tools/backup-data.ps1` and keep its printed SHA-256 checksum. This preserves the evidence even when the current state is damaged.
-3. Record the reported filename, line and reference. The integrity response deliberately excludes customer content.
+3. Record the reported filename, line, reference and issue code. `invalid-financial-config` or `invalid-financial-record` means a parseable configuration, proposal, booking, outcome or adjustment failed its supported-value or frozen-calculation checks; do not retype or recalculate it in place. The integrity response deliberately excludes customer content and financial values.
 4. Locate the latest earlier private backup whose checksum and date are known. Restore and inspect it in a separate temporary `DATA_DIR`; do not overwrite the live folder merely because a zip opens.
 5. Start the restored copy on a different local port and run `/api/health` plus the authenticated `/api/admin/data-integrity` check. Accept it only when `dataIntegrity` is `healthy`, `writesAllowed` is `true`, the integrity desk shows zero issues and expected record counts are present.
 6. Stop Tideway before replacing the live `data/` folder. Preserve the damaged copy separately, restore the verified copy, restart, rerun the integrity check and compare the control-desk funnel and latest real references.

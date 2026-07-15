@@ -800,9 +800,11 @@ async function auditDataIntegrity() {
   }
 
   let configStatus = "not-created";
+  let parsedConfig = null;
   try {
     const config = JSON.parse(await readFile(path.join(dataDir, "business-config.json"), "utf8"));
     if (!config || typeof config !== "object" || Array.isArray(config)) throw new Error("not-object");
+    parsedConfig = config;
     configStatus = "ok";
   } catch (error) {
     if (error.code !== "ENOENT") {
@@ -868,6 +870,114 @@ async function auditDataIntegrity() {
   checkReferences("job-outcomes.ndjson", "bookingId", "bookings.ndjson");
   checkReferences("job-outcome-adjustments.ndjson", "bookingId", "bookings.ndjson");
   checkReferences("media-retention.ndjson", "briefId", "job-briefs.ndjson");
+
+  const hasFiniteNumber = (record, field) => typeof record?.[field] === "number" && Number.isFinite(record[field]);
+  const moneyMatches = (left, right) => Number.isFinite(Number(left)) && Number.isFinite(Number(right)) && moneyValue(left) === moneyValue(right);
+  const financialIssue = (file, line, record, message) => recordIssue({
+    code: "invalid-financial-record",
+    file,
+    line,
+    reference: text(record.id || record.bookingId, 80),
+    message
+  });
+
+  if (configStatus === "ok" && parsedConfig) {
+    const numericFields = ["customerHourlyRate", "cleanerHourlyPay", "minimumHours", "minimumContributionMarginPercent", "paymentFeePercent", "paymentFeeFixed", "travelCostPerJob", "suppliesCostPerJob", "riskContingencyPercent", "customerQuoteValidityHours", "cleanerOpportunityValidityHours", "inactiveMediaRetentionDays", "completedMediaRetentionDays"];
+    const valid = numericFields.every((field) => hasFiniteNumber(parsedConfig, field))
+      && parsedConfig.customerHourlyRate >= 0 && parsedConfig.customerHourlyRate <= maxProposalHourlyRate
+      && parsedConfig.cleanerHourlyPay >= 0 && parsedConfig.cleanerHourlyPay <= maxProposalHourlyRate
+      && parsedConfig.minimumHours >= 0 && parsedConfig.minimumHours <= maxProposalHours
+      && parsedConfig.minimumContributionMarginPercent >= 0 && parsedConfig.minimumContributionMarginPercent < 100
+      && parsedConfig.paymentFeePercent >= 0 && parsedConfig.paymentFeePercent <= 20
+      && parsedConfig.paymentFeeFixed >= 0 && parsedConfig.paymentFeeFixed <= 20
+      && parsedConfig.travelCostPerJob >= 0 && parsedConfig.travelCostPerJob <= 200
+      && parsedConfig.suppliesCostPerJob >= 0 && parsedConfig.suppliesCostPerJob <= 200
+      && parsedConfig.riskContingencyPercent >= 0 && parsedConfig.riskContingencyPercent <= 50
+      && (!parsedConfig.customerQuoteValidityHours || (Number.isInteger(parsedConfig.customerQuoteValidityHours) && parsedConfig.customerQuoteValidityHours >= 1 && parsedConfig.customerQuoteValidityHours <= 168))
+      && (!parsedConfig.cleanerOpportunityValidityHours || (Number.isInteger(parsedConfig.cleanerOpportunityValidityHours) && parsedConfig.cleanerOpportunityValidityHours >= 1 && parsedConfig.cleanerOpportunityValidityHours <= 168))
+      && (!parsedConfig.inactiveMediaRetentionDays || validRetentionDays(parsedConfig.inactiveMediaRetentionDays))
+      && (!parsedConfig.completedMediaRetentionDays || validRetentionDays(parsedConfig.completedMediaRetentionDays));
+    if (!valid) recordIssue({ code: "invalid-financial-config", file: "business-config.json", message: "The private launch configuration contains invalid or unsupported numeric values." });
+  }
+
+  const proposalFile = parsedFiles.get("match-proposals.ndjson");
+  if (proposalFile?.valid) {
+    const amountFields = ["customerTotal", "cleanerPay", "paymentFees", "travelCosts", "suppliesCosts", "riskContingency", "otherCosts", "nonCleanerCosts", "contribution"];
+    const assumptionFields = ["paymentFeePercent", "paymentFeeFixed", "travelCostPerJob", "suppliesCostPerJob", "riskContingencyPercent"];
+    for (const { record, line } of proposalFile.records) {
+      const baseFieldsValid = ["estimatedHours", "customerRate", "cleanerRate", "marginPercent", ...amountFields].every((field) => hasFiniteNumber(record, field));
+      const assumptionsValid = assumptionFields.every((field) => hasFiniteNumber(record.costAssumptions, field));
+      let consistent = false;
+      if (baseFieldsValid && assumptionsValid) {
+        const expected = calculateProposalEconomics(record.estimatedHours, record.customerRate, record.cleanerRate, record.otherCosts, record.costAssumptions);
+        consistent = amountFields.every((field) => moneyMatches(record[field], expected[field])) && Math.abs(record.marginPercent - expected.marginPercent) < 0.000001;
+      }
+      const withinLimits = baseFieldsValid
+        && record.estimatedHours > 0 && record.estimatedHours <= maxProposalHours
+        && record.customerRate > 0 && record.customerRate <= maxProposalHourlyRate
+        && record.cleanerRate > 0 && record.cleanerRate <= maxProposalHourlyRate
+        && record.otherCosts >= 0 && record.otherCosts <= maxProposalAdditionalCosts
+        && record.contribution > 0;
+      if (!baseFieldsValid || !assumptionsValid || !withinLimits || !consistent) financialIssue("match-proposals.ndjson", line, record, "This proposal has invalid, unsupported or inconsistent frozen economics.");
+    }
+  }
+
+  const bookingFile = parsedFiles.get("bookings.ndjson");
+  if (bookingFile?.valid) {
+    const amountFields = ["plannedCustomerTotal", "plannedCleanerPay", "plannedContribution", "plannedPaymentFees", "plannedTravelCosts", "plannedSuppliesCosts", "plannedRiskContingency", "plannedAdditionalCosts", "plannedNonCleanerCosts"];
+    for (const { record, line } of bookingFile.records) {
+      const numericValid = hasFiniteNumber(record, "estimatedHours") && amountFields.every((field) => hasFiniteNumber(record, field)) && hasFiniteNumber(record.paymentEvidence, "amount");
+      const plannedCosts = moneyValue(Number(record.plannedPaymentFees) + Number(record.plannedTravelCosts) + Number(record.plannedSuppliesCosts) + Number(record.plannedRiskContingency) + Number(record.plannedAdditionalCosts));
+      const plannedContribution = moneyValue(Number(record.plannedCustomerTotal) - Number(record.plannedCleanerPay) - Number(record.plannedNonCleanerCosts));
+      const consistent = numericValid
+        && moneyMatches(record.plannedNonCleanerCosts, plannedCosts)
+        && moneyMatches(record.plannedContribution, plannedContribution)
+        && moneyMatches(record.paymentEvidence.amount, record.plannedCustomerTotal);
+      const withinLimits = numericValid
+        && record.estimatedHours > 0 && record.estimatedHours <= maxProposalHours
+        && record.plannedCustomerTotal > 0 && record.plannedCustomerTotal <= maxProposalHours * maxProposalHourlyRate
+        && record.plannedCleanerPay > 0 && record.plannedCleanerPay <= maxProposalHours * maxProposalHourlyRate
+        && record.plannedAdditionalCosts >= 0 && record.plannedAdditionalCosts <= maxProposalAdditionalCosts
+        && record.plannedContribution > 0;
+      if (!numericValid || !consistent || !withinLimits) financialIssue("bookings.ndjson", line, record, "This booking has invalid, unsupported or inconsistent frozen economics.");
+    }
+  }
+
+  const outcomeFile = parsedFiles.get("job-outcomes.ndjson");
+  if (outcomeFile?.valid) {
+    const amountFields = ["customerCollected", "cleanerPaid", "paymentFees", "travelCosts", "suppliesCosts", "otherCosts", "refundAmount"];
+    for (const { record, line } of outcomeFile.records) {
+      const numericFields = ["actualHours", ...amountFields, "totalDirectCosts", "contribution", "marginPercent", "targetMarginPercent"];
+      const numericValid = numericFields.every((field) => hasFiniteNumber(record, field)) && hasFiniteNumber(record.settlementEvidence, "customerCollected") && hasFiniteNumber(record.settlementEvidence, "cleanerPaid");
+      const totalDirectCosts = moneyValue(Number(record.paymentFees) + Number(record.travelCosts) + Number(record.suppliesCosts) + Number(record.otherCosts));
+      const contribution = moneyValue(Number(record.customerCollected) - Number(record.cleanerPaid) - totalDirectCosts - Number(record.refundAmount));
+      const marginPercent = Number(record.customerCollected) > 0 ? (contribution / Number(record.customerCollected)) * 100 : NaN;
+      const consistent = numericValid
+        && moneyMatches(record.totalDirectCosts, totalDirectCosts)
+        && moneyMatches(record.contribution, contribution)
+        && Math.abs(record.marginPercent - marginPercent) < 0.000001
+        && moneyMatches(record.settlementEvidence.customerCollected, record.customerCollected)
+        && moneyMatches(record.settlementEvidence.cleanerPaid, record.cleanerPaid);
+      const withinLimits = numericValid
+        && record.actualHours > 0 && record.actualHours <= maxOutcomeHours
+        && record.customerCollected > 0
+        && amountFields.every((field) => record[field] >= 0 && record[field] <= maxFinancialRecordAmount);
+      if (!numericValid || !consistent || !withinLimits) financialIssue("job-outcomes.ndjson", line, record, "This completed-job record has invalid, unsupported or inconsistent economics.");
+    }
+  }
+
+  const adjustmentFile = parsedFiles.get("job-outcome-adjustments.ndjson");
+  if (adjustmentFile?.valid) {
+    const adjustmentFields = ["additionalHours", "additionalCustomerCollected", "additionalCleanerPaid", "additionalPaymentFees", "additionalTravelCosts", "additionalSuppliesCosts", "additionalOtherCosts", "additionalRefundAmount"];
+    for (const { record, line } of adjustmentFile.records) {
+      const numericValid = adjustmentFields.every((field) => hasFiniteNumber(record, field));
+      const withinLimits = numericValid
+        && adjustmentFields.every((field) => record[field] >= 0)
+        && record.additionalHours <= maxOutcomeHours
+        && adjustmentFields.slice(1).every((field) => record[field] <= maxFinancialRecordAmount);
+      if (!numericValid || !withinLimits) financialIssue("job-outcome-adjustments.ndjson", line, record, "This completed-job adjustment has invalid or unsupported economics.");
+    }
+  }
 
   const availabilityFile = parsedFiles.get("cleaner-availability.ndjson");
   if (availabilityFile?.valid) {
