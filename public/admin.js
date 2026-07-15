@@ -162,7 +162,7 @@ async function loadConfig() {
 
 function mediaStateLabel(item) {
   if (item.state === "eligible") return "Eligible after policy period";
-  if (item.state === "scheduled") return `Scheduled after ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(item.deleteAfter))}`;
+  if (item.state === "scheduled") return `Scheduled after ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeZone: "Europe/London" }).format(new Date(item.deleteAfter))}`;
   if (item.state === "purged") return `Media deleted ${formatDate(item.purgedAt)}`;
   if (item.state === "decision-required") return "Retention period not set";
   return "Active request — retained";
@@ -332,7 +332,7 @@ function showAdminError(message) {
 }
 
 function formatDate(value) {
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(value));
 }
 
 function addText(parent, tag, text, className) {
@@ -1786,7 +1786,7 @@ function buildCard(record) {
   if (record.nextActionAt || record.activities?.length) {
     const activitySummary = document.createElement("div");
     activitySummary.className = "activity-summary";
-    if (record.nextActionAt) addText(activitySummary, "span", `Next action: ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(`${record.nextActionAt}T12:00:00`))}`, "next-action");
+    if (record.nextActionAt) addText(activitySummary, "span", `Next action: ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeZone: "Europe/London" }).format(new Date(`${record.nextActionAt}T12:00:00`))}`, "next-action");
     const latestNote = record.activities?.find((activity) => activity.note);
     if (latestNote) addText(activitySummary, "span", `Latest note: ${latestNote.note}`);
     card.append(activitySummary);

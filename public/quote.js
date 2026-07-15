@@ -7,8 +7,8 @@ const content = document.querySelector("#quote-content");
 const form = document.querySelector("#quote-decision");
 const locked = document.querySelector("#quote-locked");
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
-const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "long" });
-const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeStyle: "short" });
+const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeZone: "Europe/London" });
+const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/London" });
 
 function setText(selector, value) {
   document.querySelector(selector).textContent = value || "—";

@@ -7,8 +7,8 @@ const content = document.querySelector("#opportunity-content");
 const form = document.querySelector("#opportunity-decision");
 const locked = document.querySelector("#opportunity-locked");
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
-const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "long" });
-const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeStyle: "short" });
+const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeZone: "Europe/London" });
+const dateTime = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/London" });
 const roomPhotoObjectUrls = [];
 
 function setText(selector, value) {

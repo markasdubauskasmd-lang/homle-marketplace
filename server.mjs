@@ -673,7 +673,34 @@ function bookingJobProgress(bookingId, events) {
   };
 }
 
-async function saveJobEvent(record) {
+const cleanerArrivalLeadMinutes = 30;
+
+function bookingJobTiming(booking, now = Date.now()) {
+  const scheduledStartMs = businessEpochFromWallClock(booking?.proposedDate, booking?.proposedStartTime);
+  if (!Number.isFinite(scheduledStartMs)) return { valid: false, scheduledStartAt: "", arrivalOpensAt: "", arrivalCanBeRecorded: false, completionCanBeRecorded: false };
+  const arrivalOpensMs = scheduledStartMs - cleanerArrivalLeadMinutes * 60 * 1000;
+  const nowMs = now instanceof Date ? now.getTime() : Number(now);
+  return {
+    valid: true,
+    scheduledStartAt: new Date(scheduledStartMs).toISOString(),
+    arrivalOpensAt: new Date(arrivalOpensMs).toISOString(),
+    arrivalCanBeRecorded: Number.isFinite(nowMs) && nowMs >= arrivalOpensMs,
+    completionCanBeRecorded: Number.isFinite(nowMs) && nowMs >= scheduledStartMs
+  };
+}
+
+function assertJobEventTiming(booking, record) {
+  const timing = bookingJobTiming(booking, Date.parse(record.createdAt));
+  if (!timing.valid) throw Object.assign(new Error("The confirmed visit has no valid UK-local start time. Tideway must review the booking before recording job events."), { statusCode: 409 });
+  if (record.type === "cleaner-arrived" && !timing.arrivalCanBeRecorded) {
+    throw Object.assign(new Error("Arrival can only be recorded from 30 minutes before the confirmed visit start. The booking remains unchanged."), { statusCode: 409 });
+  }
+  if (["cleaner-completed", "customer-completed"].includes(record.type) && !timing.completionCanBeRecorded) {
+    throw Object.assign(new Error("Completion cannot be recorded before the confirmed visit starts."), { statusCode: 409 });
+  }
+}
+
+async function saveJobEvent(record, booking) {
   const operation = writeQueue.catch(() => {}).then(async () => {
     await mkdir(dataDir, { recursive: true });
     const [events, changes, changeUpdates] = await Promise.all([
@@ -681,6 +708,7 @@ async function saveJobEvent(record) {
       readRecords("booking-change-requests.ndjson"),
       readRecords("booking-change-status.ndjson")
     ]);
+    assertJobEventTiming(booking, record);
     if (events.some((event) => event.bookingId === record.bookingId && event.type === record.type)) {
       throw Object.assign(new Error("This job event has already been recorded."), { statusCode: 409 });
     }
@@ -3045,7 +3073,7 @@ async function getPrivateBookingPack(request, response) {
     .map((record) => applyBookingChangeStatus(record, updates))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
     .map(({ bookingId, requestId, cleanerId, audience, ...record }) => record);
-  return json(response, 200, { ok: true, booking: { ...context.pack, frequency: context.pack.frequency || context.booking.frequency || "Not recorded", confirmedAt: context.booking.createdAt, changeRequests: ownRequests, jobProgress: bookingJobProgress(context.booking.id, jobEvents) } });
+  return json(response, 200, { ok: true, booking: { ...context.pack, frequency: context.pack.frequency || context.booking.frequency || "Not recorded", confirmedAt: context.booking.createdAt, changeRequests: ownRequests, jobProgress: bookingJobProgress(context.booking.id, jobEvents), jobTiming: bookingJobTiming(context.booking) } });
 }
 
 async function getPrivateBookingPhoto(request, response, imageId) {
@@ -3451,8 +3479,8 @@ async function createPrivateJobEvent(request, response) {
     note: text(input.note, 1000),
     createdAt: new Date().toISOString()
   };
-  await saveJobEvent(record);
-  return json(response, 201, { ok: true, reference: record.id, type, recordedAt: record.createdAt });
+  await saveJobEvent(record, context.booking);
+  return json(response, 201, { ok: true, reference: record.id, type, recordedAt: record.createdAt, jobTiming: bookingJobTiming(context.booking) });
 }
 
 async function updateAdminBookingChangeStatus(request, response) {

@@ -10,8 +10,9 @@ const rescheduleFields = changeForm.querySelector("[data-reschedule-fields]");
 let currentRequests = [];
 let currentProgress = {};
 let currentAudience = "";
+let currentJobTiming = {};
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
-const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "long" });
+const date = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeZone: "Europe/London" });
 
 function setText(selector, value) {
   document.querySelector(selector).textContent = value || "—";
@@ -149,7 +150,7 @@ function eventForm(type) {
       if (type === "cleaner-completed") currentProgress.cleanerCompletedAt = result.recordedAt;
       if (type === "customer-completed") currentProgress.customerCompletedAt = result.recordedAt;
       currentProgress.readyForOutcome = Boolean(currentProgress.cleanerArrivedAt && currentProgress.cleanerCompletedAt && currentProgress.customerCompletedAt);
-      renderJobProgress(currentProgress, currentAudience);
+      renderJobProgress(currentProgress, currentAudience, result.jobTiming || currentJobTiming);
     } catch (requestError) {
       error.textContent = requestError.message;
       error.hidden = false;
@@ -160,9 +161,10 @@ function eventForm(type) {
   return form;
 }
 
-function renderJobProgress(progress = {}, audience) {
+function renderJobProgress(progress = {}, audience, timing = {}) {
   currentProgress = { ...progress };
   currentAudience = audience;
+  currentJobTiming = { ...timing };
   const list = document.querySelector("[data-job-progress]");
   const actions = document.querySelector("[data-job-actions]");
   list.replaceChildren();
@@ -174,12 +176,16 @@ function renderJobProgress(progress = {}, audience) {
   ];
   steps.forEach(([label, timestamp]) => {
     const item = document.createElement("li");
-    item.textContent = timestamp ? `✓ ${label} · ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(timestamp))}` : `○ ${label} · awaiting`;
+    item.textContent = timestamp ? `✓ ${label} · ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(timestamp))} UK local time` : `○ ${label} · awaiting`;
     list.append(item);
   });
   if (audience === "cleaner") {
-    if (!progress.cleanerArrivedAt) actions.append(eventForm("cleaner-arrived"));
-    else if (!progress.cleanerCompletedAt) actions.append(eventForm("cleaner-completed"));
+    if (!progress.cleanerArrivedAt && timing.arrivalCanBeRecorded !== true) {
+      actions.textContent = timing.arrivalOpensAt ? `Arrival confirmation opens 30 minutes before the visit, at ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(timing.arrivalOpensAt))} UK local time. Reload this private pack then.` : "Tideway must review the confirmed visit time before arrival can be recorded.";
+    } else if (!progress.cleanerArrivedAt) actions.append(eventForm("cleaner-arrived"));
+    else if (!progress.cleanerCompletedAt && timing.completionCanBeRecorded !== true) {
+      actions.textContent = "Cleaner completion opens at the confirmed visit start. Reload this private pack at that time.";
+    } else if (!progress.cleanerCompletedAt) actions.append(eventForm("cleaner-completed"));
     else actions.textContent = "Cleaner completion has been recorded. The customer can now acknowledge that the visit took place.";
   } else if (!progress.cleanerCompletedAt) {
     actions.textContent = "Customer acknowledgement opens after the cleaner records completion.";
@@ -254,7 +260,7 @@ async function renderBooking(booking) {
   setText("[data-business-name]", booking.legalBusinessName);
   setText("[data-support]", [booking.supportEmail, booking.supportPhone].filter(Boolean).join(" · "));
   renderChangeHistory(booking.changeRequests);
-  renderJobProgress(booking.jobProgress, booking.audience);
+  renderJobProgress(booking.jobProgress, booking.audience, booking.jobTiming);
   await renderRoomPhotos(booking.roomPhotos);
 
   if (booking.checklist?.length) {
