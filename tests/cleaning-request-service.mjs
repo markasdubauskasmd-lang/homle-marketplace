@@ -1,0 +1,113 @@
+import { readFile } from "node:fs/promises";
+import { createCleaningRequestRepository } from "../src/marketplace/cleaning-request-repository.mjs";
+import { cleaningRequestScopeFingerprint, createCleaningRequestService, normalizedCleaningRequest } from "../src/marketplace/cleaning-request-service.mjs";
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function throws(operation, fragment) {
+  try { operation(); } catch (error) { return String(error.message).includes(fragment); }
+  return false;
+}
+
+async function rejects(operation, fragment) {
+  try { await operation(); } catch (error) { return String(error.message).includes(fragment); }
+  return false;
+}
+
+const now = new Date("2026-07-15T14:00:00.000Z");
+const landlordId = "11111111-1111-4111-8111-111111111111";
+const propertyId = "44444444-4444-4444-8444-444444444444";
+const requestId = "66666666-6666-4666-8666-666666666666";
+const input = {
+  id: requestId,
+  propertyId,
+  requestedStartAt: "2026-07-20T09:00:00.000Z",
+  requestedEndAt: "2026-07-20T12:00:00.000Z",
+  cleaningType: "rental-turnovers",
+  requiredServices: ["rental-turnovers", "deep-cleans"],
+  specialInstructions: "Focus on the kitchen before the inventory appointment.",
+  budgetPence: 15000,
+  frequency: "fortnightly",
+  tasks: [
+    { roomName: "Kitchen", description: "Clean worktops and cupboard fronts" },
+    { roomName: "Bathroom", description: "Descale the shower and taps" }
+  ]
+};
+const canonical = normalizedCleaningRequest(input, { clock: () => new Date(now) });
+assert(canonical.id === requestId && canonical.status === "searching-for-cleaner" && canonical.submittedAt === now.toISOString() && canonical.recurrenceRule === "FREQ=WEEKLY;INTERVAL=2" && canonical.requiredServices.join(",") === "deep-cleans,rental-turnovers" && canonical.tasks[1].sortOrder === 1 && /^[0-9a-f]{64}$/.test(canonical.scopeFingerprint), "Cleaning request did not reach canonical submitted scope.");
+const stable = normalizedCleaningRequest({ ...input, requiredServices: [...input.requiredServices].reverse(), specialInstructions: `  ${input.specialInstructions}  ` }, { clock: () => new Date(now) });
+const changed = normalizedCleaningRequest({ ...input, tasks: [{ ...input.tasks[0], description: "Clean inside every cupboard" }, input.tasks[1]] }, { clock: () => new Date(now) });
+assert(stable.scopeFingerprint === canonical.scopeFingerprint && changed.scopeFingerprint !== canonical.scopeFingerprint && cleaningRequestScopeFingerprint(canonical) === canonical.scopeFingerprint, "Request fingerprint changed with harmless ordering/whitespace or ignored a real task change.");
+const draft = normalizedCleaningRequest({ ...input, submit: false, frequency: "one-time" }, { clock: () => new Date(now) });
+assert(draft.status === "draft" && draft.submittedAt === null && draft.recurrenceRule === null, "A deliberate request draft appeared submitted or recurring.");
+assert(
+  throws(() => normalizedCleaningRequest({ ...input, requestedStartAt: "2026-07-14T09:00:00.000Z" }, { clock: () => new Date(now) }), "future")
+  && throws(() => normalizedCleaningRequest({ ...input, requestedEndAt: "2026-07-20T09:15:00.000Z" }, { clock: () => new Date(now) }), "30 minutes")
+  && throws(() => normalizedCleaningRequest({ ...input, requestedStartAt: "2026-02-30T09:00:00.000Z" }, { clock: () => new Date("2026-01-01T00:00:00.000Z") }), "valid timestamp")
+  && throws(() => normalizedCleaningRequest({ ...input, requiredServices: ["invented-service"] }, { clock: () => new Date(now) }), "supported and unique")
+  && throws(() => normalizedCleaningRequest({ ...input, cleaningType: "regular-domestic" }, { clock: () => new Date(now) }), "included")
+  && throws(() => normalizedCleaningRequest({ ...input, tasks: [input.tasks[0], { ...input.tasks[0], roomName: "kitchen" }] }, { clock: () => new Date(now) }), "unique")
+  && throws(() => normalizedCleaningRequest({ ...input, frequency: "daily" }, { clock: () => new Date(now) }), "supported"),
+  "Invalid time, service, task or recurrence entered a cleaning request."
+);
+
+function row(record) {
+  return {
+    id: record.id,
+    property_id: record.propertyId,
+    status: record.status,
+    requested_start_at: record.requestedStartAt,
+    requested_end_at: record.requestedEndAt,
+    cleaning_type: record.cleaningType,
+    required_services: record.requiredServices,
+    special_instructions: record.specialInstructions,
+    budget_pence: record.budgetPence,
+    recurrence_rule: record.recurrenceRule,
+    scope_fingerprint: record.scopeFingerprint,
+    submitted_at: record.submittedAt,
+    created_at: now.toISOString(),
+    tasks: record.tasks
+  };
+}
+
+const calls = [];
+let stored;
+const fakeRepository = {
+  async createOwnRequest(actor, record) { calls.push({ kind: "create", actor, record }); stored = row(record); return stored; },
+  async listOwnRequests(actor) { calls.push({ kind: "list", actor }); return [stored]; }
+};
+const service = createCleaningRequestService(fakeRepository, { clock: () => new Date(now) });
+const landlord = { userId: landlordId, roles: ["landlord"] };
+const created = await service.createOwnRequest(landlord, { ...input, landlordUserId: "22222222-2222-4222-8222-222222222222" });
+const listed = await service.listOwnRequests(landlord);
+assert(calls[0].actor.userId === landlordId && !Object.hasOwn(calls[0].record, "landlordUserId") && created.requestId === requestId && created.tasks.length === 2 && listed[0].scopeFingerprint === canonical.scopeFingerprint && !Object.hasOwn(created, "landlordUserId"), "Cleaning-request service trusted a submitted owner, lost frozen scope or leaked its owner field.");
+assert(await rejects(() => service.createOwnRequest({ userId: "cleaner", roles: ["cleaner"] }, input), "Landlord account"), "A Cleaner could create a Landlord cleaning request.");
+
+const databaseCalls = [];
+let propertyOwned = true;
+const database = {
+  async withUserTransaction(actor, operation) {
+    return operation({ async query(text, values) {
+      databaseCalls.push({ actor, text, values });
+      if (text.startsWith("SELECT id FROM properties")) return { rows: propertyOwned ? [{ id: propertyId }] : [] };
+      if (text.startsWith("INSERT INTO cleaning_requests")) return { rows: [row(canonical)] };
+      if (text.startsWith("SELECT request.*")) return { rows: [row(canonical)] };
+      return { rows: [] };
+    } });
+  }
+};
+const repository = createCleaningRequestRepository(database);
+await repository.createOwnRequest(landlord, canonical);
+await repository.listOwnRequests(landlord);
+assert(databaseCalls[0].text.includes("id=$1::uuid AND landlord_user_id=$2::uuid") && databaseCalls[0].values[1] === landlordId && databaseCalls[1].values[1] === landlordId && databaseCalls[2].text.includes("unnest($2::text[], $3::text[], $4::integer[])") && databaseCalls[3].text.includes("cleaning_request_status_history") && databaseCalls[3].values[2] === landlordId && databaseCalls[4].text.includes("request.landlord_user_id=$1::uuid"), "Cleaning-request repository did not enforce property ownership, parameterized tasks, owner identity and status audit inside one actor transaction.");
+propertyOwned = false;
+assert(await rejects(() => repository.createOwnRequest(landlord, canonical), "Property was not found"), "A Landlord could create a request against another account's property.");
+
+const migration = await readFile(new URL("../db/migrations/008_account_cleaning_requests.sql", import.meta.url), "utf8");
+const rls = await readFile(new URL("../db/migrations/002_marketplace_row_level_security.sql", import.meta.url), "utf8");
+assert(migration.includes("cleaning_request_status_history") && migration.includes("request_history_owner_or_admin") && migration.includes("scope_fingerprint") && migration.includes("digest(concat_ws") && migration.includes("submitted_at") && migration.includes("UPDATE cleaning_requests SET status = CASE status"), "Request migration omitted safe legacy backfill, immutable scope evidence, submission state or owner-only audit history.");
+assert(rls.includes("requests_owner_or_admin") && rls.includes("request_tasks_owner_or_admin"), "Cleaning request or room tasks lack row-level owner authorization.");
+
+console.log("Cleaning request tests passed: validated future scope, recurrence, room tasks, stable fingerprinting, owner-bound property writes, auditable submission and private projections.");

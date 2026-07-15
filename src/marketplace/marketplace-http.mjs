@@ -22,9 +22,11 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const security = dependencies?.security;
   const properties = dependencies?.propertyService;
   const cleaners = dependencies?.cleanerProfileService;
+  const cleaningRequests = dependencies?.cleaningRequestService;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
+  if (!cleaningRequests || typeof cleaningRequests.createOwnRequest !== "function" || typeof cleaningRequests.listOwnRequests !== "function") throw new TypeError("Marketplace HTTP routes require the cleaning-request service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
 
   return {
@@ -64,6 +66,21 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
             const property = await properties.createProperty(context.actor, await readJsonObject(request));
             sendJson(response, 201, { ok: true, property });
+            return true;
+          }
+          return methodNotAllowed(response, ["GET", "POST"]), true;
+        }
+        if (pathname === "/api/marketplace/cleaning-requests") {
+          if (request.method === "GET") {
+            const context = await security.protect(request, { roles: ["landlord"] });
+            const records = await cleaningRequests.listOwnRequests(context.actor);
+            sendJson(response, 200, { ok: true, cleaningRequests: records });
+            return true;
+          }
+          if (request.method === "POST") {
+            const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+            const cleaningRequest = await cleaningRequests.createOwnRequest(context.actor, await readJsonObject(request));
+            sendJson(response, 201, { ok: true, cleaningRequest });
             return true;
           }
           return methodNotAllowed(response, ["GET", "POST"]), true;

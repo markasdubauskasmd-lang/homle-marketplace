@@ -103,6 +103,17 @@ Tests: cleaner owns one profile, cannot edit another profile, public projection 
 
 ## Phase 3 — relational request, matching and booking lifecycle
 
+Status: in progress.
+
+Implemented account cleaning-request checkpoint:
+
+- Authenticated-Landlord creation/listing against an owned non-archived property; submitted owner identifiers cannot select the account.
+- Exact future scheduling, bounded duration/budget, shared supported services, constrained recurrence and required unique room-labelled tasks.
+- Canonical SHA-256 scope fingerprint tying the property, schedule, instructions, economics context and reviewed checklist together.
+- One transaction for property ownership check, request, ordered tasks and initial owner-protected status history.
+- Safe migration/backfill from earlier request status labels plus submitted-at and request-history RLS.
+- Contract tests in `tests/cleaning-request-service.mjs` and enablement boundary in `docs/ACCOUNT_CLEANING_REQUESTS.md`.
+
 - Import existing pilot request/scan/proposal/booking records through a dry-run-first migration tool while retaining legacy references.
 - Create account-backed cleaning requests from saved properties and frozen room-scan checklists/media.
 - Add ranked matching using explicit service area, confirmed availability, services, price, rating, earlier relationship and acceptance rate. Every factor remains explainable.

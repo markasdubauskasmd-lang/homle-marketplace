@@ -4,6 +4,8 @@ import { createAuthenticationRepository } from "./auth-repository.mjs";
 import { createAuthenticationHttpRouter } from "./authentication-http.mjs";
 import { createCleanerProfileService } from "./cleaner-profile.mjs";
 import { createCleanerProfileRepository } from "./cleaner-repository.mjs";
+import { createCleaningRequestRepository } from "./cleaning-request-repository.mjs";
+import { createCleaningRequestService } from "./cleaning-request-service.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config.mjs";
 import { createCredentialService } from "./credential-service.mjs";
 import { createMarketplaceDatabase } from "./database.mjs";
@@ -39,7 +41,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const cleanerProfileService = createCleanerProfileService(cleanerProfileRepository);
   const propertyRepository = createPropertyRepository(database);
   const propertyService = createPropertyService(propertyRepository, { dataEncryptionSecret: env.DATA_ENCRYPTION_KEY });
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService }, { onUnexpectedError: options.onUnexpectedError });
+  const cleaningRequestRepository = createCleaningRequestRepository(database);
+  const cleaningRequestService = createCleaningRequestService(cleaningRequestRepository);
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService }, { onUnexpectedError: options.onUnexpectedError });
   const authenticationDependencies = [options.emailDelivery, options.rateLimiter, options.clientKey];
   const suppliedAuthenticationDependencies = authenticationDependencies.filter(Boolean).length;
   if (suppliedAuthenticationDependencies > 0 && suppliedAuthenticationDependencies < authenticationDependencies.length) throw new TypeError("Authentication HTTP composition requires email delivery, shared rate limiting and a trusted client-key resolver together.");
@@ -65,6 +69,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     cleanerProfileService,
     propertyRepository,
     propertyService,
+    cleaningRequestRepository,
+    cleaningRequestService,
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
     marketplaceRouter,

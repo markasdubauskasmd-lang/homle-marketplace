@@ -63,8 +63,12 @@ const propertyService = {
   async listOwnProperties(actor) { calls.push({ kind: "property-list", actor }); return []; },
   async getBookingProperty(actor, bookingId) { calls.push({ kind: "booking-property", actor, bookingId }); if (actor.userId === "33333333-3333-4333-8333-333333333333") throw new AccountHttpError(403, "forbidden", "Booking property access is forbidden."); return { propertyId: "44444444-4444-4444-8444-444444444444", accessInstructions: "Protected" }; }
 };
+const cleaningRequestService = {
+  async createOwnRequest(actor, input) { calls.push({ kind: "request-create", actor, input }); return { requestId: "66666666-6666-4666-8666-666666666666", propertyId: input.propertyId, status: "searching-for-cleaner" }; },
+  async listOwnRequests(actor) { calls.push({ kind: "request-list", actor }); return []; }
+};
 let unexpectedError;
-const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService }, { onUnexpectedError(error) { unexpectedError = error; } });
+const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService }, { onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
   origin: "http://127.0.0.1:4173",
@@ -98,6 +102,9 @@ assert(created.response.statusCode === 201 && calls.at(-1).actor.userId === sess
 const propertyId = "44444444-4444-4444-8444-444444444444";
 const updated = await dispatch(router, "PUT", `/api/marketplace/properties/${propertyId}`, { headers: authHeaders, body: { id: "99999999-9999-4999-8999-999999999999", name: "Updated" } });
 assert(updated.response.statusCode === 200 && calls.at(-1).input.id === propertyId, "Property update trusted a body property ID instead of the protected route resource.");
+const requestCreated = await dispatch(router, "POST", "/api/marketplace/cleaning-requests", { headers: authHeaders, body: { propertyId, landlordUserId: "33333333-3333-4333-8333-333333333333" } });
+const requestList = await dispatch(router, "GET", "/api/marketplace/cleaning-requests", { headers: { cookie: authHeaders.cookie } });
+assert(requestCreated.response.statusCode === 201 && requestCreated.body.cleaningRequest.status === "searching-for-cleaner" && calls.at(-2).kind === "request-create" && calls.at(-2).actor.userId === sessions.landlord.user_id && requestList.response.statusCode === 200 && calls.at(-1).kind === "request-list", "Account cleaning-request routes did not bind Landlord creation/listing to the authenticated actor.");
 const bookingId = "55555555-5555-4555-8555-555555555555";
 const bookingProperty = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/property`, { headers: { cookie: authHeaders.cookie } });
 assert(bookingProperty.response.statusCode === 200 && calls.at(-1).bookingId === bookingId && bookingProperty.body.property.accessInstructions === "Protected", "Booking-scoped property route lost the authenticated participant projection.");
@@ -132,7 +139,7 @@ const baseEnvironment = {
 };
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property and HTTP layers or safely kept incomplete authentication delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request and HTTP layers or safely kept incomplete authentication delivery detached.");
 let partialAuthenticationRejected = false;
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, emailDelivery: { send() {} } }); } catch (error) { partialAuthenticationRejected = error.message.includes("requires email delivery, shared rate limiting"); }
 assert(partialAuthenticationRejected, "A partially supplied authentication HTTP boundary was silently enabled.");

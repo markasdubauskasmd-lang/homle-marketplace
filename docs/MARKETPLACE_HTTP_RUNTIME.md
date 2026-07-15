@@ -13,6 +13,8 @@ This checkpoint composes the existing PostgreSQL, session security, cleaner prof
 | `POST /api/marketplace/properties` | Landlord | Session, exact origin, CSRF and Landlord role |
 | `PUT /api/marketplace/properties/:propertyId` | Landlord | Session, exact origin, CSRF, Landlord role and owner-bound update query |
 | `GET /api/marketplace/bookings/:bookingId/property` | Participant/admin | Session plus participant repository check, service authorization and protected-field projection |
+| `GET /api/marketplace/cleaning-requests` | Landlord | Session and Landlord role; owner-only RLS listing |
+| `POST /api/marketplace/cleaning-requests` | Landlord | Session, exact origin, CSRF, Landlord role, owned property and frozen room-task scope |
 
 Prepared authentication routes use `POST` only: `/api/marketplace/auth/signup`, verification resend/confirmation, login, password-reset request/confirmation, logout, logout-all, and `/api/marketplace/onboarding`. They are attached to the runtime chain only when trusted email delivery, shared rate limiting and a server-derived client key are configured together.
 
