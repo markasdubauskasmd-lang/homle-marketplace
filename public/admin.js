@@ -575,6 +575,15 @@ async function copyDraft(text, button) {
   window.setTimeout(() => { button.textContent = original; }, 2400);
 }
 
+function addLocalAuditPreview(container, label, path) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button button-small button-outline";
+  button.textContent = label;
+  button.addEventListener("click", () => window.open(path, "_blank", "noopener,noreferrer"));
+  container.append(button);
+}
+
 function draftSection(title, draft) {
   const section = document.createElement("section");
   section.className = `draft-section${draft.handoffReady ? " draft-handoff-ready" : ""}`;
@@ -732,7 +741,7 @@ async function loadBookingAudit(record, proposal, target, button) {
     heading.className = result.automatedReady ? "booking-audit-heading audit-pass" : "booking-audit-heading audit-blocked";
     addText(heading, "strong", result.automatedReady ? "Automated booking checks passed" : "Booking remains blocked");
     addText(heading, "span", "This audit never confirms or sends a booking automatically.");
-    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", availabilityCovered: "Visit fits an active confirmed availability window", costModelCurrent: "Proposal uses the current founder-confirmed cost assumptions", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", customerScopeConfirmed: "Customer confirmed the final concise checklist", priceSensitiveScopeConfirmed: "Detected price-sensitive scan items included in reviewed hours", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
+    const checkLabels = { launchReady: "Seven launch checks complete", customerAccepted: "Customer accepted through the private quote", cleanerAccepted: "Cleaner accepted through the private opportunity", customerAcceptedBeforeExpiry: "Customer accepted before the frozen deadline", cleanerAcceptedBeforeExpiry: "Cleaner accepted before the frozen deadline", cleanerApproved: "Cleaner approved", cleanerScreened: "Cleaner screening checklist complete", pilotAreaCovered: "Customer postcode inside configured pilot area", serviceApproved: "Cleaner approved for service", availabilityCovered: "Visit fits an active confirmed availability window", costModelCurrent: "Proposal uses the current founder-confirmed cost assumptions", profitable: "Positive job contribution", marginFloorMet: "Founder margin floor met", minimumHoursMet: "Founder minimum hours met", briefReviewed: "Required room scan reviewed", customerScopeConfirmed: "Customer confirmed the final concise checklist", priceSensitiveScopeConfirmed: "Detected price-sensitive scan items included in reviewed hours", scanHoursCovered: "Proposal covers reviewed scan hours", scopeCaptured: "Site scope recorded", accessCaptured: "Access arrangements recorded", hazardsCaptured: "Hazards recorded", publicOriginFrozen: "Customer and cleaner handoffs share one frozen verified public host", scheduleConflictFree: "Cleaner has no overlapping accepted job" };
     const checks = document.createElement("ul");
     checks.className = "booking-checks";
     Object.entries(result.checks).forEach(([key, passed]) => addText(checks, "li", `${passed ? "✓" : "○"} ${checkLabels[key]}`));
@@ -791,6 +800,7 @@ function buildBookingPackPanel(record) {
   ];
   progressSteps.forEach(([label, timestamp]) => addText(progress, "li", timestamp ? `✓ ${label} · ${formatDate(timestamp)}` : `○ ${label} · awaiting`));
   panel.append(progress);
+  if (!booking.publicSiteUrl) addText(panel, "span", "Verified public booking-pack host is missing. Do not copy or assemble a local link; recover through a newly audited booking workflow.", "draft-blocked");
   for (const view of [
     { label: "Customer booking confirmation", path: "booking-confirmation", token: booking.customerViewToken },
     { label: "Cleaner assignment pack", path: "assignment", token: booking.cleanerViewToken }
@@ -799,7 +809,14 @@ function buildBookingPackPanel(record) {
     const section = document.createElement("div");
     section.className = "quote-review-link";
     addText(section, "strong", view.label);
-    const url = `${location.origin}/${view.path}#${view.token}`;
+    if (!booking.publicSiteUrl) {
+      addText(section, "span", "Local audit preview only. This is not a customer or cleaner handoff.");
+      addLocalAuditPreview(section, `Open local ${view.path === "assignment" ? "cleaner" : "customer"} booking preview`, `/${view.path}#${encodeURIComponent(view.token)}`);
+      panel.append(section);
+      continue;
+    }
+    const url = `${booking.publicSiteUrl}/${view.path}#${encodeURIComponent(view.token)}`;
+    addText(section, "span", `Frozen public host: ${booking.publicSiteUrl}. Share only with this named recipient.`);
     const field = document.createElement("input");
     field.type = "text";
     field.readOnly = true;
@@ -808,7 +825,7 @@ function buildBookingPackPanel(record) {
     const copy = document.createElement("button");
     copy.type = "button";
     copy.className = "button button-small button-outline";
-    copy.textContent = "Copy private link — does not send";
+    copy.textContent = "Copy verified booking-pack link — does not send";
     copy.addEventListener("click", () => copyDraft(url, copy));
     section.append(field, copy);
     panel.append(section);
@@ -1692,48 +1709,32 @@ function buildCard(record) {
     const quoteLink = document.createElement("div");
     quoteLink.className = "quote-review-link";
     if (proposal.reviewToken && ["ready", "sent", "accepted", "declined"].includes(proposal.status)) {
-      addText(quoteLink, "strong", "Private customer approval link");
-      addText(quoteLink, "span", proposal.status === "ready" ? "Preview only until you record the proposal as sent." : "Share only with the named customer. The link records their decision; it does not take payment.");
-      const reviewUrl = `${location.origin}/quote#${proposal.reviewToken}`;
-      const linkField = document.createElement("input");
-      linkField.type = "text";
-      linkField.readOnly = true;
-      linkField.value = reviewUrl;
-      linkField.setAttribute("aria-label", `Private quote link for ${proposal.id}`);
-      const copyLink = document.createElement("button");
-      copyLink.type = "button";
-      copyLink.className = "button button-small button-outline";
-      copyLink.textContent = "Copy private link — does not send";
-      copyLink.addEventListener("click", () => copyDraft(reviewUrl, copyLink));
-      quoteLink.append(linkField, copyLink);
+      addText(quoteLink, "strong", "Local customer decision preview");
+      addText(quoteLink, "span", proposal.status === "ready"
+        ? "Preview on this computer only. No customer handoff link is shown until the offer is recorded as sent."
+        : "Open locally for audit only. Use the recipient-isolated dispatch pack below for the verified public customer handoff.");
+      addLocalAuditPreview(quoteLink, "Open local customer preview", `/quote#${encodeURIComponent(proposal.reviewToken)}`);
     }
     const cleanerLink = document.createElement("div");
     cleanerLink.className = "quote-review-link cleaner-review-link";
     if (proposal.cleanerReviewToken && ["ready", "sent", "accepted", "declined"].includes(proposal.status)) {
       const cleanerDecision = proposal.cleanerDecision?.status;
-      addText(cleanerLink, "strong", cleanerDecision === "accepted" ? "Cleaner accepted this opportunity" : cleanerDecision === "declined" ? "Cleaner declined this opportunity" : "Private cleaner opportunity link");
-      addText(cleanerLink, "span", proposal.status === "ready" ? "Preview only until you record the proposal as sent." : cleanerDecision ? `Decision recorded ${formatDate(proposal.cleanerDecision.updatedAt)}. The link is now read-only.` : "Share only with the proposed cleaner. It records their own decision and does not confirm an assignment.");
-      const opportunityUrl = `${location.origin}/opportunity#${proposal.cleanerReviewToken}`;
-      const opportunityField = document.createElement("input");
-      opportunityField.type = "text";
-      opportunityField.readOnly = true;
-      opportunityField.value = opportunityUrl;
-      opportunityField.setAttribute("aria-label", `Private cleaner opportunity link for ${proposal.id}`);
-      const copyOpportunity = document.createElement("button");
-      copyOpportunity.type = "button";
-      copyOpportunity.className = "button button-small button-outline";
-      copyOpportunity.textContent = "Copy cleaner link — does not send";
-      copyOpportunity.addEventListener("click", () => copyDraft(opportunityUrl, copyOpportunity));
-      cleanerLink.append(opportunityField, copyOpportunity);
+      addText(cleanerLink, "strong", cleanerDecision === "accepted" ? "Cleaner accepted this opportunity" : cleanerDecision === "declined" ? "Cleaner declined this opportunity" : "Local cleaner decision preview");
+      addText(cleanerLink, "span", proposal.status === "ready"
+        ? "Preview on this computer only. No cleaner handoff link is shown until the offer is recorded as sent."
+        : cleanerDecision
+          ? `Decision recorded ${formatDate(proposal.cleanerDecision.updatedAt)}. Open locally for audit only; the decision is read-only.`
+          : "Open locally for audit only. Use the recipient-isolated dispatch pack below for the verified public cleaner handoff.");
+      addLocalAuditPreview(cleanerLink, "Open local cleaner preview", `/opportunity#${encodeURIComponent(proposal.cleanerReviewToken)}`);
     }
     const draftDetails = document.createElement("details");
     draftDetails.className = "message-drafts";
     const draftSummary = document.createElement("summary");
-    draftSummary.textContent = "Review unsent customer and cleaner drafts";
+    draftSummary.textContent = proposal.status === "ready" ? "Review messages before an approved send" : "Open the recipient-isolated dispatch pack";
     const loadDraftButton = document.createElement("button");
     loadDraftButton.type = "button";
     loadDraftButton.className = "button button-small button-light";
-    loadDraftButton.textContent = "Prepare review-only drafts";
+    loadDraftButton.textContent = proposal.status === "ready" ? "Prepare review-only drafts" : "Load controlled handoff status";
     const draftTarget = document.createElement("div");
     draftTarget.className = "draft-target";
     loadDraftButton.addEventListener("click", () => loadProposalDrafts(proposal, draftTarget, loadDraftButton));

@@ -2718,6 +2718,9 @@ async function buildBookingAudit(proposalId) {
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
   const cleanerDecision = cleanerDecisions.find((record) => record.proposalId === proposal.id) || null;
+  const quotePublicOrigin = verifiedPublicSiteOrigin(quoteSnapshot?.publicSiteUrl);
+  const cleanerPublicOrigin = verifiedPublicSiteOrigin(opportunitySnapshot?.publicSiteUrl);
+  const publicSiteUrl = quotePublicOrigin && quotePublicOrigin === cleanerPublicOrigin ? quotePublicOrigin : "";
   const checks = {
     launchReady: launchReadiness(config).ready,
     customerAccepted: proposalStatus === "accepted",
@@ -2741,6 +2744,7 @@ async function buildBookingAudit(proposalId) {
     scopeCaptured: Boolean(customerRequest.siteSize),
     accessCaptured: Boolean(customerRequest.accessNotes),
     hazardsCaptured: Boolean(customerRequest.hazards),
+    publicOriginFrozen: Boolean(publicSiteUrl),
     scheduleConflictFree: !findCleanerScheduleConflict(proposal, proposals, proposalUpdates, cleanerDecisions, bookings)
   };
   const automatedReady = Object.values(checks).every(Boolean);
@@ -2750,7 +2754,7 @@ async function buildBookingAudit(proposalId) {
     "Verify the external payment step, exact accepted amount, provider reference and timestamp without storing card details or credentials.",
     "Share emergency and issue-reporting instructions before the visit."
   ];
-  return { ok: true, proposal, customerRequest, cleaner, config, latestBrief, proposalId, proposalStatus, customerDecision: customerDecision ? { status: customerDecision.status, decidedAt: customerDecision.updatedAt } : null, cleanerDecision: cleanerDecision ? { status: cleanerDecision.status, decidedAt: cleanerDecision.updatedAt } : null, automatedReady, checks, manualChecklist };
+  return { ok: true, proposal, customerRequest, cleaner, config, latestBrief, publicSiteUrl, proposalId, proposalStatus, customerDecision: customerDecision ? { status: customerDecision.status, decidedAt: customerDecision.updatedAt } : null, cleanerDecision: cleanerDecision ? { status: cleanerDecision.status, decidedAt: cleanerDecision.updatedAt } : null, automatedReady, checks, manualChecklist };
 }
 
 async function getAdminBookingAudit(request, response, proposalId) {
@@ -2840,6 +2844,7 @@ async function createAdminBooking(request, response) {
     plannedNonCleanerCosts: audit.proposal.nonCleanerCosts,
     costAssumptions: audit.proposal.costAssumptions,
     roomScanBriefId: audit.latestBrief.id,
+    publicSiteUrl: audit.publicSiteUrl,
     paymentEvidence: {
       providerName: audit.config.paymentProviderName,
       timing: audit.config.paymentTiming,
