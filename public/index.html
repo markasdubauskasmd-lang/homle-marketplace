@@ -9,7 +9,7 @@
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260715-60">
-  <script src="/app.js?v=20260715-51" type="module"></script>
+  <script src="/app.js?v=20260715-52" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -142,6 +142,10 @@
             <div class="form-promise"><strong>No payment today</strong><span>This is a request, not a confirmed booking.</span></div>
           </div>
           <form data-api-form data-guided-form data-guided-kind="customer" action="/api/cleaning-requests" method="post" novalidate>
+            <div class="application-draft-status" data-customer-draft-status role="status">
+              <div><strong data-customer-draft-title>Private reload protection is on</strong><span data-customer-draft-copy>Your request entries stay in this tab for up to 30 minutes. Privacy consent is never restored.</span></div>
+              <button class="text-button" type="button" data-customer-draft-discard hidden>Discard saved request</button>
+            </div>
             <div class="error-summary" role="alert" tabindex="-1" hidden></div>
             <ol class="guided-progress" data-guided-progress aria-label="Cleaning request progress">
               <li data-guided-progress-step="1"><span>1</span><strong>Job</strong></li>

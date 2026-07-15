@@ -4,9 +4,11 @@ import { parseCleanerTravelAreas } from "./travel-coverage.js";
 import { isPhone, isUkPostcode } from "./contact-validation.js";
 import { cleanerApplicationPreview } from "./cleaner-application-preview.js";
 import { cleanerApplicationDraftFields, cleanerApplicationDraftServices, clearCleanerApplicationDraft, readCleanerApplicationDraft, saveCleanerApplicationDraft } from "./cleaner-application-draft.js";
+import { clearCustomerRequestDraft, customerRequestDraftFields, customerRequestDraftFingerprint, readCustomerRequestDraft, saveCustomerRequestDraft } from "./customer-request-draft.js";
 
 const pendingSubmissions = new WeakMap();
 const cleanerDraftControls = new WeakMap();
+const customerDraftControls = new WeakMap();
 
 const focusedEntryRoutes = {
   "/request": { kind: "request", target: "request-cleaning", title: "Request a clean — Tideway", description: "Request a Tideway clean in three short steps, then scan the rooms and turn spoken notes into a clear cleaner checklist." },
@@ -341,6 +343,119 @@ function enhanceCleanerApplicationDraft(form) {
 
 document.querySelectorAll('form[data-guided-kind="cleaner"]').forEach(enhanceCleanerApplicationDraft);
 
+function customerDraftInput(form) {
+  return {
+    fields: Object.fromEntries(Object.keys(customerRequestDraftFields).map((name) => [name, form.elements.namedItem(name)?.value || ""])),
+    currentStep: Number(form.dataset.currentGuidedStep) || 1
+  };
+}
+
+function customerDraftHasContent(form) {
+  return Object.entries(customerDraftInput(form).fields).some(([name, value]) => !["frequency", "preferredTimeWindow"].includes(name) && value.trim());
+}
+
+function enhanceCustomerRequestDraft(form) {
+  const status = form.querySelector("[data-customer-draft-status]");
+  if (!status) return;
+  const title = status.querySelector("[data-customer-draft-title]");
+  const copy = status.querySelector("[data-customer-draft-copy]");
+  const discard = status.querySelector("[data-customer-draft-discard]");
+  let saveTimer = null;
+  let restored = false;
+  let submitted = false;
+  let online = navigator.onLine !== false;
+  let retry = null;
+
+  function currentFingerprint() {
+    return customerRequestDraftFingerprint(customerDraftInput(form).fields);
+  }
+
+  function render() {
+    status.classList.toggle("is-offline", !online);
+    discard.hidden = !customerDraftHasContent(form);
+    if (!online) {
+      title.textContent = "You are offline — your request is protected";
+      copy.textContent = "Reconnect before submitting. Entries remain in this tab; privacy consent is never restored.";
+    } else if (restored) {
+      title.textContent = "Your request entries were recovered";
+      copy.textContent = "Review every field and confirm privacy consent again before creating the request.";
+    } else {
+      title.textContent = "Private reload protection is on";
+      copy.textContent = "Your request entries stay in this tab for up to 30 minutes. Privacy consent is never restored.";
+    }
+  }
+
+  function save() {
+    clearTimeout(saveTimer);
+    if (submitted) return;
+    const fingerprint = currentFingerprint();
+    if (retry && retry.fingerprint !== fingerprint) {
+      retry = null;
+      pendingSubmissions.delete(form);
+    }
+    try { saveCustomerRequestDraft(window.sessionStorage, { ...customerDraftInput(form), submissionKey: retry?.key || "" }); } catch {}
+    if (!customerDraftHasContent(form)) restored = false;
+    render();
+  }
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 250);
+    render();
+  }
+
+  let draft = null;
+  try { draft = readCustomerRequestDraft(window.sessionStorage); } catch {}
+  if (draft) {
+    Object.entries(draft.fields).forEach(([name, value]) => {
+      const control = form.elements.namedItem(name);
+      if (control) control.value = value;
+    });
+    form.elements.namedItem("consent").checked = false;
+    guidedForms.get(form)?.restore(draft.currentStep);
+    retry = draft.retry || null;
+    restored = true;
+  }
+
+  form.addEventListener("input", scheduleSave);
+  form.addEventListener("change", scheduleSave);
+  form.addEventListener("click", (event) => {
+    if (event.target.closest("[data-guided-next], [data-guided-back]")) setTimeout(scheduleSave, 0);
+  });
+  discard.addEventListener("click", () => {
+    clearTimeout(saveTimer);
+    try { clearCustomerRequestDraft(window.sessionStorage); } catch {}
+    pendingSubmissions.delete(form);
+    retry = null;
+    form.reset();
+    form.elements.namedItem("consent").checked = false;
+    guidedForms.get(form)?.restore(1);
+    restored = false;
+    render();
+    form.elements.namedItem("postcode")?.focus();
+  });
+  window.addEventListener("online", () => { online = true; render(); });
+  window.addEventListener("offline", () => { online = false; save(); render(); });
+  customerDraftControls.set(form, {
+    submissionKey() {
+      return retry?.fingerprint === currentFingerprint() ? retry.key : "";
+    },
+    rememberSubmission(key) {
+      retry = { key, fingerprint: currentFingerprint() };
+      save();
+    },
+    complete() {
+      clearTimeout(saveTimer);
+      submitted = true;
+      try { clearCustomerRequestDraft(window.sessionStorage); } catch {}
+      status.hidden = true;
+    }
+  });
+  render();
+}
+
+document.querySelectorAll('form[data-guided-kind="customer"]').forEach(enhanceCustomerRequestDraft);
+
 document.querySelectorAll('input[name="postcode"], input[name="phone"]').forEach((input) => {
   input.addEventListener("input", () => input.setCustomValidity(""));
 });
@@ -359,8 +474,9 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
     summary.hidden = true;
     success.hidden = true;
 
-    if (form.dataset.guidedKind === "cleaner" && navigator.onLine === false) {
-      showError(form, "You are offline. Your application entries are protected in this tab; reconnect and try again.");
+    if (["customer", "cleaner"].includes(form.dataset.guidedKind) && navigator.onLine === false) {
+      const noun = form.dataset.guidedKind === "customer" ? "request" : "application";
+      showError(form, `You are offline. Your ${noun} entries are protected in this tab; reconnect and try again.`);
       return;
     }
 
@@ -388,8 +504,9 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
       const submissionBody = JSON.stringify(submission);
       let pending = pendingSubmissions.get(form);
       if (!pending || pending.body !== submissionBody) {
-        pending = { body: submissionBody, key: newSubmissionKey() };
+        pending = { body: submissionBody, key: customerDraftControls.get(form)?.submissionKey() || newSubmissionKey() };
         pendingSubmissions.set(form, pending);
+        customerDraftControls.get(form)?.rememberSubmission(pending.key);
       }
       const controller = new AbortController();
       const requestTimer = setTimeout(() => controller.abort(), 30000);
@@ -411,6 +528,7 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
       if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "We could not send this form.");
 
       cleanerDraftControls.get(form)?.complete();
+      customerDraftControls.get(form)?.complete();
       form.reset();
       success.querySelector("[data-reference]").textContent = result.reference;
       const briefLink = success.querySelector("[data-brief-link]");

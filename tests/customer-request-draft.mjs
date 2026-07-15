@@ -1,0 +1,68 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { clearCustomerRequestDraft, customerRequestDraftFingerprint, customerRequestDraftLifetimeMs, readCustomerRequestDraft, saveCustomerRequestDraft } from "../public/customer-request-draft.js";
+
+const root = fileURLToPath(new URL("..", import.meta.url));
+const values = new Map();
+const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: (key) => values.delete(key) };
+const now = Date.UTC(2026, 6, 15, 22, 0, 0);
+const retryKey = "7daeb084-bf0b-4f7b-b21d-2ad14d96d81b";
+
+const saved = saveCustomerRequestDraft(storage, {
+  fields: {
+    postcode: "SW1A 1AA",
+    customerType: "Landlord",
+    propertyType: "Flat or house",
+    service: "Rental turnover clean",
+    siteSize: "Two bedrooms",
+    accessNotes: "Meet at reception",
+    contactName: "Test Landlord",
+    email: "landlord@example.com",
+    phone: "07123456789",
+    website: "must-not-save",
+    consent: "must-not-save"
+  },
+  currentStep: 3,
+  submissionKey: retryKey
+}, now);
+assert.equal(saved.currentStep, 3);
+assert.equal(saved.fields.contactName, "Test Landlord");
+assert.equal(saved.retry.key, retryKey);
+assert.equal(saved.retry.fingerprint, customerRequestDraftFingerprint(saved.fields));
+const storedText = [...values.values()][0];
+assert(!storedText.includes("website") && !storedText.includes("consent"), "The honeypot and privacy consent must never enter the recovery draft.");
+const restored = readCustomerRequestDraft(storage, now + 10_000);
+assert.equal(restored.fields.email, "landlord@example.com");
+assert.equal(restored.retry.key, retryKey, "An ambiguous network retry must reuse its original key after reload.");
+assert.equal(readCustomerRequestDraft(storage, now + customerRequestDraftLifetimeMs), null, "Expired request drafts must be deleted.");
+assert.equal(values.size, 0);
+
+saveCustomerRequestDraft(storage, { fields: { postcode: "SW1A 1AA" }, currentStep: 9, submissionKey: "not-a-key" }, now);
+const invalidRetry = readCustomerRequestDraft(storage, now);
+assert.equal(invalidRetry.currentStep, 3, "Restored steps must stay inside the three-stage request.");
+assert.equal(invalidRetry.retry, undefined, "Invalid retry keys must not survive draft validation.");
+clearCustomerRequestDraft(storage);
+assert.equal(values.size, 0);
+saveCustomerRequestDraft(storage, {}, now);
+assert.equal(values.size, 0, "An untouched request must not create a draft.");
+saveCustomerRequestDraft(storage, { fields: { frequency: "One-off", preferredTimeWindow: "Flexible" } }, now);
+assert.equal(values.size, 0, "Default choices alone must not create a draft.");
+storage.setItem("tidewayCustomerRequestDraftV1", "broken-json");
+assert.equal(readCustomerRequestDraft(storage, now), null);
+assert.equal(values.size, 0, "Corrupt drafts must be removed.");
+
+const [html, app, privacy] = await Promise.all([
+  readFile(path.join(root, "public", "index.html"), "utf8"),
+  readFile(path.join(root, "public", "app.js"), "utf8"),
+  readFile(path.join(root, "public", "privacy.html"), "utf8")
+]);
+assert(html.includes("data-customer-draft-status") && html.includes("Privacy consent is never restored"));
+assert(app.includes("readCustomerRequestDraft") && app.includes("clearCustomerRequestDraft(window.sessionStorage)"));
+assert(app.includes("customerDraftControls.get(form)?.submissionKey()") && app.includes("rememberSubmission(pending.key)"));
+assert(app.includes('["customer", "cleaner"].includes(form.dataset.guidedKind)') && app.includes("AbortController"));
+assert(!app.includes('form.elements.namedItem("consent").checked = true'));
+assert(privacy.includes("An incomplete cleaning request may keep"));
+
+console.log("customer request draft tests passed");
