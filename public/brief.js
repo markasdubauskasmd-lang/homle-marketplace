@@ -4,6 +4,7 @@ import { detectPriceSensitiveScope } from "./scope-signals.js";
 import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos } from "./brief-readiness.js";
 import { newSubmissionKey } from "./submission-key.js";
 import { cleanerHandoffPreview } from "./cleaner-handoff-preview.js";
+import { checklistChangeReview } from "./checklist-change-review.js";
 
 const cameraInput = document.querySelector("#brief-camera");
 const photoInput = document.querySelector("#brief-photos");
@@ -24,12 +25,19 @@ const form = document.querySelector("#job-brief-form");
 const errorBox = document.querySelector("#brief-error");
 const successBox = document.querySelector("#brief-success");
 const saveButton = document.querySelector("#save-brief");
+const checklistChangePanel = document.querySelector("#checklist-change-review");
+const checklistChangeSummary = checklistChangePanel.querySelector("[data-change-summary]");
+const checklistAdded = checklistChangePanel.querySelector("[data-change-added]");
+const checklistRemoved = checklistChangePanel.querySelector("[data-change-removed]");
+const applyChecklistChange = checklistChangePanel.querySelector("[data-apply-summary]");
+const keepChecklist = checklistChangePanel.querySelector("[data-keep-checklist]");
 const photos = [];
 let submitting = false;
 let submissionComplete = false;
 let pendingSubmission = null;
 let confirmedScopeFingerprint = "";
 let summarisedSourceFingerprint = "";
+let pendingChecklistChange = null;
 const roomOptions = briefRoomOptions;
 const privateRequestToken = /^[A-Za-z0-9_-]{32}$/.test(location.hash.slice(1)) ? location.hash.slice(1) : "";
 if (privateRequestToken) history.replaceState(null, "", `${location.pathname}${location.search}`);
@@ -86,6 +94,47 @@ function currentReadiness() {
     scopeCompleteConfirmed,
     consent: form.elements.consent.checked
   });
+}
+
+function clearChecklistChangeReview() {
+  pendingChecklistChange = null;
+  checklistChangePanel.hidden = true;
+  checklistAdded.replaceChildren();
+  checklistRemoved.replaceChildren();
+}
+
+function appendChangeItems(container, title, tasks, emptyCopy) {
+  const section = document.createElement("section");
+  const heading = document.createElement("strong");
+  heading.textContent = title;
+  section.append(heading);
+  if (tasks.length) {
+    const list = document.createElement("ul");
+    tasks.forEach((task) => {
+      const item = document.createElement("li");
+      item.textContent = task;
+      list.append(item);
+    });
+    section.append(list);
+  } else {
+    const empty = document.createElement("span");
+    empty.textContent = emptyCopy;
+    section.append(empty);
+  }
+  container.append(section);
+}
+
+function showChecklistChangeReview(review, sourceFingerprint, { scroll = true } = {}) {
+  pendingChecklistChange = { tasks: review.next, sourceFingerprint };
+  checklistAdded.replaceChildren();
+  checklistRemoved.replaceChildren();
+  checklistChangeSummary.textContent = review.orderChanged
+    ? "The same tasks were reordered. Your current checklist has not been changed."
+    : `${review.added.length} ${review.added.length === 1 ? "task" : "tasks"} added · ${review.removed.length} ${review.removed.length === 1 ? "task" : "tasks"} removed. Your current checklist has not been changed.`;
+  appendChangeItems(checklistAdded, "Would be added", review.added, "No new tasks");
+  appendChangeItems(checklistRemoved, "Would be removed", review.removed, "No tasks removed");
+  checklistChangePanel.hidden = false;
+  if (scroll) checklistChangePanel.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function renderReadiness() {
@@ -187,17 +236,50 @@ function generateChecklist({ scroll = true, showEmptyError = true } = {}) {
     .map((photo) => `In the ${photo.area}, ${photo.note.trim()}`)
     .join(". ");
   const tasks = checklistFromTranscript([roomNotes, transcript.value].filter(Boolean).join(". "));
-  checklist.value = tasks.join("\n");
-  summarisedSourceFingerprint = tasks.length ? sourceFingerprint : "";
+  const currentTasks = checklistTasks();
+  if (!tasks.length) {
+    clearChecklistChangeReview();
+    summarisedSourceFingerprint = "";
+    renderChecklist();
+    if (showEmptyError) showError("No cleaning tasks could be summarised. Your current checklist was kept; add clearer room instructions and try again.");
+    return tasks;
+  }
+  const review = checklistChangeReview(currentTasks, tasks);
+  if (currentTasks.length && review.changed) {
+    summarisedSourceFingerprint = "";
+    showChecklistChangeReview(review, sourceFingerprint, { scroll });
+    renderChecklist();
+    return tasks;
+  }
+  clearChecklistChangeReview();
+  if (!currentTasks.length) checklist.value = tasks.join("\n");
+  summarisedSourceFingerprint = sourceFingerprint;
   renderChecklist();
-  if (tasks.length && scroll) document.querySelector("#checklist-panel").scrollIntoView({ behavior: "smooth", block: "start" });
-  else if (!tasks.length && showEmptyError) showError("Add some spoken or typed cleaning instructions before creating the checklist.");
+  if (scroll) document.querySelector("#checklist-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   return tasks;
 }
 
 document.querySelector("#generate-checklist").addEventListener("click", () => generateChecklist());
-checklist.addEventListener("input", renderChecklist);
-transcript.addEventListener("input", () => { renderScopeSignals(); renderReadiness(); });
+checklist.addEventListener("input", () => { clearChecklistChangeReview(); renderChecklist(); });
+transcript.addEventListener("input", () => { clearChecklistChangeReview(); renderScopeSignals(); renderReadiness(); });
+applyChecklistChange.addEventListener("click", () => {
+  if (!pendingChecklistChange || pendingChecklistChange.sourceFingerprint !== currentSourceFingerprint()) {
+    clearChecklistChangeReview();
+    showError("The speech or room notes changed after this comparison. Summarise again before replacing the checklist.");
+    return;
+  }
+  checklist.value = pendingChecklistChange.tasks.join("\n");
+  summarisedSourceFingerprint = pendingChecklistChange.sourceFingerprint;
+  clearChecklistChangeReview();
+  renderChecklist();
+  document.querySelector("#checklist-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+keepChecklist.addEventListener("click", () => {
+  clearChecklistChangeReview();
+  summarisedSourceFingerprint = "";
+  renderChecklist();
+  checklist.focus();
+});
 form.elements.requestId.addEventListener("input", renderReadiness);
 form.elements.email.addEventListener("input", renderReadiness);
 form.elements.scopeCompleteConfirmed.addEventListener("change", () => {
@@ -247,7 +329,7 @@ function renderPhotos() {
       option.selected = area === photo.area;
       select.append(option);
     });
-    select.addEventListener("change", () => { photo.area = select.value; renderChecklist(); });
+    select.addEventListener("change", () => { photo.area = select.value; clearChecklistChangeReview(); renderChecklist(); });
     label.append(select);
     const noteLabel = document.createElement("label");
     noteLabel.append(document.createTextNode("What this photo shows"));
@@ -256,7 +338,7 @@ function renderPhotos() {
     note.maxLength = 500;
     note.placeholder = "For example: grease around the hob; wipe tiles and clean the extractor cover. Do not include access codes.";
     note.value = photo.note;
-    note.addEventListener("input", () => { photo.note = note.value; renderChecklist(); });
+    note.addEventListener("input", () => { photo.note = note.value; clearChecklistChangeReview(); renderChecklist(); });
     noteLabel.append(note);
     const remove = document.createElement("button");
     remove.type = "button";
@@ -266,6 +348,7 @@ function renderPhotos() {
       URL.revokeObjectURL(photo.previewUrl);
       photos.splice(index, 1);
       renderPhotos();
+      clearChecklistChangeReview();
       renderChecklist();
     });
     controls.append(label, noteLabel, remove);
@@ -313,6 +396,7 @@ async function addSelectedVisuals(selected) {
     photos.push({ file, kind: isVideo ? "video" : "image", durationSeconds, area: "", note: "", previewUrl: URL.createObjectURL(file) });
   }
   renderPhotos();
+  clearChecklistChangeReview();
   renderChecklist();
 }
 
@@ -388,8 +472,10 @@ if (SpeechRecognition) {
     voiceButton.textContent = "Start speaking";
     if (voiceErrorMessage) { voiceStatus.textContent = voiceErrorMessage; return; }
     const tasks = generateChecklist({ scroll: false, showEmptyError: false });
-    voiceStatus.textContent = tasks.length
-      ? `Voice capture stopped. ${tasks.length} concise ${tasks.length === 1 ? "bullet" : "bullets"} created below for review.`
+    voiceStatus.textContent = pendingChecklistChange
+      ? "Voice capture stopped. A new summary is ready to compare; your current checklist was not replaced."
+      : tasks.length
+        ? `Voice capture stopped. ${tasks.length} concise ${tasks.length === 1 ? "bullet" : "bullets"} created below for review.`
       : "Voice capture stopped. Speak again or type the instructions below.";
   };
   recognition.onerror = (event) => {
@@ -409,7 +495,9 @@ if (SpeechRecognition) {
     if (finalText) {
       transcript.value = `${transcript.value.trim()} ${finalText}`.trim();
       const tasks = generateChecklist({ scroll: false, showEmptyError: false });
-      voiceStatus.textContent = `${tasks.length} concise ${tasks.length === 1 ? "bullet" : "bullets"} created so far. Keep speaking or stop to review.`;
+      voiceStatus.textContent = pendingChecklistChange
+        ? "New speech changed the proposed summary. Keep speaking, then review the comparison before applying it."
+        : `${tasks.length} concise ${tasks.length === 1 ? "bullet" : "bullets"} created so far. Keep speaking or stop to review.`;
     }
     if (interimText) voiceStatus.textContent = `Listening: ${interimText}`;
   };
@@ -432,8 +520,9 @@ form.addEventListener("submit", async (event) => {
   if (photos.some((photo) => !photo.area)) { showError("Choose the correct room for every photo."); return; }
   if (photos.some((photo) => photo.note.trim().length < 3)) { showError("Add a short room note explaining what every photo shows."); return; }
   if (!tasks.length) { showError("Create and review at least one cleaner task."); return; }
-  const uncoveredAreas = [...new Set(photos.map((photo) => photo.area))].filter((area) => !tasks.some((task) => task.toLowerCase().startsWith(`${area.toLowerCase()}:`)));
-  if (uncoveredAreas.length) { showError(`Add at least one checklist task for: ${uncoveredAreas.join(", ")}. Use the room notes, then summarise again.`); return; }
+  const handoff = cleanerHandoffPreview({ tasks, photographedAreas: photos.map((photo) => photo.area), roomOptions });
+  if (!handoff.workCount) { showError("Add at least one cleaning task; leave-alone boundaries alone cannot be quoted."); return; }
+  if (handoff.missingWorkAreas.length) { showError(`Add at least one cleaning task for: ${handoff.missingWorkAreas.join(", ")}. Use the room notes, then summarise again.`); return; }
   submitting = true;
   renderReadiness();
   saveButton.textContent = "Preparing private room scan…";

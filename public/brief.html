@@ -8,7 +8,7 @@
   <title>Scan rooms for your clean — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260715-40">
-  <script src="/brief.js?v=20260715-43" type="module"></script>
+  <script src="/brief.js?v=20260715-44" type="module"></script>
 </head>
 <body class="brief-page">
   <a class="skip-link" href="#brief-main">Skip to job brief</a>
@@ -59,6 +59,12 @@
           <label>Instructions<textarea id="brief-transcript" name="transcript" rows="9" maxlength="5000" required placeholder="For example: In the kitchen, wipe every worktop, degrease the hob, clean inside the microwave and mop the floor. In the bathroom, remove limescale from the shower screen and disinfect the toilet. Do not move the locked cupboard."></textarea></label>
           <p class="privacy-hint">Tideway saves the final text, not an audio recording. Your browser may provide the speech-to-text service, so review the transcript carefully.</p>
           <button id="generate-checklist" class="button" type="button">Summarise into concise bullets</button>
+          <section id="checklist-change-review" class="checklist-change-review" aria-labelledby="checklist-change-title" aria-live="polite" hidden>
+            <strong id="checklist-change-title">Review checklist changes before applying</strong>
+            <span data-change-summary>Your current checklist has not been changed.</span>
+            <div class="checklist-change-columns"><div data-change-added></div><div data-change-removed></div></div>
+            <div class="checklist-change-actions"><button class="button button-small" type="button" data-apply-summary>Apply new summary</button><button class="button button-small button-outline" type="button" data-keep-checklist>Keep my current checklist</button></div>
+          </section>
         </div>
 
         <div class="brief-panel" id="checklist-panel">
