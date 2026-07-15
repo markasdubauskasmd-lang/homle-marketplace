@@ -69,6 +69,7 @@ const privateRecordFiles = [
   "match-proposals.ndjson",
   "media-retention.ndjson",
   "proposal-status.ndjson",
+  "request-schedule-updates.ndjson",
   "status-updates.ndjson"
 ];
 
@@ -193,7 +194,7 @@ function rateLimitPolicyFor(request, pathname) {
   if (request.method === "POST" && ["/api/cleaning-requests", "/api/cleaner-applications", "/api/job-briefs"].includes(pathname)) {
     return { name: `public-submission:${pathname}`, ...apiRateLimitPolicies.publicSubmission };
   }
-  if (request.method === "POST" && ["/api/request-withdrawal", "/api/quote/decision", "/api/opportunity/decision", "/api/cleaner-profile-starter", "/api/cleaner-availability-requests", "/api/booking-change-requests", "/api/job-events"].includes(pathname)) {
+  if (request.method === "POST" && ["/api/request-withdrawal", "/api/request-schedule", "/api/quote/decision", "/api/opportunity/decision", "/api/cleaner-profile-starter", "/api/cleaner-availability-requests", "/api/booking-change-requests", "/api/job-events"].includes(pathname)) {
     return { name: `private-write:${pathname}`, ...apiRateLimitPolicies.privateWrite };
   }
   if (request.method === "GET" && ["/api/request-status", "/api/cleaner-status", "/api/quote", "/api/opportunity", "/api/opportunity-photo", "/api/booking-pack", "/api/booking-photo"].includes(pathname)) {
@@ -745,7 +746,7 @@ async function saveJobEvent(record, booking) {
   return operation;
 }
 
-async function readRecords(filename) {
+async function readRawRecords(filename) {
   try {
     const contents = await readFile(path.join(dataDir, filename), "utf8");
     return contents.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
@@ -753,6 +754,28 @@ async function readRecords(filename) {
     if (error.code === "ENOENT") return [];
     throw error;
   }
+}
+
+function applyRequestScheduleUpdates(record, updates = []) {
+  const history = updates.filter((update) => update.requestId === record.id);
+  const latest = history.at(-1) || null;
+  if (!latest) return record;
+  return {
+    ...record,
+    originalPreferredDate: record.preferredDate || "",
+    originalPreferredTimeWindow: record.preferredTimeWindow || "Flexible",
+    preferredDate: latest.preferredDate,
+    preferredTimeWindow: latest.preferredTimeWindow,
+    scheduleUpdatedAt: latest.createdAt,
+    scheduleChangeCount: history.length
+  };
+}
+
+async function readRecords(filename) {
+  const records = await readRawRecords(filename);
+  if (filename !== "cleaning-requests.ndjson") return records;
+  const scheduleUpdates = await readRawRecords("request-schedule-updates.ndjson");
+  return records.map((record) => applyRequestScheduleUpdates(record, scheduleUpdates));
 }
 
 async function readJsonFile(filename, fallback = {}) {
@@ -831,7 +854,8 @@ async function auditDataIntegrity() {
     "job-briefs.ndjson",
     "match-proposals.ndjson",
     "bookings.ndjson",
-    "booking-change-requests.ndjson"
+    "booking-change-requests.ndjson",
+    "request-schedule-updates.ndjson"
   ];
   for (const filename of requiredUniqueIds) {
     const parsed = parsedFiles.get(filename);
@@ -882,6 +906,32 @@ async function auditDataIntegrity() {
   checkReferences("job-outcomes.ndjson", "bookingId", "bookings.ndjson");
   checkReferences("job-outcome-adjustments.ndjson", "bookingId", "bookings.ndjson");
   checkReferences("media-retention.ndjson", "briefId", "job-briefs.ndjson");
+  checkReferences("request-schedule-updates.ndjson", "requestId", "cleaning-requests.ndjson");
+
+  const requestScheduleUpdates = parsedFiles.get("request-schedule-updates.ndjson");
+  if (requestScheduleUpdates?.valid) {
+    const requestScheduleState = new Map((parsedFiles.get("cleaning-requests.ndjson")?.records || []).map(({ record }) => [record.id, { preferredDate: record.preferredDate, preferredTimeWindow: record.preferredTimeWindow || "Flexible", createdAt: record.createdAt }]));
+    for (const { record, line } of requestScheduleUpdates.records) {
+      const valid = /^RSC-[A-Z0-9]{8}$/.test(text(record.id, 40))
+        && isIsoCalendarDate(record.preferredDate)
+        && isIsoCalendarDate(record.previousDate)
+        && Object.hasOwn(preferredArrivalWindows, record.preferredTimeWindow)
+        && Object.hasOwn(preferredArrivalWindows, record.previousTimeWindow)
+        && typeof record.reason === "string" && record.reason.trim().length >= 10 && record.reason.length <= 500
+        && record.source === "customer-private-schedule-change"
+        && Number.isFinite(Date.parse(record.createdAt));
+      const previous = requestScheduleState.get(record.requestId);
+      const chainValid = previous
+        && record.previousDate === previous.preferredDate
+        && record.previousTimeWindow === previous.preferredTimeWindow
+        && Date.parse(record.createdAt) >= Date.parse(previous.createdAt);
+      if (!valid || !chainValid) {
+        recordIssue({ code: "invalid-request-schedule-update", file: "request-schedule-updates.ndjson", line, reference: text(record.id, 80), message: "A customer-approved requested-date change is malformed, out of order or disconnected from the prior timing." });
+      } else {
+        requestScheduleState.set(record.requestId, { preferredDate: record.preferredDate, preferredTimeWindow: record.preferredTimeWindow, createdAt: record.createdAt });
+      }
+    }
+  }
 
   const cleanerProfileUpdates = parsedFiles.get("cleaner-profile-updates.ndjson");
   if (cleanerProfileUpdates?.valid) {
@@ -3394,9 +3444,10 @@ async function getPrivateBookingPhoto(request, response, imageId) {
 async function getPrivateRequestStatus(request, response) {
   const token = text(request.headers["x-request-token"], 80);
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private request link is invalid." });
-  const [requests, statusUpdates, briefs, briefUpdates, proposals, proposalUpdates, cleanerDecisions, bookings, outcomes, jobEvents, availabilityEvents, config, cleaners, screenings] = await Promise.all([
+  const [requests, statusUpdates, scheduleUpdates, briefs, briefUpdates, proposals, proposalUpdates, cleanerDecisions, bookings, outcomes, jobEvents, availabilityEvents, config, cleaners, screenings] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("status-updates.ndjson"),
+    readRecords("request-schedule-updates.ndjson"),
     readRecords("job-briefs.ndjson"),
     readRecords("job-brief-status.ndjson"),
     readRecords("match-proposals.ndjson"),
@@ -3461,6 +3512,10 @@ async function getPrivateRequestStatus(request, response) {
   const cleanerAvailabilityLost = proposal?.status === "accepted" && !cleanerDecision && !proposalAvailabilityCovered;
   const quotePricingChanged = proposal?.status === "sent" && !proposalCostsCurrent;
   const cleanerPricingChanged = proposal?.status === "accepted" && !cleanerDecision && !proposalCostsCurrent;
+  const activeUnbookedProposal = requestProposals.some((record) => ["draft", "ready"].includes(record.status) || (["sent", "accepted"].includes(record.status) && !record.exhausted));
+  const requestScheduleHistory = scheduleUpdates.filter((update) => update.requestId === customerRequest.id);
+  const scheduleChangeAllowed = !booking && !outcome && !["lost", "completed"].includes(requestStatus) && !activeUnbookedProposal;
+  const requestedDatePassed = Boolean(customerRequest.preferredDate && customerRequest.preferredDate < localDateToday());
 
   let currentStage = "room-scan";
   let headline = "Complete the room scan";
@@ -3477,6 +3532,11 @@ async function getPrivateRequestStatus(request, response) {
     currentStage = "matching";
     headline = "Scope reviewed — matching in progress";
     nextAction = "Tideway is checking cleaner suitability, availability and profitable quote terms.";
+  }
+  if (requestedDatePassed && scheduleChangeAllowed) {
+    currentStage = "schedule-update";
+    headline = "Choose a new requested cleaning date";
+    nextAction = "Your previous requested date has passed. Choose a future date and arrival window here before Tideway resumes matching.";
   }
   if (proposal?.status === "draft" || proposal?.status === "ready") {
     currentStage = "quote-preparation";
@@ -3598,6 +3658,16 @@ async function getPrivateRequestStatus(request, response) {
       quoteToken: requestStatus !== "lost" && proposal && ["sent", "accepted"].includes(proposal.status) && !proposal.exhausted && !quoteExpired && !quoteAvailabilityLost && !quotePricingChanged && !selectedCleanerEligibilityLost ? proposal.reviewToken : "",
       bookingToken: booking?.customerViewToken || ""
     },
+    scheduleChange: {
+      allowed: scheduleChangeAllowed,
+      required: requestedDatePassed && scheduleChangeAllowed,
+      minimumDate: localDateToday(),
+      changed: requestScheduleHistory.length > 0,
+      originalPreferredDate: customerRequest.originalPreferredDate || customerRequest.preferredDate || "",
+      originalPreferredTimeWindow: customerRequest.originalPreferredTimeWindow || customerRequest.preferredTimeWindow || "Flexible",
+      updatedAt: customerRequest.scheduleUpdatedAt || "",
+      history: requestScheduleHistory.map((update) => ({ reference: update.id, previousDate: update.previousDate, previousTimeWindow: update.previousTimeWindow, preferredDate: update.preferredDate, preferredTimeWindow: update.preferredTimeWindow, reason: update.reason, changedAt: update.createdAt }))
+    },
     withdrawal: { allowed: !booking && !outcome && !["lost", "completed"].includes(requestStatus), closed: requestStatus === "lost" && !booking }
   });
 }
@@ -3641,6 +3711,69 @@ async function withdrawPrivateCustomerRequest(request, response) {
   writeQueue = operation;
   const result = await operation;
   return json(response, result.replayed ? 200 : 201, { ok: true, status: "closed", ...result });
+}
+
+async function changePrivateCustomerSchedule(request, response) {
+  ensureSameOrigin(request);
+  const token = text(request.headers["x-request-token"], 80);
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private request link is invalid." });
+  const input = await readJson(request);
+  const preferredDate = text(input.preferredDate, 20);
+  const preferredTimeWindow = text(input.preferredTimeWindow, 80) || "Flexible";
+  const reason = text(input.reason, 500);
+  const errors = [];
+  if (input.confirmed !== true) errors.push("Confirm that this new timing replaces your current unbooked request timing.");
+  if (!isIsoCalendarDate(preferredDate) || preferredDate < localDateToday()) errors.push("Choose a valid requested date of today or later.");
+  if (!Object.hasOwn(preferredArrivalWindows, preferredTimeWindow)) errors.push("Choose a supported requested arrival window.");
+  if (reason.length < 10) errors.push("Explain the timing change in at least 10 characters.");
+  if (errors.length) return json(response, 422, { ok: false, errors });
+
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    const [requests, scheduleUpdates, statusUpdates, proposals, proposalUpdates, cleanerDecisions, bookings] = await Promise.all([
+      readRecords("cleaning-requests.ndjson"),
+      readRecords("request-schedule-updates.ndjson"),
+      readRecords("status-updates.ndjson"),
+      readRecords("match-proposals.ndjson"),
+      readRecords("proposal-status.ndjson"),
+      readRecords("cleaner-opportunity-decisions.ndjson"),
+      readRecords("bookings.ndjson")
+    ]);
+    const customerRequest = requests.find((record) => record.customerStatusToken === token);
+    if (!customerRequest) throw Object.assign(new Error("This private request link is invalid."), { statusCode: 404 });
+    let currentStatus = customerRequest.status || "new";
+    for (const update of statusUpdates) if (update.kind === "request" && update.id === customerRequest.id) currentStatus = update.status;
+    if (bookings.some((booking) => booking.requestId === customerRequest.id) || ["booked", "completed"].includes(currentStatus)) {
+      throw Object.assign(new Error("A confirmed visit can only be changed through its protected booking change workflow."), { statusCode: 409 });
+    }
+    if (currentStatus === "lost") throw Object.assign(new Error("This cleaning request is already closed."), { statusCode: 409 });
+    const activeProposal = proposals.find((proposal) => {
+      if (proposal.requestId !== customerRequest.id) return false;
+      const lifecycle = proposalLifecycle(proposal, proposalUpdates);
+      return ["draft", "ready"].includes(lifecycle.status) || (["sent", "accepted"].includes(lifecycle.status) && !proposalOfferIsExhausted(proposal, proposalUpdates, cleanerDecisions));
+    });
+    if (activeProposal) throw Object.assign(new Error("Tideway has already started a controlled quote for this timing. Review or close that unbooked proposal before choosing another date."), { statusCode: 409 });
+    if (customerRequest.preferredDate === preferredDate && (customerRequest.preferredTimeWindow || "Flexible") === preferredTimeWindow) {
+      const latest = scheduleUpdates.filter((update) => update.requestId === customerRequest.id).at(-1) || null;
+      return { reference: latest?.id || "", requestReference: customerRequest.id, preferredDate, preferredTimeWindow, changedAt: latest?.createdAt || customerRequest.createdAt, replayed: true };
+    }
+    const record = {
+      id: `RSC-${randomUUID().slice(0, 8).toUpperCase()}`,
+      requestId: customerRequest.id,
+      previousDate: customerRequest.preferredDate,
+      previousTimeWindow: customerRequest.preferredTimeWindow || "Flexible",
+      preferredDate,
+      preferredTimeWindow,
+      reason,
+      source: "customer-private-schedule-change",
+      createdAt: new Date().toISOString()
+    };
+    await mkdir(dataDir, { recursive: true });
+    await appendFile(path.join(dataDir, "request-schedule-updates.ndjson"), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+    return { reference: record.id, requestReference: customerRequest.id, preferredDate, preferredTimeWindow, changedAt: record.createdAt, replayed: false };
+  });
+  writeQueue = operation;
+  const result = await operation;
+  return json(response, result.replayed ? 200 : 201, { ok: true, ...result });
 }
 
 async function saveCleanerProfileStarterUpdate(record) {
@@ -4209,6 +4342,9 @@ async function getAdminMatches(request, response, requestId) {
   const requestStatus = [...updates].reverse().find((update) => update.kind === "request" && update.id === customerRequest.id)?.status || customerRequest.status || "new";
   if (["lost", "completed"].includes(requestStatus)) {
     return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "request-closed", requiredHours: null }, matches: [] });
+  }
+  if (customerRequest.preferredDate < localDateToday()) {
+    return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "requested-date-passed", requiredHours: null }, matches: [] });
   }
   if (!pilotCoverage.covered) {
     return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "outside-pilot-area", requiredHours: null }, matches: [] });
@@ -4935,6 +5071,9 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/request-withdrawal") {
       return await withdrawPrivateCustomerRequest(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/request-schedule") {
+      return await changePrivateCustomerSchedule(request, response);
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/cleaner-status") {
       return await getPrivateCleanerStatus(request, response);

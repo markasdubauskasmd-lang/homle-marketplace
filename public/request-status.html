@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Track your cleaning request — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-43">
-  <script src="/request-status.js?v=20260715-32" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-44">
+  <script src="/request-status.js?v=20260715-33" type="module"></script>
 </head>
 <body class="quote-page">
   <a class="skip-link" href="#status-main">Skip to request status</a>
@@ -63,6 +63,19 @@
         </section>
 
         <div class="request-status-actions" data-actions></div>
+        <details class="request-withdrawal request-schedule-change" data-schedule-change hidden>
+          <summary>Change requested date or arrival window</summary>
+          <p>This updates your unbooked timing request and keeps the earlier timing in the private audit history. It does not confirm availability, change a booking or accept a price.</p>
+          <form data-schedule-form>
+            <label>New requested date <input name="preferredDate" type="date" required></label>
+            <label>New requested arrival <select name="preferredTimeWindow" required><option value="Flexible">Flexible</option><option value="Morning (8am–12pm)">Morning (8am–12pm)</option><option value="Afternoon (12pm–5pm)">Afternoon (12pm–5pm)</option><option value="Evening (5pm–8pm)">Evening (5pm–8pm)</option></select></label>
+            <label>Why has the timing changed? <textarea name="reason" rows="3" minlength="10" maxlength="500" required placeholder="For example: The property handover moved to next week"></textarea></label>
+            <label class="checkbox"><input name="confirmed" type="checkbox" required><span>I confirm this replaces my current requested timing. Tideway must match and quote the new timing before any visit is confirmed.</span></label>
+            <div class="error-summary" data-schedule-error role="alert" tabindex="-1" hidden></div>
+            <button class="button" type="submit">Save new requested timing</button>
+          </form>
+          <div class="schedule-change-history" data-schedule-history hidden></div>
+        </details>
         <details class="request-withdrawal" data-withdrawal hidden>
           <summary>Close this unbooked request</summary>
           <p>Use this only if you no longer want Tideway to match or quote this enquiry. It does not delete the audit record or cancel a confirmed visit.</p>

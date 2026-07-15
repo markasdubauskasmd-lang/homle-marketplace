@@ -8,6 +8,10 @@ const refresh = document.querySelector("[data-refresh]");
 const withdrawal = document.querySelector("[data-withdrawal]");
 const withdrawalForm = document.querySelector("[data-withdrawal-form]");
 const withdrawalError = document.querySelector("[data-withdrawal-error]");
+const scheduleChange = document.querySelector("[data-schedule-change]");
+const scheduleForm = document.querySelector("[data-schedule-form]");
+const scheduleError = document.querySelector("[data-schedule-error]");
+const scheduleHistory = document.querySelector("[data-schedule-history]");
 const ukDate = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeZone: "Europe/London" });
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
@@ -53,6 +57,31 @@ function renderStatus(result) {
   setText("[data-preferred-date]", preferredDateLabel(result.request.preferredDate));
   setText("[data-preferred-time]", result.request.preferredTimeWindow || "Flexible");
   withdrawal.hidden = result.withdrawal?.allowed !== true;
+  scheduleChange.hidden = result.scheduleChange?.allowed !== true;
+  if (result.scheduleChange?.allowed) {
+    scheduleForm.elements.preferredDate.min = result.scheduleChange.minimumDate || "";
+    if (!scheduleForm.matches(":focus-within")) {
+      scheduleForm.elements.preferredDate.value = result.request.preferredDate || "";
+      scheduleForm.elements.preferredTimeWindow.value = result.request.preferredTimeWindow || "Flexible";
+    }
+    if (result.scheduleChange.required) scheduleChange.open = true;
+  }
+  const changes = result.scheduleChange?.history || [];
+  scheduleHistory.replaceChildren();
+  if (changes.length) {
+    const title = document.createElement("strong");
+    title.textContent = "Recorded timing changes";
+    const list = document.createElement("ul");
+    for (const change of changes) {
+      const item = document.createElement("li");
+      item.textContent = `${preferredDateLabel(change.preferredDate)} · ${change.preferredTimeWindow} · ${change.reason}`;
+      list.append(item);
+    }
+    scheduleHistory.append(title, list);
+    scheduleHistory.hidden = false;
+  } else {
+    scheduleHistory.hidden = true;
+  }
 
   const timeline = document.querySelector("[data-timeline]");
   timeline.replaceChildren();
@@ -117,6 +146,34 @@ async function loadStatus() {
 }
 
 refresh.addEventListener("click", loadStatus);
+scheduleForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  scheduleError.hidden = true;
+  if (!scheduleForm.reportValidity()) return;
+  const button = scheduleForm.querySelector("button");
+  button.disabled = true;
+  const originalLabel = button.textContent;
+  button.textContent = "Saving timing…";
+  try {
+    const response = await fetch("/api/request-schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "X-Request-Token": token },
+      body: JSON.stringify({ preferredDate: scheduleForm.elements.preferredDate.value, preferredTimeWindow: scheduleForm.elements.preferredTimeWindow.value, reason: scheduleForm.elements.reason.value.trim(), confirmed: scheduleForm.elements.confirmed.checked })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "The requested timing could not be changed.");
+    scheduleForm.elements.reason.value = "";
+    scheduleForm.elements.confirmed.checked = false;
+    await loadStatus();
+  } catch (error) {
+    scheduleError.textContent = error.message;
+    scheduleError.hidden = false;
+    scheduleError.focus();
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+});
 withdrawalForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   withdrawalError.hidden = true;
