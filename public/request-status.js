@@ -80,7 +80,7 @@ function renderStatus(result) {
   actions.replaceChildren();
   if (result.links.bookingToken) actions.append(actionLink("Open confirmed booking", `/booking-confirmation#${result.links.bookingToken}`, true));
   else if (result.links.quoteToken) actions.append(actionLink("Review private quote", `/quote#${result.links.quoteToken}`, true));
-  if (result.links.roomScanRequired) actions.append(actionLink(result.roomScan?.status === "needs-revision" ? "Submit revised room scan" : "Complete room scan", `/brief?reference=${encodeURIComponent(result.request.reference)}`, !actions.children.length));
+  if (result.links.roomScanRequired) actions.append(actionLink(result.roomScan?.status === "needs-revision" ? "Submit revised room scan" : "Complete room scan", `/brief?reference=${encodeURIComponent(result.request.reference)}#${token}`, !actions.children.length));
   if (!actions.children.length) {
     const waiting = document.createElement("p");
     waiting.textContent = "No customer action is currently required. Refresh this private page after Tideway records the next stage.";

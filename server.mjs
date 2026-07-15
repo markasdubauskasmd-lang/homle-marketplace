@@ -4038,6 +4038,8 @@ async function handleJobBrief(request, response) {
   const input = await readJson(request, maxBriefBodyBytes);
   const requestId = text(input.requestId, 40).toUpperCase();
   const email = text(input.email, 160).toLowerCase();
+  const suppliedRequestToken = text(request.headers["x-request-token"], 80);
+  const requestTokenValid = /^[A-Za-z0-9_-]{32}$/.test(suppliedRequestToken);
   const transcript = text(input.transcript, 5000);
   const consent = input.consent === true;
   const customerScopeConfirmed = input.scopeCompleteConfirmed === true;
@@ -4048,7 +4050,8 @@ async function handleJobBrief(request, response) {
   const scopeSignals = detectPriceSensitiveScope({ transcript, checklist, photos: photoInputs });
   const errors = [];
   if (!/^REQ-[A-Z0-9]{8}$/.test(requestId)) errors.push("Enter a valid Tideway cleaning-request reference.");
-  if (!isEmail(email)) errors.push("Enter the email used for the cleaning request.");
+  if (suppliedRequestToken && !requestTokenValid) errors.push("Open the room scan again from a valid private request tracker.");
+  if (!requestTokenValid && !isEmail(email)) errors.push("Enter the email used for the cleaning request.");
   if (!transcript) errors.push("Add or dictate the cleaning instructions.");
   if (!checklist.length) errors.push("Generate and review at least one checklist task.");
   if (!photoInputs.length) errors.push("Add at least one room photo or short video.");
@@ -4067,8 +4070,8 @@ async function handleJobBrief(request, response) {
     readRecords("cleaning-requests.ndjson"),
     readRecords("status-updates.ndjson")
   ]);
-  const customerRequest = requests.find((record) => record.id === requestId && record.email === email);
-  if (!customerRequest) return json(response, 404, { ok: false, error: "The request reference and email could not be matched." });
+  const customerRequest = requests.find((record) => record.id === requestId && (requestTokenValid ? record.customerStatusToken === suppliedRequestToken : record.email === email));
+  if (!customerRequest) return json(response, 404, { ok: false, error: "The private request tracker or request email could not be matched." });
   let requestStatus = customerRequest.status || "new";
   for (const update of updates) if (update.id === requestId) requestStatus = update.status;
   if (["completed", "lost"].includes(requestStatus)) return json(response, 422, { ok: false, error: "This request is closed and cannot accept a new job brief." });

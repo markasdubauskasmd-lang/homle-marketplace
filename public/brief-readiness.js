@@ -50,13 +50,13 @@ export function briefScopeConfirmationIsCurrent({ checked = false, confirmedFing
   return checked === true && confirmedFingerprint.length > 0 && confirmedFingerprint === currentFingerprint;
 }
 
-export function briefReadiness({ requestId = "", email = "", transcript = "", tasks = [], photos = [], checklistCurrent = false, scopeCompleteConfirmed = false, consent = false } = {}) {
+export function briefReadiness({ requestId = "", email = "", requestAuthorised = false, transcript = "", tasks = [], photos = [], checklistCurrent = false, scopeCompleteConfirmed = false, consent = false } = {}) {
   const safeTasks = Array.isArray(tasks) ? tasks : [];
   const safePhotos = Array.isArray(photos) ? photos : [];
   const photographedAreas = [...new Set(safePhotos.map((photo) => String(photo?.area || "").trim()).filter((area) => roomOptionSet.has(area)))];
   const uncoveredAreas = photographedAreas.filter((area) => !safeTasks.some((task) => String(task).toLowerCase().startsWith(`${area.toLowerCase()}:`)));
   const checks = {
-    connectedRequest: /^REQ-[A-Z0-9]{8}$/i.test(String(requestId || "").trim()) && hasEmail(email),
+    connectedRequest: /^REQ-[A-Z0-9]{8}$/i.test(String(requestId || "").trim()) && (requestAuthorised === true || hasEmail(email)),
     roomPhotos: safePhotos.length > 0 && safePhotos.length <= maxBriefPhotos,
     photoDetails: safePhotos.length > 0 && safePhotos.every((photo) => roomOptionSet.has(String(photo?.area || "").trim()) && String(photo?.note || "").trim().length >= 3),
     instructions: String(transcript || "").trim().length > 0,
@@ -66,6 +66,7 @@ export function briefReadiness({ requestId = "", email = "", transcript = "", ta
     privacyConsent: consent === true
   };
   const itemLabels = { ...labels };
+  if (requestAuthorised === true) itemLabels.connectedRequest = "Private request tracker securely connected";
   if (safeTasks.length > 0 && checklistCurrent !== true) {
     itemLabels.conciseTasks = "Summarise again after the latest speech or photo-note changes";
   }

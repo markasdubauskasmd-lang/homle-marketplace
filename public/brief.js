@@ -30,13 +30,24 @@ let pendingSubmission = null;
 let confirmedScopeFingerprint = "";
 let summarisedSourceFingerprint = "";
 const roomOptions = briefRoomOptions;
+const privateRequestToken = /^[A-Za-z0-9_-]{32}$/.test(location.hash.slice(1)) ? location.hash.slice(1) : "";
+if (privateRequestToken) history.replaceState(null, "", `${location.pathname}${location.search}`);
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 const presetReference = new URLSearchParams(location.search).get("reference");
 if (/^REQ-[A-Z0-9]{8}$/i.test(presetReference || "")) {
   form.elements.requestId.value = presetReference.toUpperCase();
+  if (privateRequestToken) {
+    form.elements.requestId.readOnly = true;
+    form.elements.email.required = false;
+    document.querySelector("[data-request-email-label]").hidden = true;
+    const handoffNote = document.querySelector("#brief-handoff-note");
+    handoffNote.querySelector("strong").textContent = "Private request tracker connected.";
+    handoffNote.querySelector("span").textContent = "Your request was verified by this private link; your email is not repeated on this page.";
+    handoffNote.hidden = false;
+  }
   let handoff = null;
-  try { handoff = readBriefHandoff(window.sessionStorage, presetReference); } catch {}
+  try { if (!privateRequestToken) handoff = readBriefHandoff(window.sessionStorage, presetReference); } catch {}
   if (handoff) {
     form.elements.email.value = handoff.email;
     document.querySelector("#brief-handoff-note").hidden = false;
@@ -66,6 +77,7 @@ function currentReadiness() {
   return briefReadiness({
     requestId: form.elements.requestId.value,
     email: form.elements.email.value,
+    requestAuthorised: Boolean(privateRequestToken),
     transcript: transcript.value,
     tasks: checklistTasks(),
     photos,
@@ -408,7 +420,7 @@ form.addEventListener("submit", async (event) => {
     try {
       response = await fetch(form.action, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json", "Idempotency-Key": pendingSubmission.key },
+        headers: { "Content-Type": "application/json", "Accept": "application/json", "Idempotency-Key": pendingSubmission.key, ...(privateRequestToken ? { "X-Request-Token": privateRequestToken } : {}) },
         body: submissionBody,
         signal: controller.signal
       });
