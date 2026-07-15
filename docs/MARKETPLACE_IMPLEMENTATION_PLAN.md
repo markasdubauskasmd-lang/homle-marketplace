@@ -148,9 +148,18 @@ Tests: request creation, cleaner acceptance/decline, concurrent overlapping acce
 
 ## Phase 4 — live journey and cleaning progress
 
+Status: in progress.
+
+Implemented live-journey checkpoint:
+
+- Cleaner-only explicit-consent journey start, current-location update and idempotent arrival transitions with server-side booking-state and participant checks.
+- Participant-only tracking projection with public Cleaner identity, `live`/`stale`/`stopped`/`arrived` state, last-updated evidence and optional trusted-server ETA.
+- Current-only five-minute location upsert, stale withholding, worker purge, automatic deletion after leaving journey statuses and no route-history table.
+- One-time 500-metre nearby notification when property coordinates exist; arrival/journey notifications are idempotent durable records.
+- Browser ETA input is discarded; missing/failed map infrastructure degrades without blocking arrival. Mobile-web foreground limits are documented in `docs/LIVE_JOURNEY_TRACKING.md`.
+
 - Add authenticated booking-scoped WebSocket channels with origin checks, heartbeat, bounded reconnect/backoff and per-user connection limits.
-- Add foreground web location sharing: explicit consent, `Start journey`, current-position upsert, last-updated state, optional server ETA adapter, nearby event and arrival stop.
-- Delete current location automatically on arrival/cancellation/completion and expire disconnected updates. Do not store route history.
+- Add the mobile tracking page with foreground `watchPosition`, map rendering, permission/offline/retry states and large Start journey / I have arrived controls after an approved map provider is configured.
 - Add active job screen with start, pause/resume, task updates, notes, before/after photos, issues, unexpected-task approval and finish.
 - Store updates transactionally, then broadcast progress snapshots and durable event identifiers so reconnects can catch up without blind polling.
 - Add poor-connection/offline status, queued non-destructive task updates and clear conflict/retry handling.

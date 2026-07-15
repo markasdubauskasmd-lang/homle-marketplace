@@ -38,6 +38,8 @@ The [frozen Cleaner invitation and acceptance transaction](docs/BOOKING_INVITATI
 
 Invitation expiry now prevents an unanswered offer from trapping a request: a separately credentialed database worker cancels each due attempt once, reopens matching, records system-attributed histories and queues idempotent participant notifications. The web role cannot execute the expiry batch, and a late assigned-Cleaner response sees the expired terminal state without fabricating a response.
 
+The [live Cleaner journey boundary](docs/LIVE_JOURNEY_TRACKING.md) now supports assigned-Cleaner consent, Start journey, current-location upserts, participant-only tracking, optional trusted ETA, one-time nearby notification and arrival with automatic location deletion. It stores one five-minute current point rather than route history and fails safely when ETA infrastructure is absent. The browser tracking screen remains unexposed until PostgreSQL/HTTPS staging and an approved map provider are available.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

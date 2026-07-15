@@ -5,6 +5,10 @@ const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPatter
 const bookingResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/response$`);
 const requestInvitationPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitations$`);
 const requestMatchesPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/matches$`);
+const bookingTrackingPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/tracking$`);
+const journeyStartPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/start$`);
+const journeyLocationPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/location$`);
+const journeyArrivalPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/arrive$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
 const apiPrefix = "/api/marketplace/";
 
@@ -28,12 +32,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const cleaningRequests = dependencies?.cleaningRequestService;
   const bookings = dependencies?.bookingWorkflowService;
   const matching = dependencies?.matchingService;
+  const journeys = dependencies?.journeyService;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
   if (!cleaningRequests || typeof cleaningRequests.createOwnRequest !== "function" || typeof cleaningRequests.listOwnRequests !== "function") throw new TypeError("Marketplace HTTP routes require the cleaning-request service.");
   if (!bookings || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
   if (!matching || typeof matching.recommendForRequest !== "function") throw new TypeError("Marketplace HTTP routes require the request matching service.");
+  if (!journeys || !["startJourney", "updateLocation", "markArrived", "getTracking"].every((method) => typeof journeys[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking journey service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
 
   return {
@@ -124,6 +130,38 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
           const booking = await bookings.respondToInvitation(context.actor, selectedBookingResponse[1], await readJsonObject(request));
           sendJson(response, 200, { ok: true, booking });
+          return true;
+        }
+        const selectedJourneyStart = pathname.match(journeyStartPath);
+        if (selectedJourneyStart) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          const tracking = await journeys.startJourney(context.actor, selectedJourneyStart[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, tracking });
+          return true;
+        }
+        const selectedJourneyLocation = pathname.match(journeyLocationPath);
+        if (selectedJourneyLocation) {
+          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          const tracking = await journeys.updateLocation(context.actor, selectedJourneyLocation[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, tracking });
+          return true;
+        }
+        const selectedJourneyArrival = pathname.match(journeyArrivalPath);
+        if (selectedJourneyArrival) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          const tracking = await journeys.markArrived(context.actor, selectedJourneyArrival[1]);
+          sendJson(response, 200, { ok: true, tracking });
+          return true;
+        }
+        const selectedTracking = pathname.match(bookingTrackingPath);
+        if (selectedTracking) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          const tracking = await journeys.getTracking(context.actor, selectedTracking[1]);
+          sendJson(response, 200, { ok: true, tracking });
           return true;
         }
         const selectedBooking = pathname.match(bookingPropertyPath);

@@ -28,12 +28,13 @@ psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/008_account_c
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/009_booking_invitation_and_acceptance.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/010_request_cleaner_matching.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/011_invitation_expiry_and_requeue.sql
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/012_live_journey_tracking.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/runtime-role-grants.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/worker-role-grants.sql
 ```
 
 The application transaction boundary sets `app.user_id` and `app.user_roles` locally after `BEGIN` and before any protected query. Pre-login lookups can call only restricted `SECURITY DEFINER` authentication functions. A verified account may have an authenticated session with no selected role while onboarding is pending. First-account provisioning binds writes to the new user ID but does not grant a role; only Cleaner or Landlord onboarding may add a self-selected role. Administrator is never self-selectable.
 
-Run `SELECT * FROM tideway_private.expire_due_cleaner_invitations(100);` through the deployment scheduler using only the `tideway_worker` connection, at least once per minute. The function uses bounded `SKIP LOCKED` batches so concurrent workers do not process the same invitation. Monitor failures and continue immediately while a run returns 100 rows. The web role must receive no execute grant on this function.
+Run `SELECT * FROM tideway_private.expire_due_cleaner_invitations(100);` and `SELECT * FROM tideway_private.purge_expired_cleaner_locations(500);` through the deployment scheduler using only the `tideway_worker` connection, at least once per minute. The functions use bounded `SKIP LOCKED` batches so concurrent workers do not process the same invitation/location. Monitor failures and continue immediately while a run returns the batch limit. The web role must receive no execute grant on either function.
 
 Before production use, run the migrations and database integration tests against an empty staging database, inspect effective grants, confirm `tideway_app` cannot bypass RLS, and test denial from an unrelated account. The current repository contains a PostgreSQL-compatible pool adapter and fake-pool tests; a real PostgreSQL driver is intentionally not declared until package installation and a staging database are available.

@@ -14,6 +14,8 @@ import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config
 import { createCredentialService } from "./credential-service.mjs";
 import { createMarketplaceDatabase } from "./database.mjs";
 import { createIdentityService } from "./identity-service.mjs";
+import { createJourneyRepository } from "./journey-repository.mjs";
+import { createJourneyService } from "./journey-service.mjs";
 import { createMarketplaceHttpRouter } from "./marketplace-http.mjs";
 import { createPropertyRepository } from "./property-repository.mjs";
 import { createPropertyService } from "./property-service.mjs";
@@ -52,7 +54,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const bookingWorkflowService = createBookingWorkflowService(bookingRepository, { pricingPolicy: bookingPricingPolicy });
   const matchingRepository = createMatchingRepository(database);
   const matchingService = createMatchingService(matchingRepository, { pricingPolicy: bookingPricingPolicy });
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService }, { onUnexpectedError: options.onUnexpectedError });
+  const journeyRepository = createJourneyRepository(database);
+  const journeyService = createJourneyService(journeyRepository, { etaProvider: options.etaProvider });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService }, { onUnexpectedError: options.onUnexpectedError });
   const authenticationDependencies = [options.emailDelivery, options.rateLimiter, options.clientKey];
   const suppliedAuthenticationDependencies = authenticationDependencies.filter(Boolean).length;
   if (suppliedAuthenticationDependencies > 0 && suppliedAuthenticationDependencies < authenticationDependencies.length) throw new TypeError("Authentication HTTP composition requires email delivery, shared rate limiting and a trusted client-key resolver together.");
@@ -84,6 +88,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     bookingWorkflowService,
     matchingRepository,
     matchingService,
+    journeyRepository,
+    journeyService,
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
     marketplaceRouter,
