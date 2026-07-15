@@ -1,7 +1,7 @@
 import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js?v=20260715-2";
 import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 import { detectPriceSensitiveScope } from "./scope-signals.js";
-import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos } from "./brief-readiness.js";
+import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos, normaliseBriefRoom } from "./brief-readiness.js?v=20260715-1";
 import { newSubmissionKey } from "./submission-key.js";
 import { cleanerHandoffPreview } from "./cleaner-handoff-preview.js";
 import { checklistChangeReview } from "./checklist-change-review.js";
@@ -11,6 +11,8 @@ const cameraInput = document.querySelector("#brief-camera");
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
 const photoCount = document.querySelector("#photo-count");
+const captureRoomSelect = document.querySelector("#capture-room");
+const captureRoomStatus = document.querySelector("#capture-room-status");
 const transcript = document.querySelector("#brief-transcript");
 const checklist = document.querySelector("#brief-checklist");
 const checklistPreview = document.querySelector("#checklist-preview");
@@ -50,6 +52,32 @@ let activeDraftReference = "";
 const roomOptions = briefRoomOptions;
 const privateRequestToken = /^[A-Za-z0-9_-]{32}$/.test(location.hash.slice(1)) ? location.hash.slice(1) : "";
 if (privateRequestToken) history.replaceState(null, "", `${location.pathname}${location.search}`);
+
+roomOptions.forEach((area) => {
+  const option = document.createElement("option");
+  option.value = area;
+  option.textContent = area;
+  captureRoomSelect.append(option);
+});
+
+function currentCaptureRoom() {
+  return normaliseBriefRoom(captureRoomSelect.value);
+}
+
+function renderCaptureRoomControl() {
+  const room = currentCaptureRoom();
+  const disabled = !room;
+  cameraInput.disabled = disabled;
+  photoInput.disabled = disabled;
+  cameraInput.closest(".photo-picker").classList.toggle("is-disabled", disabled);
+  photoInput.closest(".photo-picker").classList.toggle("is-disabled", disabled);
+  captureRoomStatus.textContent = room
+    ? `New visuals will be labelled ${room}. You can change the room on any card before submitting.`
+    : "Choose a room to unlock the camera and existing-photo buttons.";
+}
+
+captureRoomSelect.addEventListener("change", renderCaptureRoomControl);
+renderCaptureRoomControl();
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 const presetReference = new URLSearchParams(location.search).get("reference");
@@ -484,6 +512,12 @@ function videoDuration(file) {
 }
 
 async function addSelectedVisuals(selected) {
+  const captureRoom = currentCaptureRoom();
+  if (!captureRoom) {
+    showError("Choose the exact room before adding its photos or videos.");
+    captureRoomSelect.focus();
+    return;
+  }
   const available = maxBriefPhotos - photos.length;
   if (selected.length > available) showError(`You can add ${available} more room ${available === 1 ? "visual" : "visuals"}.`);
   for (const file of selected.slice(0, available)) {
@@ -498,7 +532,7 @@ async function addSelectedVisuals(selected) {
       try { durationSeconds = await videoDuration(file); } catch (error) { showError(error.message); continue; }
       if (!Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 30) { showError(`${file.name} must be 30 seconds or shorter.`); continue; }
     }
-    photos.push({ file, kind: isVideo ? "video" : "image", durationSeconds, area: "", note: "", previewUrl: URL.createObjectURL(file) });
+    photos.push({ file, kind: isVideo ? "video" : "image", durationSeconds, area: captureRoom, note: "", previewUrl: URL.createObjectURL(file) });
   }
   renderPhotos();
   clearChecklistChangeReview();

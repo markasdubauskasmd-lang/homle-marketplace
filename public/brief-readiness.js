@@ -22,6 +22,11 @@ export const briefRoomOptions = [
 ];
 const roomOptionSet = new Set(briefRoomOptions);
 
+export function normaliseBriefRoom(value) {
+  const room = String(value || "").trim();
+  return roomOptionSet.has(room) ? room : "";
+}
+
 function hasEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
@@ -55,13 +60,13 @@ export function briefScopeConfirmationIsCurrent({ checked = false, confirmedFing
 export function briefReadiness({ requestId = "", email = "", requestAuthorised = false, transcript = "", tasks = [], photos = [], checklistCurrent = false, scopeCompleteConfirmed = false, consent = false } = {}) {
   const safeTasks = Array.isArray(tasks) ? tasks : [];
   const safePhotos = Array.isArray(photos) ? photos : [];
-  const photographedAreas = [...new Set(safePhotos.map((photo) => String(photo?.area || "").trim()).filter((area) => roomOptionSet.has(area)))];
+  const photographedAreas = [...new Set(safePhotos.map((photo) => normaliseBriefRoom(photo?.area)).filter(Boolean))];
   const handoff = cleanerHandoffPreview({ tasks: safeTasks, photographedAreas, roomOptions: briefRoomOptions });
   const uncoveredAreas = handoff.missingWorkAreas;
   const checks = {
     connectedRequest: /^REQ-[A-Z0-9]{8}$/i.test(String(requestId || "").trim()) && (requestAuthorised === true || hasEmail(email)),
     roomPhotos: safePhotos.length > 0 && safePhotos.length <= maxBriefPhotos,
-    photoDetails: safePhotos.length > 0 && safePhotos.every((photo) => roomOptionSet.has(String(photo?.area || "").trim()) && String(photo?.note || "").trim().length >= 3),
+    photoDetails: safePhotos.length > 0 && safePhotos.every((photo) => Boolean(normaliseBriefRoom(photo?.area)) && String(photo?.note || "").trim().length >= 3),
     instructions: String(transcript || "").trim().length > 0,
     conciseTasks: handoff.workCount > 0 && checklistCurrent === true,
     roomCoverage: safePhotos.length > 0 && photographedAreas.length > 0 && uncoveredAreas.length === 0,

@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Scan rooms for your clean — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-41">
-  <script src="/brief.js?v=20260715-47" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-42">
+  <script src="/brief.js?v=20260715-48" type="module"></script>
 </head>
 <body class="brief-page">
   <a class="skip-link" href="#brief-main">Skip to job brief</a>
@@ -44,10 +44,14 @@
         </div>
 
         <div class="brief-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 1</p><h2>Room photos, short videos and notes</h2><p>Add up to ten room visuals, including no more than two videos of 30 seconds and 15 MB each; the complete upload is capped at 20 MB. Choose each exact room—including the room number where needed—and add a short note explaining what the visual shows. Avoid people, identity documents, post, keys and security codes.</p></div><strong id="photo-count">0/10</strong></div>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 1</p><h2>Room photos, short videos and notes</h2><p>Choose the room once, then add its visuals. New photos and videos receive that room automatically, and every card remains editable. Add up to ten room visuals, including no more than two videos of 30 seconds and 15 MB each; the complete upload is capped at 20 MB. Add a short note explaining what each visual shows. Avoid people, identity documents, post, keys and security codes.</p></div><strong id="photo-count">0/10</strong></div>
+          <div class="capture-room-control">
+            <label>Room for new photos and videos<select id="capture-room" aria-describedby="capture-room-status"><option value="" selected disabled>Choose the exact room first</option></select></label>
+            <p id="capture-room-status" role="status">Choose a room to unlock the camera and existing-photo buttons.</p>
+          </div>
           <div class="photo-picker-actions">
-            <label class="photo-picker">Take a room photo<input id="brief-camera" type="file" accept="image/*" capture="environment"></label>
-            <label class="photo-picker photo-picker-secondary">Choose existing photos or videos<input id="brief-photos" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" multiple></label>
+            <label class="photo-picker is-disabled">Take a room photo<input id="brief-camera" type="file" accept="image/*" capture="environment" aria-describedby="capture-room-status" disabled></label>
+            <label class="photo-picker photo-picker-secondary is-disabled">Choose existing photos or videos<input id="brief-photos" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" multiple aria-describedby="capture-room-status" disabled></label>
           </div>
           <p class="privacy-hint">On a phone, <strong>Take a room photo</strong> opens a single rear-camera capture. Use the second button only for visuals already saved on the device.</p>
           <div id="photo-preview" class="photo-preview" aria-live="polite"><p class="empty-photo-state">No room visuals added yet.</p></div>
