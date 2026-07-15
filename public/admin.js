@@ -1,5 +1,6 @@
 const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null, dataIntegrity: null };
 const scanReviewWorkspace = globalThis.TidewayScanReviewWorkspace;
+const readinessNavigator = globalThis.TidewayReadinessNavigator;
 
 const leadList = document.querySelector("#lead-list");
 const dispatchQueueList = document.querySelector("#dispatch-queue-list");
@@ -9,42 +10,6 @@ const adminAuth = document.querySelector("#admin-auth");
 const adminContent = document.querySelector("#admin-content");
 const adminKeyField = document.querySelector("#admin-key");
 let adminKey = sessionStorage.getItem("tidewayAdminKey") || "";
-const readinessRequirementFields = Object.freeze({
-  "legal owner name": "legalOwnerName",
-  "business structure": "businessStructure",
-  "legal business name": "legalBusinessName",
-  "trading address": "tradingAddress",
-  "valid support email": "supportEmail",
-  "valid support phone": "supportPhone",
-  "valid public HTTPS website origin": "publicSiteUrl",
-  "domain and deployment evidence naming this hostname": "publicSiteEvidenceNote",
-  "public website verification date": "publicSiteVerifiedDate",
-  "at least one valid outward postcode": "pilotPostcodes",
-  "positive customer hourly rate": "customerHourlyRate",
-  "positive cleaner hourly pay": "cleanerHourlyPay",
-  "founder minimum booking hours": "minimumHours",
-  "founder contribution-margin floor": "minimumContributionMarginPercent",
-  "customer rate above cleaner pay": "customerHourlyRate",
-  "reviewed labour on-cost, payment, travel, supplies and risk assumptions": "variableCostsConfirmed",
-  "configured minimum job meets the contribution-margin floor": "customerHourlyRate",
-  "viable margin and percentage-cost stack": "minimumContributionMarginPercent",
-  "insurance marked active and verified": "insuranceStatus",
-  "insurance provider": "insuranceProvider",
-  "cover, limit and document-location summary": "insuranceEvidenceNote",
-  "future policy expiry or review date": "insuranceReviewDate",
-  "payment provider marked live and verified": "paymentProviderStatus",
-  "payment provider name": "paymentProviderName",
-  "documented refund process": "refundProcess",
-  "provider verification evidence summary": "paymentProviderEvidenceNote",
-  "provider verification date": "paymentProviderVerifiedDate",
-  "decided cleaner engagement model": "cleanerModel",
-  "customer cancellation rule": "cancellationPolicy",
-  "customer payment timing": "paymentTiming",
-  "customer quote response window": "customerQuoteValidityHours",
-  "cleaner opportunity response window": "cleanerOpportunityValidityHours",
-  "inactive-enquiry media retention period": "inactiveMediaRetentionDays",
-  "completed-booking media retention period": "completedMediaRetentionDays"
-});
 let nextReadinessRequirement = null;
 const statusLabels = {
   new: "New", contacted: "Contacted", quoted: "Quoted", booked: "Booked", completed: "Completed", lost: "Lost",
@@ -168,13 +133,19 @@ function showProposalForm(record, match, target) {
 }
 
 function renderReadiness(readiness) {
+  const navigation = readinessNavigator.navigationModel(readiness);
   document.querySelector("#readiness-score").textContent = `${readiness.completed}/${readiness.total}`;
   document.querySelectorAll("#readiness-list [data-check]").forEach((item) => {
     const complete = Boolean(readiness.checks[item.dataset.check]);
+    const area = navigation.areas.find((entry) => entry.key === item.dataset.check);
     item.classList.toggle("ready", complete);
     item.querySelector(":scope > span").textContent = complete ? "✓" : "○";
     const missing = readiness.missing?.[item.dataset.check] || [];
     item.querySelector("[data-missing]").textContent = complete ? "All recorded requirements complete" : `Missing: ${missing.join(", ") || "verified founder evidence"}`;
+    const areaButton = item.querySelector("[data-readiness-action]");
+    areaButton.hidden = complete || !area?.target;
+    areaButton.onclick = area?.target ? () => focusReadinessRequirement(area.target) : null;
+    if (area?.target) areaButton.setAttribute("aria-label", `Review ${area.target.label}`);
   });
   const guidance = document.querySelector("#readiness-next");
   guidance.classList.toggle("readiness-next-complete", readiness.ready);
@@ -182,17 +153,16 @@ function renderReadiness(readiness) {
     ? `Next required decision — ${readiness.next.label}: ${readiness.next.missing.join(", ")}. Do not guess or use placeholder claims.`
     : "All seven recorded readiness areas are complete. Public launch, outreach and payment still require the founder's explicit approval.";
   const continueButton = document.querySelector("#readiness-continue");
-  const missingRequirement = readiness.next?.missing?.find((label) => readinessRequirementFields[label]) || "";
-  nextReadinessRequirement = missingRequirement ? { label: missingRequirement, fieldName: readinessRequirementFields[missingRequirement] } : null;
+  nextReadinessRequirement = navigation.nextTarget;
   continueButton.hidden = !nextReadinessRequirement;
   continueButton.textContent = readiness.next ? `Continue ${readiness.next.label.toLowerCase()} setup` : "Continue launch setup";
 }
 
-document.querySelector("#readiness-continue").addEventListener("click", () => {
-  if (!nextReadinessRequirement) return;
+function focusReadinessRequirement(target) {
+  if (!target) return;
   const setup = document.querySelector(".setup-details");
   const form = document.querySelector("#business-config-form");
-  const field = form.elements.namedItem(nextReadinessRequirement.fieldName);
+  const field = form.elements.namedItem(target.fieldName);
   if (!field || typeof field.focus !== "function") return;
   setup.open = true;
   document.querySelectorAll(".readiness-field-focus").forEach((item) => item.classList.remove("readiness-field-focus"));
@@ -202,6 +172,10 @@ document.querySelector("#readiness-continue").addEventListener("click", () => {
     (label || field).scrollIntoView({ behavior: "smooth", block: "center" });
     field.focus({ preventScroll: true });
   });
+}
+
+document.querySelector("#readiness-continue").addEventListener("click", () => {
+  focusReadinessRequirement(nextReadinessRequirement);
 });
 
 async function loadConfig() {

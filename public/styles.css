@@ -375,6 +375,9 @@ textarea { resize: vertical; }
 .readiness-list li small { margin-top: 4px; color: #b4ccc5; line-height: 1.35; }
 .readiness-list li.ready { color: #fff; border-color: rgba(158,232,212,.6); background: rgba(158,232,212,.1); }
 .readiness-list li.ready > span, .readiness-list li.ready small { color: #9ee8d4; }
+.readiness-area-action { margin-top: 9px; padding: .4rem .58rem; color: #0b3f36; border: 0; border-radius: 7px; background: #9ee8d4; font: inherit; font-size: .72rem; font-weight: 850; cursor: pointer; }
+.readiness-area-action:hover { background: #c7f4e7; }
+.readiness-area-action:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .readiness-next { margin: 12px 0 0; padding: 12px 14px; border-left: 3px solid #f2b05f; border-radius: 8px; color: #fff0d8; background: rgba(255,255,255,.08); font-size: .86rem; }
 .readiness-next-complete { border-left-color: #9ee8d4; color: #dff9f1; }
 .readiness-continue { margin-top: 10px; background: #9ee8d4; color: #12483f; }

@@ -6,9 +6,10 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Tideway control desk</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-46">
+  <link rel="stylesheet" href="/styles.css?v=20260715-47">
   <script src="/scan-review-workspace.js?v=20260715-1" defer></script>
-  <script src="/admin.js?v=20260715-50" defer></script>
+  <script src="/readiness-navigator.js?v=20260715-1" defer></script>
+  <script src="/admin.js?v=20260715-51" defer></script>
 </head>
 <body class="admin-page">
   <a class="skip-link" href="#admin-main">Skip to leads</a>
@@ -83,13 +84,13 @@
         <div class="readiness-score"><strong id="readiness-score">0/7</strong><span>launch areas ready</span></div>
       </div>
       <ul class="readiness-list" id="readiness-list">
-        <li data-check="identity"><span>○</span><div><strong>Legal identity</strong><small data-missing>Checking requirements…</small></div></li>
-        <li data-check="contact"><span>○</span><div><strong>Contact and public site</strong><small data-missing>Checking requirements…</small></div></li>
-        <li data-check="pilotArea"><span>○</span><div><strong>Pilot area</strong><small data-missing>Checking requirements…</small></div></li>
-        <li data-check="economics"><span>○</span><div><strong>Pricing and pay</strong><small data-missing>Checking requirements…</small></div></li>
-        <li data-check="insurance"><span>○</span><div><strong>Insurance evidence</strong><small data-missing>Checking requirements…</small></div></li>
-        <li data-check="payments"><span>○</span><div><strong>Payment readiness</strong><small data-missing>Checking requirements…</small></div></li>
-        <li data-check="operatingRules"><span>○</span><div><strong>Operating rules</strong><small data-missing>Checking requirements…</small></div></li>
+        <li data-check="identity"><span>○</span><div><strong>Legal identity</strong><small data-missing>Checking requirements…</small><button class="readiness-area-action" data-readiness-action type="button" hidden>Review legal identity</button></div></li>
+        <li data-check="contact"><span>○</span><div><strong>Contact and public site</strong><small data-missing>Checking requirements…</small><button class="readiness-area-action" data-readiness-action type="button" hidden>Review contact and site</button></div></li>
+        <li data-check="pilotArea"><span>○</span><div><strong>Pilot area</strong><small data-missing>Checking requirements…</small><button class="readiness-area-action" data-readiness-action type="button" hidden>Review pilot area</button></div></li>
+        <li data-check="economics"><span>○</span><div><strong>Pricing and pay</strong><small data-missing>Checking requirements…</small><button class="readiness-area-action" data-readiness-action type="button" hidden>Review pricing</button></div></li>
+        <li data-check="insurance"><span>○</span><div><strong>Insurance evidence</strong><small data-missing>Checking requirements…</small><button class="readiness-area-action" data-readiness-action type="button" hidden>Review insurance</button></div></li>
+        <li data-check="payments"><span>○</span><div><strong>Payment readiness</strong><small data-missing>Checking requirements…</small><button class="readiness-area-action" data-readiness-action type="button" hidden>Review payments</button></div></li>
+        <li data-check="operatingRules"><span>○</span><div><strong>Operating rules</strong><small data-missing>Checking requirements…</small><button class="readiness-area-action" data-readiness-action type="button" hidden>Review operating rules</button></div></li>
       </ul>
       <p id="readiness-next" class="readiness-next" role="status">Checking the next required founder decision…</p>
       <button id="readiness-continue" class="button button-small readiness-continue" type="button" aria-describedby="readiness-next" hidden>Continue launch setup</button>
