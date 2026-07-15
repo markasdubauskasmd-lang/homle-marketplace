@@ -114,7 +114,9 @@ function renderOpportunity(opportunity) {
   if (opportunity.decision || !opportunity.decisionAllowed) {
     form.hidden = true;
     locked.hidden = false;
-    if (opportunity.status === "cancelled") {
+    if (opportunity.requestClosed) {
+      locked.innerHTML = "<strong>This cleaning request is closed.</strong><span>The opportunity can no longer be accepted and no new assignment can be created from it.</span>";
+    } else if (opportunity.status === "cancelled") {
       locked.innerHTML = "<strong>This opportunity was withdrawn before assignment.</strong><span>No assignment was created. Contact Tideway if you need help.</span>";
     } else if (opportunity.decision?.status === "accepted") {
       locked.innerHTML = "<strong>Opportunity accepted.</strong><span>Tideway recorded your decision. This is not yet a confirmed assignment.</span>";

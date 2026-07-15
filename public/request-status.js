@@ -5,6 +5,9 @@ const loading = document.querySelector("#status-loading");
 const errorState = document.querySelector("#status-error");
 const content = document.querySelector("#status-content");
 const refresh = document.querySelector("[data-refresh]");
+const withdrawal = document.querySelector("[data-withdrawal]");
+const withdrawalForm = document.querySelector("[data-withdrawal-form]");
+const withdrawalError = document.querySelector("[data-withdrawal-error]");
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 
@@ -40,6 +43,7 @@ function renderStatus(result) {
   setText("[data-frequency]", result.request.frequency || "One-off");
   setText("[data-property]", `${result.request.propertyType} · ${result.request.siteSize}`);
   setText("[data-area]", result.request.outwardCode);
+  withdrawal.hidden = result.withdrawal?.allowed !== true;
 
   const timeline = document.querySelector("[data-timeline]");
   timeline.replaceChildren();
@@ -104,4 +108,31 @@ async function loadStatus() {
 }
 
 refresh.addEventListener("click", loadStatus);
+withdrawalForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  withdrawalError.hidden = true;
+  if (!withdrawalForm.reportValidity()) return;
+  const button = withdrawalForm.querySelector("button");
+  button.disabled = true;
+  const originalLabel = button.textContent;
+  button.textContent = "Closing request…";
+  try {
+    const response = await fetch("/api/request-withdrawal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "X-Request-Token": token },
+      body: JSON.stringify({ reason: withdrawalForm.elements.reason.value, note: withdrawalForm.elements.note.value.trim(), confirmed: withdrawalForm.elements.confirmed.checked })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "This request could not be closed.");
+    withdrawalForm.reset();
+    await loadStatus();
+  } catch (error) {
+    withdrawalError.textContent = error.message;
+    withdrawalError.hidden = false;
+    withdrawalError.focus();
+  } finally {
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+});
 loadStatus();

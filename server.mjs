@@ -174,7 +174,7 @@ function rateLimitPolicyFor(request, pathname) {
   if (request.method === "POST" && ["/api/cleaning-requests", "/api/cleaner-applications", "/api/job-briefs"].includes(pathname)) {
     return { name: `public-submission:${pathname}`, ...apiRateLimitPolicies.publicSubmission };
   }
-  if (request.method === "POST" && ["/api/quote/decision", "/api/opportunity/decision", "/api/cleaner-availability-requests", "/api/booking-change-requests", "/api/job-events"].includes(pathname)) {
+  if (request.method === "POST" && ["/api/request-withdrawal", "/api/quote/decision", "/api/opportunity/decision", "/api/cleaner-availability-requests", "/api/booking-change-requests", "/api/job-events"].includes(pathname)) {
     return { name: `private-write:${pathname}`, ...apiRateLimitPolicies.privateWrite };
   }
   if (request.method === "GET" && ["/api/request-status", "/api/cleaner-status", "/api/quote", "/api/opportunity", "/api/opportunity-photo", "/api/booking-pack", "/api/booking-photo"].includes(pathname)) {
@@ -2213,7 +2213,12 @@ async function updateAdminProposalStatus(request, response) {
   if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Proposal parties were not found." });
   let cleanerStatus = cleaner.status || "new";
   for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
+  let requestStatus = customerRequest.status || "new";
+  for (const update of cleanerUpdates) if (update.kind === "request" && update.id === customerRequest.id) requestStatus = update.status;
   const requiredService = requestServiceMap[customerRequest.service] || "";
+  if (["ready", "sent", "accepted"].includes(status) && ["lost", "completed"].includes(requestStatus)) {
+    return json(response, 409, { ok: false, error: "This cleaning request is closed and its proposal cannot advance." });
+  }
   if (["ready", "sent"].includes(status) && cleanerStatus !== "approved") {
     return json(response, 422, { ok: false, error: "The proposed cleaner must still be approved before this proposal can advance." });
   }
@@ -2378,8 +2383,11 @@ async function getQuoteContext(token) {
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
   let cleanerStatus = cleaner.status || "new";
   for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
+  let requestStatus = customerRequest.status || "new";
+  for (const update of cleanerUpdates) if (update.kind === "request" && update.id === customerRequest.id) requestStatus = update.status;
   const requiredService = requestServiceMap[customerRequest.service] || "";
   const readyChecks = {
+    requestActive: !["lost", "completed"].includes(requestStatus),
     launchReady: launchReadiness(config).ready,
     cleanerApproved: cleanerStatus === "approved",
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
@@ -2465,6 +2473,7 @@ function publicQuote(context) {
       expired: proposalStatus === "sent" && !offerIsOpen(displayed.offerExpiresAt),
       availabilityChanged: proposalStatus === "sent" && !readyChecks.availabilityCovered,
       pricingChanged: proposalStatus === "sent" && !readyChecks.costModelCurrent,
+      requestClosed: !readyChecks.requestActive,
       cleanerDeclined: cleanerDecision?.status === "declined",
       cleanerOfferClosed,
       checklist: displayed.checklist || [],
@@ -2489,6 +2498,7 @@ async function decidePrivateQuote(request, response) {
   const context = await getQuoteContext(token);
   if (!context.ok) return json(response, context.statusCode, { ok: false, error: context.error });
   if (context.proposalStatus !== "sent") return json(response, 409, { ok: false, error: "This quote is not awaiting a decision." });
+  if (!context.readyChecks.requestActive) return json(response, 409, { ok: false, error: "This cleaning request is closed and the quote can no longer be accepted." });
   if (context.cleanerDecision?.status === "declined") return json(response, 409, { ok: false, error: "The proposed cleaner is no longer available. Tideway must prepare a replacement proposal." });
   if (context.cleanerOfferClosed) return json(response, 409, { ok: false, error: "The cleaner response window has ended. Tideway must prepare a replacement proposal." });
   if (!offerIsOpen(context.quoteSnapshot?.offerExpiresAt)) return json(response, 409, { ok: false, error: "This quote's response window has ended. Tideway must review and issue a new proposal." });
@@ -2572,10 +2582,13 @@ async function getCleanerOpportunityContext(token) {
   if (proposalStatus === "draft") return { ok: false, statusCode: 409, error: "This opportunity is still being prepared." };
   let cleanerStatus = cleaner.status || "new";
   for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
+  let requestStatus = customerRequest.status || "new";
+  for (const update of cleanerUpdates) if (update.kind === "request" && update.id === customerRequest.id) requestStatus = update.status;
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
   const requiredService = requestServiceMap[customerRequest.service] || "";
   const readyChecks = {
+    requestActive: !["lost", "completed"].includes(requestStatus),
     launchReady: launchReadiness(config).ready,
     cleanerApproved: cleanerStatus === "approved",
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
@@ -2664,6 +2677,7 @@ function publicCleanerOpportunity(context) {
       expired: ["sent", "accepted"].includes(proposalStatus) && !decision && !offerIsOpen(displayed.offerExpiresAt),
       availabilityChanged: ["sent", "accepted"].includes(proposalStatus) && !decision && !readyChecks.availabilityCovered,
       pricingChanged: ["sent", "accepted"].includes(proposalStatus) && !decision && !readyChecks.costModelCurrent,
+      requestClosed: !readyChecks.requestActive,
       decisionAllowed: ["sent", "accepted"].includes(proposalStatus) && !decision && offerIsOpen(displayed.offerExpiresAt) && Object.values(readyChecks).every(Boolean),
       decision: decision ? { status: decision.status, decidedAt: decision.updatedAt, typedName: decision.typedName } : null
     }
@@ -2711,6 +2725,7 @@ async function decidePrivateCleanerOpportunity(request, response) {
   const context = await getCleanerOpportunityContext(token);
   if (!context.ok) return json(response, context.statusCode, { ok: false, error: context.error });
   if (!["sent", "accepted"].includes(context.proposalStatus)) return json(response, 409, { ok: false, error: "This opportunity is not awaiting a decision." });
+  if (!context.readyChecks.requestActive) return json(response, 409, { ok: false, error: "The customer closed this cleaning request, so the opportunity can no longer be accepted." });
   if (context.decision) return json(response, 409, { ok: false, error: "This private decision has already been recorded." });
   if (!offerIsOpen(context.opportunitySnapshot?.offerExpiresAt)) return json(response, 409, { ok: false, error: "This opportunity's response window has ended. Tideway must review and issue a new opportunity." });
   if (!Object.values(context.readyChecks).every(Boolean)) return json(response, 409, { ok: false, error: "This opportunity changed and must be reviewed by Tideway before you decide." });
@@ -3009,6 +3024,8 @@ async function buildBookingAudit(proposalId) {
   }
   let cleanerStatus = cleaner.status || "new";
   for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
+  let requestStatus = customerRequest.status || "new";
+  for (const update of cleanerUpdates) if (update.kind === "request" && update.id === customerRequest.id) requestStatus = update.status;
   const requiredService = requestServiceMap[customerRequest.service] || "";
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
@@ -3017,6 +3034,7 @@ async function buildBookingAudit(proposalId) {
   const cleanerPublicOrigin = verifiedPublicSiteOrigin(opportunitySnapshot?.publicSiteUrl);
   const publicSiteUrl = quotePublicOrigin && quotePublicOrigin === cleanerPublicOrigin ? quotePublicOrigin : "";
   const checks = {
+    requestActive: !["lost", "completed"].includes(requestStatus),
     launchReady: launchReadiness(config).ready,
     customerAccepted: proposalStatus === "accepted",
     cleanerAccepted: cleanerDecision?.status === "accepted",
@@ -3448,7 +3466,7 @@ async function getPrivateRequestStatus(request, response) {
     currentStage = "completed";
     headline = "Cleaning job completed";
     nextAction = "The operational and financial outcome has been recorded. No payment action is available on this tracker.";
-  } else if (requestStatus === "lost") {
+  } else if (requestStatus === "lost" && !booking) {
     currentStage = "closed";
     headline = "Request closed";
     nextAction = "No active booking is attached to this request.";
@@ -3476,11 +3494,53 @@ async function getPrivateRequestStatus(request, response) {
     roomScan: latestBrief ? { status: scanComplete ? "reviewed" : latestBrief.status === "reviewed" ? "review-pending" : latestBrief.status, reference: latestBrief.id, taskCount: latestBrief.checklist.length, photoCount: latestBrief.photos.length, reviewedHours: scanComplete ? latestBrief.scopeEstimateHours : null, confidence: scanComplete ? latestBrief.scopeConfidence : "", confirmedExtras: scanComplete && latestBrief.priceSensitiveScopeConfirmed ? latestBrief.scopeSignals.map((signal) => signal.label) : [], revisionNote: latestBrief.status === "needs-revision" ? latestBrief.reviewNote : "" } : null,
     visit: booking ? { reference: booking.id, proposedDate: booking.proposedDate, proposedStartTime: booking.proposedStartTime, proposedEndTime: booking.proposedEndTime, jobProgress } : null,
     links: {
-      roomScanRequired: !latestBrief || latestBrief.status === "needs-revision",
-      quoteToken: proposal && ["sent", "accepted"].includes(proposal.status) && !proposal.exhausted && !quoteExpired && !quoteAvailabilityLost && !quotePricingChanged && !selectedCleanerEligibilityLost ? proposal.reviewToken : "",
+      roomScanRequired: requestStatus !== "lost" && (!latestBrief || latestBrief.status === "needs-revision"),
+      quoteToken: requestStatus !== "lost" && proposal && ["sent", "accepted"].includes(proposal.status) && !proposal.exhausted && !quoteExpired && !quoteAvailabilityLost && !quotePricingChanged && !selectedCleanerEligibilityLost ? proposal.reviewToken : "",
       bookingToken: booking?.customerViewToken || ""
-    }
+    },
+    withdrawal: { allowed: !booking && !outcome && !["lost", "completed"].includes(requestStatus), closed: requestStatus === "lost" && !booking }
   });
+}
+
+const customerWithdrawalReasons = new Set(["no-longer-needed", "timing-changed", "duplicate-request", "other"]);
+
+async function withdrawPrivateCustomerRequest(request, response) {
+  ensureSameOrigin(request);
+  const token = text(request.headers["x-request-token"], 80);
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private request link is invalid." });
+  const input = await readJson(request);
+  const reason = text(input.reason, 40);
+  const note = text(input.note, 500);
+  if (input.confirmed !== true) return json(response, 422, { ok: false, error: "Confirm that you want to close this unbooked cleaning request." });
+  if (!customerWithdrawalReasons.has(reason)) return json(response, 422, { ok: false, error: "Choose why this cleaning request is no longer needed." });
+
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    const [requests, statusUpdates, bookings] = await Promise.all([
+      readRecords("cleaning-requests.ndjson"),
+      readRecords("status-updates.ndjson"),
+      readRecords("bookings.ndjson")
+    ]);
+    const customerRequest = requests.find((record) => record.customerStatusToken === token);
+    if (!customerRequest) throw Object.assign(new Error("This private request link is invalid."), { statusCode: 404 });
+    const relevantUpdates = statusUpdates.filter((update) => update.kind === "request" && update.id === customerRequest.id);
+    const latestUpdate = relevantUpdates.at(-1) || null;
+    const currentStatus = latestUpdate?.status || customerRequest.status || "new";
+    if (bookings.some((booking) => booking.requestId === customerRequest.id) || ["booked", "completed"].includes(currentStatus)) {
+      throw Object.assign(new Error("A confirmed visit cannot be closed through the enquiry tracker. Use the protected booking change or cancellation request."), { statusCode: 409 });
+    }
+    if (currentStatus === "lost") {
+      if (latestUpdate?.source === "customer-private-withdrawal") return { reference: customerRequest.id, closedAt: latestUpdate.updatedAt, replayed: true };
+      throw Object.assign(new Error("This cleaning request is already closed."), { statusCode: 409 });
+    }
+    const updatedAt = new Date().toISOString();
+    const update = { id: customerRequest.id, kind: "request", status: "lost", previousStatus: currentStatus, source: "customer-private-withdrawal", withdrawalReason: reason, note, updatedAt };
+    await mkdir(dataDir, { recursive: true });
+    await appendFile(path.join(dataDir, "status-updates.ndjson"), `${JSON.stringify(update)}\n`, { encoding: "utf8", mode: 0o600 });
+    return { reference: customerRequest.id, closedAt: updatedAt, replayed: false };
+  });
+  writeQueue = operation;
+  const result = await operation;
+  return json(response, result.replayed ? 200 : 201, { ok: true, status: "closed", ...result });
 }
 
 async function createPrivateCleanerAvailabilityRequest(request, response) {
@@ -3912,6 +3972,7 @@ async function createAdminProposal(request, response) {
   for (const update of updates) latestStatuses.set(update.id, update.status);
   if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Customer request or cleaner was not found." });
   if (bookings.some((booking) => booking.requestId === requestId)) return json(response, 409, { ok: false, error: "This request already has a confirmed booking. Use the protected booking-change workflow instead of creating another proposal." });
+  if (["lost", "completed"].includes(latestStatuses.get(customerRequest.id) || customerRequest.status || "new")) return json(response, 409, { ok: false, error: "This cleaning request is closed and cannot receive another proposal." });
   if ((latestStatuses.get(cleaner.id) || cleaner.status) !== "approved") return json(response, 422, { ok: false, error: "Only an approved cleaner can be proposed." });
   if (!latestCleanerScreening(cleaner.id, screenings)?.complete) return json(response, 422, { ok: false, error: "Only a fully screened cleaner can be proposed." });
   if (!costAssumptionsConfirmed(config)) return json(response, 422, { ok: false, error: "Confirm the labour on-cost, payment, travel, supplies and risk assumptions before preparing proposal economics." });
@@ -3987,6 +4048,10 @@ async function getAdminMatches(request, response, requestId) {
   if (!customerRequest) return json(response, 404, { ok: false, error: "Customer request not found." });
   const config = await readJsonFile("business-config.json", {});
   const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
+  const requestStatus = [...updates].reverse().find((update) => update.kind === "request" && update.id === customerRequest.id)?.status || customerRequest.status || "new";
+  if (["lost", "completed"].includes(requestStatus)) {
+    return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "request-closed", requiredHours: null }, matches: [] });
+  }
   if (!pilotCoverage.covered) {
     return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "outside-pilot-area", requiredHours: null }, matches: [] });
   }
@@ -4519,6 +4584,9 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/request-status") {
       return await getPrivateRequestStatus(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/request-withdrawal") {
+      return await withdrawPrivateCustomerRequest(request, response);
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/cleaner-status") {
       return await getPrivateCleanerStatus(request, response);
