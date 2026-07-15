@@ -2,6 +2,8 @@ import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, send
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
+const bookingResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/response$`);
+const requestInvitationPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitations$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
 const apiPrefix = "/api/marketplace/";
 
@@ -23,10 +25,12 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const properties = dependencies?.propertyService;
   const cleaners = dependencies?.cleanerProfileService;
   const cleaningRequests = dependencies?.cleaningRequestService;
+  const bookings = dependencies?.bookingWorkflowService;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
   if (!cleaningRequests || typeof cleaningRequests.createOwnRequest !== "function" || typeof cleaningRequests.listOwnRequests !== "function") throw new TypeError("Marketplace HTTP routes require the cleaning-request service.");
+  if (!bookings || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
 
   return {
@@ -92,6 +96,23 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const body = await readJsonObject(request);
           const property = await properties.updateOwnProperty(context.actor, { ...body, id: selectedProperty[1] });
           sendJson(response, 200, { ok: true, property });
+          return true;
+        }
+        const selectedInvitationRequest = pathname.match(requestInvitationPath);
+        if (selectedInvitationRequest) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const body = await readJsonObject(request);
+          const booking = await bookings.inviteCleaner(context.actor, { cleaningRequestId: selectedInvitationRequest[1], cleanerId: body.cleanerId });
+          sendJson(response, 201, { ok: true, booking });
+          return true;
+        }
+        const selectedBookingResponse = pathname.match(bookingResponsePath);
+        if (selectedBookingResponse) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          const booking = await bookings.respondToInvitation(context.actor, selectedBookingResponse[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, booking });
           return true;
         }
         const selectedBooking = pathname.match(bookingPropertyPath);

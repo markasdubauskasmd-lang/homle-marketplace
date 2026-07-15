@@ -114,11 +114,19 @@ Implemented account cleaning-request checkpoint:
 - Safe migration/backfill from earlier request status labels plus submitted-at and request-history RLS.
 - Contract tests in `tests/cleaning-request-service.mjs` and enablement boundary in `docs/ACCOUNT_CLEANING_REQUESTS.md`.
 
+Implemented frozen invitation/acceptance checkpoint:
+
+- Private server-owned pricing derives Cleaner pay from active service prices, covers explicitly configured costs and solves the minimum customer total meeting the approved margin floor; browser-submitted economics are discarded.
+- One locked database transition rechecks request ownership/state/budget, Cleaner profile/service/full-window availability, freezes scope and terms fingerprints, copies the room checklist and records both histories plus an idempotent notification.
+- Cleaner-only accept/decline rechecks eligibility, scope and availability; PostgreSQL’s exclusion constraint is the final concurrent overlap guard.
+- Declines preserve the cancelled attempt and reopen matching while a partial unique index permits one replacement but never two live invitations.
+- Direct app-role booking writes are revoked in favour of audited actor-aware functions. Contract/static coverage is in `tests/booking-workflow.mjs`; setup and staging boundaries are in `docs/BOOKING_INVITATIONS.md`.
+
 - Import existing pilot request/scan/proposal/booking records through a dry-run-first migration tool while retaining legacy references.
 - Create account-backed cleaning requests from saved properties and frozen room-scan checklists/media.
 - Add ranked matching using explicit service area, confirmed availability, services, price, rating, earlier relationship and acceptance rate. Every factor remains explainable.
-- Add invitation, accept/decline and confirmation transactions. PostgreSQL's exclusion constraint is the final double-booking guard.
-- Record every status change in `booking_status_history` and publish only after commit.
+- Add ranked invitation candidate scoring and durable post-commit delivery of the prepared idempotent notification events.
+- Extend the confirmed booking from acceptance through journey, arrival, active cleaning, review, completion, cancellation and dispute transitions.
 - Add `/bookings/new` and `/bookings/:bookingId`; retain the existing protected booking packs as a migration fallback.
 
 Tests: request creation, cleaner acceptance/decline, concurrent overlapping acceptance, unauthorized booking reads, frozen terms and complete lifecycle transitions.

@@ -1,0 +1,76 @@
+import { readFile } from "node:fs/promises";
+import { createBookingRepository } from "../src/marketplace/booking-repository.mjs";
+import { bookingPricingPolicyFromEnvironment, createBookingPricingPolicy, createBookingWorkflowService } from "../src/marketplace/booking-workflow.mjs";
+
+function assert(condition, message) { if (!condition) throw new Error(message); }
+async function rejects(operation, fragment) { try { await operation(); } catch (error) { return String(error.message).includes(fragment); } return false; }
+
+const now = new Date("2026-07-15T10:00:00.000Z");
+const landlord = { userId: "11111111-1111-4111-8111-111111111111", roles: ["landlord"] };
+const cleaner = { userId: "22222222-2222-4222-8222-222222222222", roles: ["cleaner"] };
+const requestId = "66666666-6666-4666-8666-666666666666";
+const bookingId = "55555555-5555-4555-8555-555555555555";
+const candidate = {
+  id: requestId,
+  requested_start_at: "2026-07-20T09:00:00.000Z",
+  requested_end_at: "2026-07-20T12:00:00.000Z",
+  required_services: ["regular-domestic"],
+  budget_pence: 20000,
+  services: [{ serviceCode: "regular-domestic", pricingModel: "hourly", pricePence: 2500 }]
+};
+const policy = createBookingPricingPolicy({
+  targetMarginBasisPoints: 2000,
+  labourOnCostBasisPoints: 1000,
+  paymentFeeBasisPoints: 300,
+  paymentFeeFixedPence: 20,
+  travelCostPence: 500,
+  suppliesCostPence: 250,
+  invitationTtlMinutes: 180
+});
+const quote = policy.quote(candidate, now);
+const costs = quote.cleanerPayPence + quote.labourOnCostPence + quote.paymentFeePence + quote.travelCostPence + quote.suppliesCostPence + quote.otherCostPence;
+assert(quote.cleanerPayPence === 7500 && quote.customerPricePence > costs && (quote.customerPricePence - costs) * 10000 >= quote.customerPricePence * 2000 && quote.responseDeadline === "2026-07-15T13:00:00.000Z", "Private pricing did not cover cleaner pay, costs, target margin and a bounded response window.");
+assert(await rejects(() => Promise.resolve(createBookingPricingPolicy({ targetMarginBasisPoints: 0 })), "Target margin"), "A zero-margin policy was accepted.");
+assert(await rejects(() => Promise.resolve(policy.quote({ ...candidate, services: [{ serviceCode: "regular-domestic", pricingModel: "quote", pricePence: null }] }, now)), "manual quote"), "A manual-quote service was silently priced.");
+assert(bookingPricingPolicyFromEnvironment({}) === null && await rejects(() => Promise.resolve(bookingPricingPolicyFromEnvironment({ BOOKING_TARGET_MARGIN_BPS: "2000" })), "complete private"), "Missing or partial booking economics did not fail closed.");
+const configuredPolicy = bookingPricingPolicyFromEnvironment({ BOOKING_TARGET_MARGIN_BPS: "2000", BOOKING_LABOUR_ON_COST_BPS: "1000", BOOKING_PAYMENT_FEE_BPS: "300", BOOKING_PAYMENT_FEE_FIXED_PENCE: "20", BOOKING_TRAVEL_COST_PENCE: "500", BOOKING_SUPPLIES_COST_PENCE: "250", BOOKING_OTHER_COST_PENCE: "0", BOOKING_INVITATION_TTL_MINUTES: "180" });
+assert(configuredPolicy.quote(candidate, now).customerPricePence === quote.customerPricePence, "Complete private environment pricing did not compose deterministically.");
+
+const calls = [];
+const fakeRepository = {
+  async getInvitationCandidate(actor, suppliedRequestId, cleanerId) { calls.push({ kind: "candidate", actor, suppliedRequestId, cleanerId }); return candidate; },
+  async inviteCleaner(actor, invitation) {
+    calls.push({ kind: "invite", actor, invitation });
+    return { id: bookingId, cleaning_request_id: requestId, status: "pending-cleaner-acceptance", scheduled_start_at: candidate.requested_start_at, scheduled_end_at: candidate.requested_end_at, cleaner_response_deadline: invitation.responseDeadline, customer_price_pence: invitation.customerPricePence, cleaner_pay_pence: invitation.cleanerPayPence, scope_fingerprint: "a".repeat(64), terms_fingerprint: "b".repeat(64), scope_snapshot: { tasks: [] }, responded_at: null, confirmed_at: null };
+  },
+  async respondToInvitation(actor, suppliedBookingId, response) {
+    calls.push({ kind: "respond", actor, suppliedBookingId, response });
+    return { id: bookingId, cleaning_request_id: requestId, status: response.decision === "accept" ? "confirmed" : "cancelled", scheduled_start_at: candidate.requested_start_at, scheduled_end_at: candidate.requested_end_at, cleaner_response_deadline: quote.responseDeadline, customer_price_pence: quote.customerPricePence, cleaner_pay_pence: quote.cleanerPayPence, scope_fingerprint: "a".repeat(64), terms_fingerprint: "b".repeat(64), scope_snapshot: { tasks: [] }, responded_at: now.toISOString(), confirmed_at: response.decision === "accept" ? now.toISOString() : null };
+  }
+};
+const workflow = createBookingWorkflowService(fakeRepository, { pricingPolicy: policy, clock: () => new Date(now) });
+const invitation = await workflow.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId, customerPricePence: 1, cleanerPayPence: 1 });
+assert(calls[1].invitation.customerPricePence === quote.customerPricePence && calls[1].invitation.cleanerPayPence === quote.cleanerPayPence && invitation.status === "pending-cleaner-acceptance" && !Object.hasOwn(invitation, "cleanerPayPence"), "Browser economics reached the booking or private Cleaner pay leaked to a Landlord.");
+const accepted = await workflow.respondToInvitation(cleaner, bookingId, { decision: "accept", cleanerPayPence: 1 });
+assert(accepted.status === "confirmed" && accepted.cleanerPayPence === quote.cleanerPayPence && calls.at(-1).response.decision === "accept" && !Object.hasOwn(calls.at(-1).response, "cleanerPayPence"), "Cleaner response trusted submitted terms or lost the frozen offer.");
+assert(await rejects(() => workflow.inviteCleaner(cleaner, { cleaningRequestId: requestId, cleanerId: cleaner.userId }), "Landlord"), "A Cleaner could create an invitation.");
+assert(await rejects(() => workflow.respondToInvitation(landlord, bookingId, { decision: "accept" }), "Cleaner"), "A Landlord could answer a Cleaner invitation.");
+const disabled = createBookingWorkflowService(fakeRepository);
+assert(await rejects(() => disabled.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId }), "pricing policy"), "Invitations did not fail closed without private pricing configuration.");
+
+const sqlCalls = [];
+let failure = null;
+const database = { async withUserTransaction(actor, operation) { return operation({ async query(text, values) { sqlCalls.push({ actor, text, values }); if (failure) throw failure; if (text.includes("getInvitationCandidate")) return { rows: [] }; return { rows: [{ id: bookingId }] }; } }); } };
+const repository = createBookingRepository(database);
+await repository.inviteCleaner(landlord, { bookingId, requestId, cleanerId: cleaner.userId, responseDeadline: quote.responseDeadline, customerPricePence: quote.customerPricePence, cleanerPayPence: quote.cleanerPayPence, labourOnCostPence: quote.labourOnCostPence, paymentFeePence: quote.paymentFeePence, travelCostPence: quote.travelCostPence, suppliesCostPence: quote.suppliesCostPence, otherCostPence: quote.otherCostPence, targetMarginBasisPoints: quote.targetMarginBasisPoints });
+await repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null });
+assert(sqlCalls[0].text.includes("tideway_private.invite_cleaner") && sqlCalls[0].values.length === 12 && sqlCalls[1].text.includes("respond_to_cleaner_invitation") && sqlCalls[1].actor.userId === cleaner.userId, "Booking repository bypassed actor-bound audited transition functions or used unparameterized terms.");
+failure = Object.assign(new Error("duplicate overlap"), { code: "23P01" });
+assert(await rejects(() => repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null }), "overlaps"), "Concurrent exclusion violations were not mapped to a safe schedule conflict.");
+
+const migration = await readFile(new URL("../db/migrations/009_booking_invitation_and_acceptance.sql", import.meta.url), "utf8");
+const grants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
+for (const required of ["bookings_one_live_attempt_per_request_idx", "planned_contribution_pence", "bookings_target_margin_check", "cleaner_response_deadline", "scope_snapshot", "cleaner-services-mismatch", "cleaner-unavailable", "exclusion_violation", "booking_status_history", "cleaning_request_status_history", "ON CONFLICT (booking_id) DO NOTHING", "idempotency_key"]) assert(migration.includes(required), `Booking migration omitted ${required}.`);
+assert(grants.includes("respond_to_cleaner_invitation") && grants.includes("REVOKE INSERT, UPDATE, DELETE ON bookings"), "Runtime role can bypass audited booking transitions.");
+
+console.log("Booking workflow tests passed: server-owned profitable terms, frozen scope, eligible Cleaner acceptance, decline/retry history, idempotent responses and concurrent overlap protection.");
