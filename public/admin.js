@@ -601,7 +601,13 @@ function appendBookingForm(record, proposal, target) {
   const form = document.createElement("form");
   form.className = "booking-confirmation-form";
   addText(form, "strong", "Record the four remaining manual confirmations");
-  addText(form, "span", "Capture the final visit pack after both sides accept. This does not send a booking or take payment. Never enter alarm codes, key-safe codes or card details here.");
+  addText(form, "span", "Capture the final visit pack after both sides accept. Tideway verifies a reference for an external payment step but never charges or refunds anyone. Never enter alarm codes, key-safe codes, card details, passwords or provider credentials here.");
+  const paymentReferenceField = bookingDetailField("External payment evidence reference", "paymentEvidenceReference", { placeholder: "Provider transaction, authorisation or invoice reference only", maxLength: 100 });
+  const paymentAmountField = bookingDetailField("Externally verified amount (£)", "paymentEvidenceAmount", { type: "number", value: String(proposal.customerTotal) });
+  paymentAmountField.querySelector("input").min = "0.01";
+  paymentAmountField.querySelector("input").step = "0.01";
+  const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const paymentVerifiedField = bookingDetailField("Evidence verified at", "paymentEvidenceVerifiedAt", { type: "datetime-local", value: localNow });
   form.append(
     bookingDetailField("Full service address", "serviceAddress", { autocomplete: "street-address", placeholder: "Building, street and locality" }),
     bookingDetailField("Service postcode", "servicePostcode", { autocomplete: "postal-code", value: record.postcode }),
@@ -611,9 +617,12 @@ function appendBookingForm(record, proposal, target) {
     bookingDetailField("Parking or arrival notes", "parkingNotes", { multiline: true, required: false, maxLength: 500 }),
     bookingDetailField("Products and equipment", "productsAndEquipment", { multiline: true, placeholder: "Who supplies products, vacuum, mop and any site-specific equipment" }),
     bookingDetailField("Emergency and issue instructions", "emergencyInstructions", { multiline: true, placeholder: "Who to call and when work must stop" }),
+    paymentReferenceField,
+    paymentAmountField,
+    paymentVerifiedField,
     bookingConfirmation("Exact address and named access contact confirmed securely", "addressAndAccessConfirmed"),
     bookingConfirmation("Final checklist, exclusions, products and equipment confirmed", "finalChecklistConfirmed"),
-    bookingConfirmation("Payment authorisation confirmed externally; no card details stored here", "paymentAuthorisationConfirmed"),
+    bookingConfirmation("I verified the external payment step, exact amount, reference and time after customer acceptance", "paymentAuthorisationConfirmed"),
     bookingConfirmation("Emergency and issue-reporting instructions shared", "emergencyInstructionsConfirmed")
   );
   const note = document.createElement("textarea");
@@ -631,7 +640,8 @@ function appendBookingForm(record, proposal, target) {
     submit.disabled = true;
     const data = new FormData(form);
     const body = { proposalId: proposal.id, internalNote: data.get("internalNote") || "" };
-    ["serviceAddress", "servicePostcode", "accessContactName", "accessContactPhone", "accessInstructions", "parkingNotes", "productsAndEquipment", "emergencyInstructions"].forEach((name) => { body[name] = data.get(name) || ""; });
+    ["serviceAddress", "servicePostcode", "accessContactName", "accessContactPhone", "accessInstructions", "parkingNotes", "productsAndEquipment", "emergencyInstructions", "paymentEvidenceReference", "paymentEvidenceAmount"].forEach((name) => { body[name] = data.get(name) || ""; });
+    body.paymentEvidenceVerifiedAt = data.get("paymentEvidenceVerifiedAt") ? new Date(data.get("paymentEvidenceVerifiedAt")).toISOString() : "";
     ["addressAndAccessConfirmed", "finalChecklistConfirmed", "paymentAuthorisationConfirmed", "emergencyInstructionsConfirmed"].forEach((name) => { body[name] = data.has(name); });
     try {
       const response = await fetch("/api/admin/bookings", { method: "POST", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
@@ -702,6 +712,14 @@ function buildBookingPackPanel(record) {
   addText(panel, "strong", `${booking.id} · ${booking.proposedDate} · ${booking.proposedStartTime}–${booking.proposedEndTime}`);
   addText(panel, "span", `${booking.details?.serviceAddress || "Address unavailable"}, ${booking.details?.servicePostcode || ""}`);
   addText(panel, "span", "These links contain visit details. Share each link only with its named recipient and never paste it into public notes.");
+  if (booking.paymentEvidence) {
+    const payment = document.createElement("div");
+    payment.className = "payment-evidence-summary";
+    addText(payment, "strong", `External payment evidence · ${money.format(booking.paymentEvidence.amount)}`);
+    addText(payment, "span", `${booking.paymentEvidence.providerName} · ${booking.paymentEvidence.status.replaceAll("-", " ")} · verified ${formatDate(booking.paymentEvidence.verifiedAt)}`);
+    addText(payment, "span", `Reference ${booking.paymentEvidence.reference} · evidence only; Tideway did not move money`);
+    panel.append(payment);
+  }
   const progress = document.createElement("ol");
   const progressSteps = [
     ["Cleaner arrival", booking.jobProgress?.cleanerArrivedAt],

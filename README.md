@@ -64,9 +64,10 @@ Then open `http://127.0.0.1:4173`.
 - Latest approved landlord checklist included in the review-only cleaner opportunity draft; photos remain separately protected for deliberate review
 - Structured site scope, access and hazard collection plus a read-only accepted-proposal booking audit
 - Safe lead-status transitions that prevent requests or cleaners skipping required workflow stages
-- Internal confirmed-booking records that require separate customer and cleaner acceptance, a profitable passed audit and four remaining manual confirmations
+- Internal confirmed-booking records that require separate customer and cleaner acceptance, a profitable passed audit and four remaining manual confirmations; the external payment step also requires a provider-backed reference, the exact frozen customer total and a non-future verification time after customer acceptance
 - Structured confirmed-booking packs for the final address, matching postcode, access contact, arrival instructions, equipment plan and emergency instructions; duplicate bookings are rejected atomically
 - Separate fragment-token customer and cleaner booking views: the customer view hides cleaner contact/pay, while the cleaner view exposes only the visit and access information needed after confirmation
+- External payment evidence stays private to the control desk and is excluded from both booking-pack APIs; Tideway records the provider, reference, exact amount and verification time but never stores card details, credentials or performs the payment action
 - Reviewed room photos, short videos and their specific notes become visible to both sides only inside the confirmed protected booking packs; media requests require the private booking token and are never cached
 - Private room-media lifecycle desk classifies active, scheduled, deletion-eligible and already-deleted scans against separate founder-set inactive-enquiry and completed-booking periods; nothing is deleted automatically, and manual deletion requires a verified backup, the exact scan reference and a written append-only audit reason
 - Private reschedule, cancellation, access, scope, cleaning-quality and safety request submission from either booking pack; submissions never mutate the confirmed booking, schedule or payment state automatically

@@ -313,6 +313,9 @@ async function saveBookingOnce(booking) {
     if (bookings.some((item) => item.requestId === booking.requestId || item.proposalId === booking.proposalId)) {
       throw Object.assign(new Error("A booking is already recorded for this request or proposal."), { statusCode: 409 });
     }
+    if (bookings.some((item) => item.paymentEvidence?.reference && item.paymentEvidence.reference.toLowerCase() === booking.paymentEvidence?.reference?.toLowerCase())) {
+      throw Object.assign(new Error("That external payment reference is already attached to another booking."), { statusCode: 409 });
+    }
     if (!findCleanerAvailabilitySlot(booking.cleanerId, booking, availabilityEvents)) {
       throw Object.assign(new Error("The cleaner's confirmed availability no longer covers this visit."), { statusCode: 409 });
     }
@@ -2203,10 +2206,10 @@ async function buildBookingAudit(proposalId) {
   const manualChecklist = [
     "Confirm the exact service address and named access contact through the approved secure process.",
     "Confirm the final task checklist, exclusions, products and equipment with both sides.",
-    "Confirm the customer payment authorisation without storing card details in Tideway notes.",
+    "Verify the external payment step, exact accepted amount, provider reference and timestamp without storing card details or credentials.",
     "Share emergency and issue-reporting instructions before the visit."
   ];
-  return { ok: true, proposal, customerRequest, cleaner, config, latestBrief, proposalId, proposalStatus, cleanerDecision: cleanerDecision ? { status: cleanerDecision.status, decidedAt: cleanerDecision.updatedAt } : null, automatedReady, checks, manualChecklist };
+  return { ok: true, proposal, customerRequest, cleaner, config, latestBrief, proposalId, proposalStatus, customerDecision: customerDecision ? { status: customerDecision.status, decidedAt: customerDecision.updatedAt } : null, cleanerDecision: cleanerDecision ? { status: cleanerDecision.status, decidedAt: cleanerDecision.updatedAt } : null, automatedReady, checks, manualChecklist };
 }
 
 async function getAdminBookingAudit(request, response, proposalId) {
@@ -2222,6 +2225,10 @@ async function createAdminBooking(request, response) {
   ensureSameOrigin(request);
   const input = await readJson(request);
   const proposalId = text(input.proposalId, 40);
+  const paymentEvidenceReference = text(input.paymentEvidenceReference, 100);
+  const paymentEvidenceAmount = Number(input.paymentEvidenceAmount);
+  const paymentEvidenceVerifiedAt = text(input.paymentEvidenceVerifiedAt, 40);
+  const paymentEvidenceVerifiedMs = Date.parse(paymentEvidenceVerifiedAt);
   const details = {
     serviceAddress: text(input.serviceAddress, 500),
     servicePostcode: text(input.servicePostcode, 20).toUpperCase(),
@@ -2241,12 +2248,22 @@ async function createAdminBooking(request, response) {
   if (!proposalId || !Object.values(confirmations).every(Boolean)) {
     return json(response, 422, { ok: false, error: "Complete every manual booking confirmation before recording a booking." });
   }
+  if (paymentEvidenceReference.length < 6 || !Number.isFinite(paymentEvidenceAmount) || paymentEvidenceAmount <= 0 || !Number.isFinite(paymentEvidenceVerifiedMs)) {
+    return json(response, 422, { ok: false, error: "Add the non-sensitive external payment reference, confirmed amount and verification time." });
+  }
+  if (paymentEvidenceVerifiedMs > Date.now()) return json(response, 422, { ok: false, error: "Payment evidence verification time cannot be in the future." });
   if (!details.serviceAddress || !isUkPostcode(details.servicePostcode) || !details.accessContactName || !isPhone(details.accessContactPhone) || !details.accessInstructions || !details.productsAndEquipment || !details.emergencyInstructions) {
     return json(response, 422, { ok: false, error: "Add the full service address, matching postcode, valid access contact, access instructions, products/equipment and emergency instructions." });
   }
   const audit = await buildBookingAudit(proposalId);
   if (!audit.ok) return json(response, audit.statusCode, { ok: false, error: audit.error });
   if (!audit.automatedReady) return json(response, 422, { ok: false, error: "The automated booking audit must pass before recording a booking.", checks: audit.checks });
+  if (moneyValue(paymentEvidenceAmount) !== moneyValue(audit.proposal.customerTotal)) {
+    return json(response, 422, { ok: false, error: `The verified external payment amount must match the accepted customer total of £${audit.proposal.customerTotal.toFixed(2)}.` });
+  }
+  if (!audit.customerDecision?.decidedAt || paymentEvidenceVerifiedMs < Date.parse(audit.customerDecision.decidedAt)) {
+    return json(response, 422, { ok: false, error: "Payment evidence must be verified after the customer accepted the frozen quote." });
+  }
   if (details.servicePostcode.replace(/\s+/g, "") !== audit.customerRequest.postcode.replace(/\s+/g, "")) {
     return json(response, 422, { ok: false, error: "The final service postcode must match the postcode accepted in the customer quote." });
   }
@@ -2282,6 +2299,16 @@ async function createAdminBooking(request, response) {
     plannedNonCleanerCosts: audit.proposal.nonCleanerCosts,
     costAssumptions: audit.proposal.costAssumptions,
     roomScanBriefId: audit.latestBrief.id,
+    paymentEvidence: {
+      providerName: audit.config.paymentProviderName,
+      timing: audit.config.paymentTiming,
+      status: audit.config.paymentTiming.startsWith("Payment authorised") ? "authorisation-confirmed" : audit.config.paymentTiming.startsWith("Payment taken") ? "payment-received-confirmed" : audit.config.paymentTiming.startsWith("Invoice") ? "invoice-route-confirmed" : "external-payment-step-confirmed",
+      reference: paymentEvidenceReference,
+      amount: moneyValue(paymentEvidenceAmount),
+      verifiedAt: new Date(paymentEvidenceVerifiedMs).toISOString(),
+      customerAcceptedAt: audit.customerDecision.decidedAt,
+      recordedAt: new Date().toISOString()
+    },
     details,
     customerViewToken: randomBytes(24).toString("base64url"),
     cleanerViewToken: randomBytes(24).toString("base64url"),

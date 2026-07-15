@@ -439,6 +439,9 @@ textarea { resize: vertical; }
 .draft-section button { justify-self: start; }
 .booking-audit { margin-top: 4px; border-top: 1px solid rgba(255,255,255,.22); }
 .booking-audit summary { padding: 12px 0; color: #fff; font-size: .86rem; font-weight: 800; cursor: pointer; }
+.payment-evidence-summary { display: grid; gap: 3px; margin: 10px 0; padding: 12px 14px; border: 1px solid #abd4c8; border-radius: 9px; background: var(--mint-pale); }
+.payment-evidence-summary strong { color: var(--green-dark); }
+.payment-evidence-summary span { color: var(--muted); font-size: .8rem; }
 .booking-audit-target { display: grid; gap: 12px; margin-top: 10px; color: var(--ink); }
 .booking-audit-heading { padding: 13px; border-radius: 9px; background: #fff; }
 .booking-audit-heading strong, .booking-audit-heading span { display: block; color: inherit; }
