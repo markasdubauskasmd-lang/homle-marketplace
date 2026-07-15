@@ -1,11 +1,12 @@
 import { saveBriefHandoff } from "./brief-handoff.js";
 import { newSubmissionKey } from "./submission-key.js";
+import { parseCleanerTravelAreas } from "./travel-coverage.js";
 
 const pendingSubmissions = new WeakMap();
 
 const focusedEntryRoutes = {
   "/request": { kind: "request", target: "request-cleaning", title: "Request a clean — Tideway", description: "Request a Tideway clean in three short steps, then scan the rooms and turn spoken notes into a clear cleaner checklist." },
-  "/join": { kind: "join", target: "cleaner-application", title: "Apply as a cleaner — Tideway", description: "Apply to join the Tideway cleaning pilot and choose the areas, services and usual times that suit you." }
+  "/join": { kind: "join", target: "cleaner-application", title: "Apply as a cleaner — Tideway", description: "Apply to join the Tideway cleaning pilot and choose your travel areas, services and first available work window." }
 };
 const focusedEntryRoute = focusedEntryRoutes[location.pathname] || null;
 if (focusedEntryRoute) {
@@ -89,6 +90,18 @@ function enhanceGuidedForm(form) {
   }
 
   function validateCurrentStep() {
+    const travelAreas = steps[currentStep - 1].querySelector('input[name="travelAreas"]');
+    if (travelAreas) {
+      travelAreas.setCustomValidity("");
+      if (travelAreas.value.trim() && !parseCleanerTravelAreas(travelAreas.value).valid) {
+        const message = "Add at least one postcode district or comma-separated postcode area, for example SW1A, SW4, or SW, SE.";
+        travelAreas.setCustomValidity(message);
+        showError(form, message);
+        travelAreas.reportValidity();
+        travelAreas.focus();
+        return false;
+      }
+    }
     const serviceGroup = steps[currentStep - 1].querySelector("[data-service-group]");
     if (serviceGroup && !serviceGroup.querySelector('input[type="checkbox"]:checked')) {
       showError(form, "Choose at least one type of cleaning work before continuing.");
@@ -128,6 +141,9 @@ function enhanceGuidedForm(form) {
   });
   form.querySelectorAll("[data-guided-back]").forEach((button) => {
     button.addEventListener("click", () => wizard.back());
+  });
+  form.querySelector('input[name="travelAreas"]')?.addEventListener("input", (event) => {
+    event.currentTarget.setCustomValidity("");
   });
 
   form.classList.add("guided-form-ready");

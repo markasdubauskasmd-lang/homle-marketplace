@@ -148,6 +148,7 @@ form { display: grid; gap: 18px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 label { display: grid; gap: 7px; color: #203f39; font-size: .88rem; font-weight: 760; }
 label > span { color: var(--muted); font-weight: 500; }
+label > small { color: var(--muted); font-size: .78rem; font-weight: 500; line-height: 1.4; }
 input, select, textarea { width: 100%; padding: .8rem .9rem; color: var(--ink); border: 1px solid #b9c9c4; border-radius: 9px; background: #fff; }
 input:focus, select:focus, textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(14, 102, 91, .12); outline: none; }
 textarea { resize: vertical; }
