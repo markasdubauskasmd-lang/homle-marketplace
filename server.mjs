@@ -882,10 +882,11 @@ async function auditDataIntegrity() {
   });
 
   if (configStatus === "ok" && parsedConfig) {
-    const numericFields = ["customerHourlyRate", "cleanerHourlyPay", "minimumHours", "minimumContributionMarginPercent", "paymentFeePercent", "paymentFeeFixed", "travelCostPerJob", "suppliesCostPerJob", "riskContingencyPercent", "customerQuoteValidityHours", "cleanerOpportunityValidityHours", "inactiveMediaRetentionDays", "completedMediaRetentionDays"];
+    const numericFields = ["customerHourlyRate", "cleanerHourlyPay", "labourOnCostPercent", "minimumHours", "minimumContributionMarginPercent", "paymentFeePercent", "paymentFeeFixed", "travelCostPerJob", "suppliesCostPerJob", "riskContingencyPercent", "customerQuoteValidityHours", "cleanerOpportunityValidityHours", "inactiveMediaRetentionDays", "completedMediaRetentionDays"];
     const valid = numericFields.every((field) => hasFiniteNumber(parsedConfig, field))
       && parsedConfig.customerHourlyRate >= 0 && parsedConfig.customerHourlyRate <= maxProposalHourlyRate
       && parsedConfig.cleanerHourlyPay >= 0 && parsedConfig.cleanerHourlyPay <= maxProposalHourlyRate
+      && parsedConfig.labourOnCostPercent >= 0 && parsedConfig.labourOnCostPercent <= 100
       && parsedConfig.minimumHours >= 0 && parsedConfig.minimumHours <= maxProposalHours
       && parsedConfig.minimumContributionMarginPercent >= 0 && parsedConfig.minimumContributionMarginPercent < 100
       && parsedConfig.paymentFeePercent >= 0 && parsedConfig.paymentFeePercent <= 20
@@ -902,8 +903,8 @@ async function auditDataIntegrity() {
 
   const proposalFile = parsedFiles.get("match-proposals.ndjson");
   if (proposalFile?.valid) {
-    const amountFields = ["customerTotal", "cleanerPay", "paymentFees", "travelCosts", "suppliesCosts", "riskContingency", "otherCosts", "nonCleanerCosts", "contribution"];
-    const assumptionFields = ["paymentFeePercent", "paymentFeeFixed", "travelCostPerJob", "suppliesCostPerJob", "riskContingencyPercent"];
+    const amountFields = ["customerTotal", "cleanerPay", "labourOnCosts", "paymentFees", "travelCosts", "suppliesCosts", "riskContingency", "otherCosts", "nonCleanerCosts", "contribution"];
+    const assumptionFields = ["labourOnCostPercent", "paymentFeePercent", "paymentFeeFixed", "travelCostPerJob", "suppliesCostPerJob", "riskContingencyPercent"];
     for (const { record, line } of proposalFile.records) {
       const baseFieldsValid = ["estimatedHours", "customerRate", "cleanerRate", "marginPercent", ...amountFields].every((field) => hasFiniteNumber(record, field));
       const assumptionsValid = assumptionFields.every((field) => hasFiniteNumber(record.costAssumptions, field));
@@ -924,10 +925,10 @@ async function auditDataIntegrity() {
 
   const bookingFile = parsedFiles.get("bookings.ndjson");
   if (bookingFile?.valid) {
-    const amountFields = ["plannedCustomerTotal", "plannedCleanerPay", "plannedContribution", "plannedPaymentFees", "plannedTravelCosts", "plannedSuppliesCosts", "plannedRiskContingency", "plannedAdditionalCosts", "plannedNonCleanerCosts"];
+    const amountFields = ["plannedCustomerTotal", "plannedCleanerPay", "plannedLabourOnCosts", "plannedContribution", "plannedPaymentFees", "plannedTravelCosts", "plannedSuppliesCosts", "plannedRiskContingency", "plannedAdditionalCosts", "plannedNonCleanerCosts"];
     for (const { record, line } of bookingFile.records) {
       const numericValid = hasFiniteNumber(record, "estimatedHours") && amountFields.every((field) => hasFiniteNumber(record, field)) && hasFiniteNumber(record.paymentEvidence, "amount");
-      const plannedCosts = moneyValue(Number(record.plannedPaymentFees) + Number(record.plannedTravelCosts) + Number(record.plannedSuppliesCosts) + Number(record.plannedRiskContingency) + Number(record.plannedAdditionalCosts));
+      const plannedCosts = moneyValue(Number(record.plannedLabourOnCosts) + Number(record.plannedPaymentFees) + Number(record.plannedTravelCosts) + Number(record.plannedSuppliesCosts) + Number(record.plannedRiskContingency) + Number(record.plannedAdditionalCosts));
       const plannedContribution = moneyValue(Number(record.plannedCustomerTotal) - Number(record.plannedCleanerPay) - Number(record.plannedNonCleanerCosts));
       const consistent = numericValid
         && moneyMatches(record.plannedNonCleanerCosts, plannedCosts)
@@ -945,11 +946,11 @@ async function auditDataIntegrity() {
 
   const outcomeFile = parsedFiles.get("job-outcomes.ndjson");
   if (outcomeFile?.valid) {
-    const amountFields = ["customerCollected", "cleanerPaid", "paymentFees", "travelCosts", "suppliesCosts", "otherCosts", "refundAmount"];
+    const amountFields = ["customerCollected", "cleanerPaid", "labourOnCosts", "paymentFees", "travelCosts", "suppliesCosts", "otherCosts", "refundAmount"];
     for (const { record, line } of outcomeFile.records) {
       const numericFields = ["actualHours", ...amountFields, "totalDirectCosts", "contribution", "marginPercent", "targetMarginPercent"];
       const numericValid = numericFields.every((field) => hasFiniteNumber(record, field)) && hasFiniteNumber(record.settlementEvidence, "customerCollected") && hasFiniteNumber(record.settlementEvidence, "cleanerPaid");
-      const totalDirectCosts = moneyValue(Number(record.paymentFees) + Number(record.travelCosts) + Number(record.suppliesCosts) + Number(record.otherCosts));
+      const totalDirectCosts = moneyValue(Number(record.labourOnCosts) + Number(record.paymentFees) + Number(record.travelCosts) + Number(record.suppliesCosts) + Number(record.otherCosts));
       const contribution = moneyValue(Number(record.customerCollected) - Number(record.cleanerPaid) - totalDirectCosts - Number(record.refundAmount));
       const marginPercent = Number(record.customerCollected) > 0 ? (contribution / Number(record.customerCollected)) * 100 : NaN;
       const consistent = numericValid
@@ -968,7 +969,7 @@ async function auditDataIntegrity() {
 
   const adjustmentFile = parsedFiles.get("job-outcome-adjustments.ndjson");
   if (adjustmentFile?.valid) {
-    const adjustmentFields = ["additionalHours", "additionalCustomerCollected", "additionalCleanerPaid", "additionalPaymentFees", "additionalTravelCosts", "additionalSuppliesCosts", "additionalOtherCosts", "additionalRefundAmount"];
+    const adjustmentFields = ["additionalHours", "additionalCustomerCollected", "additionalCleanerPaid", "additionalLabourOnCosts", "additionalPaymentFees", "additionalTravelCosts", "additionalSuppliesCosts", "additionalOtherCosts", "additionalRefundAmount"];
     for (const { record, line } of adjustmentFile.records) {
       const numericValid = adjustmentFields.every((field) => hasFiniteNumber(record, field));
       const withinLimits = numericValid
@@ -1377,12 +1378,13 @@ function adjustedJobOutcome(outcome, allAdjustments = []) {
   const actualHours = moneyValue(Number(outcome.actualHours || 0) + sum("additionalHours"));
   const customerCollected = moneyValue(Number(outcome.customerCollected || 0) + sum("additionalCustomerCollected"));
   const cleanerPaid = moneyValue(Number(outcome.cleanerPaid || 0) + sum("additionalCleanerPaid"));
+  const labourOnCosts = moneyValue(Number(outcome.labourOnCosts || 0) + sum("additionalLabourOnCosts"));
   const paymentFees = moneyValue(Number(outcome.paymentFees || 0) + sum("additionalPaymentFees"));
   const travelCosts = moneyValue(Number(outcome.travelCosts || 0) + sum("additionalTravelCosts"));
   const suppliesCosts = moneyValue(Number(outcome.suppliesCosts || 0) + sum("additionalSuppliesCosts"));
   const otherCosts = moneyValue(Number(outcome.otherCosts || 0) + sum("additionalOtherCosts"));
   const refundAmount = moneyValue(Number(outcome.refundAmount || 0) + sum("additionalRefundAmount"));
-  const totalDirectCosts = moneyValue(paymentFees + travelCosts + suppliesCosts + otherCosts);
+  const totalDirectCosts = moneyValue(labourOnCosts + paymentFees + travelCosts + suppliesCosts + otherCosts);
   const contribution = moneyValue(customerCollected - cleanerPaid - totalDirectCosts - refundAmount);
   const marginPercent = customerCollected > 0 ? (contribution / customerCollected) * 100 : 0;
   return {
@@ -1390,6 +1392,7 @@ function adjustedJobOutcome(outcome, allAdjustments = []) {
     actualHours,
     customerCollected,
     cleanerPaid,
+    labourOnCosts,
     paymentFees,
     travelCosts,
     suppliesCosts,
@@ -1408,6 +1411,7 @@ function adjustedJobOutcome(outcome, allAdjustments = []) {
       actualHours: Number(outcome.actualHours || 0),
       customerCollected: Number(outcome.customerCollected || 0),
       cleanerPaid: Number(outcome.cleanerPaid || 0),
+      labourOnCosts: Number(outcome.labourOnCosts || 0),
       totalDirectCosts: Number(outcome.totalDirectCosts || 0),
       refundAmount: Number(outcome.refundAmount || 0),
       contribution: Number(outcome.contribution || 0),
@@ -1420,6 +1424,7 @@ function adjustedJobOutcome(outcome, allAdjustments = []) {
 
 function costAssumptionsFromConfig(config) {
   return {
+    labourOnCostPercent: Number(config.labourOnCostPercent) || 0,
     paymentFeePercent: Number(config.paymentFeePercent) || 0,
     paymentFeeFixed: Number(config.paymentFeeFixed) || 0,
     travelCostPerJob: Number(config.travelCostPerJob) || 0,
@@ -1431,6 +1436,7 @@ function costAssumptionsFromConfig(config) {
 function costAssumptionsConfirmed(config) {
   const costs = costAssumptionsFromConfig(config);
   return config.variableCostsConfirmed === true
+    && costs.labourOnCostPercent >= 0 && costs.labourOnCostPercent <= 100
     && costs.paymentFeePercent >= 0 && costs.paymentFeePercent <= 20
     && costs.paymentFeeFixed >= 0 && costs.paymentFeeFixed <= 20
     && costs.travelCostPerJob >= 0 && costs.travelCostPerJob <= 200
@@ -1447,15 +1453,16 @@ function calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, a
   const costAssumptions = costAssumptionsFromConfig(config);
   const customerTotal = moneyValue(estimatedHours * customerRate);
   const cleanerPay = moneyValue(estimatedHours * cleanerRate);
+  const labourOnCosts = moneyValue(cleanerPay * costAssumptions.labourOnCostPercent / 100);
   const paymentFees = moneyValue(customerTotal * costAssumptions.paymentFeePercent / 100 + costAssumptions.paymentFeeFixed);
   const travelCosts = moneyValue(costAssumptions.travelCostPerJob);
   const suppliesCosts = moneyValue(costAssumptions.suppliesCostPerJob);
   const riskContingency = moneyValue(customerTotal * costAssumptions.riskContingencyPercent / 100);
   const otherCosts = moneyValue(additionalCosts);
-  const nonCleanerCosts = moneyValue(paymentFees + travelCosts + suppliesCosts + riskContingency + otherCosts);
+  const nonCleanerCosts = moneyValue(labourOnCosts + paymentFees + travelCosts + suppliesCosts + riskContingency + otherCosts);
   const contribution = moneyValue(customerTotal - cleanerPay - nonCleanerCosts);
   const marginPercent = customerTotal > 0 ? (contribution / customerTotal) * 100 : 0;
-  return { customerTotal, cleanerPay, paymentFees, travelCosts, suppliesCosts, riskContingency, otherCosts, nonCleanerCosts, contribution, marginPercent, costAssumptions };
+  return { customerTotal, cleanerPay, labourOnCosts, paymentFees, travelCosts, suppliesCosts, riskContingency, otherCosts, nonCleanerCosts, contribution, marginPercent, costAssumptions };
 }
 
 function schedulesOverlap(left, right) {
@@ -1604,6 +1611,10 @@ function launchReadiness(config) {
   const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
   const today = localDateToday();
   const publicSite = publicSiteVerification(config);
+  const configuredBaseEconomics = calculateProposalEconomics(Number(config.minimumHours) || 0, Number(config.customerHourlyRate) || 0, Number(config.cleanerHourlyPay) || 0, 0, config);
+  const configuredBaseEconomicsViable = costAssumptionsConfirmed(config)
+    && configuredBaseEconomics.contribution > 0
+    && configuredBaseEconomics.marginPercent >= Number(config.minimumContributionMarginPercent);
   const requirements = {
     identity: [
       { label: "legal owner name", complete: Boolean(config.legalOwnerName) },
@@ -1627,7 +1638,8 @@ function launchReadiness(config) {
       { label: "founder minimum booking hours", complete: Number(config.minimumHours) > 0 },
       { label: "founder contribution-margin floor", complete: Number(config.minimumContributionMarginPercent) > 0 && Number(config.minimumContributionMarginPercent) < 100 },
       { label: "customer rate above cleaner pay", complete: Number(config.customerHourlyRate) > Number(config.cleanerHourlyPay) && Number(config.cleanerHourlyPay) > 0 },
-      { label: "reviewed payment, travel, supplies and risk costs", complete: costAssumptionsConfirmed(config) },
+      { label: "reviewed labour on-cost, payment, travel, supplies and risk assumptions", complete: costAssumptionsConfirmed(config) },
+      { label: "configured minimum job meets the contribution-margin floor", complete: configuredBaseEconomicsViable },
       { label: "viable margin and percentage-cost stack", complete: Number(config.minimumContributionMarginPercent) + Number(config.paymentFeePercent) + Number(config.riskContingencyPercent) < 100 }
     ],
     insurance: [
@@ -1682,7 +1694,7 @@ function dispatchActionsForRecord({ kind, status, createdAt, nextActionAt, propo
     const openChanges = booking.changeRequests?.filter((change) => ["open", "reviewing"].includes(change.status)) || [];
     if (openChanges.some((change) => change.type === "safety-issue")) add("safety-review", "urgent", "safety", "Safety report requires review", "Keep job progress and financial completion blocked until the safety report is reviewed and closed with a clear response.");
     else if (openChanges.length) add("booking-change-review", "high", "booking", "Booking change requires review", "Review the protected change queue; submission alone does not cancel, reschedule, refund or alter the booking.");
-    if (!outcome && booking.jobProgress?.readyForOutcome && openChanges.length === 0) add("record-economics", "high", "booking", "Completed visit needs actual economics", "Record actual receipts, cleaner pay, fees, travel, supplies, other costs and refunds; this action does not move money.");
+    if (!outcome && booking.jobProgress?.readyForOutcome && openChanges.length === 0) add("record-economics", "high", "booking", "Completed visit needs actual economics", "Record actual receipts, cleaner pay, labour on-costs, fees, travel, supplies, other costs and refunds; this action does not move money.");
     else if (!outcome && booking.jobProgress?.cleanerCompletedAt && !booking.jobProgress?.customerCompletedAt) add("customer-completion-pending", "monitor", "booking", "Customer completion acknowledgement pending", "The cleaner recorded completion; the customer has not yet acknowledged the visit through the protected booking pack.");
     else if (!outcome && booking.proposedDate < today && !booking.jobProgress?.cleanerCompletedAt) add("visit-progress-overdue", "high", "booking", "Visit progress is overdue", "The scheduled date has passed without a cleaner completion event. Review the booking and any incident before recording an outcome.");
     else if (outcome && !outcome.profitable) add("loss-review", "high", "profit", "Adjusted job outcome is loss-making", "Review the recorded refund, re-clean and later-cost evidence before using this job to change pricing or repeat the offer.");
@@ -1722,7 +1734,7 @@ function dispatchActionsForRecord({ kind, status, createdAt, nextActionAt, propo
   } else if (["ready", "sent", "accepted"].includes(activeProposal.status) && !activeProposal.availabilityCovered) {
     add("rematch", "high", "rematching", "Cleaner availability changed", "The current offer is blocked. Select a screened cleaner with a confirmed window and prepare one replacement proposal.");
   } else if (["ready", "sent", "accepted"].includes(activeProposal.status) && !activeProposal.costModelCurrent) {
-    add("reprice", "high", "matching", "Proposal needs recalculation", "Founder cost assumptions changed. Prepare a replacement using the current payment, travel, supplies and risk costs.");
+    add("reprice", "high", "matching", "Proposal needs recalculation", "Founder cost assumptions changed. Prepare a replacement using the current labour on-cost, payment, travel, supplies and risk assumptions.");
   } else if (activeProposal.status === "accepted" && activeProposal.cleanerDecision?.status === "accepted") {
     add("finalise-booking", "high", "booking", "Both sides accepted — run final booking checks", "Confirm address, access, emergency instructions and payment authorisation before recording the protected booking pack.");
   } else if (activeProposal.status === "accepted") {
@@ -3099,6 +3111,7 @@ async function createAdminBooking(request, response) {
     estimatedHours: audit.proposal.estimatedHours,
     plannedCustomerTotal: audit.proposal.customerTotal,
     plannedCleanerPay: audit.proposal.cleanerPay,
+    plannedLabourOnCosts: audit.proposal.labourOnCosts,
     plannedContribution: audit.proposal.contribution,
     plannedPaymentFees: audit.proposal.paymentFees,
     plannedTravelCosts: audit.proposal.travelCosts,
@@ -3654,6 +3667,7 @@ async function createAdminJobOutcome(request, response) {
   const actualHours = Number(input.actualHours);
   const customerCollected = Number(input.customerCollected);
   const cleanerPaid = Number(input.cleanerPaid);
+  const labourOnCosts = Number(input.labourOnCosts);
   const paymentFees = Number(input.paymentFees || 0);
   const travelCosts = Number(input.travelCosts || 0);
   const suppliesCosts = Number(input.suppliesCosts || 0);
@@ -3664,7 +3678,7 @@ async function createAdminJobOutcome(request, response) {
   const settlementEvidenceNote = text(input.settlementEvidenceNote, 1000);
   const settlementVerifiedAt = text(input.settlementVerifiedAt, 40);
   const settlementVerifiedMs = Date.parse(settlementVerifiedAt);
-  const values = [actualHours, customerCollected, cleanerPaid, paymentFees, travelCosts, suppliesCosts, otherCosts, refundAmount];
+  const values = [actualHours, customerCollected, cleanerPaid, labourOnCosts, paymentFees, travelCosts, suppliesCosts, otherCosts, refundAmount];
   if (!bookingId || values.some((value) => !Number.isFinite(value)) || actualHours <= 0 || customerCollected <= 0 || values.slice(2).some((value) => value < 0)) {
     return json(response, 422, { ok: false, error: "Enter valid actual hours and non-negative job amounts; customer collected must be greater than zero." });
   }
@@ -3717,7 +3731,7 @@ async function createAdminJobOutcome(request, response) {
   for (const update of updates) if (update.id === booking.requestId) requestStatus = update.status;
   if (requestStatus !== "booked") return json(response, 422, { ok: false, error: "Only a booked request can be completed." });
 
-  const totalDirectCosts = moneyValue(paymentFees + travelCosts + suppliesCosts + otherCosts);
+  const totalDirectCosts = moneyValue(labourOnCosts + paymentFees + travelCosts + suppliesCosts + otherCosts);
   const contribution = moneyValue(customerCollected - cleanerPaid - totalDirectCosts - refundAmount);
   const marginPercent = (contribution / customerCollected) * 100;
   if ([totalDirectCosts, contribution, marginPercent].some((value) => !Number.isFinite(value))) {
@@ -3731,6 +3745,7 @@ async function createAdminJobOutcome(request, response) {
     actualHours,
     customerCollected,
     cleanerPaid,
+    labourOnCosts,
     paymentFees,
     travelCosts,
     suppliesCosts,
@@ -3771,7 +3786,7 @@ async function createAdminJobOutcomeAdjustment(request, response) {
   const relatedChangeRequestId = text(input.relatedChangeRequestId, 40);
   const internalNote = text(input.internalNote, 1000);
   const allowedReasons = new Set(["customer-refund", "re-clean", "complaint-resolution", "damage-or-loss", "late-provider-cost", "record-correction", "other"]);
-  const fields = ["additionalHours", "additionalCustomerCollected", "additionalCleanerPaid", "additionalPaymentFees", "additionalTravelCosts", "additionalSuppliesCosts", "additionalOtherCosts", "additionalRefundAmount"];
+  const fields = ["additionalHours", "additionalCustomerCollected", "additionalCleanerPaid", "additionalLabourOnCosts", "additionalPaymentFees", "additionalTravelCosts", "additionalSuppliesCosts", "additionalOtherCosts", "additionalRefundAmount"];
   const amounts = Object.fromEntries(fields.map((field) => [field, Number(input[field] || 0)]));
   const values = Object.values(amounts);
   const errors = [];
@@ -3818,7 +3833,7 @@ async function createAdminJobOutcomeAdjustment(request, response) {
       createdAt: new Date().toISOString()
     };
     const projectedOutcome = adjustedJobOutcome(outcome, [...adjustments, adjustment]);
-    const projectedAmounts = [projectedOutcome.customerCollected, projectedOutcome.cleanerPaid, projectedOutcome.paymentFees, projectedOutcome.travelCosts, projectedOutcome.suppliesCosts, projectedOutcome.otherCosts, projectedOutcome.refundAmount];
+    const projectedAmounts = [projectedOutcome.customerCollected, projectedOutcome.cleanerPaid, projectedOutcome.labourOnCosts, projectedOutcome.paymentFees, projectedOutcome.travelCosts, projectedOutcome.suppliesCosts, projectedOutcome.otherCosts, projectedOutcome.refundAmount];
     const projectedDerived = [projectedOutcome.totalDirectCosts, projectedOutcome.contribution, projectedOutcome.marginPercent];
     if (projectedOutcome.actualHours > maxOutcomeHours || projectedAmounts.some((value) => !Number.isFinite(value) || value > maxFinancialRecordAmount) || projectedDerived.some((value) => !Number.isFinite(value))) {
       throw Object.assign(new Error("This adjustment would push the completed-job economics beyond the supported audit limits."), { statusCode: 422 });
@@ -3878,7 +3893,7 @@ async function createAdminProposal(request, response) {
   if (bookings.some((booking) => booking.requestId === requestId)) return json(response, 409, { ok: false, error: "This request already has a confirmed booking. Use the protected booking-change workflow instead of creating another proposal." });
   if ((latestStatuses.get(cleaner.id) || cleaner.status) !== "approved") return json(response, 422, { ok: false, error: "Only an approved cleaner can be proposed." });
   if (!latestCleanerScreening(cleaner.id, screenings)?.complete) return json(response, 422, { ok: false, error: "Only a fully screened cleaner can be proposed." });
-  if (!costAssumptionsConfirmed(config)) return json(response, 422, { ok: false, error: "Confirm the payment, travel, supplies and risk cost assumptions before preparing proposal economics." });
+  if (!costAssumptionsConfirmed(config)) return json(response, 422, { ok: false, error: "Confirm the labour on-cost, payment, travel, supplies and risk assumptions before preparing proposal economics." });
   if (config.minimumHours > 0 && estimatedHours < config.minimumHours) return json(response, 422, { ok: false, error: `Estimated hours must meet the ${config.minimumHours}-hour minimum.` });
   const requiredService = requestServiceMap[customerRequest.service] || "";
   if (requiredService && !cleaner.services?.includes(requiredService)) return json(response, 422, { ok: false, error: "Cleaner is not approved for the requested service." });
@@ -3887,8 +3902,8 @@ async function createAdminProposal(request, response) {
   if (!findCleanerAvailabilitySlot(cleaner.id, { proposedDate, proposedStartTime, estimatedHours }, availabilityEvents)) return json(response, 422, { ok: false, error: "The proposed visit must fit entirely inside an active, confirmed cleaner availability window." });
 
   const economics = calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, otherCosts, config);
-  const { customerTotal, cleanerPay, paymentFees, travelCosts, suppliesCosts, riskContingency, nonCleanerCosts, contribution, marginPercent, costAssumptions } = economics;
-  if ([customerTotal, cleanerPay, paymentFees, travelCosts, suppliesCosts, riskContingency, nonCleanerCosts, contribution, marginPercent].some((value) => !Number.isFinite(value))) {
+  const { customerTotal, cleanerPay, labourOnCosts, paymentFees, travelCosts, suppliesCosts, riskContingency, nonCleanerCosts, contribution, marginPercent, costAssumptions } = economics;
+  if ([customerTotal, cleanerPay, labourOnCosts, paymentFees, travelCosts, suppliesCosts, riskContingency, nonCleanerCosts, contribution, marginPercent].some((value) => !Number.isFinite(value))) {
     return json(response, 422, { ok: false, error: "The proposal economics could not be represented safely. Use smaller finite pricing inputs." });
   }
   if (contribution <= 0) return json(response, 422, { ok: false, error: "This proposal loses money before overheads. Change the price, pay or scope." });
@@ -3911,6 +3926,7 @@ async function createAdminProposal(request, response) {
     customerRate,
     cleanerRate,
     otherCosts,
+    labourOnCosts,
     paymentFees,
     travelCosts,
     suppliesCosts,
@@ -4123,6 +4139,7 @@ async function updateAdminConfig(request, response) {
     refundProcess: text(input.refundProcess, 800),
     customerHourlyRate: Math.max(0, Number(input.customerHourlyRate) || 0),
     cleanerHourlyPay: Math.max(0, Number(input.cleanerHourlyPay) || 0),
+    labourOnCostPercent: Math.max(0, Number(input.labourOnCostPercent) || 0),
     minimumHours: Math.max(0, Number(input.minimumHours) || 0),
     minimumContributionMarginPercent: Math.max(0, Number(input.minimumContributionMarginPercent) || 0),
     paymentFeePercent: Math.max(0, Number(input.paymentFeePercent) || 0),
@@ -4140,7 +4157,7 @@ async function updateAdminConfig(request, response) {
     updatedAt: new Date().toISOString()
   };
   const errors = [];
-  const numericConfigValues = [config.customerHourlyRate, config.cleanerHourlyPay, config.minimumHours, config.minimumContributionMarginPercent, config.paymentFeePercent, config.paymentFeeFixed, config.travelCostPerJob, config.suppliesCostPerJob, config.riskContingencyPercent, config.customerQuoteValidityHours, config.cleanerOpportunityValidityHours, config.inactiveMediaRetentionDays, config.completedMediaRetentionDays];
+  const numericConfigValues = [config.customerHourlyRate, config.cleanerHourlyPay, config.labourOnCostPercent, config.minimumHours, config.minimumContributionMarginPercent, config.paymentFeePercent, config.paymentFeeFixed, config.travelCostPerJob, config.suppliesCostPerJob, config.riskContingencyPercent, config.customerQuoteValidityHours, config.cleanerOpportunityValidityHours, config.inactiveMediaRetentionDays, config.completedMediaRetentionDays];
   if (numericConfigValues.some((value) => !Number.isFinite(value))) errors.push("Pricing, cost, response-window and retention values must be finite numbers.");
   if (config.supportEmail && !isEmail(config.supportEmail)) errors.push("Enter a valid support email.");
   if (config.supportPhone && !isPhone(config.supportPhone)) errors.push("Enter a valid support phone number.");
@@ -4153,6 +4170,7 @@ async function updateAdminConfig(request, response) {
   const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
   if (pilotCoverage.invalidCodes.length) errors.push(`Use comma-separated outward postcode codes only, for example SW2, SW4. Invalid: ${pilotCoverage.invalidCodes.join(", ")}.`);
   if (config.customerHourlyRate > maxProposalHourlyRate || config.cleanerHourlyPay > maxProposalHourlyRate) errors.push(`Customer and cleaner hourly rates must not exceed £${maxProposalHourlyRate.toLocaleString("en-GB")}.`);
+  if (config.labourOnCostPercent > 100) errors.push("Labour on-cost must be between 0% and 100% of cleaner pay.");
   if (config.minimumHours > maxProposalHours) errors.push(`Minimum hours must not exceed the ${maxProposalHours}-hour proposal limit.`);
   if (config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.customerHourlyRate <= config.cleanerHourlyPay) errors.push("Customer rate must be higher than cleaner pay before other costs.");
   if (config.minimumContributionMarginPercent >= 100) errors.push("Minimum contribution margin must be below 100%.");
