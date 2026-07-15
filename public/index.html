@@ -185,7 +185,7 @@
               </div>
               <label>Keys and access arrangements <input name="accessNotes" required placeholder="For example: meet site manager, collect keys, concierge access"></label>
               <div class="field-row">
-                <label>Preferred date <span>(optional)</span><input name="preferredDate" type="date"></label>
+                <label>Preferred date <input name="preferredDate" type="date" required aria-describedby="preferred-date-help"><small id="preferred-date-help">Choose the first date you could accept. Tideway will confirm the exact visit before booking.</small></label>
                 <label>Preferred arrival window <select name="preferredTimeWindow"><option>Flexible</option><option>Morning (8am–12pm)</option><option>Afternoon (12pm–5pm)</option><option>Evening (5pm–8pm)</option></select></label>
               </div>
               <label>Job details <span>(optional)</span><textarea name="details" rows="4" placeholder="Deadline, special tasks or anything else we should know"></textarea></label>

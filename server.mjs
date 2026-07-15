@@ -4618,6 +4618,7 @@ async function handleCleaningRequest(request, response) {
   required(record.siteSize, "Site size or rooms", errors);
   required(record.accessNotes, "Access arrangements", errors);
   required(record.hazards, "Known hazards", errors);
+  required(record.preferredDate, "Preferred date", errors);
   if (record.email && !isEmail(record.email)) errors.push("Enter a valid email address.");
   if (record.phone && !isPhone(record.phone)) errors.push("Enter a valid phone number.");
   if (record.postcode && !isUkPostcode(record.postcode)) errors.push("Enter a valid UK postcode.");

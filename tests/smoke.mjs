@@ -298,7 +298,8 @@ try {
   assert(sharedStyles.ok && sharedStylesText.includes("[hidden] { display: none !important; }") && sharedStylesText.includes(".guided-form-step { scroll-margin-top: 92px;") && sharedStylesText.includes(".entry-route main > section:not(.forms-section)") && sharedStylesText.includes(".entry-route-request #cleaner-application") && sharedStylesText.includes(".entry-route-join #request-cleaning") && sharedStylesText.includes(".launch-parallel-action") && sharedStylesText.includes(".cleaner-handoff-room-missing") && sharedStylesText.includes(".cleaner-handoff-boundaries") && sharedStylesText.includes(".checklist-change-columns") && sharedStylesText.includes(".checklist-change-actions .button { width: 100%; }") && sharedStylesText.includes(".account-grid { display: grid;") && sharedStylesText.includes(".account-role:has(input:checked)") && sharedStylesText.includes(".account-actions .button { width: 100%; }") && sharedStylesText.includes(".account-form .button { width: 100%; }"), "Shared styling allowed hidden private actions or form stages to remain visible, omitted the room-grouped Cleaner handoff or mobile checklist-change review, failed mobile account forms/actions, omitted launch guidance, or did not isolate focused entry screens.");
   const requestEntryPage = await fetch(`${base}/request`);
   const joinEntryPage = await fetch(`${base}/join`);
-  assert(requestEntryPage.ok && joinEntryPage.ok && (await requestEntryPage.text()).includes('id="request-cleaning"') && (await joinEntryPage.text()).includes('id="cleaner-application"'), "Focused customer or cleaner entry route did not serve its validated form.");
+  const requestEntryPageText = await requestEntryPage.text();
+  assert(requestEntryPage.ok && joinEntryPage.ok && requestEntryPageText.includes('id="request-cleaning"') && requestEntryPageText.includes('name="preferredDate" type="date" required') && requestEntryPageText.includes("Choose the first date you could accept") && (await joinEntryPage.text()).includes('id="cleaner-application"'), "Focused customer or cleaner entry route did not serve its validated, schedulable form.");
 
   const privacy = await fetch(`${base}/privacy`);
   const privacyText = await privacy.text();
@@ -425,6 +426,13 @@ try {
     body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms and 1 bathroom", accessNotes: "Collect keys from the office", hazards: "None known", frequency: "Every leap year", consent: true })
   });
   assert(invalidFrequency.status === 422, "Unsupported cleaning frequency was accepted.");
+  const missingPreferredDate = await fetch(`${base}/api/cleaning-requests`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms and 1 bathroom", accessNotes: "Collect keys from the office", hazards: "None known", frequency: "One-off", preferredTimeWindow: "Flexible", consent: true })
+  });
+  const missingPreferredDateBody = await missingPreferredDate.json();
+  assert(missingPreferredDate.status === 422 && missingPreferredDateBody.errors.includes("Preferred date is required."), "A cleaning request without a schedulable date was accepted.");
 
   const invalid = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
   assert(invalid.status === 422, "Invalid cleaning request was not rejected.");
@@ -712,7 +720,7 @@ try {
   assert(invalidMediaRetention.status === 422, "An excessive private-media retention period was accepted.");
   await fetch(`${base}/api/admin/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(completeConfig) });
 
-  const retentionRequest = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contactName: "Retention Test", email: "retention@example.com", phone: "07123456788", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "Studio", accessNotes: "Test-only access note", hazards: "None known", consent: true }) });
+  const retentionRequest = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contactName: "Retention Test", email: "retention@example.com", phone: "07123456788", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "Studio", accessNotes: "Test-only access note", hazards: "None known", preferredDate: "2026-07-20", preferredTimeWindow: "Flexible", consent: true }) });
   const retentionRequestBody = await retentionRequest.json();
   const verifiedScanFollowup = await fetch(`${base}/api/admin/request-followup-draft?requestId=${retentionRequestBody.reference}`);
   const verifiedScanFollowupBody = await verifiedScanFollowup.json();
@@ -886,7 +894,7 @@ try {
   const unscannedRequest = await fetch(`${base}/api/cleaning-requests`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ contactName: "No Scan Customer", email: "noscan@example.com", phone: "07123456788", postcode: "SW1A 2AA", customerType: "Homeowner or tenant", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "1 bedroom and 1 bathroom", accessNotes: "Meet at the property", hazards: "None known", consent: true })
+    body: JSON.stringify({ contactName: "No Scan Customer", email: "noscan@example.com", phone: "07123456788", postcode: "SW1A 2AA", customerType: "Homeowner or tenant", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "1 bedroom and 1 bathroom", accessNotes: "Meet at the property", hazards: "None known", preferredDate: "2026-07-22", preferredTimeWindow: "Flexible", consent: true })
   });
   const unscannedRequestBody = await unscannedRequest.json();
   assert(unscannedRequest.status === 201, "Customer request without a room scan could not be created as step one.");
@@ -1206,7 +1214,7 @@ try {
   const overlapRequest = await fetch(`${base}/api/cleaning-requests`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ contactName: "Overlap Customer", email: "overlap@example.com", phone: "07123456780", postcode: "SW1A 2AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "1 bedroom and 1 bathroom", accessNotes: "Access to be confirmed", hazards: "None known", frequency: "One-off", consent: true })
+    body: JSON.stringify({ contactName: "Overlap Customer", email: "overlap@example.com", phone: "07123456780", postcode: "SW1A 2AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "1 bedroom and 1 bathroom", accessNotes: "Access to be confirmed", hazards: "None known", frequency: "One-off", preferredDate: "2026-07-20", preferredTimeWindow: "Flexible", consent: true })
   });
   const overlapRequestBody = await overlapRequest.json();
   assert(overlapRequest.status === 201, "Overlapping-schedule test request failed.");
