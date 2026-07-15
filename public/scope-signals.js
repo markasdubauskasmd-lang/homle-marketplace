@@ -12,9 +12,33 @@ const rules = [
 
 const ruleByCode = new Map(rules.map((rule) => [rule.code, rule]));
 
+function latestInstructionBoundary(value) {
+  let boundary = -1;
+  const pattern = /[.!?;,\n]|\b(?:but|however|instead)\b/gi;
+  for (const match of value.matchAll(pattern)) boundary = Math.max(boundary, match.index + match[0].length);
+  return value.slice(boundary + 1);
+}
+
+function matchIsExplicitlyExcluded(source, index, length) {
+  const before = latestInstructionBoundary(source.slice(Math.max(0, index - 90), index));
+  const after = source.slice(index + length, index + length + 80);
+  const exclusionBefore = /(?:\b(?:do\s+not|don't|dont|no\s+need\s+to|not\s+necessary\s+to|not\s+required\s+to|(?:does|do)(?:\s+not|n't)\s+(?:need|require)|skip|exclude|except|avoid|leave)\b)[^.!?;,\n]{0,55}$/i;
+  const exclusionAfter = /^\s*(?:alone\b|(?:(?:(?:does|do|is|are|was|were)\s+not|(?:does|do|is|are|was|were)n['’]?t)\s+(?:need|require|necessary|included)\b)|(?:is\s+)?(?:excluded|out\s+of\s+scope)\b)/i;
+  return exclusionBefore.test(before) || exclusionAfter.test(after);
+}
+
+function includesRequestedScope(rule, source) {
+  const flags = `${rule.pattern.flags.replace(/g/g, "")}g`;
+  const pattern = new RegExp(rule.pattern.source, flags);
+  for (const match of source.matchAll(pattern)) {
+    if (!matchIsExplicitlyExcluded(source, match.index, match[0].length)) return true;
+  }
+  return false;
+}
+
 export function detectPriceSensitiveScope({ transcript = "", checklist = [], photos = [] } = {}) {
   const source = [transcript, ...(Array.isArray(checklist) ? checklist : []), ...(Array.isArray(photos) ? photos.map((photo) => photo?.note || "") : [])].join("\n");
-  return rules.filter((rule) => rule.pattern.test(source)).map(({ code, label }) => ({ code, label }));
+  return rules.filter((rule) => includesRequestedScope(rule, source)).map(({ code, label }) => ({ code, label }));
 }
 
 export function normalisePriceSensitiveScopeSignals(signals = []) {

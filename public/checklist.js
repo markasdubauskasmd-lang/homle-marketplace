@@ -15,7 +15,8 @@ const actionPattern = [
   "disinfect", "sanitise", "sanitize", "polish", "degrease", "descale", "remove",
   "empty", "wash", "dry", "tidy", "organise", "organize", "change", "replace",
   "make", "strip", "rinse", "clear", "take", "put", "leave", "avoid", "focus",
-  "check", "do not", "don't"
+  "check", "do not", "don't", "dont", "skip", "exclude", "no need to",
+  "not necessary to", "not required to"
 ].join("|");
 const passiveActions = new Map([
   ["cleaned", "Clean"], ["cleaning", "Clean"], ["wiped", "Wipe"], ["wiping", "Wipe"],
@@ -39,6 +40,11 @@ function canonicalRoom(value) {
 }
 
 function activeCleaningInstruction(value) {
+  const excludedPassive = value.match(/^(.+?)\s+(?:does(?:\s+not|n't)|do(?:\s+not|n't))\s+(?:need|require)\s+(?:(?:to\s+be|any)\s+)?([a-z]+)$/i);
+  if (excludedPassive) {
+    const action = passiveActions.get(excludedPassive[2].toLowerCase());
+    if (action) return `Do not ${action.toLowerCase()} ${excludedPassive[1].trim()}`;
+  }
   const passive = value.match(/^(.+?)\s+(?:needs?|requires?)\s+(?:(?:to\s+be|some)\s+)?([a-z]+)$/i);
   if (passive) {
     const action = passiveActions.get(passive[2].toLowerCase());
@@ -70,9 +76,12 @@ export function normaliseChecklistTask(value) {
     .replace(/^(?:(?:um+|uh+|erm|okay|right|so)\b[, ]*)+/i, "")
     .replace(/^(?:please|could you|can you|the cleaner should|i(?:'d| would) like (?:you|the cleaner) to|i want (?:you|the cleaner) to|make sure (?:you|the cleaner)?|we need (?:you|the cleaner)?\s*to)\s+/i, "")
     .replace(/^(?:please|could you|can you)\s+/i, "")
+    .replace(/^(?:don't|dont)\s+/i, "Do not ")
+    .replace(/^(?:no need to|not necessary to|not required to)\s+/i, "Do not ")
+    .replace(/^(?:skip|exclude)\s+(?:cleaning\s+)?(?:the\s+)?/i, "Do not clean the ")
     .trim());
   if (task.length < 3) return "";
-  return `${task.charAt(0).toUpperCase()}${task.slice(1)}`.replace(/[.!?]+$/, "");
+  return `${task.charAt(0).toUpperCase()}${task.slice(1)}`.replace(/[,;.!?]+$/, "");
 }
 
 export function checklistFromTranscript(value) {

@@ -8,7 +8,7 @@
   <title>Scan rooms for your clean — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260715-40">
-  <script src="/brief.js?v=20260715-41" type="module"></script>
+  <script src="/brief.js?v=20260715-42" type="module"></script>
 </head>
 <body class="brief-page">
   <a class="skip-link" href="#brief-main">Skip to job brief</a>
@@ -54,7 +54,7 @@
         </div>
 
         <div class="brief-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 2</p><h2>Speak or type the instructions</h2><p>Name each room, then speak naturally—even “the floor needs mopping” or “the oven is dirty.” Tideway carries the room into follow-on sentences, turns conditions into direct tasks and removes repeated bullets for your review.</p></div><button id="voice-button" class="button button-outline" type="button">Start speaking</button></div>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 2</p><h2>Speak or type the instructions</h2><p>Name each room, then speak naturally—even “the floor needs mopping” or “the oven is dirty.” Say “do not”, “no need” or “skip” for anything the Cleaner must leave alone. Tideway keeps those exclusions as clear instructions, carries the room into follow-on sentences, turns conditions into direct tasks and removes repeated bullets for your review.</p></div><button id="voice-button" class="button button-outline" type="button">Start speaking</button></div>
           <div id="voice-status" class="voice-status" role="status">Voice capture checks your browser support. You can always type instead.</div>
           <label>Instructions<textarea id="brief-transcript" name="transcript" rows="9" maxlength="5000" required placeholder="For example: In the kitchen, wipe every worktop, degrease the hob, clean inside the microwave and mop the floor. In the bathroom, remove limescale from the shower screen and disinfect the toilet. Do not move the locked cupboard."></textarea></label>
           <p class="privacy-hint">Tideway saves the final text, not an audio recording. Your browser may provide the speech-to-text service, so review the transcript carefully.</p>
@@ -62,7 +62,7 @@
         </div>
 
         <div class="brief-panel" id="checklist-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 3</p><h2>Review the cleaner checklist</h2><p>One clear task per line. Every photographed room must have at least one room-labelled task. If you change speech or photo notes, summarise again so the cleaner receives the latest scope.</p></div><strong id="task-count">0 tasks</strong></div>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 3</p><h2>Review the cleaner checklist</h2><p>One clear task or “do not” instruction per line. Excluded work stays visible to the Cleaner but is not treated as requested extra cleaning time. Every photographed room must have at least one room-labelled task. If you change speech or photo notes, summarise again so the cleaner receives the latest scope.</p></div><strong id="task-count">0 tasks</strong></div>
           <label>Cleaner tasks<textarea id="brief-checklist" rows="10" placeholder="Your generated bullet points will appear here."></textarea></label>
           <ul id="checklist-preview" class="checklist-preview" aria-live="polite"><li>Generate the checklist to preview the cleaner tasks.</li></ul>
           <section id="scan-readiness" class="scan-readiness" aria-labelledby="scan-readiness-title"><div><strong id="scan-readiness-title" aria-live="polite">Checking room scan…</strong><span>Complete every required item before submitting. Tideway repeats these checks securely on the server.</span></div><ul id="scan-readiness-list"></ul></section>
