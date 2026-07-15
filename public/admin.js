@@ -1,4 +1,5 @@
 const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null, dataIntegrity: null };
+const dispatchOrder = globalThis.TidewayDispatchOrder;
 const scanReviewWorkspace = globalThis.TidewayScanReviewWorkspace;
 const scopeTimeWorksheet = globalThis.TidewayScopeTimeBreakdown;
 const scanReviewDraft = globalThis.TidewayScanReviewDraft;
@@ -371,6 +372,10 @@ function formatDate(value) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(value));
 }
 
+function formatCalendarDate(value) {
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeZone: "Europe/London" }).format(new Date(`${value}T12:00:00Z`));
+}
+
 function addText(parent, tag, text, className) {
   const element = document.createElement(tag);
   element.textContent = text || "—";
@@ -518,9 +523,8 @@ function showDispatchRecord(recordId, action = null) {
 }
 
 function renderDispatchQueue() {
-  const severityWeight = { urgent: 3, high: 2, monitor: 1 };
   const entries = state.records.flatMap((record) => (record.dispatchActions || []).map((action) => ({ record, action })))
-    .sort((left, right) => (severityWeight[right.action.severity] || 0) - (severityWeight[left.action.severity] || 0) || right.record.createdAt.localeCompare(left.record.createdAt));
+    .sort(dispatchOrder.compareDispatchEntries);
   dispatchQueueList.replaceChildren();
   if (!entries.length) {
     const empty = document.createElement("div");
@@ -537,6 +541,7 @@ function renderDispatchQueue() {
     const meta = document.createElement("div");
     meta.className = "dispatch-meta";
     addText(meta, "span", action.severity === "urgent" ? "Urgent" : action.severity === "high" ? "Founder action" : "Monitoring", `dispatch-severity dispatch-severity-${action.severity}`);
+    if (action.dueDate) addText(meta, "span", `Requested ${formatCalendarDate(action.dueDate)}`);
     addText(meta, "span", `${record.kind === "request" ? "Customer request" : "Cleaner application"} · ${record.id}`);
     copy.append(meta);
     addText(copy, "strong", action.title);

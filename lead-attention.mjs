@@ -55,6 +55,7 @@ export function requestDateAttentionAction({ preferredDate = "" }, nowMs = Date.
       code: "requested-date-passed",
       severity: "high",
       group: "schedule",
+      dueDate: preferredDate,
       title: "Requested cleaning date has passed",
       detail: `The customer requested ${preferredDate}, but no booking was confirmed. Review the recorded scope and activity before any founder-approved follow-up; never substitute a new date without the customer's agreement.`
     };
@@ -65,6 +66,7 @@ export function requestDateAttentionAction({ preferredDate = "" }, nowMs = Date.
     code: "requested-date-near",
     severity: "high",
     group: "schedule",
+    dueDate: preferredDate,
     title: `Requested cleaning date is ${timing}`,
     detail: `The customer requested ${preferredDate}. Prioritise the outstanding scan, scope review, cleaner availability and economics checks; never promise or substitute a date without explicit customer agreement.`
   };

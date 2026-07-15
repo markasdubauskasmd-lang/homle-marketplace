@@ -103,7 +103,7 @@ try {
   assert(scanAttentionAction({ latestBrief: { status: "needs-revision", createdAt: "2026-07-13T12:00:00.000Z", reviewedAt: "2026-07-14T12:00:00.000Z" } }, attentionNow)?.code === "scan-revision-stalled", "A revised room scan pending for 24 hours was not escalated.");
   assert(requestDateAttentionDays === 7, "The approaching-request-date threshold changed unexpectedly.");
   assert(requestDateAttentionAction({ preferredDate: "2026-07-23" }, attentionNow) === null, "A cleaning date more than seven London calendar days away was escalated.");
-  assert(requestDateAttentionAction({ preferredDate: "2026-07-22" }, attentionNow)?.code === "requested-date-near", "A cleaning date exactly seven London calendar days away was not escalated.");
+  assert(requestDateAttentionAction({ preferredDate: "2026-07-22" }, attentionNow)?.code === "requested-date-near" && requestDateAttentionAction({ preferredDate: "2026-07-22" }, attentionNow)?.dueDate === "2026-07-22", "A cleaning date exactly seven London calendar days away was not escalated with its sortable due date.");
   assert(requestDateAttentionAction({ preferredDate: "2026-07-16" }, attentionNow)?.title.includes("tomorrow"), "Tomorrow's requested cleaning date did not receive a clear schedule warning.");
   assert(requestDateAttentionAction({ preferredDate: "2026-07-14" }, attentionNow)?.code === "requested-date-passed", "A passed requested cleaning date was not surfaced for review.");
   assert(requestDateAttentionAction({ preferredDate: "2026-02-30" }, attentionNow) === null, "An invalid calendar date created a false schedule warning.");
