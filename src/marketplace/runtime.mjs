@@ -1,9 +1,12 @@
 import { createAccountSecurity } from "./account-security.mjs";
+import { createAccountSessionService } from "./account-session-service.mjs";
 import { createAuthenticationRepository } from "./auth-repository.mjs";
 import { createCleanerProfileService } from "./cleaner-profile.mjs";
 import { createCleanerProfileRepository } from "./cleaner-repository.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config.mjs";
+import { createCredentialService } from "./credential-service.mjs";
 import { createMarketplaceDatabase } from "./database.mjs";
+import { createIdentityService } from "./identity-service.mjs";
 import { createMarketplaceHttpRouter } from "./marketplace-http.mjs";
 import { createPropertyRepository } from "./property-repository.mjs";
 import { createPropertyService } from "./property-service.mjs";
@@ -16,12 +19,16 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const required = [];
   if (!environment.databaseConfigured) required.push("DATABASE_URL");
   if (!environment.sessionConfigured) required.push("SESSION_SECRET");
+  if (!environment.authTokenConfigured) required.push("AUTH_TOKEN_SECRET");
   if (!environment.appOrigin) required.push("APP_ORIGIN");
   if (!environment.encryptionConfigured) required.push("DATA_ENCRYPTION_KEY");
   if (required.length) throw new TypeError(`Marketplace runtime is unavailable; configure ${required.join(", ")}.`);
 
   const database = createMarketplaceDatabase(pool);
   const authenticationRepository = createAuthenticationRepository(database);
+  const identityService = createIdentityService(authenticationRepository);
+  const credentialService = createCredentialService(authenticationRepository, { tokenSecret: env.AUTH_TOKEN_SECRET });
+  const accountSessionService = createAccountSessionService(authenticationRepository, { sessionSecret: env.SESSION_SECRET, production: environment.production });
   const security = createAccountSecurity(authenticationRepository, {
     sessionSecret: env.SESSION_SECRET,
     appOrigin: environment.appOrigin,
@@ -36,6 +43,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
   return Object.freeze({
     database,
     authenticationRepository,
+    identityService,
+    credentialService,
+    accountSessionService,
     security,
     cleanerProfileRepository,
     cleanerProfileService,

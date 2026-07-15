@@ -24,6 +24,8 @@ The [landlord property privacy boundary](docs/PROPERTY_PRIVACY.md) now adds owne
 
 The [account marketplace HTTP runtime](docs/MARKETPLACE_HTTP_RUNTIME.md) now composes these modules behind an isolated native-Node controller with session, exact-origin, CSRF and server-side role checks, bounded JSON and safe errors. Its public Cleaner search and private profile/property route contracts are tested but deliberately not attached to the live pilot: a real PostgreSQL driver, staging migrations/RLS evidence, login/session routes and genuine account-backed data are required first.
 
+The authentication runtime also includes trusted session issuance, exact logout, logout-all and same-account rotation. Raw session and CSRF tokens never cross the repository boundary, optional client metadata is stored only as keyed hashes, and a failed privilege-changing rotation leaves the old session revoked. These remain source-level foundations until throttled login/logout handlers are composed under HTTPS.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

@@ -45,3 +45,16 @@ Private account routes use only the environment-appropriate session cookie name:
 Every cookie-authenticated mutation requires all three checks: an exact configured `Origin`, the session's CSRF token in `X-CSRF-Token`, and an allowed server-side role. A role-pending account may access onboarding but receives no Cleaner or Landlord authority before selection. Hiding a button is never treated as authorization.
 
 The public capability endpoint has an additional runtime-composition gate. Valid credentials alone cannot expose Google or email sign-in before the real database pool, repositories, delivery adapter and protected HTTP handlers are connected. Until then, `/login` and `/signup` show an honest unavailable state and only link to the working private pilot routes.
+
+## Session issuance and rotation
+
+`account-session-service.mjs` now provides the trusted session-issuance boundary that login and provider callbacks will call after authentication succeeds:
+
+- the browser receives only the HttpOnly cookie plus a separate CSRF token; the raw session token is not returned in JSON;
+- the repository receives only 32-byte HMAC token/CSRF hashes and expiry, never either raw token;
+- user-agent and IP metadata are optional, bounded and stored only as domain-separated keyed hashes;
+- production uses the Secure `__Host-` cookie; local development uses the separate non-secure cookie name;
+- logout revokes the exact current database session before expiring the cookie, while logout-all revokes every account session;
+- privilege-changing rotation verifies that the new session belongs to the same account, revokes the old session first and fails closed if replacement creation fails.
+
+The source service is composed into the marketplace runtime, but no login/logout HTTP route is enabled yet. Public entry remains closed until real PostgreSQL, throttled handlers, SMTP/provider adapters and HTTPS browser tests exist.

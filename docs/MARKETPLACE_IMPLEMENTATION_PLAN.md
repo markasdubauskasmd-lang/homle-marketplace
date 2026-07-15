@@ -85,7 +85,8 @@ Implemented account HTTP composition checkpoint:
 - Existing opaque session, exact-origin, CSRF and server-side role middleware protects every account mutation; request-body owner IDs cannot select the affected account.
 - JSON content/type/size boundaries, explicit methods, no-store responses and sanitized unexpected errors.
 - Fail-closed runtime factory composes one database/security/repository/service/controller graph only when database, session, exact-origin and encryption configuration exists.
-- Contract tests in `tests/marketplace-http.mjs` and staged enablement procedure in `docs/MARKETPLACE_HTTP_RUNTIME.md`.
+- Trusted session issuance/rotation returns an HttpOnly cookie plus CSRF token while passing only token hashes to persistence; exact logout, logout-all and same-account privilege rotation are covered.
+- Contract tests in `tests/marketplace-http.mjs` and `tests/account-session-service.mjs`, with the staged enablement procedure in `docs/MARKETPLACE_HTTP_RUNTIME.md`.
 
 Not yet enabled: server attachment of the prepared account routes, login/session mutation routes, account pages beyond honest closed entry states, real PostgreSQL execution/driver, geocoding, an authenticated marketplace account, object storage, or genuine public cleaner supply.
 

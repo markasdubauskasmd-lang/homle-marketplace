@@ -21,12 +21,13 @@ The controller owns the `/api/marketplace/` namespace and does not intercept any
 `src/marketplace/runtime.mjs` creates one database boundary and composes:
 
 1. authentication/session repository;
-2. account security;
-3. cleaner profile repository/service;
-4. property repository/service;
-5. marketplace HTTP router.
+2. social identity, email credential and secure session-issuance services;
+3. account security;
+4. cleaner profile repository/service;
+5. property repository/service;
+6. marketplace HTTP router.
 
-Composition fails closed unless `DATABASE_URL`, a 32+ character `SESSION_SECRET`, exact `APP_ORIGIN` and distinct 32+ character `DATA_ENCRYPTION_KEY` are present. It does not connect eagerly or enable public authentication capability flags.
+Composition fails closed unless `DATABASE_URL`, separate 32+ character `SESSION_SECRET` and `AUTH_TOKEN_SECRET`, exact `APP_ORIGIN` and distinct 32+ character `DATA_ENCRYPTION_KEY` are present. It does not connect eagerly or enable public authentication capability flags. Session issuance stores only token/CSRF hashes and keyed metadata hashes; logout and role-change rotation revoke database sessions before clearing or replacing cookies.
 
 ## Enablement procedure
 
