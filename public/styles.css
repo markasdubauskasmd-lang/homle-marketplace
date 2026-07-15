@@ -158,6 +158,10 @@ textarea { resize: vertical; }
 .service-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 0; padding: 16px; border: 1px solid #b9c9c4; border-radius: 10px; }
 .service-options legend { padding: 0 6px; color: #203f39; font-size: .88rem; font-weight: 760; }
 .service-options legend span { color: var(--muted); font-weight: 500; }
+.profile-starter-panel { display: grid; gap: 14px; margin-top: 18px; padding: 18px; border: 1px solid #b8d8ce; border-radius: 14px; background: var(--mint-pale); }
+.profile-starter-panel > div strong, .profile-starter-panel > div span { display: block; }
+.profile-starter-panel > div strong { color: var(--green-dark); }
+.profile-starter-panel > div span { margin-top: 3px; color: var(--muted); font-size: .82rem; }
 .submit-button { justify-self: start; min-width: 220px; }
 .submit-button[disabled] { cursor: not-allowed; opacity: .65; transform: none; }
 .submit-button[aria-busy="true"] { cursor: progress; }

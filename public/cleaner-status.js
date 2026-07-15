@@ -60,6 +60,7 @@ function renderStatus(result) {
   const readiness = document.querySelector("[data-readiness]");
   readiness.replaceChildren();
   const items = [
+    result.readiness.profileStarterCaptured ? "Your professional profile starter was captured privately; it is not public or verified yet." : "Your private professional profile starter is incomplete.",
     result.readiness.firstAvailabilityCaptured ? "One exact first-available window was captured with the application; it is not yet confirmed for matching." : "No first-available window was captured with this application.",
     result.readiness.screeningComplete ? "Required screening checks are recorded." : "Screening checks are not yet complete.",
     result.readiness.approvalRecorded ? "The application is currently approved." : "No current approval is recorded.",

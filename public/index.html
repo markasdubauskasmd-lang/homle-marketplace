@@ -8,7 +8,7 @@
   <title>Tideway — cleaning, properly coordinated</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260715-45">
+  <link rel="stylesheet" href="/styles.css?v=20260715-46">
   <script src="/app.js?v=20260715-48" type="module"></script>
 </head>
 <body>
@@ -240,6 +240,12 @@
                 <label class="checkbox"><input name="serviceCommunal" type="checkbox"><span>Communal areas</span></label>
                 <label class="checkbox"><input name="serviceDeepCleans" type="checkbox"><span>Deep cleans</span></label>
               </fieldset>
+              <div class="profile-starter-panel">
+                <div><strong>Start your professional profile</strong><span>These details stay private during application review. They are not published or verified automatically.</span></div>
+                <label>Short professional introduction <span>(40–600 characters)</span><textarea name="professionalBio" rows="4" minlength="40" maxlength="600" required placeholder="Describe the cleaning work you do well, the settings you prefer and how you approach a job."></textarea></label>
+                <label>Languages you can use with customers <span>(comma-separated)</span><input name="languages" maxlength="419" required placeholder="For example: English, Polish"></label>
+                <label>Equipment and cleaning products plan<select name="equipmentPlan" required><option value="">Choose one</option><option value="bring-equipment-and-products">I can bring standard equipment and cleaning products</option><option value="bring-equipment-products-supplied">I can bring equipment; cleaning products need to be supplied</option><option value="equipment-and-products-supplied">Equipment and cleaning products need to be supplied</option><option value="confirm-per-opportunity">Agree equipment and products for each opportunity</option></select></label>
+              </div>
               <div class="guided-form-actions">
                 <button class="button button-outline" type="button" data-guided-back>Back</button>
                 <button class="button" type="button" data-guided-next>Continue to availability</button>

@@ -1671,6 +1671,10 @@ function buildCard(record) {
   } else {
     addDetail(details, "Work areas", record.travelAreas);
     addDetail(details, "Experience", record.experience);
+    addDetail(details, "Private profile introduction", record.professionalBio);
+    addDetail(details, "Languages", Array.isArray(record.languages) ? record.languages.join(", ") : "");
+    addDetail(details, "Equipment and products", record.profileStarter?.equipmentPlanLabel);
+    addDetail(details, "Profile use", record.profileStarter?.captured ? "Applicant supplied · private and unverified" : "Incomplete · do not publish");
     addDetail(details, "Availability", record.availability);
     addDetail(details, "First exact window", record.firstAvailableDate && record.firstAvailableStartTime && record.firstAvailableEndTime ? `${record.firstAvailableDate} · ${record.firstAvailableStartTime}-${record.firstAvailableEndTime} · unconfirmed` : "Not supplied");
     addDetail(details, "Transport", record.transport);

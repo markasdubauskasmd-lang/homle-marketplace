@@ -12,6 +12,7 @@ import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mj
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverage.mjs";
 import { businessDateToday, businessEpochFromWallClock, businessWallClockMs, earliestBookableWallClockMs } from "./business-clock.mjs";
 import { scanAttentionAction } from "./lead-attention.mjs";
+import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeCleanerProfileStarter } from "./cleaner-profile-starter.mjs";
 import { publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -2001,13 +2002,14 @@ async function getAdminRecords(request, response) {
     const outcome = booking ? outcomesByBooking.get(booking.id) || null : null;
     const leadBriefs = kind === "request" ? (briefsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 5) : [];
     const screening = kind === "cleaner" ? latestCleanerScreening(record.id, screenings) : null;
+    const profileStarter = kind === "cleaner" ? { captured: cleanerProfileStarterCaptured(record), equipmentPlanLabel: cleanerEquipmentPlanLabel(record.equipmentPlan) } : null;
     const cleanerAvailability = kind === "cleaner" ? activeCleanerAvailability(availabilityEvents, record.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > businessWallClockMs()) : [];
     const availabilityRequests = kind === "cleaner" ? cleanerAvailabilityRequests(availabilityEvents, record.id).filter((item) => item.status === "pending" && availabilitySlotSchedule(item)?.endMs > businessWallClockMs()).map(({ submissionKey: ignoredKey, submissionFingerprint: ignoredFingerprint, ...item }) => item) : [];
     const pilotCoverage = kind === "request" ? pilotPostcodeCoverage(record.postcode, config.pilotPostcodes) : null;
     const status = latestStatuses.get(record.id) || record.status || "new";
     const nextActionAt = leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "";
     const dispatchActions = dispatchActionsForRecord({ kind, status, createdAt: record.createdAt, nextActionAt, proposals: leadProposals, briefs: leadBriefs, booking, outcome, screening, cleanerAvailability, availabilityRequests, pilotCoverage });
-    return { ...privateLead, kind, status, activities: leadActivities.slice(0, 10), nextActionAt, proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, cleanerAvailability, availabilityRequests, pilotCoverage, booking, outcome, dispatchActions };
+    return { ...privateLead, kind, status, activities: leadActivities.slice(0, 10), nextActionAt, proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, profileStarter, cleanerAvailability, availabilityRequests, pilotCoverage, booking, outcome, dispatchActions };
   };
   const records = [
     ...requests.map((record) => merge(record, "request")),
@@ -3597,6 +3599,7 @@ async function getPrivateCleanerStatus(request, response) {
   const futureAvailability = activeCleanerAvailability(availabilityEvents, cleaner.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > businessWallClockMs());
   const pendingAvailabilityRequests = cleanerAvailabilityRequests(availabilityEvents, cleaner.id).filter((item) => item.status === "pending" && availabilitySlotSchedule(item)?.endMs > businessWallClockMs());
   const firstAvailabilityCaptured = Boolean(cleaner.firstAvailableDate && cleaner.firstAvailableStartTime && cleaner.firstAvailableEndTime);
+  const profileStarterCaptured = cleanerProfileStarterCaptured(cleaner);
   const readyForOpportunities = status === "approved" && screeningComplete && futureAvailability.length > 0;
 
   let stage = "application-review";
@@ -3644,10 +3647,10 @@ async function getPrivateCleanerStatus(request, response) {
 
   return json(response, 200, {
     ok: true,
-    application: { reference: cleaner.id, firstAvailability: firstAvailabilityCaptured ? { availableDate: cleaner.firstAvailableDate, startTime: cleaner.firstAvailableStartTime, endTime: cleaner.firstAvailableEndTime, status: "unconfirmed" } : null },
+    application: { reference: cleaner.id, profileStarter: { captured: profileStarterCaptured, languageCount: profileStarterCaptured ? cleaner.languages.length : 0 }, firstAvailability: firstAvailabilityCaptured ? { availableDate: cleaner.firstAvailableDate, startTime: cleaner.firstAvailableStartTime, endTime: cleaner.firstAvailableEndTime, status: "unconfirmed" } : null },
     current: { stage, headline, nextAction },
     steps,
-    readiness: { screeningComplete, approvalRecorded: status === "approved", firstAvailabilityCaptured, confirmedAvailabilityWindows: readyForOpportunities ? futureAvailability.length : 0, pendingAvailabilityWindows: pendingAvailabilityRequests.length, readyForOpportunities },
+    readiness: { profileStarterCaptured, screeningComplete, approvalRecorded: status === "approved", firstAvailabilityCaptured, confirmedAvailabilityWindows: readyForOpportunities ? futureAvailability.length : 0, pendingAvailabilityWindows: pendingAvailabilityRequests.length, readyForOpportunities },
     availabilityRequests: pendingAvailabilityRequests.map((item) => ({ reference: item.id, availableDate: item.availableDate, startTime: item.startTime, endTime: item.endTime, status: "pending" })),
     links: { availabilitySubmissionAllowed: status === "approved" && screeningComplete }
   });
@@ -4470,6 +4473,14 @@ async function handleCleanerApplication(request, response) {
 
   if (text(input.website, 120)) return json(response, 201, { ok: true, reference: "received" });
 
+  const profileErrors = [];
+  let profileStarter = { professionalBio: "", languages: [], equipmentPlan: "" };
+  try {
+    profileStarter = normalizeCleanerProfileStarter(input);
+  } catch (error) {
+    profileErrors.push(error.message);
+  }
+
   const record = {
     id: `CLN-${randomUUID().slice(0, 8).toUpperCase()}`,
     cleanerStatusToken: randomBytes(24).toString("base64url"),
@@ -4489,12 +4500,15 @@ async function handleCleanerApplication(request, response) {
     services: Array.isArray(input.services)
       ? input.services.map((service) => text(service, 80)).filter((service) => Object.values(cleanerServiceFields).includes(service))
       : Object.entries(cleanerServiceFields).filter(([field]) => input[field] === true).map(([, service]) => service),
+    professionalBio: profileStarter.professionalBio,
+    languages: profileStarter.languages,
+    equipmentPlan: profileStarter.equipmentPlan,
     rightToWork: input.rightToWork === true,
     consent: input.consent === true,
     notes: text(input.notes, 1000)
   };
 
-  const errors = [];
+  const errors = [...profileErrors];
   required(record.fullName, "Full name", errors);
   required(record.email, "Email", errors);
   required(record.phone, "Phone", errors);
