@@ -13,6 +13,7 @@
 - **Founder action still required before real intake:** configure an access-restricted off-OneDrive `DATA_DIR`, stop the server and create/store one private backup on an approved encrypted device or vault, then record the retention decisions. The agent must not move or copy live private records without that explicit location/approval.
 - **Next engineering gate:** record PostgreSQL as the production marketplace runtime while keeping the NDJSON application time-boxed to the Tier 0 concierge pilot. Do not add long-term auth or payments to the NDJSON monolith.
 - **Storage-risk visibility added after P0:** the control desk now presents a red action-required storage panel and includes off-sync storage in operating-rule readiness. The API exposes only the provider and safe/unsafe state, never the private path, and performs no relocation.
+- **E3 pre-enable auth hardening complete in source:** verified social-provider email may deduplicate automatically only into an already verified social-only account. Pre-authenticated callbacks cannot attach to any password account—even a verified one—and must use a future authenticated settings/step-up flow. An attacker-pre-registered unverified account is never upgraded or linked. OAuth remains disabled and still requires real PostgreSQL integration tests before activation.
 
 ---
 

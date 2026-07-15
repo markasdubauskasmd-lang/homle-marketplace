@@ -27,6 +27,8 @@ DECLARE
   safe_avatar text;
   resolved_user_id uuid;
   resolved_status text;
+  resolved_email_verified_at timestamptz;
+  resolved_has_password_identity boolean := false;
   created_user boolean := false;
 BEGIN
   IF asserted_provider IS NULL OR asserted_provider NOT IN ('google', 'apple', 'facebook') THEN
@@ -84,7 +86,7 @@ BEGIN
     RETURN;
   END IF;
 
-  SELECT u.id, u.account_status INTO resolved_user_id, resolved_status
+  SELECT u.id, u.account_status, u.email_verified_at INTO resolved_user_id, resolved_status, resolved_email_verified_at
   FROM users u WHERE u.email = normalized_email FOR UPDATE;
 
   IF resolved_user_id IS NULL THEN
@@ -98,8 +100,19 @@ BEGIN
     IF resolved_status <> 'active' THEN
       RAISE EXCEPTION 'An account with this verified email is not active';
     END IF;
+    SELECT EXISTS (
+      SELECT 1 FROM authentication_identities ai
+      WHERE ai.user_id = resolved_user_id AND ai.provider = 'password'
+    ) INTO resolved_has_password_identity;
+    -- A provider-verified address is not permission to attach to a password
+    -- account whose password may have been chosen by a pre-registration attacker.
+    -- Password accounts must connect providers from an authenticated settings
+    -- flow with step-up verification; pre-auth email matching is social-only.
+    IF resolved_email_verified_at IS NULL OR resolved_has_password_identity THEN
+      RAISE EXCEPTION 'Sign in to the existing account and connect this social provider from authenticated settings';
+    END IF;
     UPDATE users
-    SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
+    SET updated_at = now()
     WHERE id = resolved_user_id;
     UPDATE authentication_identities
     SET provider_email_verified = true
