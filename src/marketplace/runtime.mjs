@@ -23,6 +23,8 @@ import { createProgressRepository } from "./progress-repository.mjs";
 import { createProgressService } from "./progress-service.mjs";
 import { createMediaRepository } from "./media-repository.mjs";
 import { createMediaService } from "./media-service.mjs";
+import { createMessageRepository } from "./message-repository.mjs";
+import { createMessageService } from "./message-service.mjs";
 
 export function createMarketplaceRuntime(pool, options = {}) {
   const env = options.env || process.env;
@@ -64,7 +66,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const progressService = createProgressService(progressRepository);
   const mediaRepository = createMediaRepository(database);
   const mediaService = createMediaService(mediaRepository, { objectStorage: options.objectStorage });
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService }, { onUnexpectedError: options.onUnexpectedError });
+  const messageRepository = createMessageRepository(database);
+  const messageService = createMessageService(messageRepository);
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService }, { onUnexpectedError: options.onUnexpectedError });
   const authenticationDependencies = [options.emailDelivery, options.rateLimiter, options.clientKey];
   const suppliedAuthenticationDependencies = authenticationDependencies.filter(Boolean).length;
   if (suppliedAuthenticationDependencies > 0 && suppliedAuthenticationDependencies < authenticationDependencies.length) throw new TypeError("Authentication HTTP composition requires email delivery, shared rate limiting and a trusted client-key resolver together.");
@@ -102,6 +106,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     progressService,
     mediaRepository,
     mediaService,
+    messageRepository,
+    messageService,
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
     marketplaceRouter,

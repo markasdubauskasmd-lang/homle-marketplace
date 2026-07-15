@@ -184,7 +184,13 @@ Tests: consent and participant location authorization, automatic stop, unrelated
 
 ## Phase 5 — communication, reviews, notifications and administration
 
-- Add one booking conversation with participant/admin-only messages and no exposed personal contact details.
+Implemented booking-message checkpoint:
+
+- One conversation per booking with participant-only sends and participant/authorized-Administrator reads; messaging state is checked inside the database and direct runtime table access is revoked.
+- Server-generated message IDs plus client retry UUIDs make sends idempotent, while database locks enforce cross-instance per-account rate limits.
+- Service and database validation reject direct email, telephone, web-link and named outside-messaging details; message bodies never enter notification payloads or audit metadata.
+- Stable tuple-cursor pagination, bounded pages and isolated account routes are covered in `tests/message-service.mjs` and documented in `docs/BOOKING_MESSAGING.md`.
+
 - Add in-app notification inbox and an idempotent email outbox for all required lifecycle events.
 - Add one landlord review per completed booking, category ratings, moderation and one cleaner response.
 - Add disputes, suspension, verification and review-moderation tools to the existing `/admin` design.

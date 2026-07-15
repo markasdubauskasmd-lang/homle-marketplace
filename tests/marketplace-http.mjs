@@ -94,8 +94,12 @@ const mediaService = {
   async completeUpload(actor, bookingId, uploadId) { calls.push({ kind: "media-complete", actor, bookingId, uploadId }); return { bookingId, status: "cleaning-in-progress", eventVersion: 8 }; },
   async getPhotoAccess(actor, bookingId, photoId) { calls.push({ kind: "media-access", actor, bookingId, photoId }); return { photoId, url: "https://storage.example/read" }; }
 };
+const messageService = {
+  async sendMessage(actor, bookingId, input) { calls.push({ kind: "message-send", actor, bookingId, input }); return { messageId: "88888888-8888-4888-8888-888888888888", clientMessageId: input.clientMessageId, bookingId, senderUserId: actor.userId, senderRole: actor.roles[0], body: input.body, createdAt: "2026-07-15T16:00:00.000Z" }; },
+  async listMessages(actor, bookingId, input) { calls.push({ kind: "message-list", actor, bookingId, input }); return { bookingId, messages: [], hasMore: false, nextCursor: null }; }
+};
 let unexpectedError;
-const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService }, { onUnexpectedError(error) { unexpectedError = error; } });
+const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService }, { onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
   origin: "http://127.0.0.1:4173",
@@ -142,6 +146,9 @@ const bookingProperty = await dispatch(router, "GET", `/api/marketplace/bookings
 assert(bookingProperty.response.statusCode === 200 && calls.at(-1).bookingId === bookingId && bookingProperty.body.property.accessInstructions === "Protected", "Booking-scoped property route lost the authenticated participant projection.");
 const landlordTracking = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/tracking`, { headers: { cookie: authHeaders.cookie } });
 assert(landlordTracking.response.statusCode === 200 && landlordTracking.body.tracking.sharingState === "live" && calls.at(-1).kind === "journey-read" && calls.at(-1).actor.userId === sessions.landlord.user_id, "A Landlord participant could not read the safe current booking tracking snapshot.");
+const messageList = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/messages?limit=25`, { headers: { cookie: authHeaders.cookie } });
+const landlordMessage = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/messages`, { headers: authHeaders, body: { clientMessageId: "99999999-9999-4999-8999-999999999999", body: "Please begin with the kitchen." } });
+assert(messageList.response.statusCode === 200 && landlordMessage.response.statusCode === 201 && calls.at(-2).kind === "message-list" && calls.at(-2).input.limit === "25" && calls.at(-1).kind === "message-send" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Booking messages lost authenticated participant reads, Landlord sends or query pagination.");
 const landlordJourneyStart = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/journey/start`, { headers: authHeaders, body: { consentGranted: true, latitude: 51.5, longitude: -0.1 } });
 assert(landlordJourneyStart.response.statusCode === 403 && landlordJourneyStart.body.code === "role-rejected", "A Landlord could start the Cleaner journey.");
 const landlordProgress = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/cleaning-progress`, { headers: { cookie: authHeaders.cookie } });
@@ -196,7 +203,7 @@ const baseEnvironment = {
 };
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media and HTTP layers or safely kept incomplete authentication delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging and HTTP layers or safely kept incomplete authentication delivery detached.");
 let partialAuthenticationRejected = false;
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, emailDelivery: { send() {} } }); } catch (error) { partialAuthenticationRejected = error.message.includes("requires email delivery, shared rate limiting"); }
 assert(partialAuthenticationRejected, "A partially supplied authentication HTTP boundary was silently enabled.");

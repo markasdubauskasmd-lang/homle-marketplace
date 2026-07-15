@@ -51,10 +51,13 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_job_photo_upload_for_completion(uu
 GRANT EXECUTE ON FUNCTION tideway_private.reject_job_photo_upload(uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.complete_job_photo_upload(uuid,integer,text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_job_photo_object(uuid,uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.send_booking_message(uuid,uuid,uuid,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_booking_messages(uuid,timestamptz,uuid,integer) TO tideway_app;
 
 -- Booking transitions are only writable through the audited, actor-aware functions above.
-REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, task_updates, job_pauses, unexpected_task_decisions, booking_progress_events, job_photos, job_photo_uploads, cleaner_locations, conversations, notifications FROM tideway_app;
+REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, task_updates, job_pauses, unexpected_task_decisions, booking_progress_events, job_photos, job_photo_uploads, cleaner_locations, conversations, messages, notifications, audit_logs FROM tideway_app;
 -- Object keys and upload verification records are reachable only through the narrow SECURITY DEFINER projections.
 REVOKE SELECT ON job_photos, job_photo_uploads FROM tideway_app;
+REVOKE SELECT ON conversations, messages FROM tideway_app;
 
 COMMIT;
