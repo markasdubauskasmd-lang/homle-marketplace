@@ -130,10 +130,17 @@ Implemented request-specific matching checkpoint:
 - Public projections expose plain-language reasons and the estimated customer total while withholding contact details, service coordinates, Cleaner pay, platform costs, raw acceptance rate and internal factor scores.
 - Contract/static coverage is in `tests/matching-service.mjs`; the enablement boundary is in `docs/REQUEST_MATCHING.md`.
 
+Implemented invitation expiry/requeue checkpoint:
+
+- Bounded concurrent workers claim due pending invitations with row locks and `SKIP LOCKED`, cancel each attempt once and release the partial-unique request slot.
+- The associated request atomically returns to matching; booking/request histories distinguish automatic system changes from user actions and idempotent notifications inform both participants.
+- A late assigned-Cleaner response returns the terminal expired record rather than leaving the request stuck or fabricating a response.
+- Expiry execution belongs only to a separate checked `tideway_worker` role; the web runtime role has no execute grant.
+
 - Import existing pilot request/scan/proposal/booking records through a dry-run-first migration tool while retaining legacy references.
 - Create account-backed cleaning requests from saved properties and frozen room-scan checklists/media.
 - Add ranked matching using explicit service area, confirmed availability, services, price, rating, earlier relationship and acceptance rate. Every factor remains explainable.
-- Add durable post-commit delivery of the prepared idempotent notification events and invitation expiry/requeue processing.
+- Add durable post-commit delivery of the prepared idempotent notification events.
 - Extend the confirmed booking from acceptance through journey, arrival, active cleaning, review, completion, cancellation and dispute transitions.
 - Add `/bookings/new` and `/bookings/:bookingId`; retain the existing protected booking packs as a migration fallback.
 

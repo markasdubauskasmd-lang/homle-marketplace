@@ -38,7 +38,8 @@ function bookingProjection(record, actor) {
     termsFingerprint: record.terms_fingerprint,
     scope: typeof record.scope_snapshot === "string" ? JSON.parse(record.scope_snapshot) : record.scope_snapshot,
     respondedAt: record.responded_at ? new Date(record.responded_at).toISOString() : null,
-    confirmedAt: record.confirmed_at ? new Date(record.confirmed_at).toISOString() : null
+    confirmedAt: record.confirmed_at ? new Date(record.confirmed_at).toISOString() : null,
+    expiredAt: record.expired_at ? new Date(record.expired_at).toISOString() : null
   };
   if (actor?.roles?.includes("cleaner")) base.cleanerPayPence = Number(record.cleaner_pay_pence);
   return base;

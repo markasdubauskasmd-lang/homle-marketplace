@@ -36,6 +36,8 @@ The [frozen Cleaner invitation and acceptance transaction](docs/BOOKING_INVITATI
 
 [Request-specific Cleaner matching](docs/REQUEST_MATCHING.md) now filters for active complete profiles, property-type preference, every required service, whole-window availability, non-overlap and declared postcode/radius coverage before ranking. The shortlist combines distance, verified review evidence, a profitable budget-aware estimate, previous Landlord relationship and internal acceptance reliability, while returning only safe public fields and plain-language match reasons. It does not contact or automatically assign anyone.
 
+Invitation expiry now prevents an unanswered offer from trapping a request: a separately credentialed database worker cancels each due attempt once, reopens matching, records system-attributed histories and queues idempotent participant notifications. The web role cannot execute the expiry batch, and a late assigned-Cleaner response sees the expired terminal state without fabricating a response.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

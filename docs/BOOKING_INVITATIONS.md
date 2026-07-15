@@ -14,6 +14,8 @@ This Phase 3 checkpoint adds the first account-backed booking transaction. It re
 - Acceptance rechecks current scope, profile eligibility, services and availability. The existing GiST exclusion constraint makes the confirmed update the final concurrency-safe overlap decision.
 - Decline cancels only that attempt, reopens the request for matching and preserves both histories. A partial unique index permits one replacement attempt while still preventing two live attempts.
 - Repeated matching accept or decline responses are idempotent. A conflicting second decision is rejected.
+- An unanswered invitation is cancelled at its deadline, the request returns to `searching-for-cleaner`, both status histories identify the change as system-generated and idempotent participant notifications are queued. A late Cleaner response returns the terminal expired state without inventing a response timestamp.
+- Concurrent expiry workers claim bounded batches with `FOR UPDATE SKIP LOCKED`; one expired attempt cannot be processed twice and its partial unique slot is released for replacement matching.
 - Invitation, booking, request-history, task-copy, conversation and in-app notification records commit atomically. Realtime delivery will consume committed durable events in Phase 4.
 - Direct runtime writes to booking, booking-history, task and conversation tables are revoked; the restricted app role must use the audited actor-aware transition functions.
 
@@ -25,6 +27,10 @@ These values are confidential operating inputs and must stay in the deployment s
 
 ## Migration and deployment boundary
 
-Apply `009_booking_invitation_and_acceptance.sql` after migration 008. The migration backfills evidence fields for legacy booking rows without fabricating legacy margin evidence. New and changed rows must pass the positive-contribution and target-margin checks. Before enabling routes, run the migration against a restored staging copy, validate every legacy row, exercise two concurrent accept transactions and verify the `tideway_app` role cannot directly update a booking.
+Apply `009_booking_invitation_and_acceptance.sql`, request matching migration 010 and expiry migration `011_invitation_expiry_and_requeue.sql` after migration 008. Migration 009 backfills evidence fields for legacy booking rows without fabricating legacy margin evidence. New and changed rows must pass the positive-contribution and target-margin checks. Migration 011 distinguishes user and system history actors and adds bounded idempotent expiry/requeue.
+
+The public web role cannot call the expiry worker. Create a separate non-superuser, non-RLS-bypass `tideway_worker`, apply `db/worker-role-grants.sql`, and schedule `SELECT * FROM tideway_private.expire_due_cleaner_invitations(100);` at least once per minute through the deployment scheduler. Store its separate connection credential in the secret manager. Alert if a run fails or if due rows remain after repeated full batches.
+
+Before enabling routes, run the migrations against a restored staging copy, validate every legacy row, race two concurrent accept transactions, race two expiry workers, and verify `tideway_app` cannot directly update a booking or execute the expiry batch.
 
 No customer was charged, Cleaner contacted, invitation sent or live pilot record modified by this checkpoint.
