@@ -71,7 +71,7 @@ function enhanceGuidedForm(form) {
     if (moveFocus) {
       const heading = steps[currentStep - 1].querySelector(".guided-step-heading");
       heading?.focus({ preventScroll: true });
-      steps[currentStep - 1].scrollIntoView({ behavior: "smooth", block: "nearest" });
+      steps[currentStep - 1].scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
 

@@ -129,7 +129,7 @@ h3 { margin-bottom: 10px; font-size: 1.25rem; }
 .guided-progress li.complete { color: var(--green-dark); }
 .guided-progress li.complete span { color: var(--green-dark); border-color: #85c4b4; background: var(--mint-pale); }
 .guided-progress li.complete::after, .guided-progress li.current::after { background: #85c4b4; }
-.guided-form-step { display: grid; gap: 18px; }
+.guided-form-step { scroll-margin-top: 92px; display: grid; gap: 18px; }
 .guided-form-step[hidden] { display: none; }
 .guided-step-heading { padding-bottom: 14px; border-bottom: 1px solid var(--line); outline: none; }
 .guided-step-heading > span { color: var(--green); font-size: .76rem; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
