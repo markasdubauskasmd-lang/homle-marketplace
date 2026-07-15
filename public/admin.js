@@ -422,13 +422,13 @@ function renderScanReviewWorkspace() {
   }
   if (!nextRecord) {
     addText(copy, "strong", "No submitted scope is awaiting Tideway review.");
-    addText(copy, "span", `${summary.reviewed} reviewed Â· ${summary.revisionRequested} returned for customer revision.`);
+    addText(copy, "span", `${summary.reviewed} reviewed · ${summary.revisionRequested} returned for customer revision.`);
     target.append(copy);
     return;
   }
 
   const brief = nextRecord.briefs[0];
-  addText(copy, "strong", `Next: ${brief.id} Â· ${brief.checklist.length} tasks Â· ${brief.photos.length} visuals`);
+  addText(copy, "strong", `Next: ${brief.id} · ${brief.checklist.length} tasks · ${brief.photos.length} visuals`);
   addText(copy, "span", `${nextRecord.preferredDate ? `Earliest requested cleaning date: ${formatCalendarDate(nextRecord.preferredDate)}. ` : ""}${summary.awaiting} submitted scope${summary.awaiting === 1 ? "" : "s"} awaiting evidence review. Private media remains unloaded until you choose to open it.`);
   addText(copy, "small", "Approval stays blocked until every evidence item is complete; this action only opens the private record.");
   const open = document.createElement("button");
@@ -2190,7 +2190,7 @@ function buildCard(record) {
     }
     proposalStatusLabel.append(proposalStatus);
     const withdrawalNoteLabel = document.createElement("label");
-    withdrawalNoteLabel.append(document.createTextNode("Withdrawal reason â€” required before cancelling"));
+    withdrawalNoteLabel.append(document.createTextNode("Withdrawal reason — required before cancelling"));
     const withdrawalNote = document.createElement("textarea");
     withdrawalNote.rows = 2;
     withdrawalNote.maxLength = 500;
@@ -2443,7 +2443,7 @@ function renderConfigPreview(result, valid) {
     if (!economics.targetRateSupported) {
       guidance.textContent = "These assumptions require a target-safe rate above Tideway's supported proposal limit. Revise the verified cost, pay, duration or margin assumptions before saving or quoting.";
     } else if (!economics.costAssumptionsConfirmed) {
-      guidance.textContent = "Planning result only: confirm that every cost assumption, including deliberate Â£0 values, has been reviewed before relying on this rate.";
+      guidance.textContent = "Planning result only: confirm that every cost assumption, including deliberate £0 values, has been reviewed before relying on this rate.";
     } else if (economics.configuredMeetsTarget) {
       guidance.textContent = `The configured minimum job clears the ${Number(economics.targetMarginPercent).toFixed(1)}% contribution-margin floor by these assumptions. This is not a customer quote or a launch approval.`;
     } else {

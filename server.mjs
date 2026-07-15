@@ -18,12 +18,15 @@ import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeClea
 import { buildRoomScanFollowupDraft } from "./request-followup-draft.mjs";
 import { publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
 import { createTrackingTestStore } from "./tracking-test-store.mjs";
+import { assessPrivateDataDirectory } from "./data-directory-safety.mjs";
 import "./public/scope-time-breakdown.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const scopeTimeWorksheet = globalThis.TidewayScopeTimeBreakdown;
 const publicDir = path.join(root, "public");
 const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(root, "data");
+const dataDirectorySafety = assessPrivateDataDirectory(dataDir, { explicitlyConfigured: Boolean(process.env.DATA_DIR) });
+if (dataDirectorySafety.warning) console.warn(`[Tideway privacy warning] ${dataDirectorySafety.warning}`);
 const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || 4173);
 const lanPort = Number(process.env.LAN_PORT || 0);
@@ -3665,7 +3668,7 @@ async function getPrivateRequestStatus(request, response) {
     nextAction = "Tideway must recheck the scope, cleaner availability and pricing before issuing a new proposal.";
   } else if (proposal?.status === "sent" && proposal.exhausted && !quoteExpired) {
     currentStage = "rematching";
-    headline = "Cleaner unavailable â€” rematching required";
+    headline = "Cleaner unavailable — rematching required";
     nextAction = "Tideway must select another screened cleaner and issue a new controlled proposal before booking.";
   } else if (proposal?.status === "sent") {
     currentStage = "quote-review";
@@ -3683,7 +3686,7 @@ async function getPrivateRequestStatus(request, response) {
     nextAction = "No booking was created. Tideway can prepare a different proposal only after the scope and terms are reviewed again.";
   } else if (proposal?.status === "cancelled") {
     currentStage = "rematching";
-    headline = "Proposal withdrawn â€” rematching in progress";
+    headline = "Proposal withdrawn — rematching in progress";
     nextAction = "No booking was created. Tideway must review the scope, availability and economics before issuing another proposal.";
   }
   if (proposal?.status === "accepted" && cleanerDecision?.status === "declined") {

@@ -5,7 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const testDataDir = await mkdtemp(path.join(tmpdir(), "tideway-security-http-"));
+const testRoot = await mkdtemp(path.join(tmpdir(), "tideway-security-http-"));
+const testDataDir = path.join(testRoot, "OneDrive", "TidewayPrivateData");
 const port = 4293;
 const base = `http://127.0.0.1:${port}`;
 const adminKey = "test-security-admin-key";
@@ -51,6 +52,7 @@ const roomScan = (requestId) => ({
 
 try {
   await waitForServer();
+  assert(serverOutput.includes("Tideway privacy warning") && serverOutput.includes("OneDrive") && serverOutput.includes("DATA_DIR"), "A cloud-synchronised private data path did not produce the required startup warning.");
 
   const missingOrigin = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
   assert(missingOrigin.status === 403 && (await missingOrigin.json()).error.includes("same-origin"), "A mutation without Origin was not rejected before validation.");
@@ -107,5 +109,5 @@ try {
     child.kill();
     await new Promise((resolve) => child.once("exit", resolve));
   }
-  await rm(testDataDir, { recursive: true, force: true });
+  await rm(testRoot, { recursive: true, force: true });
 }

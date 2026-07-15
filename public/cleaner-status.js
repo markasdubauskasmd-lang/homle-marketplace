@@ -123,7 +123,7 @@ profileForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = profileForm.querySelector("button");
   button.disabled = true;
-  profileMessage.textContent = "Saving your private profile detailsâ€¦";
+  profileMessage.textContent = "Saving your private profile details…";
   try {
     const body = Object.fromEntries(new FormData(profileForm).entries());
     const response = await fetch("/api/cleaner-profile-starter", {
