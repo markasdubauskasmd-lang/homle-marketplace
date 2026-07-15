@@ -40,6 +40,7 @@ let writeQueue = Promise.resolve();
 const rateLimitBuckets = new Map();
 const trackingTestStore = createTrackingTestStore();
 const trustProxy = process.env.TRUST_PROXY === "true";
+const adminRequireKey = process.env.ADMIN_REQUIRE_KEY === "true";
 const marketplaceConfig = validateMarketplaceEnvironment(process.env);
 if (!marketplaceConfig.ok) throw new Error(`Invalid marketplace environment: ${marketplaceConfig.errors.join(" ")}`);
 let dataIntegrityState = {
@@ -307,13 +308,21 @@ function publicSiteVerification(config) {
 
 function ensureSameOrigin(request) {
   const origin = request.headers.origin;
-  if (!origin) return;
+  if (!origin) {
+    throw Object.assign(new Error("A same-origin browser request is required."), { statusCode: 403 });
+  }
   const expected = new URL(`http://${request.headers.host}`).origin;
   const forwardedProto = request.headers["x-forwarded-proto"];
   const deployedExpected = forwardedProto ? new URL(`${forwardedProto}://${request.headers.host}`).origin : expected;
   if (origin !== expected && origin !== deployedExpected) {
     throw Object.assign(new Error("Cross-site submission blocked."), { statusCode: 403 });
   }
+}
+
+function ensureAdminReadSameOrigin(request) {
+  if (request.headers.origin) return ensureSameOrigin(request);
+  if (String(request.headers["sec-fetch-site"] || "").toLowerCase() === "same-origin") return;
+  throw Object.assign(new Error("A same-origin admin request is required."), { statusCode: 403 });
 }
 
 async function saveRecord(filename, record) {
@@ -2020,7 +2029,7 @@ function isAdminAuthorised(request) {
   const isLocalHostname = requestHostname === "127.0.0.1" || requestHostname === "localhost" || requestHostname === "[::1]";
   const hasProxyHeaders = Boolean(request.headers["x-forwarded-for"] || request.headers["x-forwarded-host"]);
   const serverIsLocalOnly = host === "127.0.0.1" || host === "localhost" || host === "::1";
-  if (serverIsLocalOnly && isLoopbackAddress && isLocalHostname && !hasProxyHeaders) return true;
+  if (!adminRequireKey && serverIsLocalOnly && isLoopbackAddress && isLocalHostname && !hasProxyHeaders) return true;
   const adminKey = process.env.ADMIN_KEY;
   return secretsMatch(request.headers["x-admin-key"], adminKey);
 }
@@ -4716,7 +4725,6 @@ async function handleJobBrief(request, response) {
   ensureSameOrigin(request);
   const input = await readJson(request, maxBriefBodyBytes);
   const requestId = text(input.requestId, 40).toUpperCase();
-  const email = text(input.email, 160).toLowerCase();
   const suppliedRequestToken = text(request.headers["x-request-token"], 80);
   const requestTokenValid = /^[A-Za-z0-9_-]{32}$/.test(suppliedRequestToken);
   const transcript = text(input.transcript, 5000);
@@ -4729,8 +4737,7 @@ async function handleJobBrief(request, response) {
   const scopeSignals = detectPriceSensitiveScope({ transcript, checklist, photos: photoInputs });
   const errors = [];
   if (!/^REQ-[A-Z0-9]{8}$/.test(requestId)) errors.push("Enter a valid Tideway cleaning-request reference.");
-  if (suppliedRequestToken && !requestTokenValid) errors.push("Open the room scan again from a valid private request tracker.");
-  if (!requestTokenValid && !isEmail(email)) errors.push("Enter the email used for the cleaning request.");
+  if (!requestTokenValid) errors.push("Open the room scan from your valid private request tracker.");
   if (!transcript) errors.push("Add or dictate the cleaning instructions.");
   if (!checklist.length) errors.push("Generate and review at least one checklist task.");
   if (!photoInputs.length) errors.push("Add at least one room photo or short video.");
@@ -4750,8 +4757,8 @@ async function handleJobBrief(request, response) {
     readRecords("cleaning-requests.ndjson"),
     readRecords("status-updates.ndjson")
   ]);
-  const customerRequest = requests.find((record) => record.id === requestId && (requestTokenValid ? record.customerStatusToken === suppliedRequestToken : record.email === email));
-  if (!customerRequest) return json(response, 404, { ok: false, error: "The private request tracker or request email could not be matched." });
+  const customerRequest = requests.find((record) => record.id === requestId && record.customerStatusToken === suppliedRequestToken);
+  if (!customerRequest) return json(response, 404, { ok: false, error: "The private request tracker could not be matched." });
   let requestStatus = customerRequest.status || "new";
   for (const update of updates) if (update.id === requestId) requestStatus = update.status;
   if (["completed", "lost"].includes(requestStatus)) return json(response, 422, { ok: false, error: "This request is closed and cannot accept a new job brief." });
@@ -4789,7 +4796,7 @@ async function handleJobBrief(request, response) {
   brief.submissionFingerprint = submissionFingerprint({ requestId, transcript, checklist, scopeSignals, customerScopeConfirmed, cleanerPhotoSharingConsent, photos: images.map((image) => ({ area: image.area, note: image.note, kind: image.kind, durationSeconds: image.durationSeconds, mimeType: image.mimeType, content: createHash("sha256").update(image.bytes).digest("hex") })) });
   const saved = await saveJobBrief(brief, images);
   const savedBrief = saved.record;
-  return json(response, saved.replayed ? 200 : 201, { ok: true, replayed: saved.replayed, reference: savedBrief.id, customerStatusToken: customerRequest.customerStatusToken || "", checklist: savedBrief.checklist, photos: savedBrief.photos.map(({ id, area, note, kind, durationSeconds, mimeType }) => ({ id, area, note, kind, durationSeconds, mimeType })), scopeSignals: savedBrief.scopeSignals, customerScopeConfirmed: savedBrief.customerScopeConfirmed, customerScopeConfirmedAt: savedBrief.customerScopeConfirmedAt, cleanerPhotoSharingConsent: savedBrief.cleanerPhotoSharingConsent });
+  return json(response, saved.replayed ? 200 : 201, { ok: true, replayed: saved.replayed, reference: savedBrief.id, checklist: savedBrief.checklist, photos: savedBrief.photos.map(({ id, area, note, kind, durationSeconds, mimeType }) => ({ id, area, note, kind, durationSeconds, mimeType })), scopeSignals: savedBrief.scopeSignals, customerScopeConfirmed: savedBrief.customerScopeConfirmed, customerScopeConfirmedAt: savedBrief.customerScopeConfirmedAt, cleanerPhotoSharingConsent: savedBrief.cleanerPhotoSharingConsent });
 }
 
 async function getAdminJobBriefImage(request, response, briefId, imageId) {
@@ -5114,6 +5121,7 @@ async function handleHttpRequest(request, response) {
 
   try {
     if (!enforceRateLimit(request, response, rateLimitPolicyFor(request, requestUrl.pathname))) return;
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "")) ensureSameOrigin(request);
     if (request.method === "GET" && requestUrl.pathname === "/api/health") {
       return json(response, 200, {
         ok: true,
@@ -5211,6 +5219,9 @@ async function handleHttpRequest(request, response) {
     if (request.method === "POST" && requestUrl.pathname === "/api/job-events") {
       return await createPrivateJobEvent(request, response);
     }
+    if (request.method === "GET" && requestUrl.pathname.startsWith("/api/admin/")) {
+      ensureAdminReadSameOrigin(request);
+    }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/records") {
       return await getAdminRecords(request, response);
     }
@@ -5289,7 +5300,7 @@ async function handleHttpRequest(request, response) {
     if (request.method === "PUT" && requestUrl.pathname === "/api/admin/config") {
       return await updateAdminConfig(request, response);
     }
-    if ((request.method === "GET" || request.method === "HEAD") && requestUrl.pathname === "/admin" && !isAdminAuthorised(request)) {
+    if ((request.method === "GET" || request.method === "HEAD") && ["/admin", "/admin.html"].includes(requestUrl.pathname) && !isAdminAuthorised(request)) {
       return json(response, 401, { ok: false, error: "Admin authorisation required." });
     }
     if (request.method === "GET" || request.method === "HEAD") {

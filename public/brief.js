@@ -718,12 +718,12 @@ form.addEventListener("submit", async (event) => {
     if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "The job brief could not be saved.");
     successBox.querySelector("[data-brief-reference]").textContent = result.reference;
     const statusLink = successBox.querySelector("[data-status-link]");
-    if (statusLink && result.customerStatusToken) {
-      statusLink.href = `/request-status#${result.customerStatusToken}`;
+    if (statusLink && privateRequestToken) {
+      statusLink.href = `/request-status#${privateRequestToken}`;
       statusLink.hidden = false;
     }
     try {
-      sessionStorage.setItem("tidewayBriefComplete", JSON.stringify({ reference: result.reference, customerStatusToken: result.customerStatusToken || "", storedAt: Date.now() }));
+      sessionStorage.setItem("tidewayBriefComplete", JSON.stringify({ reference: result.reference, customerStatusToken: privateRequestToken, storedAt: Date.now() }));
     } catch {}
     try { clearBriefHandoff(window.sessionStorage); } catch {}
     try { clearBriefDraft(window.sessionStorage, currentRequestReference()); } catch {}
@@ -731,7 +731,7 @@ form.addEventListener("submit", async (event) => {
     submissionComplete = true;
     successBox.hidden = false;
     successBox.focus();
-    const completionFragment = [result.customerStatusToken || "", result.reference || ""].join("|");
+    const completionFragment = [privateRequestToken, result.reference || ""].join("|");
     location.assign(`/brief-complete#${completionFragment}`);
   } catch (error) {
     showError(error.message);

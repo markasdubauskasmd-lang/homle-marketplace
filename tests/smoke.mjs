@@ -25,6 +25,13 @@ const port = 4279;
 const lanPort = 4280;
 const base = `http://127.0.0.1:${port}`;
 const lanBase = `http://127.0.0.1:${lanPort}`;
+const nativeFetch = globalThis.fetch.bind(globalThis);
+globalThis.fetch = (input, init = {}) => {
+  const headers = new Headers(init.headers);
+  const target = new URL(String(input), base);
+  if (target.origin === new URL(base).origin && !headers.has("origin")) headers.set("origin", base);
+  return nativeFetch(input, { ...init, headers });
+};
 const child = spawn(process.execPath, ["server.mjs"], { cwd: root, env: { ...process.env, PORT: String(port), LAN_PORT: String(lanPort), LAN_HOST: "127.0.0.1", ADMIN_KEY: "test-admin-key", DATA_DIR: testDataDir }, stdio: "pipe" });
 
 async function waitForServer() {
@@ -496,12 +503,13 @@ try {
   const unauthorisedScanFollowup = await fetch(`${base}/api/admin/request-followup-draft?requestId=${requestBody.reference}`, { headers: { "x-forwarded-for": "203.0.113.10" } });
   assert(unauthorisedScanFollowup.status === 401, "A proxied room-scan follow-up draft bypassed admin authentication.");
 
-  const unmatchedBrief = await fetch(`${base}/api/job-briefs`, {
+  const emailOnlyBrief = await fetch(`${base}/api/job-briefs`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ requestId: requestBody.reference, email: "wrong@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Worktops need wiping", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true })
+    body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Worktops need wiping", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true })
   });
-  assert(unmatchedBrief.status === 404, "A job brief attached without matching the request email.");
+  const emailOnlyBriefBody = await emailOnlyBrief.json();
+  assert(emailOnlyBrief.status === 422 && emailOnlyBriefBody.errors?.some((error) => error.includes("private request tracker")) && !("customerStatusToken" in emailOnlyBriefBody), "A request reference and matching email could still attach a room scan or disclose its tracker token.");
 
   const wrongPrivateTrackerBrief = await fetch(`${base}/api/job-briefs`, {
     method: "POST",
@@ -514,14 +522,14 @@ try {
 
   const invalidPhotoBrief = await fetch(`${base}/api/job-briefs`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-request-token": requestBody.customerStatusToken },
     body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Worktops need wiping", dataUrl: "data:image/png;base64,SGVsbG8=" }], scopeCompleteConfirmed: true, consent: true })
   });
   assert(invalidPhotoBrief.status === 422, "Invalid image content was accepted as a property photo.");
 
   const excessivePhotoBrief = await fetch(`${base}/api/job-briefs`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-request-token": requestBody.customerStatusToken },
     body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen.", checklist: ["Kitchen: Clean the worktops"], photos: Array.from({ length: maxBriefPhotos + 1 }, () => ({ area: "Kitchen", note: "Worktops need cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" })), scopeCompleteConfirmed: true, consent: true })
   });
   const excessivePhotoBriefBody = await excessivePhotoBrief.json();
@@ -529,21 +537,21 @@ try {
 
   const excessiveVideoBrief = await fetch(`${base}/api/job-briefs`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-request-token": requestBody.customerStatusToken },
     body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen.", checklist: ["Kitchen: Clean the worktops"], photos: Array.from({ length: maxBriefVideos + 1 }, () => ({ area: "Kitchen", note: "Short kitchen walkthrough", durationSeconds: 8, dataUrl: "data:video/webm;base64,GkXfo59ChoEB" })), scopeCompleteConfirmed: true, consent: true })
   });
   const excessiveVideoBriefBody = await excessiveVideoBrief.json();
   assert(excessiveVideoBrief.status === 422 && excessiveVideoBriefBody.errors?.some((error) => error.includes(`${maxBriefVideos} short room videos`)), "The server accepted too many room videos.");
 
-  const missingRoomNote = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
+  const missingRoomNote = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json", "x-request-token": requestBody.customerStatusToken }, body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
   assert(missingRoomNote.status === 422, "Room scan accepted a photo without its specific room note.");
-  const uncoveredRoom = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Worktops need wiping", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
+  const uncoveredRoom = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json", "x-request-token": requestBody.customerStatusToken }, body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Worktops need wiping", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
   assert(uncoveredRoom.status === 422, "Room scan accepted a photographed room with no room-labelled cleaner task.");
-  const exclusionOnlyBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "In the kitchen do not clean inside the oven.", checklist: ["Kitchen: Do not clean inside the oven"], photos: [{ area: "Kitchen", note: "Oven is excluded from cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
+  const exclusionOnlyBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json", "x-request-token": requestBody.customerStatusToken }, body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "In the kitchen do not clean inside the oven.", checklist: ["Kitchen: Do not clean inside the oven"], photos: [{ area: "Kitchen", note: "Oven is excluded from cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
   const exclusionOnlyBriefBody = await exclusionOnlyBrief.json();
   assert(exclusionOnlyBrief.status === 422 && exclusionOnlyBriefBody.errors?.some((error) => error.includes("exclusions alone")) && exclusionOnlyBriefBody.errors?.some((error) => error.includes("room-labelled cleaning task for: Kitchen")), "Server accepted leave-alone boundaries as a quotable photographed-room cleaning scope.");
 
-  const unconfirmedScopeBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Worktops need wiping", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true }) });
+  const unconfirmedScopeBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json", "x-request-token": requestBody.customerStatusToken }, body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Worktops need wiping", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], consent: true }) });
   const unconfirmedScopeBriefBody = await unconfirmedScopeBrief.json();
   assert(unconfirmedScopeBrief.status === 422 && unconfirmedScopeBriefBody.errors?.some((error) => error.includes("concise cleaner checklist")), "Room scan was accepted without the customer's final concise-scope confirmation.");
 
@@ -555,7 +563,7 @@ try {
   assert(validBrief && replayedBrief, "Concurrent room-scan retries created more than one brief version.");
   const briefBody = await validBrief.json();
   const replayedBriefBody = await replayedBrief.json();
-  assert(validBrief.status === 201 && briefBody.reference.startsWith("BRF-") && briefBody.checklist.length === 3 && briefBody.photos.length === 2 && briefBody.photos[1].kind === "video" && briefBody.photos[1].mimeType === "video/webm" && briefBody.photos[1].durationSeconds === 8 && briefBody.scopeSignals?.length === 1 && briefBody.scopeSignals[0].code === "oven-interior" && briefBody.customerScopeConfirmed === true && Date.parse(briefBody.customerScopeConfirmedAt) > 0 && briefBody.customerStatusToken === requestBody.customerStatusToken && briefBody.cleanerPhotoSharingConsent === true, "Valid photo-and-video job brief failed, omitted media metadata or checklist bullets, failed to record customer scope confirmation or price-sensitive oven scope, lost the private tracker handoff or failed to record selected-cleaner media permission.");
+  assert(validBrief.status === 201 && briefBody.reference.startsWith("BRF-") && briefBody.checklist.length === 3 && briefBody.photos.length === 2 && briefBody.photos[1].kind === "video" && briefBody.photos[1].mimeType === "video/webm" && briefBody.photos[1].durationSeconds === 8 && briefBody.scopeSignals?.length === 1 && briefBody.scopeSignals[0].code === "oven-interior" && briefBody.customerScopeConfirmed === true && Date.parse(briefBody.customerScopeConfirmedAt) > 0 && !("customerStatusToken" in briefBody) && briefBody.cleanerPhotoSharingConsent === true, "Valid photo-and-video job brief failed, omitted media metadata or checklist bullets, failed to record customer scope confirmation or price-sensitive oven scope, disclosed the private tracker token or failed to record selected-cleaner media permission.");
   assert(replayedBriefBody.replayed === true && replayedBriefBody.reference === briefBody.reference && replayedBriefBody.photos[0].id === briefBody.photos[0].id, "Room-scan retry did not return the original scan and media references.");
   const changedBriefWithReusedKey = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": briefSubmissionKey, "x-request-token": requestBody.customerStatusToken }, body: JSON.stringify({ ...validBriefInput, transcript: `${validBriefInput.transcript} Also dust the shelves.`, checklist: [...validBriefInput.checklist, "Kitchen: Dust the shelves"] }) });
   assert(changedBriefWithReusedKey.status === 409, "A room-scan retry key was reused for changed scope.");
@@ -761,7 +769,7 @@ try {
   const expectedScanUrl = `https://tideway.example.com/request-status#${retentionRequestBody.customerStatusToken}`;
   assert(verifiedScanFollowup.ok && verifiedScanFollowupBody.handoffReady === true && verifiedScanFollowupBody.privateUrl === expectedScanUrl && verifiedScanFollowupBody.recipient.email === "retention@example.com" && !Object.hasOwn(verifiedScanFollowupBody.recipient, "phone") && verifiedScanFollowupBody.sendsAutomatically === false, "Verified public-site evidence did not produce the exact recipient-isolated, copy-only room-scan handoff.");
   assert(!JSON.stringify(verifiedScanFollowupBody).includes("127.0.0.1") && !JSON.stringify(verifiedScanFollowupBody).includes("localhost"), "A verified room-scan handoff mixed in a local development address.");
-  const retentionBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: retentionRequestBody.reference, email: "retention@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Test-only worktop photo", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
+  const retentionBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json", "x-request-token": retentionRequestBody.customerStatusToken }, body: JSON.stringify({ requestId: retentionRequestBody.reference, email: "retention@example.com", transcript: "Clean the kitchen worktops.", checklist: ["Kitchen: Clean the kitchen worktops"], photos: [{ area: "Kitchen", note: "Test-only worktop photo", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
   const retentionBriefBody = await retentionBrief.json();
   const duplicateScanFollowup = await fetch(`${base}/api/admin/request-followup-draft?requestId=${retentionRequestBody.reference}`);
   assert(duplicateScanFollowup.status === 409, "A submitted room scan still produced a duplicate customer scan reminder.");
@@ -1095,7 +1103,7 @@ try {
   assert(schedulableMatchingBody.matches[0].score === 100 && schedulableMatchingBody.matches[0].coverage === "Postcode district listed" && schedulableMatchingBody.matches[0].availabilitySlots.length === 1 && schedulableSlot.availableDate === "2026-07-20" && schedulableSlot.suggestedStartTime === "08:00" && schedulableSlot.suggestedEndTime === "11:30" && schedulableSlot.arrivalWindowFit === true, "Match did not fit the verified postcode district, preferred date, morning arrival and reviewed duration inside confirmed availability.");
   const travelGateRequest = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contactName: "Travel Gate Customer", email: "travelgate@example.com", phone: "07123456783", postcode: "SW2 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "1 bedroom and 1 bathroom", accessNotes: "Meet at reception", hazards: "None known", preferredDate: "2026-07-20", preferredTimeWindow: "Morning (8am–12pm)", consent: true }) });
   const travelGateRequestBody = await travelGateRequest.json();
-  const travelGateBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: travelGateRequestBody.reference, email: "travelgate@example.com", transcript: "In the kitchen wipe the worktops and mop the floor.", photos: [{ area: "Kitchen", note: "Worktops and floor need cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
+  const travelGateBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json", "x-request-token": travelGateRequestBody.customerStatusToken }, body: JSON.stringify({ requestId: travelGateRequestBody.reference, email: "travelgate@example.com", transcript: "In the kitchen wipe the worktops and mop the floor.", photos: [{ area: "Kitchen", note: "Worktops and floor need cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
   const travelGateBriefBody = await travelGateBrief.json();
   const reviewedTravelGateBrief = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: travelGateBriefBody.reference, status: "reviewed", note: "Test-only two-hour travel-coverage scope estimate.", scopeEstimateHours: 2, scopeTimeBreakdown: reviewTimeBreakdown(travelGateBriefBody, 2), scopeConfidence: "medium", visualsReviewed: true, reviewedVisualIds: travelGateBriefBody.photos.map((photo) => photo.id), checklistReviewed: true }) });
   const travelBlockedMatches = await fetch(`${base}/api/admin/matches?requestId=${travelGateRequestBody.reference}`);
@@ -1103,7 +1111,7 @@ try {
   assert(travelGateRequest.status === 201 && travelGateBrief.status === 201 && reviewedTravelGateBrief.ok && travelBlockedMatches.ok && travelBlockedMatchesBody.matches.length === 0 && travelBlockedMatchesBody.matchGate.reason === "no-cleaner-travel-coverage", "Matching did not distinguish available-but-uncovered cleaners from a missing availability window.");
   const eveningRequest = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contactName: "Evening Customer", email: "evening@example.com", phone: "07123456777", postcode: "SW1A 2AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "1 bedroom and 1 bathroom", accessNotes: "Test access only", hazards: "None known", preferredDate: "2026-07-22", preferredTimeWindow: "Evening (5pm–8pm)", consent: true }) });
   const eveningRequestBody = await eveningRequest.json();
-  const eveningBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId: eveningRequestBody.reference, email: "evening@example.com", transcript: "In the kitchen wipe the worktops and mop the floor.", photos: [{ area: "Kitchen", note: "Worktops and floor need cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
+  const eveningBrief = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json", "x-request-token": eveningRequestBody.customerStatusToken }, body: JSON.stringify({ requestId: eveningRequestBody.reference, email: "evening@example.com", transcript: "In the kitchen wipe the worktops and mop the floor.", photos: [{ area: "Kitchen", note: "Worktops and floor need cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true }) });
   const eveningBriefBody = await eveningBrief.json();
   const reviewedEveningBrief = await fetch(`${base}/api/admin/job-briefs/status`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ briefId: eveningBriefBody.reference, status: "reviewed", note: "Test-only two-hour evening scope estimate.", scopeEstimateHours: 2, scopeTimeBreakdown: reviewTimeBreakdown(eveningBriefBody, 2), scopeConfidence: "medium", visualsReviewed: true, reviewedVisualIds: eveningBriefBody.photos.map((photo) => photo.id), checklistReviewed: true }) });
   assert(eveningRequest.status === 201 && eveningBrief.status === 201 && reviewedEveningBrief.ok, "Evening scheduling test request could not reach reviewed scope.");
@@ -1261,7 +1269,7 @@ try {
   assert(overlapRequest.status === 201, "Overlapping-schedule test request failed.");
   const overlapScan = await fetch(`${base}/api/job-briefs`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-request-token": overlapRequestBody.customerStatusToken },
     body: JSON.stringify({ requestId: overlapRequestBody.reference, email: "overlap@example.com", transcript: "In the kitchen wipe the worktops and mop the floor.", photos: [{ area: "Kitchen", note: "Worktops and floor need cleaning", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }], scopeCompleteConfirmed: true, consent: true })
   });
   const overlapScanBody = await overlapScan.json();

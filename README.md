@@ -168,6 +168,8 @@ The [verified-review boundary](docs/VERIFIED_REVIEWS.md) now requires a Landlord
 8. Add transactional email/SMS only after the sending account is approved.
 9. Complete a real pilot in one small service area before making broader coverage claims.
 
-If the server is ever bound to a public interface, set a strong `ADMIN_KEY`. Local control-desk access is automatic only when the server, request hostname and network connection are all verified as loopback and no proxy headers are present.
+If the server is ever bound to a public interface, set a strong `ADMIN_KEY`. Local control-desk access is automatic only when the server, request hostname and network connection are all verified as loopback and no proxy headers are present. Set `ADMIN_REQUIRE_KEY=true` to require that key on localhost too; this is recommended on shared computers and required for any non-dedicated operator host.
+
+All browser mutations require a same-origin `Origin` header. Admin API reads also require same-origin browser metadata, in addition to admin authorisation. A room scan can only be submitted from its private request-tracker link; knowing a request reference and email address is not sufficient and the scan response never returns the tracker token.
 
 Set `TRUST_PROXY=true` only when Tideway is directly behind a trusted reverse proxy that removes client-supplied forwarding headers and writes its own. The local pilot ignores forwarded addresses by default, and its in-memory limits reset when the server restarts; production needs a shared persistent limiter across every app instance.

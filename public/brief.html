@@ -38,9 +38,9 @@
     <section class="section shell brief-workspace" aria-labelledby="brief-form-heading">
       <form id="job-brief-form" action="/api/job-briefs" method="post" novalidate>
         <div class="brief-panel brief-identity">
-          <div class="section-heading compact-heading"><p class="eyebrow">Connect the brief</p><h2 id="brief-form-heading">Your cleaning request</h2><p>Open this scan from your private request tracker, or use the reference and email from your Tideway cleaning request.</p></div>
+          <div class="section-heading compact-heading"><p class="eyebrow">Connect the brief</p><h2 id="brief-form-heading">Your cleaning request</h2><p>Open this scan from your private request tracker. The private link proves that this room scan belongs to your request.</p></div>
           <div id="brief-handoff-note" class="brief-handoff-note" role="status" hidden><strong>Request details carried over.</strong><span>Your reference and email were filled from this browser session.</span></div>
-          <div class="field-row"><label>Request reference<input name="requestId" required maxlength="12" pattern="REQ-[A-Za-z0-9]{8}" placeholder="REQ-1234ABCD" autocomplete="off"></label><label data-request-email-label>Request email<input name="email" type="email" required autocomplete="email"></label></div>
+          <div class="field-row"><label>Request reference<input name="requestId" required maxlength="12" pattern="REQ-[A-Za-z0-9]{8}" placeholder="REQ-1234ABCD" autocomplete="off"></label><label data-request-email-label hidden>Request email<input name="email" type="email" autocomplete="email"></label></div>
         </div>
 
         <div class="brief-panel">
