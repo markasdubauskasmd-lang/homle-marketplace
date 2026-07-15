@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript, normaliseChecklistTask } from "./public/checklist.js";
 import { briefRoomOptions, maxBriefPhotos, maxBriefVideos } from "./public/brief-readiness.js";
+import { cleanerHandoffPreview } from "./public/cleaner-handoff-preview.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "./public/scope-signals.js";
 import { isEmail, isPhone, isUkPostcode } from "./public/contact-validation.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mjs";
@@ -1051,9 +1052,14 @@ async function auditDataIntegrity() {
 }
 
 async function refreshDataIntegrity() {
-  await writeQueue.catch(() => {});
-  dataIntegrityState = await auditDataIntegrity();
-  return dataIntegrityState;
+  let result;
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    result = await auditDataIntegrity();
+    dataIntegrityState = result;
+  });
+  writeQueue = operation;
+  await operation;
+  return result;
 }
 
 function isDataMutation(request, pathname) {
@@ -4362,8 +4368,9 @@ async function handleJobBrief(request, response) {
   if (photoInputs.some((photo) => !briefRoomAreas.has(text(photo?.area, 80)))) errors.push("Choose a valid room for every room visual.");
   if (photoInputs.some((photo) => text(photo?.note, 500).length < 3)) errors.push("Add a short room note explaining what every photo or video shows.");
   const photographedAreas = [...new Set(photoInputs.map((photo) => text(photo?.area, 80)).filter((area) => briefRoomAreas.has(area)))];
-  const uncoveredAreas = photographedAreas.filter((area) => !checklist.some((task) => task.toLowerCase().startsWith(`${area.toLowerCase()}:`)));
-  if (uncoveredAreas.length) errors.push(`Add at least one room-labelled checklist task for: ${uncoveredAreas.join(", ")}.`);
+  const handoff = cleanerHandoffPreview({ tasks: checklist, photographedAreas, roomOptions: briefRoomOptions });
+  if (checklist.length && handoff.workCount === 0) errors.push("Add at least one cleaning task; exclusions alone are not a cleanable scope.");
+  if (handoff.missingWorkAreas.length) errors.push(`Add at least one room-labelled cleaning task for: ${handoff.missingWorkAreas.join(", ")}.`);
   if (!customerScopeConfirmed) errors.push("Review the concise cleaner checklist and confirm that it includes every task you want quoted.");
   if (!consent) errors.push("Confirm that you may share these room visuals and instructions with Tideway.");
   if (errors.length) return json(response, 422, { ok: false, errors });

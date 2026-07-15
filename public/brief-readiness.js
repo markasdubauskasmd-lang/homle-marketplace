@@ -1,10 +1,12 @@
+import { cleanerHandoffPreview } from "./cleaner-handoff-preview.js";
+
 const labels = {
   connectedRequest: "Request reference and email are complete",
   roomPhotos: "One to ten room photos or short videos are added",
   photoDetails: "Every visual has a room label and specific note",
   instructions: "Spoken or typed instructions are present",
   conciseTasks: "Concise cleaner tasks reflect the latest notes",
-  roomCoverage: "Every shown room has a room-labelled task",
+  roomCoverage: "Every shown room has a room-labelled cleaning task",
   scopeConfirmed: "Final concise checklist confirmed complete",
   privacyConsent: "Property-media sharing permission confirmed"
 };
@@ -54,13 +56,14 @@ export function briefReadiness({ requestId = "", email = "", requestAuthorised =
   const safeTasks = Array.isArray(tasks) ? tasks : [];
   const safePhotos = Array.isArray(photos) ? photos : [];
   const photographedAreas = [...new Set(safePhotos.map((photo) => String(photo?.area || "").trim()).filter((area) => roomOptionSet.has(area)))];
-  const uncoveredAreas = photographedAreas.filter((area) => !safeTasks.some((task) => String(task).toLowerCase().startsWith(`${area.toLowerCase()}:`)));
+  const handoff = cleanerHandoffPreview({ tasks: safeTasks, photographedAreas, roomOptions: briefRoomOptions });
+  const uncoveredAreas = handoff.missingWorkAreas;
   const checks = {
     connectedRequest: /^REQ-[A-Z0-9]{8}$/i.test(String(requestId || "").trim()) && (requestAuthorised === true || hasEmail(email)),
     roomPhotos: safePhotos.length > 0 && safePhotos.length <= maxBriefPhotos,
     photoDetails: safePhotos.length > 0 && safePhotos.every((photo) => roomOptionSet.has(String(photo?.area || "").trim()) && String(photo?.note || "").trim().length >= 3),
     instructions: String(transcript || "").trim().length > 0,
-    conciseTasks: safeTasks.length > 0 && checklistCurrent === true,
+    conciseTasks: handoff.workCount > 0 && checklistCurrent === true,
     roomCoverage: safePhotos.length > 0 && photographedAreas.length > 0 && uncoveredAreas.length === 0,
     scopeConfirmed: scopeCompleteConfirmed === true,
     privacyConsent: consent === true
@@ -69,9 +72,11 @@ export function briefReadiness({ requestId = "", email = "", requestAuthorised =
   if (requestAuthorised === true) itemLabels.connectedRequest = "Private request tracker securely connected";
   if (safeTasks.length > 0 && checklistCurrent !== true) {
     itemLabels.conciseTasks = "Summarise again after the latest speech or photo-note changes";
+  } else if (safeTasks.length > 0 && handoff.workCount === 0) {
+    itemLabels.conciseTasks = "Add at least one cleaning task; exclusions alone are not a cleanable scope";
   }
   if (uncoveredAreas.length) {
-    itemLabels.roomCoverage = `Add cleaner ${uncoveredAreas.length === 1 ? "task" : "tasks"} for: ${uncoveredAreas.join(", ")}`;
+    itemLabels.roomCoverage = `Add cleaning ${uncoveredAreas.length === 1 ? "task" : "tasks"} for: ${uncoveredAreas.join(", ")}`;
   }
   const items = Object.entries(checks).map(([key, complete]) => ({ key, label: itemLabels[key], complete }));
   return { ready: items.every((item) => item.complete), remaining: items.filter((item) => !item.complete).length, checks, items, uncoveredAreas };

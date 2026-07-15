@@ -3,6 +3,7 @@ import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 import { detectPriceSensitiveScope } from "./scope-signals.js";
 import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos } from "./brief-readiness.js";
 import { newSubmissionKey } from "./submission-key.js";
+import { cleanerHandoffPreview } from "./cleaner-handoff-preview.js";
 
 const cameraInput = document.querySelector("#brief-camera");
 const photoInput = document.querySelector("#brief-photos");
@@ -128,19 +129,53 @@ function renderScopeSignals() {
 
 function renderChecklist() {
   const tasks = checklistTasks();
+  const handoff = cleanerHandoffPreview({ tasks, photographedAreas: photos.map((photo) => photo.area), roomOptions });
   checklistPreview.replaceChildren();
   if (!tasks.length) {
-    const empty = document.createElement("li");
+    const empty = document.createElement("p");
+    empty.className = "cleaner-handoff-empty";
     empty.textContent = "Generate the checklist to preview the cleaner tasks.";
     checklistPreview.append(empty);
   } else {
-    tasks.forEach((task) => {
-      const item = document.createElement("li");
-      item.textContent = task;
-      checklistPreview.append(item);
+    handoff.groups.forEach((group) => {
+      const card = document.createElement("article");
+      card.className = `cleaner-handoff-room${group.work.length ? "" : " cleaner-handoff-room-missing"}`;
+      const heading = document.createElement("div");
+      heading.className = "cleaner-handoff-room-heading";
+      const title = document.createElement("h3");
+      title.textContent = group.room;
+      const count = document.createElement("span");
+      count.textContent = group.work.length ? `${group.work.length} cleaning ${group.work.length === 1 ? "task" : "tasks"}` : "No cleaning task yet";
+      heading.append(title, count);
+      card.append(heading);
+      if (group.work.length) {
+        const workList = document.createElement("ul");
+        workList.className = "cleaner-handoff-work";
+        group.work.forEach((instruction) => {
+          const item = document.createElement("li");
+          item.textContent = instruction;
+          workList.append(item);
+        });
+        card.append(workList);
+      }
+      if (group.exclusions.length) {
+        const boundary = document.createElement("div");
+        boundary.className = "cleaner-handoff-boundaries";
+        const boundaryTitle = document.createElement("strong");
+        boundaryTitle.textContent = "Leave alone";
+        const boundaryList = document.createElement("ul");
+        group.exclusions.forEach((instruction) => {
+          const item = document.createElement("li");
+          item.textContent = instruction;
+          boundaryList.append(item);
+        });
+        boundary.append(boundaryTitle, boundaryList);
+        card.append(boundary);
+      }
+      checklistPreview.append(card);
     });
   }
-  taskCount.textContent = `${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}`;
+  taskCount.textContent = `${handoff.workCount} cleaning ${handoff.workCount === 1 ? "task" : "tasks"}${handoff.exclusionCount ? ` · ${handoff.exclusionCount} ${handoff.exclusionCount === 1 ? "boundary" : "boundaries"}` : ""}`;
   renderScopeSignals();
   renderReadiness();
 }
@@ -212,7 +247,7 @@ function renderPhotos() {
       option.selected = area === photo.area;
       select.append(option);
     });
-    select.addEventListener("change", () => { photo.area = select.value; renderScopeSignals(); renderReadiness(); });
+    select.addEventListener("change", () => { photo.area = select.value; renderChecklist(); });
     label.append(select);
     const noteLabel = document.createElement("label");
     noteLabel.append(document.createTextNode("What this photo shows"));
@@ -221,7 +256,7 @@ function renderPhotos() {
     note.maxLength = 500;
     note.placeholder = "For example: grease around the hob; wipe tiles and clean the extractor cover. Do not include access codes.";
     note.value = photo.note;
-    note.addEventListener("input", () => { photo.note = note.value; renderScopeSignals(); renderReadiness(); });
+    note.addEventListener("input", () => { photo.note = note.value; renderChecklist(); });
     noteLabel.append(note);
     const remove = document.createElement("button");
     remove.type = "button";
@@ -231,8 +266,7 @@ function renderPhotos() {
       URL.revokeObjectURL(photo.previewUrl);
       photos.splice(index, 1);
       renderPhotos();
-      renderScopeSignals();
-      renderReadiness();
+      renderChecklist();
     });
     controls.append(label, noteLabel, remove);
     card.append(visual, controls);
@@ -279,8 +313,7 @@ async function addSelectedVisuals(selected) {
     photos.push({ file, kind: isVideo ? "video" : "image", durationSeconds, area: "", note: "", previewUrl: URL.createObjectURL(file) });
   }
   renderPhotos();
-  renderScopeSignals();
-  renderReadiness();
+  renderChecklist();
 }
 
 cameraInput.addEventListener("change", async () => {
