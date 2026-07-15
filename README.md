@@ -46,6 +46,8 @@ The [booking-message boundary](docs/BOOKING_MESSAGING.md) now provides one priva
 
 The [booking real-time boundary](docs/BOOKING_REALTIME.md) now streams participant-authorized booking status, current journey, cleaning progress and recent messages over no-poll SSE. PostgreSQL commit triggers create minimal durable event IDs and `NOTIFY` wake-ups; reconnecting browsers receive authoritative snapshots, while exact-origin checks, connection limits, heartbeats and slow-client cleanup protect the stream. It remains detached pending PostgreSQL, reverse-proxy and mobile staging evidence.
 
+The [account-notification boundary](docs/NOTIFICATIONS.md) now adds an account-only in-app inbox plus a privacy-minimal email outbox for booking, journey, progress, issue, completion, review and message events. Inbox reads use transaction-local account identity and the web role has no direct notification-table access. A separate leased worker uses stable provider idempotency keys, bounded retry/backoff and inactive/unverified-recipient suppression. It remains detached until PostgreSQL, an approved transactional-email provider and staging delivery evidence exist; no email was sent.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

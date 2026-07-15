@@ -21,6 +21,7 @@ const jobPhotoCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPat
 const jobPhotoAccessPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/(${uuidPattern})/access$`);
 const bookingMessagesPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/messages$`);
 const bookingEventsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/events$`);
+const notificationReadPath = new RegExp(`^/api/marketplace/notifications/(${uuidPattern})/read$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
 const apiPrefix = "/api/marketplace/";
 
@@ -49,6 +50,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const media = dependencies?.mediaService;
   const messages = dependencies?.messageService;
   const realtime = dependencies?.realtimeService;
+  const notifications = dependencies?.notificationService;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
@@ -60,6 +62,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!media || !["createUploadIntent", "completeUpload", "getPhotoAccess"].every((method) => typeof media[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private job-media service.");
   if (!messages || !["sendMessage", "listMessages"].every((method) => typeof messages[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-message service.");
   if (!realtime || typeof realtime.openStream !== "function") throw new TypeError("Marketplace HTTP routes require the booking real-time service.");
+  if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
 
   return {
@@ -117,6 +120,32 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             return true;
           }
           return methodNotAllowed(response, ["GET", "POST"]), true;
+        }
+        if (pathname === "/api/marketplace/notifications") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          const page = await notifications.listNotifications(context.actor, {
+            beforeCreatedAt: url.searchParams.get("beforeCreatedAt"),
+            beforeNotificationId: url.searchParams.get("beforeNotificationId"),
+            limit: url.searchParams.get("limit")
+          });
+          sendJson(response, 200, { ok: true, ...page });
+          return true;
+        }
+        if (pathname === "/api/marketplace/notifications/read-all") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true });
+          const result = await notifications.markAllNotificationsRead(context.actor, await readJsonObject(request));
+          sendJson(response, 200, { ok: true, result });
+          return true;
+        }
+        const selectedNotificationRead = pathname.match(notificationReadPath);
+        if (selectedNotificationRead) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true });
+          const notification = await notifications.markNotificationRead(context.actor, selectedNotificationRead[1]);
+          sendJson(response, 200, { ok: true, notification });
+          return true;
         }
         const selectedProperty = pathname.match(propertyPath);
         if (selectedProperty) {

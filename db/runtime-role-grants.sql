@@ -54,6 +54,9 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_job_photo_object(uuid,uuid) TO tid
 GRANT EXECUTE ON FUNCTION tideway_private.send_booking_message(uuid,uuid,uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_messages(uuid,timestamptz,uuid,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_realtime_snapshot(uuid,bigint,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_my_notifications(timestamptz,uuid,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.mark_my_notification_read(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.mark_all_my_notifications_read(timestamptz) TO tideway_app;
 
 -- Booking transitions are only writable through the audited, actor-aware functions above.
 REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, task_updates, job_pauses, unexpected_task_decisions, booking_progress_events, job_photos, job_photo_uploads, cleaner_locations, conversations, messages, notifications, audit_logs FROM tideway_app;
@@ -61,5 +64,6 @@ REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_task
 REVOKE SELECT ON job_photos, job_photo_uploads FROM tideway_app;
 REVOKE SELECT ON conversations, messages FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_realtime_events FROM tideway_app;
+REVOKE SELECT ON notifications FROM tideway_app;
 
 COMMIT;

@@ -140,7 +140,7 @@ Implemented invitation expiry/requeue checkpoint:
 - Import existing pilot request/scan/proposal/booking records through a dry-run-first migration tool while retaining legacy references.
 - Create account-backed cleaning requests from saved properties and frozen room-scan checklists/media.
 - Add ranked matching using explicit service area, confirmed availability, services, price, rating, earlier relationship and acceptance rate. Every factor remains explainable.
-- Add durable post-commit delivery of the prepared idempotent notification events.
+- Validate the prepared notification inbox and email outbox against real PostgreSQL and an approved idempotent email provider in staging.
 - Extend the confirmed booking from acceptance through journey, arrival, active cleaning, review, completion, cancellation and dispute transitions.
 - Add `/bookings/new` and `/bookings/:bookingId`; retain the existing protected booking packs as a migration fallback.
 
@@ -198,7 +198,13 @@ Implemented booking-message checkpoint:
 - Service and database validation reject direct email, telephone, web-link and named outside-messaging details; message bodies never enter notification payloads or audit metadata.
 - Stable tuple-cursor pagination, bounded pages and isolated account routes are covered in `tests/message-service.mjs` and documented in `docs/BOOKING_MESSAGING.md`.
 
-- Add in-app notification inbox and an idempotent email outbox for all required lifecycle events.
+Implemented notification inbox/outbox checkpoint:
+
+- Authenticated account-only inbox routes provide a bounded tuple cursor, exact unread count, single-read and race-safe read-all actions; transaction-local identity is rechecked by narrow database functions and direct runtime table access stays revoked.
+- PostgreSQL derives one privacy-minimal email row from each supported lifecycle notification with a channel-prefixed idempotency key; names, contact/address/access data, message bodies, photos and coordinates never enter the outbox payload.
+- A separate worker role claims bounded batches with `SKIP LOCKED` leases, retries transient failures with bounded backoff, stops after five attempts/permanent failure and excludes inactive or unverified recipients.
+- Text-only email rendering uses the notification UUID as provider idempotency evidence and a trusted HTTPS origin. No worker or provider is enabled without PostgreSQL, approved SMTP credentials and staging evidence. Details are in `docs/NOTIFICATIONS.md`; coverage is in `tests/notification-service.mjs` and `tests/marketplace-http.mjs`.
+
 - Add one landlord review per completed booking, category ratings, moderation and one cleaner response.
 - Add disputes, suspension, verification and review-moderation tools to the existing `/admin` design.
 - Add marketplace statistics derived from audited records, not invented counters.
