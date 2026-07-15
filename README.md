@@ -12,9 +12,12 @@ npm start
 
 Then open `http://127.0.0.1:4173`.
 
+For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the computer's private IPv4 address, and open `http://<computer-ip>:4174/` on the phone. The main control desk remains on `http://127.0.0.1:4173/admin`; requests to its data APIs through the Wi-Fi address still require an admin key. This is a local-network preview only—do not expose port 4174 through a router or public tunnel.
+
 ## What works
 
 - Customer cleaning request form with server-side validation
+- Retry-safe intake: customer requests, cleaner applications and room scans send random idempotency keys; concurrent or network-retried copies return the original reference instead of creating duplicate leads or scan versions, while changed details require a new key
 - High-entropy private customer tracker created with each request; it follows the real journey from required room scan through quote, cleaner confirmation, protected booking, job progress and completion
 - One-click private handoff from a completed request into the required room scan, with reference and email prefilled for that browser session
 - Tracker links keep their token in the browser fragment, remove it before the first server request and return no customer contact/access data, cleaner identity/pay or tracker authorisation token
@@ -82,6 +85,7 @@ Then open `http://127.0.0.1:4173`.
 - No payment collection and no fabricated reviews, cleaner profiles or business claims
 - Tracker stages are informational only: they expose a quote or confirmed customer booking link only after the corresponding audited record exists and never represent payment collection
 - Security throttling limits repeated public submissions, private-link mutations and unauthorised remote control-desk attempts by client address; forwarded addresses are ignored unless `TRUST_PROXY=true` is deliberately set behind a trusted proxy, and admin-key comparison uses a constant-time digest check
+- Optional same-process Wi-Fi preview serves the public site on a separate port without starting a second writer; direct local administration stays on the computer and remote control-desk data remains protected
 
 ## Before public launch
 
@@ -89,7 +93,7 @@ Then open `http://127.0.0.1:4173`.
 2. Decide the cleaner engagement model with UK employment/tax advice.
 3. Confirm public liability and any other required insurance.
 4. Approve pricing, cleaner pay, cancellation, complaint and re-clean rules.
-5. Replace local file storage and single-process rate limiting with an encrypted production database, shared abuse controls and access monitoring.
+5. Replace local file storage and single-process rate limiting with an encrypted production database, shared abuse controls, access monitoring and unique database constraints for submission retry keys.
 6. Approve the inactive-enquiry and completed-booking media periods already enforced by the local retention desk, then document the production speech-recognition provider, encrypted photo storage and the complete record-retention schedule.
 7. Add transactional email/SMS only after the sending account is approved.
 8. Complete a real pilot in one small service area before making broader coverage claims.

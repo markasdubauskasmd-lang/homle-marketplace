@@ -1,4 +1,7 @@
 import { saveBriefHandoff } from "./brief-handoff.js";
+import { newSubmissionKey } from "./submission-key.js";
+
+const pendingSubmissions = new WeakMap();
 
 const menuButton = document.querySelector(".menu-toggle");
 const mainNav = document.querySelector(".main-nav");
@@ -68,10 +71,16 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
 
     try {
       const submission = formToJson(form);
+      const submissionBody = JSON.stringify(submission);
+      let pending = pendingSubmissions.get(form);
+      if (!pending || pending.body !== submissionBody) {
+        pending = { body: submissionBody, key: newSubmissionKey() };
+        pendingSubmissions.set(form, pending);
+      }
       const response = await fetch(form.action, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(submission)
+        headers: { "Content-Type": "application/json", "Accept": "application/json", "Idempotency-Key": pending.key },
+        body: submissionBody
       });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "We could not send this form.");
@@ -90,6 +99,7 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
       }
       success.hidden = false;
       success.focus();
+      pendingSubmissions.delete(form);
     } catch (error) {
       showError(form, `${error.message} Please try again.`);
     } finally {

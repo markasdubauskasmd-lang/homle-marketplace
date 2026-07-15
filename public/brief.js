@@ -2,6 +2,7 @@ import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js"
 import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 import { detectPriceSensitiveScope } from "./scope-signals.js";
 import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos } from "./brief-readiness.js";
+import { newSubmissionKey } from "./submission-key.js";
 
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
@@ -24,6 +25,7 @@ const saveButton = document.querySelector("#save-brief");
 const photos = [];
 let submitting = false;
 let submissionComplete = false;
+let pendingSubmission = null;
 let confirmedScopeFingerprint = "";
 let summarisedSourceFingerprint = "";
 const roomOptions = briefRoomOptions;
@@ -390,11 +392,13 @@ form.addEventListener("submit", async (event) => {
     const controller = new AbortController();
     const requestTimer = setTimeout(() => controller.abort(), 30000);
     let response;
+    const submissionBody = JSON.stringify({ requestId: form.elements.requestId.value, email: form.elements.email.value, transcript: transcript.value, checklist: tasks, photos: encodedPhotos, scopeCompleteConfirmed: form.elements.scopeCompleteConfirmed.checked, consent: form.elements.consent.checked, sharePhotosWithSelectedCleaner: form.elements.sharePhotosWithSelectedCleaner.checked });
+    if (!pendingSubmission || pendingSubmission.body !== submissionBody) pendingSubmission = { body: submissionBody, key: newSubmissionKey() };
     try {
       response = await fetch(form.action, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify({ requestId: form.elements.requestId.value, email: form.elements.email.value, transcript: transcript.value, checklist: tasks, photos: encodedPhotos, scopeCompleteConfirmed: form.elements.scopeCompleteConfirmed.checked, consent: form.elements.consent.checked, sharePhotosWithSelectedCleaner: form.elements.sharePhotosWithSelectedCleaner.checked }),
+        headers: { "Content-Type": "application/json", "Accept": "application/json", "Idempotency-Key": pendingSubmission.key },
+        body: submissionBody,
         signal: controller.signal
       });
     } catch (error) {
@@ -415,6 +419,7 @@ form.addEventListener("submit", async (event) => {
       sessionStorage.setItem("tidewayBriefComplete", JSON.stringify({ reference: result.reference, customerStatusToken: result.customerStatusToken || "", storedAt: Date.now() }));
     } catch {}
     try { clearBriefHandoff(window.sessionStorage); } catch {}
+    pendingSubmission = null;
     submissionComplete = true;
     successBox.hidden = false;
     successBox.focus();

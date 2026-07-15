@@ -15,6 +15,9 @@ const publicDir = path.join(root, "public");
 const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(root, "data");
 const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || 4173);
+const lanPort = Number(process.env.LAN_PORT || 0);
+const lanHost = process.env.LAN_HOST || "0.0.0.0";
+if (lanPort && (!Number.isInteger(lanPort) || lanPort < 1 || lanPort > 65535 || lanPort === port)) throw new Error("LAN_PORT must be a valid port different from PORT.");
 const maxBodyBytes = 64 * 1024;
 const maxBriefBodyBytes = 28 * 1024 * 1024;
 let writeQueue = Promise.resolve();
@@ -22,7 +25,7 @@ const rateLimitBuckets = new Map();
 const trustProxy = process.env.TRUST_PROXY === "true";
 
 const apiRateLimitPolicies = {
-  publicSubmission: { limit: 12, windowMs: 15 * 60 * 1000 },
+  publicSubmission: { limit: 20, windowMs: 15 * 60 * 1000 },
   privateRead: { limit: 180, windowMs: 5 * 60 * 1000 },
   privateWrite: { limit: 30, windowMs: 15 * 60 * 1000 },
   adminAuthentication: { limit: 12, windowMs: 15 * 60 * 1000 }
@@ -180,6 +183,23 @@ function text(value, max = 300) {
   return typeof value === "string" ? value.trim().replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").slice(0, max) : "";
 }
 
+function submissionKey(request) {
+  const supplied = text(request.headers["idempotency-key"], 80).toLowerCase();
+  if (supplied && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(supplied)) {
+    throw Object.assign(new Error("Invalid submission retry key."), { statusCode: 400 });
+  }
+  return supplied || randomUUID();
+}
+
+function submissionFingerprint(value) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function publicRecordFingerprint(record) {
+  const { id, customerStatusToken, createdAt, status, submissionKey: ignoredKey, submissionFingerprint: ignoredFingerprint, ...payload } = record;
+  return submissionFingerprint(payload);
+}
+
 function localDateToday(now = new Date()) {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
 }
@@ -223,6 +243,27 @@ async function saveRecord(filename, record) {
   });
   writeQueue = operation;
   return operation;
+}
+
+async function savePublicSubmissionOnce(filename, record) {
+  let result;
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    const existing = await readRecords(filename);
+    const replay = existing.find((item) => item.submissionKey === record.submissionKey);
+    if (replay) {
+      if (replay.submissionFingerprint !== record.submissionFingerprint) {
+        throw Object.assign(new Error("That retry key was already used for different submission details."), { statusCode: 409 });
+      }
+      result = { record: replay, replayed: true };
+      return;
+    }
+    await appendFile(path.join(dataDir, filename), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+    result = { record, replayed: false };
+  });
+  writeQueue = operation;
+  await operation;
+  return result;
 }
 
 async function saveProposalStatusOnce(update) {
@@ -580,16 +621,31 @@ function decodeBriefPhoto(input, index) {
 }
 
 async function saveJobBrief(record, images) {
+  let result;
   const operation = writeQueue.catch(() => {}).then(async () => {
+    const existing = await readRecords("job-briefs.ndjson");
+    const replay = existing.find((item) => item.submissionKey === record.submissionKey);
+    if (replay) {
+      if (replay.submissionFingerprint !== record.submissionFingerprint) {
+        throw Object.assign(new Error("That retry key was already used for different room-scan details."), { statusCode: 409 });
+      }
+      result = { record: replay, replayed: true };
+      return;
+    }
+    if (existing.filter((brief) => brief.requestId === record.requestId).length >= 5) {
+      throw Object.assign(new Error("This request already has five job-brief versions. Review them in the control desk before adding another."), { statusCode: 422 });
+    }
     const briefDirectory = path.join(dataDir, "job-brief-images", record.id);
     await mkdir(briefDirectory, { recursive: true, mode: 0o700 });
     for (const image of images) {
       await writeFile(path.join(briefDirectory, `${image.id}${image.extension}`), image.bytes, { mode: 0o600 });
     }
     await appendFile(path.join(dataDir, "job-briefs.ndjson"), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+    result = { record, replayed: false };
   });
   writeQueue = operation;
-  return operation;
+  await operation;
+  return result;
 }
 
 function validRetentionDays(value) {
@@ -1390,12 +1446,14 @@ async function getAdminRecords(request, response) {
   const outcomesByBooking = new Map();
   for (const outcome of effectiveOutcomes) outcomesByBooking.set(outcome.bookingId, outcome);
   const briefsByRequest = new Map();
-  for (const brief of briefs) {
+  for (const storedBrief of briefs) {
+    const { submissionKey: ignoredSubmissionKey, submissionFingerprint: ignoredSubmissionFingerprint, ...brief } = storedBrief;
     const list = briefsByRequest.get(brief.requestId) || [];
     list.push(applyBriefStatus(brief, briefUpdates));
     briefsByRequest.set(brief.requestId, list);
   }
   const merge = (record, kind) => {
+    const { submissionKey: ignoredSubmissionKey, submissionFingerprint: ignoredSubmissionFingerprint, ...privateLead } = record;
     const leadActivities = (activitiesById.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
     const leadProposals = (proposalsByRequest.get(record.id) || []).sort((left, right) => proposalDispatchPriority(right) - proposalDispatchPriority(left) || right.createdAt.localeCompare(left.createdAt));
     const booking = kind === "request" ? bookingsByRequest.get(record.id) || null : null;
@@ -1407,7 +1465,7 @@ async function getAdminRecords(request, response) {
     const status = latestStatuses.get(record.id) || record.status || "new";
     const nextActionAt = leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "";
     const dispatchActions = dispatchActionsForRecord({ kind, status, nextActionAt, proposals: leadProposals, briefs: leadBriefs, booking, outcome, screening, cleanerAvailability, pilotCoverage });
-    return { ...record, kind, status, activities: leadActivities.slice(0, 10), nextActionAt, proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, cleanerAvailability, pilotCoverage, booking, outcome, dispatchActions };
+    return { ...privateLead, kind, status, activities: leadActivities.slice(0, 10), nextActionAt, proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, cleanerAvailability, pilotCoverage, booking, outcome, dispatchActions };
   };
   const records = [
     ...requests.map((record) => merge(record, "request")),
@@ -3374,17 +3432,15 @@ async function handleJobBrief(request, response) {
   if (!consent) errors.push("Confirm that you may share these room visuals and instructions with Tideway.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
-  const [requests, updates, existingBriefs] = await Promise.all([
+  const [requests, updates] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
-    readRecords("status-updates.ndjson"),
-    readRecords("job-briefs.ndjson")
+    readRecords("status-updates.ndjson")
   ]);
   const customerRequest = requests.find((record) => record.id === requestId && record.email === email);
   if (!customerRequest) return json(response, 404, { ok: false, error: "The request reference and email could not be matched." });
   let requestStatus = customerRequest.status || "new";
   for (const update of updates) if (update.id === requestId) requestStatus = update.status;
   if (["completed", "lost"].includes(requestStatus)) return json(response, 422, { ok: false, error: "This request is closed and cannot accept a new job brief." });
-  if (existingBriefs.filter((brief) => brief.requestId === requestId).length >= 5) return json(response, 422, { ok: false, error: "This request already has five job-brief versions. Review them in the control desk before adding another." });
 
   const images = photoInputs.map(decodeBriefPhoto);
   const totalPhotoBytes = images.filter((image) => image.kind === "image").reduce((total, image) => total + image.bytes.length, 0);
@@ -3413,10 +3469,13 @@ async function handleJobBrief(request, response) {
     customerScopeConfirmedAt: createdAt,
     cleanerPhotoSharingConsent,
     status: "landlord-draft",
-    createdAt
+    createdAt,
+    submissionKey: submissionKey(request)
   };
-  await saveJobBrief(brief, images);
-  return json(response, 201, { ok: true, reference: brief.id, customerStatusToken: customerRequest.customerStatusToken || "", checklist: brief.checklist, photos: brief.photos.map(({ id, area, note, kind, durationSeconds, mimeType }) => ({ id, area, note, kind, durationSeconds, mimeType })), scopeSignals: brief.scopeSignals, customerScopeConfirmed: brief.customerScopeConfirmed, customerScopeConfirmedAt: brief.customerScopeConfirmedAt, cleanerPhotoSharingConsent: brief.cleanerPhotoSharingConsent });
+  brief.submissionFingerprint = submissionFingerprint({ requestId, transcript, checklist, scopeSignals, customerScopeConfirmed, cleanerPhotoSharingConsent, photos: images.map((image) => ({ area: image.area, note: image.note, kind: image.kind, durationSeconds: image.durationSeconds, mimeType: image.mimeType, content: createHash("sha256").update(image.bytes).digest("hex") })) });
+  const saved = await saveJobBrief(brief, images);
+  const savedBrief = saved.record;
+  return json(response, saved.replayed ? 200 : 201, { ok: true, replayed: saved.replayed, reference: savedBrief.id, customerStatusToken: customerRequest.customerStatusToken || "", checklist: savedBrief.checklist, photos: savedBrief.photos.map(({ id, area, note, kind, durationSeconds, mimeType }) => ({ id, area, note, kind, durationSeconds, mimeType })), scopeSignals: savedBrief.scopeSignals, customerScopeConfirmed: savedBrief.customerScopeConfirmed, customerScopeConfirmedAt: savedBrief.customerScopeConfirmedAt, cleanerPhotoSharingConsent: savedBrief.cleanerPhotoSharingConsent });
 }
 
 async function getAdminJobBriefImage(request, response, briefId, imageId) {
@@ -3491,8 +3550,10 @@ async function handleCleaningRequest(request, response) {
   if (!record.consent) errors.push("Privacy consent is required.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
-  await saveRecord("cleaning-requests.ndjson", record);
-  return json(response, 201, { ok: true, reference: record.id, customerStatusToken: record.customerStatusToken });
+  record.submissionKey = submissionKey(request);
+  record.submissionFingerprint = publicRecordFingerprint(record);
+  const saved = await savePublicSubmissionOnce("cleaning-requests.ndjson", record);
+  return json(response, saved.replayed ? 200 : 201, { ok: true, replayed: saved.replayed, reference: saved.record.id, customerStatusToken: saved.record.customerStatusToken });
 }
 
 async function handleCleanerApplication(request, response) {
@@ -3538,8 +3599,10 @@ async function handleCleanerApplication(request, response) {
   if (!record.consent) errors.push("Privacy consent is required.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
-  await saveRecord("cleaner-applications.ndjson", record);
-  return json(response, 201, { ok: true, reference: record.id });
+  record.submissionKey = submissionKey(request);
+  record.submissionFingerprint = publicRecordFingerprint(record);
+  const saved = await savePublicSubmissionOnce("cleaner-applications.ndjson", record);
+  return json(response, saved.replayed ? 200 : 201, { ok: true, replayed: saved.replayed, reference: saved.record.id });
 }
 
 async function serveFile(requestPath, response) {
@@ -3578,7 +3641,7 @@ async function serveFile(requestPath, response) {
   }
 }
 
-const server = createServer(async (request, response) => {
+async function handleHttpRequest(request, response) {
   const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
   setSecurityHeaders(response, requestUrl.pathname);
 
@@ -3697,15 +3760,28 @@ const server = createServer(async (request, response) => {
     console.error(error);
     json(response, error.statusCode || 500, { ok: false, error: error.statusCode ? error.message : "Something went wrong. Please try again." });
   }
-});
+}
 
 await cleanupStaleTemporaryFiles();
+const server = createServer(handleHttpRequest);
+const lanServer = lanPort ? createServer(handleHttpRequest) : null;
 server.listen(port, host, () => {
   console.log(`Tideway is running at http://${host}:${port}`);
 });
+if (lanServer) {
+  lanServer.listen(lanPort, lanHost, () => {
+    console.log(`Tideway Wi-Fi preview is running on ${lanHost}:${lanPort}`);
+  });
+}
 
 function shutdown() {
-  server.close(() => process.exit(0));
+  let remaining = lanServer ? 2 : 1;
+  const closed = () => {
+    remaining -= 1;
+    if (remaining === 0) process.exit(0);
+  };
+  server.close(closed);
+  if (lanServer) lanServer.close(closed);
 }
 
 process.on("SIGINT", shutdown);

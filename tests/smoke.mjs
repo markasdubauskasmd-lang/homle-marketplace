@@ -9,12 +9,15 @@ import { briefReadiness, briefScopeConfirmationIsCurrent, briefScopeFingerprint,
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "../public/scope-signals.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "../offer-expiry.mjs";
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "../travel-coverage.mjs";
+import { newSubmissionKey } from "../public/submission-key.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const testDataDir = await mkdtemp(path.join(tmpdir(), "tideway-smoke-"));
 const port = 4279;
+const lanPort = 4280;
 const base = `http://127.0.0.1:${port}`;
-const child = spawn(process.execPath, ["server.mjs"], { cwd: root, env: { ...process.env, PORT: String(port), ADMIN_KEY: "test-admin-key", DATA_DIR: testDataDir }, stdio: "pipe" });
+const lanBase = `http://127.0.0.1:${lanPort}`;
+const child = spawn(process.execPath, ["server.mjs"], { cwd: root, env: { ...process.env, PORT: String(port), LAN_PORT: String(lanPort), LAN_HOST: "127.0.0.1", ADMIN_KEY: "test-admin-key", DATA_DIR: testDataDir }, stdio: "pipe" });
 
 async function waitForServer() {
   for (let index = 0; index < 50; index += 1) {
@@ -33,6 +36,9 @@ function assert(condition, message) {
 
 try {
   await waitForServer();
+  const lanPreviewHealth = await fetch(`${lanBase}/api/health`);
+  const lanPreviewHome = await fetch(lanBase);
+  assert(lanPreviewHealth.ok && lanPreviewHome.ok && (await lanPreviewHome.text()).includes("Book a clean with every room clearly scoped"), "Optional same-process Wi-Fi preview listener did not serve the Tideway site.");
 
   const fixedSentAt = "2026-07-14T10:00:00.000Z";
   const fixedVisitStart = Date.parse("2026-07-16T09:00:00.000Z");
@@ -43,6 +49,7 @@ try {
   assert(cleanerTravelCoverage("SW1A and South London", "SW1A 1AA").exact === true && cleanerTravelCoverage("SW1A and South London", "SW4 1AA").covered === false, "An exact cleaner postcode district incorrectly expanded to an entire postcode area.");
   assert(cleanerTravelCoverage("SW, SE", "SW4 1AA").area === true && cleanerTravelCoverage("SW, SE", "NE1 1AA").covered === false, "Explicit comma-separated cleaner postcode areas were not enforced correctly.");
   assert(parseCleanerTravelAreas("South London and nearby").valid === false, "Vague cleaner travel prose was treated as verified postcode coverage.");
+  assert(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(newSubmissionKey()), "Browser submission retry keys were not generated as random UUIDs.");
 
   const conciseTasks = checklistFromTranscript("Um, so in the kitchen, please wipe every worktop, degrease the hob, clean inside the microwave and mop the floor. In the bathroom, remove limescale from the shower screen and disinfect the toilet. Finally do not move the locked cupboard.");
   assert(JSON.stringify(conciseTasks) === JSON.stringify([
@@ -136,7 +143,7 @@ try {
   assert(briefPageText.includes('id="job-brief-form" action="/api/job-briefs" method="post" novalidate') && !briefPageText.includes('id="save-brief" class="button submit-button" type="submit" disabled'), "Room-scan submission was blocked before it could explain incomplete readiness.");
   const briefScript = await fetch(`${base}/brief.js?v=smoke-test`);
   const briefScriptText = await briefScript.text();
-  assert(briefScript.ok && briefScriptText.includes('saveButton.disabled = submitting || submissionComplete') && briefScriptText.includes("new AbortController()") && briefScriptText.includes("took too long to prepare") && briefScriptText.includes('location.assign(`/brief-complete'), "Room-scan button recovery, bounded photo/upload handling or dedicated completion handoff was missing.");
+  assert(briefScript.ok && briefScriptText.includes('saveButton.disabled = submitting || submissionComplete') && briefScriptText.includes("new AbortController()") && briefScriptText.includes("took too long to prepare") && briefScriptText.includes('"Idempotency-Key": pendingSubmission.key') && briefScriptText.includes('location.assign(`/brief-complete'), "Room-scan button recovery, idempotent retry handling, bounded photo/upload handling or dedicated completion handoff was missing.");
   const briefCompletePage = await fetch(`${base}/brief-complete`);
   const briefCompletePageText = await briefCompletePage.text();
   assert(briefCompletePage.ok && briefCompletePageText.includes("Thank you. Your cleaning instructions are safely submitted.") && briefCompletePageText.includes("What happens next") && briefCompletePageText.includes("Track my cleaning request") && briefCompletePageText.includes("No payment was collected."), "Dedicated room-scan thank-you page failed or omitted its safe next steps.");
@@ -162,6 +169,9 @@ try {
   const adminAsset = await fetch(`${base}/admin.js?v=smoke-test`);
   const adminAssetText = await adminAsset.text();
   assert(adminAsset.ok && adminAsset.headers.get("cache-control") === "no-cache" && adminAssetText.includes("Later refunds, re-cleans and costs") && adminAssetText.includes("/api/admin/job-outcome-adjustments") && adminAssetText.includes("paymentEvidenceReference") && adminAssetText.includes("Externally verified amount") && adminAssetText.includes("customerReceiptReference") && adminAssetText.includes("cleanerPayoutReference"), "Updated control-desk assets, booking payment evidence, final settlement evidence or post-completion adjustment workflow could remain stale or missing.");
+  const publicFormAsset = await fetch(`${base}/app.js?v=smoke-test`);
+  const publicFormAssetText = await publicFormAsset.text();
+  assert(publicFormAsset.ok && publicFormAssetText.includes('"Idempotency-Key": pending.key') && publicFormAssetText.includes("pendingSubmissions.delete(form)"), "Customer and cleaner forms omitted safe retry-key handling.");
 
   const invalidPhone = await fetch(`${base}/api/cleaning-requests`, {
     method: "POST",
@@ -182,13 +192,20 @@ try {
   const oversized = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ details: "x".repeat(70 * 1024) }) });
   assert(oversized.status === 413, "Oversized request body was not rejected.");
 
-  const validRequest = await fetch(`${base}/api/cleaning-requests`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ contactName: "Test Customer", email: "customer@example.com", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms and 1 bathroom", accessNotes: "Collect keys from the office", hazards: "None known", preferredDate: "2026-07-20", preferredTimeWindow: "Morning (8am–12pm)", consent: true })
-  });
+  const validRequestInput = { contactName: "Test Customer", email: "customer@example.com", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms and 1 bathroom", accessNotes: "Collect keys from the office", hazards: "None known", preferredDate: "2026-07-20", preferredTimeWindow: "Morning (8am–12pm)", consent: true };
+  const malformedSubmissionKey = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "predictable-retry" }, body: JSON.stringify(validRequestInput) });
+  assert(malformedSubmissionKey.status === 400, "A malformed public submission retry key was accepted.");
+  const customerSubmissionKey = "11111111-1111-4111-8111-111111111111";
+  const validRequestAttempts = await Promise.all([1, 2].map(() => fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": customerSubmissionKey }, body: JSON.stringify(validRequestInput) })));
+  const validRequest = validRequestAttempts.find((response) => response.status === 201);
+  const replayedRequest = validRequestAttempts.find((response) => response.status === 200);
+  assert(validRequest && replayedRequest, "Concurrent customer retries were not reduced to one stored lead.");
   const requestBody = await validRequest.json();
+  const replayedRequestBody = await replayedRequest.json();
   assert(validRequest.status === 201 && requestBody.reference.startsWith("REQ-") && /^[A-Za-z0-9_-]{32}$/.test(requestBody.customerStatusToken), "Valid cleaning request failed or omitted its private tracker token.");
+  assert(replayedRequestBody.replayed === true && replayedRequestBody.reference === requestBody.reference && replayedRequestBody.customerStatusToken === requestBody.customerStatusToken, "Customer retry did not return the original reference and private tracker token.");
+  const changedRequestWithReusedKey = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": customerSubmissionKey }, body: JSON.stringify({ ...validRequestInput, service: "One-off deep clean" }) });
+  assert(changedRequestWithReusedKey.status === 409, "A customer retry key was reused for different request details.");
   const invalidRequestStatus = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": "not-a-private-request-token" } });
   assert(invalidRequestStatus.status === 404, "Invalid customer tracker token exposed request status.");
   const initialRequestStatus = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
@@ -236,13 +253,18 @@ try {
   const unconfirmedScopeBriefBody = await unconfirmedScopeBrief.json();
   assert(unconfirmedScopeBrief.status === 422 && unconfirmedScopeBriefBody.errors?.some((error) => error.includes("concise cleaner checklist")), "Room scan was accepted without the customer's final concise-scope confirmation.");
 
-  const validBrief = await fetch(`${base}/api/job-briefs`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ requestId: requestBody.reference, email: "customer@example.com", transcript: "Please wipe every kitchen worktop, mop the kitchen floor and clean inside the oven.", checklist: ["Kitchen: Wipe every kitchen worktop", "Kitchen: Mop the kitchen floor", "Kitchen: Clean inside the oven"], photos: [{ area: "Kitchen", note: "Worktops, floor and inside oven need attention", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }, { area: "Kitchen", note: "Short walkthrough of the same kitchen scope", durationSeconds: 8, dataUrl: "data:video/webm;base64,GkXfo59ChoEB" }], scopeCompleteConfirmed: true, consent: true, sharePhotosWithSelectedCleaner: true })
-  });
+  const validBriefInput = { requestId: requestBody.reference, email: "customer@example.com", transcript: "Please wipe every kitchen worktop, mop the kitchen floor and clean inside the oven.", checklist: ["Kitchen: Wipe every kitchen worktop", "Kitchen: Mop the kitchen floor", "Kitchen: Clean inside the oven"], photos: [{ area: "Kitchen", note: "Worktops, floor and inside oven need attention", dataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zs7sAAAAASUVORK5CYII=" }, { area: "Kitchen", note: "Short walkthrough of the same kitchen scope", durationSeconds: 8, dataUrl: "data:video/webm;base64,GkXfo59ChoEB" }], scopeCompleteConfirmed: true, consent: true, sharePhotosWithSelectedCleaner: true };
+  const briefSubmissionKey = "22222222-2222-4222-8222-222222222222";
+  const validBriefAttempts = await Promise.all([1, 2].map(() => fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": briefSubmissionKey }, body: JSON.stringify(validBriefInput) })));
+  const validBrief = validBriefAttempts.find((response) => response.status === 201);
+  const replayedBrief = validBriefAttempts.find((response) => response.status === 200);
+  assert(validBrief && replayedBrief, "Concurrent room-scan retries created more than one brief version.");
   const briefBody = await validBrief.json();
+  const replayedBriefBody = await replayedBrief.json();
   assert(validBrief.status === 201 && briefBody.reference.startsWith("BRF-") && briefBody.checklist.length === 3 && briefBody.photos.length === 2 && briefBody.photos[1].kind === "video" && briefBody.photos[1].mimeType === "video/webm" && briefBody.photos[1].durationSeconds === 8 && briefBody.scopeSignals?.length === 1 && briefBody.scopeSignals[0].code === "oven-interior" && briefBody.customerScopeConfirmed === true && Date.parse(briefBody.customerScopeConfirmedAt) > 0 && briefBody.customerStatusToken === requestBody.customerStatusToken && briefBody.cleanerPhotoSharingConsent === true, "Valid photo-and-video job brief failed, omitted media metadata or checklist bullets, failed to record customer scope confirmation or price-sensitive oven scope, lost the private tracker handoff or failed to record selected-cleaner media permission.");
+  assert(replayedBriefBody.replayed === true && replayedBriefBody.reference === briefBody.reference && replayedBriefBody.photos[0].id === briefBody.photos[0].id, "Room-scan retry did not return the original scan and media references.");
+  const changedBriefWithReusedKey = await fetch(`${base}/api/job-briefs`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": briefSubmissionKey }, body: JSON.stringify({ ...validBriefInput, transcript: `${validBriefInput.transcript} Also dust the shelves.`, checklist: [...validBriefInput.checklist, "Kitchen: Dust the shelves"] }) });
+  assert(changedBriefWithReusedKey.status === 409, "A room-scan retry key was reused for changed scope.");
   const protectedAdminVideo = await fetch(`${base}/api/admin/job-brief-image?briefId=${briefBody.reference}&imageId=${briefBody.photos[1].id}`);
   assert(protectedAdminVideo.ok && protectedAdminVideo.headers.get("content-type") === "video/webm" && protectedAdminVideo.headers.get("cache-control") === "private, no-store" && (await protectedAdminVideo.arrayBuffer()).byteLength > 0, "Control desk could not load the protected short room video.");
   const scanReviewStatus = await fetch(`${base}/api/request-status`, { headers: { "x-request-token": requestBody.customerStatusToken } });
@@ -262,17 +284,23 @@ try {
   const vagueTravelCleanerBody = await vagueTravelCleaner.json();
   assert(vagueTravelCleaner.status === 422 && vagueTravelCleanerBody.errors?.some((error) => error.includes("outward postcode district")), "A cleaner application stored vague travel prose without any matchable postcode coverage.");
 
-  const validCleaner = await fetch(`${base}/api/cleaner-applications`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ fullName: "Test Cleaner", email: "cleaner@example.com", phone: "07123456789", postcode: "SE1 7PB", travelAreas: "SW1A and South London", experience: "1–3 years", availability: "Weekdays", serviceTurnovers: true, rightToWork: true, consent: true })
-  });
+  const validCleanerInput = { fullName: "Test Cleaner", email: "cleaner@example.com", phone: "07123456789", postcode: "SE1 7PB", travelAreas: "SW1A and South London", experience: "1–3 years", availability: "Weekdays", serviceTurnovers: true, rightToWork: true, consent: true };
+  const cleanerSubmissionKey = "33333333-3333-4333-8333-333333333333";
+  const validCleanerAttempts = await Promise.all([1, 2].map(() => fetch(`${base}/api/cleaner-applications`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": cleanerSubmissionKey }, body: JSON.stringify(validCleanerInput) })));
+  const validCleaner = validCleanerAttempts.find((response) => response.status === 201);
+  const replayedCleaner = validCleanerAttempts.find((response) => response.status === 200);
+  assert(validCleaner && replayedCleaner, "Concurrent cleaner retries were not reduced to one application.");
   const cleanerBody = await validCleaner.json();
+  const replayedCleanerBody = await replayedCleaner.json();
   assert(validCleaner.status === 201 && cleanerBody.reference.startsWith("CLN-"), "Valid cleaner application failed.");
+  assert(replayedCleanerBody.replayed === true && replayedCleanerBody.reference === cleanerBody.reference, "Cleaner retry did not return the original application reference.");
+  const changedCleanerWithReusedKey = await fetch(`${base}/api/cleaner-applications`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": cleanerSubmissionKey }, body: JSON.stringify({ ...validCleanerInput, availability: "Weekends" }) });
+  assert(changedCleanerWithReusedKey.status === 409, "A cleaner retry key was reused for different application details.");
 
   const adminRecords = await fetch(`${base}/api/admin/records`);
   const adminBody = await adminRecords.json();
   assert(adminRecords.ok && adminBody.records.length === 2, "Admin records did not load.");
+  assert(!JSON.stringify(adminBody.records).includes("submissionKey") && !JSON.stringify(adminBody.records).includes("submissionFingerprint"), "Internal retry metadata leaked into the control-desk records API.");
   assert(adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.length === 1 && adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.id === briefBody.reference && adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.customerScopeConfirmed === true && Date.parse(adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.customerScopeConfirmedAt) > 0, "Photo job brief or its customer scope confirmation was not attached to the request, or an unconfirmed attempt was stored.");
   assert(adminBody.records.find((record) => record.id === requestBody.reference)?.briefs?.[0]?.status === "landlord-draft", "New photo job brief did not enter the human review queue.");
   assert(adminBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.some((action) => action.code === "review-scan" && action.severity === "high"), "Submitted room scan was missing from the founder-action queue.");
@@ -1109,7 +1137,7 @@ try {
   const healthAfterThrottle = await fetch(`${base}/api/health`);
   assert(authorisedAfterThrottle.ok && healthAfterThrottle.ok, "Scoped abuse throttling blocked an authorised admin or unrelated health check.");
 
-  console.log("Smoke tests passed: public pages, evidence-based seven-area launch requirements, unsupported insurance/live-payment claims and invalid verification dates, private first-profitable-booking funnel and bottleneck progression, eight-item live scan readiness, empty/partial/complete readiness states, stale source-to-checklist detection, harmless-whitespace stability, photo/video count and duration safeguards, supported-room safeguards, reviewed-scan matching gates, explicit cleaner postcode declarations, exact/area travel coverage, vague-travel rejection, uncovered-cleaner exclusion, direct out-of-area proposal rejection, booking-audit travel retention, required customer scope-completeness confirmation, stored confirmation timestamps, booking-audit scope confirmation, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-visual notes, shown-room task coverage, customer-visible price-sensitive scope warnings, supported-signal coverage, false-positive protection, required reviewer confirmations, frozen confirmed extras, explicit selected-cleaner media consent, frozen opportunity media scope, token-authorised non-cacheable opportunity photos/videos, preview/no-consent/readiness/booking media revocation, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room media, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, abuse throttling, constant-time admin-key checks, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, live cleaner-capacity holds, capacity-aware matching, cleaner-decline capacity release, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations, private settlement evidence and categorised actual completed-job economics.");
+  console.log("Smoke tests passed: public pages, evidence-based seven-area launch requirements, unsupported insurance/live-payment claims and invalid verification dates, private first-profitable-booking funnel and bottleneck progression, eight-item live scan readiness, empty/partial/complete readiness states, stale source-to-checklist detection, harmless-whitespace stability, photo/video count and duration safeguards, supported-room safeguards, reviewed-scan matching gates, explicit cleaner postcode declarations, exact/area travel coverage, vague-travel rejection, uncovered-cleaner exclusion, direct out-of-area proposal rejection, booking-audit travel retention, required customer scope-completeness confirmation, stored confirmation timestamps, booking-audit scope confirmation, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-visual notes, shown-room task coverage, customer-visible price-sensitive scope warnings, supported-signal coverage, false-positive protection, required reviewer confirmations, frozen confirmed extras, explicit selected-cleaner media consent, frozen opportunity media scope, token-authorised non-cacheable opportunity photos/videos, preview/no-consent/readiness/booking media revocation, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room media, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, abuse throttling, constant-time admin-key checks, retry-safe public intake, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, live cleaner-capacity holds, capacity-aware matching, cleaner-decline capacity release, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations, private settlement evidence and categorised actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));
