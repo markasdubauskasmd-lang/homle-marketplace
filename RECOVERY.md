@@ -22,6 +22,26 @@ To choose an explicit off-sync destination or a separately restored data folder:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\backup-data.ps1 -DataDirectory "C:\private\TidewayData" -DestinationDirectory "D:\encrypted-backups\Tideway"
 ```
 
+## Private data relocation
+
+Relocation is a founder-controlled copy-and-verify operation. The tool never moves or deletes the source, and its default mode writes nothing. First rehearse the exact source and proposed destination while Tideway may remain running:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\relocate-data.ps1 -DestinationDirectory "$env:LOCALAPPDATA\Tideway\data"
+```
+
+Review the resolved paths, private-file count and byte count. The proposed destination must be access-restricted, outside this source project and outside OneDrive, Dropbox, Google Drive and iCloud. Before the executed copy, stop every Tideway server, create and verify a private backup, and confirm the destination is absent or empty. Then run the deliberately explicit copy command:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\relocate-data.ps1 `
+  -DestinationDirectory "$env:LOCALAPPDATA\Tideway\data" `
+  -ExecuteCopy `
+  -ServerStoppedConfirmed `
+  -Confirmation "COPY TIDEWAY PRIVATE DATA"
+```
+
+The tool snapshots every source SHA-256, copies without overwriting, verifies the destination file count, byte lengths and hashes, then re-hashes every source file to detect a write during copying. Any failure leaves the source untouched and reports that the destination must not be used. After a verified copy, set `DATA_DIR` to the destination, start Tideway, require a healthy `/api/health`, run the authenticated control-desk integrity check and compare expected record counts. Do not remove the old source as part of relocation; that is a separate retention-controlled action requiring an approved verified backup.
+
 ## Integrity check and degraded mode
 
 Tideway checks every private record file and the launch configuration when it starts, whenever the control-desk integrity check is run, and before every API write. Open `/admin` and review **Private record protection → Data integrity** before operating the pilot.
@@ -40,7 +60,7 @@ Never paste private record contents into chat, email or a public issue. Escalate
 ## Recovery order
 
 1. Restore the Tideway source folder.
-2. Restore the private data files into `data/`.
+2. Restore the private data files into the configured off-sync `DATA_DIR`.
 3. Recreate environment variables such as `ADMIN_KEY`; never store them in source control.
 4. Start the server and check `/api/health`; require `dataIntegrity: "healthy"` and `writesAllowed: true`.
 5. Open `/admin`, run the data-integrity check and require zero issues before changing anything.
