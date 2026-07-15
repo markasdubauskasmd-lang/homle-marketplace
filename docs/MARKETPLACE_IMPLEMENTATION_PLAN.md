@@ -39,10 +39,12 @@ Implemented checkpoint:
 - Email/password account registration with scrypt-only stored credentials, purpose-bound hashed email tokens, generic duplicate handling and a private trusted-delivery handoff.
 - Single-use email verification and password reset, database-persistent five-attempt lockout, and automatic revocation of every session after password replacement.
 - Fail-closed provider capability flags that require the complete database/session/origin boundary and a separate `AUTH_TOKEN_SECRET` for verification/reset material.
+- Reusable account middleware for environment-specific cookies, hashed session lookup, exact-origin and CSRF mutation checks, server-side role enforcement and role-pending onboarding isolation.
+- Branded mobile `/login` and `/signup` entry pages that show no non-working provider/form controls and keep the operational request and cleaner-application paths available while account runtime composition is incomplete.
 - RLS on password credentials, verification tokens, reset tokens and sessions, plus a checked non-bypass runtime-role grant script.
 - Setup details in `docs/DATABASE_SETUP.md`, the mandatory provider-verification boundary in `docs/AUTHENTICATION_SECURITY.md`, and isolated regression tests using fake PostgreSQL-compatible repositories.
 
-Not yet enabled: database driver composition, signup/login HTTP routes, cryptographic provider adapters, SMTP delivery, OAuth callbacks, onboarding screens or a production PostgreSQL instance. Provider capability flags therefore remain off. The social resolver must never receive browser-supplied claims directly, and internal email-delivery material must never be returned by a public API.
+Not yet enabled: database driver composition, signup/login mutation handlers, cryptographic provider adapters, SMTP delivery, OAuth callbacks, onboarding forms or a production PostgreSQL instance. Provider capability flags therefore remain off behind an explicit runtime-composition gate. The social resolver must never receive browser-supplied claims directly, and internal email-delivery material must never be returned by a public API.
 
 - Add a PostgreSQL connection/repository layer and transaction helper that always sets the RLS user context.
 - Add opaque secure sessions, `HttpOnly; Secure; SameSite=Lax` cookies, CSRF tokens, rotation, logout-all-sessions and session expiry.

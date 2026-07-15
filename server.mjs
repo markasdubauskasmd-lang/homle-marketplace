@@ -4528,6 +4528,8 @@ async function serveFile(requestPath, response) {
     "/": "index.html",
     "/request": "index.html",
     "/join": "index.html",
+    "/login": "account.html",
+    "/signup": "account.html",
     "/brief": "brief.html",
     "/brief-complete": "brief-complete.html",
     "/request-status": "request-status.html",

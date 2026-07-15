@@ -166,6 +166,32 @@ textarea { resize: vertical; }
 .success-panel strong, .success-panel span { display: block; }
 .success-panel span { margin-top: 5px; }
 .success-panel .button { display: inline-flex; margin-top: 13px; color: #fff; }
+.account-page { min-height: 100vh; background: linear-gradient(145deg, #edf7f2 0%, #f8faf7 48%, #f4efe5 100%); }
+.account-nav a { color: var(--green-dark); font-weight: 750; text-decoration: none; }
+.account-main { display: grid; min-height: calc(100vh - 150px); align-items: center; padding: 54px 0 70px; }
+.account-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(310px, .72fr); gap: 24px; align-items: stretch; }
+.account-card, .account-side { padding: clamp(30px, 5vw, 58px); border-radius: 28px; box-shadow: 0 22px 65px rgba(15, 66, 57, .11); }
+.account-card { border: 1px solid var(--line); background: #fff; }
+.account-card h1 { max-width: 720px; margin: 10px 0 16px; font-size: clamp(2.35rem, 6vw, 4.7rem); }
+.account-lead { max-width: 650px; margin-bottom: 26px; color: var(--muted); font-size: 1.08rem; }
+.account-state { display: grid; grid-template-columns: 42px 1fr; gap: 14px; align-items: start; padding: 18px; border: 1px solid #9bcdbf; border-radius: 14px; background: var(--mint-pale); }
+.account-state-mark { display: grid; width: 36px; height: 36px; place-items: center; color: #fff; border-radius: 50%; background: var(--green); font-family: Georgia, serif; font-weight: 800; }
+.account-state strong, .account-state p { display: block; }
+.account-state p { margin: 5px 0 0; color: #38534c; font-size: .9rem; }
+.account-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+.account-side { color: #fff; background: linear-gradient(160deg, var(--green), #084c45); }
+.account-side h2 { margin: 9px 0 26px; color: #fff; font-size: clamp(1.8rem, 4vw, 2.8rem); }
+.account-steps { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.account-steps li { display: grid; grid-template-columns: 38px 1fr; gap: 14px; padding: 18px 0; border-top: 1px solid rgba(255,255,255,.18); }
+.account-steps li:last-child { border-bottom: 1px solid rgba(255,255,255,.18); }
+.account-steps li > span { display: grid; width: 34px; height: 34px; place-items: center; color: var(--green-dark); border-radius: 50%; background: #9ee8d4; font-weight: 900; }
+.account-steps strong, .account-steps small { display: block; }
+.account-steps small { margin-top: 5px; color: #c9dfd9; line-height: 1.45; }
+.account-side-note { margin: 24px 0 0; color: #d9ebe6; font-size: .9rem; }
+.account-noscript { margin-top: 18px; color: var(--muted); }
+.account-footer { padding: 20px 0; color: var(--muted); font-size: .86rem; }
+.account-footer .shell { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.account-footer a { color: var(--green-dark); font-weight: 750; }
 .brief-complete-page { min-height: 100vh; background: linear-gradient(180deg, #eef8f5, #fff); }
 .brief-complete-shell { max-width: 880px; }
 .brief-complete-card { padding: clamp(30px, 7vw, 68px); border: 1px solid var(--line); border-radius: 26px; background: #fff; box-shadow: 0 24px 70px rgba(11,70,63,.11); text-align: center; }
@@ -691,6 +717,7 @@ textarea { resize: vertical; }
   .card-number { margin-bottom: 24px; }
   .steps { grid-template-columns: 1fr 1fr; }
   .form-card { grid-template-columns: 1fr; gap: 30px; }
+  .account-grid { grid-template-columns: 1fr; }
   .form-intro { position: static; }
   .data-integrity-summary { grid-template-columns: 1fr 1fr; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
@@ -731,6 +758,10 @@ textarea { resize: vertical; }
   .steps { grid-template-columns: 1fr; }
   .cleaner-grid { gap: 45px; }
   .form-card { padding: 25px 18px; border-radius: 18px; }
+  .account-main { align-items: start; padding: 28px 0 48px; }
+  .account-card, .account-side { padding: 26px 20px; border-radius: 19px; }
+  .account-card h1 { font-size: clamp(2.15rem, 12vw, 3.25rem); }
+  .account-actions .button { width: 100%; }
   .guided-progress li { grid-template-columns: 30px 1fr; gap: 6px; font-size: .75rem; }
   .guided-progress li span { width: 30px; height: 30px; }
   .guided-progress li::after { top: 14px; right: calc(100% - 2px); width: calc(100% - 32px); }

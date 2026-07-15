@@ -75,7 +75,10 @@ export function validateMarketplaceEnvironment(env = process.env) {
   return { ok: errors.length === 0, errors, state };
 }
 
-export function publicAuthenticationCapabilities(env = process.env) {
+export function publicAuthenticationCapabilities(env = process.env, runtimeReady = false) {
   const { capabilities } = marketplaceEnvironment(env);
-  return { ...capabilities, roles: ["cleaner", "landlord"] };
+  return {
+    ...Object.fromEntries(Object.entries(capabilities).map(([name, configured]) => [name, runtimeReady === true && configured === true])),
+    roles: ["cleaner", "landlord"]
+  };
 }

@@ -64,7 +64,8 @@ const validProduction = {
   GOOGLE_CLIENT_SECRET: "google-secret"
 };
 assert(validateMarketplaceEnvironment(validProduction).ok, "A complete production foundation configuration was rejected.");
-const publicCapabilities = publicAuthenticationCapabilities(validProduction);
+assert(publicAuthenticationCapabilities(validProduction).google === false && publicAuthenticationCapabilities(validProduction).emailPassword === false, "Configured credentials were exposed before the HTTP authentication runtime was composed.");
+const publicCapabilities = publicAuthenticationCapabilities(validProduction, true);
 assert(publicCapabilities.google === true && publicCapabilities.emailPassword === true && publicCapabilities.apple === false && !JSON.stringify(publicCapabilities).includes("google-secret") && !JSON.stringify(publicCapabilities).includes("SESSION_SECRET"), "Public authentication capabilities exposed secrets or misreported provider readiness.");
 
 const sessionSecret = "test-session-secret-with-more-than-32-characters";

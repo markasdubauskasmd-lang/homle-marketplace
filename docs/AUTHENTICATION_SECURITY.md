@@ -37,3 +37,11 @@ Public signup and reset-request responses remain generic whether an email exists
 Verification tokens are single-use and expire within 48 hours. Reset tokens are single-use, expire within two hours, replace the scrypt credential transactionally and revoke every active session for that account. The user must sign in again after a successful reset.
 
 SMTP is not configured in this local workspace. The functions and trusted delivery handoff are foundations only; email/password capability flags stay false until PostgreSQL, `SESSION_SECRET`, the distinct `AUTH_TOKEN_SECRET`, exact `APP_ORIGIN`, `SMTP_URL` and `EMAIL_FROM` are all configured.
+
+## Cookie-authenticated HTTP boundary
+
+Private account routes use only the environment-appropriate session cookie name: production accepts the `Secure` host-prefixed cookie, while local HTTP development accepts a separate development cookie. A production request cannot fall back to the non-secure cookie. The raw opaque token is HMAC-hashed before session lookup and is never included in the authenticated context.
+
+Every cookie-authenticated mutation requires all three checks: an exact configured `Origin`, the session's CSRF token in `X-CSRF-Token`, and an allowed server-side role. A role-pending account may access onboarding but receives no Cleaner or Landlord authority before selection. Hiding a button is never treated as authorization.
+
+The public capability endpoint has an additional runtime-composition gate. Valid credentials alone cannot expose Google or email sign-in before the real database pool, repositories, delivery adapter and protected HTTP handlers are connected. Until then, `/login` and `/signup` show an honest unavailable state and only link to the working private pilot routes.
