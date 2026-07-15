@@ -18,8 +18,10 @@ import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeClea
 import { buildRoomScanFollowupDraft } from "./request-followup-draft.mjs";
 import { publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
 import { createTrackingTestStore } from "./tracking-test-store.mjs";
+import "./public/scope-time-breakdown.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+const scopeTimeWorksheet = globalThis.TidewayScopeTimeBreakdown;
 const publicDir = path.join(root, "public");
 const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(root, "data");
 const host = process.env.HOST || "127.0.0.1";
@@ -893,14 +895,19 @@ async function auditDataIntegrity() {
   const briefRecords = parsedFiles.get("job-briefs.ndjson");
   const briefStatusRecords = parsedFiles.get("job-brief-status.ndjson");
   if (briefRecords?.valid && briefStatusRecords?.valid) {
-    const briefVisualIds = new Map(briefRecords.records.map(({ record }) => [text(record.id, 80), Array.isArray(record.photos) ? record.photos.map((photo) => text(photo.id, 80)).filter(Boolean) : []]));
+    const briefById = new Map(briefRecords.records.map(({ record }) => [text(record.id, 80), record]));
     for (const { record, line } of briefStatusRecords.records) {
-      if (record.status !== "reviewed" || Number(record.visualEvidenceVersion) < 1) continue;
-      const expectedIds = briefVisualIds.get(text(record.briefId, 80)) || [];
+      if (record.status !== "reviewed") continue;
+      const brief = briefById.get(text(record.briefId, 80));
+      const expectedIds = Array.isArray(brief?.photos) ? brief.photos.map((photo) => text(photo.id, 80)).filter(Boolean) : [];
       const reviewedIds = Array.isArray(record.reviewedVisualIds) ? record.reviewedVisualIds.map((id) => text(id, 80)).filter(Boolean) : [];
       const reviewedSet = new Set(reviewedIds);
-      if (reviewedSet.size !== reviewedIds.length || reviewedSet.size !== expectedIds.length || expectedIds.some((id) => !reviewedSet.has(id))) {
+      if (Number(record.visualEvidenceVersion) < 1 || reviewedSet.size !== reviewedIds.length || reviewedSet.size !== expectedIds.length || expectedIds.some((id) => !reviewedSet.has(id))) {
         recordIssue({ code: "invalid-visual-review-evidence", file: "job-brief-status.ndjson", line, reference: text(record.briefId, 80), message: "A reviewed room scan does not contain the exact per-visual evidence set." });
+      }
+      const timeEvidence = scopeTimeWorksheet.validateScopeTimeBreakdown({ brief, breakdown: record.scopeTimeBreakdown, expectedHours: record.scopeEstimateHours });
+      if (Number(record.timeEvidenceVersion) < 1 || !timeEvidence.valid) {
+        recordIssue({ code: "invalid-scope-time-evidence", file: "job-brief-status.ndjson", line, reference: text(record.briefId, 80), message: "A reviewed room scan does not contain an exact room-by-room time worksheet." });
       }
     }
   }
@@ -1808,6 +1815,8 @@ function applyBriefStatus(brief, updates) {
   let reviewedVisualIds = [];
   let visualEvidenceVersion = 0;
   let checklistReviewed = false;
+  let scopeTimeBreakdown = null;
+  let timeEvidenceVersion = 0;
   for (const update of updates) {
     if (update.briefId !== brief.id) continue;
     status = update.status;
@@ -1820,6 +1829,8 @@ function applyBriefStatus(brief, updates) {
     reviewedVisualIds = Array.isArray(update.reviewedVisualIds) ? update.reviewedVisualIds : [];
     visualEvidenceVersion = Number(update.visualEvidenceVersion) || 0;
     checklistReviewed = update.checklistReviewed === true;
+    scopeTimeBreakdown = update.scopeTimeBreakdown || null;
+    timeEvidenceVersion = Number(update.timeEvidenceVersion) || 0;
   }
   const scopeSignals = briefScopeSignals(brief);
   const confirmedCodes = new Set(scopeSignalConfirmations);
@@ -1827,8 +1838,10 @@ function applyBriefStatus(brief, updates) {
   const expectedVisualIds = brief.photos.map((photo) => photo.id);
   const reviewedVisualIdSet = new Set(reviewedVisualIds);
   const perVisualReviewEvidenceConfirmed = visualEvidenceVersion < 1 || (reviewedVisualIdSet.size === expectedVisualIds.length && expectedVisualIds.every((id) => reviewedVisualIdSet.has(id)));
-  const reviewEvidenceConfirmed = visualsReviewed && checklistReviewed && perVisualReviewEvidenceConfirmed;
-  return { ...brief, scopeSignals, status, reviewNote, reviewedAt, scopeEstimateHours, scopeConfidence, scopeSignalConfirmations: [...confirmedCodes], priceSensitiveScopeConfirmed, visualsReviewed, reviewedVisualIds: [...reviewedVisualIdSet], perVisualReviewEvidenceConfirmed, checklistReviewed, reviewEvidenceConfirmed };
+  const timeEvidence = scopeTimeWorksheet.validateScopeTimeBreakdown({ brief, breakdown: scopeTimeBreakdown, expectedHours: scopeEstimateHours });
+  const scopeTimeEvidenceConfirmed = status === "reviewed" && timeEvidenceVersion >= 1 && timeEvidence.valid;
+  const reviewEvidenceConfirmed = visualsReviewed && checklistReviewed && perVisualReviewEvidenceConfirmed && scopeTimeEvidenceConfirmed;
+  return { ...brief, scopeSignals, status, reviewNote, reviewedAt, scopeEstimateHours, scopeConfidence, scopeTimeBreakdown: scopeTimeEvidenceConfirmed ? timeEvidence.breakdown : null, timeEvidenceVersion, scopeTimeEvidenceConfirmed, scopeSignalConfirmations: [...confirmedCodes], priceSensitiveScopeConfirmed, visualsReviewed, reviewedVisualIds: [...reviewedVisualIdSet], perVisualReviewEvidenceConfirmed, checklistReviewed, reviewEvidenceConfirmed };
 }
 
 function latestCleanerScreening(cleanerId, screenings) {
@@ -2157,7 +2170,7 @@ async function updateAdminJobBriefStatus(request, response) {
   const status = text(input.status, 30);
   const note = text(input.note, 1000);
   const rawScopeEstimateHours = Number(input.scopeEstimateHours);
-  const scopeEstimateHours = Number.isFinite(rawScopeEstimateHours) ? Math.round(rawScopeEstimateHours * 4) / 4 : null;
+  const requestedScopeEstimateHours = Number.isFinite(rawScopeEstimateHours) ? Math.round(rawScopeEstimateHours * 4) / 4 : null;
   const scopeConfidence = text(input.scopeConfidence, 20).toLowerCase();
   const suppliedScopeSignalConfirmations = Array.isArray(input.scopeSignalConfirmations) ? input.scopeSignalConfirmations.map((code) => text(code, 50)) : [];
   const visualsReviewed = input.visualsReviewed === true;
@@ -2181,8 +2194,13 @@ async function updateAdminJobBriefStatus(request, response) {
   if (status === "needs-revision" && !note) {
     return json(response, 422, { ok: false, error: "Add a clear revision note so the landlord knows what must be corrected." });
   }
-  if (status === "reviewed" && (!Number.isFinite(scopeEstimateHours) || scopeEstimateHours < 0.5 || scopeEstimateHours > 24)) {
-    return json(response, 422, { ok: false, error: "Add a reviewed cleaning-time estimate between 0.5 and 24 hours." });
+  const timeEvidence = scopeTimeWorksheet.validateScopeTimeBreakdown({ brief, breakdown: input.scopeTimeBreakdown });
+  const scopeEstimateHours = status === "reviewed" && timeEvidence.valid ? timeEvidence.breakdown.roundedHours : null;
+  if (status === "reviewed" && !timeEvidence.valid) {
+    return json(response, 422, { ok: false, error: `Complete the room-by-room time worksheet from the reviewed evidence. ${timeEvidence.errors[0] || "The worksheet is incomplete."}` });
+  }
+  if (status === "reviewed" && requestedScopeEstimateHours != null && requestedScopeEstimateHours !== scopeEstimateHours) {
+    return json(response, 422, { ok: false, error: "The reviewed cleaning hours must match the room-by-room worksheet total." });
   }
   if (status === "reviewed" && !["medium", "high"].includes(scopeConfidence)) {
     return json(response, 422, { ok: false, error: "Choose medium or high scope confidence. Request a revised scan when confidence is low." });
@@ -2209,9 +2227,9 @@ async function updateAdminJobBriefStatus(request, response) {
   if (status === "reviewed" && unconfirmedSignals.length) {
     return json(response, 422, { ok: false, error: `Confirm that the reviewed cleaning hours include: ${unconfirmedSignals.map((signal) => signal.label).join(", ")}. Otherwise request a revised scan.` });
   }
-  const update = { briefId, requestId: brief.requestId, status, previousStatus: currentStatus, note, scopeEstimateHours: status === "reviewed" ? scopeEstimateHours : null, scopeConfidence: status === "reviewed" ? scopeConfidence : "", scopeSignalConfirmations: status === "reviewed" ? scopeSignalConfirmations : [], visualsReviewed: status === "reviewed" && visualsReviewed, reviewedVisualIds: status === "reviewed" ? reviewedVisualIds : [], visualEvidenceVersion: status === "reviewed" ? 1 : 0, checklistReviewed: status === "reviewed" && checklistReviewed, updatedAt: new Date().toISOString() };
+  const update = { briefId, requestId: brief.requestId, status, previousStatus: currentStatus, note, scopeEstimateHours: status === "reviewed" ? scopeEstimateHours : null, scopeConfidence: status === "reviewed" ? scopeConfidence : "", scopeTimeBreakdown: status === "reviewed" ? timeEvidence.breakdown : null, timeEvidenceVersion: status === "reviewed" ? 1 : 0, scopeSignalConfirmations: status === "reviewed" ? scopeSignalConfirmations : [], visualsReviewed: status === "reviewed" && visualsReviewed, reviewedVisualIds: status === "reviewed" ? reviewedVisualIds : [], visualEvidenceVersion: status === "reviewed" ? 1 : 0, checklistReviewed: status === "reviewed" && checklistReviewed, updatedAt: new Date().toISOString() };
   await saveRecord("job-brief-status.ndjson", update);
-  return json(response, 200, { ok: true, briefId, status, reviewNote: note, scopeEstimateHours: update.scopeEstimateHours, scopeConfidence: update.scopeConfidence, scopeSignals, scopeSignalConfirmations: update.scopeSignalConfirmations, visualsReviewed: update.visualsReviewed, reviewedVisualIds: update.reviewedVisualIds, perVisualReviewEvidenceConfirmed: status === "reviewed", checklistReviewed: update.checklistReviewed, reviewEvidenceConfirmed: update.visualsReviewed && update.checklistReviewed, reviewedAt: update.updatedAt });
+  return json(response, 200, { ok: true, briefId, status, reviewNote: note, scopeEstimateHours: update.scopeEstimateHours, scopeConfidence: update.scopeConfidence, scopeTimeBreakdown: update.scopeTimeBreakdown, timeEvidenceVersion: update.timeEvidenceVersion, scopeTimeEvidenceConfirmed: status === "reviewed", scopeSignals, scopeSignalConfirmations: update.scopeSignalConfirmations, visualsReviewed: update.visualsReviewed, reviewedVisualIds: update.reviewedVisualIds, perVisualReviewEvidenceConfirmed: status === "reviewed", checklistReviewed: update.checklistReviewed, reviewEvidenceConfirmed: status === "reviewed" && update.visualsReviewed && update.checklistReviewed, reviewedAt: update.updatedAt });
 }
 
 async function updateAdminProposalStatus(request, response) {

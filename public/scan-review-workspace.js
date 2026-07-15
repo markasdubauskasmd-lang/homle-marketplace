@@ -44,7 +44,8 @@
       { key: "private-media", label: "Every private visual and room note reviewed", complete: input.visualsReviewed === true && everyVisualConfirmed },
       { key: "checklist", label: "Checklist reconciled with spoken and room notes", complete: input.checklistReviewed === true },
       { key: "price-sensitive", label: scopeSignalCodes.length ? "Every price-sensitive item included in the hours" : "No price-sensitive items require confirmation", complete: everySignalConfirmed },
-      { key: "hours", label: "Cleaning-time estimate is between 0.5 and 24 hours", complete: Number.isFinite(hours) && hours >= 0.5 && hours <= 24 },
+      { key: "time-breakdown", label: "Room-by-room minutes produce the reviewed total", complete: input.timeBreakdownValid === true },
+      { key: "hours", label: "Cleaning-time estimate is between 0.5 and 16 hours", complete: Number.isFinite(hours) && hours >= 0.5 && hours <= 16 },
       { key: "confidence", label: "Scope confidence is medium or high", complete: ["medium", "high"].includes(input.confidence) },
       { key: "evidence-note", label: "Evidence note explains the estimate", complete: noteComplete }
     ];

@@ -1,5 +1,6 @@
 const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null, dataIntegrity: null };
 const scanReviewWorkspace = globalThis.TidewayScanReviewWorkspace;
+const scopeTimeWorksheet = globalThis.TidewayScopeTimeBreakdown;
 const readinessNavigator = globalThis.TidewayReadinessNavigator;
 
 const leadList = document.querySelector("#lead-list");
@@ -1362,16 +1363,25 @@ async function loadBriefPhotos(brief, target, button) {
   }
 }
 
+function readReviewTimeBreakdown(brief, form) {
+  return scopeTimeWorksheet.buildScopeTimeBreakdown({
+    expectedAreas: scopeTimeWorksheet.scopeTimeAreas(brief),
+    areaMinutes: [...form.querySelectorAll("[data-scope-time-area]")].map((input) => ({ area: input.dataset.scopeTimeArea, minutes: input.value })),
+    overheadMinutes: form.elements.scopeOverheadMinutes?.value
+  });
+}
+
 async function changeBriefStatus(brief, form) {
   const select = form.elements.status;
   const note = form.elements.note;
   const button = form.querySelector("button");
   button.disabled = true;
   try {
+    const timeEvidence = readReviewTimeBreakdown(brief, form);
     const response = await fetch("/api/admin/job-briefs/status", {
       method: "PATCH",
       headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }),
-      body: JSON.stringify({ briefId: brief.id, status: select.value, note: note.value.trim(), scopeEstimateHours: form.elements.scopeEstimateHours.value, scopeConfidence: form.elements.scopeConfidence.value, scopeSignalConfirmations: [...form.querySelectorAll('input[name="scopeSignalConfirmation"]:checked')].map((input) => input.value), visualsReviewed: form.elements.visualsReviewed.checked, reviewedVisualIds: [...form.closest(".brief-summary").querySelectorAll("[data-reviewed-visual-id]:checked")].map((input) => input.value), checklistReviewed: form.elements.checklistReviewed.checked })
+      body: JSON.stringify({ briefId: brief.id, status: select.value, note: note.value.trim(), scopeEstimateHours: form.elements.scopeEstimateHours.value, scopeTimeBreakdown: select.value === "reviewed" && timeEvidence.valid ? timeEvidence.breakdown : null, scopeConfidence: form.elements.scopeConfidence.value, scopeSignalConfirmations: [...form.querySelectorAll('input[name="scopeSignalConfirmation"]:checked')].map((input) => input.value), visualsReviewed: form.elements.visualsReviewed.checked, reviewedVisualIds: [...form.closest(".brief-summary").querySelectorAll("[data-reviewed-visual-id]:checked")].map((input) => input.value), checklistReviewed: form.elements.checklistReviewed.checked })
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "Job brief review could not be saved.");
@@ -1789,15 +1799,62 @@ function buildCard(record) {
         statusSelect.append(option);
       }
       statusLabel.append(statusSelect);
+      const timeFieldset = document.createElement("fieldset");
+      timeFieldset.className = "scope-time-worksheet";
+      const timeLegend = document.createElement("legend");
+      timeLegend.textContent = "Room-by-room cleaning time";
+      const timeHelp = document.createElement("p");
+      timeHelp.textContent = "Enter your own reviewed minutes for every room. Tideway totals and rounds up to the next quarter-hour; it never estimates the rooms for you.";
+      timeFieldset.append(timeLegend, timeHelp);
+      scopeTimeWorksheet.scopeTimeAreas(brief).forEach((area) => {
+        const label = document.createElement("label");
+        label.className = "scope-time-row";
+        const copy = document.createElement("span");
+        copy.textContent = `${area.area} · ${area.taskCount} cleaning ${area.taskCount === 1 ? "task" : "tasks"} · ${area.visualCount} ${area.visualCount === 1 ? "visual" : "visuals"}`;
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "5";
+        input.max = "720";
+        input.step = "5";
+        input.inputMode = "numeric";
+        input.required = true;
+        input.dataset.scopeTimeArea = area.area;
+        input.setAttribute("aria-label", `${area.area} reviewed cleaning minutes`);
+        const unit = document.createElement("small");
+        unit.textContent = "minutes";
+        label.append(copy, input, unit);
+        timeFieldset.append(label);
+      });
+      const overheadLabel = document.createElement("label");
+      overheadLabel.className = "scope-time-row";
+      const overheadCopy = document.createElement("span");
+      overheadCopy.textContent = "Visit preparation, packing and final quality check";
+      const overhead = document.createElement("input");
+      overhead.type = "number";
+      overhead.name = "scopeOverheadMinutes";
+      overhead.min = "0";
+      overhead.max = "240";
+      overhead.step = "5";
+      overhead.inputMode = "numeric";
+      overhead.required = true;
+      const overheadUnit = document.createElement("small");
+      overheadUnit.textContent = "minutes";
+      overheadLabel.append(overheadCopy, overhead, overheadUnit);
+      const timeSummary = document.createElement("div");
+      timeSummary.className = "scope-time-total";
+      timeSummary.setAttribute("role", "status");
+      timeSummary.textContent = "Enter every room and the visit overhead to calculate reviewed hours.";
+      timeFieldset.append(overheadLabel, timeSummary);
       const hoursLabel = document.createElement("label");
-      hoursLabel.append(document.createTextNode("Reviewed cleaning hours"));
+      hoursLabel.append(document.createTextNode("Calculated reviewed cleaning hours"));
       const hours = document.createElement("input");
       hours.name = "scopeEstimateHours";
       hours.type = "number";
       hours.min = "0.5";
-      hours.max = "24";
+      hours.max = "16";
       hours.step = "0.25";
       hours.required = true;
+      hours.readOnly = true;
       hoursLabel.append(hours);
       const confidenceLabel = document.createElement("label");
       confidenceLabel.append(document.createTextNode("Scope confidence"));
@@ -1885,6 +1942,13 @@ function buildCard(record) {
       save.textContent = "Complete evidence to approve";
       const syncEstimateFields = () => {
         const approving = statusSelect.value === "reviewed";
+        timeFieldset.querySelectorAll("input").forEach((input) => { input.disabled = !approving; });
+        const timeEvidence = readReviewTimeBreakdown(brief, reviewForm);
+        hours.value = approving && timeEvidence.valid ? String(timeEvidence.breakdown.roundedHours) : "";
+        timeSummary.textContent = timeEvidence.valid
+          ? `${timeEvidence.breakdown.totalMinutes} reviewed minutes · ${timeEvidence.breakdown.roundedHours} hours after safe quarter-hour rounding.`
+          : (timeEvidence.errors[0] || "Enter every room and the visit overhead to calculate reviewed hours.");
+        timeSummary.classList.toggle("scope-time-total-ready", approving && timeEvidence.valid);
         hours.disabled = !approving;
         hours.required = approving;
         confidence.disabled = !approving;
@@ -1908,6 +1972,7 @@ function buildCard(record) {
           checklistReviewed: checklistReviewed.checked,
           scopeSignalCodes: (brief.scopeSignals || []).map((signal) => signal.code),
           confirmedScopeSignalCodes: [...reviewForm.querySelectorAll('input[name="scopeSignalConfirmation"]:checked')].map((input) => input.value),
+          timeBreakdownValid: timeEvidence.valid,
           hours: hours.value,
           confidence: confidence.value,
           note: note.value
@@ -1929,13 +1994,22 @@ function buildCard(record) {
       statusSelect.addEventListener("change", syncEstimateFields);
       reviewForm.addEventListener("input", syncEstimateFields);
       reviewForm.addEventListener("change", syncEstimateFields);
-      reviewForm.append(statusLabel, hoursLabel, confidenceLabel, signalFieldset, evidenceFieldset, noteLabel, readiness, save);
+      reviewForm.append(statusLabel, timeFieldset, hoursLabel, confidenceLabel, signalFieldset, evidenceFieldset, noteLabel, readiness, save);
       syncEstimateFields();
       reviewForm.addEventListener("submit", (event) => { event.preventDefault(); changeBriefStatus(brief, reviewForm); });
       briefSummary.append(reviewForm);
     } else {
       if (brief.status === "reviewed") {
         addText(briefSummary, "span", `Reviewed scope: ${brief.scopeEstimateHours} hours · ${brief.scopeConfidence} confidence`, "brief-review-note");
+        if (brief.scopeTimeEvidenceConfirmed && brief.scopeTimeBreakdown?.areas?.length) {
+          const timeEvidenceList = document.createElement("ul");
+          timeEvidenceList.className = "scope-time-evidence-list";
+          brief.scopeTimeBreakdown.areas.forEach((row) => addText(timeEvidenceList, "li", `${row.area}: ${row.minutes} minutes`));
+          addText(timeEvidenceList, "li", `Preparation and quality check: ${brief.scopeTimeBreakdown.overheadMinutes} minutes`);
+          briefSummary.append(timeEvidenceList);
+        } else {
+          addText(briefSummary, "span", "Room-by-room time evidence is missing; downstream use remains blocked.", "scope-signal-summary");
+        }
         addText(briefSummary, "span", brief.reviewEvidenceConfirmed === true ? "Founder opened every room visual and note, then reconciled the concise checklist." : "Founder visual-and-checklist review evidence is missing; downstream use remains blocked.", brief.reviewEvidenceConfirmed === true ? "brief-review-note" : "scope-signal-summary");
         if (brief.scopeSignals?.length) addText(briefSummary, "span", `Confirmed inside reviewed hours: ${brief.scopeSignals.map((signal) => signal.label).join(", ")}`, "brief-review-note");
       }

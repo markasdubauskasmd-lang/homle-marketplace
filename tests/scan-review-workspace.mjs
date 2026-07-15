@@ -29,6 +29,7 @@ const completeInput = {
   checklistReviewed: true,
   scopeSignalCodes: ["oven-interior"],
   confirmedScopeSignalCodes: ["oven-interior"],
+  timeBreakdownValid: true,
   hours: "3.5",
   confidence: "medium",
   note: "Every room and task was reconciled against the supplied evidence."
@@ -38,7 +39,9 @@ assert.equal(complete.ready, true);
 assert.equal(complete.completed, complete.total);
 assert.equal(scanReviewReadiness({ ...completeInput, reviewedVisualIds: ["IMG-ONE"] }).ready, false, "Missing per-visual evidence must block approval.");
 assert.equal(scanReviewReadiness({ ...completeInput, confirmedScopeSignalCodes: [] }).ready, false, "An unconfirmed price-sensitive item must block approval.");
+assert.equal(scanReviewReadiness({ ...completeInput, timeBreakdownValid: false }).ready, false, "An incomplete room-time worksheet must block approval.");
 assert.equal(scanReviewReadiness({ ...completeInput, hours: "0.25" }).ready, false, "An unsafe duration must block approval.");
+assert.equal(scanReviewReadiness({ ...completeInput, hours: "16.25" }).ready, false, "A duration above the supported visit limit must require a split scope.");
 assert.equal(scanReviewReadiness({ ...completeInput, confidence: "low" }).ready, false, "Low confidence must require a revised scan.");
 assert.equal(scanReviewReadiness({ ...completeInput, note: "Too short" }).ready, false, "A weak evidence note must block approval.");
 assert.equal(scanReviewReadiness({ decision: "needs-revision", note: "Please rescan the kitchen in daylight." }).ready, true);
@@ -48,10 +51,11 @@ const [adminHtml, adminJs] = await Promise.all([
   readFile(path.join(root, "public", "admin.html"), "utf8"),
   readFile(path.join(root, "public", "admin.js"), "utf8")
 ]);
-assert(adminHtml.includes("scan-review-workspace.js") && adminHtml.includes("Submitted-scan review"));
+assert(adminHtml.includes("scan-review-workspace.js") && adminHtml.includes("scope-time-breakdown.js") && adminHtml.includes("Submitted-scan review"));
 assert(!adminHtml.includes("/api/admin/job-brief-image?"), "The initial admin HTML must not preload private room media.");
 assert(adminJs.includes('loadPhotos.addEventListener("click", () => loadBriefPhotos'), "Private room media must remain behind an explicit click.");
 assert(adminJs.includes("save.disabled = !result.ready"), "Incomplete evidence must disable the review decision button.");
+assert(adminJs.includes("readReviewTimeBreakdown") && adminJs.includes("Room-by-room cleaning time"), "The human room-time worksheet is not connected to review approval.");
 assert(!adminJs.includes("visualsReviewed.checked = true"), "The control desk must never auto-confirm private visual review.");
 
 console.log("scan review workspace tests passed");
