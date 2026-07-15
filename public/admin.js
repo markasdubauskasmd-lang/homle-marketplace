@@ -429,7 +429,7 @@ function renderScanReviewWorkspace() {
 
   const brief = nextRecord.briefs[0];
   addText(copy, "strong", `Next: ${brief.id} Â· ${brief.checklist.length} tasks Â· ${brief.photos.length} visuals`);
-  addText(copy, "span", `${summary.awaiting} submitted scope${summary.awaiting === 1 ? "" : "s"} awaiting evidence review. Private media remains unloaded until you choose to open it.`);
+  addText(copy, "span", `${nextRecord.preferredDate ? `Earliest requested cleaning date: ${formatCalendarDate(nextRecord.preferredDate)}. ` : ""}${summary.awaiting} submitted scope${summary.awaiting === 1 ? "" : "s"} awaiting evidence review. Private media remains unloaded until you choose to open it.`);
   addText(copy, "small", "Approval stays blocked until every evidence item is complete; this action only opens the private record.");
   const open = document.createElement("button");
   open.type = "button";

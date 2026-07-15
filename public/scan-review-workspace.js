@@ -3,6 +3,13 @@
     return Array.isArray(record?.briefs) && record.briefs.length ? record.briefs[0] : null;
   }
 
+  function validCalendarDate(value) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return "";
+    const [year, month, day] = String(value).split("-").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day ? String(value) : "";
+  }
+
   function scanReviewSummary(records = []) {
     const briefs = records
       .filter((record) => record?.kind === "request")
@@ -18,6 +25,10 @@
     return records
       .filter((record) => record?.kind === "request" && latestBrief(record)?.status === "landlord-draft")
       .sort((left, right) => {
+        const leftDate = validCalendarDate(left.preferredDate);
+        const rightDate = validCalendarDate(right.preferredDate);
+        if (leftDate && rightDate && leftDate !== rightDate) return leftDate.localeCompare(rightDate);
+        if (leftDate !== rightDate) return leftDate ? -1 : 1;
         const leftBrief = latestBrief(left);
         const rightBrief = latestBrief(right);
         return String(leftBrief.createdAt || left.createdAt || "").localeCompare(String(rightBrief.createdAt || right.createdAt || ""));
@@ -53,5 +64,5 @@
     return { approving: true, completed, total: steps.length, ready: completed === steps.length, steps };
   }
 
-  globalObject.TidewayScanReviewWorkspace = Object.freeze({ scanReviewSummary, nextScanRecord, scanReviewReadiness });
+  globalObject.TidewayScanReviewWorkspace = Object.freeze({ scanReviewSummary, nextScanRecord, scanReviewReadiness, validCalendarDate });
 })(globalThis);
