@@ -318,10 +318,13 @@ textarea { resize: vertical; }
 .readiness-list li.ready > span, .readiness-list li.ready small { color: #9ee8d4; }
 .readiness-next { margin: 12px 0 0; padding: 12px 14px; border-left: 3px solid #f2b05f; border-radius: 8px; color: #fff0d8; background: rgba(255,255,255,.08); font-size: .86rem; }
 .readiness-next-complete { border-left-color: #9ee8d4; color: #dff9f1; }
+.readiness-continue { margin-top: 10px; background: #9ee8d4; color: #12483f; }
+.readiness-continue:hover { background: #c7f4e7; color: #0b3f36; }
 .setup-details { margin-top: 20px; border-top: 1px solid rgba(255,255,255,.18); }
 .setup-details > summary { padding-top: 18px; color: #9ee8d4; font-weight: 800; cursor: pointer; }
 .setup-details form { margin-top: 18px; padding: 24px; border-radius: 14px; background: #fff; }
 .setup-details label { color: var(--ink); }
+.setup-details label.readiness-field-focus { padding: 10px; outline: 3px solid #f2b05f; outline-offset: 3px; border-radius: 8px; background: #fff8e8; }
 .setup-details .three-fields { grid-template-columns: repeat(3, 1fr); }
 .setup-details .four-fields { grid-template-columns: repeat(4, 1fr); }
 .evidence-panel { display: grid; gap: 14px; padding: 16px; border: 1px solid #c7dcd5; border-radius: 12px; background: #f2f8f6; }

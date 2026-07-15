@@ -8,6 +8,43 @@ const adminAuth = document.querySelector("#admin-auth");
 const adminContent = document.querySelector("#admin-content");
 const adminKeyField = document.querySelector("#admin-key");
 let adminKey = sessionStorage.getItem("tidewayAdminKey") || "";
+const readinessRequirementFields = Object.freeze({
+  "legal owner name": "legalOwnerName",
+  "business structure": "businessStructure",
+  "legal business name": "legalBusinessName",
+  "trading address": "tradingAddress",
+  "valid support email": "supportEmail",
+  "valid support phone": "supportPhone",
+  "valid public HTTPS website origin": "publicSiteUrl",
+  "domain and deployment evidence naming this hostname": "publicSiteEvidenceNote",
+  "public website verification date": "publicSiteVerifiedDate",
+  "at least one valid outward postcode": "pilotPostcodes",
+  "positive customer hourly rate": "customerHourlyRate",
+  "positive cleaner hourly pay": "cleanerHourlyPay",
+  "founder minimum booking hours": "minimumHours",
+  "founder contribution-margin floor": "minimumContributionMarginPercent",
+  "customer rate above cleaner pay": "customerHourlyRate",
+  "reviewed labour on-cost, payment, travel, supplies and risk assumptions": "variableCostsConfirmed",
+  "configured minimum job meets the contribution-margin floor": "customerHourlyRate",
+  "viable margin and percentage-cost stack": "minimumContributionMarginPercent",
+  "insurance marked active and verified": "insuranceStatus",
+  "insurance provider": "insuranceProvider",
+  "cover, limit and document-location summary": "insuranceEvidenceNote",
+  "future policy expiry or review date": "insuranceReviewDate",
+  "payment provider marked live and verified": "paymentProviderStatus",
+  "payment provider name": "paymentProviderName",
+  "documented refund process": "refundProcess",
+  "provider verification evidence summary": "paymentProviderEvidenceNote",
+  "provider verification date": "paymentProviderVerifiedDate",
+  "decided cleaner engagement model": "cleanerModel",
+  "customer cancellation rule": "cancellationPolicy",
+  "customer payment timing": "paymentTiming",
+  "customer quote response window": "customerQuoteValidityHours",
+  "cleaner opportunity response window": "cleanerOpportunityValidityHours",
+  "inactive-enquiry media retention period": "inactiveMediaRetentionDays",
+  "completed-booking media retention period": "completedMediaRetentionDays"
+});
+let nextReadinessRequirement = null;
 const statusLabels = {
   new: "New", contacted: "Contacted", quoted: "Quoted", booked: "Booked", completed: "Completed", lost: "Lost",
   screening: "Screening", approved: "Approved", paused: "Paused", rejected: "Rejected"
@@ -143,7 +180,28 @@ function renderReadiness(readiness) {
   guidance.textContent = readiness.next
     ? `Next required decision — ${readiness.next.label}: ${readiness.next.missing.join(", ")}. Do not guess or use placeholder claims.`
     : "All seven recorded readiness areas are complete. Public launch, outreach and payment still require the founder's explicit approval.";
+  const continueButton = document.querySelector("#readiness-continue");
+  const missingRequirement = readiness.next?.missing?.find((label) => readinessRequirementFields[label]) || "";
+  nextReadinessRequirement = missingRequirement ? { label: missingRequirement, fieldName: readinessRequirementFields[missingRequirement] } : null;
+  continueButton.hidden = !nextReadinessRequirement;
+  continueButton.textContent = readiness.next ? `Continue ${readiness.next.label.toLowerCase()} setup` : "Continue launch setup";
 }
+
+document.querySelector("#readiness-continue").addEventListener("click", () => {
+  if (!nextReadinessRequirement) return;
+  const setup = document.querySelector(".setup-details");
+  const form = document.querySelector("#business-config-form");
+  const field = form.elements.namedItem(nextReadinessRequirement.fieldName);
+  if (!field || typeof field.focus !== "function") return;
+  setup.open = true;
+  document.querySelectorAll(".readiness-field-focus").forEach((item) => item.classList.remove("readiness-field-focus"));
+  const label = field.closest("label");
+  if (label) label.classList.add("readiness-field-focus");
+  requestAnimationFrame(() => {
+    (label || field).scrollIntoView({ behavior: "smooth", block: "center" });
+    field.focus({ preventScroll: true });
+  });
+});
 
 async function loadConfig() {
   try {
