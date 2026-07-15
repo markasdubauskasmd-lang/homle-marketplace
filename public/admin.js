@@ -581,7 +581,7 @@ function draftSection(title, draft) {
   addText(section, "h4", title);
   addText(section, "span", `Recipient: ${draft.recipient.email} · ${draft.recipient.phone}`, "draft-recipient");
   addText(section, "span", `Subject: ${draft.subject}`, "draft-subject");
-  const privateUrl = new URL(draft.privatePath, location.origin).href;
+  const privateUrl = draft.privateUrl || "";
   const handoffBody = draft.handoffReady ? `${draft.body}\n\nOpen your private Tideway review:\n${privateUrl}\n\nKeep this private link confidential.` : draft.body;
   addText(section, "span", draft.handoffReady ? "Complete copy-only handoff: the correct private link is included below." : "Review text only: the private link is withheld until this offer is recorded as sent.", "draft-link-state");
   const textarea = document.createElement("textarea");

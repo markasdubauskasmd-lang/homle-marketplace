@@ -43,7 +43,7 @@ For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the compu
 - Prioritised founder-action dispatch queue derived from recorded scan, matching, offer, booking and safety state; urgent safety reports, rematching, booking finalisation and overdue follow-ups are surfaced without sending messages or changing records
 - Private first-profitable-booking runway derives eight conversion stages from authoritative records—request, submitted scan, reviewed scope, sent offer, two-sided acceptance, confirmed booking, recorded outcome and current target-margin result—then names the bottleneck and dispatch-ready cleaner count without exposing contact data or moving money; later audited refunds or re-clean costs can correctly reverse the profitable milestone
 - Internal quote calculator that pre-fills approved rates, includes founder-confirmed payment fees, travel, supplies, risk contingency and additional job costs, and solves the customer total/hourly rate needed to meet the contribution-margin floor
-- Evidence-based local launch-readiness form for legal identity, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules; every incomplete area names its exact missing decisions, while insurance/payment claims require verification summaries and dates rather than status dropdowns alone
+- Evidence-based local launch-readiness form for legal identity, a verified HTTPS public website origin, pilot coverage, rates, cleaner pay, insurance, live payment handling, refunds and operating rules; every incomplete area names its exact missing decisions, while insurance/payment claims require verification summaries and dates rather than status dropdowns alone
 - Founder-configured outward-postcode enforcement that blocks out-of-area matching, proposal use and booking readiness
 - Human-reviewed matching stays closed until the room scan supplies a reviewed duration, then returns only fully screened approved cleaners whose confirmed availability can hold the job on the requested date with a start inside the customer's arrival preference
 - Match results provide a feasible suggested start and finish inside the cleaner's confirmed window; proposal drafts prefill from that schedulable visit rather than the raw availability start
@@ -61,7 +61,7 @@ For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the compu
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until launch checks, pilot coverage and the latest job-brief review pass
 - Scan-to-quote duration protection blocks any proposal below the reviewed room-scan hours, even when its calculated contribution and margin would otherwise pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
-- Status-gated copy-only dispatch packs pair the customer message only with the private quote link and the cleaner message only with the private opportunity link; links stay out of review-stage text, each pack names its intended recipient, completed or expired decision paths stop being sendable, and copying never contacts anyone
+- Status-gated copy-only dispatch packs pair the customer message only with the private quote link and the cleaner message only with the private opportunity link; links stay out of review-stage text, each pack names its intended recipient, completed or expired decision paths stop being sendable, and copying never contacts anyone. Link generation fails closed until a non-local HTTPS public origin is configured, and that origin is frozen when the offer is sent so later settings cannot silently rewrite it
 - Private customer quote-review links that keep the token out of server URLs, require name/scope/terms confirmation, lock after one decision and preserve an acceptance snapshot for the booking audit
 - Customer acceptance can no longer be fabricated from the control desk; accepted and declined states come from the private quote decision flow
 - Private cleaner opportunity links show only the area, reviewed scope, hazards and proposed pay; customer identity, exact address, access notes and private photos remain protected
@@ -100,8 +100,9 @@ For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the compu
 4. Approve pricing, cleaner pay, cancellation, complaint and re-clean rules.
 5. Replace local file storage and single-process rate limiting with an encrypted production database, shared abuse controls, access monitoring and unique database constraints for submission retry keys.
 6. Approve the inactive-enquiry and completed-booking media periods already enforced by the local retention desk, then document the production speech-recognition provider, encrypted photo storage and the complete record-retention schedule.
-7. Add transactional email/SMS only after the sending account is approved.
-8. Complete a real pilot in one small service area before making broader coverage claims.
+7. Configure and verify the final public HTTPS website origin; local, IP-address, path-bearing or insecure origins cannot generate dispatch handoffs.
+8. Add transactional email/SMS only after the sending account is approved.
+9. Complete a real pilot in one small service area before making broader coverage claims.
 
 If the server is ever bound to a public interface, set a strong `ADMIN_KEY`. Local control-desk access is automatic only when the server, request hostname and network connection are all verified as loopback and no proxy headers are present.
 

@@ -244,6 +244,21 @@ function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function verifiedPublicSiteOrigin(value) {
+  const supplied = text(value, 300);
+  if (!supplied) return "";
+  try {
+    const url = new URL(supplied);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || (url.pathname !== "/" && url.pathname !== "")) return "";
+    const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    const topLevel = hostname.split(".").at(-1);
+    if (isIP(hostname) || !hostname.includes(".") || ["local", "localhost", "internal", "test", "invalid", "example"].includes(topLevel)) return "";
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
 function isUkPostcode(value) {
   return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(value);
 }
@@ -1433,7 +1448,8 @@ function launchReadiness(config) {
     ],
     contact: [
       { label: "valid support email", complete: Boolean(config.supportEmail && isEmail(config.supportEmail)) },
-      { label: "valid support phone", complete: Boolean(config.supportPhone && isPhone(config.supportPhone)) }
+      { label: "valid support phone", complete: Boolean(config.supportPhone && isPhone(config.supportPhone)) },
+      { label: "verified HTTPS public website origin", complete: Boolean(verifiedPublicSiteOrigin(config.publicSiteUrl)) }
     ],
     pilotArea: [
       { label: "at least one valid outward postcode", complete: pilotCoverage.configured && pilotCoverage.invalidCodes.length === 0 }
@@ -1472,7 +1488,7 @@ function launchReadiness(config) {
   };
   const checks = Object.fromEntries(Object.entries(requirements).map(([key, items]) => [key, items.every((item) => item.complete)]));
   const missing = Object.fromEntries(Object.entries(requirements).map(([key, items]) => [key, items.filter((item) => !item.complete).map((item) => item.label)]));
-  const labels = { identity: "Legal identity", contact: "Support contact", pilotArea: "Pilot area", economics: "Pricing and pay", insurance: "Insurance evidence", payments: "Payment readiness", operatingRules: "Operating rules" };
+  const labels = { identity: "Legal identity", contact: "Contact and public site", pilotArea: "Pilot area", economics: "Pricing and pay", insurance: "Insurance evidence", payments: "Payment readiness", operatingRules: "Operating rules" };
   const nextKey = Object.keys(checks).find((key) => !checks[key]) || "";
   return { checks, missing, completed: Object.values(checks).filter(Boolean).length, total: Object.keys(checks).length, ready: Object.values(checks).every(Boolean), next: nextKey ? { key: nextKey, label: labels[nextKey], missing: missing[nextKey] } : null };
 }
@@ -2056,6 +2072,7 @@ async function updateAdminProposalStatus(request, response) {
     legalBusinessName: config.legalBusinessName,
     supportEmail: config.supportEmail,
     supportPhone: config.supportPhone,
+    publicSiteUrl: verifiedPublicSiteOrigin(config.publicSiteUrl),
     offerExpiresAt: customerOfferExpiresAt
   } : null;
   const replacement = frozenQuoteTerms ? replacementOfferSummary(proposal, proposals, updates, frozenQuoteTerms) : null;
@@ -2092,6 +2109,7 @@ async function updateAdminProposalStatus(request, response) {
         legalBusinessName: config.legalBusinessName,
         supportEmail: config.supportEmail,
         supportPhone: config.supportPhone,
+        publicSiteUrl: verifiedPublicSiteOrigin(config.publicSiteUrl),
         offerExpiresAt: cleanerOfferExpiresAt
       }
     } : {}),
@@ -2545,6 +2563,9 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   }
   const cleanerDecision = cleanerDecisions.find((item) => item.proposalId === proposalId) || null;
   const proposalExhausted = proposalOfferIsExhausted(proposal, proposalUpdates, cleanerDecisions);
+  const currentPublicOrigin = verifiedPublicSiteOrigin(config.publicSiteUrl);
+  const customerPublicOrigin = quoteSnapshot ? verifiedPublicSiteOrigin(quoteSnapshot.publicSiteUrl) : currentPublicOrigin;
+  const cleanerPublicOrigin = opportunitySnapshot ? verifiedPublicSiteOrigin(opportunitySnapshot.publicSiteUrl) : currentPublicOrigin;
 
   const readiness = launchReadiness(config);
   const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
@@ -2567,6 +2588,8 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
   if (!config.paymentTiming) warnings.push("Add the customer payment timing.");
   if (!config.supportEmail || !config.supportPhone) warnings.push("Add verified support contact details.");
+  if (!currentPublicOrigin) warnings.push("Add the verified HTTPS public website origin before preparing any private handoff.");
+  if (["sent", "accepted"].includes(proposalStatus) && (!customerPublicOrigin || !cleanerPublicOrigin)) warnings.push("This sent offer has no frozen HTTPS public origin. Do not assemble a local link; prepare a newly reviewed replacement after configuration is complete.");
   if (!cleanerTravelCovered) warnings.push("The proposed cleaner's stated travel areas do not cover the customer postcode.");
   const availabilityCovered = Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents));
   if (!availabilityCovered) warnings.push("The proposed time is no longer covered by an active, confirmed cleaner availability window.");
@@ -2629,8 +2652,8 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   ].join("\n");
 
   const baseSendAllowed = readiness.ready && pilotCoverage.covered && cleanerTravelCovered && briefReviewed && customerScopeConfirmed && priceSensitiveScopeConfirmed && scanHoursCovered && availabilityCovered && costModelCurrent && !proposalExhausted && ["ready", "sent", "accepted"].includes(proposalStatus);
-  const customerHandoffReady = baseSendAllowed && proposalStatus === "sent" && !customerDecision && offerIsOpen(quoteSnapshot?.offerExpiresAt);
-  const cleanerHandoffReady = baseSendAllowed && ["sent", "accepted"].includes(proposalStatus) && !cleanerDecision && offerIsOpen(opportunitySnapshot?.offerExpiresAt);
+  const customerHandoffReady = baseSendAllowed && Boolean(customerPublicOrigin) && proposalStatus === "sent" && !customerDecision && offerIsOpen(quoteSnapshot?.offerExpiresAt);
+  const cleanerHandoffReady = baseSendAllowed && Boolean(cleanerPublicOrigin) && ["sent", "accepted"].includes(proposalStatus) && !cleanerDecision && offerIsOpen(opportunitySnapshot?.offerExpiresAt);
   return json(response, 200, {
     ok: true,
     proposalId,
@@ -2638,8 +2661,8 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     sendAllowed: baseSendAllowed,
     handoffReady: customerHandoffReady || cleanerHandoffReady,
     warnings,
-    customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody, recipient: { email: customerRequest.email, phone: customerRequest.phone }, privatePath: `/quote#${proposal.reviewToken}`, handoffReady: customerHandoffReady },
-    cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody, recipient: { email: cleaner.email, phone: cleaner.phone }, privatePath: `/opportunity#${proposal.cleanerReviewToken}`, handoffReady: cleanerHandoffReady }
+    customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody, recipient: { email: customerRequest.email, phone: customerRequest.phone }, privateUrl: customerPublicOrigin ? `${customerPublicOrigin}/quote#${proposal.reviewToken}` : "", handoffReady: customerHandoffReady },
+    cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody, recipient: { email: cleaner.email, phone: cleaner.phone }, privateUrl: cleanerPublicOrigin ? `${cleanerPublicOrigin}/opportunity#${proposal.cleanerReviewToken}` : "", handoffReady: cleanerHandoffReady }
   });
 }
 
@@ -3774,6 +3797,7 @@ async function updateAdminConfig(request, response) {
     tradingAddress: text(input.tradingAddress, 400),
     supportEmail: text(input.supportEmail, 160).toLowerCase(),
     supportPhone: text(input.supportPhone, 40),
+    publicSiteUrl: verifiedPublicSiteOrigin(input.publicSiteUrl) || text(input.publicSiteUrl, 300),
     pilotPostcodes: text(input.pilotPostcodes, 400).toUpperCase(),
     cleanerModel: text(input.cleanerModel, 80),
     insuranceStatus: text(input.insuranceStatus, 40),
@@ -3806,6 +3830,7 @@ async function updateAdminConfig(request, response) {
   const errors = [];
   if (config.supportEmail && !isEmail(config.supportEmail)) errors.push("Enter a valid support email.");
   if (config.supportPhone && !isPhone(config.supportPhone)) errors.push("Enter a valid support phone number.");
+  if (config.publicSiteUrl && !verifiedPublicSiteOrigin(config.publicSiteUrl)) errors.push("Public website origin must be HTTPS with no path, query, login details or fragment, for example https://www.example.com.");
   if (config.insuranceReviewDate && !isIsoCalendarDate(config.insuranceReviewDate)) errors.push("Enter a valid insurance expiry or review date.");
   if (config.paymentProviderVerifiedDate && (!isIsoCalendarDate(config.paymentProviderVerifiedDate) || config.paymentProviderVerifiedDate > localDateToday())) errors.push("Payment-provider verification date must be a valid date no later than today.");
   const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
