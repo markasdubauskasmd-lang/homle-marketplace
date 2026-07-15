@@ -53,6 +53,8 @@ export function validateMarketplaceEnvironment(env = process.env) {
   if (present(env, "SESSION_SECRET") && !state.sessionConfigured) errors.push("SESSION_SECRET must contain at least 32 characters.");
   if (present(env, "AUTH_TOKEN_SECRET") && !state.authTokenConfigured) errors.push("AUTH_TOKEN_SECRET must contain at least 32 characters.");
   if (state.sessionConfigured && state.authTokenConfigured && env.SESSION_SECRET.trim() === env.AUTH_TOKEN_SECRET.trim()) errors.push("AUTH_TOKEN_SECRET must be different from SESSION_SECRET.");
+  if (state.encryptionConfigured && state.sessionConfigured && env.DATA_ENCRYPTION_KEY.trim() === env.SESSION_SECRET.trim()) errors.push("DATA_ENCRYPTION_KEY must be different from SESSION_SECRET.");
+  if (state.encryptionConfigured && state.authTokenConfigured && env.DATA_ENCRYPTION_KEY.trim() === env.AUTH_TOKEN_SECRET.trim()) errors.push("DATA_ENCRYPTION_KEY must be different from AUTH_TOKEN_SECRET.");
   if (state.appOrigin) {
     try {
       const origin = new URL(state.appOrigin);

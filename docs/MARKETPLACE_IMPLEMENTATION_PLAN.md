@@ -70,10 +70,19 @@ Implemented cleaner-profile checkpoint:
 - Service-area coordinates removed from direct public RLS access; the directory may return only rounded calculated distance.
 - Contract/static tests in `tests/cleaner-profile.mjs` and the privacy/enablement boundary in `docs/CLEANER_DIRECTORY.md`.
 
-Not yet enabled: profile/search HTTP routes or pages, real PostgreSQL execution, geocoding, an authenticated cleaner account, or genuine public cleaner supply.
+Implemented landlord/property privacy checkpoint:
+
+- Authenticated-landlord-bound profile and multi-property create/update/list services; client input cannot select the owner.
+- Bounded UK property details and room-by-room saved checklist validation.
+- AES-256-GCM entry-instruction encryption bound to the property ID, with a distinct deployment secret requirement.
+- Booking-participant repository filter plus whitelist projection: the assigned cleaner sees exact address, entry, parking and special notes only during the active accepted-booking window.
+- Property-photo and property-row RLS policies now use the same active window and remove access after completion/dispute.
+- Contract/static tests in `tests/property-service.mjs` and the enablement boundary in `docs/PROPERTY_PRIVACY.md`.
+
+Not yet enabled: profile/search/property HTTP routes or pages, real PostgreSQL execution, geocoding, an authenticated marketplace account, object storage, or genuine public cleaner supply.
 
 - Add cleaner profile, services, service areas, availability and completion calculator APIs/pages.
-- Add landlord profile and multi-property CRUD with encrypted access instructions and private photos.
+- Compose landlord profile and multi-property services into authenticated CRUD routes/pages; add validated private object-storage photos.
 - Add `/cleaners` and `/cleaners/:cleanerId` search with location, availability, rating, price, service, distance and verification filters.
 - Never return cleaner email, phone or home address in public projections.
 - Add landlord dashboard, cleaner dashboard, profile, availability, properties and property detail pages.

@@ -32,7 +32,7 @@ assert(bookingStatuses.length === 12 && bookingStatuses.includes("cleaner-en-rou
 assert(taskStatuses.length === 5 && taskStatuses.includes("issue-reported"), "Cleaning-task lifecycle is incomplete.");
 assert(canAccessBooking(landlord, booking) && canAccessBooking(cleaner, booking) && canAccessBooking(administrator, booking), "A booking participant or administrator could not access the booking.");
 assert(!canAccessBooking(unrelatedCleaner, booking), "An unrelated cleaner could access a booking.");
-assert(canAccessProtectedPropertyInstructions(cleaner, booking) && !canAccessProtectedPropertyInstructions(cleaner, { ...booking, status: "pending-cleaner-acceptance" }) && !canAccessProtectedPropertyInstructions(unrelatedCleaner, booking), "Sensitive property instructions were not limited to an accepted booking participant.");
+assert(canAccessProtectedPropertyInstructions(cleaner, booking) && canAccessProtectedPropertyInstructions(landlord, { ...booking, status: "draft" }) && !canAccessProtectedPropertyInstructions(cleaner, { ...booking, status: "pending-cleaner-acceptance" }) && !canAccessProtectedPropertyInstructions(cleaner, { ...booking, status: "completed" }) && !canAccessProtectedPropertyInstructions(unrelatedCleaner, booking), "Sensitive property instructions were not limited to the owner or an assigned cleaner during the active booking window.");
 assert(canTransitionBooking(cleaner, booking, "cleaner-en-route") && !canTransitionBooking(landlord, booking, "cleaner-en-route") && canTransitionBooking(administrator, booking, "cancelled"), "Booking transitions were not role-authorised.");
 assert(!canTransitionBooking(cleaner, booking, "completed") && allowedBookingTransitions("confirmed").includes("cleaner-en-route"), "A cleaner could skip the audited booking lifecycle.");
 assert(canUpdateCleanerLocation(cleaner, booking, true) && !canUpdateCleanerLocation(cleaner, booking, false) && !canUpdateCleanerLocation(unrelatedCleaner, booking, true), "Live location was not bound to cleaner consent and booking participation.");
@@ -49,6 +49,8 @@ const weakSession = validateMarketplaceEnvironment({ SESSION_SECRET: "too-short"
 assert(!weakSession.ok && weakSession.errors.some((error) => error.includes("32 characters")), "A weak session secret passed validation.");
 const reusedSecret = validateMarketplaceEnvironment({ SESSION_SECRET: "x".repeat(32), AUTH_TOKEN_SECRET: "x".repeat(32) });
 assert(!reusedSecret.ok && reusedSecret.errors.some((error) => error.includes("different from SESSION_SECRET")), "Authentication tokens reused the session-secret trust boundary.");
+const reusedEncryptionSecret = validateMarketplaceEnvironment({ SESSION_SECRET: "x".repeat(32), AUTH_TOKEN_SECRET: "y".repeat(32), DATA_ENCRYPTION_KEY: "x".repeat(32) });
+assert(!reusedEncryptionSecret.ok && reusedEncryptionSecret.errors.some((error) => error.includes("DATA_ENCRYPTION_KEY must be different")), "Property encryption reused an authentication trust boundary.");
 const incompleteProduction = validateMarketplaceEnvironment({ NODE_ENV: "production", APP_ORIGIN: "http://example.com" });
 assert(!incompleteProduction.ok && incompleteProduction.errors.some((error) => error.includes("DATABASE_URL")) && incompleteProduction.errors.some((error) => error.includes("AUTH_TOKEN_SECRET")) && incompleteProduction.errors.some((error) => error.includes("HTTPS")), "Production marketplace configuration passed without its database, token-secret, encryption or HTTPS boundary.");
 const validProduction = {

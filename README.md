@@ -20,6 +20,8 @@ The current pilot remains working while Tideway is extended into a three-role ac
 
 Phase 2 has started with the [cleaner directory privacy boundary](docs/CLEANER_DIRECTORY.md): cleaner-owned validated profile updates, deterministic completion/publish gating and a restricted search function for location, availability, rating, price, service, distance and verified status. Direct public service-area coordinates are closed and public projections discard contact/address/internal fields. No cleaner directory page is exposed because the local pilot currently has no genuine account-backed cleaner supply and PostgreSQL integration tests are still outstanding.
 
+The [landlord property privacy boundary](docs/PROPERTY_PRIVACY.md) now adds owner-bound profile/property services, validated saved checklists, AES-256-GCM entry-instruction encryption and booking-scoped exact-address/access projections. Assigned cleaners receive protected visit details only during an active accepted booking, with matching property/photo RLS expiry. Property pages remain disabled until the PostgreSQL account runtime, authenticated routes, private object storage and real RLS integration tests are ready.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

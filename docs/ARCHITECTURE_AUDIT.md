@@ -51,7 +51,7 @@ A PWA can improve installation, wake-lock guidance and reconnection, but it cann
 - The application sets `SET LOCAL app.user_id` and `SET LOCAL app.user_roles` inside every database transaction before accessing RLS tables.
 - OAuth state, PKCE verifiers, session tokens, verification tokens and reset tokens are high entropy and stored only as hashes.
 - Verified-email linking never merges an unverified provider email and never links solely because a browser supplied an email string.
-- Exact property access instructions stay encrypted and are projected to the assigned cleaner only after a confirmed booking.
+- Exact property access instructions stay encrypted and exact visit details are projected to the assigned cleaner only from confirmation through the active visit/review window; cleaner access ends after cancellation, completion or dispute.
 - Location writes require the assigned cleaner, explicit booking consent and an allowed active status. Arrival and every terminal state remove the current location.
 - Reviews require the completed booking's landlord and remain unique per booking; moderation changes recalculate the public aggregate transactionally.
 - All important booking/task/location-consent/review/moderation changes create audit or status-history records before realtime delivery.

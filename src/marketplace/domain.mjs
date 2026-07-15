@@ -65,7 +65,7 @@ const landlordTransitions = new Set([
 
 const locationShareStatuses = new Set(["confirmed", "cleaner-en-route"]);
 const progressUpdateStatuses = new Set(["cleaner-arrived", "cleaning-in-progress"]);
-const protectedPropertyStatuses = new Set(["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "disputed"]);
+const protectedPropertyStatuses = new Set(["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review"]);
 
 function actorRoles(actor) {
   return new Set(Array.isArray(actor?.roles) ? actor.roles.filter((role) => marketplaceRoles.includes(role)) : []);
@@ -93,9 +93,10 @@ export function canAccessBooking(actor, booking) {
 }
 
 export function canAccessProtectedPropertyInstructions(actor, booking) {
-  if (!canAccessBooking(actor, booking) || !protectedPropertyStatuses.has(booking?.status)) return false;
+  if (!canAccessBooking(actor, booking)) return false;
   const roles = actorRoles(actor);
-  return roles.has("administrator") || (roles.has("cleaner") && actor.userId === booking.cleanerUserId) || (roles.has("landlord") && actor.userId === booking.landlordUserId);
+  if (roles.has("administrator") || (roles.has("landlord") && actor.userId === booking.landlordUserId)) return true;
+  return protectedPropertyStatuses.has(booking?.status) && roles.has("cleaner") && actor.userId === booking.cleanerUserId;
 }
 
 export function canTransitionBooking(actor, booking, nextStatus) {
