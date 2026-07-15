@@ -4704,6 +4704,9 @@ async function handleHttpRequest(request, response) {
     if (request.method === "PUT" && requestUrl.pathname === "/api/admin/config") {
       return await updateAdminConfig(request, response);
     }
+    if ((request.method === "GET" || request.method === "HEAD") && requestUrl.pathname === "/admin" && !isAdminAuthorised(request)) {
+      return json(response, 401, { ok: false, error: "Admin authorisation required." });
+    }
     if (request.method === "GET" || request.method === "HEAD") {
       if (await serveFile(requestUrl.pathname, response)) return;
     }

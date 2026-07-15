@@ -12,7 +12,7 @@ npm start
 
 Then open `http://127.0.0.1:4173`.
 
-For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the computer's private IPv4 address, and open `http://<computer-ip>:4174/` on the phone. The main control desk remains on `http://127.0.0.1:4173/admin`; requests to its data APIs through the Wi-Fi address still require an admin key. This is a local-network preview only—do not expose port 4174 through a router or public tunnel.
+For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the computer's private IPv4 address, and open `http://<computer-ip>:4174/` on the phone. The main control desk remains on `http://127.0.0.1:4173/admin`; both its HTML shell and data APIs require an admin key through the Wi-Fi address. This is a local-network preview only—do not expose port 4174 through a router or public tunnel.
 
 ## Authenticated marketplace expansion
 

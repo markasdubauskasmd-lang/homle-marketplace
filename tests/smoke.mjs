@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { request as nodeHttpRequest } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript } from "../public/checklist.js";
@@ -35,6 +36,18 @@ async function waitForServer() {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function rawLocalRequest(pathname, hostHeader) {
+  return new Promise((resolve, reject) => {
+    const request = nodeHttpRequest({ hostname: "127.0.0.1", port, path: pathname, method: "GET", headers: { Host: hostHeader } }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString("utf8") }));
+    });
+    request.on("error", reject);
+    request.end();
+  });
 }
 
 function testWallClockSlot(offsetMinutes, durationHours = 4) {
@@ -234,6 +247,8 @@ try {
   const adminPage = await fetch(`${base}/admin`);
   const adminPageText = await adminPage.text();
   assert(adminPage.ok && adminPageText.includes("Lead control desk") && adminPageText.includes("First profitable booking") && adminPageText.includes('id="launch-funnel-stages"') && adminPageText.includes('id="readiness-next"') && adminPageText.includes('name="publicSiteUrl" type="url"') && adminPageText.includes("Use the final HTTPS origin only") && adminPageText.includes("Public-site verification") && adminPageText.includes('name="publicSiteEvidenceNote"') && adminPageText.includes('name="publicSiteVerifiedDate" type="date"') && adminPageText.includes("Insurance verification") && adminPageText.includes("Never enter passwords, card details") && adminPageText.includes("Founder-action queue") && adminPageText.includes('id="action-filter"') && adminPageText.includes("Room-media retention") && adminPageText.includes("No media is deleted automatically"), "Admin launch-runway, HTTPS public-origin gate, evidence-based readiness, dispatch control or private media-retention page failed.");
+  const remoteAdminShell = await rawLocalRequest("/admin", "192.0.2.10:4173");
+  assert(remoteAdminShell.status === 401 && !remoteAdminShell.body.includes("Lead control desk"), "A non-local request could download the private admin HTML shell without the admin key.");
   const adminScript = await fetch(`${base}/admin.js?v=smoke-test`);
   const adminScriptText = await adminScript.text();
   assert(adminPageText.includes('name="labourOnCostPercent"'), "Admin launch details omitted the founder-set labour on-cost assumption.");
