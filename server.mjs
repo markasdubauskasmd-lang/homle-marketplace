@@ -25,6 +25,8 @@ const maxBriefBodyBytes = 28 * 1024 * 1024;
 const maxProposalHours = 16;
 const maxProposalHourlyRate = 10000;
 const maxProposalAdditionalCosts = 100000;
+const maxOutcomeHours = 100;
+const maxFinancialRecordAmount = 1000000;
 let writeQueue = Promise.resolve();
 const rateLimitBuckets = new Map();
 const trustProxy = process.env.TRUST_PROXY === "true";
@@ -3534,6 +3536,9 @@ async function createAdminJobOutcome(request, response) {
   if (!bookingId || values.some((value) => !Number.isFinite(value)) || actualHours <= 0 || customerCollected <= 0 || values.slice(2).some((value) => value < 0)) {
     return json(response, 422, { ok: false, error: "Enter valid actual hours and non-negative job amounts; customer collected must be greater than zero." });
   }
+  if (actualHours > maxOutcomeHours || values.slice(1).some((value) => value > maxFinancialRecordAmount)) {
+    return json(response, 422, { ok: false, error: "Completed-job hours or amounts exceed the supported financial audit limits." });
+  }
   if (customerReceiptReference.length < 6 || cleanerPayoutReference.length < 6) {
     return json(response, 422, { ok: false, error: "Add the non-sensitive customer receipt and cleaner payout references, each at least six characters." });
   }
@@ -3583,6 +3588,9 @@ async function createAdminJobOutcome(request, response) {
   const totalDirectCosts = moneyValue(paymentFees + travelCosts + suppliesCosts + otherCosts);
   const contribution = moneyValue(customerCollected - cleanerPaid - totalDirectCosts - refundAmount);
   const marginPercent = (contribution / customerCollected) * 100;
+  if ([totalDirectCosts, contribution, marginPercent].some((value) => !Number.isFinite(value))) {
+    return json(response, 422, { ok: false, error: "The completed-job economics could not be represented safely. Use smaller finite financial inputs." });
+  }
   const outcome = {
     id: `JOB-${randomUUID().slice(0, 8).toUpperCase()}`,
     bookingId,
@@ -3641,7 +3649,7 @@ async function createAdminJobOutcomeAdjustment(request, response) {
   if (internalNote.length < 20) errors.push("Add an evidence note of at least 20 characters explaining what changed.");
   if (input.externalActionConfirmed !== true) errors.push("Confirm that any work or money movement already happened outside Tideway and this entry is record-only.");
   if (values.some((value) => !Number.isFinite(value) || value < 0)) errors.push("Adjustment hours and amounts must be non-negative numbers.");
-  if (amounts.additionalHours > 100 || values.slice(1).some((value) => value > 1000000)) errors.push("Adjustment values exceed the supported audit limits.");
+  if (amounts.additionalHours > maxOutcomeHours || values.slice(1).some((value) => value > maxFinancialRecordAmount)) errors.push("Adjustment values exceed the supported audit limits.");
   if (!values.some((value) => value > 0)) errors.push("Record at least one additional hour or financial amount.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
@@ -3677,9 +3685,15 @@ async function createAdminJobOutcomeAdjustment(request, response) {
       internalNote,
       createdAt: new Date().toISOString()
     };
+    const projectedOutcome = adjustedJobOutcome(outcome, [...adjustments, adjustment]);
+    const projectedAmounts = [projectedOutcome.customerCollected, projectedOutcome.cleanerPaid, projectedOutcome.paymentFees, projectedOutcome.travelCosts, projectedOutcome.suppliesCosts, projectedOutcome.otherCosts, projectedOutcome.refundAmount];
+    const projectedDerived = [projectedOutcome.totalDirectCosts, projectedOutcome.contribution, projectedOutcome.marginPercent];
+    if (projectedOutcome.actualHours > maxOutcomeHours || projectedAmounts.some((value) => !Number.isFinite(value) || value > maxFinancialRecordAmount) || projectedDerived.some((value) => !Number.isFinite(value))) {
+      throw Object.assign(new Error("This adjustment would push the completed-job economics beyond the supported audit limits."), { statusCode: 422 });
+    }
     await mkdir(dataDir, { recursive: true });
     await appendFile(path.join(dataDir, "job-outcome-adjustments.ndjson"), `${JSON.stringify(adjustment)}\n`, { encoding: "utf8", mode: 0o600 });
-    return { adjustment, outcome: adjustedJobOutcome(outcome, [...adjustments, adjustment]) };
+    return { adjustment, outcome: projectedOutcome };
   });
   writeQueue = operation;
   const result = await operation;
