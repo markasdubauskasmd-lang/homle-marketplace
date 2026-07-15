@@ -34,10 +34,12 @@ Implemented checkpoint:
 - Bounded scrypt password hashing and verification.
 - Restricted parameterized authentication lookup functions for password accounts, active sessions and verified-email deduplication.
 - Authentication repository methods for lookup, session creation, single-session logout and logout-all-sessions.
+- Atomic social-identity resolution with verified-email account reuse, provider-subject identity stability, concurrent-callback locks, suspended-account denial and audit events.
+- Cleaner/Landlord-only idempotent role onboarding that creates the correct private starter profile while preventing self-service role switching and administrator selection.
 - RLS on password credentials, verification tokens, reset tokens and sessions, plus a checked non-bypass runtime-role grant script.
-- Setup details in `docs/DATABASE_SETUP.md` and isolated regression tests using a fake PostgreSQL-compatible pool.
+- Setup details in `docs/DATABASE_SETUP.md`, the mandatory provider-verification boundary in `docs/AUTHENTICATION_SECURITY.md`, and isolated regression tests using fake PostgreSQL-compatible repositories.
 
-Not yet enabled: database driver composition, signup/login HTTP routes, email delivery, OAuth callbacks, onboarding screens or a production PostgreSQL instance. Provider capability flags therefore remain off.
+Not yet enabled: database driver composition, signup/login HTTP routes, cryptographic provider adapters, email delivery, OAuth callbacks, onboarding screens or a production PostgreSQL instance. Provider capability flags therefore remain off. The social resolver must never receive browser-supplied claims directly.
 
 - Add a PostgreSQL connection/repository layer and transaction helper that always sets the RLS user context.
 - Add opaque secure sessions, `HttpOnly; Secure; SameSite=Lax` cookies, CSRF tokens, rotation, logout-all-sessions and session expiry.

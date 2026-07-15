@@ -1,4 +1,5 @@
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const socialProviders = Object.freeze(["google", "apple", "facebook"]);
 
 function normalizedEmail(email) {
   if (typeof email !== "string") throw new TypeError("An email address is required.");
@@ -18,10 +19,48 @@ function uuid(value, label) {
   return value.toLowerCase();
 }
 
+function socialProvider(value) {
+  if (!socialProviders.includes(value)) throw new TypeError("A supported social provider is required.");
+  return value;
+}
+
+function boundedProviderText(value, label, maximum, required = true) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if ((required && !normalized) || normalized.length > maximum || /[\u0000-\u001f\u007f]/.test(normalized)) throw new TypeError(`${label} is invalid.`);
+  return normalized || null;
+}
+
 export function createAuthenticationRepository(database) {
   if (!database || typeof database.withAuthenticationTransaction !== "function" || typeof database.withAccountTransaction !== "function") throw new TypeError("The marketplace database boundary is required.");
 
   return {
+    async resolveSocialIdentity(provider, claims) {
+      const selectedProvider = socialProvider(provider);
+      if (!claims || claims.emailVerified !== true) throw new TypeError("A provider-verified email is required.");
+      const subject = boundedProviderText(claims.subject, "Provider subject", 255);
+      const email = normalizedEmail(claims.email);
+      const displayName = boundedProviderText(claims.displayName, "Provider display name", 120, false);
+      const avatarUrl = boundedProviderText(claims.avatarUrl, "Provider avatar URL", 2048, false);
+      const profile = claims.profile && typeof claims.profile === "object" && !Array.isArray(claims.profile) ? claims.profile : {};
+      if (JSON.stringify(profile).length > 4096) throw new TypeError("Provider profile snapshot is too large.");
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query(
+          "SELECT * FROM tideway_private.resolve_social_identity($1::authentication_provider, $2::text, $3::citext, $4::boolean, $5::text, $6::text, $7::jsonb)",
+          [selectedProvider, subject, email, true, displayName, avatarUrl, profile]
+        );
+        return result.rows[0] || null;
+      });
+    },
+
+    async completeRoleOnboarding(actor, role) {
+      if (!actor) throw new TypeError("An authenticated account is required.");
+      if (role !== "cleaner" && role !== "landlord") throw new TypeError("Onboarding role must be Cleaner or Landlord.");
+      return database.withAccountTransaction(actor, async (client) => {
+        const result = await client.query("SELECT * FROM tideway_private.complete_role_onboarding($1::user_role)", [role]);
+        return result.rows[0] || null;
+      });
+    },
+
     async findPasswordAccount(email) {
       return database.withAuthenticationTransaction(async (client) => {
         const result = await client.query("SELECT * FROM tideway_private.lookup_password_account($1::citext)", [normalizedEmail(email)]);

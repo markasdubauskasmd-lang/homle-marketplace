@@ -23,5 +23,7 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.lookup_password_account(citext) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.lookup_session(bytea) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.lookup_verified_email(citext) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.resolve_social_identity(authentication_provider, text, citext, boolean, text, text, jsonb) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.complete_role_onboarding(user_role) TO tideway_app;
 
 COMMIT;

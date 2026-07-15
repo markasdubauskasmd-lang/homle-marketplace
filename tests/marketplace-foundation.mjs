@@ -118,6 +118,8 @@ const repositoryDatabase = {
 };
 const authenticationRepository = createAuthenticationRepository(repositoryDatabase);
 assert(normalizedEmail(" Landlord@Example.COM ") === "landlord@example.com", "Authentication email canonicalization was inconsistent.");
+await authenticationRepository.resolveSocialIdentity("google", { subject: "provider-subject", email: "landlord@example.com", emailVerified: true, displayName: "Landlord", avatarUrl: "https://images.example.com/landlord.jpg", profile: { locale: "en-GB" } });
+await authenticationRepository.completeRoleOnboarding({ userId: "44444444-4444-4444-8444-444444444444", roles: [] }, "landlord");
 await authenticationRepository.findPasswordAccount(" Landlord@Example.COM ");
 await authenticationRepository.findSession(sessionMaterial.tokenHash);
 await authenticationRepository.findVerifiedAccountByEmail("landlord@example.com");
@@ -125,7 +127,7 @@ const repositoryActor = { userId: "44444444-4444-4444-8444-444444444444", roles:
 await authenticationRepository.createSession(repositoryActor, sessionMaterial);
 await authenticationRepository.revokeSession(repositoryActor, "55555555-5555-4555-8555-555555555555");
 await authenticationRepository.revokeAllSessions(repositoryActor);
-assert(repositoryCalls.length === 6 && repositoryCalls.slice(0, 3).every((call) => call.kind === "authentication") && repositoryCalls.slice(3).every((call) => call.kind === "user") && repositoryCalls[0].values[0] === "landlord@example.com" && repositoryCalls.every((call) => call.text.includes("$1")), "Authentication repository bypassed its pre-authenticated/authenticated boundaries or used non-parameterized calls.");
+assert(repositoryCalls.length === 8 && repositoryCalls[0].kind === "authentication" && repositoryCalls[0].text.includes("resolve_social_identity") && repositoryCalls[0].values[0] === "google" && repositoryCalls[1].kind === "user" && repositoryCalls[1].text.includes("complete_role_onboarding") && repositoryCalls.slice(2, 5).every((call) => call.kind === "authentication") && repositoryCalls.slice(5).every((call) => call.kind === "user") && repositoryCalls[2].values[0] === "landlord@example.com" && repositoryCalls.every((call) => call.text.includes("$1")), "Authentication repository bypassed its pre-authenticated/authenticated boundaries or used non-parameterized calls.");
 
 const schemaSql = await readFile(new URL("../db/migrations/001_marketplace_schema.sql", import.meta.url), "utf8");
 const rlsSql = await readFile(new URL("../db/migrations/002_marketplace_row_level_security.sql", import.meta.url), "utf8");
