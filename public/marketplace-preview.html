@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#0e665b">
+  <title>Tideway marketplace design preview</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260715-52">
+  <script src="/marketplace-preview.js?v=20260715-1" type="module"></script>
+</head>
+<body class="marketplace-preview-page">
+  <a class="skip-link" href="#main">Skip to preview</a>
+  <header class="site-header preview-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a>
+      <span class="preview-header-label">Marketplace preview</span>
+      <a class="preview-back" href="/">Back to website</a>
+    </div>
+  </header>
+
+  <main id="main" class="preview-main shell">
+    <section class="preview-disclosure" aria-labelledby="preview-disclosure-title">
+      <span aria-hidden="true">i</span>
+      <div><strong id="preview-disclosure-title">Design preview — no real Cleaner or active booking</strong><p>This lets you inspect the profile and live-job experience before authenticated accounts are connected. It does not collect location, contact anyone or create a booking.</p></div>
+    </section>
+
+    <nav class="preview-tabs" aria-label="Marketplace preview screens">
+      <button type="button" class="current" data-preview-tab="profile" aria-selected="true">Cleaner profile</button>
+      <button type="button" data-preview-tab="tracking" aria-selected="false">Live tracking</button>
+    </nav>
+
+    <section class="preview-screen" data-preview-screen="profile" aria-labelledby="profile-preview-title">
+      <div class="preview-screen-heading">
+        <div><p class="eyebrow">Landlord view</p><h1 id="profile-preview-title">Choose with confidence.</h1><p>Everything needed to compare a Cleaner, without revealing personal contact or home-address information.</p></div>
+        <span class="preview-mode-pill">Sample profile</span>
+      </div>
+
+      <div class="profile-preview-layout">
+        <article class="cleaner-profile-card">
+          <div class="cleaner-profile-identity">
+            <div class="profile-avatar" aria-hidden="true">SC</div>
+            <div><span class="availability-dot"><i></i> Availability shown after sign-in</span><h2>Sample Cleaner</h2><p>Independent Cleaner profile preview</p></div>
+          </div>
+          <div class="profile-trust-row" aria-label="Profile evidence placeholders">
+            <div><strong>New</strong><span>Reviews appear after completed jobs</span></div>
+            <div><strong>—</strong><span>Rate set by the Cleaner</span></div>
+            <div><strong>—</strong><span>Distance calculated privately</span></div>
+          </div>
+          <section class="profile-section">
+            <h3>About</h3>
+            <p>A short professional introduction appears here once the Cleaner completes and publishes their profile.</p>
+          </section>
+          <section class="profile-section">
+            <h3>Services</h3>
+            <div class="profile-chips"><span>Rental turnovers</span><span>End-of-tenancy</span><span>Deep cleans</span><span>Workplaces</span></div>
+          </section>
+          <section class="profile-section profile-details-grid">
+            <div><span>Experience</span><strong>Added by Cleaner</strong></div>
+            <div><span>Languages</span><strong>Shown when supplied</strong></div>
+            <div><span>Products</span><strong>Clear supply details</strong></div>
+            <div><span>Travel</span><strong>Private area matching</strong></div>
+          </section>
+          <section class="profile-section">
+            <div class="profile-section-title"><h3>Trust and verification</h3><span>Evidence-based only</span></div>
+            <ul class="profile-verification-list">
+              <li><span>○</span><div><strong>Identity status</strong><small>A badge appears only after the required check is recorded.</small></div></li>
+              <li><span>○</span><div><strong>Background-check status</strong><small>Optional and never implied before evidence exists.</small></div></li>
+              <li><span>○</span><div><strong>Completed-job reviews</strong><small>Only verified completed bookings can create public reviews.</small></div></li>
+            </ul>
+          </section>
+        </article>
+
+        <aside class="profile-booking-card" aria-label="Profile booking preview">
+          <p class="eyebrow">Simple booking</p>
+          <h2>Request this Cleaner</h2>
+          <p>Choose a saved property, date and room checklist. Tideway rechecks availability before confirmation.</p>
+          <dl>
+            <div><dt>Price</dt><dd>Calculated from approved rates and scope</dd></div>
+            <div><dt>Availability</dt><dd>Rechecked before acceptance</dd></div>
+            <div><dt>Private details</dt><dd>Shared only after confirmation</dd></div>
+          </dl>
+          <button class="button" type="button" data-open-tracking>See the live-job experience</button>
+          <small>This preview button does not submit a request.</small>
+        </aside>
+      </div>
+    </section>
+
+    <section class="preview-screen" data-preview-screen="tracking" aria-labelledby="tracking-preview-title" hidden>
+      <div class="tracking-preview-toolbar">
+        <div><p class="eyebrow">Confirmed booking experience</p><h1 id="tracking-preview-title">Know what is happening.</h1></div>
+        <div class="role-switch" role="group" aria-label="Preview account view"><button class="current" type="button" data-preview-role="landlord">Landlord</button><button type="button" data-preview-role="cleaner">Cleaner</button></div>
+      </div>
+
+      <div class="tracking-preview-layout">
+        <article class="live-map-card">
+          <div class="live-map-heading"><div aria-live="polite"><span class="live-state-dot"></span><strong data-live-heading>Cleaner en route</strong><small data-live-subtitle>Preview state — no location is being collected</small></div><span class="live-secure-pill">Private to this booking</span></div>
+          <div class="preview-map" aria-label="Stylised map preview; not a real location">
+            <div class="map-road map-road-one"></div><div class="map-road map-road-two"></div><div class="map-road map-road-three"></div>
+            <div class="map-park"></div>
+            <div class="map-route"><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="map-cleaner-marker" data-map-cleaner aria-label="Sample Cleaner position"><span>SC</span></div>
+            <div class="map-home-marker" aria-label="Property destination"><span>⌂</span></div>
+            <span class="map-preview-label">Map preview</span>
+          </div>
+          <div class="arrival-summary">
+            <div><span>Estimated arrival</span><strong data-arrival-value>Calculated when journey starts</strong></div>
+            <div><span>Last update</span><strong data-update-value>No live update</strong></div>
+          </div>
+          <ol class="job-stage-line" aria-label="Booking progress">
+            <li class="complete" data-stage="confirmed"><span>✓</span><small>Confirmed</small></li>
+            <li class="current" data-stage="en-route"><span>2</span><small>En route</small></li>
+            <li data-stage="arrived"><span>3</span><small>Arrived</small></li>
+            <li data-stage="cleaning"><span>4</span><small>Cleaning</small></li>
+            <li data-stage="finished"><span>5</span><small>Finished</small></li>
+          </ol>
+        </article>
+
+        <aside class="live-job-panel">
+          <div class="live-job-title"><div><p class="eyebrow">Sample booking</p><h2>Two-bedroom turnover</h2><span>Exact address appears only to confirmed participants</span></div><button type="button" class="icon-button" aria-label="Open booking messages">•••</button></div>
+          <div class="progress-summary" aria-live="polite"><div><strong data-progress-percent>25%</strong><span>Checklist resolved</span></div><div class="progress-track" role="progressbar" aria-label="Sample checklist progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25"><i data-progress-bar></i></div><small data-progress-copy>1 of 4 sample tasks resolved</small></div>
+          <ul class="room-progress-list">
+            <li class="complete"><span>✓</span><div><strong>Kitchen</strong><small>Worktops and sink complete</small></div></li>
+            <li class="current"><span>2</span><div><strong>Bathroom</strong><small>In progress</small></div></li>
+            <li><span>3</span><div><strong>Main bedroom</strong><small>Not started</small></div></li>
+            <li><span>4</span><div><strong>Living room</strong><small>Not started</small></div></li>
+          </ul>
+          <div class="connection-state"><span></span><div><strong>Real-time connection preview</strong><small>The live version reconnects with durable event IDs.</small></div></div>
+        </aside>
+      </div>
+
+      <section class="preview-controls" aria-labelledby="preview-controls-title">
+        <div><h2 id="preview-controls-title">Try each job state</h2><p>These controls change this screen only. They do not request location or update a booking.</p></div>
+        <div class="preview-state-buttons"><button type="button" class="current" data-preview-state="en-route">Start journey</button><button type="button" data-preview-state="arrived">I have arrived</button><button type="button" data-preview-state="cleaning">Start cleaning</button><button type="button" data-preview-state="finished">Finish cleaning</button></div>
+      </section>
+      <div class="mobile-job-action" data-mobile-action><button class="button" type="button" data-next-state>I have arrived</button></div>
+    </section>
+  </main>
+</body>
+</html>

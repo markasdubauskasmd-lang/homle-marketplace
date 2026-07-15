@@ -24,6 +24,7 @@
     "test:messages": "node tests/message-service.mjs",
     "test:realtime": "node tests/realtime-service.mjs",
     "test:http": "node tests/marketplace-http.mjs",
+    "test:preview": "node tests/marketplace-preview.mjs",
     "test": "node tests/marketplace-foundation.mjs && node tests/authentication-service.mjs && node tests/credential-service.mjs && node tests/account-security.mjs && node tests/account-session-service.mjs && node tests/authentication-http.mjs && node tests/cleaner-profile.mjs && node tests/property-service.mjs && node tests/cleaning-request-service.mjs && node tests/booking-workflow.mjs && node tests/matching-service.mjs && node tests/journey-service.mjs && node tests/progress-service.mjs && node tests/media-service.mjs && node tests/message-service.mjs && node tests/realtime-service.mjs && node tests/marketplace-http.mjs && node tests/smoke.mjs"
   },
   "engines": {

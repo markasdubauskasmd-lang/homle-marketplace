@@ -4533,6 +4533,7 @@ async function serveFile(requestPath, response) {
     "/verify-email": "account.html",
     "/reset-password": "account.html",
     "/onboarding": "account.html",
+    "/marketplace-preview": "marketplace-preview.html",
     "/brief": "brief.html",
     "/brief-complete": "brief-complete.html",
     "/request-status": "request-status.html",
