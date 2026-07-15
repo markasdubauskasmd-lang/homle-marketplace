@@ -23,6 +23,11 @@ const bookingMessagesPath = new RegExp(`^/api/marketplace/bookings/(${uuidPatter
 const bookingEventsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/events$`);
 const notificationReadPath = new RegExp(`^/api/marketplace/notifications/(${uuidPattern})/read$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
+const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
+const bookingCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/completion$`);
+const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews$`);
+const bookingReviewResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews/response$`);
+const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
 const apiPrefix = "/api/marketplace/";
 
 function queryFilters(url) {
@@ -51,6 +56,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const messages = dependencies?.messageService;
   const realtime = dependencies?.realtimeService;
   const notifications = dependencies?.notificationService;
+  const reviews = dependencies?.reviewService;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
@@ -63,6 +69,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!messages || !["sendMessage", "listMessages"].every((method) => typeof messages[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-message service.");
   if (!realtime || typeof realtime.openStream !== "function") throw new TypeError("Marketplace HTTP routes require the booking real-time service.");
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
+  if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
 
   return {
@@ -75,6 +82,17 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const results = await cleaners.searchPublicProfiles(queryFilters(url));
           sendJson(response, 200, { ok: true, cleaners: results });
+          return true;
+        }
+        const selectedCleanerReviews = pathname.match(cleanerReviewsPath);
+        if (selectedCleanerReviews) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const page = await reviews.getPublicReviews(selectedCleanerReviews[1], {
+            beforeCreatedAt: url.searchParams.get("beforeCreatedAt"),
+            beforeReviewId: url.searchParams.get("beforeReviewId"),
+            limit: url.searchParams.get("limit")
+          });
+          sendJson(response, 200, { ok: true, ...page });
           return true;
         }
         if (pathname === "/api/marketplace/cleaner/profile") {
@@ -179,6 +197,46 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
           const booking = await bookings.respondToInvitation(context.actor, selectedBookingResponse[1], await readJsonObject(request));
           sendJson(response, 200, { ok: true, booking });
+          return true;
+        }
+        const selectedCompletion = pathname.match(bookingCompletionPath);
+        if (selectedCompletion) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const booking = await reviews.confirmCompletion(context.actor, selectedCompletion[1]);
+          sendJson(response, 200, { ok: true, booking });
+          return true;
+        }
+        const selectedReviewResponse = pathname.match(bookingReviewResponsePath);
+        if (selectedReviewResponse) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          const review = await reviews.respondToReview(context.actor, selectedReviewResponse[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, review });
+          return true;
+        }
+        const selectedBookingReviews = pathname.match(bookingReviewsPath);
+        if (selectedBookingReviews) {
+          if (request.method === "GET") {
+            const context = await security.protect(request);
+            const review = await reviews.getBookingReview(context.actor, selectedBookingReviews[1]);
+            sendJson(response, 200, { ok: true, review });
+            return true;
+          }
+          if (request.method === "POST") {
+            const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+            const review = await reviews.submitReview(context.actor, selectedBookingReviews[1], await readJsonObject(request));
+            sendJson(response, 201, { ok: true, review });
+            return true;
+          }
+          return methodNotAllowed(response, ["GET", "POST"]), true;
+        }
+        const selectedAdminReview = pathname.match(adminReviewModerationPath);
+        if (selectedAdminReview) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const review = await reviews.moderateReview(context.actor, selectedAdminReview[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, review });
           return true;
         }
         const selectedMessages = pathname.match(bookingMessagesPath);

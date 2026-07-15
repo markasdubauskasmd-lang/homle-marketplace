@@ -30,6 +30,8 @@ import { createPostgresRealtimeSignalSource } from "./realtime-signal-source.mjs
 import { createRealtimeService } from "./realtime-service.mjs";
 import { createNotificationRepository } from "./notification-repository.mjs";
 import { createNotificationService } from "./notification-service.mjs";
+import { createReviewRepository } from "./review-repository.mjs";
+import { createReviewService } from "./review-service.mjs";
 
 export function createMarketplaceRuntime(pool, options = {}) {
   const env = options.env || process.env;
@@ -78,7 +80,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const realtimeService = createRealtimeService(realtimeRepository, realtimeSignalSource, options.realtimeOptions);
   const notificationRepository = createNotificationRepository(database);
   const notificationService = createNotificationService(notificationRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService }, { onUnexpectedError: options.onUnexpectedError });
+  const reviewRepository = createReviewRepository(database);
+  const reviewService = createReviewService(reviewRepository);
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService }, { onUnexpectedError: options.onUnexpectedError });
   const authenticationDependencies = [options.emailDelivery, options.rateLimiter, options.clientKey];
   const suppliedAuthenticationDependencies = authenticationDependencies.filter(Boolean).length;
   if (suppliedAuthenticationDependencies > 0 && suppliedAuthenticationDependencies < authenticationDependencies.length) throw new TypeError("Authentication HTTP composition requires email delivery, shared rate limiting and a trusted client-key resolver together.");
@@ -123,6 +127,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     realtimeService,
     notificationRepository,
     notificationService,
+    reviewRepository,
+    reviewService,
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
     marketplaceRouter,

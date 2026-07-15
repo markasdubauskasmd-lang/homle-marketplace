@@ -106,8 +106,16 @@ const notificationService = {
   async markNotificationRead(actor, notificationId) { calls.push({ kind: "notification-read", actor, notificationId }); return { notificationId, readAt: "2026-07-15T18:05:00.000Z" }; },
   async markAllNotificationsRead(actor, input) { calls.push({ kind: "notification-read-all", actor, input }); return { markedRead: 2, cutoffCreatedAt: input.cutoffCreatedAt }; }
 };
+const reviewService = {
+  async confirmCompletion(actor, bookingId) { calls.push({ kind: "review-complete-booking", actor, bookingId }); return { bookingId, status: "completed", completedAt: "2026-07-15T18:55:00.000Z" }; },
+  async submitReview(actor, bookingId, input) { calls.push({ kind: "review-submit", actor, bookingId, input }); return { reviewId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId, cleanerId: "22222222-2222-4222-8222-222222222222", rating: input.rating, moderationStatus: "pending", createdAt: "2026-07-15T19:00:00.000Z" }; },
+  async getBookingReview(actor, bookingId) { calls.push({ kind: "review-get", actor, bookingId }); return null; },
+  async getPublicReviews(cleanerId, input) { calls.push({ kind: "review-public", cleanerId, input }); return { cleanerId, reviews: [], hasMore: false, nextCursor: null }; },
+  async respondToReview(actor, bookingId, input) { calls.push({ kind: "review-respond", actor, bookingId, input }); return { reviewId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId, cleanerId: actor.userId, rating: 5, moderationStatus: "approved", cleanerResponse: input.response, createdAt: "2026-07-15T19:00:00.000Z" }; },
+  async moderateReview(actor, reviewId, input) { calls.push({ kind: "review-moderate", actor, reviewId, input }); return { reviewId, bookingId: "55555555-5555-4555-8555-555555555555", cleanerId: "22222222-2222-4222-8222-222222222222", rating: 5, moderationStatus: input.decision, createdAt: "2026-07-15T19:00:00.000Z" }; }
+};
 let unexpectedError;
-const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService }, { onUnexpectedError(error) { unexpectedError = error; } });
+const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService }, { onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
   origin: "http://127.0.0.1:4173",
@@ -122,6 +130,8 @@ const directory = await dispatch(router, "GET", "/api/marketplace/cleaners?outwa
 assert(directory.handled && directory.response.statusCode === 200 && directory.body.cleaners.length === 1 && calls.at(-1).filters.outwardPostcode === "SW1A" && calls.at(-1).filters.verifiedOnly === true && calls.at(-1).filters.limit === "10", "Public cleaner discovery did not parse its bounded service filters.");
 const badBoolean = await dispatch(router, "GET", "/api/marketplace/cleaners?verifiedOnly=yes");
 assert(badBoolean.response.statusCode === 422 && badBoolean.body.code === "validation-failed", "Cleaner discovery accepted an ambiguous boolean filter.");
+const publicReviews = await dispatch(router, "GET", "/api/marketplace/cleaners/22222222-2222-4222-8222-222222222222/reviews?limit=10");
+assert(publicReviews.response.statusCode === 200 && publicReviews.body.reviews.length === 0 && calls.at(-1).kind === "review-public" && calls.at(-1).input.limit === "10", "Public approved-review routing lost its safe Cleaner ID or cursor.");
 
 const noSession = await dispatch(router, "GET", "/api/marketplace/properties");
 assert(noSession.response.statusCode === 401 && noSession.body.code === "authentication-required" && noSession.response.headers["Cache-Control"] === "no-store", "Private property listing accepted a missing session or allowed caching.");
@@ -155,6 +165,10 @@ assert(matches.response.statusCode === 200 && matches.body.candidates[0].cleaner
 const invitation = await dispatch(router, "POST", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/invitations`, { headers: authHeaders, body: { cleanerId, customerPricePence: 1 } });
 assert(invitation.response.statusCode === 201 && calls.at(-1).kind === "booking-invite" && calls.at(-1).input.cleanerId === cleanerId && !Object.hasOwn(calls.at(-1).input, "customerPricePence"), "Invitation routing trusted browser-supplied economics or lost the selected cleaner.");
 const bookingId = "55555555-5555-4555-8555-555555555555";
+const bookingCompletion = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/completion`, { headers: authHeaders, body: {} });
+const submittedReview = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/reviews`, { headers: authHeaders, body: { rating: 5, writtenReview: "Clear and professional." } });
+const bookingReview = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/reviews`, { headers: { cookie: authHeaders.cookie } });
+assert(bookingCompletion.response.statusCode === 200 && submittedReview.response.statusCode === 201 && bookingReview.response.statusCode === 200 && calls.slice(-3).map((call) => call.kind).join(",") === "review-complete-booking,review-submit,review-get" && calls.at(-2).actor.userId === sessions.landlord.user_id, "Landlord completion/review routes lost role, CSRF or participant binding.");
 const bookingProperty = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/property`, { headers: { cookie: authHeaders.cookie } });
 assert(bookingProperty.response.statusCode === 200 && calls.at(-1).bookingId === bookingId && bookingProperty.body.property.accessInstructions === "Protected", "Booking-scoped property route lost the authenticated participant projection.");
 const landlordTracking = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/tracking`, { headers: { cookie: authHeaders.cookie } });
@@ -176,6 +190,8 @@ const cleanerProfile = await dispatch(router, "PUT", "/api/marketplace/cleaner/p
 assert(cleanerProfile.response.statusCode === 200 && calls.at(-1).kind === "cleaner-save" && calls.at(-1).actor.roles.includes("cleaner"), "The authenticated Cleaner could not update their own profile through the role-protected route.");
 const bookingResponse = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/response`, { headers: authHeaders, body: { decision: "accept" } });
 assert(bookingResponse.response.statusCode === 200 && bookingResponse.body.booking.status === "confirmed" && calls.at(-1).kind === "booking-response" && calls.at(-1).actor.userId === cleanerId, "Cleaner invitation response was not actor-bound or did not return the confirmed state.");
+const cleanerReviewResponse = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/reviews/response`, { headers: authHeaders, body: { response: "Thank you." } });
+assert(cleanerReviewResponse.response.statusCode === 200 && calls.at(-1).kind === "review-respond" && calls.at(-1).actor.userId === cleanerId, "Cleaner review response route lost assigned-role binding.");
 const journeyStarted = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/journey/start`, { headers: authHeaders, body: { consentGranted: true, latitude: 51.501, longitude: -0.142, estimatedArrivalAt: "2099-01-01T00:00:00.000Z" } });
 const journeyUpdated = await dispatch(router, "PUT", `/api/marketplace/bookings/${bookingId}/journey/location`, { headers: authHeaders, body: { latitude: 51.502, longitude: -0.141, accuracyMetres: 12 } });
 const journeyArrived = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/journey/arrive`, { headers: authHeaders, body: {} });
@@ -193,6 +209,9 @@ const photoAccess = await dispatch(router, "GET", `/api/marketplace/bookings/${b
 assert(photoIntent.response.statusCode === 201 && photoCompletion.response.statusCode === 200 && photoAccess.response.statusCode === 200 && calls.slice(-3).map((call) => call.kind).join(",") === "media-intent,media-complete,media-access", "Private media routes did not bind Cleaner uploads and participant reads to the booking actor.");
 const cleanerPropertyWrite = await dispatch(router, "POST", "/api/marketplace/properties", { headers: authHeaders, body: { name: "Attempt" } });
 assert(cleanerPropertyWrite.response.statusCode === 403 && cleanerPropertyWrite.body.code === "role-rejected", "A Cleaner entered the Landlord-only property route.");
+sessions.landlord = { ...sessions.landlord, user_id: "33333333-3333-4333-8333-333333333333", selected_role: "administrator", roles: ["administrator"] };
+const moderatedReview = await dispatch(router, "POST", "/api/marketplace/admin/reviews/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/moderation", { headers: authHeaders, body: { decision: "approved" } });
+assert(moderatedReview.response.statusCode === 200 && calls.at(-1).kind === "review-moderate" && calls.at(-1).actor.roles.includes("administrator"), "Administrator review moderation route lost role or CSRF binding.");
 sessions.landlord = { ...sessions.landlord, user_id: "11111111-1111-4111-8111-111111111111", selected_role: "landlord", roles: ["landlord"] };
 
 const invalidJson = await dispatch(router, "POST", "/api/marketplace/properties", { headers: authHeaders, body: "{" });
@@ -219,7 +238,7 @@ const baseEnvironment = {
 };
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications and HTTP layers or safely keep incomplete authentication delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews and HTTP layers or safely keep incomplete authentication delivery detached.");
 let partialAuthenticationRejected = false;
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, emailDelivery: { send() {} } }); } catch (error) { partialAuthenticationRejected = error.message.includes("requires email delivery, shared rate limiting"); }
 assert(partialAuthenticationRejected, "A partially supplied authentication HTTP boundary was silently enabled.");

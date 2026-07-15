@@ -20,7 +20,9 @@ const eventCopy = Object.freeze({
   "unexpected-task-approval-requested": ["Extra task needs a decision", "The Cleaner proposed an unexpected task for your approval. No price changes automatically."],
   "unexpected-task-decision": ["Extra-task decision received", "The Landlord recorded a decision on the unexpected task."],
   "cleaning-completed": ["Cleaning checklist completed", "The Cleaner finished the cleaning checklist."],
+  "booking-completed": ["Cleaning visit completed", "The Landlord confirmed the finished cleaning visit."],
   "review-requested": ["Review the completed clean", "The cleaning checklist is complete and ready for your review."],
+  "review-submitted": ["Tideway review submitted", "A review was submitted for a completed booking and is awaiting moderation."],
   "booking-message": ["New Tideway booking message", "A booking participant sent a private message in Tideway."]
 });
 

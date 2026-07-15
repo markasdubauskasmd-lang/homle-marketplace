@@ -205,7 +205,14 @@ Implemented notification inbox/outbox checkpoint:
 - A separate worker role claims bounded batches with `SKIP LOCKED` leases, retries transient failures with bounded backoff, stops after five attempts/permanent failure and excludes inactive or unverified recipients.
 - Text-only email rendering uses the notification UUID as provider idempotency evidence and a trusted HTTPS origin. No worker or provider is enabled without PostgreSQL, approved SMTP credentials and staging evidence. Details are in `docs/NOTIFICATIONS.md`; coverage is in `tests/notification-service.mjs` and `tests/marketplace-http.mjs`.
 
-- Add one landlord review per completed booking, category ratings, moderation and one cleaner response.
+Implemented verified-review checkpoint:
+
+- Landlord-only completion confirmation moves an actually finished `awaiting-review` booking to `completed` with audit/history evidence; only then can that booking receive one overall/category/written review.
+- The unique booking constraint plus same-content retry handling protects concurrent submissions. Pending/rejected content stays hidden from the Cleaner and public directory.
+- Public Cleaner review pages return approved ratings, text, optional response and stable pagination without booking, Landlord or moderation identity. The app role cannot query the raw review table.
+- Approved-only triggers recalculate the exact average/count after moderation, while completed-job totals derive from recorded booking completion. Administrators can re-moderate fraud/abuse, and the assigned Cleaner receives one final professional response.
+- Details are in `docs/VERIFIED_REVIEWS.md`; coverage is in `tests/review-service.mjs` and `tests/marketplace-http.mjs`.
+
 - Add disputes, suspension, verification and review-moderation tools to the existing `/admin` design.
 - Add marketplace statistics derived from audited records, not invented counters.
 

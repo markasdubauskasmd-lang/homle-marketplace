@@ -48,6 +48,8 @@ The [booking real-time boundary](docs/BOOKING_REALTIME.md) now streams participa
 
 The [account-notification boundary](docs/NOTIFICATIONS.md) now adds an account-only in-app inbox plus a privacy-minimal email outbox for booking, journey, progress, issue, completion, review and message events. Inbox reads use transaction-local account identity and the web role has no direct notification-table access. A separate leased worker uses stable provider idempotency keys, bounded retry/backoff and inactive/unverified-recipient suppression. It remains detached until PostgreSQL, an approved transactional-email provider and staging delivery evidence exist; no email was sent.
 
+The [verified-review boundary](docs/VERIFIED_REVIEWS.md) now requires a Landlord-confirmed completed booking before one overall/category/written review can exist. Pending and rejected content stays private; public Cleaner review pages contain approved feedback and an optional one-time professional response without Landlord or booking identity. Approved-only triggers recalculate rating/count, completed-job totals derive from recorded booking completion, and Administrator moderation is audited. It remains detached pending PostgreSQL concurrency/RLS and authenticated UI tests; no review or rating was fabricated.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty
