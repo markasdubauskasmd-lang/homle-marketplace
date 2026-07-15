@@ -60,7 +60,7 @@ const [html, app, privacy] = await Promise.all([
 ]);
 assert(html.includes("data-customer-draft-status") && html.includes("Privacy consent is never restored"));
 assert(app.includes("readCustomerRequestDraft") && app.includes("clearCustomerRequestDraft(window.sessionStorage)"));
-assert(app.includes("customerDraftControls.get(form)?.submissionKey()") && app.includes("rememberSubmission(pending.key)"));
+assert(app.includes("customerDraftControls.get(form) || cleanerDraftControls.get(form)") && app.includes("draftControls?.rememberSubmission(pending.key)"));
 assert(app.includes('["customer", "cleaner"].includes(form.dataset.guidedKind)') && app.includes("AbortController"));
 assert(!app.includes('form.elements.namedItem("consent").checked = true'));
 assert(privacy.includes("An incomplete cleaning request may keep"));

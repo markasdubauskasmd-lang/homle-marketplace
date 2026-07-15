@@ -3,7 +3,7 @@ import { newSubmissionKey } from "./submission-key.js";
 import { parseCleanerTravelAreas } from "./travel-coverage.js";
 import { isPhone, isUkPostcode } from "./contact-validation.js";
 import { cleanerApplicationPreview } from "./cleaner-application-preview.js";
-import { cleanerApplicationDraftFields, cleanerApplicationDraftServices, clearCleanerApplicationDraft, readCleanerApplicationDraft, saveCleanerApplicationDraft } from "./cleaner-application-draft.js";
+import { cleanerApplicationDraftFields, cleanerApplicationDraftFingerprint, cleanerApplicationDraftServices, clearCleanerApplicationDraft, readCleanerApplicationDraft, saveCleanerApplicationDraft } from "./cleaner-application-draft.js";
 import { clearCustomerRequestDraft, customerRequestDraftFields, customerRequestDraftFingerprint, readCustomerRequestDraft, saveCustomerRequestDraft } from "./customer-request-draft.js";
 
 const pendingSubmissions = new WeakMap();
@@ -263,6 +263,12 @@ function enhanceCleanerApplicationDraft(form) {
   let restored = false;
   let submitted = false;
   let online = navigator.onLine !== false;
+  let retry = null;
+
+  function currentFingerprint() {
+    const input = cleanerDraftInput(form);
+    return cleanerApplicationDraftFingerprint(input.fields, input.services);
+  }
 
   function render() {
     status.classList.toggle("is-offline", !online);
@@ -282,7 +288,12 @@ function enhanceCleanerApplicationDraft(form) {
   function save() {
     clearTimeout(saveTimer);
     if (submitted) return;
-    try { saveCleanerApplicationDraft(window.sessionStorage, cleanerDraftInput(form)); } catch {}
+    const fingerprint = currentFingerprint();
+    if (retry && retry.fingerprint !== fingerprint) {
+      retry = null;
+      pendingSubmissions.delete(form);
+    }
+    try { saveCleanerApplicationDraft(window.sessionStorage, { ...cleanerDraftInput(form), submissionKey: retry?.key || "" }); } catch {}
     if (!cleanerDraftHasContent(form)) restored = false;
     render();
   }
@@ -307,6 +318,7 @@ function enhanceCleanerApplicationDraft(form) {
     form.elements.namedItem("rightToWork").checked = false;
     form.elements.namedItem("consent").checked = false;
     guidedForms.get(form)?.restore(draft.currentStep);
+    retry = draft.retry || null;
     restored = true;
     form.dispatchEvent(new Event("input", { bubbles: true }));
   }
@@ -319,6 +331,8 @@ function enhanceCleanerApplicationDraft(form) {
   discard.addEventListener("click", () => {
     clearTimeout(saveTimer);
     try { clearCleanerApplicationDraft(window.sessionStorage); } catch {}
+    pendingSubmissions.delete(form);
+    retry = null;
     form.reset();
     form.elements.namedItem("rightToWork").checked = false;
     form.elements.namedItem("consent").checked = false;
@@ -331,6 +345,13 @@ function enhanceCleanerApplicationDraft(form) {
   window.addEventListener("online", () => { online = true; render(); });
   window.addEventListener("offline", () => { online = false; save(); render(); });
   cleanerDraftControls.set(form, {
+    submissionKey() {
+      return retry?.fingerprint === currentFingerprint() ? retry.key : "";
+    },
+    rememberSubmission(key) {
+      retry = { key, fingerprint: currentFingerprint() };
+      save();
+    },
     complete() {
       clearTimeout(saveTimer);
       submitted = true;
@@ -504,9 +525,10 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
       const submissionBody = JSON.stringify(submission);
       let pending = pendingSubmissions.get(form);
       if (!pending || pending.body !== submissionBody) {
-        pending = { body: submissionBody, key: customerDraftControls.get(form)?.submissionKey() || newSubmissionKey() };
+        const draftControls = customerDraftControls.get(form) || cleanerDraftControls.get(form);
+        pending = { body: submissionBody, key: draftControls?.submissionKey() || newSubmissionKey() };
         pendingSubmissions.set(form, pending);
-        customerDraftControls.get(form)?.rememberSubmission(pending.key);
+        draftControls?.rememberSubmission(pending.key);
       }
       const controller = new AbortController();
       const requestTimer = setTimeout(() => controller.abort(), 30000);

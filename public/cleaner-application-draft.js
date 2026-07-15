@@ -1,5 +1,6 @@
 const cleanerDraftKey = "tidewayCleanerApplicationDraftV1";
 const cleanerDraftVersion = 1;
+const submissionKeyPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const cleanerApplicationDraftLifetimeMs = 30 * 60 * 1000;
 export const cleanerApplicationDraftFields = Object.freeze({
@@ -39,7 +40,11 @@ function hasContent(fields, services) {
   return Object.entries(fields).some(([name, value]) => name !== "transport" && value.trim()) || Object.values(services).some(Boolean);
 }
 
-export function saveCleanerApplicationDraft(storage, { fields = {}, services = {}, currentStep = 1 } = {}, now = Date.now()) {
+export function cleanerApplicationDraftFingerprint(fields = {}, services = {}) {
+  return JSON.stringify({ fields: cleanFields(fields), services: cleanServices(services) });
+}
+
+export function saveCleanerApplicationDraft(storage, { fields = {}, services = {}, currentStep = 1, submissionKey = "" } = {}, now = Date.now()) {
   if (!storage?.setItem) return null;
   const safeFields = cleanFields(fields);
   const safeServices = cleanServices(services);
@@ -48,13 +53,15 @@ export function saveCleanerApplicationDraft(storage, { fields = {}, services = {
     return null;
   }
   const savedAt = Number.isFinite(now) ? now : Date.now();
+  const safeSubmissionKey = submissionKeyPattern.test(String(submissionKey || "")) ? String(submissionKey).toLowerCase() : "";
   const draft = {
     version: cleanerDraftVersion,
     fields: safeFields,
     services: safeServices,
     currentStep: Math.max(1, Math.min(3, Number(currentStep) || 1)),
     savedAt,
-    expiresAt: savedAt + cleanerApplicationDraftLifetimeMs
+    expiresAt: savedAt + cleanerApplicationDraftLifetimeMs,
+    ...(safeSubmissionKey ? { retry: { key: safeSubmissionKey, fingerprint: cleanerApplicationDraftFingerprint(safeFields, safeServices) } } : {})
   };
   storage.setItem(cleanerDraftKey, JSON.stringify(draft));
   return draft;
@@ -82,7 +89,18 @@ export function readCleanerApplicationDraft(storage, now = Date.now()) {
       storage.removeItem?.(cleanerDraftKey);
       return null;
     }
-    return { fields, services, currentStep: Math.max(1, Math.min(3, Number(value.currentStep) || 1)), savedAt, expiresAt };
+    const fingerprint = cleanerApplicationDraftFingerprint(fields, services);
+    const retryKey = submissionKeyPattern.test(String(value?.retry?.key || "")) && value.retry.fingerprint === fingerprint
+      ? String(value.retry.key).toLowerCase()
+      : "";
+    return {
+      fields,
+      services,
+      currentStep: Math.max(1, Math.min(3, Number(value.currentStep) || 1)),
+      savedAt,
+      expiresAt,
+      ...(retryKey ? { retry: { key: retryKey, fingerprint } } : {})
+    };
   } catch {
     storage.removeItem?.(cleanerDraftKey);
     return null;
