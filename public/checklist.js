@@ -51,7 +51,34 @@ function taskObject(value) {
   return value.trim().replace(/^(?:The|A|An)\b/, (article) => article.toLowerCase());
 }
 
+function cleaningTarget(value) {
+  const target = taskObject(value).replace(/^(?:the\s+)+/i, "").trim();
+  return target ? `the ${target}` : "";
+}
+
+function describedConditionInstruction(value) {
+  const description = value
+    .replace(/^(?:there(?:'s|\s+is|\s+are)|you\s+can\s+see)\s+/i, "")
+    .replace(/^(?:lots?\s+of|some|visible)\s+/i, "")
+    .trim();
+  const condition = description.match(/^(soap\s+scum|water\s+marks?|fingerprints?|smudges?|streaks?|limescale|cobwebs?|crumbs?|grease|grime|dust|marks?|spills?|stains?)\s+(on|around|in|inside|under|along)\s+(.+)$/i);
+  if (!condition) return "";
+  const kind = condition[1].toLowerCase();
+  const position = condition[2].toLowerCase();
+  const target = cleaningTarget(condition[3]);
+  if (!target) return "";
+  if (kind === "dust") return `Dust ${target}`;
+  if (kind === "grease" || kind === "grime") return position === "on" ? `Degrease ${target}` : `Degrease ${position} ${target}`;
+  if (kind === "limescale" || kind === "soap scum") return `Remove ${kind} from ${target}`;
+  if (kind.startsWith("crumb") || kind.startsWith("cobweb") || kind.startsWith("spill") || kind.startsWith("stain") || kind === "mark" || kind === "marks" || kind.startsWith("water mark")) return `Remove ${kind} from ${target}`;
+  return `Wipe ${kind} from ${target}`;
+}
+
 function activeCleaningInstruction(value) {
+  if (/^(?:that(?:'s|\s+is)\s+(?:all|everything)(?:\s+in\s+here|\s+for\s+this\s+room)?|nothing\s+else(?:\s+in\s+here)?|moving\s+on|done(?:\s+in\s+here|\s+with\s+this\s+room)?)$/i.test(value)) return "";
+  const leaveAlone = value.match(/^(.+?)\s+(?:should|must|needs?\s+to)\s+be\s+(?:left|kept)\s+(?:alone|as\s+is|in\s+place)$/i);
+  if (leaveAlone) return `Leave ${taskObject(leaveAlone[1])} alone`;
+  if (/^(?:the\s+)?sink\s+(?:is|looks?)\s+(?:full\s+of|filled\s+with)\s+(?:dirty\s+)?dishes$/i.test(value)) return "Wash the dishes in the sink";
   const excludedPassive = value.match(/^(.+?)\s+(?:does(?:\s+not|n't)|do(?:\s+not|n't))\s+(?:need|require)\s+(?:(?:to\s+be|any)\s+)?([a-z]+)$/i);
   if (excludedPassive) {
     const action = passiveActions.get(excludedPassive[2].toLowerCase());
@@ -64,7 +91,8 @@ function activeCleaningInstruction(value) {
     if (/^attention$/i.test(passive[2])) return `Clean ${taskObject(passive[1])}`;
   }
   const dirty = value.match(/^(.+?)\s+(?:is|are|looks?|look)\s+(?:(?:very|really|quite)\s+)?dirty$/i);
-  return dirty ? `Clean ${taskObject(dirty[1])}` : value;
+  if (dirty) return `Clean ${taskObject(dirty[1])}`;
+  return describedConditionInstruction(value) || value;
 }
 
 function checklistTaskKey(value) {
@@ -102,6 +130,7 @@ export function checklistFromTranscript(value) {
   const roomPrefix = new RegExp(`^(?:(?:${spokenRoomLeadPattern})|(?:the\\s+)?)(${roomPattern})\\b(?:\\s+now)?\\s*(?::|,|\\-|needs?\\s+(?:to\\s+be\\s+)?|should\\s+be\\s+)?\\s*`, "i");
   const actionBoundary = new RegExp(`(?:,\\s*|\\s+(?:and|then)\\s+)(?=(?:please\\s+)?(?:${actionPattern})\\b)`, "gi");
   const passiveBoundary = /(?:,\s*(?:and\s+)?|\s+and\s+)(?=(?:the\s+)?[^,]{1,80}\s+(?:needs?|requires?|is|are|looks?|look)\b)/gi;
+  const conditionBoundary = /(?:,\s*(?:and\s+)?|\s+and\s+)(?=(?:(?:there(?:'s|\s+is|\s+are)|you\s+can\s+see|lots?\s+of|some|visible)\s+)?(?:soap\s+scum|water\s+marks?|fingerprints?|smudges?|streaks?|limescale|cobwebs?|crumbs?|grease|grime|dust|marks?|spills?|stains?)\b)/gi;
   const seen = new Set();
   const tasks = [];
   const sections = value
@@ -125,7 +154,7 @@ export function checklistFromTranscript(value) {
       currentRoom = canonicalRoom(roomMatch[1]);
       section = section.slice(roomMatch[0].length);
     }
-    for (const clause of section.split(actionBoundary).flatMap((part) => part.split(passiveBoundary))) {
+    for (const clause of section.split(actionBoundary).flatMap((part) => part.split(passiveBoundary)).flatMap((part) => part.split(conditionBoundary))) {
       const task = normaliseChecklistTask(clause);
       if (!task) continue;
       const conciseTask = currentRoom && !task.toLowerCase().startsWith(`${currentRoom.toLowerCase()}:`)
