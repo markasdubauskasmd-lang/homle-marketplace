@@ -13,7 +13,7 @@ import { isEmail, isPhone, isUkPostcode } from "./public/contact-validation.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mjs";
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverage.mjs";
 import { businessDateToday, businessEpochFromWallClock, businessWallClockMs, earliestBookableWallClockMs } from "./business-clock.mjs";
-import { scanAttentionAction } from "./lead-attention.mjs";
+import { requestDateAttentionAction, scanAttentionAction } from "./lead-attention.mjs";
 import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeCleanerProfileStarter, normalizeOptionalCleanerProfileStarter } from "./cleaner-profile-starter.mjs";
 import { buildRoomScanFollowupDraft } from "./request-followup-draft.mjs";
 import { publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
@@ -1718,7 +1718,7 @@ function launchReadiness(config) {
   return { checks, missing, completed: Object.values(checks).filter(Boolean).length, total: Object.keys(checks).length, ready: Object.values(checks).every(Boolean), next: nextKey ? { key: nextKey, label: labels[nextKey], missing: missing[nextKey] } : null };
 }
 
-function dispatchActionsForRecord({ kind, status, createdAt, nextActionAt, proposals = [], briefs = [], booking = null, outcome = null, screening = null, cleanerAvailability = [], availabilityRequests = [], pilotCoverage = null }) {
+function dispatchActionsForRecord({ kind, status, createdAt, preferredDate = "", nextActionAt, proposals = [], briefs = [], booking = null, outcome = null, screening = null, cleanerAvailability = [], availabilityRequests = [], pilotCoverage = null }) {
   const actions = [];
   const add = (code, severity, group, title, detail) => {
     if (!actions.some((action) => action.code === code)) actions.push({ code, severity, group, title, detail });
@@ -1749,6 +1749,8 @@ function dispatchActionsForRecord({ kind, status, createdAt, nextActionAt, propo
   }
 
   if (closed) return actions;
+  const requestDateAttention = requestDateAttentionAction({ preferredDate });
+  if (requestDateAttention) add(requestDateAttention.code, requestDateAttention.severity, requestDateAttention.group, requestDateAttention.title, requestDateAttention.detail);
   if (pilotCoverage?.configured && !pilotCoverage.covered) add("outside-pilot", "high", "matching", "Request is outside the pilot area", "Do not promise coverage. Close the request or obtain an explicit founder decision before changing the configured pilot area.");
   const latestBrief = briefs[0] || null;
   const scanAttention = scanAttentionAction({ requestCreatedAt: createdAt, latestBrief });
@@ -2067,7 +2069,7 @@ async function getAdminRecords(request, response) {
     const pilotCoverage = kind === "request" ? pilotPostcodeCoverage(record.postcode, config.pilotPostcodes) : null;
     const status = latestStatuses.get(record.id) || record.status || "new";
     const nextActionAt = leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "";
-    const dispatchActions = dispatchActionsForRecord({ kind, status, createdAt: record.createdAt, nextActionAt, proposals: leadProposals, briefs: leadBriefs, booking, outcome, screening, cleanerAvailability, availabilityRequests, pilotCoverage });
+    const dispatchActions = dispatchActionsForRecord({ kind, status, createdAt: record.createdAt, preferredDate: record.preferredDate, nextActionAt, proposals: leadProposals, briefs: leadBriefs, booking, outcome, screening, cleanerAvailability, availabilityRequests, pilotCoverage });
     return { ...privateLead, kind, status, activities: leadActivities.slice(0, 10), nextActionAt, proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, profileStarter, cleanerAvailability, availabilityRequests, pilotCoverage, booking, outcome, dispatchActions };
   };
   const records = [

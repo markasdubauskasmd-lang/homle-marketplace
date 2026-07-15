@@ -483,7 +483,7 @@ function actionMatchesFilter(record) {
   const actions = record.dispatchActions || [];
   if (state.action === "needs-action") return actions.some((action) => ["urgent", "high"].includes(action.severity));
   if (state.action === "urgent") return actions.some((action) => action.severity === "urgent");
-  if (["scan", "supply", "profit"].includes(state.action)) return actions.some((action) => action.group === state.action);
+  if (["schedule", "scan", "supply", "profit"].includes(state.action)) return actions.some((action) => action.group === state.action);
   if (state.action === "rematching") return actions.some((action) => action.group === "rematching");
   if (state.action === "booking") return actions.some((action) => ["booking", "safety"].includes(action.group));
   return true;
@@ -526,7 +526,7 @@ function renderDispatchQueue() {
     const empty = document.createElement("div");
     empty.className = "dispatch-empty";
     addText(empty, "strong", "No founder actions are queued.");
-    addText(empty, "span", "New scans, rematching needs, booking checks and safety reports will appear here automatically.");
+    addText(empty, "span", "Approaching dates, new scans, rematching needs, booking checks and safety reports will appear here automatically.");
     dispatchQueueList.append(empty);
     return;
   }
