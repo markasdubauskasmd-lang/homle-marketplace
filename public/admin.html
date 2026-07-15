@@ -6,8 +6,9 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Tideway control desk</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-42">
-  <script src="/admin.js?v=20260715-49" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-43">
+  <script src="/scan-review-workspace.js?v=20260715-1" defer></script>
+  <script src="/admin.js?v=20260715-50" defer></script>
 </head>
 <body class="admin-page">
   <a class="skip-link" href="#admin-main">Skip to leads</a>
@@ -66,6 +67,14 @@
     <section class="dispatch-queue" aria-labelledby="dispatch-heading">
       <div class="dispatch-heading"><div><p class="eyebrow">Dispatch control</p><h2 id="dispatch-heading">Founder-action queue</h2><p>Prioritised from recorded scan, matching, offer, booking and safety events. Nothing here sends a message, changes a booking or moves money.</p></div><span class="status-pill">Private operations</span></div>
       <div id="dispatch-queue-list" class="dispatch-queue-list" aria-live="polite"><div class="dispatch-empty"><strong>Loading dispatch actions…</strong></div></div>
+    </section>
+
+    <section class="scan-review-workspace" aria-labelledby="scan-review-heading">
+      <div class="scan-review-workspace-heading">
+        <div><p class="eyebrow">Scope evidence</p><h2 id="scan-review-heading">Submitted-scan review</h2><p>Review the oldest submitted scan first. Nothing here approves scope, loads private media or creates a price automatically.</p></div>
+        <div class="scan-review-score"><strong id="scan-review-progress">â€”</strong><span>scopes reviewed</span></div>
+      </div>
+      <div id="scan-review-summary" class="scan-review-summary" aria-live="polite"><div class="runway-loading">Checking submitted scansâ€¦</div></div>
     </section>
 
     <section class="launch-setup" aria-labelledby="launch-setup-heading">

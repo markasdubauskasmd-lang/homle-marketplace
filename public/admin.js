@@ -1,4 +1,5 @@
 const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null, dataIntegrity: null };
+const scanReviewWorkspace = globalThis.TidewayScanReviewWorkspace;
 
 const leadList = document.querySelector("#lead-list");
 const dispatchQueueList = document.querySelector("#dispatch-queue-list");
@@ -419,6 +420,41 @@ function updateStats() {
   document.querySelector("#attention-detail").textContent = `${state.dispatchSummary.urgent || 0} urgent · ${state.dispatchSummary.high || 0} high priority`;
   document.querySelector("#new-request-count").textContent = `${requests.filter((record) => record.status === "new").length} new to review`;
   document.querySelector("#new-cleaner-count").textContent = `${cleaners.filter((record) => record.status === "new").length} new to review`;
+}
+
+function renderScanReviewWorkspace() {
+  const target = document.querySelector("#scan-review-summary");
+  const progress = document.querySelector("#scan-review-progress");
+  const summary = scanReviewWorkspace.scanReviewSummary(state.records);
+  const nextRecord = scanReviewWorkspace.nextScanRecord(state.records);
+  progress.textContent = `${summary.reviewed}/${summary.submitted}`;
+  target.replaceChildren();
+
+  const copy = document.createElement("div");
+  copy.className = "scan-review-summary-copy";
+  if (!summary.submitted) {
+    addText(copy, "strong", "No room scans have been submitted yet.");
+    addText(copy, "span", "A customer scan will appear here after its photos or video, spoken notes and concise checklist are submitted.");
+    target.append(copy);
+    return;
+  }
+  if (!nextRecord) {
+    addText(copy, "strong", "No submitted scope is awaiting Tideway review.");
+    addText(copy, "span", `${summary.reviewed} reviewed Â· ${summary.revisionRequested} returned for customer revision.`);
+    target.append(copy);
+    return;
+  }
+
+  const brief = nextRecord.briefs[0];
+  addText(copy, "strong", `Next: ${brief.id} Â· ${brief.checklist.length} tasks Â· ${brief.photos.length} visuals`);
+  addText(copy, "span", `${summary.awaiting} submitted scope${summary.awaiting === 1 ? "" : "s"} awaiting evidence review. Private media remains unloaded until you choose to open it.`);
+  addText(copy, "small", "Approval stays blocked until every evidence item is complete; this action only opens the private record.");
+  const open = document.createElement("button");
+  open.type = "button";
+  open.className = "button button-small";
+  open.textContent = "Review next submitted scan";
+  open.addEventListener("click", () => showDispatchRecord(nextRecord.id, { group: "scan" }));
+  target.append(copy, open);
 }
 
 function renderLaunchFunnel() {
@@ -1692,7 +1728,7 @@ function buildCard(record) {
       const statusSelect = document.createElement("select");
       statusSelect.name = "status";
       statusSelect.setAttribute("aria-label", `Review decision for ${brief.id}`);
-      for (const [value, label] of [["reviewed", "Approve checklist"], ["needs-revision", "Request a new brief"]]) {
+      for (const [value, label] of [["reviewed", "Approve reviewed scope"], ["needs-revision", "Request a new brief"]]) {
         const option = document.createElement("option");
         option.value = value;
         option.textContent = label;
@@ -1785,7 +1821,14 @@ function buildCard(record) {
       const save = document.createElement("button");
       save.type = "submit";
       save.className = "button button-small";
-      save.textContent = "Save review decision";
+      const readiness = document.createElement("div");
+      readiness.className = "brief-review-readiness";
+      readiness.setAttribute("role", "status");
+      const readinessTitle = document.createElement("strong");
+      const readinessHint = document.createElement("span");
+      const readinessList = document.createElement("ul");
+      readiness.append(readinessTitle, readinessHint, readinessList);
+      save.textContent = "Complete evidence to approve";
       const syncEstimateFields = () => {
         const approving = statusSelect.value === "reviewed";
         hours.disabled = !approving;
@@ -1802,9 +1845,37 @@ function buildCard(record) {
         visualsReviewed.required = approving;
         checklistReviewed.disabled = !approving;
         checklistReviewed.required = approving;
+        const result = scanReviewWorkspace.scanReviewReadiness({
+          decision: statusSelect.value,
+          customerScopeConfirmed: brief.customerScopeConfirmed === true,
+          visualIds: brief.photos.map((photo) => photo.id),
+          reviewedVisualIds: [...briefSummary.querySelectorAll("[data-reviewed-visual-id]:checked")].map((input) => input.value),
+          visualsReviewed: visualsReviewed.checked,
+          checklistReviewed: checklistReviewed.checked,
+          scopeSignalCodes: (brief.scopeSignals || []).map((signal) => signal.code),
+          confirmedScopeSignalCodes: [...reviewForm.querySelectorAll('input[name="scopeSignalConfirmation"]:checked')].map((input) => input.value),
+          hours: hours.value,
+          confidence: confidence.value,
+          note: note.value
+        });
+        readinessTitle.textContent = result.ready ? "Review evidence complete" : `${result.completed} of ${result.total} review checks complete`;
+        readinessHint.textContent = approving
+          ? "No scope is approved automatically. Complete each item from the evidence you actually reviewed."
+          : "A clear revision note is required; no estimate or visual approval will be recorded.";
+        readinessList.replaceChildren();
+        result.steps.forEach((step) => {
+          const item = document.createElement("li");
+          item.textContent = step.label;
+          item.className = step.complete ? "review-ready" : "";
+          readinessList.append(item);
+        });
+        save.disabled = !result.ready;
+        save.textContent = result.ready ? (approving ? "Approve reviewed scope" : "Request revised scan") : (approving ? "Complete evidence to approve" : "Add a clear revision note");
       };
       statusSelect.addEventListener("change", syncEstimateFields);
-      reviewForm.append(statusLabel, hoursLabel, confidenceLabel, signalFieldset, evidenceFieldset, noteLabel, save);
+      reviewForm.addEventListener("input", syncEstimateFields);
+      reviewForm.addEventListener("change", syncEstimateFields);
+      reviewForm.append(statusLabel, hoursLabel, confidenceLabel, signalFieldset, evidenceFieldset, noteLabel, readiness, save);
       syncEstimateFields();
       reviewForm.addEventListener("submit", (event) => { event.preventDefault(); changeBriefStatus(brief, reviewForm); });
       briefSummary.append(reviewForm);
@@ -2018,6 +2089,7 @@ async function loadRecords() {
     updateStats();
     renderLaunchFunnel();
     renderDispatchQueue();
+    renderScanReviewWorkspace();
     renderRecords();
   } catch (error) {
     showAdminError(error.message);

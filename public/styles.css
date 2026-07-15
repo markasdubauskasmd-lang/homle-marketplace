@@ -331,6 +331,18 @@ textarea { resize: vertical; }
 .dispatch-heading h2 { margin-bottom: 7px; font-size: 1.65rem; }
 .dispatch-heading p:last-child { max-width: 760px; margin: 0; color: var(--muted); }
 .dispatch-queue-list { display: grid; gap: 10px; }
+.scan-review-workspace { margin-bottom: 24px; padding: 26px; border: 1px solid #9bcdbf; border-radius: 20px; background: linear-gradient(135deg, #f1fbf7, #fff); box-shadow: 0 12px 36px rgba(15,66,57,.06); }
+.scan-review-workspace-heading { display: flex; justify-content: space-between; gap: 24px; align-items: start; }
+.scan-review-workspace-heading h2 { margin-bottom: 4px; }
+.scan-review-workspace-heading p:last-child { margin: 0; color: var(--muted); }
+.scan-review-score { display: grid; min-width: 120px; padding: 12px 16px; border-radius: 13px; background: #fff; text-align: center; }
+.scan-review-score strong { color: var(--green-dark); font-size: 1.5rem; }
+.scan-review-score span { color: var(--muted); font-size: .72rem; font-weight: 750; }
+.scan-review-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; margin-top: 18px; padding: 16px; border: 1px solid #c6ded7; border-radius: 13px; background: #fff; }
+.scan-review-summary-copy { display: grid; gap: 4px; }
+.scan-review-summary-copy > span { color: var(--muted); font-size: .84rem; }
+.scan-review-summary-copy > small { color: #74410a; font-weight: 750; }
+.scan-review-summary .button { min-height: 44px; }
 .dispatch-item { display: flex; justify-content: space-between; gap: 22px; align-items: center; padding: 16px 18px; border: 1px solid var(--line); border-left: 5px solid #6aa897; border-radius: 12px; background: #fbfdfc; }
 .dispatch-item > div { display: grid; gap: 5px; }
 .dispatch-item > div > span:last-child { color: var(--muted); font-size: .88rem; }
@@ -463,6 +475,15 @@ textarea { resize: vertical; }
 .scope-signal-confirmations legend { padding: 0 5px; color: #74410a; font-size: .82rem; font-weight: 850; }
 .scope-signal-confirmations .checkbox { margin-top: 8px; }
 .brief-review-form button { min-height: 42px; }
+.brief-review-readiness { grid-column: 1 / -1; display: grid; gap: 9px; padding: 13px; border: 1px solid #b8d8ce; border-radius: 10px; background: #fff; }
+.brief-review-readiness > strong { color: var(--green-dark); }
+.brief-review-readiness > span { color: var(--muted); font-size: .8rem; }
+.brief-review-readiness ul { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 16px; margin: 0; padding: 0; list-style: none; }
+.brief-review-readiness li { display: grid; grid-template-columns: 20px 1fr; gap: 7px; align-items: start; margin: 0; color: #7c3e1a; font-size: .78rem; }
+.brief-review-readiness li::before { content: "○"; font-weight: 900; }
+.brief-review-readiness li.review-ready { color: var(--green-dark); }
+.brief-review-readiness li.review-ready::before { content: "✓"; }
+.brief-review-form button:disabled { cursor: not-allowed; opacity: .58; }
 .brief-review-note { display: block; margin-top: 12px; color: var(--muted); font-size: .86rem; }
 .cleaner-screening { margin-top: 16px; padding: 15px; border: 1px solid #e2b48f; border-radius: 11px; background: #fff7ef; }
 .cleaner-screening.screening-complete { border-color: #9bcdbf; background: var(--mint-pale); }
@@ -820,7 +841,11 @@ textarea { resize: vertical; }
   .quote-target-results { grid-template-columns: 1fr; }
   .lead-toolbar { align-items: stretch; flex-direction: column; }
   .lead-filters { display: grid; grid-template-columns: 1fr; }
-  .dispatch-queue { padding: 20px 16px; }
+  .dispatch-queue, .scan-review-workspace { padding: 20px 16px; }
+  .scan-review-workspace-heading { display: grid; }
+  .scan-review-score { justify-self: start; }
+  .scan-review-summary { grid-template-columns: 1fr; }
+  .scan-review-summary .button { width: 100%; }
   .dispatch-heading, .dispatch-item { align-items: stretch; flex-direction: column; }
   .media-retention { padding: 20px 16px; }
   .media-retention-heading, .media-retention-item > div:first-child { align-items: stretch; flex-direction: column; }
@@ -833,6 +858,7 @@ textarea { resize: vertical; }
   .lead-details { grid-template-columns: 1fr; }
   .admin-brief-photos { grid-template-columns: 1fr; }
   .brief-review-form { grid-template-columns: 1fr; }
+  .brief-review-readiness ul { grid-template-columns: 1fr; }
   .brief-review-form button { grid-column: auto; width: 100%; }
   .lead-followup form { grid-template-columns: 1fr; }
   .proposal-form { grid-template-columns: 1fr; }
