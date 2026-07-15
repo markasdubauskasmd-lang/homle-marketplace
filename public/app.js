@@ -43,9 +43,89 @@ function showError(form, messages) {
   summary.focus();
 }
 
+const requestWizards = new WeakMap();
+
+function enhanceCustomerRequest(form) {
+  const steps = Array.from(form.querySelectorAll("[data-request-step]"));
+  const progress = form.querySelector("[data-request-progress]");
+  if (steps.length < 2 || !progress) return;
+
+  let currentStep = 1;
+  const lastStep = steps.length;
+  const summary = form.querySelector(".error-summary");
+
+  function showStep(stepNumber, moveFocus = true) {
+    currentStep = Math.max(1, Math.min(lastStep, stepNumber));
+    steps.forEach((step) => {
+      step.hidden = Number(step.dataset.requestStep) !== currentStep;
+    });
+    progress.querySelectorAll("[data-request-progress-step]").forEach((item) => {
+      const itemStep = Number(item.dataset.requestProgressStep);
+      item.classList.toggle("complete", itemStep < currentStep);
+      item.classList.toggle("current", itemStep === currentStep);
+      if (itemStep === currentStep) item.setAttribute("aria-current", "step");
+      else item.removeAttribute("aria-current");
+    });
+    summary.hidden = true;
+    form.dataset.currentRequestStep = String(currentStep);
+    if (moveFocus) {
+      const heading = steps[currentStep - 1].querySelector(".request-step-heading");
+      heading?.focus({ preventScroll: true });
+      steps[currentStep - 1].scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }
+
+  function validateCurrentStep() {
+    const controls = Array.from(steps[currentStep - 1].querySelectorAll("input, select, textarea"));
+    const invalid = controls.find((control) => !control.checkValidity());
+    if (!invalid) return true;
+    showError(form, "Complete the highlighted details before continuing.");
+    invalid.reportValidity();
+    invalid.focus();
+    return false;
+  }
+
+  const wizard = {
+    advance() {
+      if (!validateCurrentStep()) return false;
+      if (currentStep < lastStep) showStep(currentStep + 1);
+      return true;
+    },
+    back() {
+      if (currentStep > 1) showStep(currentStep - 1);
+    },
+    isFinal() {
+      return currentStep === lastStep;
+    },
+    complete() {
+      progress.hidden = true;
+      steps.forEach((step) => { step.hidden = true; });
+      delete form.dataset.currentRequestStep;
+    }
+  };
+
+  form.querySelectorAll("[data-request-next]").forEach((button) => {
+    button.addEventListener("click", () => wizard.advance());
+  });
+  form.querySelectorAll("[data-request-back]").forEach((button) => {
+    button.addEventListener("click", () => wizard.back());
+  });
+
+  form.classList.add("request-wizard-ready");
+  requestWizards.set(form, wizard);
+  showStep(1, false);
+}
+
+document.querySelectorAll("[data-customer-request]").forEach(enhanceCustomerRequest);
+
 document.querySelectorAll("[data-api-form]").forEach((form) => {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const requestWizard = requestWizards.get(form);
+    if (requestWizard && !requestWizard.isFinal()) {
+      requestWizard.advance();
+      return;
+    }
     const summary = form.querySelector(".error-summary");
     const success = form.querySelector(".success-panel");
     const submitButton = form.querySelector(".submit-button");
@@ -97,6 +177,7 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
         statusLink.href = `/request-status#${result.customerStatusToken}`;
         statusLink.hidden = false;
       }
+      requestWizard?.complete();
       success.hidden = false;
       success.focus();
       pendingSubmissions.delete(form);

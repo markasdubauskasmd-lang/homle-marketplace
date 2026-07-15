@@ -8,8 +8,8 @@
   <title>Tideway — cleaning, properly coordinated</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260714-29">
-  <script src="/app.js?v=20260715-30" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-41">
+  <script src="/app.js?v=20260715-41" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -23,10 +23,9 @@
       <nav id="main-nav" class="main-nav" aria-label="Primary navigation">
         <a href="#services">Services</a>
         <a href="#how-it-works">How it works</a>
-        <a href="/brief">Scan my rooms</a>
         <a href="#for-cleaners">For cleaners</a>
         <a class="button button-small button-outline" href="#cleaner-application">Join as a cleaner</a>
-        <a class="button button-small" href="#request-cleaning">Request cleaning</a>
+        <a class="button button-small" href="#request-cleaning">Book a clean</a>
       </nav>
     </div>
   </header>
@@ -39,8 +38,8 @@
           <h1>Book a clean with every room clearly scoped.</h1>
           <p class="hero-lead">Request a clean, photograph each room and speak naturally. Tideway turns your notes into a concise checklist before matching the work with a cleaning professional.</p>
           <div class="hero-actions">
-            <a class="button" href="#request-cleaning">I need a cleaner</a>
-            <a class="button button-outline" href="#cleaner-application">I want cleaning work</a>
+            <a class="button" href="#request-cleaning">Book a clean</a>
+            <a class="button button-outline" href="#cleaner-application">Work as a cleaner</a>
           </div>
           <p class="pilot-note">We are starting with a small London pilot. Send your details and we will confirm coverage, availability and a clear quote—no payment today.</p>
         </div>
@@ -109,42 +108,81 @@
         <article id="request-cleaning" class="form-card">
           <div class="form-intro">
             <p class="eyebrow">For homes, landlords &amp; businesses</p>
-            <h2>Step 1: request cleaning</h2>
-            <p>Tell us the basics first. After submitting, the required room scan captures the photos and spoken instructions a cleaner needs.</p>
+            <h2>Start your cleaning request in three short steps</h2>
+            <p>Tell us what needs cleaning, when it can happen and how to reach you. The room scan comes next.</p>
             <div class="form-promise"><strong>No payment today</strong><span>This is a request, not a confirmed booking.</span></div>
           </div>
-          <form data-api-form action="/api/cleaning-requests" method="post" novalidate>
+          <form data-api-form data-customer-request action="/api/cleaning-requests" method="post" novalidate>
             <div class="error-summary" role="alert" tabindex="-1" hidden></div>
-            <div class="field-row">
-              <label>Contact name <input name="contactName" autocomplete="name" required></label>
-              <label>Organisation <span>(optional)</span><input name="organisation" autocomplete="organization"></label>
-            </div>
-            <div class="field-row">
-              <label>Email <input name="email" type="email" autocomplete="email" required></label>
-              <label>Phone <input name="phone" type="tel" autocomplete="tel" required></label>
-            </div>
-            <div class="field-row">
-              <label>UK postcode <input name="postcode" autocomplete="postal-code" required></label>
-              <label>I am a <select name="customerType" required><option value="">Choose one</option><option>Homeowner or tenant</option><option>Landlord</option><option>Letting or property manager</option><option>Business or office manager</option><option>Short-let operator</option><option>Other</option></select></label>
-            </div>
-            <div class="field-row">
-              <label>Property type <select name="propertyType" required><option value="">Choose one</option><option>Flat or house</option><option>Office or workplace</option><option>Communal area</option><option>Short-let property</option><option>Other commercial space</option></select></label>
-              <label>Service <select name="service" required><option value="">Choose one</option><option>Rental turnover clean</option><option>End-of-tenancy clean</option><option>Regular workplace clean</option><option>Communal area clean</option><option>One-off deep clean</option><option>Not sure yet</option></select></label>
-            </div>
-            <div class="field-row">
+            <ol class="request-progress" data-request-progress aria-label="Cleaning request progress">
+              <li data-request-progress-step="1"><span>1</span><strong>Job</strong></li>
+              <li data-request-progress-step="2"><span>2</span><strong>Timing</strong></li>
+              <li data-request-progress-step="3"><span>3</span><strong>Contact</strong></li>
+            </ol>
+
+            <section class="request-form-step" data-request-step="1" aria-labelledby="request-step-1-title">
+              <div class="request-step-heading" tabindex="-1">
+                <span>Step 1 of 3</span>
+                <h3 id="request-step-1-title">What needs cleaning?</h3>
+                <p>Start with the property and service. Detailed room instructions come in the scan.</p>
+              </div>
+              <div class="field-row">
+                <label>UK postcode <input name="postcode" autocomplete="postal-code" inputmode="text" required></label>
+                <label>I am a <select name="customerType" required><option value="">Choose one</option><option>Homeowner or tenant</option><option>Landlord</option><option>Letting or property manager</option><option>Business or office manager</option><option>Short-let operator</option><option>Other</option></select></label>
+              </div>
+              <div class="field-row">
+                <label>Property type <select name="propertyType" required><option value="">Choose one</option><option>Flat or house</option><option>Office or workplace</option><option>Communal area</option><option>Short-let property</option><option>Other commercial space</option></select></label>
+                <label>Service <select name="service" required><option value="">Choose one</option><option>Rental turnover clean</option><option>End-of-tenancy clean</option><option>Regular workplace clean</option><option>Communal area clean</option><option>One-off deep clean</option><option>Not sure yet</option></select></label>
+              </div>
               <label>Site size or rooms <input name="siteSize" required placeholder="For example: 2 bedrooms and 1 bathroom, or 1,500 sq ft office"></label>
-              <label>Known hazards <select name="hazards" required><option value="">Choose one</option><option>None known</option><option>Pets present</option><option>Stairs or limited access</option><option>Building works or heavy soiling</option><option>Other — explain below</option></select></label>
-            </div>
-            <label>Keys and access arrangements <input name="accessNotes" required placeholder="For example: meet site manager, collect keys, concierge access"></label>
-            <div class="field-row">
-              <label>Frequency <select name="frequency"><option>One-off</option><option>Weekly</option><option>Several times a week</option><option>Fortnightly</option><option>As properties turn over</option><option>Not sure yet</option></select></label>
-              <label>Preferred date <span>(optional)</span><input name="preferredDate" type="date"></label>
-            </div>
-            <label>Preferred arrival window <select name="preferredTimeWindow"><option>Flexible</option><option>Morning (8am–12pm)</option><option>Afternoon (12pm–5pm)</option><option>Evening (5pm–8pm)</option></select></label>
-            <label>Job details <span>(optional)</span><textarea name="details" rows="4" placeholder="Size, access, deadline, special tasks or anything else we should know"></textarea></label>
-            <label class="checkbox"><input name="consent" type="checkbox" required><span>I agree that Tideway may use these details to respond to my request. See the <a href="/privacy">privacy notice</a>.</span></label>
+              <div class="request-form-actions">
+                <button class="button" type="button" data-request-next>Continue to timing</button>
+              </div>
+            </section>
+
+            <section class="request-form-step" data-request-step="2" aria-labelledby="request-step-2-title">
+              <div class="request-step-heading" tabindex="-1">
+                <span>Step 2 of 3</span>
+                <h3 id="request-step-2-title">When and how can the cleaner enter?</h3>
+                <p>These details help Tideway check a suitable cleaner and realistic visit window.</p>
+              </div>
+              <div class="field-row">
+                <label>Known hazards <select name="hazards" required><option value="">Choose one</option><option>None known</option><option>Pets present</option><option>Stairs or limited access</option><option>Building works or heavy soiling</option><option>Other — explain below</option></select></label>
+                <label>Frequency <select name="frequency"><option>One-off</option><option>Weekly</option><option>Several times a week</option><option>Fortnightly</option><option>As properties turn over</option><option>Not sure yet</option></select></label>
+              </div>
+              <label>Keys and access arrangements <input name="accessNotes" required placeholder="For example: meet site manager, collect keys, concierge access"></label>
+              <div class="field-row">
+                <label>Preferred date <span>(optional)</span><input name="preferredDate" type="date"></label>
+                <label>Preferred arrival window <select name="preferredTimeWindow"><option>Flexible</option><option>Morning (8am–12pm)</option><option>Afternoon (12pm–5pm)</option><option>Evening (5pm–8pm)</option></select></label>
+              </div>
+              <label>Job details <span>(optional)</span><textarea name="details" rows="4" placeholder="Deadline, special tasks or anything else we should know"></textarea></label>
+              <div class="request-form-actions">
+                <button class="button button-outline" type="button" data-request-back>Back</button>
+                <button class="button" type="button" data-request-next>Continue to contact</button>
+              </div>
+            </section>
+
+            <section class="request-form-step" data-request-step="3" aria-labelledby="request-step-3-title">
+              <div class="request-step-heading" tabindex="-1">
+                <span>Step 3 of 3</span>
+                <h3 id="request-step-3-title">Where should we send the next step?</h3>
+                <p>After this, you will scan the rooms and review the cleaner checklist.</p>
+              </div>
+              <div class="field-row">
+                <label>Contact name <input name="contactName" autocomplete="name" required></label>
+                <label>Organisation <span>(optional)</span><input name="organisation" autocomplete="organization"></label>
+              </div>
+              <div class="field-row">
+                <label>Email <input name="email" type="email" autocomplete="email" inputmode="email" required></label>
+                <label>Phone <input name="phone" type="tel" autocomplete="tel" inputmode="tel" required></label>
+              </div>
+              <label class="checkbox"><input name="consent" type="checkbox" required><span>I agree that Tideway may use these details to respond to my request. See the <a href="/privacy">privacy notice</a>.</span></label>
+              <div class="request-form-actions">
+                <button class="button button-outline" type="button" data-request-back>Back</button>
+                <button class="button submit-button" type="submit">Create request and scan rooms</button>
+              </div>
+            </section>
             <input type="hidden" name="website" value="">
-            <button class="button submit-button" type="submit">Continue to room scan</button>
             <div class="success-panel" role="status" tabindex="-1" hidden><strong>Step 1 complete.</strong><span>Your reference is <b data-reference></b>. A room scan is required before Tideway can prepare a cleaner-ready quote.</span><a class="button button-small" data-brief-link href="/brief">Step 2: scan rooms and speak notes</a><a class="button button-small button-outline" data-status-link href="/request-status" hidden>Track this request</a></div>
           </form>
         </article>

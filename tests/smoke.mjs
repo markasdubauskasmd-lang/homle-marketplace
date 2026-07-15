@@ -123,7 +123,7 @@ try {
 
   const home = await fetch(base);
   const homeText = await home.text();
-  assert(home.ok && homeText.includes("Book a clean with every room clearly scoped") && homeText.includes("postcode districts or areas") && homeText.includes("SW1A, SW4, or broader areas SW, SE"), "Homepage or structured cleaner travel-area guidance failed.");
+  assert(home.ok && homeText.includes("Book a clean with every room clearly scoped") && homeText.includes('data-customer-request') && homeText.includes('data-request-step="1"') && homeText.includes('data-request-step="2"') && homeText.includes('data-request-step="3"') && homeText.includes("What needs cleaning?") && homeText.includes("When and how can the cleaner enter?") && homeText.includes("Where should we send the next step?") && !homeText.includes('href="/brief">Scan my rooms') && homeText.includes("postcode districts or areas") && homeText.includes("SW1A, SW4, or broader areas SW, SE"), "Uber-simple three-stage customer request, guarded scan entry or structured cleaner travel-area guidance failed.");
   assert(home.headers.get("content-security-policy")?.includes("frame-ancestors 'none'"), "Security headers were missing.");
   assert(home.headers.get("content-security-policy")?.includes("img-src 'self' data: blob:"), "Secure local photo previews were blocked by the content policy.");
 
@@ -172,7 +172,7 @@ try {
   assert(adminAsset.ok && adminAsset.headers.get("cache-control") === "no-cache" && adminAssetText.includes("Later refunds, re-cleans and costs") && adminAssetText.includes("/api/admin/job-outcome-adjustments") && adminAssetText.includes("paymentEvidenceReference") && adminAssetText.includes("Externally verified amount") && adminAssetText.includes("customerReceiptReference") && adminAssetText.includes("cleanerPayoutReference"), "Updated control-desk assets, booking payment evidence, final settlement evidence or post-completion adjustment workflow could remain stale or missing.");
   const publicFormAsset = await fetch(`${base}/app.js?v=smoke-test`);
   const publicFormAssetText = await publicFormAsset.text();
-  assert(publicFormAsset.ok && publicFormAssetText.includes('"Idempotency-Key": pending.key') && publicFormAssetText.includes("pendingSubmissions.delete(form)"), "Customer and cleaner forms omitted safe retry-key handling.");
+  assert(publicFormAsset.ok && publicFormAssetText.includes("enhanceCustomerRequest") && publicFormAssetText.includes("validateCurrentStep") && publicFormAssetText.includes("requestWizard?.complete()") && publicFormAssetText.includes('"Idempotency-Key": pending.key') && publicFormAssetText.includes("pendingSubmissions.delete(form)"), "Progressive customer request, per-stage validation or safe retry-key handling failed.");
 
   const invalidPhone = await fetch(`${base}/api/cleaning-requests`, {
     method: "POST",
