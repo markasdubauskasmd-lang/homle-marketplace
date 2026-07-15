@@ -10,6 +10,7 @@ import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mjs";
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverage.mjs";
 import { businessDateToday, businessEpochFromWallClock, businessWallClockMs, earliestBookableWallClockMs } from "./business-clock.mjs";
+import { scanAttentionAction } from "./lead-attention.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, "public");
@@ -1544,7 +1545,7 @@ function launchReadiness(config) {
   return { checks, missing, completed: Object.values(checks).filter(Boolean).length, total: Object.keys(checks).length, ready: Object.values(checks).every(Boolean), next: nextKey ? { key: nextKey, label: labels[nextKey], missing: missing[nextKey] } : null };
 }
 
-function dispatchActionsForRecord({ kind, status, nextActionAt, proposals = [], briefs = [], booking = null, outcome = null, screening = null, cleanerAvailability = [], availabilityRequests = [], pilotCoverage = null }) {
+function dispatchActionsForRecord({ kind, status, createdAt, nextActionAt, proposals = [], briefs = [], booking = null, outcome = null, screening = null, cleanerAvailability = [], availabilityRequests = [], pilotCoverage = null }) {
   const actions = [];
   const add = (code, severity, group, title, detail) => {
     if (!actions.some((action) => action.code === code)) actions.push({ code, severity, group, title, detail });
@@ -1577,8 +1578,10 @@ function dispatchActionsForRecord({ kind, status, nextActionAt, proposals = [], 
   if (closed) return actions;
   if (pilotCoverage?.configured && !pilotCoverage.covered) add("outside-pilot", "high", "matching", "Request is outside the pilot area", "Do not promise coverage. Close the request or obtain an explicit founder decision before changing the configured pilot area.");
   const latestBrief = briefs[0] || null;
+  const scanAttention = scanAttentionAction({ requestCreatedAt: createdAt, latestBrief });
   if (!latestBrief) {
-    if (status === "new") add("review-request", "high", "scan", "Review new request and room-scan handoff", "Check the request and make sure the customer has the private route to submit required photos and spoken notes.");
+    if (scanAttention) add(scanAttention.code, scanAttention.severity, scanAttention.group, scanAttention.title, scanAttention.detail);
+    else if (status === "new") add("review-request", "high", "scan", "Review new request and room-scan handoff", "Check the request and make sure the customer has the private route to submit required photos and spoken notes.");
     else add("scan-pending", "monitor", "scan", "Required room scan is still pending", "A quote cannot advance until the customer submits photos and spoken notes and Tideway reviews the resulting room-by-room tasks.");
     return actions;
   }
@@ -1587,7 +1590,8 @@ function dispatchActionsForRecord({ kind, status, nextActionAt, proposals = [], 
     return actions;
   }
   if (latestBrief.status === "needs-revision") {
-    add("scan-revision-pending", "monitor", "scan", "Revised room scan is pending", "The customer must correct the recorded scope issue before Tideway can prepare another quote.");
+    if (scanAttention) add(scanAttention.code, scanAttention.severity, scanAttention.group, scanAttention.title, scanAttention.detail);
+    else add("scan-revision-pending", "monitor", "scan", "Revised room scan is pending", "The customer must correct the recorded scope issue before Tideway can prepare another quote.");
     return actions;
   }
 
@@ -1850,7 +1854,7 @@ async function getAdminRecords(request, response) {
     const pilotCoverage = kind === "request" ? pilotPostcodeCoverage(record.postcode, config.pilotPostcodes) : null;
     const status = latestStatuses.get(record.id) || record.status || "new";
     const nextActionAt = leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "";
-    const dispatchActions = dispatchActionsForRecord({ kind, status, nextActionAt, proposals: leadProposals, briefs: leadBriefs, booking, outcome, screening, cleanerAvailability, availabilityRequests, pilotCoverage });
+    const dispatchActions = dispatchActionsForRecord({ kind, status, createdAt: record.createdAt, nextActionAt, proposals: leadProposals, briefs: leadBriefs, booking, outcome, screening, cleanerAvailability, availabilityRequests, pilotCoverage });
     return { ...privateLead, kind, status, activities: leadActivities.slice(0, 10), nextActionAt, proposals: leadProposals.slice(0, 5), briefs: leadBriefs, screening, cleanerAvailability, availabilityRequests, pilotCoverage, booking, outcome, dispatchActions };
   };
   const records = [

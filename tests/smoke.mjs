@@ -10,6 +10,7 @@ import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "../offer-expiry.mjs";
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "../travel-coverage.mjs";
 import { businessDateToday, businessEpochFromWallClock, businessTimeZone, businessWallClockMs, earliestBookableWallClockMs } from "../business-clock.mjs";
+import { scanAttentionAction, scanAttentionHours } from "../lead-attention.mjs";
 import { newSubmissionKey } from "../public/submission-key.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -52,7 +53,24 @@ async function rewriteTestBookingSchedule(bookingId, schedule) {
   await writeFile(bookingPath, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`, "utf8");
 }
 
+async function rewriteTestRequestCreatedAt(requestId, createdAt) {
+  const requestPath = path.join(testDataDir, "cleaning-requests.ndjson");
+  const records = (await readFile(requestPath, "utf8")).split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+  const customerRequest = records.find((record) => record.id === requestId);
+  if (!customerRequest) throw new Error("Test request was not available for the stalled-scan fixture.");
+  customerRequest.createdAt = createdAt;
+  await writeFile(requestPath, `${records.map((record) => JSON.stringify(record)).join("\n")}\n`, "utf8");
+}
+
 try {
+  const attentionNow = Date.parse("2026-07-15T12:00:00.000Z");
+  assert(scanAttentionHours === 24, "The internal scan-attention threshold changed unexpectedly.");
+  assert(scanAttentionAction({ requestCreatedAt: "2026-07-14T12:00:01.000Z" }, attentionNow) === null, "A fresh room scan was escalated before the internal 24-hour attention threshold.");
+  assert(scanAttentionAction({ requestCreatedAt: "2026-07-14T12:00:00.000Z" }, attentionNow)?.code === "scan-stalled", "A room scan pending for 24 hours was not escalated.");
+  assert(scanAttentionAction({ requestCreatedAt: "invalid" }, attentionNow) === null, "An invalid request timestamp created a false stalled-scan action.");
+  assert(scanAttentionAction({ latestBrief: { status: "reviewed", createdAt: "2026-07-13T12:00:00.000Z" } }, attentionNow) === null, "A reviewed room scan was incorrectly escalated as stalled.");
+  assert(scanAttentionAction({ latestBrief: { status: "needs-revision", createdAt: "2026-07-14T12:00:00.000Z", reviewedAt: "2026-07-15T11:00:00.000Z" } }, attentionNow) === null, "A recent revision request used the older scan creation time and was escalated too early.");
+  assert(scanAttentionAction({ latestBrief: { status: "needs-revision", createdAt: "2026-07-13T12:00:00.000Z", reviewedAt: "2026-07-14T12:00:00.000Z" } }, attentionNow)?.code === "scan-revision-stalled", "A revised room scan pending for 24 hours was not escalated.");
   assert(businessTimeZone === "Europe/London", "The booking clock is not fixed to the Tideway pilot timezone.");
   assert(businessDateToday("2026-07-14T23:30:00.000Z") === "2026-07-15", "The booking clock did not advance to the next London date during British Summer Time.");
   assert(businessWallClockMs("2026-07-15T09:07:00.000Z") === Date.UTC(2026, 6, 15, 10, 7), "The booking clock lost the summer-time offset.");
@@ -644,6 +662,10 @@ try {
   });
   const unscannedRequestBody = await unscannedRequest.json();
   assert(unscannedRequest.status === 201, "Customer request without a room scan could not be created as step one.");
+  await rewriteTestRequestCreatedAt(unscannedRequestBody.reference, new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString());
+  const stalledScanQueue = await fetch(`${base}/api/admin/records`);
+  const stalledScanQueueBody = await stalledScanQueue.json();
+  assert(stalledScanQueue.ok && stalledScanQueueBody.records.find((record) => record.id === unscannedRequestBody.reference)?.dispatchActions?.some((action) => action.code === "scan-stalled" && action.severity === "high" && action.group === "scan"), "A customer request without a scan for more than 24 hours was not promoted to founder attention.");
   const unscannedProposal = await fetch(`${base}/api/admin/proposals`, {
     method: "POST",
     headers: { "content-type": "application/json" },
