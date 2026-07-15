@@ -118,6 +118,25 @@ try {
     "Living room: Wipe the coffee table",
     "Toilet: Disinfect the toilet"
   ]), "Spoken numbered rooms, lounge or WC did not map to canonical photo-room labels.");
+  const carriedRoomTasks = checklistFromTranscript("In the kitchen, wipe the worktops. Mop the floor. Also dust the shelves. Finally do not move the keys.");
+  assert(JSON.stringify(carriedRoomTasks) === JSON.stringify([
+    "Kitchen: Wipe the worktops",
+    "Kitchen: Mop the floor",
+    "Kitchen: Dust the shelves",
+    "Do not move the keys"
+  ]), "Natural follow-on speech lost its room label or incorrectly attached a final global instruction.");
+  const passiveRoomTasks = checklistFromTranscript("In the bathroom, the shower screen needs wiping and the floor needs mopping. In the kitchen, the oven is really dirty, and the worktops require attention.");
+  assert(JSON.stringify(passiveRoomTasks) === JSON.stringify([
+    "Bathroom: Wipe the shower screen",
+    "Bathroom: Mop the floor",
+    "Kitchen: Clean the oven",
+    "Kitchen: Clean the worktops"
+  ]), "Passive or condition-based room notes were not converted into direct cleaner actions.");
+  const duplicateSpokenTasks = checklistFromTranscript("In the living room, vacuum the rug and hoover the rug. Wipe the coffee table and wipe coffee table.");
+  assert(JSON.stringify(duplicateSpokenTasks) === JSON.stringify([
+    "Living room: Vacuum the rug",
+    "Living room: Wipe the coffee table"
+  ]), "Equivalent spoken instructions produced duplicate cleaner bullets.");
 
   const detectedScopeCodes = detectPriceSensitiveScope({ transcript: "Clean inside the oven and inside the fridge. Clean inside cupboards, wash the windows, change the bed linen, arrange carpet cleaning, rubbish removal, balcony cleaning and wash the walls." }).map((signal) => signal.code);
   assert(JSON.stringify(detectedScopeCodes) === JSON.stringify(["oven-interior", "fridge-freezer-interior", "inside-storage", "window-cleaning", "linen-laundry", "carpet-upholstery", "waste-removal", "outdoor-area", "walls-ceilings"]), "Customer-facing price-sensitive scope detection omitted or reordered a supported extra.");
@@ -202,7 +221,7 @@ try {
   const briefPage = await fetch(`${base}/brief`);
   const briefPageText = await briefPage.text();
   const galleryInputTag = briefPageText.match(/<input id="brief-photos"[^>]*>/)?.[0] || "";
-  assert(briefPage.ok && briefPageText.includes("Request details carried over.") && briefPageText.includes("Open this scan from your private request tracker") && briefPageText.includes("data-request-email-label") && briefPageText.includes('id="photo-count">0/10') && briefPageText.includes('id="brief-camera" type="file" accept="image/*" capture="environment"') && briefPageText.includes("Take a room photo") && briefPageText.includes("Choose existing photos or videos") && galleryInputTag.includes("multiple") && !galleryInputTag.includes("capture=") && briefPageText.includes("no more than two videos of 30 seconds and 15 MB each") && briefPageText.includes("complete upload is capped at 20 MB") && briefPageText.includes("Checking room scan") && briefPageText.includes("summarise again so the cleaner receives the latest scope") && briefPageText.includes("Extra time may be needed") && briefPageText.includes("require this confirmation again"), "Direct mobile camera capture, separate gallery/video selection, bounded whole-property limits, checklist-freshness guidance, live readiness panel, private tracker handoff, customer-facing scope warning or change-sensitive scope confirmation failed.");
+  assert(briefPage.ok && briefPageText.includes("Request details carried over.") && briefPageText.includes("Open this scan from your private request tracker") && briefPageText.includes("data-request-email-label") && briefPageText.includes('id="photo-count">0/10') && briefPageText.includes('id="brief-camera" type="file" accept="image/*" capture="environment"') && briefPageText.includes("Take a room photo") && briefPageText.includes("Choose existing photos or videos") && galleryInputTag.includes("multiple") && !galleryInputTag.includes("capture=") && briefPageText.includes("the floor needs mopping") && briefPageText.includes("turns conditions into direct tasks") && briefPageText.includes("no more than two videos of 30 seconds and 15 MB each") && briefPageText.includes("complete upload is capped at 20 MB") && briefPageText.includes("Checking room scan") && briefPageText.includes("summarise again so the cleaner receives the latest scope") && briefPageText.includes("Extra time may be needed") && briefPageText.includes("require this confirmation again"), "Direct mobile camera capture, natural speech-to-task guidance, separate gallery/video selection, bounded whole-property limits, checklist-freshness guidance, live readiness panel, private tracker handoff, customer-facing scope warning or change-sensitive scope confirmation failed.");
   assert(briefPageText.includes('id="job-brief-form" action="/api/job-briefs" method="post" novalidate') && !briefPageText.includes('id="save-brief" class="button submit-button" type="submit" disabled'), "Room-scan submission was blocked before it could explain incomplete readiness.");
   const briefScript = await fetch(`${base}/brief.js?v=smoke-test`);
   const briefScriptText = await briefScript.text();
