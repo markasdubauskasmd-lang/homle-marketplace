@@ -102,6 +102,12 @@ try {
   assert(missingAdminKey.status === 401, "ADMIN_REQUIRE_KEY did not protect a same-origin loopback API read.");
   const authorisedAdmin = await sameOriginFetch("/api/admin/records", { headers: { "x-admin-key": adminKey } });
   assert(authorisedAdmin.ok, "A same-origin admin API read with the configured key was rejected.");
+  const unsafeStorageConfig = await sameOriginFetch("/api/admin/config", { headers: { "x-admin-key": adminKey } });
+  const unsafeStorageConfigBody = await unsafeStorageConfig.json();
+  const storageProjection = JSON.stringify(unsafeStorageConfigBody.storageSafety);
+  assert(unsafeStorageConfig.ok && unsafeStorageConfigBody.storageSafety?.safeForPrivatePilot === false && unsafeStorageConfigBody.storageSafety?.cloudSyncProvider === "OneDrive" && unsafeStorageConfigBody.storageSafety?.explicitlyConfigured === true && unsafeStorageConfigBody.storageSafety?.relocationRequired === true && unsafeStorageConfigBody.storageSafety?.automaticRelocation === false, "The admin API did not expose the synthetic OneDrive risk without moving data.");
+  assert(!storageProjection.includes(testDataDir) && !Object.hasOwn(unsafeStorageConfigBody.storageSafety, "path"), "The storage-safety projection exposed the private local data path.");
+  assert(unsafeStorageConfigBody.readiness.missing?.operatingRules?.includes("private data folder outside cloud-sync services"), "Unsafe private storage did not block launch readiness.");
 
   console.log("Pilot HTTP security tests passed.");
 } finally {

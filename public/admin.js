@@ -1,4 +1,4 @@
-const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null, dataIntegrity: null };
+const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null, dataIntegrity: null, storageSafety: null };
 const dispatchOrder = globalThis.TidewayDispatchOrder;
 const scanReviewWorkspace = globalThis.TidewayScanReviewWorkspace;
 const scopeTimeWorksheet = globalThis.TidewayScopeTimeBreakdown;
@@ -162,6 +162,22 @@ function renderReadiness(readiness) {
   continueButton.textContent = readiness.next ? `Continue ${readiness.next.label.toLowerCase()} setup` : "Continue launch setup";
 }
 
+function renderPrivateDataStorage(storageSafety = {}) {
+  state.storageSafety = storageSafety;
+  const panel = document.querySelector("#private-data-storage");
+  const status = document.querySelector("#private-data-storage-status");
+  const message = document.querySelector("#private-data-storage-message");
+  const action = document.querySelector("#private-data-storage-action");
+  const safe = storageSafety.safeForPrivatePilot === true;
+  panel.classList.remove("private-data-storage-checking", "private-data-storage-safe", "private-data-storage-unsafe");
+  panel.classList.add(safe ? "private-data-storage-safe" : "private-data-storage-unsafe");
+  status.textContent = safe ? "Off-sync" : "Action required";
+  message.textContent = safe
+    ? `Private records use an off-sync ${storageSafety.explicitlyConfigured ? "configured DATA_DIR" : "local folder"}. Keep access and backup controls under review.`
+    : `Private records are inside ${storageSafety.cloudSyncProvider || "a cloud-synchronised folder"}. Real customer intake must remain blocked until the data is relocated safely.`;
+  action.hidden = safe;
+}
+
 function focusReadinessRequirement(target) {
   if (!target) return;
   const setup = document.querySelector(".setup-details");
@@ -191,6 +207,7 @@ async function loadConfig() {
     populateConfig(result.config);
     syncQuoteDefaults(result.config);
     renderReadiness(result.readiness);
+    renderPrivateDataStorage(result.storageSafety);
     updateQuoteCalculator();
   } catch (error) {
     showAdminError(error.message);

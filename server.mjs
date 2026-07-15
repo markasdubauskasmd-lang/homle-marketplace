@@ -1855,7 +1855,8 @@ function launchReadiness(config) {
       { label: "customer quote response window", complete: Number.isInteger(config.customerQuoteValidityHours) && config.customerQuoteValidityHours >= 1 && config.customerQuoteValidityHours <= 168 },
       { label: "cleaner opportunity response window", complete: Number.isInteger(config.cleanerOpportunityValidityHours) && config.cleanerOpportunityValidityHours >= 1 && config.cleanerOpportunityValidityHours <= 168 },
       { label: "inactive-enquiry media retention period", complete: validRetentionDays(config.inactiveMediaRetentionDays) },
-      { label: "completed-booking media retention period", complete: validRetentionDays(config.completedMediaRetentionDays) }
+      { label: "completed-booking media retention period", complete: validRetentionDays(config.completedMediaRetentionDays) },
+      { label: "private data folder outside cloud-sync services", complete: dataDirectorySafety.safeForPrivatePilot }
     ]
   };
   const checks = Object.fromEntries(Object.entries(requirements).map(([key, items]) => [key, items.every((item) => item.complete)]));
@@ -4551,7 +4552,14 @@ async function addAdminActivity(request, response) {
 async function getAdminConfig(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   const config = await readJsonFile("business-config.json", {});
-  return json(response, 200, { ok: true, config, readiness: launchReadiness(config), economics: launchEconomicsRehearsal(config) });
+  const storageSafety = {
+    safeForPrivatePilot: dataDirectorySafety.safeForPrivatePilot,
+    cloudSyncProvider: dataDirectorySafety.cloudSyncProvider,
+    explicitlyConfigured: dataDirectorySafety.explicitlyConfigured,
+    relocationRequired: !dataDirectorySafety.safeForPrivatePilot,
+    automaticRelocation: false
+  };
+  return json(response, 200, { ok: true, config, readiness: launchReadiness(config), economics: launchEconomicsRehearsal(config), storageSafety });
 }
 
 async function getAdminDataIntegrity(request, response) {

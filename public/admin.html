@@ -55,6 +55,19 @@
       <p class="data-integrity-note"><strong>Recovery safety:</strong> Tideway never changes a damaged record automatically. If an issue is found, new writes stop while the integrity desk and verified backups remain available for controlled recovery.</p>
     </section>
 
+    <section id="private-data-storage" class="private-data-storage private-data-storage-checking" aria-labelledby="private-data-storage-heading">
+      <div class="private-data-storage-heading">
+        <div><p class="eyebrow">Private data location</p><h2 id="private-data-storage-heading">Customer-record storage</h2><p id="private-data-storage-message">Checking whether private records are outside cloud-synchronised folders.</p></div>
+        <span id="private-data-storage-status" class="status-pill" role="status">Checking</span>
+      </div>
+      <div id="private-data-storage-action" class="private-data-storage-action" hidden>
+        <strong>Move before real intake</strong>
+        <p>Stop Tideway, create and verify a private backup, copy the records to an access-restricted folder outside OneDrive or another sync service, set the absolute <code>DATA_DIR</code>, then restart and confirm this panel turns green.</p>
+        <small>This control desk never moves, copies or deletes private records automatically. Use the recovery procedure and obtain explicit approval for the destination first.</small>
+      </div>
+      <p class="private-data-storage-note">The exact local path is deliberately not returned to the browser.</p>
+    </section>
+
     <section class="stat-grid" aria-label="Lead summary">
       <article><span>Customer requests</span><strong id="request-count">—</strong><small id="new-request-count">Loading…</small></article>
       <article><span>Cleaner applications</span><strong id="cleaner-count">—</strong><small id="new-cleaner-count">Loading…</small></article>
