@@ -206,8 +206,9 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
       success.hidden = false;
       success.focus();
       pendingSubmissions.delete(form);
-      if (briefLink) {
-        const destination = briefLink.href;
+      const continuationLink = briefLink || (cleanerStatusLink && !cleanerStatusLink.hidden ? cleanerStatusLink : null);
+      if (continuationLink) {
+        const destination = continuationLink.href;
         window.setTimeout(() => {
           if (!success.hidden && document.contains(form)) window.location.assign(destination);
         }, 900);
