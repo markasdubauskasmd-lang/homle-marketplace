@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { marketplaceTaskPreview } from "../public/marketplace-preview-model.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const [html, script, styles, server] = await Promise.all([
@@ -28,5 +29,19 @@ assert(home.includes('id="marketplace-demo"') && home.includes('href="/marketpla
 assert(home.includes("Interactive sample only.") && home.includes("No real Cleaner, booking or live location"), "The homepage preview entry point does not clearly disclose sample data.");
 assert(script.includes('new URLSearchParams(window.location.search).get("screen")') && script.includes('name === "tracking" ? "tracking" : "profile"'), "Direct preview links do not select a safe known screen.");
 assert(styles.includes(".marketplace-demo-layout") && styles.includes(".marketplace-demo-card"), "The homepage marketplace preview entry point is missing responsive visual treatment.");
+assert(html.includes('data-preview-task="kitchen"') && html.includes('data-preview-task="bathroom"') && html.includes("Report sample issue") && html.includes("Before and after evidence"), "The live-job preview is missing interactive room work, issue reporting or private evidence placeholders.");
+assert(html.includes('href="/tracking-test"') && home.includes('href="/tracking-test"') && home.includes("Test real location locally"), "The website does not expose the functional localhost tracking test.");
+assert(script.includes("marketplaceTaskPreview") && script.includes("completedTaskIds") && script.includes("issueTaskIds") && script.includes("Complete every task first"), "The Cleaner and Landlord task views do not share a completion-gated preview model.");
 
-console.log("Marketplace preview tests passed: truthful sample profile, private tracking states, accessible progress and mobile layout.");
+const travelling = marketplaceTaskPreview({ state: "en-route", role: "landlord", completedTaskIds: ["kitchen"] });
+assert(travelling.percent === 0 && travelling.completedCount === 0 && travelling.progressCopy === "Cleaning has not started" && !travelling.canUpdate, "Travelling incorrectly displayed cleaning progress or Landlord mutation rights.");
+const cleanerStarted = marketplaceTaskPreview({ state: "cleaning", role: "cleaner", completedTaskIds: ["kitchen", "bathroom"] });
+assert(cleanerStarted.percent === 50 && cleanerStarted.canUpdate && !cleanerStarted.canFinish && cleanerStarted.tasks.filter((task) => task.status === "complete").length === 2, "Cleaner task progress was not derived from the actual sample task set.");
+const landlordStarted = marketplaceTaskPreview({ state: "cleaning", role: "landlord", completedTaskIds: ["kitchen", "bathroom"] });
+assert(landlordStarted.percent === 50 && !landlordStarted.canUpdate, "The Landlord projection lost shared progress or became writable.");
+const issue = marketplaceTaskPreview({ state: "cleaning", role: "cleaner", completedTaskIds: ["kitchen", "bathroom"], issueTaskIds: ["bathroom"] });
+assert(issue.completedCount === 1 && issue.issueCount === 1 && issue.tasks.find((task) => task.id === "bathroom")?.status === "issue" && !issue.canFinish, "A reported issue remained falsely complete or allowed finishing.");
+const readyToFinish = marketplaceTaskPreview({ state: "cleaning", role: "cleaner", completedTaskIds: ["kitchen", "bathroom", "main-bedroom", "living-room"] });
+assert(readyToFinish.percent === 100 && readyToFinish.canFinish, "A fully completed Cleaner checklist did not unlock finishing.");
+
+console.log("Marketplace preview tests passed: truthful sample profile, role-safe interactive tasks, issue/finish gates, private tracking states and mobile layout.");

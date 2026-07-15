@@ -32,8 +32,11 @@
     "test:scan-review": "node tests/scan-review-workspace.mjs",
     "test:profile-starter": "node tests/cleaner-profile-starter.mjs",
     "test:cleaner-application-preview": "node tests/cleaner-application-preview.mjs",
+    "test:tracking-test": "node tests/tracking-test.mjs",
+    "check:tracking-test": "node --check tracking-test-store.mjs && node --check public/tracking-test.js && node --check public/marketplace-preview.js && node --check public/marketplace-preview-model.js && node --check tests/tracking-test.mjs && node --check tests/marketplace-preview.mjs",
     "test:readiness-navigation": "node tests/readiness-navigator.mjs",
     "check:readiness-navigation": "node --check public/readiness-navigator.js && node --check tests/readiness-navigator.mjs",
+    "pretest": "node tests/tracking-test.mjs && node tests/marketplace-preview.mjs",
     "test": "node tests/marketplace-foundation.mjs && node tests/authentication-service.mjs && node tests/credential-service.mjs && node tests/account-security.mjs && node tests/account-session-service.mjs && node tests/authentication-http.mjs && node tests/cleaner-profile.mjs && node tests/cleaner-profile-starter.mjs && node tests/cleaner-application-preview.mjs && node tests/property-service.mjs && node tests/cleaning-request-service.mjs && node tests/booking-workflow.mjs && node tests/matching-service.mjs && node tests/journey-service.mjs && node tests/progress-service.mjs && node tests/media-service.mjs && node tests/message-service.mjs && node tests/realtime-service.mjs && node tests/notification-service.mjs && node tests/review-service.mjs && node tests/marketplace-http.mjs && node tests/scan-review-workspace.mjs && node tests/readiness-navigator.mjs && node tests/smoke.mjs"
   },
   "engines": {

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#0e665b">
+  <title>Tideway real location test</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260715-56">
+  <script src="/tracking-test.js?v=20260715-2" type="module"></script>
+</head>
+<body class="tracking-test-page">
+  <a class="skip-link" href="#main">Skip to tracking test</a>
+  <header class="site-header preview-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a>
+      <span class="preview-header-label">Private local test</span>
+      <a class="preview-back" href="/marketplace-preview?screen=tracking">Back to preview</a>
+    </div>
+  </header>
+
+  <main id="main" class="tracking-test-main shell">
+    <section class="tracking-test-disclosure" aria-labelledby="tracking-test-title">
+      <p class="eyebrow">Functional localhost lab</p>
+      <h1 id="tracking-test-title">Real location test</h1>
+      <p>This uses the Cleaner browser's real geolocation and streams the latest point to one private Landlord viewer. It is not a booking and it does not contact anyone.</p>
+      <ul>
+        <li>Foreground browser use only—background phone tracking is not promised.</li>
+        <li>Only the latest point is held in server memory; no route history is written to disk.</li>
+        <li>The point expires after two minutes, and Stop or Delete removes it immediately.</li>
+        <li>No external map, advertising service or Polsia credit is used.</li>
+      </ul>
+    </section>
+
+    <section class="tracking-test-setup" data-test-setup aria-labelledby="tracking-test-setup-title">
+      <div><h2 id="tracking-test-setup-title">Create a 30-minute private test</h2><p>Run this step at <strong>127.0.0.1</strong> on the computer. You will receive a separate Landlord-view link for another tab.</p></div>
+      <button class="button" type="button" data-create-test>Create private test</button>
+      <p class="form-message" data-setup-message role="status"></p>
+    </section>
+
+    <section class="tracking-test-session" data-test-session hidden aria-labelledby="tracking-session-title">
+      <div class="tracking-test-session-heading">
+        <div><p class="eyebrow" data-role-label>Private test</p><h2 id="tracking-session-title" data-session-heading>Waiting for location</h2><span data-session-reference></span></div>
+        <span class="tracking-test-state" data-session-state>Waiting</span>
+      </div>
+
+      <div class="tracking-test-grid">
+        <article class="tracking-test-map-card">
+          <div class="tracking-test-map" aria-label="Local movement view; not a street map">
+            <span class="tracking-test-map-label">Local movement view · no map provider</span>
+            <div class="tracking-test-origin" aria-hidden="true"></div>
+            <div class="tracking-test-marker" data-location-marker hidden aria-label="Latest Cleaner position"><span>C</span></div>
+          </div>
+          <dl class="tracking-test-location-details">
+            <div><dt>Latitude</dt><dd data-latitude>Waiting</dd></div>
+            <div><dt>Longitude</dt><dd data-longitude>Waiting</dd></div>
+            <div><dt>Accuracy</dt><dd data-accuracy>Waiting</dd></div>
+            <div><dt>Latest update</dt><dd data-recorded-at>No point received</dd></div>
+          </dl>
+          <p class="tracking-test-map-note">Coordinates are shown only inside this private test so you can confirm that the real browser position is updating.</p>
+        </article>
+
+        <aside class="tracking-test-control-card">
+          <section data-controller-controls hidden>
+            <p class="eyebrow">Cleaner controller</p>
+            <h2>Share this browser's location</h2>
+            <label class="checkbox tracking-test-consent"><input type="checkbox" data-location-consent><span>I consent to share my current position in this temporary local test. I understand it remains foreground-only.</span></label>
+            <div class="tracking-test-actions"><button class="button" type="button" data-start-location disabled>Start real journey</button><button class="button button-outline" type="button" data-stop-location disabled>Stop and remove point</button></div>
+            <p class="form-message" data-controller-message role="status"></p>
+          </section>
+
+          <section class="tracking-test-viewer-link" data-viewer-link-panel hidden>
+            <p class="eyebrow">Landlord viewer</p>
+            <h3>Open this private view in another tab</h3>
+            <p>The fragment token is removed before the first request and authorises read-only updates only.</p>
+            <label>Private viewer link<input type="text" data-viewer-link readonly spellcheck="false"></label>
+            <div class="tracking-test-actions"><button class="button button-small" type="button" data-open-viewer>Open viewer tab</button><button class="button button-small button-outline" type="button" data-copy-viewer>Copy viewer link</button></div>
+            <div class="tracking-test-phone-viewer" data-phone-viewer-panel hidden><label>Same-Wi-Fi phone viewer link<input type="text" data-phone-viewer-link readonly spellcheck="false"></label><button class="button button-small button-outline" type="button" data-copy-phone-viewer>Copy phone viewer link</button><small>The phone link is read-only. Keep the computer controller open in the foreground.</small></div>
+          </section>
+
+          <section data-viewer-controls hidden>
+            <p class="eyebrow">Landlord viewer</p>
+            <h2>Watching the latest point</h2>
+            <p>This tab is read-only. Keep the Cleaner controller open in the foreground and press <strong>Start real journey</strong> there.</p>
+          </section>
+
+          <div class="tracking-test-connection"><span data-connection-dot></span><div><strong data-connection-label>Not connected</strong><small data-connection-detail>Waiting for a private test token</small></div></div>
+          <button class="tracking-test-delete" type="button" data-delete-test hidden>End and delete this test</button>
+        </aside>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

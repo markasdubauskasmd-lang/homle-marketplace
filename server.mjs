@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { appendFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
+import { networkInterfaces } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript, normaliseChecklistTask } from "./public/checklist.js";
@@ -16,6 +17,7 @@ import { scanAttentionAction } from "./lead-attention.mjs";
 import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeCleanerProfileStarter } from "./cleaner-profile-starter.mjs";
 import { buildRoomScanFollowupDraft } from "./request-followup-draft.mjs";
 import { publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
+import { createTrackingTestStore } from "./tracking-test-store.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, "public");
@@ -34,6 +36,7 @@ const maxOutcomeHours = 100;
 const maxFinancialRecordAmount = 1000000;
 let writeQueue = Promise.resolve();
 const rateLimitBuckets = new Map();
+const trackingTestStore = createTrackingTestStore();
 const trustProxy = process.env.TRUST_PROXY === "true";
 const marketplaceConfig = validateMarketplaceEnvironment(process.env);
 if (!marketplaceConfig.ok) throw new Error(`Invalid marketplace environment: ${marketplaceConfig.errors.join(" ")}`);
@@ -70,7 +73,10 @@ const apiRateLimitPolicies = {
   publicSubmission: { limit: 20, windowMs: 15 * 60 * 1000 },
   privateRead: { limit: 180, windowMs: 5 * 60 * 1000 },
   privateWrite: { limit: 30, windowMs: 15 * 60 * 1000 },
-  adminAuthentication: { limit: 12, windowMs: 15 * 60 * 1000 }
+  adminAuthentication: { limit: 12, windowMs: 15 * 60 * 1000 },
+  trackingTestCreate: { limit: 10, windowMs: 15 * 60 * 1000 },
+  trackingTestRead: { limit: 120, windowMs: 5 * 60 * 1000 },
+  trackingTestLocation: { limit: 300, windowMs: 5 * 60 * 1000 }
 };
 
 const statusOptions = {
@@ -145,7 +151,11 @@ function setSecurityHeaders(response, requestPath = "") {
   response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Frame-Options", "DENY");
-  response.setHeader("Permissions-Policy", requestPath === "/brief" ? "camera=(self), microphone=(self), geolocation=()" : "camera=(), microphone=(), geolocation=()");
+  response.setHeader("Permissions-Policy", requestPath === "/brief"
+    ? "camera=(self), microphone=(self), geolocation=()"
+    : requestPath === "/tracking-test"
+      ? "camera=(), microphone=(), geolocation=(self)"
+      : "camera=(), microphone=(), geolocation=()");
 }
 
 function json(response, statusCode, body) {
@@ -186,6 +196,9 @@ function rateLimitPolicyFor(request, pathname) {
   if (request.method === "GET" && ["/api/request-status", "/api/cleaner-status", "/api/quote", "/api/opportunity", "/api/opportunity-photo", "/api/booking-pack", "/api/booking-photo"].includes(pathname)) {
     return { name: `private-read:${pathname}`, ...apiRateLimitPolicies.privateRead };
   }
+  if (request.method === "POST" && pathname === "/api/tracking-test/session") return { name: "tracking-test-create", ...apiRateLimitPolicies.trackingTestCreate };
+  if (request.method === "PUT" && pathname === "/api/tracking-test/location") return { name: "tracking-test-location", ...apiRateLimitPolicies.trackingTestLocation };
+  if (["GET", "POST", "DELETE"].includes(request.method || "") && pathname.startsWith("/api/tracking-test/")) return { name: `tracking-test:${pathname}`, ...apiRateLimitPolicies.trackingTestRead };
   return null;
 }
 
@@ -4570,6 +4583,103 @@ async function handleCleanerApplication(request, response) {
   return json(response, saved.replayed ? 200 : 201, { ok: true, replayed: saved.replayed, reference: saved.record.id, cleanerStatusToken: saved.record.cleanerStatusToken });
 }
 
+function trackingTestToken(request) {
+  return text(request.headers["x-tracking-test-token"], 80);
+}
+
+function requireLoopbackTrackingController(request) {
+  const address = requestClientAddress(request);
+  if (address !== "127.0.0.1" && address !== "::1") {
+    throw Object.assign(new Error("Real location test control is restricted to this computer's localhost interface."), { statusCode: 403 });
+  }
+}
+
+function trackingTestViewerOrigins() {
+  if (!lanPort) return [];
+  const origins = new Set();
+  for (const addresses of Object.values(networkInterfaces())) {
+    for (const address of addresses || []) {
+      if (address.family !== "IPv4" || address.internal || !isIP(address.address) || address.address.startsWith("169.254.")) continue;
+      origins.add(`http://${address.address}:${lanPort}`);
+    }
+  }
+  return [...origins].sort();
+}
+
+async function createTrackingTestSession(request, response) {
+  ensureSameOrigin(request);
+  requireLoopbackTrackingController(request);
+  const created = trackingTestStore.createSession();
+  return json(response, 201, { ok: true, ...created, viewerOrigins: trackingTestViewerOrigins() });
+}
+
+function getTrackingTestSnapshot(request, response) {
+  const snapshot = trackingTestStore.getSnapshot(trackingTestToken(request));
+  return json(response, 200, snapshot);
+}
+
+async function updateTrackingTestLocation(request, response) {
+  ensureSameOrigin(request);
+  requireLoopbackTrackingController(request);
+  const input = await readJson(request, 8 * 1024);
+  const snapshot = trackingTestStore.updateLocation(trackingTestToken(request), input);
+  return json(response, 200, snapshot);
+}
+
+function stopTrackingTest(request, response) {
+  ensureSameOrigin(request);
+  requireLoopbackTrackingController(request);
+  return json(response, 200, trackingTestStore.stop(trackingTestToken(request)));
+}
+
+function deleteTrackingTest(request, response) {
+  ensureSameOrigin(request);
+  requireLoopbackTrackingController(request);
+  return json(response, 200, { ok: true, ...trackingTestStore.destroy(trackingTestToken(request)) });
+}
+
+function streamTrackingTest(request, response) {
+  const token = trackingTestToken(request);
+  if (!String(request.headers.accept || "").includes("text/event-stream")) {
+    return json(response, 406, { ok: false, error: "This endpoint requires an event-stream request." });
+  }
+  trackingTestStore.getSnapshot(token);
+  response.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "private, no-store, no-transform",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no"
+  });
+  response.flushHeaders?.();
+  let closed = false;
+  let heartbeat = null;
+  let unsubscribe = () => {};
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    if (heartbeat) clearInterval(heartbeat);
+    unsubscribe();
+    if (!response.writableEnded) response.end();
+  };
+  const send = (snapshot) => {
+    if (closed || response.writableEnded) return;
+    const writable = response.write(`event: snapshot\ndata: ${JSON.stringify(snapshot)}\n\n`);
+    if (!writable || ["deleted", "expired"].includes(snapshot.state)) close();
+  };
+  try {
+    unsubscribe = trackingTestStore.subscribe(token, send);
+    heartbeat = setInterval(() => {
+      if (!closed && !response.writableEnded && !response.write(": keep-alive\n\n")) close();
+    }, 15_000);
+    heartbeat.unref?.();
+    request.on("close", close);
+    response.on("close", close);
+  } catch (error) {
+    if (!response.writableEnded) response.write(`event: error\ndata: ${JSON.stringify({ error: error.message })}\n\n`);
+    close();
+  }
+}
+
 async function serveFile(requestPath, response) {
   const routes = {
     "/": "index.html",
@@ -4581,6 +4691,7 @@ async function serveFile(requestPath, response) {
     "/reset-password": "account.html",
     "/onboarding": "account.html",
     "/marketplace-preview": "marketplace-preview.html",
+    "/tracking-test": "tracking-test.html",
     "/brief": "brief.html",
     "/brief-complete": "brief-complete.html",
     "/request-status": "request-status.html",
@@ -4630,6 +4741,24 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/auth/providers") {
       return json(response, 200, { ok: true, providers: publicAuthenticationCapabilities(process.env) });
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/tracking-test/session") {
+      return await createTrackingTestSession(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/tracking-test/snapshot") {
+      return getTrackingTestSnapshot(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/tracking-test/events") {
+      return streamTrackingTest(request, response);
+    }
+    if (request.method === "PUT" && requestUrl.pathname === "/api/tracking-test/location") {
+      return await updateTrackingTestLocation(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/tracking-test/stop") {
+      return stopTrackingTest(request, response);
+    }
+    if (request.method === "DELETE" && requestUrl.pathname === "/api/tracking-test/session") {
+      return deleteTrackingTest(request, response);
     }
     if (!await allowDataMutation(request, response, requestUrl.pathname)) return;
     if (request.method === "POST" && requestUrl.pathname === "/api/cleaning-requests") {
@@ -4772,6 +4901,8 @@ await cleanupStaleTemporaryFiles();
 await refreshDataIntegrity();
 const server = createServer(handleHttpRequest);
 const lanServer = lanPort ? createServer(handleHttpRequest) : null;
+const trackingTestExpiryTimer = setInterval(() => trackingTestStore.activeSessionCount(), 30_000);
+trackingTestExpiryTimer.unref?.();
 server.listen(port, host, () => {
   console.log(`Tideway is running at http://${host}:${port}`);
 });
@@ -4782,6 +4913,8 @@ if (lanServer) {
 }
 
 function shutdown() {
+  clearInterval(trackingTestExpiryTimer);
+  trackingTestStore.close();
   let remaining = lanServer ? 2 : 1;
   const closed = () => {
     remaining -= 1;

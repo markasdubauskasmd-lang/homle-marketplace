@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Tideway marketplace design preview</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-53">
-  <script src="/marketplace-preview.js?v=20260715-2" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-55">
+  <script src="/marketplace-preview.js?v=20260715-3" type="module"></script>
 </head>
 <body class="marketplace-preview-page">
   <a class="skip-link" href="#main">Skip to preview</a>
@@ -119,19 +119,23 @@
 
         <aside class="live-job-panel">
           <div class="live-job-title"><div><p class="eyebrow">Sample booking</p><h2>Two-bedroom turnover</h2><span>Exact address appears only to confirmed participants</span></div><button type="button" class="icon-button" aria-label="Open booking messages">•••</button></div>
-          <div class="progress-summary" aria-live="polite"><div><strong data-progress-percent>25%</strong><span>Checklist resolved</span></div><div class="progress-track" role="progressbar" aria-label="Sample checklist progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="25"><i data-progress-bar></i></div><small data-progress-copy>1 of 4 sample tasks resolved</small></div>
+          <div class="progress-summary" aria-live="polite"><div><strong data-progress-percent>0%</strong><span>Checklist complete</span></div><div class="progress-track" role="progressbar" aria-label="Sample checklist progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i data-progress-bar></i></div><small data-progress-copy>Cleaning has not started</small></div>
           <ul class="room-progress-list">
-            <li class="complete"><span>✓</span><div><strong>Kitchen</strong><small>Worktops and sink complete</small></div></li>
-            <li class="current"><span>2</span><div><strong>Bathroom</strong><small>In progress</small></div></li>
-            <li><span>3</span><div><strong>Main bedroom</strong><small>Not started</small></div></li>
-            <li><span>4</span><div><strong>Living room</strong><small>Not started</small></div></li>
+            <li data-preview-task="kitchen"><span data-task-marker>1</span><div><strong>Kitchen</strong><small>Clean worktops and sink</small><em data-task-status>Waiting for cleaning to start</em></div><button type="button" data-task-toggle hidden>Mark complete</button></li>
+            <li data-preview-task="bathroom"><span data-task-marker>2</span><div><strong>Bathroom</strong><small>Clean basin, toilet and shower</small><em data-task-status>Waiting for cleaning to start</em></div><button type="button" data-task-toggle hidden>Mark complete</button></li>
+            <li data-preview-task="main-bedroom"><span data-task-marker>3</span><div><strong>Main bedroom</strong><small>Dust surfaces and vacuum floor</small><em data-task-status>Waiting for cleaning to start</em></div><button type="button" data-task-toggle hidden>Mark complete</button></li>
+            <li data-preview-task="living-room"><span data-task-marker>4</span><div><strong>Living room</strong><small>Dust surfaces and vacuum floor</small><em data-task-status>Waiting for cleaning to start</em></div><button type="button" data-task-toggle hidden>Mark complete</button></li>
           </ul>
+          <p class="task-preview-guidance" data-task-guidance>Landlord preview: progress is read-only and updates as the Cleaner records work.</p>
+          <button class="sample-issue-button" type="button" data-report-sample-issue hidden>Report sample issue</button>
+          <div class="sample-issue-notice" data-sample-issue role="status" hidden><strong>Sample issue reported</strong><span>Bathroom tap appears loose. The task remains unresolved for Landlord review.</span></div>
+          <section class="job-evidence-preview" aria-labelledby="job-evidence-preview-title"><div><h3 id="job-evidence-preview-title">Before and after evidence</h3><p>Private booking photos appear here only after an authorised upload.</p></div><div class="job-evidence-placeholders" aria-label="Sample private photo placeholders"><span>Before photo</span><span>After photo</span></div></section>
           <div class="connection-state"><span></span><div><strong>Real-time connection preview</strong><small>The live version reconnects with durable event IDs.</small></div></div>
         </aside>
       </div>
 
       <section class="preview-controls" aria-labelledby="preview-controls-title">
-        <div><h2 id="preview-controls-title">Try each job state</h2><p>These controls change this screen only. They do not request location or update a booking.</p></div>
+        <div><h2 id="preview-controls-title">Try each job state</h2><p>These controls change this screen only. They do not request location or update a booking.</p><a class="preview-real-test-link" href="/tracking-test">Try the real localhost location test →</a></div>
         <div class="preview-state-buttons"><button type="button" class="current" data-preview-state="en-route">Start journey</button><button type="button" data-preview-state="arrived">I have arrived</button><button type="button" data-preview-state="cleaning">Start cleaning</button><button type="button" data-preview-state="finished">Finish cleaning</button></div>
       </section>
       <div class="mobile-job-action" data-mobile-action><button class="button" type="button" data-next-state>I have arrived</button></div>
