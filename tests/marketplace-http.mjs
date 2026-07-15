@@ -80,8 +80,17 @@ const journeyService = {
   async markArrived(actor, bookingId) { calls.push({ kind: "journey-arrive", actor, bookingId }); return { bookingId, status: "cleaner-arrived", sharingState: "arrived", location: null }; },
   async getTracking(actor, bookingId) { calls.push({ kind: "journey-read", actor, bookingId }); return { bookingId, status: "cleaner-en-route", sharingState: "live" }; }
 };
+const progressService = {
+  async getProgress(actor, bookingId) { calls.push({ kind: "progress-read", actor, bookingId }); return { bookingId, status: "cleaning-in-progress", overallPercentage: 50 }; },
+  async startCleaning(actor, bookingId) { calls.push({ kind: "progress-start", actor, bookingId }); return { bookingId, status: "cleaning-in-progress" }; },
+  async setPause(actor, bookingId, input) { calls.push({ kind: "progress-pause", actor, bookingId, input }); return { bookingId, status: "cleaning-in-progress", isPaused: input.paused }; },
+  async updateTask(actor, bookingId, taskId, input) { calls.push({ kind: "progress-task", actor, bookingId, taskId, input }); return { bookingId, status: "cleaning-in-progress" }; },
+  async addUnexpectedTask(actor, bookingId, input) { calls.push({ kind: "progress-add", actor, bookingId, input }); return { bookingId, status: "cleaning-in-progress" }; },
+  async decideUnexpectedTask(actor, bookingId, taskId, input) { calls.push({ kind: "progress-decision", actor, bookingId, taskId, input }); return { bookingId, status: "cleaning-in-progress" }; },
+  async finishCleaning(actor, bookingId) { calls.push({ kind: "progress-finish", actor, bookingId }); return { bookingId, status: "awaiting-review", overallPercentage: 100 }; }
+};
 let unexpectedError;
-const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService }, { onUnexpectedError(error) { unexpectedError = error; } });
+const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService }, { onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
   origin: "http://127.0.0.1:4173",
@@ -130,6 +139,10 @@ const landlordTracking = await dispatch(router, "GET", `/api/marketplace/booking
 assert(landlordTracking.response.statusCode === 200 && landlordTracking.body.tracking.sharingState === "live" && calls.at(-1).kind === "journey-read" && calls.at(-1).actor.userId === sessions.landlord.user_id, "A Landlord participant could not read the safe current booking tracking snapshot.");
 const landlordJourneyStart = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/journey/start`, { headers: authHeaders, body: { consentGranted: true, latitude: 51.5, longitude: -0.1 } });
 assert(landlordJourneyStart.response.statusCode === 403 && landlordJourneyStart.body.code === "role-rejected", "A Landlord could start the Cleaner journey.");
+const landlordProgress = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/cleaning-progress`, { headers: { cookie: authHeaders.cookie } });
+const progressTaskId = "77777777-7777-4777-8777-777777777777";
+const taskDecision = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks/${progressTaskId}/decision`, { headers: authHeaders, body: { decision: "approved", priceUnchangedConfirmed: true } });
+assert(landlordProgress.response.statusCode === 200 && landlordProgress.body.progress.overallPercentage === 50 && taskDecision.response.statusCode === 200 && calls.at(-1).kind === "progress-decision" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Landlord progress read or unexpected-task decision lost participant/role authorization.");
 sessions.landlord = { ...sessions.landlord, user_id: "22222222-2222-4222-8222-222222222222", selected_role: "cleaner", roles: ["cleaner"] };
 const cleanerProfile = await dispatch(router, "PUT", "/api/marketplace/cleaner/profile", { headers: authHeaders, body: { biography: "Careful cleaner" } });
 assert(cleanerProfile.response.statusCode === 200 && calls.at(-1).kind === "cleaner-save" && calls.at(-1).actor.roles.includes("cleaner"), "The authenticated Cleaner could not update their own profile through the role-protected route.");
@@ -139,6 +152,12 @@ const journeyStarted = await dispatch(router, "POST", `/api/marketplace/bookings
 const journeyUpdated = await dispatch(router, "PUT", `/api/marketplace/bookings/${bookingId}/journey/location`, { headers: authHeaders, body: { latitude: 51.502, longitude: -0.141, accuracyMetres: 12 } });
 const journeyArrived = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/journey/arrive`, { headers: authHeaders, body: {} });
 assert(journeyStarted.response.statusCode === 200 && journeyUpdated.response.statusCode === 200 && journeyArrived.response.statusCode === 200 && journeyArrived.body.tracking.location === null && calls.at(-3).kind === "journey-start" && calls.at(-3).input.estimatedArrivalAt === "2099-01-01T00:00:00.000Z" && calls.at(-2).kind === "journey-location" && calls.at(-1).kind === "journey-arrive", "Cleaner journey routes lost actor-bound consent/location updates or failed to stop at arrival.");
+const cleaningStarted = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/start`, { headers: authHeaders, body: {} });
+const cleaningPaused = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/pause`, { headers: authHeaders, body: { paused: true, note: "Short break" } });
+const cleaningTask = await dispatch(router, "PUT", `/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks/${progressTaskId}`, { headers: authHeaders, body: { status: "completed" } });
+const unexpectedTask = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks`, { headers: authHeaders, body: { roomName: "Hall", description: "Clear packaging", estimatedAdditionalMinutes: 15 } });
+const cleaningFinished = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/finish`, { headers: authHeaders, body: {} });
+assert([cleaningStarted, cleaningPaused, cleaningTask, unexpectedTask, cleaningFinished].every((result) => result.response.statusCode < 300) && cleaningFinished.body.progress.status === "awaiting-review" && calls.slice(-5).map((call) => call.kind).join(",") === "progress-start,progress-pause,progress-task,progress-add,progress-finish", "Cleaner progress routes lost start/pause/task/unexpected/finish actions or role binding.");
 const cleanerPropertyWrite = await dispatch(router, "POST", "/api/marketplace/properties", { headers: authHeaders, body: { name: "Attempt" } });
 assert(cleanerPropertyWrite.response.statusCode === 403 && cleanerPropertyWrite.body.code === "role-rejected", "A Cleaner entered the Landlord-only property route.");
 sessions.landlord = { ...sessions.landlord, user_id: "11111111-1111-4111-8111-111111111111", selected_role: "landlord", roles: ["landlord"] };
@@ -167,7 +186,7 @@ const baseEnvironment = {
 };
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey and HTTP layers or safely kept incomplete authentication delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress and HTTP layers or safely kept incomplete authentication delivery detached.");
 let partialAuthenticationRejected = false;
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, emailDelivery: { send() {} } }); } catch (error) { partialAuthenticationRejected = error.message.includes("requires email delivery, shared rate limiting"); }
 assert(partialAuthenticationRejected, "A partially supplied authentication HTTP boundary was silently enabled.");

@@ -158,9 +158,18 @@ Implemented live-journey checkpoint:
 - One-time 500-metre nearby notification when property coordinates exist; arrival/journey notifications are idempotent durable records.
 - Browser ETA input is discarded; missing/failed map infrastructure degrades without blocking arrival. Mobile-web foreground limits are documented in `docs/LIVE_JOURNEY_TRACKING.md`.
 
+Implemented live cleaning-progress checkpoint:
+
+- Assigned-Cleaner start, pause/resume, task status/note, issue, unexpected-task proposal and finish transactions; Landlord-only one-decision approval/decline for added work.
+- Unexpected work requires a bounded time estimate and explicit confirmation that approval does not change frozen price or Cleaner pay; paid scope changes remain blocked pending a separate quoted change-order workflow.
+- Participant snapshot calculates elapsed time excluding pauses, resolved/completed counts, room completion, safe photo metadata and the latest durable events.
+- Every mutation writes timestamped actor evidence plus a monotonically increasing event version before idempotent participant notification records.
+- Finish is blocked by an open pause, unresolved task or pending added-task decision and moves a fully resolved visit to `awaiting-review`.
+- Direct web-role writes to progress/photo/notification tables are revoked. Details are in `docs/LIVE_CLEANING_PROGRESS.md`.
+
 - Add authenticated booking-scoped WebSocket channels with origin checks, heartbeat, bounded reconnect/backoff and per-user connection limits.
 - Add the mobile tracking page with foreground `watchPosition`, map rendering, permission/offline/retry states and large Start journey / I have arrived controls after an approved map provider is configured.
-- Add active job screen with start, pause/resume, task updates, notes, before/after photos, issues, unexpected-task approval and finish.
+- Add the mobile active-job screen and authenticated private object-storage endpoints for before/after/issue photos.
 - Store updates transactionally, then broadcast progress snapshots and durable event identifiers so reconnects can catch up without blind polling.
 - Add poor-connection/offline status, queued non-destructive task updates and clear conflict/retry handling.
 

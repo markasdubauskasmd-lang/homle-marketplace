@@ -40,6 +40,8 @@ Invitation expiry now prevents an unanswered offer from trapping a request: a se
 
 The [live Cleaner journey boundary](docs/LIVE_JOURNEY_TRACKING.md) now supports assigned-Cleaner consent, Start journey, current-location upserts, participant-only tracking, optional trusted ETA, one-time nearby notification and arrival with automatic location deletion. It stores one five-minute current point rather than route history and fails safely when ETA infrastructure is absent. The browser tracking screen remains unexposed until PostgreSQL/HTTPS staging and an approved map provider are available.
 
+The [live cleaning-progress boundary](docs/LIVE_CLEANING_PROGRESS.md) now supports assigned-Cleaner Start cleaning, pause/resume, task updates and notes, issue reporting, bounded unexpected-task proposals, Landlord approval/decline and Finish cleaning. Participant snapshots derive elapsed time, task/room percentage and durable actor events. Added work cannot change frozen price or Cleaner pay through this flow, and finishing is blocked until every task and decision is resolved. Private photo uploads and the mobile active-job screen remain pending.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

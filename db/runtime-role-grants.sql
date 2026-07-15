@@ -39,8 +39,15 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_booking_tracking(uuid) TO tideway_
 GRANT EXECUTE ON FUNCTION tideway_private.start_cleaner_journey(uuid, boolean, numeric, numeric, numeric, timestamptz) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.update_cleaner_location(uuid, numeric, numeric, numeric, timestamptz) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.mark_cleaner_arrived(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_progress(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.start_booking_cleaning(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.set_booking_cleaning_pause(uuid,boolean,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.update_booking_cleaning_task(uuid,uuid,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.add_unexpected_cleaning_task(uuid,text,text,integer,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.decide_unexpected_cleaning_task(uuid,uuid,text,boolean,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.finish_booking_cleaning(uuid) TO tideway_app;
 
 -- Booking transitions are only writable through the audited, actor-aware functions above.
-REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, cleaner_locations, conversations FROM tideway_app;
+REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, task_updates, job_pauses, unexpected_task_decisions, booking_progress_events, job_photos, cleaner_locations, conversations, notifications FROM tideway_app;
 
 COMMIT;

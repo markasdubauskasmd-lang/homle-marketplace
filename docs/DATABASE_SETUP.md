@@ -29,6 +29,7 @@ psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/009_booking_i
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/010_request_cleaner_matching.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/011_invitation_expiry_and_requeue.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/012_live_journey_tracking.sql
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/013_live_cleaning_progress.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/runtime-role-grants.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/worker-role-grants.sql
 ```

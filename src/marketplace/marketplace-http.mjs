@@ -9,6 +9,13 @@ const bookingTrackingPath = new RegExp(`^/api/marketplace/bookings/(${uuidPatter
 const journeyStartPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/start$`);
 const journeyLocationPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/location$`);
 const journeyArrivalPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/arrive$`);
+const cleaningProgressPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress$`);
+const cleaningStartPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/start$`);
+const cleaningPausePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/pause$`);
+const cleaningFinishPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/finish$`);
+const cleaningTasksPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/tasks$`);
+const cleaningTaskPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/tasks/(${uuidPattern})$`);
+const cleaningTaskDecisionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/tasks/(${uuidPattern})/decision$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
 const apiPrefix = "/api/marketplace/";
 
@@ -33,6 +40,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const bookings = dependencies?.bookingWorkflowService;
   const matching = dependencies?.matchingService;
   const journeys = dependencies?.journeyService;
+  const progress = dependencies?.progressService;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
@@ -40,6 +48,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!bookings || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
   if (!matching || typeof matching.recommendForRequest !== "function") throw new TypeError("Marketplace HTTP routes require the request matching service.");
   if (!journeys || !["startJourney", "updateLocation", "markArrived", "getTracking"].every((method) => typeof journeys[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking journey service.");
+  if (!progress || !["getProgress", "startCleaning", "setPause", "updateTask", "addUnexpectedTask", "decideUnexpectedTask", "finishCleaning"].every((method) => typeof progress[method] === "function")) throw new TypeError("Marketplace HTTP routes require the cleaning-progress service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
 
   return {
@@ -162,6 +171,55 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request);
           const tracking = await journeys.getTracking(context.actor, selectedTracking[1]);
           sendJson(response, 200, { ok: true, tracking });
+          return true;
+        }
+        const selectedCleaningStart = pathname.match(cleaningStartPath);
+        if (selectedCleaningStart) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, progress: await progress.startCleaning(context.actor, selectedCleaningStart[1]) });
+          return true;
+        }
+        const selectedCleaningPause = pathname.match(cleaningPausePath);
+        if (selectedCleaningPause) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, progress: await progress.setPause(context.actor, selectedCleaningPause[1], await readJsonObject(request)) });
+          return true;
+        }
+        const selectedCleaningFinish = pathname.match(cleaningFinishPath);
+        if (selectedCleaningFinish) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, progress: await progress.finishCleaning(context.actor, selectedCleaningFinish[1]) });
+          return true;
+        }
+        const selectedTaskDecision = pathname.match(cleaningTaskDecisionPath);
+        if (selectedTaskDecision) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          sendJson(response, 200, { ok: true, progress: await progress.decideUnexpectedTask(context.actor, selectedTaskDecision[1], selectedTaskDecision[2], await readJsonObject(request)) });
+          return true;
+        }
+        const selectedCleaningTask = pathname.match(cleaningTaskPath);
+        if (selectedCleaningTask) {
+          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, progress: await progress.updateTask(context.actor, selectedCleaningTask[1], selectedCleaningTask[2], await readJsonObject(request)) });
+          return true;
+        }
+        const selectedCleaningTasks = pathname.match(cleaningTasksPath);
+        if (selectedCleaningTasks) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          sendJson(response, 201, { ok: true, progress: await progress.addUnexpectedTask(context.actor, selectedCleaningTasks[1], await readJsonObject(request)) });
+          return true;
+        }
+        const selectedCleaningProgress = pathname.match(cleaningProgressPath);
+        if (selectedCleaningProgress) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          sendJson(response, 200, { ok: true, progress: await progress.getProgress(context.actor, selectedCleaningProgress[1]) });
           return true;
         }
         const selectedBooking = pathname.match(bookingPropertyPath);
