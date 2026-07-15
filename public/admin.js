@@ -1422,6 +1422,9 @@ function buildCleanerScreening(record) {
   const guidance = document.createElement("p");
   guidance.textContent = "Record confirmations only. Do not paste identity documents, document numbers, bank details or special-category information here.";
   panel.append(summary, guidance);
+  if (!record.profileStarter?.captured) {
+    addText(panel, "p", "Professional profile incomplete: the Cleaner must finish it through their private tracker before all screening checks can be recorded as complete.", "screening-note");
+  }
   if (record.status === "approved" && screening.complete) {
     const completed = document.createElement("ul");
     Object.values(cleanerScreeningLabels).forEach((label) => addText(completed, "li", `✓ ${label}`));

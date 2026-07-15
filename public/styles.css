@@ -779,6 +779,13 @@ textarea { resize: vertical; }
 .cleaner-availability-request-form .availability-request-note { grid-column: 1 / -1; }
 .cleaner-availability-request-form button { justify-self: start; }
 .cleaner-availability-action .form-message { margin: 0; color: var(--green-dark); font-weight: 750; }
+.cleaner-profile-action { padding: 22px; border: 1px solid #9bcdbf; border-radius: 14px; background: linear-gradient(145deg, #f0faf7 0%, #fff 100%); }
+.cleaner-profile-action > div > p:last-child { margin-bottom: 0; color: var(--muted); }
+.cleaner-profile-starter-form { display: grid; gap: 13px; }
+.cleaner-profile-starter-form label { display: grid; gap: 6px; }
+.cleaner-profile-starter-form label > span { color: var(--muted); font-size: .76rem; }
+.cleaner-profile-starter-form button { justify-self: start; }
+.cleaner-profile-action .form-message { margin: 0; color: var(--green-dark); font-weight: 750; }
 .quote-decision { display: grid; gap: 16px; margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); }
 .quote-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .quote-result { display: grid; gap: 8px; margin-top: 28px; padding: 20px; color: var(--green-dark); border: 1px solid #a8d2c6; border-radius: 14px; background: var(--mint-pale); }
@@ -919,7 +926,7 @@ textarea { resize: vertical; }
   .availability-form, .availability-withdraw-form, .availability-request-form, .cleaner-availability-request-form { grid-template-columns: 1fr; }
   .availability-form label:nth-of-type(4) { grid-column: auto; }
   .cleaner-availability-request-form .availability-request-note { grid-column: auto; }
-  .availability-form button, .availability-withdraw-form button, .availability-request-form button, .cleaner-availability-request-form button { width: 100%; }
+  .availability-form button, .availability-withdraw-form button, .availability-request-form button, .cleaner-availability-request-form button, .cleaner-profile-starter-form button { width: 100%; }
   .job-outcome-form { grid-template-columns: 1fr; }
   .outcome-adjustment-form { grid-template-columns: 1fr; }
   .outcome-adjustment-form .adjustment-note, .outcome-adjustment-form .adjustment-confirmation, .outcome-adjustment-form button { grid-column: auto; }

@@ -8,8 +8,8 @@
   <title>Tideway — cleaning, properly coordinated</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260715-55">
-  <script src="/app.js?v=20260715-49" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-59">
+  <script src="/app.js?v=20260715-50" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -220,7 +220,7 @@
           <div class="form-intro">
             <p class="eyebrow">For cleaners</p>
             <h2>Apply in three short steps</h2>
-            <p>Share your details, the cleaning work you want and one exact first time you could work. No identity documents or bank details are requested here.</p>
+            <p>Share your core details, the cleaning work you want and one exact first time you could work. You can complete the professional profile now or privately after applying. No identity documents or bank details are requested here.</p>
             <div class="form-promise"><strong>You stay in control</strong><span>Applying does not commit you to accept work.</span></div>
           </div>
           <form data-api-form data-guided-form data-guided-kind="cleaner" action="/api/cleaner-applications" method="post" novalidate>
@@ -254,7 +254,7 @@
               <div class="guided-step-heading" tabindex="-1">
                 <span>Step 2 of 3</span>
                 <h3 id="cleaner-step-2-title">What cleaning work suits you?</h3>
-                <p>Clear travel coverage and service choices prevent unsuitable job offers.</p>
+                <p>Clear travel coverage and service choices prevent unsuitable job offers. The professional profile can be finished now or through your private tracker after applying.</p>
               </div>
               <label>Areas you can work <span>(postcode districts or areas)</span><input name="travelAreas" required aria-describedby="travel-areas-help" placeholder="For example: SW1A, SW4, or broader areas SW, SE"><small id="travel-areas-help">Use postcode districts such as SW1A or SW4. For a whole postcode area, separate codes with commas, such as SW, SE. A city name alone cannot be matched safely.</small></label>
               <div class="field-row">
@@ -270,10 +270,10 @@
                 <label class="checkbox"><input name="serviceDeepCleans" type="checkbox"><span>Deep cleans</span></label>
               </fieldset>
               <div class="profile-starter-panel">
-                <div><strong>Start your professional profile</strong><span>These details stay private during application review. They are not published or verified automatically.</span></div>
-                <label>Short professional introduction <span>(40–600 characters)</span><textarea name="professionalBio" rows="4" minlength="40" maxlength="600" required placeholder="Describe the cleaning work you do well, the settings you prefer and how you approach a job."></textarea></label>
-                <label>Languages you can use with customers <span>(comma-separated)</span><input name="languages" maxlength="419" required placeholder="For example: English, Polish"></label>
-                <label>Equipment and cleaning products plan<select name="equipmentPlan" required><option value="">Choose one</option><option value="bring-equipment-and-products">I can bring standard equipment and cleaning products</option><option value="bring-equipment-products-supplied">I can bring equipment; cleaning products need to be supplied</option><option value="equipment-and-products-supplied">Equipment and cleaning products need to be supplied</option><option value="confirm-per-opportunity">Agree equipment and products for each opportunity</option></select></label>
+                <div><strong>Optional now: start your professional profile</strong><span>Complete all three fields now, or finish them through your private tracker after applying. They are not published or verified automatically.</span></div>
+                <label>Short professional introduction <span>(optional now; 40–600 characters if supplied)</span><textarea name="professionalBio" rows="4" minlength="40" maxlength="600" placeholder="Describe the cleaning work you do well, the settings you prefer and how you approach a job."></textarea></label>
+                <label>Languages you can use with customers <span>(optional now; comma-separated)</span><input name="languages" maxlength="419" placeholder="For example: English, Polish"></label>
+                <label>Equipment and cleaning products plan <span>(optional now)</span><select name="equipmentPlan"><option value="">Complete later in my private tracker</option><option value="bring-equipment-and-products">I can bring standard equipment and cleaning products</option><option value="bring-equipment-products-supplied">I can bring equipment; cleaning products need to be supplied</option><option value="equipment-and-products-supplied">Equipment and cleaning products need to be supplied</option><option value="confirm-per-opportunity">Agree equipment and products for each opportunity</option></select></label>
               </div>
               <div class="guided-form-actions">
                 <button class="button button-outline" type="button" data-guided-back>Back</button>
@@ -312,7 +312,7 @@
                   <div><dt>First supplied window</dt><dd data-cleaner-preview-availability>Add one complete future window</dd></div>
                 </dl>
                 <div class="cleaner-application-preview-readiness">
-                  <div><strong data-cleaner-preview-completion>0 of 8 application details ready</strong><small data-cleaner-preview-missing>Still needed: full name, at least one service, experience, matchable work areas, professional introduction, languages, equipment plan, first available window.</small></div>
+                  <div><strong data-cleaner-preview-completion>0 of 8 preview details ready</strong><small data-cleaner-preview-missing>Preview still needs: full name, at least one service, experience, matchable work areas, professional introduction, languages, equipment plan, first available window.</small></div>
                   <progress data-cleaner-preview-progress value="0" max="8" aria-label="Application preview completeness" aria-valuetext="0% complete"></progress>
                 </div>
                 <p class="cleaner-application-preview-boundary">This is not a public profile, approval, verification, job offer or availability confirmation. Contact details and your home postcode are never shown here.</p>

@@ -14,7 +14,7 @@ import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mj
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverage.mjs";
 import { businessDateToday, businessEpochFromWallClock, businessWallClockMs, earliestBookableWallClockMs } from "./business-clock.mjs";
 import { scanAttentionAction } from "./lead-attention.mjs";
-import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeCleanerProfileStarter } from "./cleaner-profile-starter.mjs";
+import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeCleanerProfileStarter, normalizeOptionalCleanerProfileStarter } from "./cleaner-profile-starter.mjs";
 import { buildRoomScanFollowupDraft } from "./request-followup-draft.mjs";
 import { publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
 import { createTrackingTestStore } from "./tracking-test-store.mjs";
@@ -54,6 +54,7 @@ const privateRecordFiles = [
   "bookings.ndjson",
   "cleaner-applications.ndjson",
   "cleaner-availability.ndjson",
+  "cleaner-profile-updates.ndjson",
   "cleaner-opportunity-decisions.ndjson",
   "cleaner-screening.ndjson",
   "cleaning-requests.ndjson",
@@ -190,7 +191,7 @@ function rateLimitPolicyFor(request, pathname) {
   if (request.method === "POST" && ["/api/cleaning-requests", "/api/cleaner-applications", "/api/job-briefs"].includes(pathname)) {
     return { name: `public-submission:${pathname}`, ...apiRateLimitPolicies.publicSubmission };
   }
-  if (request.method === "POST" && ["/api/request-withdrawal", "/api/quote/decision", "/api/opportunity/decision", "/api/cleaner-availability-requests", "/api/booking-change-requests", "/api/job-events"].includes(pathname)) {
+  if (request.method === "POST" && ["/api/request-withdrawal", "/api/quote/decision", "/api/opportunity/decision", "/api/cleaner-profile-starter", "/api/cleaner-availability-requests", "/api/booking-change-requests", "/api/job-events"].includes(pathname)) {
     return { name: `private-write:${pathname}`, ...apiRateLimitPolicies.privateWrite };
   }
   if (request.method === "GET" && ["/api/request-status", "/api/cleaner-status", "/api/quote", "/api/opportunity", "/api/opportunity-photo", "/api/booking-pack", "/api/booking-photo"].includes(pathname)) {
@@ -824,6 +825,7 @@ async function auditDataIntegrity() {
   const requiredUniqueIds = [
     "cleaning-requests.ndjson",
     "cleaner-applications.ndjson",
+    "cleaner-profile-updates.ndjson",
     "job-briefs.ndjson",
     "match-proposals.ndjson",
     "bookings.ndjson",
@@ -871,12 +873,22 @@ async function auditDataIntegrity() {
   checkReferences("bookings.ndjson", "cleanerId", "cleaner-applications.ndjson");
   checkReferences("cleaner-screening.ndjson", "cleanerId", "cleaner-applications.ndjson");
   checkReferences("cleaner-availability.ndjson", "cleanerId", "cleaner-applications.ndjson");
+  checkReferences("cleaner-profile-updates.ndjson", "cleanerId", "cleaner-applications.ndjson");
   checkReferences("booking-change-requests.ndjson", "bookingId", "bookings.ndjson");
   checkReferences("booking-change-status.ndjson", "changeRequestId", "booking-change-requests.ndjson");
   checkReferences("job-events.ndjson", "bookingId", "bookings.ndjson");
   checkReferences("job-outcomes.ndjson", "bookingId", "bookings.ndjson");
   checkReferences("job-outcome-adjustments.ndjson", "bookingId", "bookings.ndjson");
   checkReferences("media-retention.ndjson", "briefId", "job-briefs.ndjson");
+
+  const cleanerProfileUpdates = parsedFiles.get("cleaner-profile-updates.ndjson");
+  if (cleanerProfileUpdates?.valid) {
+    for (const { record, line } of cleanerProfileUpdates.records) {
+      if (!/^CPU-[A-Z0-9]{8}$/.test(text(record.id, 40)) || !cleanerProfileStarterCaptured(record) || !Number.isFinite(Date.parse(record.createdAt))) {
+        recordIssue({ code: "invalid-cleaner-profile-update", file: "cleaner-profile-updates.ndjson", line, reference: text(record.id, 80), message: "A private Cleaner profile update is incomplete or malformed." });
+      }
+    }
+  }
 
   const briefRecords = parsedFiles.get("job-briefs.ndjson");
   const briefStatusRecords = parsedFiles.get("job-brief-status.ndjson");
@@ -1825,6 +1837,18 @@ function latestCleanerScreening(cleanerId, screenings) {
   return latest;
 }
 
+function latestCleanerProfileUpdate(cleanerId, profileUpdates = []) {
+  let latest = null;
+  for (const update of profileUpdates) if (update.cleanerId === cleanerId) latest = update;
+  return latest;
+}
+
+function applyCleanerProfileUpdate(cleaner, profileUpdates = []) {
+  if (!cleaner) return null;
+  const update = latestCleanerProfileUpdate(cleaner.id, profileUpdates);
+  return update ? { ...cleaner, professionalBio: update.professionalBio, languages: update.languages, equipmentPlan: update.equipmentPlan, profileUpdatedAt: update.createdAt } : cleaner;
+}
+
 function cleanerEligibilityChecks(cleaner, customerRequest, cleanerStatus, screenings) {
   const requiredService = requestServiceMap[customerRequest?.service] || "";
   return {
@@ -1927,9 +1951,10 @@ function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, pr
 
 async function getAdminRecords(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [requests, cleaners, updates, activities, proposals, proposalUpdates, bookings, outcomes, outcomeAdjustments, briefs, briefUpdates, screenings, cleanerDecisions, bookingChanges, bookingChangeUpdates, jobEvents, config, availabilityEvents] = await Promise.all([
+  const [requests, rawCleaners, profileUpdates, updates, activities, proposals, proposalUpdates, bookings, outcomes, outcomeAdjustments, briefs, briefUpdates, screenings, cleanerDecisions, bookingChanges, bookingChangeUpdates, jobEvents, config, availabilityEvents] = await Promise.all([
     readRecords("cleaning-requests.ndjson"),
     readRecords("cleaner-applications.ndjson"),
+    readRecords("cleaner-profile-updates.ndjson"),
     readRecords("status-updates.ndjson"),
     readRecords("lead-activity.ndjson"),
     readRecords("match-proposals.ndjson"),
@@ -1947,6 +1972,7 @@ async function getAdminRecords(request, response) {
     readJsonFile("business-config.json", {}),
     readRecords("cleaner-availability.ndjson")
   ]);
+  const cleaners = rawCleaners.map((cleaner) => applyCleanerProfileUpdate(cleaner, profileUpdates));
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
   const activitiesById = new Map();
@@ -2045,10 +2071,14 @@ async function updateAdminCleanerScreening(request, response) {
   ensureSameOrigin(request);
   const input = await readJson(request);
   const cleanerId = text(input.cleanerId, 40);
-  const cleaners = await readRecords("cleaner-applications.ndjson");
-  if (!cleaners.some((cleaner) => cleaner.id === cleanerId)) return json(response, 404, { ok: false, error: "Cleaner application not found." });
+  const [cleaners, profileUpdates] = await Promise.all([readRecords("cleaner-applications.ndjson"), readRecords("cleaner-profile-updates.ndjson")]);
+  const cleaner = applyCleanerProfileUpdate(cleaners.find((item) => item.id === cleanerId), profileUpdates);
+  if (!cleaner) return json(response, 404, { ok: false, error: "Cleaner application not found." });
   const checks = Object.fromEntries(cleanerScreeningChecks.map((key) => [key, input[key] === true]));
   const completed = cleanerScreeningChecks.filter((key) => checks[key]).length;
+  if (completed === cleanerScreeningChecks.length && !cleanerProfileStarterCaptured(cleaner)) {
+    return json(response, 422, { ok: false, error: "The cleaner must complete their private professional profile before screening can be marked complete." });
+  }
   const screening = {
     id: `SCR-${randomUUID().slice(0, 8).toUpperCase()}`,
     cleanerId,
@@ -3593,6 +3623,58 @@ async function withdrawPrivateCustomerRequest(request, response) {
   return json(response, result.replayed ? 200 : 201, { ok: true, status: "closed", ...result });
 }
 
+async function saveCleanerProfileStarterUpdate(record) {
+  let result;
+  const operation = writeQueue.catch(() => {}).then(async () => {
+    await mkdir(dataDir, { recursive: true });
+    const [cleaners, profileUpdates, statusUpdates, screenings] = await Promise.all([
+      readRecords("cleaner-applications.ndjson"),
+      readRecords("cleaner-profile-updates.ndjson"),
+      readRecords("status-updates.ndjson"),
+      readRecords("cleaner-screening.ndjson")
+    ]);
+    const replay = profileUpdates.find((update) => update.submissionKey === record.submissionKey);
+    if (replay) {
+      if (replay.submissionFingerprint !== record.submissionFingerprint) throw Object.assign(new Error("That retry key was already used for different profile details."), { statusCode: 409 });
+      result = { update: replay, replayed: true };
+      return;
+    }
+    const cleaner = cleaners.find((item) => item.id === record.cleanerId);
+    if (!cleaner) throw Object.assign(new Error("This private cleaner link is invalid."), { statusCode: 404 });
+    let status = cleaner.status || "new";
+    for (const update of statusUpdates) if (update.id === cleaner.id && update.kind === "cleaner") status = update.status;
+    if (["approved", "paused", "rejected"].includes(status) || latestCleanerScreening(cleaner.id, screenings)?.complete) {
+      throw Object.assign(new Error("This profile can no longer be changed through the application tracker because screening or an approval decision has completed."), { statusCode: 409 });
+    }
+    await appendFile(path.join(dataDir, "cleaner-profile-updates.ndjson"), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
+    result = { update: record, replayed: false };
+  });
+  writeQueue = operation;
+  await operation;
+  return result;
+}
+
+async function createPrivateCleanerProfileStarter(request, response) {
+  ensureSameOrigin(request);
+  const token = text(request.headers["x-cleaner-status-token"], 80);
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private cleaner link is invalid." });
+  const cleaners = await readRecords("cleaner-applications.ndjson");
+  const cleaner = cleaners.find((record) => record.cleanerStatusToken === token);
+  if (!cleaner) return json(response, 404, { ok: false, error: "This private cleaner link is invalid." });
+  const input = await readJson(request);
+  let profile;
+  try {
+    profile = normalizeCleanerProfileStarter(input);
+  } catch (error) {
+    return json(response, 422, { ok: false, errors: [error.message] });
+  }
+  const key = submissionKey(request);
+  const fingerprint = submissionFingerprint({ cleanerId: cleaner.id, ...profile });
+  const record = { id: `CPU-${randomUUID().slice(0, 8).toUpperCase()}`, cleanerId: cleaner.id, ...profile, createdAt: new Date().toISOString(), submissionKey: key, submissionFingerprint: fingerprint };
+  const saved = await saveCleanerProfileStarterUpdate(record);
+  return json(response, saved.replayed ? 200 : 201, { ok: true, replayed: saved.replayed, profile: { captured: true, languageCount: saved.update.languages.length, updatedAt: saved.update.createdAt }, message: "Your private professional profile details were saved for Tideway review. They are not public or verified yet." });
+}
+
 async function createPrivateCleanerAvailabilityRequest(request, response) {
   ensureSameOrigin(request);
   const token = text(request.headers["x-cleaner-status-token"], 80);
@@ -3626,13 +3708,14 @@ async function createPrivateCleanerAvailabilityRequest(request, response) {
 async function getPrivateCleanerStatus(request, response) {
   const token = text(request.headers["x-cleaner-status-token"], 80);
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private cleaner link is invalid." });
-  const [cleaners, statusUpdates, screenings, availabilityEvents] = await Promise.all([
+  const [cleaners, profileUpdates, statusUpdates, screenings, availabilityEvents] = await Promise.all([
     readRecords("cleaner-applications.ndjson"),
+    readRecords("cleaner-profile-updates.ndjson"),
     readRecords("status-updates.ndjson"),
     readRecords("cleaner-screening.ndjson"),
     readRecords("cleaner-availability.ndjson")
   ]);
-  const cleaner = cleaners.find((record) => record.cleanerStatusToken === token);
+  const cleaner = applyCleanerProfileUpdate(cleaners.find((record) => record.cleanerStatusToken === token), profileUpdates);
   if (!cleaner) return json(response, 404, { ok: false, error: "This private cleaner link is invalid." });
 
   const ownStatusUpdates = statusUpdates.filter((update) => update.id === cleaner.id && update.kind === "cleaner");
@@ -3646,10 +3729,13 @@ async function getPrivateCleanerStatus(request, response) {
   const firstAvailabilityCaptured = Boolean(cleaner.firstAvailableDate && cleaner.firstAvailableStartTime && cleaner.firstAvailableEndTime);
   const profileStarterCaptured = cleanerProfileStarterCaptured(cleaner);
   const readyForOpportunities = status === "approved" && screeningComplete && futureAvailability.length > 0;
+  const profileStarterSubmissionAllowed = !screeningComplete && !["approved", "paused", "rejected"].includes(status);
 
   let stage = "application-review";
   let headline = "Application received";
-  let nextAction = firstAvailabilityCaptured ? "Tideway has received the application and its first exact window. Screening, approval and separate availability confirmation are still required." : "Tideway has received the application. Screening and exact availability have not yet been confirmed.";
+  let nextAction = !profileStarterCaptured && profileStarterSubmissionAllowed
+    ? "Complete the private professional profile below while Tideway reviews the application. It is required before screening can finish."
+    : firstAvailabilityCaptured ? "Tideway has received the application and its first exact window. Screening, approval and separate availability confirmation are still required." : "Tideway has received the application. Screening and exact availability have not yet been confirmed.";
   if (status === "contacted") {
     stage = "screening";
     headline = "Contact step recorded";
@@ -3684,6 +3770,7 @@ async function getPrivateCleanerStatus(request, response) {
   const inactive = status === "paused" || status === "rejected";
   const steps = [
     { key: "application", label: "Application received", state: "complete", detail: `Reference ${cleaner.id}` },
+    { key: "profile", label: "Professional profile", state: profileStarterCaptured ? "complete" : profileStarterSubmissionAllowed ? "current" : "waiting", detail: profileStarterCaptured ? "Private starter captured; not public or verified" : "Complete before screening can finish" },
     { key: "screening", label: "Screening checks", state: screeningComplete ? "complete" : screeningReached ? "current" : "waiting", detail: screeningComplete ? "Required checks recorded" : screeningReached ? "Checks not yet complete" : "Not started" },
     { key: "approval", label: "Approval decision", state: approvalRecorded ? "complete" : screeningComplete ? "current" : "waiting", detail: approvalRecorded ? (status === "approved" ? "Currently approved" : "Approval was previously recorded") : status === "rejected" ? "No approval recorded" : "Decision not recorded" },
     { key: "availability", label: "Exact availability confirmed", state: readyForOpportunities ? "complete" : status === "approved" ? "current" : "waiting", detail: readyForOpportunities ? `${futureAvailability.length} future confirmed ${futureAvailability.length === 1 ? "window" : "windows"}` : pendingAvailabilityRequests.length ? `${pendingAvailabilityRequests.length} submitted — awaiting Tideway confirmation` : firstAvailabilityCaptured ? "First window captured — not confirmed for matching" : "Not confirmed for matching" },
@@ -3692,12 +3779,12 @@ async function getPrivateCleanerStatus(request, response) {
 
   return json(response, 200, {
     ok: true,
-    application: { reference: cleaner.id, profileStarter: { captured: profileStarterCaptured, languageCount: profileStarterCaptured ? cleaner.languages.length : 0 }, firstAvailability: firstAvailabilityCaptured ? { availableDate: cleaner.firstAvailableDate, startTime: cleaner.firstAvailableStartTime, endTime: cleaner.firstAvailableEndTime, status: "unconfirmed" } : null },
+    application: { reference: cleaner.id, profileStarter: { captured: profileStarterCaptured, languageCount: profileStarterCaptured ? cleaner.languages.length : 0, professionalBio: profileStarterCaptured ? cleaner.professionalBio : "", languages: profileStarterCaptured ? cleaner.languages : [], equipmentPlan: profileStarterCaptured ? cleaner.equipmentPlan : "", updatedAt: profileStarterCaptured ? cleaner.profileUpdatedAt || cleaner.createdAt : null }, firstAvailability: firstAvailabilityCaptured ? { availableDate: cleaner.firstAvailableDate, startTime: cleaner.firstAvailableStartTime, endTime: cleaner.firstAvailableEndTime, status: "unconfirmed" } : null },
     current: { stage, headline, nextAction },
     steps,
     readiness: { profileStarterCaptured, screeningComplete, approvalRecorded: status === "approved", firstAvailabilityCaptured, confirmedAvailabilityWindows: readyForOpportunities ? futureAvailability.length : 0, pendingAvailabilityWindows: pendingAvailabilityRequests.length, readyForOpportunities },
     availabilityRequests: pendingAvailabilityRequests.map((item) => ({ reference: item.id, availableDate: item.availableDate, startTime: item.startTime, endTime: item.endTime, status: "pending" })),
-    links: { availabilitySubmissionAllowed: status === "approved" && screeningComplete }
+    links: { profileStarterSubmissionAllowed, availabilitySubmissionAllowed: status === "approved" && screeningComplete }
   });
 }
 
@@ -4336,7 +4423,7 @@ async function updateAdminStatus(request, response) {
   if (!id || !statusOptions[kind]?.has(status)) return json(response, 422, { ok: false, error: "Invalid status update." });
 
   const source = kind === "request" ? "cleaning-requests.ndjson" : "cleaner-applications.ndjson";
-  const [records, updates, screenings] = await Promise.all([readRecords(source), readRecords("status-updates.ndjson"), readRecords("cleaner-screening.ndjson")]);
+  const [records, updates, screenings, profileUpdates] = await Promise.all([readRecords(source), readRecords("status-updates.ndjson"), readRecords("cleaner-screening.ndjson"), readRecords("cleaner-profile-updates.ndjson")]);
   const record = records.find((item) => item.id === id);
   if (!record) return json(response, 404, { ok: false, error: "Record not found." });
   let currentStatus = record.status || "new";
@@ -4348,6 +4435,9 @@ async function updateAdminStatus(request, response) {
   }
   if (kind === "cleaner" && status === "approved" && !latestCleanerScreening(id, screenings)?.complete) {
     return json(response, 422, { ok: false, error: "Complete all seven cleaner-screening checks before marking this application approved." });
+  }
+  if (kind === "cleaner" && status === "approved" && !cleanerProfileStarterCaptured(applyCleanerProfileUpdate(record, profileUpdates))) {
+    return json(response, 422, { ok: false, error: "The cleaner must complete their private professional profile before approval." });
   }
 
   await saveRecord("status-updates.ndjson", { id, kind, status, previousStatus: currentStatus, source: "manual", updatedAt: new Date().toISOString() });
@@ -4522,7 +4612,7 @@ async function handleCleanerApplication(request, response) {
   const profileErrors = [];
   let profileStarter = { professionalBio: "", languages: [], equipmentPlan: "" };
   try {
-    profileStarter = normalizeCleanerProfileStarter(input);
+    profileStarter = normalizeOptionalCleanerProfileStarter(input);
   } catch (error) {
     profileErrors.push(error.message);
   }
@@ -4815,6 +4905,9 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/cleaner-status") {
       return await getPrivateCleanerStatus(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/cleaner-profile-starter") {
+      return await createPrivateCleanerProfileStarter(request, response);
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/cleaner-availability-requests") {
       return await createPrivateCleanerAvailabilityRequest(request, response);

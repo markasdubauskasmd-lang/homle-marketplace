@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Track your cleaner application — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-46">
-  <script src="/cleaner-status.js?v=20260715-4" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-58">
+  <script src="/cleaner-status.js?v=20260715-5" type="module"></script>
 </head>
 <body class="quote-page">
   <a class="skip-link" href="#cleaner-status-main">Skip to application status</a>
@@ -53,6 +53,21 @@
         <section class="quote-rules">
           <h2>Current readiness</h2>
           <ul data-readiness></ul>
+        </section>
+
+        <section class="quote-decision cleaner-profile-action" data-profile-action hidden>
+          <div>
+            <p class="eyebrow">Private profile step</p>
+            <h2 data-profile-action-title>Complete your professional profile</h2>
+            <p>Add the customer-facing details Tideway would review before screening can finish. They remain private, are not verified automatically and are not published by this form.</p>
+          </div>
+          <form class="cleaner-profile-starter-form" data-profile-form>
+            <label>Short professional introduction <span>40–600 characters</span><textarea name="professionalBio" rows="4" minlength="40" maxlength="600" required placeholder="Describe the cleaning work you do well, the settings you prefer and how you approach a job."></textarea></label>
+            <label>Languages you can use with customers <span>Comma-separated; up to 10</span><input name="languages" maxlength="419" required placeholder="For example: English, Polish"></label>
+            <label>Equipment and cleaning products plan<select name="equipmentPlan" required><option value="">Choose one</option><option value="bring-equipment-and-products">I can bring standard equipment and cleaning products</option><option value="bring-equipment-products-supplied">I can bring equipment; cleaning products need to be supplied</option><option value="equipment-and-products-supplied">Equipment and cleaning products need to be supplied</option><option value="confirm-per-opportunity">Agree equipment and products for each opportunity</option></select></label>
+            <button class="button" type="submit">Save private profile details</button>
+          </form>
+          <p class="form-message" data-profile-message role="status" aria-live="polite"></p>
         </section>
 
         <section class="quote-decision cleaner-availability-action" data-availability-action hidden>

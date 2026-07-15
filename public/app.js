@@ -211,13 +211,13 @@ function enhanceCleanerApplicationPreview(form) {
     preview.querySelector("[data-cleaner-preview-equipment]").textContent = model.equipment;
     preview.querySelector("[data-cleaner-preview-travel]").textContent = model.travelAreas;
     preview.querySelector("[data-cleaner-preview-availability]").textContent = model.firstAvailability;
-    preview.querySelector("[data-cleaner-preview-completion]").textContent = `${model.completion.completed} of ${model.completion.total} application details ready`;
+    preview.querySelector("[data-cleaner-preview-completion]").textContent = `${model.completion.completed} of ${model.completion.total} preview details ready`;
     const progress = preview.querySelector("[data-cleaner-preview-progress]");
     progress.value = model.completion.completed;
     progress.max = model.completion.total;
     progress.setAttribute("aria-valuetext", `${model.completion.percent}% complete`);
     preview.querySelector("[data-cleaner-preview-missing]").textContent = model.completion.missing.length
-      ? `Still needed: ${model.completion.missing.join(", ")}.`
+      ? `Preview still needs: ${model.completion.missing.join(", ")}.`
       : "All preview details are ready for application review.";
     serviceList.replaceChildren(...(model.services.length ? model.services : ["Choose at least one service"]).map((label) => {
       const chip = document.createElement("span");

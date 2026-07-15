@@ -12,7 +12,11 @@ const availabilityForm = document.querySelector("[data-availability-form]");
 const availabilityMessage = document.querySelector("[data-availability-message]");
 const pendingAvailability = document.querySelector("[data-pending-availability]");
 const pendingList = document.querySelector("[data-pending-list]");
+const profileAction = document.querySelector("[data-profile-action]");
+const profileForm = document.querySelector("[data-profile-form]");
+const profileMessage = document.querySelector("[data-profile-message]");
 let availabilitySubmissionKey = newSubmissionKey();
+let profileSubmissionKey = newSubmissionKey();
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 
@@ -37,6 +41,7 @@ function renderStatus(result) {
   setText("[data-next-action]", result.current.nextAction);
   setText("[data-reference]", result.application.reference);
   const firstAvailability = result.application.firstAvailability;
+  const profile = result.application.profileStarter;
   setText("[data-first-availability]", firstAvailability ? `${firstAvailability.availableDate} · ${firstAvailability.startTime}-${firstAvailability.endTime} · awaiting verification` : "Not supplied");
 
   const timeline = document.querySelector("[data-timeline]");
@@ -74,6 +79,14 @@ function renderStatus(result) {
     readiness.append(item);
   }
 
+  profileAction.hidden = !result.links?.profileStarterSubmissionAllowed;
+  if (result.links?.profileStarterSubmissionAllowed) {
+    document.querySelector("[data-profile-action-title]").textContent = profile.captured ? "Review or update your professional profile" : "Complete your professional profile";
+    profileForm.elements.professionalBio.value = profile.professionalBio || "";
+    profileForm.elements.languages.value = Array.isArray(profile.languages) ? profile.languages.join(", ") : "";
+    profileForm.elements.equipmentPlan.value = profile.equipmentPlan || "";
+  }
+
   const pending = result.availabilityRequests || [];
   availabilityAction.hidden = !result.links?.availabilitySubmissionAllowed;
   pendingAvailability.hidden = pending.length === 0;
@@ -106,6 +119,29 @@ async function loadStatus() {
 }
 
 refresh.addEventListener("click", loadStatus);
+profileForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = profileForm.querySelector("button");
+  button.disabled = true;
+  profileMessage.textContent = "Saving your private profile detailsâ€¦";
+  try {
+    const body = Object.fromEntries(new FormData(profileForm).entries());
+    const response = await fetch("/api/cleaner-profile-starter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "X-Cleaner-Status-Token": token, "Idempotency-Key": profileSubmissionKey },
+      body: JSON.stringify(body)
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || result.errors?.join(" ") || "Your profile details could not be saved.");
+    profileSubmissionKey = newSubmissionKey();
+    profileMessage.textContent = result.message;
+    await loadStatus();
+  } catch (error) {
+    profileMessage.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
 availabilityForm.elements.availableDate.min = new Date(Date.now() - new Date().getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
 availabilityForm.addEventListener("submit", async (event) => {
   event.preventDefault();
