@@ -174,10 +174,17 @@ Implemented private job-media checkpoint:
 - One audited database transaction creates the sanitized private photo, progress event and idempotent Landlord notification; abandoned intents are claimed by a bounded worker for quarantine cleanup.
 - Participant-only reads receive a five-minute signed URL after database authorization. Missing storage infrastructure fails closed, and the implementation remains detached until a real adapter plus staging security evidence exists. Details are in `docs/PRIVATE_JOB_MEDIA.md`.
 
-- Add authenticated booking-scoped WebSocket channels with origin checks, heartbeat, bounded reconnect/backoff and per-user connection limits.
+Implemented booking real-time checkpoint:
+
+- PostgreSQL triggers add minimal durable events and transaction-commit `NOTIFY` wake-ups for booking status, current location, progress and messages; notifications are signals only and never trusted as display data.
+- One lazy dedicated listener reconnects with bounded backoff, while participant-authorized snapshots provide current tracking, progress, messages and durable event catch-up without constant polling.
+- The exact-origin SSE route uses event IDs, retry hints, heartbeats, slow-client disconnection and reserved per-user/process connection limits. Browser background limitations remain explicit.
+- Source, security and staging boundaries are documented in `docs/BOOKING_REALTIME.md` and covered by `tests/realtime-service.mjs`.
+
+- Connect the mobile booking UI to the authenticated booking-scoped SSE channel and validate proxy/multi-instance behavior in PostgreSQL staging.
 - Add the mobile tracking page with foreground `watchPosition`, map rendering, permission/offline/retry states and large Start journey / I have arrived controls after an approved map provider is configured.
 - Add the mobile active-job screen and connect it to the prepared private before/after/issue-photo endpoints after staging object-storage approval.
-- Store updates transactionally, then broadcast progress snapshots and durable event identifiers so reconnects can catch up without blind polling.
+- Store updates transactionally, then render the prepared progress snapshots and durable event identifiers so reconnects catch up without blind polling.
 - Add poor-connection/offline status, queued non-destructive task updates and clear conflict/retry handling.
 
 Tests: consent and participant location authorization, automatic stop, unrelated-user denial, progress ownership, realtime delivery/reconnect and private media access.

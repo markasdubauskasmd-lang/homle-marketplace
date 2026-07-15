@@ -20,6 +20,7 @@ const jobPhotoIntentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern
 const jobPhotoCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/(${uuidPattern})/complete$`);
 const jobPhotoAccessPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/(${uuidPattern})/access$`);
 const bookingMessagesPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/messages$`);
+const bookingEventsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/events$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
 const apiPrefix = "/api/marketplace/";
 
@@ -47,6 +48,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const progress = dependencies?.progressService;
   const media = dependencies?.mediaService;
   const messages = dependencies?.messageService;
+  const realtime = dependencies?.realtimeService;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
@@ -57,6 +59,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!progress || !["getProgress", "startCleaning", "setPause", "updateTask", "addUnexpectedTask", "decideUnexpectedTask", "finishCleaning"].every((method) => typeof progress[method] === "function")) throw new TypeError("Marketplace HTTP routes require the cleaning-progress service.");
   if (!media || !["createUploadIntent", "completeUpload", "getPhotoAccess"].every((method) => typeof media[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private job-media service.");
   if (!messages || !["sendMessage", "listMessages"].every((method) => typeof messages[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-message service.");
+  if (!realtime || typeof realtime.openStream !== "function") throw new TypeError("Marketplace HTTP routes require the booking real-time service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
 
   return {
@@ -168,6 +171,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             return true;
           }
           return methodNotAllowed(response, ["GET", "POST"]), true;
+        }
+        const selectedEvents = pathname.match(bookingEventsPath);
+        if (selectedEvents) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          security.requireOrigin(request);
+          await realtime.openStream(context.actor, selectedEvents[1], request, response, request.headers?.["last-event-id"] || url.searchParams.get("afterEventId") || 0, context.expiresAt);
+          return true;
         }
         const selectedJourneyStart = pathname.match(journeyStartPath);
         if (selectedJourneyStart) {

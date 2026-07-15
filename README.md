@@ -44,6 +44,8 @@ The [live cleaning-progress boundary](docs/LIVE_CLEANING_PROGRESS.md) now suppor
 
 The [booking-message boundary](docs/BOOKING_MESSAGING.md) now provides one private conversation per booking with participant-only idempotent sends, stable cursor reads, database-enforced throttling, direct-contact-detail rejection, body-free notification/audit metadata and authorized Administrator reads without Administrator impersonation. It remains detached pending PostgreSQL concurrency/RLS evidence and authenticated mobile booking UI.
 
+The [booking real-time boundary](docs/BOOKING_REALTIME.md) now streams participant-authorized booking status, current journey, cleaning progress and recent messages over no-poll SSE. PostgreSQL commit triggers create minimal durable event IDs and `NOTIFY` wake-ups; reconnecting browsers receive authoritative snapshots, while exact-origin checks, connection limits, heartbeats and slow-client cleanup protect the stream. It remains detached pending PostgreSQL, reverse-proxy and mobile staging evidence.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

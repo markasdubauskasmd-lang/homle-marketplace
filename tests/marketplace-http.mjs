@@ -98,8 +98,11 @@ const messageService = {
   async sendMessage(actor, bookingId, input) { calls.push({ kind: "message-send", actor, bookingId, input }); return { messageId: "88888888-8888-4888-8888-888888888888", clientMessageId: input.clientMessageId, bookingId, senderUserId: actor.userId, senderRole: actor.roles[0], body: input.body, createdAt: "2026-07-15T16:00:00.000Z" }; },
   async listMessages(actor, bookingId, input) { calls.push({ kind: "message-list", actor, bookingId, input }); return { bookingId, messages: [], hasMore: false, nextCursor: null }; }
 };
+const realtimeService = {
+  async openStream(actor, bookingId, request, response, lastEventId) { calls.push({ kind: "realtime-open", actor, bookingId, lastEventId }); response.writeHead(200, { "Content-Type": "text/event-stream" }); response.end(JSON.stringify({ ok: true })); }
+};
 let unexpectedError;
-const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService }, { onUnexpectedError(error) { unexpectedError = error; } });
+const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService }, { onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
   origin: "http://127.0.0.1:4173",
@@ -149,6 +152,9 @@ assert(landlordTracking.response.statusCode === 200 && landlordTracking.body.tra
 const messageList = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/messages?limit=25`, { headers: { cookie: authHeaders.cookie } });
 const landlordMessage = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/messages`, { headers: authHeaders, body: { clientMessageId: "99999999-9999-4999-8999-999999999999", body: "Please begin with the kitchen." } });
 assert(messageList.response.statusCode === 200 && landlordMessage.response.statusCode === 201 && calls.at(-2).kind === "message-list" && calls.at(-2).input.limit === "25" && calls.at(-1).kind === "message-send" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Booking messages lost authenticated participant reads, Landlord sends or query pagination.");
+const missingRealtimeOrigin = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/events`, { headers: { cookie: authHeaders.cookie } });
+const realtimeStream = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/events?afterEventId=7`, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin } });
+assert(missingRealtimeOrigin.response.statusCode === 403 && missingRealtimeOrigin.body.code === "origin-rejected" && realtimeStream.response.statusCode === 200 && calls.at(-1).kind === "realtime-open" && calls.at(-1).lastEventId === "7", "Real-time booking stream did not require exact origin or preserve its durable reconnect cursor.");
 const landlordJourneyStart = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/journey/start`, { headers: authHeaders, body: { consentGranted: true, latitude: 51.5, longitude: -0.1 } });
 assert(landlordJourneyStart.response.statusCode === 403 && landlordJourneyStart.body.code === "role-rejected", "A Landlord could start the Cleaner journey.");
 const landlordProgress = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/cleaning-progress`, { headers: { cookie: authHeaders.cookie } });
@@ -203,7 +209,7 @@ const baseEnvironment = {
 };
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging and HTTP layers or safely kept incomplete authentication delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime and HTTP layers or safely kept incomplete authentication delivery detached.");
 let partialAuthenticationRejected = false;
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, emailDelivery: { send() {} } }); } catch (error) { partialAuthenticationRejected = error.message.includes("requires email delivery, shared rate limiting"); }
 assert(partialAuthenticationRejected, "A partially supplied authentication HTTP boundary was silently enabled.");
