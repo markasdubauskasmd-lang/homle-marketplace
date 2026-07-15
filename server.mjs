@@ -1410,6 +1410,23 @@ const preferredArrivalWindows = {
   "Evening (5pm–8pm)": { startTime: "17:00", endTime: "20:00", label: "evening arrival" }
 };
 
+function quoteTimingDifference(requestedDate, requestedTimeWindow, proposedDate, proposedStartTime) {
+  const arrivalPreference = requestedTimeWindow || "Flexible";
+  const arrivalWindow = preferredArrivalWindows[arrivalPreference];
+  const dateChanged = Boolean(requestedDate && proposedDate && requestedDate !== proposedDate);
+  const arrivalOutsideRequestedWindow = Boolean(
+    arrivalWindow
+    && (!/^([01]\d|2[0-3]):[0-5]\d$/.test(proposedStartTime)
+      || proposedStartTime < arrivalWindow.startTime
+      || proposedStartTime >= arrivalWindow.endTime)
+  );
+  return {
+    differs: dateChanged || arrivalOutsideRequestedWindow,
+    dateChanged,
+    arrivalOutsideRequestedWindow
+  };
+}
+
 function utcTimeOnDate(date, time) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return NaN;
   const [year, month, day] = date.split("-").map(Number);
@@ -2411,6 +2428,8 @@ async function updateAdminProposalStatus(request, response) {
     frequency: requestFrequency(customerRequest),
     postcode: customerRequest.postcode,
     siteSize: customerRequest.siteSize,
+    requestedDate: customerRequest.preferredDate || "",
+    requestedTimeWindow: customerRequest.preferredTimeWindow || "Flexible",
     proposedDate: proposal.proposedDate,
     proposedStartTime: proposal.proposedStartTime,
     proposedEndTime: proposal.proposedEndTime,
@@ -2572,6 +2591,9 @@ function publicQuote(context) {
     supportEmail: config.supportEmail,
     supportPhone: config.supportPhone
   };
+  const requestedDate = displayed.requestedDate || customerRequest.preferredDate || "";
+  const requestedTimeWindow = displayed.requestedTimeWindow || customerRequest.preferredTimeWindow || "Flexible";
+  const timingDifference = quoteTimingDifference(requestedDate, requestedTimeWindow, displayed.proposedDate, displayed.proposedStartTime);
   return {
     ok: true,
     quote: {
@@ -2582,7 +2604,9 @@ function publicQuote(context) {
       frequency: displayed.frequency || requestFrequency(customerRequest),
       postcode: displayed.postcode,
       siteSize: displayed.siteSize,
-      preferredDate: customerRequest.preferredDate,
+      preferredDate: requestedDate,
+      requestedDate,
+      requestedTimeWindow,
       proposedDate: displayed.proposedDate,
       proposedStartTime: displayed.proposedStartTime,
       proposedEndTime: displayed.proposedEndTime,
@@ -2603,6 +2627,11 @@ function publicQuote(context) {
       cleanerOfferClosed,
       checklist: displayed.checklist || [],
       confirmedExtras: Array.isArray(displayed.scopeSignals) ? displayed.scopeSignals : [],
+      alternativeTiming: timingDifference.differs,
+      alternativeTimingReasons: {
+        dateChanged: timingDifference.dateChanged,
+        arrivalOutsideRequestedWindow: timingDifference.arrivalOutsideRequestedWindow
+      },
       decisionAllowed: proposalStatus === "sent" && cleanerDecision?.status !== "declined" && !cleanerOfferClosed && offerIsOpen(displayed.offerExpiresAt) && Object.values(readyChecks).every(Boolean),
       decision: latestDecision ? { status: latestDecision.status, decidedAt: latestDecision.updatedAt, typedName: latestDecision.typedName } : null
     }
@@ -2636,8 +2665,8 @@ async function decidePrivateQuote(request, response) {
   if (!typedName || normalisedName(typedName) !== normalisedName(context.customerRequest.contactName)) {
     return json(response, 422, { ok: false, error: "Type the same contact name used on the cleaning request." });
   }
-  if (decision === "accepted" && (input.scopeConfirmed !== true || input.termsAccepted !== true)) {
-    return json(response, 422, { ok: false, error: "Confirm the scope and pilot terms before accepting." });
+  if (decision === "accepted" && (input.scopeConfirmed !== true || input.scheduleConfirmed !== true || input.termsAccepted !== true)) {
+    return json(response, 422, { ok: false, error: "Confirm the scope, exact proposed schedule and pilot terms before accepting." });
   }
 
   const updatedAt = new Date().toISOString();
@@ -2649,6 +2678,7 @@ async function decidePrivateQuote(request, response) {
     source: "customer-private-quote",
     typedName,
     scopeConfirmed: decision === "accepted",
+    scheduleConfirmed: decision === "accepted",
     termsAccepted: decision === "accepted",
     reason: text(input.reason, 500),
     acceptedSnapshot: decision === "accepted" ? (context.quoteSnapshot || {
@@ -2656,6 +2686,8 @@ async function decidePrivateQuote(request, response) {
       frequency: requestFrequency(context.customerRequest),
       postcode: context.customerRequest.postcode,
       siteSize: context.customerRequest.siteSize,
+      requestedDate: context.customerRequest.preferredDate || "",
+      requestedTimeWindow: context.customerRequest.preferredTimeWindow || "Flexible",
       proposedDate: context.proposal.proposedDate,
       proposedStartTime: context.proposal.proposedStartTime,
       proposedEndTime: context.proposal.proposedEndTime,

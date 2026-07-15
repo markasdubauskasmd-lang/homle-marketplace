@@ -8,7 +8,7 @@
   <title>Review your Tideway cleaning quote</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260714-38">
-  <script src="/quote.js?v=20260715-39" type="module"></script>
+  <script src="/quote.js?v=20260715-40" type="module"></script>
 </head>
 <body class="quote-page">
   <a class="skip-link" href="#main">Skip to quote</a>
@@ -46,12 +46,21 @@
           <strong>Review the complete current quote below. A fresh decision is required.</strong>
         </section>
 
+        <section class="replacement-notice" data-alternative-timing hidden aria-labelledby="alternative-timing-title">
+          <h2 id="alternative-timing-title">This quote proposes different timing</h2>
+          <p>Your requested date or arrival window is shown beside Tideway's exact proposal below. Review both carefully.</p>
+          <ul data-alternative-timing-reasons></ul>
+          <strong>Nothing changes unless you accept the exact proposed date and time, and Tideway later confirms the booking.</strong>
+        </section>
+
         <dl class="quote-details">
           <div><dt>Quote reference</dt><dd data-reference></dd></div>
           <div><dt>Service</dt><dd data-service></dd></div>
           <div><dt>Requested frequency</dt><dd data-frequency></dd></div>
           <div><dt>Area</dt><dd data-postcode></dd></div>
           <div><dt>Site scope</dt><dd data-site-size></dd></div>
+          <div><dt>Your requested date</dt><dd data-requested-date></dd></div>
+          <div><dt>Your requested arrival window</dt><dd data-requested-time></dd></div>
           <div><dt>Proposed date</dt><dd data-proposed-date></dd></div>
           <div><dt>Arrival and finish (UK local time)</dt><dd data-proposed-time></dd></div>
           <div><dt>Estimated time</dt><dd data-estimated-hours></dd></div>
@@ -81,6 +90,7 @@
             <input name="typedName" autocomplete="name" required>
           </label>
           <label class="checkbox"><input name="scopeConfirmed" type="checkbox" required><span>I have checked and agree to the service, scope, requested frequency, single visit date, estimated time and proposed total shown above.</span></label>
+          <label class="checkbox"><input name="scheduleConfirmed" type="checkbox" required><span>I can accept the exact proposed date and arrival/finish time shown above, even if it differs from my original request.</span></label>
           <label class="checkbox"><input name="termsAccepted" type="checkbox" required><span>I agree to the Tideway pilot terms, cancellation rule and payment timing shown above.</span></label>
           <label>Optional note or reason for declining
             <textarea name="reason" rows="3" maxlength="500"></textarea>

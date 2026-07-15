@@ -31,6 +31,8 @@ function renderQuote(quote) {
   setText("[data-frequency]", quote.frequency || "One-off");
   setText("[data-postcode]", quote.postcode);
   setText("[data-site-size]", quote.siteSize);
+  setText("[data-requested-date]", quote.requestedDate ? date.format(new Date(`${quote.requestedDate}T12:00:00`)) : "No date supplied");
+  setText("[data-requested-time]", quote.requestedTimeWindow || "Flexible");
   setText("[data-proposed-date]", date.format(new Date(`${quote.proposedDate}T12:00:00`)));
   setText("[data-proposed-time]", `${quote.proposedStartTime}–${quote.proposedEndTime}`);
   setText("[data-estimated-hours]", `${quote.estimatedHours} hours`);
@@ -42,6 +44,23 @@ function renderQuote(quote) {
   setText("[data-payment]", quote.paymentTiming);
   setText("[data-business-name]", quote.legalBusinessName);
   setText("[data-support]", [quote.supportEmail, quote.supportPhone].filter(Boolean).join(" · "));
+
+  const alternativeTimingPanel = document.querySelector("[data-alternative-timing]");
+  if (quote.alternativeTiming) {
+    const reasons = document.querySelector("[data-alternative-timing-reasons]");
+    reasons.replaceChildren();
+    if (quote.alternativeTimingReasons?.dateChanged) {
+      const item = document.createElement("li");
+      item.textContent = "The proposed visit date differs from your requested date.";
+      reasons.append(item);
+    }
+    if (quote.alternativeTimingReasons?.arrivalOutsideRequestedWindow) {
+      const item = document.createElement("li");
+      item.textContent = "The proposed arrival is outside your requested arrival window.";
+      reasons.append(item);
+    }
+    alternativeTimingPanel.hidden = false;
+  }
 
   const replacementPanel = document.querySelector("[data-replacement]");
   if (quote.replacement?.freshCustomerDecisionRequired) {
@@ -125,7 +144,7 @@ form.addEventListener("submit", async (event) => {
   summary.hidden = true;
   if (decision === "accepted" && !form.checkValidity()) {
     form.reportValidity();
-    summary.textContent = "Complete the name and both confirmations before accepting.";
+    summary.textContent = "Complete the name and all three confirmations before accepting.";
     summary.hidden = false;
     summary.focus();
     return;
@@ -135,6 +154,7 @@ form.addEventListener("submit", async (event) => {
     decision,
     typedName: data.get("typedName") || "",
     scopeConfirmed: data.has("scopeConfirmed"),
+    scheduleConfirmed: data.has("scheduleConfirmed"),
     termsAccepted: data.has("termsAccepted"),
     reason: data.get("reason") || ""
   };
