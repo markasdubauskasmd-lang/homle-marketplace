@@ -10,6 +10,14 @@ const spokenRoomAliases = new Map([
 const canonicalRooms = new Map(briefRoomOptions.map((room) => [room.toLowerCase(), room]));
 const roomNames = [...new Set([...canonicalRooms.keys(), ...spokenRoomAliases.keys()])].sort((a, b) => b.length - a.length);
 const roomPattern = roomNames.map((room) => room.replace(/\s+/g, "\\s+")).join("|");
+const spokenRoomBoundaryLeadPattern = [
+  "(?:in|for)\\s+(?:the\\s+)?",
+  "(?:this|that)\\s+is\\s+(?:the\\s+)?",
+  "(?:we(?:'re|\\s+are)|i(?:'m|\\s+am))\\s+(?:now\\s+)?(?:in|entering|moving\\s+into|walking\\s+into)\\s+(?:the\\s+)?",
+  "now\\s+(?:in\\s+)?(?:the\\s+)?",
+  "next\\s+(?:(?:room\\s+)?is|we\\s+(?:have|enter))\\s+(?:the\\s+)?"
+].join("|");
+const spokenRoomLeadPattern = `${spokenRoomBoundaryLeadPattern}|(?:moving|walking|going)\\s+(?:into|to)\\s+(?:the\\s+)?`;
 const actionPattern = [
   "clean", "wipe", "mop", "vacuum", "hoover", "sweep", "dust", "scrub",
   "disinfect", "sanitise", "sanitize", "polish", "degrease", "descale", "remove",
@@ -39,20 +47,24 @@ function canonicalRoom(value) {
   return spokenRoomAliases.get(room) || canonicalRooms.get(room) || "";
 }
 
+function taskObject(value) {
+  return value.trim().replace(/^(?:The|A|An)\b/, (article) => article.toLowerCase());
+}
+
 function activeCleaningInstruction(value) {
   const excludedPassive = value.match(/^(.+?)\s+(?:does(?:\s+not|n't)|do(?:\s+not|n't))\s+(?:need|require)\s+(?:(?:to\s+be|any)\s+)?([a-z]+)$/i);
   if (excludedPassive) {
     const action = passiveActions.get(excludedPassive[2].toLowerCase());
-    if (action) return `Do not ${action.toLowerCase()} ${excludedPassive[1].trim()}`;
+    if (action) return `Do not ${action.toLowerCase()} ${taskObject(excludedPassive[1])}`;
   }
   const passive = value.match(/^(.+?)\s+(?:needs?|requires?)\s+(?:(?:to\s+be|some)\s+)?([a-z]+)$/i);
   if (passive) {
     const action = passiveActions.get(passive[2].toLowerCase());
-    if (action) return `${action} ${passive[1].trim()}`;
-    if (/^attention$/i.test(passive[2])) return `Clean ${passive[1].trim()}`;
+    if (action) return `${action} ${taskObject(passive[1])}`;
+    if (/^attention$/i.test(passive[2])) return `Clean ${taskObject(passive[1])}`;
   }
   const dirty = value.match(/^(.+?)\s+(?:is|are|looks?|look)\s+(?:(?:very|really|quite)\s+)?dirty$/i);
-  return dirty ? `Clean ${dirty[1].trim()}` : value;
+  return dirty ? `Clean ${taskObject(dirty[1])}` : value;
 }
 
 function checklistTaskKey(value) {
@@ -86,8 +98,8 @@ export function normaliseChecklistTask(value) {
 
 export function checklistFromTranscript(value) {
   if (typeof value !== "string") return [];
-  const roomBoundary = new RegExp(`\\s+(?=(?:in|for)\\s+(?:the\\s+)?(?:${roomPattern})\\b)`, "gi");
-  const roomPrefix = new RegExp(`^(?:(?:in|for)\\s+)?(?:the\\s+)?(${roomPattern})\\s*(?::|,|\\-|needs?\\s+(?:to\\s+be\\s+)?|should\\s+be\\s+)?\\s*`, "i");
+  const roomBoundary = new RegExp(`\\s+(?=(?:${spokenRoomBoundaryLeadPattern})(?:${roomPattern})\\b)`, "gi");
+  const roomPrefix = new RegExp(`^(?:(?:${spokenRoomLeadPattern})|(?:the\\s+)?)(${roomPattern})\\b(?:\\s+now)?\\s*(?::|,|\\-|needs?\\s+(?:to\\s+be\\s+)?|should\\s+be\\s+)?\\s*`, "i");
   const actionBoundary = new RegExp(`(?:,\\s*|\\s+(?:and|then)\\s+)(?=(?:please\\s+)?(?:${actionPattern})\\b)`, "gi");
   const passiveBoundary = /(?:,\s*(?:and\s+)?|\s+and\s+)(?=(?:the\s+)?[^,]{1,80}\s+(?:needs?|requires?|is|are|looks?|look)\b)/gi;
   const seen = new Set();
@@ -95,7 +107,8 @@ export function checklistFromTranscript(value) {
   const sections = value
     .slice(0, 5000)
     .replace(/\bfinally\b/gi, ". __ROOM_RESET__. ")
-    .replace(/\b(?:and then|after that|next|also)\b/gi, ".")
+    .replace(/\b(?:and then|after that|also)\b/gi, ".")
+    .replace(/\bnext\b(?!\s+(?:(?:room\s+)?is|we\s+(?:have|enter)))/gi, ".")
     .replace(roomBoundary, ".")
     .split(/[.!?;\n]+/);
 

@@ -1,4 +1,4 @@
-import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js";
+import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js?v=20260715-1";
 import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 import { detectPriceSensitiveScope } from "./scope-signals.js";
 import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos } from "./brief-readiness.js";

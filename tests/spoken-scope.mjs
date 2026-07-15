@@ -18,6 +18,24 @@ assert(normaliseChecklistTask("dont move the keys") === "Do not move the keys", 
 assert(normaliseChecklistTask("skip cleaning the oven") === "Do not clean the oven", "A spoken skip instruction was not made explicit for the Cleaner.");
 assert(normaliseChecklistTask("the oven doesn't need cleaning") === "Do not clean the oven", "A passive contracted exclusion was not converted into a direct Cleaner instruction.");
 
+const naturalWalkthrough = checklistFromTranscript("This is the kitchen. Please wipe the worktops and mop the floor. We're moving into the bathroom now. The shower screen needs wiping and disinfect the toilet. Next is the living room. Dust the shelves and vacuum the rug.");
+assert(JSON.stringify(naturalWalkthrough) === JSON.stringify([
+  "Kitchen: Wipe the worktops",
+  "Kitchen: Mop the floor",
+  "Bathroom: Wipe the shower screen",
+  "Bathroom: Disinfect the toilet",
+  "Living room: Dust the shelves",
+  "Living room: Vacuum the rug"
+]), `Natural room-transition narration became a Cleaner task or lost its room context: ${JSON.stringify(naturalWalkthrough)}`);
+
+const compactWalkthrough = checklistFromTranscript("Moving into the kitchen, wipe the worktops and mop the floor. Now the bathroom, scrub the bath and clean the toilet.");
+assert(JSON.stringify(compactWalkthrough) === JSON.stringify([
+  "Kitchen: Wipe the worktops",
+  "Kitchen: Mop the floor",
+  "Bathroom: Scrub the bath",
+  "Bathroom: Clean the toilet"
+]), `Compact spoken room transitions were not converted into room-labelled tasks: ${JSON.stringify(compactWalkthrough)}`);
+
 const excludedOnly = detectPriceSensitiveScope({
   transcript: "Do not clean inside the oven. The inside fridge does not need cleaning. Everything except inside the cupboards. Leave the windows alone.",
   checklist: ["Kitchen: Do not clean inside the oven", "Kitchen: Do not clean inside the fridge"]
@@ -31,4 +49,4 @@ const photoExclusion = detectPriceSensitiveScope({ photos: [{ note: "Oven interi
 assert(JSON.stringify(photoExclusion) === JSON.stringify(["window-cleaning"]), "A room-photo exclusion incorrectly entered the price-sensitive scope.");
 assert(detectPriceSensitiveScope({ transcript: "Inside the oven isn't included. Cleaning inside the fridge isn't necessary." }).length === 0, "Contracted passive exclusions incorrectly triggered price-sensitive scope.");
 
-console.log("Spoken scope tests passed: explicit Cleaner exclusions, mixed requested work and price-sensitive scope isolation.");
+console.log("Spoken scope tests passed: natural room transitions, direct Cleaner bullets, explicit exclusions and price-sensitive scope isolation.");
