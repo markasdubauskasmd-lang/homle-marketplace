@@ -12,6 +12,7 @@ import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mj
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverage.mjs";
 import { businessDateToday, businessEpochFromWallClock, businessWallClockMs, earliestBookableWallClockMs } from "./business-clock.mjs";
 import { scanAttentionAction } from "./lead-attention.mjs";
+import { publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, "public");
@@ -31,6 +32,8 @@ const maxFinancialRecordAmount = 1000000;
 let writeQueue = Promise.resolve();
 const rateLimitBuckets = new Map();
 const trustProxy = process.env.TRUST_PROXY === "true";
+const marketplaceConfig = validateMarketplaceEnvironment(process.env);
+if (!marketplaceConfig.ok) throw new Error(`Invalid marketplace environment: ${marketplaceConfig.errors.join(" ")}`);
 let dataIntegrityState = {
   healthy: true,
   checkedAt: "",
@@ -4571,6 +4574,9 @@ async function handleHttpRequest(request, response) {
         writesAllowed: dataIntegrityState.healthy,
         integrityCheckedAt: dataIntegrityState.checkedAt
       });
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/auth/providers") {
+      return json(response, 200, { ok: true, providers: publicAuthenticationCapabilities(process.env) });
     }
     if (!await allowDataMutation(request, response, requestUrl.pathname)) return;
     if (request.method === "POST" && requestUrl.pathname === "/api/cleaning-requests") {

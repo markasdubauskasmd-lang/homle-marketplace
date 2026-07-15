@@ -14,6 +14,10 @@ Then open `http://127.0.0.1:4173`.
 
 For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the computer's private IPv4 address, and open `http://<computer-ip>:4174/` on the phone. The main control desk remains on `http://127.0.0.1:4173/admin`; requests to its data APIs through the Wi-Fi address still require an admin key. This is a local-network preview only—do not expose port 4174 through a router or public tunnel.
 
+## Authenticated marketplace expansion
+
+The current pilot remains working while Tideway is extended into a three-role account marketplace. Read [the architecture audit](docs/ARCHITECTURE_AUDIT.md) and [phased implementation plan](docs/MARKETPLACE_IMPLEMENTATION_PLAN.md). Phase 0 now provides PostgreSQL schema/RLS migrations, shared role and booking authorization rules, fail-closed environment validation, a secret-free authentication-provider capability endpoint and foundation tests. User accounts and OAuth callbacks are not enabled yet: they require the Phase 1 database/session repository plus verified provider credentials and HTTPS deployment. Do not treat the presence of migration files or a disabled provider flag as working login.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

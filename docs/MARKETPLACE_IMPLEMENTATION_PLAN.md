@@ -1,0 +1,112 @@
+# Authenticated marketplace implementation plan
+
+This plan extends the current Tideway application. It does not replace the working request, room-scan, proposal, protected-booking or job-economics flows.
+
+## Phase 0 — architecture and safety foundation
+
+Status: started.
+
+- Add PostgreSQL migrations for accounts, identities, profiles, properties, marketplace requests, bookings, status history, tasks, current location, messages, reviews, notifications, disputes, privacy requests and audit logs.
+- Add database exclusion and review constraints plus row-level security policies.
+- Add shared role, booking-status, task-status and authorization contracts.
+- Add fail-closed environment validation and a secret-free `/api/auth/providers` capability endpoint.
+- Keep all providers disabled until complete credentials and a verified deployment origin exist.
+
+Files added or changed:
+
+- `src/marketplace/domain.mjs`
+- `src/marketplace/config.mjs`
+- `db/migrations/001_marketplace_schema.sql`
+- `db/migrations/002_marketplace_row_level_security.sql`
+- `.env.example`
+- `tests/marketplace-foundation.mjs`
+- `server.mjs`, `package.json`, `tests/smoke.mjs`
+
+## Phase 1 — accounts, authentication and onboarding
+
+- Add a PostgreSQL connection/repository layer and transaction helper that always sets the RLS user context.
+- Add opaque secure sessions, `HttpOnly; Secure; SameSite=Lax` cookies, CSRF tokens, rotation, logout-all-sessions and session expiry.
+- Add email/password signup using memory-hard password hashing, email verification and single-use password-reset tokens.
+- Add Google OIDC with authorization code plus PKCE, then Apple and Facebook behind provider capability flags.
+- In one transaction, create the first account from a verified provider identity or link it to the existing verified-email account. Reject ambiguous/unverified merges.
+- Add re-authenticated provider connection/removal in settings.
+- Add `/login`, `/signup`, `/onboarding` and `/settings` using the existing Tideway design tokens.
+- Add role middleware and role-specific onboarding. Admin role is never self-selectable.
+
+Tests: new Google account, verified-email deduplication, role onboarding, password reset, verification, session rotation/logout, CSRF and cross-role denial.
+
+## Phase 2 — profiles, properties and discovery
+
+- Add cleaner profile, services, service areas, availability and completion calculator APIs/pages.
+- Add landlord profile and multi-property CRUD with encrypted access instructions and private photos.
+- Add `/cleaners` and `/cleaners/:cleanerId` search with location, availability, rating, price, service, distance and verification filters.
+- Never return cleaner email, phone or home address in public projections.
+- Add landlord dashboard, cleaner dashboard, profile, availability, properties and property detail pages.
+
+Tests: cleaner owns one profile, cannot edit another profile, public projection privacy, property ownership, access-instruction protection and search filters.
+
+## Phase 3 — relational request, matching and booking lifecycle
+
+- Import existing pilot request/scan/proposal/booking records through a dry-run-first migration tool while retaining legacy references.
+- Create account-backed cleaning requests from saved properties and frozen room-scan checklists/media.
+- Add ranked matching using explicit service area, confirmed availability, services, price, rating, earlier relationship and acceptance rate. Every factor remains explainable.
+- Add invitation, accept/decline and confirmation transactions. PostgreSQL's exclusion constraint is the final double-booking guard.
+- Record every status change in `booking_status_history` and publish only after commit.
+- Add `/bookings/new` and `/bookings/:bookingId`; retain the existing protected booking packs as a migration fallback.
+
+Tests: request creation, cleaner acceptance/decline, concurrent overlapping acceptance, unauthorized booking reads, frozen terms and complete lifecycle transitions.
+
+## Phase 4 — live journey and cleaning progress
+
+- Add authenticated booking-scoped WebSocket channels with origin checks, heartbeat, bounded reconnect/backoff and per-user connection limits.
+- Add foreground web location sharing: explicit consent, `Start journey`, current-position upsert, last-updated state, optional server ETA adapter, nearby event and arrival stop.
+- Delete current location automatically on arrival/cancellation/completion and expire disconnected updates. Do not store route history.
+- Add active job screen with start, pause/resume, task updates, notes, before/after photos, issues, unexpected-task approval and finish.
+- Store updates transactionally, then broadcast progress snapshots and durable event identifiers so reconnects can catch up without blind polling.
+- Add poor-connection/offline status, queued non-destructive task updates and clear conflict/retry handling.
+
+Tests: consent and participant location authorization, automatic stop, unrelated-user denial, progress ownership, realtime delivery/reconnect and private media access.
+
+## Phase 5 — communication, reviews, notifications and administration
+
+- Add one booking conversation with participant/admin-only messages and no exposed personal contact details.
+- Add in-app notification inbox and an idempotent email outbox for all required lifecycle events.
+- Add one landlord review per completed booking, category ratings, moderation and one cleaner response.
+- Add disputes, suspension, verification and review-moderation tools to the existing `/admin` design.
+- Add marketplace statistics derived from audited records, not invented counters.
+
+Tests: message isolation, idempotent notifications, completed-only unique reviews, aggregate recalculation, moderation/response ownership and suspended-account denial.
+
+## Phase 6 — production hardening and deployment
+
+- Private S3-compatible object storage, upload signatures or server streams, content-type/size verification, image re-encoding/malware scanning and retention workers.
+- Shared rate limiting, structured security logs, error monitoring, database backups/PITR, secret rotation and audit retention.
+- Container/reverse-proxy deployment with HTTPS, trusted proxy rules, health/readiness checks and zero-downtime migrations.
+- CI for syntax/lint, unit, database migration, integration, authorization, WebSocket and mobile browser tests.
+- Data export/deletion workflow, privacy/legal review and location/photo consent copy.
+- Load and failure testing on slow mobile networks; native/PWA decision for reliable background tracking.
+
+## Environment and third-party inventory
+
+Required before production account use:
+
+- PostgreSQL: `DATABASE_URL`.
+- Sessions/encryption: `SESSION_SECRET`, `DATA_ENCRYPTION_KEY`.
+- Public deployment: `APP_ORIGIN` using verified HTTPS.
+- Email verification/reset/notifications: `SMTP_URL`, `EMAIL_FROM`.
+- OAuth as enabled: Google client ID/secret; Apple client/team/key/private key; Facebook app ID/secret.
+- Private object storage: endpoint, bucket and server access credentials.
+- Map provider in tracking phase: `MAP_PROVIDER` and an origin-restricted public token. No provider is selected or enabled without founder approval and cost/privacy review.
+
+No OAuth, map, email, database or storage secret belongs in client-side JavaScript, Git, the admin form or customer records.
+
+## Deployment sequence
+
+1. Provision separate staging PostgreSQL and private object storage.
+2. Store environment values in the platform secret manager; validate with `NODE_ENV=production` before starting.
+3. Apply migrations in order using a restricted migration identity.
+4. Run foundation, migration, integration and existing smoke tests.
+5. Deploy behind HTTPS with the app role unable to bypass RLS; verify callback URLs exactly.
+6. Dry-run legacy record import, compare counts/checksums, then import once with an audit report.
+7. Test one staging cleaner and landlord account end to end without real payment or outreach.
+8. Enable one OAuth provider at a time. Public launch still waits for legal identity, pilot coverage, insurance, operating rules, payment/refund evidence and real cleaner supply.

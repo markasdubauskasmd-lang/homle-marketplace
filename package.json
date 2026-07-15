@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node server.mjs",
     "start:phone": "node scripts/start-phone.mjs",
-    "check": "node --check server.mjs && node --check scripts/start-phone.mjs && node --check offer-expiry.mjs && node --check travel-coverage.mjs && node --check business-clock.mjs && node --check lead-attention.mjs && node --check public/app.js && node --check public/contact-validation.js && node --check public/travel-coverage.js && node --check public/admin.js && node --check public/brief.js && node --check public/submission-key.js && node --check public/brief-readiness.js && node --check public/brief-handoff.js && node --check public/checklist.js && node --check public/scope-signals.js && node --check public/quote.js && node --check public/opportunity.js && node --check public/booking-pack.js && node --check public/request-status.js && node --check public/cleaner-status.js",
-    "test": "node tests/smoke.mjs"
+    "check": "node --check server.mjs && node --check src/marketplace/config.mjs && node --check src/marketplace/domain.mjs && node --check scripts/start-phone.mjs && node --check offer-expiry.mjs && node --check travel-coverage.mjs && node --check business-clock.mjs && node --check lead-attention.mjs && node --check public/app.js && node --check public/contact-validation.js && node --check public/travel-coverage.js && node --check public/admin.js && node --check public/brief.js && node --check public/submission-key.js && node --check public/brief-readiness.js && node --check public/brief-handoff.js && node --check public/checklist.js && node --check public/scope-signals.js && node --check public/quote.js && node --check public/opportunity.js && node --check public/booking-pack.js && node --check public/request-status.js && node --check public/cleaner-status.js && node --check tests/marketplace-foundation.mjs && node --check tests/smoke.mjs",
+    "test:foundation": "node tests/marketplace-foundation.mjs",
+    "test": "node tests/marketplace-foundation.mjs && node tests/smoke.mjs"
   },
   "engines": {
     "node": ">=20"

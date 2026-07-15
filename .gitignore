@@ -5,6 +5,8 @@ data/proposal-status.ndjson
 data/job-brief-images/
 !data/.gitkeep
 .env
+.env.*
+!.env.example
 node_modules/
 *.log
 backups/
