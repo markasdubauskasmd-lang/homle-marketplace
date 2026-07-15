@@ -921,6 +921,33 @@ textarea { resize: vertical; }
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
 }
 
+/* Truthful entry point for the sample marketplace screens. */
+.marketplace-demo-section { padding-block: 58px; background: #eaf4f1; }
+.marketplace-demo-layout { display: grid; grid-template-columns: minmax(250px, .82fr) minmax(420px, 1.18fr); gap: clamp(30px, 6vw, 76px); align-items: center; }
+.marketplace-demo-copy h2 { max-width: 620px; margin-bottom: 14px; }
+.marketplace-demo-copy > p:not(.eyebrow) { max-width: 590px; }
+.marketplace-demo-note { margin-top: 22px; padding-left: 14px; color: var(--muted); border-left: 3px solid var(--orange); font-size: .86rem; }
+.marketplace-demo-note strong { color: var(--ink); }
+.marketplace-demo-actions { display: grid; gap: 13px; }
+.marketplace-demo-card { display: grid; grid-template-columns: 46px 1fr 28px; gap: 14px; align-items: center; min-height: 112px; padding: 18px 20px; color: var(--ink); border: 1px solid #c8ded7; border-radius: 18px; background: #fff; box-shadow: 0 12px 35px rgba(16,36,33,.06); text-decoration: none; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.marketplace-demo-card:hover { transform: translateY(-2px); border-color: #83bbae; box-shadow: 0 16px 40px rgba(16,36,33,.1); }
+.marketplace-demo-card:focus-visible { outline: 3px solid #f4a340; outline-offset: 3px; }
+.marketplace-demo-card > span { display: grid; width: 42px; height: 42px; place-items: center; color: var(--green-dark); border-radius: 12px; background: var(--mint-pale); font-size: .78rem; font-weight: 900; }
+.marketplace-demo-card strong, .marketplace-demo-card small { display: block; }
+.marketplace-demo-card strong { margin-bottom: 5px; font-size: 1.03rem; }
+.marketplace-demo-card small { color: var(--muted); line-height: 1.45; }
+.marketplace-demo-card > i { color: var(--green); font-size: 1.35rem; font-style: normal; font-weight: 900; }
+
+@media (max-width: 900px) {
+  .marketplace-demo-layout { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 680px) {
+  .marketplace-demo-section { padding-block: 42px; }
+  .marketplace-demo-card { grid-template-columns: 40px 1fr 20px; gap: 11px; min-height: 104px; padding: 16px 14px; }
+  .marketplace-demo-card > span { width: 38px; height: 38px; }
+}
+
 /* Authenticated marketplace product preview. All content is explicitly non-live sample UI. */
 .marketplace-preview-page { min-height: 100vh; background: #f3f7f5; }
 .preview-header .nav-wrap { min-height: 68px; }

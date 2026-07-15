@@ -16,12 +16,13 @@ let currentState = "en-route";
 let currentRole = "landlord";
 
 function showScreen(name) {
+  const safeName = name === "tracking" ? "tracking" : "profile";
   for (const tab of tabs) {
-    const selected = tab.dataset.previewTab === name;
+    const selected = tab.dataset.previewTab === safeName;
     tab.classList.toggle("current", selected);
     tab.setAttribute("aria-selected", String(selected));
   }
-  for (const screen of screens) screen.hidden = screen.dataset.previewScreen !== name;
+  for (const screen of screens) screen.hidden = screen.dataset.previewScreen !== safeName;
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -70,3 +71,4 @@ mobileAction.addEventListener("click", () => {
 });
 
 renderState(currentState);
+showScreen(new URLSearchParams(window.location.search).get("screen"));
