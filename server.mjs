@@ -13,6 +13,7 @@ import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverag
 import { businessDateToday, businessEpochFromWallClock, businessWallClockMs, earliestBookableWallClockMs } from "./business-clock.mjs";
 import { scanAttentionAction } from "./lead-attention.mjs";
 import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeCleanerProfileStarter } from "./cleaner-profile-starter.mjs";
+import { buildRoomScanFollowupDraft } from "./request-followup-draft.mjs";
 import { publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -2783,6 +2784,31 @@ async function decidePrivateCleanerOpportunity(request, response) {
   return json(response, 200, { ok: true, status: decision, decidedAt: updatedAt });
 }
 
+async function getAdminRequestFollowupDraft(request, response, requestId) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  const [customerRequests, statusUpdates, bookings, briefs, briefUpdates, config] = await Promise.all([
+    readRecords("cleaning-requests.ndjson"),
+    readRecords("status-updates.ndjson"),
+    readRecords("bookings.ndjson"),
+    readRecords("job-briefs.ndjson"),
+    readRecords("job-brief-status.ndjson"),
+    readJsonFile("business-config.json", {})
+  ]);
+  const customerRequest = customerRequests.find((record) => record.id === requestId);
+  if (!customerRequest) return json(response, 404, { ok: false, error: "Customer request not found." });
+  const latestStatus = statusUpdates.filter((update) => update.id === requestId).at(-1)?.status || customerRequest.status || "new";
+  const booking = bookings.find((record) => record.requestId === requestId) || null;
+  const latestRawBrief = briefs
+    .filter((brief) => brief.requestId === requestId)
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
+  const latestBrief = latestRawBrief ? applyBriefStatus(latestRawBrief, briefUpdates) : null;
+  const site = publicSiteVerification(config);
+  const verifiedPublicOrigin = site.origin && site.evidenceMatches && site.dateValid ? site.origin : "";
+  const draft = buildRoomScanFollowupDraft({ request: customerRequest, requestStatus: latestStatus, latestBrief, booking, verifiedPublicOrigin });
+  if (!draft.allowed) return json(response, draft.statusCode || 409, { ok: false, error: draft.error || "A room-scan follow-up is not available for this request." });
+  return json(response, 200, { ok: true, requestId, ...draft, allowed: undefined });
+}
+
 async function getAdminProposalDrafts(request, response, proposalId) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   const [proposals, proposalUpdates, customerRequests, cleaners, config, briefs, briefUpdates, availabilityEvents, cleanerDecisions] = await Promise.all([
@@ -4667,6 +4693,9 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/proposal-drafts") {
       return await getAdminProposalDrafts(request, response, text(requestUrl.searchParams.get("proposalId"), 40));
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/admin/request-followup-draft") {
+      return await getAdminRequestFollowupDraft(request, response, text(requestUrl.searchParams.get("requestId"), 40));
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/booking-audit") {
       return await getAdminBookingAudit(request, response, text(requestUrl.searchParams.get("proposalId"), 40));

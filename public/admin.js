@@ -677,7 +677,7 @@ function draftSection(title, draft) {
   const section = document.createElement("section");
   section.className = `draft-section${draft.handoffReady ? " draft-handoff-ready" : ""}`;
   addText(section, "h4", title);
-  addText(section, "span", `Recipient: ${draft.recipient.email} · ${draft.recipient.phone}`, "draft-recipient");
+  addText(section, "span", `Recipient: ${[draft.recipient.email, draft.recipient.phone].filter(Boolean).join(" · ")}`, "draft-recipient");
   addText(section, "span", `Subject: ${draft.subject}`, "draft-subject");
   const privateUrl = draft.privateUrl || "";
   const handoffBody = draft.handoffReady ? `${draft.body}\n\nOpen your private Tideway review:\n${privateUrl}\n\nKeep this private link confidential.` : draft.body;
@@ -694,6 +694,76 @@ function draftSection(title, draft) {
   copyButton.addEventListener("click", () => copyDraft(`${draft.subject}\n\n${handoffBody}`, copyButton));
   section.append(textarea, copyButton);
   return section;
+}
+
+async function loadRequestFollowupDraft(record, target, button) {
+  button.disabled = true;
+  target.replaceChildren();
+  addText(target, "span", "Preparing a private, copy-only room-scan draft…");
+  try {
+    const response = await fetch(`/api/admin/request-followup-draft?requestId=${encodeURIComponent(record.id)}`, { headers: adminHeaders({ "Accept": "application/json" }) });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Room-scan follow-up could not be prepared.");
+    target.replaceChildren();
+    const safety = document.createElement("div");
+    safety.className = result.handoffReady ? "draft-safety draft-ready" : "draft-safety draft-blocked";
+    addText(safety, "strong", result.handoffReady ? "Copy-only private follow-up ready" : "Review draft only — private link withheld");
+    addText(safety, "span", result.handoffReady
+      ? "The verified public tracker link is included only in the copy below. Copying never sends or contacts the customer. Founder approval is still required before outreach."
+      : "Tideway will not expose the private token through localhost or an unverified deployment. Verify the public HTTPS site before customer outreach.");
+    if (result.warnings?.length) {
+      const list = document.createElement("ul");
+      result.warnings.forEach((warning) => addText(list, "li", warning));
+      safety.append(list);
+    }
+
+    const section = document.createElement("section");
+    section.className = `draft-section${result.handoffReady ? " draft-handoff-ready" : ""}`;
+    addText(section, "h4", result.kind === "room-scan-revision" ? "Customer room-scan revision draft" : "Customer room-scan reminder draft");
+    addText(section, "span", `Recipient: ${result.recipient.email}`, "draft-recipient");
+    addText(section, "span", `Subject: ${result.subject}`, "draft-subject");
+    const completeBody = result.handoffReady
+      ? `${result.body}\n\nOpen your private Tideway request tracker:\n${result.privateUrl}`
+      : result.body;
+    const textarea = document.createElement("textarea");
+    textarea.readOnly = true;
+    textarea.rows = 14;
+    textarea.value = completeBody;
+    textarea.setAttribute("aria-label", "Customer room-scan follow-up body");
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.className = "button button-small button-outline";
+    copyButton.textContent = result.handoffReady ? "Copy complete private follow-up — does not send" : "Copy review text only — does not send";
+    copyButton.addEventListener("click", () => copyDraft(`${result.subject}\n\n${completeBody}`, copyButton));
+    section.append(textarea, copyButton);
+    target.append(safety, section);
+  } catch (error) {
+    target.replaceChildren();
+    addText(target, "strong", error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function buildRequestFollowupPanel(record) {
+  if (record.kind !== "request" || record.booking || ["booked", "completed", "lost"].includes(record.status)) return null;
+  const latestBrief = record.briefs?.[0] || null;
+  if (latestBrief && latestBrief.status !== "needs-revision") return null;
+  const panel = document.createElement("details");
+  panel.className = "draft-panel scan-followup-panel";
+  const summary = document.createElement("summary");
+  summary.textContent = latestBrief ? "Prepare revised room-scan follow-up" : "Prepare room-scan follow-up";
+  const guidance = document.createElement("p");
+  guidance.textContent = "This prepares text for founder review only. It never sends a message, and a customer-ready private link is withheld until the deployed HTTPS site has matching verification evidence.";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button button-small button-outline";
+  button.textContent = "Prepare copy-only draft";
+  const target = document.createElement("div");
+  target.className = "draft-target";
+  button.addEventListener("click", () => loadRequestFollowupDraft(record, target, button));
+  panel.append(summary, guidance, button, target);
+  return panel;
 }
 
 async function loadProposalDrafts(proposal, target, button) {
@@ -1656,6 +1726,9 @@ function buildCard(record) {
     addDetail(details, "Notes", record.notes);
   }
   card.append(details);
+
+  const requestFollowupPanel = buildRequestFollowupPanel(record);
+  if (requestFollowupPanel) card.append(requestFollowupPanel);
 
   if (record.kind === "cleaner") card.append(buildCleanerScreening(record), buildCleanerAvailability(record));
 
