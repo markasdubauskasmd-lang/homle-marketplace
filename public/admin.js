@@ -396,6 +396,14 @@ function renderLaunchFunnel() {
   addText(bottleneck, "span", funnel.goal?.achieved ? "Milestone recorded" : "Current bottleneck");
   addText(bottleneck, "strong", funnel.bottleneck?.title || "Review launch evidence");
   addText(bottleneck, "p", funnel.bottleneck?.detail || "Check the underlying records before acting.");
+  if (funnel.parallelAction) {
+    const parallel = document.createElement("div");
+    parallel.className = "launch-parallel-action";
+    addText(parallel, "span", "Safe work in parallel");
+    addText(parallel, "strong", funnel.parallelAction.title);
+    addText(parallel, "p", `${funnel.parallelAction.detail} Use the founder-action queue below; this does not bypass the launch gate.`);
+    bottleneck.append(parallel);
+  }
   if (funnel.goal?.achieved) addText(bottleneck, "small", `${funnel.goal.profitableBookings} profitable target-met booking${funnel.goal.profitableBookings === 1 ? "" : "s"} · ${money.format(funnel.goal.customerReceipts)} recorded receipts · ${money.format(funnel.goal.contribution)} contribution`);
 }
 
@@ -404,12 +412,13 @@ function actionMatchesFilter(record) {
   const actions = record.dispatchActions || [];
   if (state.action === "needs-action") return actions.some((action) => ["urgent", "high"].includes(action.severity));
   if (state.action === "urgent") return actions.some((action) => action.severity === "urgent");
+  if (["scan", "supply", "profit"].includes(state.action)) return actions.some((action) => action.group === state.action);
   if (state.action === "rematching") return actions.some((action) => action.group === "rematching");
   if (state.action === "booking") return actions.some((action) => ["booking", "safety"].includes(action.group));
   return true;
 }
 
-function showDispatchRecord(recordId) {
+function showDispatchRecord(recordId, action = null) {
   state.kind = "all";
   state.status = "all";
   state.action = "all";
@@ -423,6 +432,17 @@ function showDispatchRecord(recordId) {
     card.tabIndex = -1;
     card.focus({ preventScroll: true });
     card.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (action?.group === "scan") {
+      const brief = card.querySelector(".brief-summary");
+      if (brief) {
+        brief.open = true;
+        const summary = brief.querySelector("summary");
+        if (summary) {
+          summary.tabIndex = -1;
+          summary.focus({ preventScroll: true });
+        }
+      }
+    }
   });
 }
 
@@ -453,8 +473,8 @@ function renderDispatchQueue() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button button-small button-outline";
-    button.textContent = "Open record";
-    button.addEventListener("click", () => showDispatchRecord(record.id));
+    button.textContent = action.group === "scan" ? "Open scan review" : action.group === "supply" ? "Open cleaner record" : "Open record";
+    button.addEventListener("click", () => showDispatchRecord(record.id, action));
     item.append(copy, button);
     dispatchQueueList.append(item);
   }

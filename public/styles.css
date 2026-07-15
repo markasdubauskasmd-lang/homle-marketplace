@@ -275,6 +275,10 @@ textarea { resize: vertical; }
 .launch-bottleneck strong { margin: 4px 0; color: #613500; }
 .launch-bottleneck p, .launch-bottleneck small { margin: 0; color: #70491e; }
 .launch-bottleneck small { margin-top: 7px; font-weight: 750; }
+.launch-parallel-action { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1b979; }
+.launch-parallel-action span { color: var(--green-dark); }
+.launch-parallel-action strong { color: #174f45; }
+.launch-parallel-action p { color: #315d54; }
 .launch-bottleneck-complete { border-left-color: var(--green); background: #e8f7f1; }
 .launch-bottleneck-complete span, .launch-bottleneck-complete strong { color: var(--green-dark); }
 .launch-bottleneck-complete p, .launch-bottleneck-complete small { color: #315d54; }

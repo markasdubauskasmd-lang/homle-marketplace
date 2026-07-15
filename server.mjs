@@ -1860,19 +1860,22 @@ function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, pr
     { key: "completed", label: "Outcomes recorded", count: completedRequestIds.size, detail: "Job timeline and actual costs complete" },
     { key: "profitable", label: "Profitable target met", count: profitableRequestIds.size, detail: "Positive receipt and founder margin floor recorded" }
   ];
-  let bottleneck = { key: "profitable-outcome", title: "First profitable booking outcome recorded", detail: "Protect fulfilment quality and repeat the same audited process before expanding." };
+  let operationalBottleneck = { key: "profitable-outcome", title: "First profitable booking outcome recorded", detail: "Protect fulfilment quality and repeat the same audited process before expanding." };
   if (!profitableRequestIds.size) {
-    if (!readiness.ready) bottleneck = { key: "launch-readiness", title: "Complete the business launch gate", detail: `${readiness.total - readiness.completed} of ${readiness.total} readiness areas still require verified founder details before a real booking or payment.` };
-    else if (completedRequestIds.size) bottleneck = { key: "actual-economics", title: "Resolve the completed job economics", detail: "A completed outcome has not yet recorded both positive contribution and the founder-approved margin floor." };
-    else if (bookedRequestIds.size) bottleneck = { key: "job-completion", title: "Complete the confirmed visit safely", detail: "Record safe arrival, cleaner completion and customer acknowledgement before actual economics." };
-    else if (twoSidedAcceptedRequestIds.size) bottleneck = { key: "booking-confirmation", title: "Complete the final booking checks", detail: "Confirm address, access, emergency instructions and external payment authorisation before recording the booking pack." };
-    else if (liveOfferRequestIds.size) bottleneck = { key: "two-sided-acceptance", title: "Obtain a current two-sided acceptance", detail: "The named customer and proposed cleaner must decide independently through their private links before the deadlines." };
-    else if (activeReviewedScanCount && !dispatchReadyCleanerIds.size) bottleneck = { key: "cleaner-supply", title: "Verify one dispatch-ready cleaner", detail: "A genuine cleaner needs approved status, all seven screening checks and a future confirmed availability window." };
-    else if (activeReviewedScanCount) bottleneck = { key: "profitable-offer", title: "Prepare one profitable matched offer", detail: "Match reviewed hours to verified availability, then check the frozen price, pay and contribution before any authorised send." };
-    else if (activeSubmittedScanCount) bottleneck = { key: "scan-review", title: "Review the submitted room scope", detail: "Confirm the checklist, price-sensitive items, defensible cleaning hours and scope confidence." };
-    else if (activeRequestIds.size) bottleneck = { key: "room-scan", title: "Complete the required room scan", detail: "The customer must submit room visuals, notes and the confirmed concise checklist before scope review." };
-    else bottleneck = { key: "first-request", title: "Record the first authorised pilot request", detail: "Use only genuine inbound demand or founder-approved outreach; do not fabricate a lead." };
+    if (completedRequestIds.size) operationalBottleneck = { key: "actual-economics", title: "Resolve the completed job economics", detail: "A completed outcome has not yet recorded both positive contribution and the founder-approved margin floor." };
+    else if (bookedRequestIds.size) operationalBottleneck = { key: "job-completion", title: "Complete the confirmed visit safely", detail: "Record safe arrival, cleaner completion and customer acknowledgement before actual economics." };
+    else if (twoSidedAcceptedRequestIds.size) operationalBottleneck = { key: "booking-confirmation", title: "Complete the final booking checks", detail: "Confirm address, access, emergency instructions and external payment authorisation before recording the booking pack." };
+    else if (liveOfferRequestIds.size) operationalBottleneck = { key: "two-sided-acceptance", title: "Obtain a current two-sided acceptance", detail: "The named customer and proposed cleaner must decide independently through their private links before the deadlines." };
+    else if (activeReviewedScanCount && !dispatchReadyCleanerIds.size) operationalBottleneck = { key: "cleaner-supply", title: "Verify one dispatch-ready cleaner", detail: "A genuine cleaner needs approved status, all seven screening checks and a future confirmed availability window." };
+    else if (activeReviewedScanCount) operationalBottleneck = { key: "profitable-offer", title: "Prepare one profitable matched offer", detail: "Match reviewed hours to verified availability, then check the frozen price, pay and contribution before any authorised send." };
+    else if (activeSubmittedScanCount) operationalBottleneck = { key: "scan-review", title: "Review the submitted room scope", detail: "Confirm the checklist, price-sensitive items, defensible cleaning hours and scope confidence." };
+    else if (activeRequestIds.size) operationalBottleneck = { key: "room-scan", title: "Complete the required room scan", detail: "The customer must submit room visuals, notes and the confirmed concise checklist before scope review." };
+    else operationalBottleneck = { key: "first-request", title: "Record the first authorised pilot request", detail: "Use only genuine inbound demand or founder-approved outreach; do not fabricate a lead." };
   }
+  const bottleneck = !profitableRequestIds.size && !readiness.ready
+    ? { key: "launch-readiness", title: "Complete the business launch gate", detail: `${readiness.total - readiness.completed} of ${readiness.total} readiness areas still require verified founder details before a real booking or payment.` }
+    : operationalBottleneck;
+  const parallelAction = !profitableRequestIds.size && !readiness.ready ? operationalBottleneck : null;
   return {
     stages,
     dispatchReadyCleaners: dispatchReadyCleanerIds.size,
@@ -1883,7 +1886,8 @@ function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, pr
       customerReceipts: moneyValue(profitablePaidOutcomes.reduce((total, { outcome }) => total + Number(outcome.customerCollected || 0), 0)),
       contribution: moneyValue(profitablePaidOutcomes.reduce((total, { outcome }) => total + Number(outcome.contribution || 0), 0))
     },
-    bottleneck
+    bottleneck,
+    parallelAction
   };
 }
 
