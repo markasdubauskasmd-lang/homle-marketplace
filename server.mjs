@@ -3488,7 +3488,7 @@ async function getPrivateRequestStatus(request, response) {
   const outwardCode = customerRequest.postcode.replace(/\s+/g, "").slice(0, -3);
   return json(response, 200, {
     ok: true,
-    request: { reference: customerRequest.id, service: customerRequest.service, frequency: requestFrequency(customerRequest), propertyType: customerRequest.propertyType, siteSize: customerRequest.siteSize, outwardCode, preferredDate: customerRequest.preferredDate || "" },
+    request: { reference: customerRequest.id, service: customerRequest.service, frequency: requestFrequency(customerRequest), propertyType: customerRequest.propertyType, siteSize: customerRequest.siteSize, outwardCode, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" },
     current: { stage: currentStage, headline, nextAction },
     steps,
     roomScan: latestBrief ? { status: scanComplete ? "reviewed" : latestBrief.status === "reviewed" ? "review-pending" : latestBrief.status, reference: latestBrief.id, taskCount: latestBrief.checklist.length, photoCount: latestBrief.photos.length, reviewedHours: scanComplete ? latestBrief.scopeEstimateHours : null, confidence: scanComplete ? latestBrief.scopeConfidence : "", confirmedExtras: scanComplete && latestBrief.priceSensitiveScopeConfirmed ? latestBrief.scopeSignals.map((signal) => signal.label) : [], revisionNote: latestBrief.status === "needs-revision" ? latestBrief.reviewNote : "" } : null,

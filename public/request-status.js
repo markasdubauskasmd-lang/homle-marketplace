@@ -8,6 +8,7 @@ const refresh = document.querySelector("[data-refresh]");
 const withdrawal = document.querySelector("[data-withdrawal]");
 const withdrawalForm = document.querySelector("[data-withdrawal-form]");
 const withdrawalError = document.querySelector("[data-withdrawal-error]");
+const ukDate = new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeZone: "Europe/London" });
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 
@@ -31,6 +32,12 @@ function actionLink(label, href, primary = false) {
   return link;
 }
 
+function preferredDateLabel(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return "Flexible date";
+  const parsed = new Date(`${value}T12:00:00`);
+  return Number.isNaN(parsed.getTime()) ? "Flexible date" : ukDate.format(parsed);
+}
+
 function renderStatus(result) {
   loading.hidden = true;
   errorState.hidden = true;
@@ -43,6 +50,8 @@ function renderStatus(result) {
   setText("[data-frequency]", result.request.frequency || "One-off");
   setText("[data-property]", `${result.request.propertyType} · ${result.request.siteSize}`);
   setText("[data-area]", result.request.outwardCode);
+  setText("[data-preferred-date]", preferredDateLabel(result.request.preferredDate));
+  setText("[data-preferred-time]", result.request.preferredTimeWindow || "Flexible");
   withdrawal.hidden = result.withdrawal?.allowed !== true;
 
   const timeline = document.querySelector("[data-timeline]");
