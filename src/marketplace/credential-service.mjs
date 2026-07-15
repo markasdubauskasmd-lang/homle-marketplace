@@ -26,7 +26,7 @@ function publicAccount(account) {
 }
 
 export function createCredentialService(repository, options) {
-  const requiredMethods = ["registerPasswordAccount", "consumeEmailVerification", "findPasswordAccount", "recordPasswordAttempt", "issuePasswordReset", "consumePasswordReset"];
+  const requiredMethods = ["registerPasswordAccount", "consumeEmailVerification", "issueEmailVerification", "findPasswordAccount", "recordPasswordAttempt", "issuePasswordReset", "consumePasswordReset"];
   if (!repository || requiredMethods.some((method) => typeof repository[method] !== "function")) throw new TypeError("A complete credential repository is required.");
   const tokenSecret = options?.tokenSecret;
   const clock = options?.clock || (() => new Date());
@@ -56,6 +56,19 @@ export function createCredentialService(repository, options) {
       try { verificationHash = hashPurposeToken(token, "email-verification", tokenSecret); } catch { return { verified: false }; }
       const account = await repository.consumeEmailVerification(verificationHash);
       return account ? { verified: true, account: publicAccount(account) } : { verified: false };
+    },
+
+    async requestEmailVerification(emailValue) {
+      const token = newOpaqueToken();
+      const verificationHash = hashPurposeToken(token, "email-verification", tokenSecret);
+      const verificationExpiresAt = expiry(clock, verificationTtlSeconds, 600, 172_800, "Email verification");
+      let email;
+      try { email = normalizedEmail(emailValue); } catch { return { accepted: true, emailDelivery: null }; }
+      const issued = await repository.issueEmailVerification(email, verificationHash, verificationExpiresAt);
+      return {
+        accepted: true,
+        emailDelivery: issued ? { kind: "email-verification", recipient: email, token, expiresAt: verificationExpiresAt } : null
+      };
     },
 
     async signIn(emailValue, password) {

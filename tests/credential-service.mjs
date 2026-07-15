@@ -37,6 +37,13 @@ const repository = {
     record.account.email_verified_at = now.toISOString();
     return record.account;
   },
+  async issueEmailVerification(email, hash, expiresAt) {
+    const account = accounts.get(email);
+    if (!account || account.email_verified_at) return false;
+    for (const record of verificationTokens.values()) if (record.account === account) record.used = true;
+    verificationTokens.set(hash.toString("hex"), { account, expiresAt, used: false });
+    return true;
+  },
   async findPasswordAccount(email) {
     return accounts.get(email) || null;
   },
@@ -85,8 +92,13 @@ assert(duplicateRegistration.accepted && duplicateRegistration.emailDelivery ===
 const unverifiedLogin = await service.signIn("owner@example.com", "A long first password!");
 assert(!unverifiedLogin.authenticated && unverifiedLogin.reason === "email-verification-required", "An unverified email received an authenticated password session.");
 
-const verification = await service.verifyEmail(registration.emailDelivery.token);
-const repeatedVerification = await service.verifyEmail(registration.emailDelivery.token);
+const unknownVerificationRequest = await service.requestEmailVerification("missing@example.com");
+const resentVerification = await service.requestEmailVerification("owner@example.com");
+assert(unknownVerificationRequest.accepted && unknownVerificationRequest.emailDelivery === null && resentVerification.accepted && resentVerification.emailDelivery?.recipient === "owner@example.com", "Verification resend exposed an unknown email or failed to issue trusted delivery material.");
+assert(!await service.verifyEmail(registration.emailDelivery.token).then((result) => result.verified), "A replacement verification request left the earlier token usable.");
+
+const verification = await service.verifyEmail(resentVerification.emailDelivery.token);
+const repeatedVerification = await service.verifyEmail(resentVerification.emailDelivery.token);
 assert(verification.verified && verification.account.userId === storedAccount.user_id && !repeatedVerification.verified, "Email verification was not single-use.");
 const validLogin = await service.signIn("owner@example.com", "A long first password!");
 assert(validLogin.authenticated && validLogin.account.userId === storedAccount.user_id && !Object.hasOwn(validLogin.account, "password_hash"), "Verified credentials did not authenticate or leaked the password hash.");
@@ -105,11 +117,14 @@ const repeatedReset = await service.resetPassword(resetRequest.emailDelivery.tok
 assert(reset.changed && reset.sessionsRevoked === 2 && !repeatedReset.changed && storedAccount.sessions === 0 && await verifyPassword("A safer replacement password!", storedAccount.password_hash), "Password reset was not single-use, did not revoke sessions or failed to replace the credential.");
 
 const migrationSql = await readFile(new URL("../db/migrations/005_email_password_lifecycle.sql", import.meta.url), "utf8");
+const resendMigrationSql = await readFile(new URL("../db/migrations/007_email_verification_resend.sql", import.meta.url), "utf8");
 const runtimeGrantsSql = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 assert(migrationSql.includes("register_password_account") && migrationSql.includes("consume_email_verification") && migrationSql.includes("record_password_attempt") && migrationSql.includes("issue_password_reset") && migrationSql.includes("consume_password_reset"), "Email/password migration omitted a required lifecycle function.");
 assert(migrationSql.includes("failed_attempts >= 5") && migrationSql.includes("interval '15 minutes'") && migrationSql.includes("UPDATE sessions SET revoked_at") && (migrationSql.match(/REVOKE ALL ON FUNCTION/g) || []).length === 5, "Credential lifecycle lacks persistent lockout, reset session revocation or restricted execution.");
+assert(resendMigrationSql.includes("issue_email_verification") && resendMigrationSql.includes("email_verified_at IS NULL") && resendMigrationSql.includes("SET used_at = COALESCE") && resendMigrationSql.includes("pg_advisory_xact_lock") && resendMigrationSql.includes("REVOKE ALL ON FUNCTION"), "Email verification resend is not generic, single-live-token, concurrency-safe and restricted.");
 for (const signature of ["register_password_account(citext, text, text, bytea, timestamptz)", "consume_email_verification(bytea)", "record_password_attempt(uuid, boolean)", "issue_password_reset(citext, bytea, timestamptz)", "consume_password_reset(bytea, text)"]) {
   assert(runtimeGrantsSql.includes(signature), `The restricted runtime role lacks ${signature}.`);
 }
+assert(runtimeGrantsSql.includes("issue_email_verification(citext, bytea, timestamptz)"), "The restricted runtime role cannot issue a replacement verification token.");
 
 console.log("Credential service tests passed: scrypt signup, generic duplicate handling, single-use verification, verified login, persistent lockout, non-enumerating reset request, single-use reset and session revocation.");

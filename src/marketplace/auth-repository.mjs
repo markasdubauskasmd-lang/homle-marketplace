@@ -55,6 +55,13 @@ export function createAuthenticationRepository(database) {
       });
     },
 
+    async issueEmailVerification(email, verificationHash, verificationExpiresAt) {
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query("SELECT tideway_private.issue_email_verification($1::citext, $2::bytea, $3::timestamptz) AS issued", [normalizedEmail(email), tokenHash(verificationHash, "Verification token hash"), verificationExpiresAt]);
+        return result.rows[0]?.issued === true;
+      });
+    },
+
     async recordPasswordAttempt(userId, succeeded) {
       return database.withAuthenticationTransaction(async (client) => {
         const result = await client.query("SELECT * FROM tideway_private.record_password_attempt($1::uuid, $2::boolean)", [uuid(userId, "Password account user id"), succeeded === true]);

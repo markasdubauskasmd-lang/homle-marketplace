@@ -1,6 +1,7 @@
 import { createAccountSecurity } from "./account-security.mjs";
 import { createAccountSessionService } from "./account-session-service.mjs";
 import { createAuthenticationRepository } from "./auth-repository.mjs";
+import { createAuthenticationHttpRouter } from "./authentication-http.mjs";
 import { createCleanerProfileService } from "./cleaner-profile.mjs";
 import { createCleanerProfileRepository } from "./cleaner-repository.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config.mjs";
@@ -38,7 +39,20 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const cleanerProfileService = createCleanerProfileService(cleanerProfileRepository);
   const propertyRepository = createPropertyRepository(database);
   const propertyService = createPropertyService(propertyRepository, { dataEncryptionSecret: env.DATA_ENCRYPTION_KEY });
-  const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService }, { onUnexpectedError: options.onUnexpectedError });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService }, { onUnexpectedError: options.onUnexpectedError });
+  const authenticationDependencies = [options.emailDelivery, options.rateLimiter, options.clientKey];
+  const suppliedAuthenticationDependencies = authenticationDependencies.filter(Boolean).length;
+  if (suppliedAuthenticationDependencies > 0 && suppliedAuthenticationDependencies < authenticationDependencies.length) throw new TypeError("Authentication HTTP composition requires email delivery, shared rate limiting and a trusted client-key resolver together.");
+  if (suppliedAuthenticationDependencies === authenticationDependencies.length && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires SMTP_URL and EMAIL_FROM configuration.");
+  const authenticationRouter = suppliedAuthenticationDependencies === authenticationDependencies.length
+    ? createAuthenticationHttpRouter({ security, credentialService, identityService, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
+    : null;
+  const router = authenticationRouter ? {
+    async handle(request, response, url) {
+      if (await authenticationRouter.handle(request, response, url)) return true;
+      return marketplaceRouter.handle(request, response, url);
+    }
+  } : marketplaceRouter;
 
   return Object.freeze({
     database,
@@ -51,6 +65,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
     cleanerProfileService,
     propertyRepository,
     propertyService,
+    authenticationRouter,
+    authenticationHttpReady: authenticationRouter !== null,
+    marketplaceRouter,
     router
   });
 }

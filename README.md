@@ -26,6 +26,8 @@ The [account marketplace HTTP runtime](docs/MARKETPLACE_HTTP_RUNTIME.md) now com
 
 The authentication runtime also includes trusted session issuance, exact logout, logout-all and same-account rotation. Raw session and CSRF tokens never cross the repository boundary, optional client metadata is stored only as keyed hashes, and a failed privilege-changing rotation leaves the old session revoked. These remain source-level foundations until throttled login/logout handlers are composed under HTTPS.
 
+Email authentication handlers are now prepared behind the same detached runtime: generic signup, verification resend/confirmation, login, password-reset request/confirmation, logout and role onboarding. Replacement verification invalidates older unused links, email tokens travel only in URL fragments, and the controller requires trusted delivery, shared rate limiting and a server-derived client key together. No account control appears on the live site before those dependencies and PostgreSQL pass staging.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

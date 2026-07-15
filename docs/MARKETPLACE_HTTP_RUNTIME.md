@@ -14,6 +14,8 @@ This checkpoint composes the existing PostgreSQL, session security, cleaner prof
 | `PUT /api/marketplace/properties/:propertyId` | Landlord | Session, exact origin, CSRF, Landlord role and owner-bound update query |
 | `GET /api/marketplace/bookings/:bookingId/property` | Participant/admin | Session plus participant repository check, service authorization and protected-field projection |
 
+Prepared authentication routes use `POST` only: `/api/marketplace/auth/signup`, verification resend/confirmation, login, password-reset request/confirmation, logout, logout-all, and `/api/marketplace/onboarding`. They are attached to the runtime chain only when trusted email delivery, shared rate limiting and a server-derived client key are configured together.
+
 The controller owns the `/api/marketplace/` namespace and does not intercept any existing pilot route. It accepts JSON objects only, limits bodies to 64 KiB, returns explicit method/validation/authentication errors, disables response caching and hides unexpected database details behind a generic error while forwarding the original error to the private monitoring hook.
 
 ## Runtime composition
@@ -29,6 +31,8 @@ The controller owns the `/api/marketplace/` namespace and does not intercept any
 
 Composition fails closed unless `DATABASE_URL`, separate 32+ character `SESSION_SECRET` and `AUTH_TOKEN_SECRET`, exact `APP_ORIGIN` and distinct 32+ character `DATA_ENCRYPTION_KEY` are present. It does not connect eagerly or enable public authentication capability flags. Session issuance stores only token/CSRF hashes and keyed metadata hashes; logout and role-change rotation revoke database sessions before clearing or replacing cookies.
 
+Public signup, verification resend and password-reset request return the same generic response regardless of account existence. Trusted delivery receives a fragment-token HTTPS link; raw delivery material is never placed in the API response. A 500 ms minimum response window and the mandatory shared limiter reduce enumeration/abuse exposure. The replacement-verification migration invalidates older unused links atomically.
+
 ## Enablement procedure
 
 These controllers are not attached to the live pilot server yet. Complete all of the following before attachment:
@@ -37,8 +41,8 @@ These controllers are not attached to the live pilot server yet. Complete all of
 2. Apply migrations and runtime grants in the documented order, then run real RLS and concurrent-overlap integration tests.
 3. Add and lock a maintained PostgreSQL Node driver through the approved dependency workflow; the current dependency-free pilot has no package installer or database driver.
 4. Put database/session/token/encryption secrets in the deployment secret manager and use an exact HTTPS `APP_ORIGIN` in production.
-5. Compose login/session creation, logout and role onboarding routes first so browser requests can receive real opaque sessions and CSRF material.
-6. Attach the router before legacy API dispatch, add shared persistent rate limiting and structured private error monitoring.
+5. Connect the prepared authentication controller to the approved SMTP adapter and shared limiter, then prove generic-response, delivery-failure and session-cookie behavior under HTTPS.
+6. Attach the composed router before legacy API dispatch and add structured private error monitoring.
 7. Add mobile-first pages and browser tests using genuine staging accounts. Keep `/cleaners` closed until at least one real, completed, public Cleaner profile exists.
 
 ## Third-party services still requiring approval/configuration

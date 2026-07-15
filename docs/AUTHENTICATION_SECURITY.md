@@ -34,6 +34,8 @@ Email signup, verification and password reset use a separate `AUTH_TOKEN_SECRET`
 
 Public signup and reset-request responses remain generic whether an email exists. Password verification performs a real scrypt comparison even for an unknown email, and failed-attempt counters live in PostgreSQL so process restarts cannot clear them. Five consecutive failures lock the credential for 15 minutes. A correct password cannot bypass an active lock.
 
+An unverified password account can request a replacement verification link without revealing whether the address exists. Issuing a replacement atomically expires earlier unused verification tokens, uses an email-scoped advisory transaction lock and writes an audit event. The public response remains byte-for-byte generic for known and unknown addresses.
+
 Verification tokens are single-use and expire within 48 hours. Reset tokens are single-use, expire within two hours, replace the scrypt credential transactionally and revoke every active session for that account. The user must sign in again after a successful reset.
 
 SMTP is not configured in this local workspace. The functions and trusted delivery handoff are foundations only; email/password capability flags stay false until PostgreSQL, `SESSION_SECRET`, the distinct `AUTH_TOKEN_SECRET`, exact `APP_ORIGIN`, `SMTP_URL` and `EMAIL_FROM` are all configured.
@@ -57,4 +59,6 @@ The public capability endpoint has an additional runtime-composition gate. Valid
 - logout revokes the exact current database session before expiring the cookie, while logout-all revokes every account session;
 - privilege-changing rotation verifies that the new session belongs to the same account, revokes the old session first and fails closed if replacement creation fails.
 
-The source service is composed into the marketplace runtime, but no login/logout HTTP route is enabled yet. Public entry remains closed until real PostgreSQL, throttled handlers, SMTP/provider adapters and HTTPS browser tests exist.
+The isolated authentication controller now prepares generic signup, verification resend/confirmation, password login, reset request/confirmation, exact logout, logout-all and role onboarding routes. Email links carry their opaque token in the URL fragment, not a server-visible query string. Successful login returns the token only as an HttpOnly cookie and returns separate CSRF material; password reset never silently signs the browser in.
+
+The controller cannot compose unless a trusted email-delivery adapter, shared rate limiter and server-derived client-key resolver are supplied together, and email configuration is present. It remains detached from `server.mjs`; public entry stays closed until real PostgreSQL migrations, an approved driver, SMTP/provider adapters, shared abuse controls and HTTPS browser tests exist.
