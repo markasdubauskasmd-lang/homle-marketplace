@@ -8,7 +8,7 @@
   <title>Scan rooms for your clean — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260715-42">
-  <script src="/brief.js?v=20260715-48" type="module"></script>
+  <script src="/brief.js?v=20260715-49" type="module"></script>
 </head>
 <body class="brief-page">
   <a class="skip-link" href="#brief-main">Skip to job brief</a>
@@ -46,7 +46,7 @@
         <div class="brief-panel">
           <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 1</p><h2>Room photos, short videos and notes</h2><p>Choose the room once, then add its visuals. New photos and videos receive that room automatically, and every card remains editable. Add up to ten room visuals, including no more than two videos of 30 seconds and 15 MB each; the complete upload is capped at 20 MB. Add a short note explaining what each visual shows. Avoid people, identity documents, post, keys and security codes.</p></div><strong id="photo-count">0/10</strong></div>
           <div class="capture-room-control">
-            <label>Room for new photos and videos<select id="capture-room" aria-describedby="capture-room-status"><option value="" selected disabled>Choose the exact room first</option></select></label>
+            <label>Current room for photos, videos and voice notes<select id="capture-room" aria-describedby="capture-room-status speech-room-context"><option value="" selected disabled>Choose the exact room first</option></select></label>
             <p id="capture-room-status" role="status">Choose a room to unlock the camera and existing-photo buttons.</p>
           </div>
           <div class="photo-picker-actions">
@@ -58,8 +58,9 @@
         </div>
 
         <div class="brief-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 2</p><h2>Speak or type the instructions</h2><p>Walk through naturally—say “this is the kitchen” or “we’re moving into the bathroom”, then describe the work or what you see, such as “the floor needs mopping” or “there is grease around the hob.” Say “do not”, “no need” or “skip” for anything the Cleaner must leave alone. Tideway keeps those exclusions as clear instructions, carries the room into follow-on sentences, turns supported conditions into direct tasks and removes repeated bullets for your review.</p></div><button id="voice-button" class="button button-outline" type="button">Start speaking</button></div>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 2</p><h2>Speak or type the instructions</h2><p>Choose the current room above, then speak naturally. Tideway adds a visible room marker to the notes when listening starts; change the current room as you walk and the next speech stays grouped correctly. You can still say “this is the kitchen” or “we’re moving into the bathroom”, then describe the work or what you see, such as “the floor needs mopping” or “there is grease around the hob.” Say “do not”, “no need” or “skip” for anything the Cleaner must leave alone. Tideway keeps those exclusions as clear instructions, turns supported conditions into direct tasks and removes repeated bullets for your review.</p></div><button id="voice-button" class="button button-outline" type="button" aria-describedby="voice-status speech-room-context">Start speaking</button></div>
           <div id="voice-status" class="voice-status" role="status">Voice capture checks your browser support. You can always type instead.</div>
+          <p id="speech-room-context" class="speech-room-context" aria-live="polite">Choose a current room before speaking, or name the room in your instructions.</p>
           <div id="brief-draft-status" class="brief-draft-status" role="status">
             <div><strong data-draft-title>Private reload protection is on</strong><span data-draft-copy>Your spoken or typed notes and checklist stay in this tab for up to 30 minutes. Photos and videos are never stored in the recovery draft.</span></div>
             <button class="text-button" type="button" data-discard-draft hidden>Discard saved text</button>

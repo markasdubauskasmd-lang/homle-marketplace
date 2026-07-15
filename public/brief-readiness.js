@@ -27,6 +27,11 @@ export function normaliseBriefRoom(value) {
   return roomOptionSet.has(room) ? room : "";
 }
 
+export function roomSpeechMarker(value) {
+  const room = normaliseBriefRoom(value);
+  return room ? `In the ${room}.` : "";
+}
+
 function hasEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }

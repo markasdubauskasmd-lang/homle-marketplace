@@ -698,6 +698,7 @@ textarea { resize: vertical; }
 .photo-preview-card textarea { min-height: 82px; padding-block: .6rem; font-size: .86rem; }
 .text-button { margin-top: 8px; padding: 0; color: #8a231d; border: 0; background: transparent; font-weight: 750; cursor: pointer; }
 .voice-status { margin: -8px 0 16px; padding: 11px 13px; color: var(--green-dark); border-radius: 9px; background: var(--mint-pale); font-size: .86rem; }
+.speech-room-context { margin: -7px 0 16px; color: var(--muted); font-size: .84rem; font-weight: 700; }
 .brief-draft-status { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 0 0 16px; padding: 11px 13px; color: var(--green-dark); border: 1px solid #b7d9d0; border-radius: 9px; background: #f4fbf9; font-size: .84rem; }
 .brief-draft-status strong, .brief-draft-status span { display: block; }
 .brief-draft-status span { margin-top: 2px; color: var(--muted); }

@@ -1,7 +1,7 @@
 import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js?v=20260715-2";
 import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 import { detectPriceSensitiveScope } from "./scope-signals.js";
-import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos, normaliseBriefRoom } from "./brief-readiness.js?v=20260715-1";
+import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos, normaliseBriefRoom, roomSpeechMarker } from "./brief-readiness.js?v=20260715-2";
 import { newSubmissionKey } from "./submission-key.js";
 import { cleanerHandoffPreview } from "./cleaner-handoff-preview.js";
 import { checklistChangeReview } from "./checklist-change-review.js";
@@ -24,6 +24,7 @@ const scanReadinessTitle = document.querySelector("#scan-readiness-title");
 const scanReadinessList = document.querySelector("#scan-readiness-list");
 const voiceButton = document.querySelector("#voice-button");
 const voiceStatus = document.querySelector("#voice-status");
+const speechRoomContext = document.querySelector("#speech-room-context");
 const form = document.querySelector("#job-brief-form");
 const errorBox = document.querySelector("#brief-error");
 const successBox = document.querySelector("#brief-success");
@@ -74,9 +75,23 @@ function renderCaptureRoomControl() {
   captureRoomStatus.textContent = room
     ? `New visuals will be labelled ${room}. You can change the room on any card before submitting.`
     : "Choose a room to unlock the camera and existing-photo buttons.";
+  speechRoomContext.textContent = room
+    ? `Voice notes will be grouped under ${room}. Change the current room as you walk.`
+    : "Choose a current room before speaking, or name the room in your instructions.";
 }
 
-captureRoomSelect.addEventListener("change", renderCaptureRoomControl);
+function appendCurrentRoomMarker() {
+  const marker = roomSpeechMarker(currentCaptureRoom());
+  if (!marker) return false;
+  transcript.value = [transcript.value.trim(), marker].filter(Boolean).join(" ");
+  transcript.dispatchEvent(new Event("input", { bubbles: true }));
+  return true;
+}
+
+captureRoomSelect.addEventListener("change", () => {
+  renderCaptureRoomControl();
+  if (listening) appendCurrentRoomMarker();
+});
 renderCaptureRoomControl();
 
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
@@ -605,7 +620,7 @@ if (SpeechRecognition) {
   recognition.lang = "en-GB";
   recognition.continuous = true;
   recognition.interimResults = true;
-  recognition.onstart = () => { listening = true; voiceErrorMessage = ""; voiceButton.textContent = "Stop speaking"; voiceStatus.textContent = "Listening… describe the rooms and tasks. Concise bullets appear automatically."; };
+  recognition.onstart = () => { listening = true; voiceErrorMessage = ""; voiceButton.textContent = "Stop speaking"; voiceStatus.textContent = currentCaptureRoom() ? `Listening in ${currentCaptureRoom()}… describe the work or what you see.` : "Listening… name each room, then describe the work or what you see."; };
   recognition.onend = () => {
     listening = false;
     voiceButton.textContent = "Start speaking";
@@ -641,7 +656,13 @@ if (SpeechRecognition) {
     if (interimText) voiceStatus.textContent = `Listening: ${interimText}`;
   };
   voiceStatus.textContent = "Voice capture is available. Your browser may provide the speech-to-text service.";
-  voiceButton.addEventListener("click", () => { if (listening) recognition.stop(); else recognition.start(); });
+  voiceButton.addEventListener("click", () => {
+    if (listening) recognition.stop();
+    else {
+      appendCurrentRoomMarker();
+      recognition.start();
+    }
+  });
 } else {
   voiceButton.disabled = true;
   voiceStatus.textContent = "Voice capture is not supported in this browser. Type the instructions below instead.";
