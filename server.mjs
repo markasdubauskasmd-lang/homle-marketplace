@@ -2681,6 +2681,75 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   });
 }
 
+async function getAdminBookingDrafts(request, response, bookingId) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  const [bookings, customerRequests, cleaners] = await Promise.all([
+    readRecords("bookings.ndjson"),
+    readRecords("cleaning-requests.ndjson"),
+    readRecords("cleaner-applications.ndjson")
+  ]);
+  const booking = bookings.find((record) => record.id === bookingId);
+  if (!booking) return json(response, 404, { ok: false, error: "Confirmed booking not found." });
+  const customerRequest = customerRequests.find((record) => record.id === booking.requestId);
+  const cleaner = cleaners.find((record) => record.id === booking.cleanerId);
+  if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Confirmed booking parties were not found." });
+
+  const publicOrigin = verifiedPublicSiteOrigin(booking.publicSiteUrl);
+  const customerUrl = publicOrigin && booking.customerViewToken ? `${publicOrigin}/booking-confirmation#${booking.customerViewToken}` : "";
+  const cleanerUrl = publicOrigin && booking.cleanerViewToken ? `${publicOrigin}/assignment#${booking.cleanerViewToken}` : "";
+  const customerPack = booking.customerBookingPack || {};
+  const cleanerPack = booking.cleanerBookingPack || {};
+  const signoff = [customerPack.legalBusinessName || cleanerPack.legalBusinessName || "Tideway", customerPack.supportEmail || cleanerPack.supportEmail, customerPack.supportPhone || cleanerPack.supportPhone].filter(Boolean).join("\n");
+  const customerBody = [
+    `Hello ${customerRequest.contactName},`,
+    "",
+    "Your Tideway cleaning visit is confirmed.",
+    "",
+    `Booking reference: ${booking.id}`,
+    `Service: ${customerPack.service || customerRequest.service}`,
+    `Date: ${booking.proposedDate}`,
+    `Time: ${booking.proposedStartTime}–${booking.proposedEndTime}`,
+    `Estimated cleaning time: ${booking.estimatedHours} hours`,
+    "",
+    "Open your private booking pack to review the confirmed address, checklist, access plan and support route. Keep the link private.",
+    "Tideway recorded the agreed external payment step; opening this link does not charge you.",
+    "A change request is reviewed separately and does not automatically cancel or reschedule the visit.",
+    "",
+    "Kind regards,",
+    signoff
+  ].join("\n");
+  const cleanerBody = [
+    `Hello ${cleaner.fullName},`,
+    "",
+    "Your Tideway cleaning assignment is confirmed.",
+    "",
+    `Booking reference: ${booking.id}`,
+    `Service: ${cleanerPack.service || customerRequest.service}`,
+    `Date: ${booking.proposedDate}`,
+    `Time: ${booking.proposedStartTime}–${booking.proposedEndTime}`,
+    `Estimated cleaning time: ${booking.estimatedHours} hours`,
+    `Agreed cleaner pay: £${Number(booking.plannedCleanerPay).toFixed(2)}`,
+    "",
+    "Open your private assignment pack to review the full address, access plan, hazards, equipment plan and cleaner checklist. Keep the link private.",
+    "Report a material scope, access or safety issue through the private pack before starting where possible.",
+    "",
+    "Kind regards,",
+    signoff
+  ].join("\n");
+  const warnings = [];
+  if (!publicOrigin) warnings.push("This confirmed booking has no frozen verified public host. Do not assemble a local handoff link.");
+  if (!customerUrl || !cleanerUrl) warnings.push("Both recipient booking-pack tokens are required before a controlled handoff can be copied.");
+  const handoffReady = Boolean(customerUrl && cleanerUrl);
+  return json(response, 200, {
+    ok: true,
+    bookingId,
+    handoffReady,
+    warnings,
+    customer: { subject: `Tideway booking confirmed ${booking.id}`, body: customerBody, recipient: { email: customerRequest.email, phone: customerRequest.phone }, privateUrl: customerUrl, handoffReady: Boolean(customerUrl) },
+    cleaner: { subject: `Tideway assignment confirmed ${booking.id}`, body: cleanerBody, recipient: { email: cleaner.email, phone: cleaner.phone }, privateUrl: cleanerUrl, handoffReady: Boolean(cleanerUrl) }
+  });
+}
+
 async function buildBookingAudit(proposalId) {
   const [proposals, proposalUpdates, customerRequests, cleaners, cleanerUpdates, config, briefs, briefUpdates, screenings, cleanerDecisions, bookings, availabilityEvents] = await Promise.all([
     readRecords("match-proposals.ndjson"),
@@ -4230,6 +4299,9 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/booking-audit") {
       return await getAdminBookingAudit(request, response, text(requestUrl.searchParams.get("proposalId"), 40));
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/admin/booking-drafts") {
+      return await getAdminBookingDrafts(request, response, text(requestUrl.searchParams.get("bookingId"), 40));
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/job-brief-image") {
       return await getAdminJobBriefImage(request, response, text(requestUrl.searchParams.get("briefId"), 40), text(requestUrl.searchParams.get("imageId"), 40));

@@ -634,6 +634,35 @@ async function loadProposalDrafts(proposal, target, button) {
   }
 }
 
+async function loadBookingDrafts(booking, target, button) {
+  button.disabled = true;
+  target.replaceChildren();
+  addText(target, "span", "Preparing recipient-isolated booking handoffs…");
+  try {
+    const response = await fetch(`/api/admin/booking-drafts?bookingId=${encodeURIComponent(booking.id)}`, { headers: adminHeaders({ "Accept": "application/json" }) });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Booking handoffs could not be prepared.");
+    target.replaceChildren();
+    const safety = document.createElement("div");
+    safety.className = result.handoffReady ? "draft-safety draft-ready" : "draft-safety draft-blocked";
+    addText(safety, "strong", result.handoffReady ? "Copy-only confirmed-booking pack ready" : "Booking handoffs remain blocked");
+    addText(safety, "span", result.handoffReady
+      ? "Each complete message below contains only that recipient's frozen public booking-pack link. Copying never sends it."
+      : "Do not assemble a link from this computer's local address. Resolve every warning before a recipient handoff.");
+    if (result.warnings.length) {
+      const list = document.createElement("ul");
+      result.warnings.forEach((warning) => addText(list, "li", warning));
+      safety.append(list);
+    }
+    target.append(safety, draftSection("Customer booking confirmation", result.customer), draftSection("Cleaner assignment confirmation", result.cleaner));
+  } catch (error) {
+    target.replaceChildren();
+    addText(target, "strong", error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function bookingConfirmation(labelText, name) {
   const label = document.createElement("label");
   label.className = "confirmation-check";
@@ -783,7 +812,7 @@ function buildBookingPackPanel(record) {
   panel.append(summary);
   addText(panel, "strong", `${booking.id} · ${booking.proposedDate} · ${booking.proposedStartTime}–${booking.proposedEndTime}`);
   addText(panel, "span", `${booking.details?.serviceAddress || "Address unavailable"}, ${booking.details?.servicePostcode || ""}`);
-  addText(panel, "span", "These links contain visit details. Share each link only with its named recipient and never paste it into public notes.");
+  addText(panel, "span", "Use the local previews only to audit each view. Copy recipient messages only from the isolated handoff pack below, and never paste a private link into public notes.");
   if (booking.paymentEvidence) {
     const payment = document.createElement("div");
     payment.className = "payment-evidence-summary";
@@ -808,28 +837,24 @@ function buildBookingPackPanel(record) {
     if (!view.token) continue;
     const section = document.createElement("div");
     section.className = "quote-review-link";
-    addText(section, "strong", view.label);
-    if (!booking.publicSiteUrl) {
-      addText(section, "span", "Local audit preview only. This is not a customer or cleaner handoff.");
-      addLocalAuditPreview(section, `Open local ${view.path === "assignment" ? "cleaner" : "customer"} booking preview`, `/${view.path}#${encodeURIComponent(view.token)}`);
-      panel.append(section);
-      continue;
-    }
-    const url = `${booking.publicSiteUrl}/${view.path}#${encodeURIComponent(view.token)}`;
-    addText(section, "span", `Frozen public host: ${booking.publicSiteUrl}. Share only with this named recipient.`);
-    const field = document.createElement("input");
-    field.type = "text";
-    field.readOnly = true;
-    field.value = url;
-    field.setAttribute("aria-label", `${view.label} for ${booking.id}`);
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.className = "button button-small button-outline";
-    copy.textContent = "Copy verified booking-pack link — does not send";
-    copy.addEventListener("click", () => copyDraft(url, copy));
-    section.append(field, copy);
+    addText(section, "strong", `${view.label} · local audit only`);
+    addText(section, "span", "This opens the private view on this computer but does not provide a recipient handoff link.");
+    addLocalAuditPreview(section, `Open local ${view.path === "assignment" ? "cleaner" : "customer"} booking preview`, `/${view.path}#${encodeURIComponent(view.token)}`);
     panel.append(section);
   }
+  const handoffDetails = document.createElement("details");
+  handoffDetails.className = "message-drafts";
+  const handoffSummary = document.createElement("summary");
+  handoffSummary.textContent = "Open recipient-isolated booking handoffs";
+  const handoffButton = document.createElement("button");
+  handoffButton.type = "button";
+  handoffButton.className = "button button-small button-light";
+  handoffButton.textContent = "Load copy-only booking handoffs";
+  const handoffTarget = document.createElement("div");
+  handoffTarget.className = "draft-target";
+  handoffButton.addEventListener("click", () => loadBookingDrafts(booking, handoffTarget, handoffButton));
+  handoffDetails.append(handoffSummary, handoffButton, handoffTarget);
+  panel.append(handoffDetails);
   if (booking.changeRequests?.length) {
     const heading = document.createElement("h4");
     heading.textContent = `Booking change and issue queue · ${booking.changeRequests.length}`;
