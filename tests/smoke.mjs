@@ -121,7 +121,8 @@ try {
   assert(home.headers.get("content-security-policy")?.includes("img-src 'self' data: blob:"), "Secure local photo previews were blocked by the content policy.");
 
   const privacy = await fetch(`${base}/privacy`);
-  assert(privacy.ok && (await privacy.text()).includes("Privacy notice"), "Privacy page failed.");
+  const privacyText = await privacy.text();
+  assert(privacy.ok && privacyText.includes("Privacy notice") && privacyText.includes("temporarily holds a client network address in memory"), "Privacy page failed or omitted the local anti-abuse data disclosure.");
 
   const terms = await fetch(`${base}/terms`);
   assert(terms.ok && (await terms.text()).includes("Pilot terms"), "Terms page failed.");
@@ -1082,7 +1083,33 @@ try {
   assert(refreshedBody.records.find((record) => record.id === requestBody.reference)?.dispatchActions?.some((action) => action.code === "loss-review" && action.group === "profit"), "A later adjustment that made the job loss-making did not become a founder action.");
   assert(refreshedBody.launchFunnel?.goal?.achieved === false && refreshedBody.launchFunnel.goal.profitableBookings === 0 && refreshedBody.launchFunnel.goal.customerReceipts === 0 && refreshedBody.launchFunnel.goal.contribution === 0 && refreshedBody.launchFunnel?.stages?.find((stage) => stage.key === "completed")?.count === 1 && refreshedBody.launchFunnel?.stages?.find((stage) => stage.key === "profitable")?.count === 0 && refreshedBody.launchFunnel?.bottleneck?.key === "actual-economics", "First-booking funnel stayed falsely profitable after later recorded re-clean/refund costs.");
 
-  console.log("Smoke tests passed: public pages, evidence-based seven-area launch requirements, unsupported insurance/live-payment claims and invalid verification dates, private first-profitable-booking funnel and bottleneck progression, eight-item live scan readiness, empty/partial/complete readiness states, stale source-to-checklist detection, harmless-whitespace stability, photo/video count and duration safeguards, supported-room safeguards, reviewed-scan matching gates, explicit cleaner postcode declarations, exact/area travel coverage, vague-travel rejection, uncovered-cleaner exclusion, direct out-of-area proposal rejection, booking-audit travel retention, required customer scope-completeness confirmation, stored confirmation timestamps, booking-audit scope confirmation, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-visual notes, shown-room task coverage, customer-visible price-sensitive scope warnings, supported-signal coverage, false-positive protection, required reviewer confirmations, frozen confirmed extras, explicit selected-cleaner media consent, frozen opportunity media scope, token-authorised non-cacheable opportunity photos/videos, preview/no-consent/readiness/booking media revocation, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room media, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, live cleaner-capacity holds, capacity-aware matching, cleaner-decline capacity release, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations, private settlement evidence and categorised actual completed-job economics.");
+  let publicThrottle = null;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const response = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    if (response.status === 429) { publicThrottle = response; break; }
+  }
+  assert(publicThrottle?.headers.get("retry-after") && publicThrottle.headers.get("cache-control") === "no-store", "Repeated public form abuse was not throttled with a bounded retry response.");
+  const spoofedForwardedBypass = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.200" }, body: "{}" });
+  assert(spoofedForwardedBypass.status === 429, "An untrusted forwarded address bypassed the public submission limit.");
+
+  let privateMutationThrottle = null;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const response = await fetch(`${base}/api/quote/decision`, { method: "POST", headers: { "content-type": "application/json", "x-quote-token": "invalid-private-token" }, body: JSON.stringify({ decision: "accepted" }) });
+    if (response.status === 429) { privateMutationThrottle = response; break; }
+  }
+  assert(privateMutationThrottle?.headers.get("retry-after"), "Repeated private-token mutation attempts were not throttled.");
+
+  let adminAuthenticationThrottle = null;
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    const response = await fetch(`${base}/api/admin/records`, { headers: { "x-forwarded-for": "203.0.113.25", "x-admin-key": "wrong-test-key" } });
+    if (response.status === 429) { adminAuthenticationThrottle = response; break; }
+  }
+  assert(adminAuthenticationThrottle?.headers.get("retry-after"), "Repeated remote admin-key guesses were not throttled.");
+  const authorisedAfterThrottle = await fetch(`${base}/api/admin/records`, { headers: { "x-forwarded-for": "203.0.113.25", "x-admin-key": "test-admin-key" } });
+  const healthAfterThrottle = await fetch(`${base}/api/health`);
+  assert(authorisedAfterThrottle.ok && healthAfterThrottle.ok, "Scoped abuse throttling blocked an authorised admin or unrelated health check.");
+
+  console.log("Smoke tests passed: public pages, evidence-based seven-area launch requirements, unsupported insurance/live-payment claims and invalid verification dates, private first-profitable-booking funnel and bottleneck progression, eight-item live scan readiness, empty/partial/complete readiness states, stale source-to-checklist detection, harmless-whitespace stability, photo/video count and duration safeguards, supported-room safeguards, reviewed-scan matching gates, explicit cleaner postcode declarations, exact/area travel coverage, vague-travel rejection, uncovered-cleaner exclusion, direct out-of-area proposal rejection, booking-audit travel retention, required customer scope-completeness confirmation, stored confirmation timestamps, booking-audit scope confirmation, preferred arrival fit, reviewed-duration capacity, impossible-window rejection, founder-action dispatch priorities, urgent safety escalation, rematching visibility, private request-to-scan handoff, private customer journey tracker from scan through completion, tracker data isolation, automatic concise speech bullets, mandatory room labels, per-visual notes, shown-room task coverage, customer-visible price-sensitive scope warnings, supported-signal coverage, false-positive protection, required reviewer confirmations, frozen confirmed extras, explicit selected-cleaner media consent, frozen opportunity media scope, token-authorised non-cacheable opportunity photos/videos, preview/no-consent/readiness/booking media revocation, structured scan-hour estimates, scope-confidence review, scan-to-quote duration floors, protected booked-room media, pilot-area enforcement, cleaner screening, confirmed availability windows, availability withdrawal gates, admin security, abuse throttling, constant-time admin-key checks, founder-confirmed cost assumptions, frozen proposal cost breakdowns, stale-cost rejection, exact job schedules, frozen offer deadlines, stale-decision protection, one-live-offer enforcement, live cleaner-capacity holds, capacity-aware matching, cleaner-decline capacity release, cleaner-decline quote lockout, replacement selection, audited pre-booking withdrawal, overlap prevention, matching, profitable proposals, two-sided private decisions, protected booking packs, non-destructive change/safety requests, append-only job progress, booking confirmations, private settlement evidence and categorised actual completed-job economics.");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

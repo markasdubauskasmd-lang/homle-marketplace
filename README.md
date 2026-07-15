@@ -81,6 +81,7 @@ Then open `http://127.0.0.1:4173`.
 - Draft privacy notice and pilot terms
 - No payment collection and no fabricated reviews, cleaner profiles or business claims
 - Tracker stages are informational only: they expose a quote or confirmed customer booking link only after the corresponding audited record exists and never represent payment collection
+- Security throttling limits repeated public submissions, private-link mutations and unauthorised remote control-desk attempts by client address; forwarded addresses are ignored unless `TRUST_PROXY=true` is deliberately set behind a trusted proxy, and admin-key comparison uses a constant-time digest check
 
 ## Before public launch
 
@@ -88,9 +89,11 @@ Then open `http://127.0.0.1:4173`.
 2. Decide the cleaner engagement model with UK employment/tax advice.
 3. Confirm public liability and any other required insurance.
 4. Approve pricing, cleaner pay, cancellation, complaint and re-clean rules.
-5. Replace local file storage with an encrypted production database and access controls.
+5. Replace local file storage and single-process rate limiting with an encrypted production database, shared abuse controls and access monitoring.
 6. Approve the inactive-enquiry and completed-booking media periods already enforced by the local retention desk, then document the production speech-recognition provider, encrypted photo storage and the complete record-retention schedule.
 7. Add transactional email/SMS only after the sending account is approved.
 8. Complete a real pilot in one small service area before making broader coverage claims.
 
 If the server is ever bound to a public interface, set a strong `ADMIN_KEY`. Local control-desk access is automatic only when the server, request hostname and network connection are all verified as loopback and no proxy headers are present.
+
+Set `TRUST_PROXY=true` only when Tideway is directly behind a trusted reverse proxy that removes client-supplied forwarding headers and writes its own. The local pilot ignores forwarded addresses by default, and its in-memory limits reset when the server restarts; production needs a shared persistent limiter across every app instance.

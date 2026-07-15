@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { appendFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { isIP } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checklistFromTranscript, normaliseChecklistTask } from "./public/checklist.js";
@@ -17,6 +18,15 @@ const port = Number(process.env.PORT || 4173);
 const maxBodyBytes = 64 * 1024;
 const maxBriefBodyBytes = 28 * 1024 * 1024;
 let writeQueue = Promise.resolve();
+const rateLimitBuckets = new Map();
+const trustProxy = process.env.TRUST_PROXY === "true";
+
+const apiRateLimitPolicies = {
+  publicSubmission: { limit: 12, windowMs: 15 * 60 * 1000 },
+  privateRead: { limit: 180, windowMs: 5 * 60 * 1000 },
+  privateWrite: { limit: 30, windowMs: 15 * 60 * 1000 },
+  adminAuthentication: { limit: 12, windowMs: 15 * 60 * 1000 }
+};
 
 const statusOptions = {
   request: new Set(["new", "contacted", "quoted", "booked", "completed", "lost"]),
@@ -89,6 +99,66 @@ function setSecurityHeaders(response, requestPath = "") {
 function json(response, statusCode, body) {
   response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
   response.end(JSON.stringify(body));
+}
+
+function normaliseClientAddress(value) {
+  const address = String(value || "").trim().replace(/^::ffff:/, "");
+  return isIP(address) ? address : "unknown";
+}
+
+function requestClientAddress(request) {
+  if (trustProxy) {
+    const forwardedAddress = String(request.headers["x-forwarded-for"] || "").split(",")[0].trim();
+    if (isIP(forwardedAddress)) return normaliseClientAddress(forwardedAddress);
+  }
+  return normaliseClientAddress(request.socket.remoteAddress);
+}
+
+function secretsMatch(supplied, expected) {
+  if (!supplied || !expected) return false;
+  const suppliedDigest = createHash("sha256").update(String(supplied)).digest();
+  const expectedDigest = createHash("sha256").update(String(expected)).digest();
+  return timingSafeEqual(suppliedDigest, expectedDigest);
+}
+
+function rateLimitPolicyFor(request, pathname) {
+  if (pathname.startsWith("/api/admin/") && !isAdminAuthorised(request)) {
+    return { name: "admin-authentication", ...apiRateLimitPolicies.adminAuthentication };
+  }
+  if (request.method === "POST" && ["/api/cleaning-requests", "/api/cleaner-applications", "/api/job-briefs"].includes(pathname)) {
+    return { name: `public-submission:${pathname}`, ...apiRateLimitPolicies.publicSubmission };
+  }
+  if (request.method === "POST" && ["/api/quote/decision", "/api/opportunity/decision", "/api/booking-change-requests", "/api/job-events"].includes(pathname)) {
+    return { name: `private-write:${pathname}`, ...apiRateLimitPolicies.privateWrite };
+  }
+  if (request.method === "GET" && ["/api/request-status", "/api/quote", "/api/opportunity", "/api/opportunity-photo", "/api/booking-pack", "/api/booking-photo"].includes(pathname)) {
+    return { name: `private-read:${pathname}`, ...apiRateLimitPolicies.privateRead };
+  }
+  return null;
+}
+
+function enforceRateLimit(request, response, policy) {
+  if (!policy) return true;
+  const now = Date.now();
+  const key = `${policy.name}:${requestClientAddress(request)}`;
+  let bucket = rateLimitBuckets.get(key);
+  if (!bucket || now >= bucket.resetAt) {
+    bucket = { count: 0, resetAt: now + policy.windowMs };
+    rateLimitBuckets.set(key, bucket);
+  }
+  if (bucket.count >= policy.limit) {
+    response.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))));
+    json(response, 429, { ok: false, error: "Too many attempts. Try again later." });
+    return false;
+  }
+  bucket.count += 1;
+  if (rateLimitBuckets.size > 10_000) {
+    for (const [candidateKey, candidate] of rateLimitBuckets) {
+      if (now >= candidate.resetAt) rateLimitBuckets.delete(candidateKey);
+    }
+    while (rateLimitBuckets.size > 9_000) rateLimitBuckets.delete(rateLimitBuckets.keys().next().value);
+  }
+  return true;
 }
 
 async function readJson(request, limit = maxBodyBytes) {
@@ -1167,7 +1237,7 @@ function isAdminAuthorised(request) {
   const serverIsLocalOnly = host === "127.0.0.1" || host === "localhost" || host === "::1";
   if (serverIsLocalOnly && isLoopbackAddress && isLocalHostname && !hasProxyHeaders) return true;
   const adminKey = process.env.ADMIN_KEY;
-  return Boolean(adminKey && request.headers["x-admin-key"] === adminKey);
+  return secretsMatch(request.headers["x-admin-key"], adminKey);
 }
 
 function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, proposalUpdates, bookings, outcomes, briefs, briefUpdates, screenings, cleanerDecisions, availabilityEvents, config }) {
@@ -3513,6 +3583,7 @@ const server = createServer(async (request, response) => {
   setSecurityHeaders(response, requestUrl.pathname);
 
   try {
+    if (!enforceRateLimit(request, response, rateLimitPolicyFor(request, requestUrl.pathname))) return;
     if (request.method === "GET" && requestUrl.pathname === "/api/health") {
       return json(response, 200, { ok: true, service: "tideway-marketplace" });
     }
