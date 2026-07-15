@@ -66,7 +66,6 @@ CREATE POLICY public_cleaner_profiles ON cleaner_profiles FOR SELECT USING (is_p
 CREATE POLICY cleaner_profile_owner_write ON cleaner_profiles FOR ALL USING (user_id = tideway_private.current_user_id() OR tideway_private.has_role('administrator')) WITH CHECK (user_id = tideway_private.current_user_id() OR tideway_private.has_role('administrator'));
 CREATE POLICY public_cleaner_services ON cleaner_services FOR SELECT USING (is_active OR cleaner_user_id = tideway_private.current_user_id() OR tideway_private.has_role('administrator'));
 CREATE POLICY cleaner_services_owner_write ON cleaner_services FOR ALL USING (cleaner_user_id = tideway_private.current_user_id() OR tideway_private.has_role('administrator')) WITH CHECK (cleaner_user_id = tideway_private.current_user_id() OR tideway_private.has_role('administrator'));
-CREATE POLICY public_cleaner_areas ON cleaner_service_areas FOR SELECT USING (true);
 CREATE POLICY cleaner_areas_owner_write ON cleaner_service_areas FOR ALL USING (cleaner_user_id = tideway_private.current_user_id() OR tideway_private.has_role('administrator')) WITH CHECK (cleaner_user_id = tideway_private.current_user_id() OR tideway_private.has_role('administrator'));
 CREATE POLICY cleaner_availability_owner_or_admin ON cleaner_availability USING (cleaner_user_id = tideway_private.current_user_id() OR tideway_private.has_role('administrator')) WITH CHECK (cleaner_user_id = tideway_private.current_user_id() OR tideway_private.has_role('administrator'));
 

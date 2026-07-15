@@ -59,6 +59,19 @@ Tests: new Google account, verified-email deduplication, role onboarding, passwo
 
 ## Phase 2 — profiles, properties and discovery
 
+Status: in progress.
+
+Implemented cleaner-profile checkpoint:
+
+- Ownership-only profile replacement with bounded biography, pricing, services, outward-postcode areas, radius, experience, languages, supplied equipment/products, work preference and availability status.
+- Deterministic ten-section completion scoring; incomplete profiles remain private and cannot enter discovery.
+- Restricted public directory search across location, full-window availability, rating, price, service, distance, verified status and pagination.
+- Public projection whitelist that excludes cleaner email, phone, home address, service-area coordinates and internal acceptance rate even if a lower layer accidentally returns them.
+- Service-area coordinates removed from direct public RLS access; the directory may return only rounded calculated distance.
+- Contract/static tests in `tests/cleaner-profile.mjs` and the privacy/enablement boundary in `docs/CLEANER_DIRECTORY.md`.
+
+Not yet enabled: profile/search HTTP routes or pages, real PostgreSQL execution, geocoding, an authenticated cleaner account, or genuine public cleaner supply.
+
 - Add cleaner profile, services, service areas, availability and completion calculator APIs/pages.
 - Add landlord profile and multi-property CRUD with encrypted access instructions and private photos.
 - Add `/cleaners` and `/cleaners/:cleanerId` search with location, availability, rating, price, service, distance and verification filters.
