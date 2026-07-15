@@ -23,6 +23,34 @@ const maxBriefBodyBytes = 28 * 1024 * 1024;
 let writeQueue = Promise.resolve();
 const rateLimitBuckets = new Map();
 const trustProxy = process.env.TRUST_PROXY === "true";
+let dataIntegrityState = {
+  healthy: true,
+  checkedAt: "",
+  issueCount: 0,
+  files: [],
+  issues: []
+};
+
+const privateRecordFiles = [
+  "booking-change-requests.ndjson",
+  "booking-change-status.ndjson",
+  "bookings.ndjson",
+  "cleaner-applications.ndjson",
+  "cleaner-availability.ndjson",
+  "cleaner-opportunity-decisions.ndjson",
+  "cleaner-screening.ndjson",
+  "cleaning-requests.ndjson",
+  "job-briefs.ndjson",
+  "job-brief-status.ndjson",
+  "job-events.ndjson",
+  "job-outcome-adjustments.ndjson",
+  "job-outcomes.ndjson",
+  "lead-activity.ndjson",
+  "match-proposals.ndjson",
+  "media-retention.ndjson",
+  "proposal-status.ndjson",
+  "status-updates.ndjson"
+];
 
 const apiRateLimitPolicies = {
   publicSubmission: { limit: 20, windowMs: 15 * 60 * 1000 },
@@ -564,6 +592,183 @@ async function readJsonFile(filename, fallback = {}) {
     if (error.code === "ENOENT") return fallback;
     throw error;
   }
+}
+
+async function auditDataIntegrity() {
+  const checkedAt = new Date().toISOString();
+  const issues = [];
+  let issueCount = 0;
+  const parsedFiles = new Map();
+  const fileSummaries = [];
+  const recordIssue = (issue) => {
+    issueCount += 1;
+    if (issues.length < 100) issues.push(issue);
+  };
+
+  for (const filename of privateRecordFiles) {
+    let contents = "";
+    try {
+      contents = await readFile(path.join(dataDir, filename), "utf8");
+    } catch (error) {
+      if (error.code === "ENOENT") {
+        parsedFiles.set(filename, { valid: true, records: [] });
+        fileSummaries.push({ file: filename, status: "not-created", records: 0 });
+        continue;
+      }
+      parsedFiles.set(filename, { valid: false, records: [] });
+      fileSummaries.push({ file: filename, status: "unreadable", records: 0 });
+      recordIssue({ code: "file-unreadable", file: filename, message: "This private record file could not be read." });
+      continue;
+    }
+
+    const records = [];
+    let valid = true;
+    const lines = contents.split(/\r?\n/);
+    for (let index = 0; index < lines.length; index += 1) {
+      if (!lines[index].trim()) continue;
+      try {
+        const record = JSON.parse(lines[index]);
+        if (!record || typeof record !== "object" || Array.isArray(record)) throw new Error("not-object");
+        records.push({ record, line: index + 1 });
+      } catch {
+        valid = false;
+        recordIssue({ code: "malformed-record", file: filename, line: index + 1, message: "This line is not a complete private record." });
+      }
+    }
+    parsedFiles.set(filename, { valid, records });
+    fileSummaries.push({ file: filename, status: valid ? "ok" : "degraded", records: records.length });
+  }
+
+  let configStatus = "not-created";
+  try {
+    const config = JSON.parse(await readFile(path.join(dataDir, "business-config.json"), "utf8"));
+    if (!config || typeof config !== "object" || Array.isArray(config)) throw new Error("not-object");
+    configStatus = "ok";
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      configStatus = "degraded";
+      recordIssue({ code: "malformed-config", file: "business-config.json", message: "The private launch configuration is not a complete JSON object." });
+    }
+  }
+  fileSummaries.push({ file: "business-config.json", status: configStatus, records: configStatus === "ok" ? 1 : 0 });
+
+  const requiredUniqueIds = [
+    "cleaning-requests.ndjson",
+    "cleaner-applications.ndjson",
+    "job-briefs.ndjson",
+    "match-proposals.ndjson",
+    "bookings.ndjson",
+    "booking-change-requests.ndjson"
+  ];
+  for (const filename of requiredUniqueIds) {
+    const parsed = parsedFiles.get(filename);
+    if (!parsed?.valid) continue;
+    const seen = new Set();
+    for (const { record, line } of parsed.records) {
+      const id = text(record.id, 80);
+      if (!id) {
+        recordIssue({ code: "missing-record-id", file: filename, line, message: "A primary private record has no reference." });
+      } else if (seen.has(id)) {
+        recordIssue({ code: "duplicate-record-id", file: filename, line, reference: id, message: `The reference ${id} appears more than once in this file.` });
+      } else {
+        seen.add(id);
+      }
+    }
+  }
+
+  const checkReferences = (sourceFile, field, targetFile, targetField = "id") => {
+    const source = parsedFiles.get(sourceFile);
+    const target = parsedFiles.get(targetFile);
+    if (!source?.valid || !target?.valid) return;
+    const targetReferences = new Set(target.records.map(({ record }) => text(record[targetField], 80)).filter(Boolean));
+    for (const { record, line } of source.records) {
+      const reference = text(record[field], 80);
+      if (!reference) {
+        recordIssue({ code: "missing-reference", file: sourceFile, line, message: `A private record is missing its ${field} link.` });
+      } else if (!targetReferences.has(reference)) {
+        recordIssue({ code: "orphaned-reference", file: sourceFile, line, reference, message: `The ${field} reference ${reference} has no matching record in ${targetFile}.` });
+      }
+    }
+  };
+
+  checkReferences("job-briefs.ndjson", "requestId", "cleaning-requests.ndjson");
+  checkReferences("job-brief-status.ndjson", "briefId", "job-briefs.ndjson");
+  checkReferences("match-proposals.ndjson", "requestId", "cleaning-requests.ndjson");
+  checkReferences("match-proposals.ndjson", "cleanerId", "cleaner-applications.ndjson");
+  checkReferences("proposal-status.ndjson", "proposalId", "match-proposals.ndjson");
+  checkReferences("cleaner-opportunity-decisions.ndjson", "proposalId", "match-proposals.ndjson");
+  checkReferences("bookings.ndjson", "proposalId", "match-proposals.ndjson");
+  checkReferences("bookings.ndjson", "requestId", "cleaning-requests.ndjson");
+  checkReferences("bookings.ndjson", "cleanerId", "cleaner-applications.ndjson");
+  checkReferences("cleaner-screening.ndjson", "cleanerId", "cleaner-applications.ndjson");
+  checkReferences("cleaner-availability.ndjson", "cleanerId", "cleaner-applications.ndjson");
+  checkReferences("booking-change-requests.ndjson", "bookingId", "bookings.ndjson");
+  checkReferences("booking-change-status.ndjson", "changeRequestId", "booking-change-requests.ndjson");
+  checkReferences("job-events.ndjson", "bookingId", "bookings.ndjson");
+  checkReferences("job-outcomes.ndjson", "bookingId", "bookings.ndjson");
+  checkReferences("job-outcome-adjustments.ndjson", "bookingId", "bookings.ndjson");
+  checkReferences("media-retention.ndjson", "briefId", "job-briefs.ndjson");
+
+  for (const filename of ["status-updates.ndjson", "lead-activity.ndjson"]) {
+    const source = parsedFiles.get(filename);
+    const requests = parsedFiles.get("cleaning-requests.ndjson");
+    const cleaners = parsedFiles.get("cleaner-applications.ndjson");
+    if (!source?.valid || !requests?.valid || !cleaners?.valid) continue;
+    const requestIds = new Set(requests.records.map(({ record }) => text(record.id, 80)).filter(Boolean));
+    const cleanerIds = new Set(cleaners.records.map(({ record }) => text(record.id, 80)).filter(Boolean));
+    for (const { record, line } of source.records) {
+      const id = text(record.id, 80);
+      const kind = text(record.kind, 20);
+      const target = kind === "request" ? requestIds : kind === "cleaner" ? cleanerIds : null;
+      if (!id || !target) {
+        recordIssue({ code: "invalid-lead-link", file: filename, line, message: "A lead history record has no valid kind and reference." });
+      } else if (!target.has(id)) {
+        recordIssue({ code: "orphaned-reference", file: filename, line, reference: id, message: `The ${kind} reference ${id} has no matching lead record.` });
+      }
+    }
+  }
+
+  const proposals = parsedFiles.get("match-proposals.ndjson");
+  if (proposals?.valid) {
+    const proposalIds = new Set(proposals.records.map(({ record }) => text(record.id, 80)).filter(Boolean));
+    for (const { record, line } of proposals.records) {
+      const replaced = text(record.replacesProposalId, 80);
+      if (replaced && !proposalIds.has(replaced)) {
+        recordIssue({ code: "orphaned-reference", file: "match-proposals.ndjson", line, reference: replaced, message: `The replacement link ${replaced} has no matching proposal.` });
+      }
+    }
+  }
+
+  return {
+    healthy: issueCount === 0,
+    checkedAt,
+    issueCount,
+    reportedIssueCount: issues.length,
+    truncated: issueCount > issues.length,
+    files: fileSummaries,
+    issues
+  };
+}
+
+async function refreshDataIntegrity() {
+  await writeQueue.catch(() => {});
+  dataIntegrityState = await auditDataIntegrity();
+  return dataIntegrityState;
+}
+
+function isDataMutation(request, pathname) {
+  return pathname.startsWith("/api/") && ["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "");
+}
+
+async function allowDataMutation(request, response, pathname) {
+  if (!isDataMutation(request, pathname)) return true;
+  const integrity = await refreshDataIntegrity();
+  if (integrity.healthy) return true;
+  json(response, 503, {
+    ok: false,
+    error: "Private data integrity check failed. No changes were written. Review the private data integrity desk and restore from a verified backup."
+  });
+  return false;
 }
 
 async function saveJsonFile(filename, value) {
@@ -3265,6 +3470,11 @@ async function getAdminConfig(request, response) {
   return json(response, 200, { ok: true, config, readiness: launchReadiness(config) });
 }
 
+async function getAdminDataIntegrity(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  return json(response, 200, { ok: true, audit: await refreshDataIntegrity() });
+}
+
 async function getAdminMediaRetention(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   return json(response, 200, { ok: true, audit: await buildMediaRetentionAudit() });
@@ -3648,8 +3858,15 @@ async function handleHttpRequest(request, response) {
   try {
     if (!enforceRateLimit(request, response, rateLimitPolicyFor(request, requestUrl.pathname))) return;
     if (request.method === "GET" && requestUrl.pathname === "/api/health") {
-      return json(response, 200, { ok: true, service: "tideway-marketplace" });
+      return json(response, 200, {
+        ok: true,
+        service: "tideway-marketplace",
+        dataIntegrity: dataIntegrityState.healthy ? "healthy" : "degraded",
+        writesAllowed: dataIntegrityState.healthy,
+        integrityCheckedAt: dataIntegrityState.checkedAt
+      });
     }
+    if (!await allowDataMutation(request, response, requestUrl.pathname)) return;
     if (request.method === "POST" && requestUrl.pathname === "/api/cleaning-requests") {
       return await handleCleaningRequest(request, response);
     }
@@ -3691,6 +3908,9 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/records") {
       return await getAdminRecords(request, response);
+    }
+    if (request.method === "GET" && requestUrl.pathname === "/api/admin/data-integrity") {
+      return await getAdminDataIntegrity(request, response);
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/matches") {
       return await getAdminMatches(request, response, text(requestUrl.searchParams.get("requestId"), 40));
@@ -3763,6 +3983,7 @@ async function handleHttpRequest(request, response) {
 }
 
 await cleanupStaleTemporaryFiles();
+await refreshDataIntegrity();
 const server = createServer(handleHttpRequest);
 const lanServer = lanPort ? createServer(handleHttpRequest) : null;
 server.listen(port, host, () => {

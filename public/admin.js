@@ -1,4 +1,4 @@
-const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null };
+const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null, dataIntegrity: null };
 
 const leadList = document.querySelector("#lead-list");
 const dispatchQueueList = document.querySelector("#dispatch-queue-list");
@@ -263,6 +263,65 @@ async function loadMediaRetention() {
     renderMediaRetention(result.audit);
   } catch (error) {
     showAdminError(error.message);
+  }
+}
+
+function renderDataIntegrity(audit) {
+  state.dataIntegrity = audit;
+  const panel = document.querySelector("#data-integrity");
+  const status = document.querySelector("#data-integrity-status");
+  const message = document.querySelector("#data-integrity-message");
+  const issueList = document.querySelector("#data-integrity-issues");
+  const fileCount = audit.files.length;
+  const recordCount = audit.files.reduce((total, file) => total + Number(file.records || 0), 0);
+  panel.classList.remove("data-integrity-checking", "data-integrity-healthy", "data-integrity-degraded");
+  panel.classList.add(audit.healthy ? "data-integrity-healthy" : "data-integrity-degraded");
+  status.textContent = audit.healthy ? "Healthy — writes allowed" : "Degraded — writes stopped";
+  message.textContent = audit.healthy
+    ? "Every readable private record and its required booking links passed the latest check."
+    : "Tideway found a damaged or disconnected private record. No new changes will be written until recovery is verified.";
+  document.querySelector("#integrity-file-count").textContent = String(fileCount);
+  document.querySelector("#integrity-record-count").textContent = String(recordCount);
+  document.querySelector("#integrity-issue-count").textContent = String(audit.issueCount);
+  document.querySelector("#integrity-checked-at").textContent = audit.checkedAt ? formatDate(audit.checkedAt) : "Not checked";
+  issueList.replaceChildren();
+  if (audit.healthy) {
+    const healthy = document.createElement("div");
+    healthy.className = "integrity-result integrity-result-healthy";
+    addText(healthy, "strong", "All private record checks passed.");
+    addText(healthy, "span", "No files were changed. Tideway will repeat this check before every new write.");
+    issueList.append(healthy);
+    return;
+  }
+  for (const issue of audit.issues) {
+    const item = document.createElement("div");
+    item.className = "integrity-result integrity-result-issue";
+    addText(item, "strong", `${issue.file}${issue.line ? ` · line ${issue.line}` : ""}`);
+    addText(item, "span", issue.message);
+    item.dataset.issueCode = issue.code;
+    issueList.append(item);
+  }
+  if (audit.truncated) {
+    const notice = document.createElement("p");
+    notice.textContent = `Showing the first ${audit.reportedIssueCount} of ${audit.issueCount} issues. Preserve the files and use a verified backup before recovery.`;
+    issueList.append(notice);
+  }
+}
+
+async function loadDataIntegrity() {
+  const refresh = document.querySelector("#refresh-data-integrity");
+  refresh.disabled = true;
+  try {
+    const response = await fetch("/api/admin/data-integrity", { headers: adminHeaders({ "Accept": "application/json" }) });
+    const result = await response.json();
+    if (response.status === 401) { showAuth(); return; }
+    if (!response.ok || !result.ok) throw new Error(result.error || "Private data integrity could not be checked.");
+    showContent();
+    renderDataIntegrity(result.audit);
+  } catch (error) {
+    showAdminError(error.message);
+  } finally {
+    refresh.disabled = false;
   }
 }
 
@@ -1750,12 +1809,13 @@ document.querySelector("#action-filter").addEventListener("change", (event) => {
 
 refreshButton.addEventListener("click", loadRecords);
 document.querySelector("#refresh-media-retention").addEventListener("click", loadMediaRetention);
+document.querySelector("#refresh-data-integrity").addEventListener("click", loadDataIntegrity);
 
 document.querySelector("#admin-auth-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   adminKey = adminKeyField.value;
   sessionStorage.setItem("tidewayAdminKey", adminKey);
-  await Promise.all([loadRecords(), loadConfig(), loadMediaRetention()]);
+  await Promise.all([loadRecords(), loadConfig(), loadMediaRetention(), loadDataIntegrity()]);
 });
 
 document.querySelector("#business-config-form").addEventListener("submit", async (event) => {
@@ -1853,4 +1913,4 @@ function updateQuoteCalculator() {
 }
 
 quoteFields.forEach((field) => field.addEventListener("input", updateQuoteCalculator));
-Promise.all([loadRecords(), loadConfig(), loadMediaRetention()]);
+Promise.all([loadRecords(), loadConfig(), loadMediaRetention(), loadDataIntegrity()]);

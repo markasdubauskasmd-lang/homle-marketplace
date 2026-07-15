@@ -37,6 +37,7 @@ For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the compu
 - Audited seven-check cleaner screening record; approval, matching, proposals and bookings remain blocked until every check is confirmed
 - Local private submission files in `data/`
 - Private local control desk at `/admin` with lead filters, status tracking, internal notes and next-action dates
+- Non-destructive private-data integrity desk checks all 18 append-only record files plus launch configuration at startup, on demand and before every write; it reports safe file/line/reference diagnostics, detects malformed records, duplicate primary references and disconnected request-to-booking links, and fails closed without changing the damaged data
 - Prioritised founder-action dispatch queue derived from recorded scan, matching, offer, booking and safety state; urgent safety reports, rematching, booking finalisation and overdue follow-ups are surfaced without sending messages or changing records
 - Private first-profitable-booking runway derives eight conversion stages from authoritative records—request, submitted scan, reviewed scope, sent offer, two-sided acceptance, confirmed booking, recorded outcome and current target-margin result—then names the bottleneck and dispatch-ready cleaner count without exposing contact data or moving money; later audited refunds or re-clean costs can correctly reverse the profitable milestone
 - Internal quote calculator that pre-fills approved rates, includes founder-confirmed payment fees, travel, supplies, risk contingency and additional job costs, and solves the customer total/hourly rate needed to meet the contribution-margin floor
@@ -86,6 +87,7 @@ For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the compu
 - Tracker stages are informational only: they expose a quote or confirmed customer booking link only after the corresponding audited record exists and never represent payment collection
 - Security throttling limits repeated public submissions, private-link mutations and unauthorised remote control-desk attempts by client address; forwarded addresses are ignored unless `TRUST_PROXY=true` is deliberately set behind a trusted proxy, and admin-key comparison uses a constant-time digest check
 - Optional same-process Wi-Fi preview serves the public site on a separate port without starting a second writer; direct local administration stays on the computer and remote control-desk data remains protected
+- Health responses expose only `healthy` or `degraded` integrity state and whether writes are allowed; detailed integrity results require local/admin authorisation and never include customer content
 
 ## Before public launch
 

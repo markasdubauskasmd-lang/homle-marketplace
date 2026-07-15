@@ -6,8 +6,8 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Tideway control desk</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-38">
-  <script src="/admin.js?v=20260715-45" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-39">
+  <script src="/admin.js?v=20260715-46" defer></script>
 </head>
 <body class="admin-page">
   <a class="skip-link" href="#admin-main">Skip to leads</a>
@@ -34,6 +34,21 @@
     </div>
 
     <div id="admin-error" class="error-summary" role="alert" tabindex="-1" hidden></div>
+
+    <section id="data-integrity" class="data-integrity data-integrity-checking" aria-labelledby="data-integrity-heading">
+      <div class="data-integrity-heading">
+        <div><p class="eyebrow">Private record protection</p><h2 id="data-integrity-heading">Data integrity</h2><p id="data-integrity-message">Checking every linked request, scan, offer, booking and job record.</p></div>
+        <div class="data-integrity-actions"><span id="data-integrity-status" class="status-pill" role="status">Checking</span><button id="refresh-data-integrity" class="button button-small button-outline" type="button">Run integrity check</button></div>
+      </div>
+      <div class="data-integrity-summary" aria-live="polite">
+        <div><strong id="integrity-file-count">—</strong><span>private files checked</span></div>
+        <div><strong id="integrity-record-count">—</strong><span>linked records checked</span></div>
+        <div><strong id="integrity-issue-count">—</strong><span>issues found</span></div>
+        <div><strong id="integrity-checked-at">—</strong><span>last checked</span></div>
+      </div>
+      <div id="data-integrity-issues" class="data-integrity-issues"><div class="loading-state">Running the non-destructive integrity check…</div></div>
+      <p class="data-integrity-note"><strong>Recovery safety:</strong> Tideway never changes a damaged record automatically. If an issue is found, new writes stop while the integrity desk and verified backups remain available for controlled recovery.</p>
+    </section>
 
     <section class="stat-grid" aria-label="Lead summary">
       <article><span>Customer requests</span><strong id="request-count">—</strong><small id="new-request-count">Loading…</small></article>
