@@ -136,6 +136,11 @@ h3 { margin-bottom: 10px; font-size: 1.25rem; }
 .guided-progress li.complete { color: var(--green-dark); }
 .guided-progress li.complete span { color: var(--green-dark); border-color: #85c4b4; background: var(--mint-pale); }
 .guided-progress li.complete::after, .guided-progress li.current::after { background: #85c4b4; }
+.application-draft-status { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 11px 13px; color: var(--green-dark); border: 1px solid #b7d9d0; border-radius: 10px; background: #f4fbf9; font-size: .82rem; }
+.application-draft-status strong, .application-draft-status span { display: block; }
+.application-draft-status span { margin-top: 2px; color: var(--muted); }
+.application-draft-status.is-offline { color: #7b4300; border-color: #e6c88a; background: #fff8e8; }
+.application-draft-status .text-button { flex: 0 0 auto; }
 .guided-form-step { scroll-margin-top: 92px; display: grid; gap: 18px; }
 .guided-form-step[hidden] { display: none; }
 .guided-step-heading { padding-bottom: 14px; border-bottom: 1px solid var(--line); outline: none; }
@@ -872,6 +877,7 @@ textarea { resize: vertical; }
   .guided-progress li { grid-template-columns: 30px 1fr; gap: 6px; font-size: .75rem; }
   .guided-progress li span { width: 30px; height: 30px; }
   .guided-progress li::after { top: 14px; right: calc(100% - 2px); width: calc(100% - 32px); }
+  .application-draft-status { align-items: start; flex-direction: column; }
   .guided-form-actions { display: grid; grid-template-columns: 1fr; }
   .guided-form-actions .button { width: 100%; }
   .field-row { grid-template-columns: 1fr; }
