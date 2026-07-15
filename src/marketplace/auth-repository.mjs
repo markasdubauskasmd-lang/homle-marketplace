@@ -34,6 +34,49 @@ export function createAuthenticationRepository(database) {
   if (!database || typeof database.withAuthenticationTransaction !== "function" || typeof database.withAccountTransaction !== "function") throw new TypeError("The marketplace database boundary is required.");
 
   return {
+    async registerPasswordAccount(account) {
+      if (!account || typeof account.passwordHash !== "string") throw new TypeError("Password account material is required.");
+      const email = normalizedEmail(account.email);
+      const displayName = boundedProviderText(account.displayName, "Display name", 120);
+      const verificationHash = tokenHash(account.verificationHash, "Verification token hash");
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query(
+          "SELECT tideway_private.register_password_account($1::citext, $2::text, $3::text, $4::bytea, $5::timestamptz) AS created",
+          [email, displayName, account.passwordHash, verificationHash, account.verificationExpiresAt]
+        );
+        return result.rows[0]?.created === true;
+      });
+    },
+
+    async consumeEmailVerification(verificationHash) {
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query("SELECT * FROM tideway_private.consume_email_verification($1::bytea)", [tokenHash(verificationHash, "Verification token hash")]);
+        return result.rows[0] || null;
+      });
+    },
+
+    async recordPasswordAttempt(userId, succeeded) {
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query("SELECT * FROM tideway_private.record_password_attempt($1::uuid, $2::boolean)", [uuid(userId, "Password account user id"), succeeded === true]);
+        return result.rows[0] || null;
+      });
+    },
+
+    async issuePasswordReset(email, resetHash, resetExpiresAt) {
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query("SELECT tideway_private.issue_password_reset($1::citext, $2::bytea, $3::timestamptz) AS issued", [normalizedEmail(email), tokenHash(resetHash, "Password reset token hash"), resetExpiresAt]);
+        return result.rows[0]?.issued === true;
+      });
+    },
+
+    async consumePasswordReset(resetHash, replacementPasswordHash) {
+      if (typeof replacementPasswordHash !== "string") throw new TypeError("A replacement password hash is required.");
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query("SELECT * FROM tideway_private.consume_password_reset($1::bytea, $2::text)", [tokenHash(resetHash, "Password reset token hash"), replacementPasswordHash]);
+        return result.rows[0] || null;
+      });
+    },
+
     async resolveSocialIdentity(provider, claims) {
       const selectedProvider = socialProvider(provider);
       if (!claims || claims.emailVerified !== true) throw new TypeError("A provider-verified email is required.");

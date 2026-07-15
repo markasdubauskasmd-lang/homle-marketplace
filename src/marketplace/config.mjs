@@ -17,6 +17,7 @@ export function marketplaceEnvironment(env = process.env) {
   const providers = Object.fromEntries(Object.entries(providerRequirements).map(([name, keys]) => [name, providerState(env, keys)]));
   const databaseConfigured = present(env, "DATABASE_URL");
   const sessionConfigured = present(env, "SESSION_SECRET") && env.SESSION_SECRET.trim().length >= 32;
+  const authTokenConfigured = present(env, "AUTH_TOKEN_SECRET") && env.AUTH_TOKEN_SECRET.trim().length >= 32;
   const emailConfigured = present(env, "SMTP_URL") && present(env, "EMAIL_FROM");
   const appOrigin = present(env, "APP_ORIGIN") ? env.APP_ORIGIN.trim() : "";
   const objectStorageConfigured = ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"].every((key) => present(env, key));
@@ -25,18 +26,19 @@ export function marketplaceEnvironment(env = process.env) {
     production: env.NODE_ENV === "production",
     databaseConfigured,
     sessionConfigured,
+    authTokenConfigured,
     emailConfigured,
     appOrigin,
     objectStorageConfigured,
     encryptionConfigured,
     providers,
     capabilities: {
-      emailPassword: databaseConfigured && sessionConfigured && emailConfigured,
-      passwordReset: databaseConfigured && sessionConfigured && emailConfigured,
-      emailVerification: databaseConfigured && sessionConfigured && emailConfigured,
-      google: providers.google.enabled,
-      apple: providers.apple.enabled,
-      facebook: providers.facebook.enabled
+      emailPassword: databaseConfigured && sessionConfigured && authTokenConfigured && emailConfigured && Boolean(appOrigin),
+      passwordReset: databaseConfigured && sessionConfigured && authTokenConfigured && emailConfigured && Boolean(appOrigin),
+      emailVerification: databaseConfigured && sessionConfigured && authTokenConfigured && emailConfigured && Boolean(appOrigin),
+      google: databaseConfigured && sessionConfigured && Boolean(appOrigin) && providers.google.enabled,
+      apple: databaseConfigured && sessionConfigured && Boolean(appOrigin) && providers.apple.enabled,
+      facebook: databaseConfigured && sessionConfigured && Boolean(appOrigin) && providers.facebook.enabled
     }
   };
 }
@@ -49,6 +51,8 @@ export function validateMarketplaceEnvironment(env = process.env) {
   }
   if (present(env, "DATABASE_URL") && !/^postgres(?:ql)?:\/\//i.test(env.DATABASE_URL.trim())) errors.push("DATABASE_URL must use PostgreSQL.");
   if (present(env, "SESSION_SECRET") && !state.sessionConfigured) errors.push("SESSION_SECRET must contain at least 32 characters.");
+  if (present(env, "AUTH_TOKEN_SECRET") && !state.authTokenConfigured) errors.push("AUTH_TOKEN_SECRET must contain at least 32 characters.");
+  if (state.sessionConfigured && state.authTokenConfigured && env.SESSION_SECRET.trim() === env.AUTH_TOKEN_SECRET.trim()) errors.push("AUTH_TOKEN_SECRET must be different from SESSION_SECRET.");
   if (state.appOrigin) {
     try {
       const origin = new URL(state.appOrigin);
@@ -64,6 +68,7 @@ export function validateMarketplaceEnvironment(env = process.env) {
   if (state.production) {
     if (!state.databaseConfigured) errors.push("DATABASE_URL is required in production.");
     if (!state.sessionConfigured) errors.push("A 32-character SESSION_SECRET is required in production.");
+    if (!state.authTokenConfigured) errors.push("A separate 32-character AUTH_TOKEN_SECRET is required in production.");
     if (!state.appOrigin) errors.push("APP_ORIGIN is required in production.");
     if (!state.encryptionConfigured) errors.push("A 32-character DATA_ENCRYPTION_KEY is required in production.");
   }

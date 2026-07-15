@@ -14,7 +14,7 @@ import {
 import { marketplaceEnvironment, publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "../src/marketplace/config.mjs";
 import { createMarketplaceDatabase, postgresPoolOptions } from "../src/marketplace/database.mjs";
 import { createAuthenticationRepository, normalizedEmail } from "../src/marketplace/auth-repository.mjs";
-import { clearSessionCookie, createSessionMaterial, csrfMatches, hashPassword, parseCookies, sessionCookie, sessionTokenFromRequest, verifyPassword } from "../src/marketplace/session.mjs";
+import { clearSessionCookie, createSessionMaterial, csrfMatches, hashPassword, hashPurposeToken, parseCookies, sessionCookie, sessionTokenFromRequest, verifyPassword } from "../src/marketplace/session.mjs";
 import { readFile } from "node:fs/promises";
 
 function assert(condition, message) {
@@ -44,15 +44,19 @@ const emptyEnvironment = marketplaceEnvironment({});
 assert(!emptyEnvironment.databaseConfigured && !emptyEnvironment.capabilities.google && !emptyEnvironment.capabilities.emailPassword, "Unconfigured authentication appeared enabled.");
 const partialGoogle = validateMarketplaceEnvironment({ GOOGLE_CLIENT_ID: "client-only" });
 assert(!partialGoogle.ok && partialGoogle.errors.some((error) => error.includes("GOOGLE_CLIENT_SECRET")), "Partial Google OAuth configuration did not fail closed.");
+assert(publicAuthenticationCapabilities({ GOOGLE_CLIENT_ID: "client", GOOGLE_CLIENT_SECRET: "secret" }).google === false, "OAuth client credentials enabled a provider without the database, session and exact-origin boundary.");
 const weakSession = validateMarketplaceEnvironment({ SESSION_SECRET: "too-short" });
 assert(!weakSession.ok && weakSession.errors.some((error) => error.includes("32 characters")), "A weak session secret passed validation.");
+const reusedSecret = validateMarketplaceEnvironment({ SESSION_SECRET: "x".repeat(32), AUTH_TOKEN_SECRET: "x".repeat(32) });
+assert(!reusedSecret.ok && reusedSecret.errors.some((error) => error.includes("different from SESSION_SECRET")), "Authentication tokens reused the session-secret trust boundary.");
 const incompleteProduction = validateMarketplaceEnvironment({ NODE_ENV: "production", APP_ORIGIN: "http://example.com" });
-assert(!incompleteProduction.ok && incompleteProduction.errors.some((error) => error.includes("DATABASE_URL")) && incompleteProduction.errors.some((error) => error.includes("HTTPS")), "Production marketplace configuration passed without its database, encryption or HTTPS boundary.");
+assert(!incompleteProduction.ok && incompleteProduction.errors.some((error) => error.includes("DATABASE_URL")) && incompleteProduction.errors.some((error) => error.includes("AUTH_TOKEN_SECRET")) && incompleteProduction.errors.some((error) => error.includes("HTTPS")), "Production marketplace configuration passed without its database, token-secret, encryption or HTTPS boundary.");
 const validProduction = {
   NODE_ENV: "production",
   APP_ORIGIN: "https://tideway.example.com",
   DATABASE_URL: "postgresql://tideway:secret@db.example.com/tideway",
   SESSION_SECRET: "s".repeat(32),
+  AUTH_TOKEN_SECRET: "t".repeat(32),
   DATA_ENCRYPTION_KEY: "e".repeat(32),
   SMTP_URL: "smtps://mail.example.com",
   EMAIL_FROM: "Tideway <hello@example.com>",
@@ -66,6 +70,7 @@ assert(publicCapabilities.google === true && publicCapabilities.emailPassword ==
 const sessionSecret = "test-session-secret-with-more-than-32-characters";
 const sessionMaterial = createSessionMaterial(sessionSecret, new Date("2026-07-15T12:00:00.000Z"), 3600);
 assert(sessionMaterial.token.length >= 43 && sessionMaterial.tokenHash.length === 32 && sessionMaterial.csrfHash.length === 32 && sessionMaterial.expiresAt === "2026-07-15T13:00:00.000Z" && csrfMatches(sessionMaterial.csrfToken, sessionMaterial.csrfHash, sessionSecret) && !csrfMatches(`${sessionMaterial.csrfToken}x`, sessionMaterial.csrfHash, sessionSecret), "Opaque session or CSRF material was weak, incorrectly bounded or unverifiable.");
+assert(!hashPurposeToken(sessionMaterial.token, "email-verification", sessionSecret).equals(hashPurposeToken(sessionMaterial.token, "password-reset", sessionSecret)), "Purpose-bound authentication tokens produced interchangeable stored hashes.");
 const productionCookie = sessionCookie(sessionMaterial.token, 3600, true);
 const developmentCookie = sessionCookie(sessionMaterial.token, 3600, false);
 assert(productionCookie.startsWith("__Host-tideway_session=") && productionCookie.includes("HttpOnly") && productionCookie.includes("SameSite=Lax") && productionCookie.includes("; Secure") && developmentCookie.startsWith("tideway_session_dev=") && !developmentCookie.includes("; Secure") && clearSessionCookie(true).includes("Max-Age=0"), "Session cookies did not preserve the production host-prefix or safe development boundary.");
@@ -118,6 +123,11 @@ const repositoryDatabase = {
 };
 const authenticationRepository = createAuthenticationRepository(repositoryDatabase);
 assert(normalizedEmail(" Landlord@Example.COM ") === "landlord@example.com", "Authentication email canonicalization was inconsistent.");
+await authenticationRepository.registerPasswordAccount({ email: "landlord@example.com", displayName: "Landlord", passwordHash, verificationHash: sessionMaterial.tokenHash, verificationExpiresAt: "2026-07-16T12:00:00.000Z" });
+await authenticationRepository.consumeEmailVerification(sessionMaterial.tokenHash);
+await authenticationRepository.recordPasswordAttempt("77777777-7777-4777-8777-777777777777", false);
+await authenticationRepository.issuePasswordReset("landlord@example.com", sessionMaterial.tokenHash, "2026-07-15T13:00:00.000Z");
+await authenticationRepository.consumePasswordReset(sessionMaterial.tokenHash, passwordHash);
 await authenticationRepository.resolveSocialIdentity("google", { subject: "provider-subject", email: "landlord@example.com", emailVerified: true, displayName: "Landlord", avatarUrl: "https://images.example.com/landlord.jpg", profile: { locale: "en-GB" } });
 await authenticationRepository.completeRoleOnboarding({ userId: "44444444-4444-4444-8444-444444444444", roles: [] }, "landlord");
 await authenticationRepository.findPasswordAccount(" Landlord@Example.COM ");
@@ -127,7 +137,8 @@ const repositoryActor = { userId: "44444444-4444-4444-8444-444444444444", roles:
 await authenticationRepository.createSession(repositoryActor, sessionMaterial);
 await authenticationRepository.revokeSession(repositoryActor, "55555555-5555-4555-8555-555555555555");
 await authenticationRepository.revokeAllSessions(repositoryActor);
-assert(repositoryCalls.length === 8 && repositoryCalls[0].kind === "authentication" && repositoryCalls[0].text.includes("resolve_social_identity") && repositoryCalls[0].values[0] === "google" && repositoryCalls[1].kind === "user" && repositoryCalls[1].text.includes("complete_role_onboarding") && repositoryCalls.slice(2, 5).every((call) => call.kind === "authentication") && repositoryCalls.slice(5).every((call) => call.kind === "user") && repositoryCalls[2].values[0] === "landlord@example.com" && repositoryCalls.every((call) => call.text.includes("$1")), "Authentication repository bypassed its pre-authenticated/authenticated boundaries or used non-parameterized calls.");
+const authenticationFunctionCalls = ["register_password_account", "consume_email_verification", "record_password_attempt", "issue_password_reset", "consume_password_reset", "resolve_social_identity"];
+assert(repositoryCalls.length === 13 && repositoryCalls.slice(0, 6).every((call) => call.kind === "authentication") && authenticationFunctionCalls.every((name, index) => repositoryCalls[index].text.includes(name)) && repositoryCalls[6].kind === "user" && repositoryCalls[6].text.includes("complete_role_onboarding") && repositoryCalls.slice(7, 10).every((call) => call.kind === "authentication") && repositoryCalls.slice(10).every((call) => call.kind === "user") && repositoryCalls[5].values[0] === "google" && repositoryCalls[7].values[0] === "landlord@example.com" && repositoryCalls.every((call) => call.text.includes("$1")), "Authentication repository bypassed its pre-authenticated/authenticated boundaries or used non-parameterized calls.");
 
 const schemaSql = await readFile(new URL("../db/migrations/001_marketplace_schema.sql", import.meta.url), "utf8");
 const rlsSql = await readFile(new URL("../db/migrations/002_marketplace_row_level_security.sql", import.meta.url), "utf8");

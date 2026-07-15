@@ -8,6 +8,7 @@ The existing local NDJSON pilot remains the active data store. The PostgreSQL ma
 - One migration owner that owns the schema and is never used by the web server.
 - One `tideway_app` runtime role that is neither a superuser nor permitted to bypass row-level security.
 - `DATABASE_URL` stored in the deployment secret manager and pointing to the runtime role.
+- Separate random `SESSION_SECRET`, `AUTH_TOKEN_SECRET` and `DATA_ENCRYPTION_KEY` values stored only in the deployment secret manager.
 - TLS certificate verification in production. Do not add `sslmode=no-verify` or embed credentials in Git.
 
 ## Apply in staging
@@ -19,6 +20,7 @@ psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/001_marketpla
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/002_marketplace_row_level_security.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/003_authentication_lookup_functions.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/004_social_identity_and_onboarding.sql
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/005_email_password_lifecycle.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/runtime-role-grants.sql
 ```
 

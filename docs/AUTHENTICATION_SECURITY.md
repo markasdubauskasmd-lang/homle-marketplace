@@ -27,3 +27,13 @@ A verified account may hold a restricted session before choosing a role. Only Cl
 After first role selection, the HTTP layer must rotate the session token so the new role set is reflected in a fresh server-side session context. All cookie-authenticated mutations require the CSRF token and an allowed origin.
 
 No OAuth route should be enabled until provider-specific verifier tests, exact HTTPS callback URLs and staging PostgreSQL integration tests pass.
+
+## Email/password boundary
+
+Email signup, verification and password reset use a separate `AUTH_TOKEN_SECRET`, not the session secret. Raw verification and reset tokens exist only long enough for a trusted email-delivery adapter to create the HTTPS link; PostgreSQL stores purpose-bound HMAC hashes. Never return the internal `emailDelivery` material from a public API, log it or place it in analytics.
+
+Public signup and reset-request responses remain generic whether an email exists. Password verification performs a real scrypt comparison even for an unknown email, and failed-attempt counters live in PostgreSQL so process restarts cannot clear them. Five consecutive failures lock the credential for 15 minutes. A correct password cannot bypass an active lock.
+
+Verification tokens are single-use and expire within 48 hours. Reset tokens are single-use, expire within two hours, replace the scrypt credential transactionally and revoke every active session for that account. The user must sign in again after a successful reset.
+
+SMTP is not configured in this local workspace. The functions and trusted delivery handoff are foundations only; email/password capability flags stay false until PostgreSQL, `SESSION_SECRET`, the distinct `AUTH_TOKEN_SECRET`, exact `APP_ORIGIN`, `SMTP_URL` and `EMAIL_FROM` are all configured.

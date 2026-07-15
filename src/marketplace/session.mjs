@@ -21,6 +21,12 @@ export function hashOpaqueToken(token, secret) {
   return createHmac("sha256", secretKey(secret)).update(token, "utf8").digest();
 }
 
+export function hashPurposeToken(token, purpose, secret) {
+  if (typeof token !== "string" || token.length < 32 || token.length > 200) throw new TypeError("A valid opaque token is required.");
+  if (typeof purpose !== "string" || !/^[a-z][a-z0-9-]{2,48}$/.test(purpose)) throw new TypeError("A bounded token purpose is required.");
+  return createHmac("sha256", secretKey(secret)).update(purpose, "utf8").update("\0", "utf8").update(token, "utf8").digest();
+}
+
 export function verifyOpaqueToken(token, expectedHash, secret) {
   if (!Buffer.isBuffer(expectedHash) || expectedHash.length !== 32) return false;
   try {

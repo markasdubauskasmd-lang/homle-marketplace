@@ -73,6 +73,9 @@ BEGIN
     UPDATE users
     SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
     WHERE id = resolved_user_id AND email = normalized_email;
+    UPDATE authentication_identities
+    SET provider_email_verified = true
+    WHERE user_id = resolved_user_id AND provider = 'password' AND provider_email = normalized_email;
     RETURN QUERY
       SELECT u.id, u.email, u.email_verified_at, u.display_name, u.avatar_url, u.selected_role,
              COALESCE((SELECT array_agg(ur.role ORDER BY ur.role) FROM user_roles ur WHERE ur.user_id = u.id), '{}'::user_role[]),
@@ -98,6 +101,9 @@ BEGIN
     UPDATE users
     SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
     WHERE id = resolved_user_id;
+    UPDATE authentication_identities
+    SET provider_email_verified = true
+    WHERE user_id = resolved_user_id AND provider = 'password' AND provider_email = normalized_email;
   END IF;
 
   INSERT INTO authentication_identities (

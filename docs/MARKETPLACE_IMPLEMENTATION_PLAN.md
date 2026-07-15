@@ -36,10 +36,13 @@ Implemented checkpoint:
 - Authentication repository methods for lookup, session creation, single-session logout and logout-all-sessions.
 - Atomic social-identity resolution with verified-email account reuse, provider-subject identity stability, concurrent-callback locks, suspended-account denial and audit events.
 - Cleaner/Landlord-only idempotent role onboarding that creates the correct private starter profile while preventing self-service role switching and administrator selection.
+- Email/password account registration with scrypt-only stored credentials, purpose-bound hashed email tokens, generic duplicate handling and a private trusted-delivery handoff.
+- Single-use email verification and password reset, database-persistent five-attempt lockout, and automatic revocation of every session after password replacement.
+- Fail-closed provider capability flags that require the complete database/session/origin boundary and a separate `AUTH_TOKEN_SECRET` for verification/reset material.
 - RLS on password credentials, verification tokens, reset tokens and sessions, plus a checked non-bypass runtime-role grant script.
 - Setup details in `docs/DATABASE_SETUP.md`, the mandatory provider-verification boundary in `docs/AUTHENTICATION_SECURITY.md`, and isolated regression tests using fake PostgreSQL-compatible repositories.
 
-Not yet enabled: database driver composition, signup/login HTTP routes, cryptographic provider adapters, email delivery, OAuth callbacks, onboarding screens or a production PostgreSQL instance. Provider capability flags therefore remain off. The social resolver must never receive browser-supplied claims directly.
+Not yet enabled: database driver composition, signup/login HTTP routes, cryptographic provider adapters, SMTP delivery, OAuth callbacks, onboarding screens or a production PostgreSQL instance. Provider capability flags therefore remain off. The social resolver must never receive browser-supplied claims directly, and internal email-delivery material must never be returned by a public API.
 
 - Add a PostgreSQL connection/repository layer and transaction helper that always sets the RLS user context.
 - Add opaque secure sessions, `HttpOnly; Secure; SameSite=Lax` cookies, CSRF tokens, rotation, logout-all-sessions and session expiry.
@@ -108,7 +111,7 @@ Tests: message isolation, idempotent notifications, completed-only unique review
 Required before production account use:
 
 - PostgreSQL: `DATABASE_URL`.
-- Sessions/encryption: `SESSION_SECRET`, `DATA_ENCRYPTION_KEY`.
+- Sessions/authentication tokens/encryption: distinct `SESSION_SECRET`, `AUTH_TOKEN_SECRET`, `DATA_ENCRYPTION_KEY` values.
 - Public deployment: `APP_ORIGIN` using verified HTTPS.
 - Email verification/reset/notifications: `SMTP_URL`, `EMAIL_FROM`.
 - OAuth as enabled: Google client ID/secret; Apple client/team/key/private key; Facebook app ID/secret.
