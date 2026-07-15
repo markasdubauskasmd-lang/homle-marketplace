@@ -61,6 +61,7 @@ For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the compu
 - Proposal status gates that prevent a draft becoming ready, sent or accepted until launch checks, pilot coverage and the latest job-brief review pass
 - Scan-to-quote duration protection blocks any proposal below the reviewed room-scan hours, even when its calculated contribution and margin would otherwise pass
 - Review-only customer quote and cleaner opportunity drafts with explicit warnings and no send capability
+- Status-gated copy-only dispatch packs pair the customer message only with the private quote link and the cleaner message only with the private opportunity link; links stay out of review-stage text, each pack names its intended recipient, completed or expired decision paths stop being sendable, and copying never contacts anyone
 - Private customer quote-review links that keep the token out of server URLs, require name/scope/terms confirmation, lock after one decision and preserve an acceptance snapshot for the booking audit
 - Customer acceptance can no longer be fabricated from the control desk; accepted and declined states come from the private quote decision flow
 - Private cleaner opportunity links show only the area, reviewed scope, hazards and proposed pay; customer identity, exact address, access notes and private photos remain protected

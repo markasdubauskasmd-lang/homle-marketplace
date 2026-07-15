@@ -577,19 +577,23 @@ async function copyDraft(text, button) {
 
 function draftSection(title, draft) {
   const section = document.createElement("section");
-  section.className = "draft-section";
+  section.className = `draft-section${draft.handoffReady ? " draft-handoff-ready" : ""}`;
   addText(section, "h4", title);
+  addText(section, "span", `Recipient: ${draft.recipient.email} · ${draft.recipient.phone}`, "draft-recipient");
   addText(section, "span", `Subject: ${draft.subject}`, "draft-subject");
+  const privateUrl = new URL(draft.privatePath, location.origin).href;
+  const handoffBody = draft.handoffReady ? `${draft.body}\n\nOpen your private Tideway review:\n${privateUrl}\n\nKeep this private link confidential.` : draft.body;
+  addText(section, "span", draft.handoffReady ? "Complete copy-only handoff: the correct private link is included below." : "Review text only: the private link is withheld until this offer is recorded as sent.", "draft-link-state");
   const textarea = document.createElement("textarea");
   textarea.readOnly = true;
   textarea.rows = 14;
-  textarea.value = draft.body;
+  textarea.value = handoffBody;
   textarea.setAttribute("aria-label", `${title} body`);
   const copyButton = document.createElement("button");
   copyButton.type = "button";
   copyButton.className = "button button-small button-outline";
-  copyButton.textContent = `Copy ${title.toLowerCase()} — does not send`;
-  copyButton.addEventListener("click", () => copyDraft(`${draft.subject}\n\n${draft.body}`, copyButton));
+  copyButton.textContent = draft.handoffReady ? "Copy complete private handoff — does not send" : "Copy review text only — does not send";
+  copyButton.addEventListener("click", () => copyDraft(`${draft.subject}\n\n${handoffBody}`, copyButton));
   section.append(textarea, copyButton);
   return section;
 }
@@ -605,8 +609,8 @@ async function loadProposalDrafts(proposal, target, button) {
     target.replaceChildren();
     const safety = document.createElement("div");
     safety.className = result.sendAllowed ? "draft-safety draft-ready" : "draft-safety draft-blocked";
-    addText(safety, "strong", result.sendAllowed ? "Internally ready for your review" : "Review only — not ready to use");
-    addText(safety, "span", "Tideway does not send these messages automatically.");
+    addText(safety, "strong", result.handoffReady ? "Copy-only dispatch pack ready" : result.sendAllowed ? "Internally ready for your review" : "Review only — not ready to use");
+    addText(safety, "span", result.handoffReady ? "Each message below contains only that recipient's correct private link. Copying never sends it." : "Tideway does not send these messages automatically. Private links enter the pack only after the offer is recorded as sent.");
     if (result.warnings.length) {
       const list = document.createElement("ul");
       result.warnings.forEach((warning) => addText(list, "li", warning));

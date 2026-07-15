@@ -2516,7 +2516,7 @@ async function decidePrivateCleanerOpportunity(request, response) {
 
 async function getAdminProposalDrafts(request, response, proposalId) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  const [proposals, proposalUpdates, customerRequests, cleaners, config, briefs, briefUpdates, availabilityEvents] = await Promise.all([
+  const [proposals, proposalUpdates, customerRequests, cleaners, config, briefs, briefUpdates, availabilityEvents, cleanerDecisions] = await Promise.all([
     readRecords("match-proposals.ndjson"),
     readRecords("proposal-status.ndjson"),
     readRecords("cleaning-requests.ndjson"),
@@ -2524,7 +2524,8 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     readJsonFile("business-config.json", {}),
     readRecords("job-briefs.ndjson"),
     readRecords("job-brief-status.ndjson"),
-    readRecords("cleaner-availability.ndjson")
+    readRecords("cleaner-availability.ndjson"),
+    readRecords("cleaner-opportunity-decisions.ndjson")
   ]);
   const proposal = proposals.find((record) => record.id === proposalId);
   if (!proposal) return json(response, 404, { ok: false, error: "Proposal not found." });
@@ -2534,12 +2535,16 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   let proposalStatus = proposal.status || "draft";
   let quoteSnapshot = null;
   let opportunitySnapshot = null;
+  let customerDecision = null;
   for (const update of proposalUpdates) {
     if (update.proposalId !== proposalId) continue;
     proposalStatus = update.status;
     if (update.quoteSnapshot) quoteSnapshot = update.quoteSnapshot;
     if (update.cleanerOpportunitySnapshot) opportunitySnapshot = update.cleanerOpportunitySnapshot;
+    if (update.source === "customer-private-quote") customerDecision = update;
   }
+  const cleanerDecision = cleanerDecisions.find((item) => item.proposalId === proposalId) || null;
+  const proposalExhausted = proposalOfferIsExhausted(proposal, proposalUpdates, cleanerDecisions);
 
   const readiness = launchReadiness(config);
   const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
@@ -2569,6 +2574,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   if (!costModelCurrent) warnings.push("The founder cost assumptions changed after this proposal was calculated; prepare a new proposal before using these drafts.");
   if (proposalStatus === "sent" && !offerIsOpen(quoteSnapshot?.offerExpiresAt)) warnings.push("The customer quote response window has ended; prepare a newly reviewed proposal instead of reusing this draft.");
   if (["sent", "accepted"].includes(proposalStatus) && !offerIsOpen(opportunitySnapshot?.offerExpiresAt)) warnings.push("The cleaner opportunity response window has ended; recheck availability before issuing a new opportunity.");
+  if (proposalExhausted && cleanerDecision?.status === "declined") warnings.push("The cleaner declined this opportunity. Do not use either handoff; prepare a reviewed replacement.");
 
   const money = (value) => `£${Number(value).toFixed(2)}`;
   const signoff = [config.legalBusinessName || "Tideway", config.supportEmail, config.supportPhone].filter(Boolean).join("\n");
@@ -2622,14 +2628,18 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     signoff
   ].join("\n");
 
+  const baseSendAllowed = readiness.ready && pilotCoverage.covered && cleanerTravelCovered && briefReviewed && customerScopeConfirmed && priceSensitiveScopeConfirmed && scanHoursCovered && availabilityCovered && costModelCurrent && !proposalExhausted && ["ready", "sent", "accepted"].includes(proposalStatus);
+  const customerHandoffReady = baseSendAllowed && proposalStatus === "sent" && !customerDecision && offerIsOpen(quoteSnapshot?.offerExpiresAt);
+  const cleanerHandoffReady = baseSendAllowed && ["sent", "accepted"].includes(proposalStatus) && !cleanerDecision && offerIsOpen(opportunitySnapshot?.offerExpiresAt);
   return json(response, 200, {
     ok: true,
     proposalId,
     proposalStatus,
-    sendAllowed: readiness.ready && pilotCoverage.covered && cleanerTravelCovered && briefReviewed && customerScopeConfirmed && priceSensitiveScopeConfirmed && scanHoursCovered && availabilityCovered && costModelCurrent && ["ready", "sent", "accepted"].includes(proposalStatus),
+    sendAllowed: baseSendAllowed,
+    handoffReady: customerHandoffReady || cleanerHandoffReady,
     warnings,
-    customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody },
-    cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody }
+    customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody, recipient: { email: customerRequest.email, phone: customerRequest.phone }, privatePath: `/quote#${proposal.reviewToken}`, handoffReady: customerHandoffReady },
+    cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody, recipient: { email: cleaner.email, phone: cleaner.phone }, privatePath: `/opportunity#${proposal.cleanerReviewToken}`, handoffReady: cleanerHandoffReady }
   });
 }
 
