@@ -4,6 +4,7 @@ import { detectPriceSensitiveScope } from "./scope-signals.js";
 import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos } from "./brief-readiness.js";
 import { newSubmissionKey } from "./submission-key.js";
 
+const cameraInput = document.querySelector("#brief-camera");
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
 const photoCount = document.querySelector("#photo-count");
@@ -248,8 +249,7 @@ function videoDuration(file) {
   });
 }
 
-photoInput.addEventListener("change", async () => {
-  const selected = Array.from(photoInput.files || []);
+async function addSelectedVisuals(selected) {
   const available = maxBriefPhotos - photos.length;
   if (selected.length > available) showError(`You can add ${available} more room ${available === 1 ? "visual" : "visuals"}.`);
   for (const file of selected.slice(0, available)) {
@@ -266,10 +266,21 @@ photoInput.addEventListener("change", async () => {
     }
     photos.push({ file, kind: isVideo ? "video" : "image", durationSeconds, area: "", note: "", previewUrl: URL.createObjectURL(file) });
   }
-  photoInput.value = "";
   renderPhotos();
   renderScopeSignals();
   renderReadiness();
+}
+
+cameraInput.addEventListener("change", async () => {
+  const selected = Array.from(cameraInput.files || []);
+  cameraInput.value = "";
+  await addSelectedVisuals(selected);
+});
+
+photoInput.addEventListener("change", async () => {
+  const selected = Array.from(photoInput.files || []);
+  photoInput.value = "";
+  await addSelectedVisuals(selected);
 });
 
 function photoDataUrl(photo) {
