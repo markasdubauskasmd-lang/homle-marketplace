@@ -5,6 +5,7 @@ import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, brie
 import { newSubmissionKey } from "./submission-key.js";
 import { cleanerHandoffPreview } from "./cleaner-handoff-preview.js";
 import { checklistChangeReview } from "./checklist-change-review.js";
+import { clearBriefDraft, readBriefDraft, saveBriefDraft } from "./brief-draft.js";
 
 const cameraInput = document.querySelector("#brief-camera");
 const photoInput = document.querySelector("#brief-photos");
@@ -31,6 +32,10 @@ const checklistAdded = checklistChangePanel.querySelector("[data-change-added]")
 const checklistRemoved = checklistChangePanel.querySelector("[data-change-removed]");
 const applyChecklistChange = checklistChangePanel.querySelector("[data-apply-summary]");
 const keepChecklist = checklistChangePanel.querySelector("[data-keep-checklist]");
+const draftStatus = document.querySelector("#brief-draft-status");
+const draftTitle = draftStatus.querySelector("[data-draft-title]");
+const draftCopy = draftStatus.querySelector("[data-draft-copy]");
+const discardDraft = draftStatus.querySelector("[data-discard-draft]");
 const photos = [];
 let submitting = false;
 let submissionComplete = false;
@@ -38,6 +43,10 @@ let pendingSubmission = null;
 let confirmedScopeFingerprint = "";
 let summarisedSourceFingerprint = "";
 let pendingChecklistChange = null;
+let draftSaveTimer = null;
+let restoredDraft = false;
+let browserOnline = navigator.onLine !== false;
+let activeDraftReference = "";
 const roomOptions = briefRoomOptions;
 const privateRequestToken = /^[A-Za-z0-9_-]{32}$/.test(location.hash.slice(1)) ? location.hash.slice(1) : "";
 if (privateRequestToken) history.replaceState(null, "", `${location.pathname}${location.search}`);
@@ -71,6 +80,70 @@ function showError(message) {
 
 function checklistTasks() {
   return [...new Map(checklist.value.split(/\r?\n/).map(normaliseChecklistTask).filter(Boolean).map((task) => [task.toLowerCase(), task])).values()].slice(0, 40);
+}
+
+function currentRequestReference() {
+  const value = String(form.elements.requestId.value || "").trim().toUpperCase();
+  return /^REQ-[A-Z0-9]{8}$/.test(value) ? value : "";
+}
+
+function hasDraftText() {
+  return Boolean(transcript.value.trim() || checklistTasks().length);
+}
+
+function draftReferenceMismatch() {
+  const reference = currentRequestReference();
+  return Boolean(activeDraftReference && reference && activeDraftReference !== reference && hasDraftText());
+}
+
+function renderDraftStatus() {
+  draftStatus.classList.toggle("is-offline", !browserOnline);
+  discardDraft.hidden = !hasDraftText();
+  if (!browserOnline) {
+    draftTitle.textContent = "You are offline — your text is protected";
+    draftCopy.textContent = "Reconnect before submitting. Notes and checklist remain in this tab; photos and videos are never stored in the recovery draft.";
+  } else if (draftReferenceMismatch()) {
+    draftTitle.textContent = "Check the request reference";
+    draftCopy.textContent = `This text remains linked to ${activeDraftReference} and will not be copied to a different cleaning request.`;
+  } else if (restoredDraft) {
+    draftTitle.textContent = "Your notes and checklist were recovered";
+    draftCopy.textContent = "Add the room photos or videos again, then summarise once more. Visuals are never stored in the browser recovery draft.";
+  } else {
+    draftTitle.textContent = "Private reload protection is on";
+    draftCopy.textContent = "Your spoken or typed notes and checklist stay in this tab for up to 30 minutes. Photos and videos are never stored in the recovery draft.";
+  }
+}
+
+function saveCurrentDraft() {
+  clearTimeout(draftSaveTimer);
+  const reference = currentRequestReference();
+  if (!reference) { renderDraftStatus(); return; }
+  if (!activeDraftReference) activeDraftReference = reference;
+  if (activeDraftReference !== reference) { renderDraftStatus(); return; }
+  try { saveBriefDraft(window.sessionStorage, { reference, transcript: transcript.value, tasks: checklistTasks() }); } catch {}
+  renderDraftStatus();
+}
+
+function scheduleDraftSave() {
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(saveCurrentDraft, 250);
+  renderDraftStatus();
+}
+
+function restoreCurrentDraft() {
+  const reference = currentRequestReference();
+  if (!reference || (activeDraftReference && activeDraftReference !== reference) || hasDraftText()) return false;
+  activeDraftReference = reference;
+  let draft = null;
+  try { draft = readBriefDraft(window.sessionStorage, reference); } catch {}
+  if (!draft) return false;
+  transcript.value = draft.transcript;
+  checklist.value = draft.tasks.join("\n");
+  summarisedSourceFingerprint = "";
+  confirmedScopeFingerprint = "";
+  form.elements.scopeCompleteConfirmed.checked = false;
+  restoredDraft = true;
+  return true;
 }
 
 function currentScopeFingerprint() {
@@ -156,10 +229,13 @@ function renderReadiness() {
     item.append(marker, document.createTextNode(check.label));
     scanReadinessList.append(item);
   });
-  saveButton.disabled = submitting || submissionComplete;
+  const referenceMismatch = draftReferenceMismatch();
+  saveButton.disabled = submitting || submissionComplete || !browserOnline || referenceMismatch;
   saveButton.setAttribute("aria-busy", submitting ? "true" : "false");
   if (submitting) saveButton.textContent = "Preparing private room scan...";
   else if (submissionComplete) saveButton.textContent = "Room scan submitted";
+  else if (!browserOnline) saveButton.textContent = "Offline — reconnect to submit";
+  else if (referenceMismatch) saveButton.textContent = "Check request reference";
   else if (!readiness.ready) saveButton.textContent = `Check ${readiness.remaining} remaining ${readiness.remaining === 1 ? "item" : "items"}`;
   else saveButton.textContent = "Complete private room scan";
   return readiness;
@@ -256,12 +332,13 @@ function generateChecklist({ scroll = true, showEmptyError = true } = {}) {
   summarisedSourceFingerprint = sourceFingerprint;
   renderChecklist();
   if (scroll) document.querySelector("#checklist-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  scheduleDraftSave();
   return tasks;
 }
 
 document.querySelector("#generate-checklist").addEventListener("click", () => generateChecklist());
-checklist.addEventListener("input", () => { clearChecklistChangeReview(); renderChecklist(); });
-transcript.addEventListener("input", () => { clearChecklistChangeReview(); renderScopeSignals(); renderReadiness(); });
+checklist.addEventListener("input", () => { clearChecklistChangeReview(); renderChecklist(); scheduleDraftSave(); });
+transcript.addEventListener("input", () => { clearChecklistChangeReview(); renderScopeSignals(); renderReadiness(); scheduleDraftSave(); });
 applyChecklistChange.addEventListener("click", () => {
   if (!pendingChecklistChange || pendingChecklistChange.sourceFingerprint !== currentSourceFingerprint()) {
     clearChecklistChangeReview();
@@ -272,6 +349,7 @@ applyChecklistChange.addEventListener("click", () => {
   summarisedSourceFingerprint = pendingChecklistChange.sourceFingerprint;
   clearChecklistChangeReview();
   renderChecklist();
+  scheduleDraftSave();
   document.querySelector("#checklist-panel").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 keepChecklist.addEventListener("click", () => {
@@ -280,13 +358,40 @@ keepChecklist.addEventListener("click", () => {
   renderChecklist();
   checklist.focus();
 });
-form.elements.requestId.addEventListener("input", renderReadiness);
+form.elements.requestId.addEventListener("input", () => {
+  if (restoreCurrentDraft()) renderChecklist();
+  renderReadiness();
+  scheduleDraftSave();
+});
 form.elements.email.addEventListener("input", renderReadiness);
 form.elements.scopeCompleteConfirmed.addEventListener("change", () => {
   confirmedScopeFingerprint = form.elements.scopeCompleteConfirmed.checked ? currentScopeFingerprint() : "";
   renderReadiness();
 });
 form.elements.consent.addEventListener("change", renderReadiness);
+discardDraft.addEventListener("click", () => {
+  try { clearBriefDraft(window.sessionStorage, activeDraftReference || currentRequestReference()); } catch {}
+  transcript.value = "";
+  checklist.value = "";
+  summarisedSourceFingerprint = "";
+  confirmedScopeFingerprint = "";
+  form.elements.scopeCompleteConfirmed.checked = false;
+  restoredDraft = false;
+  activeDraftReference = currentRequestReference();
+  clearChecklistChangeReview();
+  renderChecklist();
+  renderDraftStatus();
+  transcript.focus();
+});
+
+window.addEventListener("online", () => { browserOnline = true; renderDraftStatus(); renderReadiness(); });
+window.addEventListener("offline", () => { browserOnline = false; saveCurrentDraft(); renderDraftStatus(); renderReadiness(); });
+window.addEventListener("beforeunload", (event) => {
+  if (!submissionComplete && photos.length) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
 
 function renderPhotos() {
   photoPreview.replaceChildren();
@@ -513,6 +618,8 @@ form.addEventListener("submit", async (event) => {
   errorBox.hidden = true;
   successBox.hidden = true;
   const tasks = checklistTasks();
+  if (!browserOnline) { showError("You are offline. Your text is protected in this tab; reconnect and try again."); return; }
+  if (draftReferenceMismatch()) { showError(`These notes belong to ${activeDraftReference}. Restore that request reference or discard the saved text before continuing.`); return; }
   const readiness = currentReadiness();
   if (!readiness.ready) { showError(`Complete the remaining room-scan checks: ${readiness.items.filter((item) => !item.complete).map((item) => item.label).join("; ")}.`); return; }
   if (!form.checkValidity()) { form.reportValidity(); showError("Complete the request details and required confirmation."); return; }
@@ -564,6 +671,7 @@ form.addEventListener("submit", async (event) => {
       sessionStorage.setItem("tidewayBriefComplete", JSON.stringify({ reference: result.reference, customerStatusToken: result.customerStatusToken || "", storedAt: Date.now() }));
     } catch {}
     try { clearBriefHandoff(window.sessionStorage); } catch {}
+    try { clearBriefDraft(window.sessionStorage, currentRequestReference()); } catch {}
     pendingSubmission = null;
     submissionComplete = true;
     successBox.hidden = false;
@@ -578,5 +686,7 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
+restoreCurrentDraft();
 renderChecklist();
 renderPhotos();
+renderDraftStatus();

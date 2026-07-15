@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Scan rooms for your clean — Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-40">
-  <script src="/brief.js?v=20260715-44" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-41">
+  <script src="/brief.js?v=20260715-45" type="module"></script>
 </head>
 <body class="brief-page">
   <a class="skip-link" href="#brief-main">Skip to job brief</a>
@@ -56,6 +56,10 @@
         <div class="brief-panel">
           <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 2</p><h2>Speak or type the instructions</h2><p>Name each room, then speak naturally—even “the floor needs mopping” or “the oven is dirty.” Say “do not”, “no need” or “skip” for anything the Cleaner must leave alone. Tideway keeps those exclusions as clear instructions, carries the room into follow-on sentences, turns conditions into direct tasks and removes repeated bullets for your review.</p></div><button id="voice-button" class="button button-outline" type="button">Start speaking</button></div>
           <div id="voice-status" class="voice-status" role="status">Voice capture checks your browser support. You can always type instead.</div>
+          <div id="brief-draft-status" class="brief-draft-status" role="status">
+            <div><strong data-draft-title>Private reload protection is on</strong><span data-draft-copy>Your spoken or typed notes and checklist stay in this tab for up to 30 minutes. Photos and videos are never stored in the recovery draft.</span></div>
+            <button class="text-button" type="button" data-discard-draft hidden>Discard saved text</button>
+          </div>
           <label>Instructions<textarea id="brief-transcript" name="transcript" rows="9" maxlength="5000" required placeholder="For example: In the kitchen, wipe every worktop, degrease the hob, clean inside the microwave and mop the floor. In the bathroom, remove limescale from the shower screen and disinfect the toilet. Do not move the locked cupboard."></textarea></label>
           <p class="privacy-hint">Tideway saves the final text, not an audio recording. Your browser may provide the speech-to-text service, so review the transcript carefully.</p>
           <button id="generate-checklist" class="button" type="button">Summarise into concise bullets</button>

@@ -674,6 +674,11 @@ textarea { resize: vertical; }
 .photo-preview-card textarea { min-height: 82px; padding-block: .6rem; font-size: .86rem; }
 .text-button { margin-top: 8px; padding: 0; color: #8a231d; border: 0; background: transparent; font-weight: 750; cursor: pointer; }
 .voice-status { margin: -8px 0 16px; padding: 11px 13px; color: var(--green-dark); border-radius: 9px; background: var(--mint-pale); font-size: .86rem; }
+.brief-draft-status { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 0 0 16px; padding: 11px 13px; color: var(--green-dark); border: 1px solid #b7d9d0; border-radius: 9px; background: #f4fbf9; font-size: .84rem; }
+.brief-draft-status strong, .brief-draft-status span { display: block; }
+.brief-draft-status span { margin-top: 2px; color: var(--muted); }
+.brief-draft-status.is-offline { color: #7b4300; border-color: #e6c88a; background: #fff8e8; }
+.brief-draft-status .text-button { flex: 0 0 auto; }
 .privacy-hint { margin-top: 8px; color: var(--muted); font-size: .82rem; }
 .checklist-change-review { display: grid; gap: 10px; margin-top: 16px; padding: 16px; border: 1px solid #d7a25e; border-radius: 13px; background: #fff8e9; }
 .checklist-change-review > strong { color: #74410a; }
@@ -933,6 +938,7 @@ textarea { resize: vertical; }
   .brief-hero { padding-top: 44px; }
   .brief-panel { padding: 20px; }
   .brief-panel-heading { display: grid; }
+  .brief-draft-status { align-items: start; flex-direction: column; }
   .cleaner-handoff-room-heading { align-items: start; }
   .checklist-change-columns { grid-template-columns: 1fr; }
   .checklist-change-actions .button { width: 100%; }
