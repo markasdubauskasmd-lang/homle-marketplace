@@ -9,7 +9,7 @@
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260715-53">
-  <script src="/app.js?v=20260715-48" type="module"></script>
+  <script src="/app.js?v=20260715-49" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -288,6 +288,30 @@
                 <label>End time <input name="firstAvailableEndTime" type="time" required></label>
               </div>
               <label>Usual availability <span>(optional)</span><input name="availability" placeholder="For example: weekdays 8am–3pm, weekends by arrangement"></label>
+              <section class="cleaner-application-preview" data-cleaner-application-preview aria-labelledby="cleaner-application-preview-title">
+                <div class="cleaner-application-preview-heading">
+                  <div><span class="cleaner-application-preview-kicker">Private application preview</span><h3 id="cleaner-application-preview-title">How your professional details could look</h3></div>
+                  <strong>Unverified · not published</strong>
+                </div>
+                <div class="cleaner-application-preview-identity">
+                  <span data-cleaner-preview-initials aria-hidden="true">YOU</span>
+                  <div><strong data-cleaner-preview-name>Your name</strong><small>Applicant-supplied information for Tideway review</small></div>
+                </div>
+                <p data-cleaner-preview-bio>Your professional introduction will appear here.</p>
+                <div class="cleaner-application-preview-services" data-cleaner-preview-services aria-label="Selected services"><span>Choose at least one service</span></div>
+                <dl class="cleaner-application-preview-details">
+                  <div><dt>Experience</dt><dd data-cleaner-preview-experience>Not added yet</dd></div>
+                  <div><dt>Languages</dt><dd data-cleaner-preview-languages>Not added yet</dd></div>
+                  <div><dt>Equipment and products</dt><dd data-cleaner-preview-equipment>Not added yet</dd></div>
+                  <div><dt>Work areas</dt><dd data-cleaner-preview-travel>Not added yet</dd></div>
+                  <div><dt>First supplied window</dt><dd data-cleaner-preview-availability>Add one complete future window</dd></div>
+                </dl>
+                <div class="cleaner-application-preview-readiness">
+                  <div><strong data-cleaner-preview-completion>0 of 8 application details ready</strong><small data-cleaner-preview-missing>Still needed: full name, at least one service, experience, matchable work areas, professional introduction, languages, equipment plan, first available window.</small></div>
+                  <progress data-cleaner-preview-progress value="0" max="8" aria-label="Application preview completeness" aria-valuetext="0% complete"></progress>
+                </div>
+                <p class="cleaner-application-preview-boundary">This is not a public profile, approval, verification, job offer or availability confirmation. Contact details and your home postcode are never shown here.</p>
+              </section>
               <label>Anything else? <span>(optional)</span><textarea name="notes" rows="4" placeholder="Types of cleaning you prefer, languages, equipment or questions"></textarea></label>
               <label class="checkbox"><input name="rightToWork" type="checkbox" required><span>I confirm that I have the right to work in the UK. Evidence will only be requested later through a secure process.</span></label>
               <label class="checkbox"><input name="consent" type="checkbox" required><span>I agree that Tideway may use these details to assess my application and contact me about suitable work. See the <a href="/privacy">privacy notice</a>.</span></label>

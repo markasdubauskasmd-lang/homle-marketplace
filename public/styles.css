@@ -162,6 +162,29 @@ textarea { resize: vertical; }
 .profile-starter-panel > div strong, .profile-starter-panel > div span { display: block; }
 .profile-starter-panel > div strong { color: var(--green-dark); }
 .profile-starter-panel > div span { margin-top: 3px; color: var(--muted); font-size: .82rem; }
+.cleaner-application-preview { display: grid; gap: 17px; margin-top: 6px; padding: 20px; border: 1px solid #b8d8ce; border-radius: 18px; background: linear-gradient(150deg, #fff 0%, #f1faf7 100%); box-shadow: 0 12px 32px rgba(16,36,33,.06); }
+.cleaner-application-preview-heading { display: flex; justify-content: space-between; gap: 16px; align-items: start; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.cleaner-application-preview-heading h3 { margin: 4px 0 0; font-size: 1.2rem; }
+.cleaner-application-preview-heading > strong { flex: 0 0 auto; padding: .38rem .62rem; color: #74410a; border-radius: 999px; background: #fff0cf; font-size: .72rem; }
+.cleaner-application-preview-kicker { color: var(--green); font-size: .7rem; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+.cleaner-application-preview-identity { display: flex; gap: 13px; align-items: center; }
+.cleaner-application-preview-identity > span { display: grid; width: 54px; height: 54px; flex: 0 0 54px; place-items: center; color: #fff; border-radius: 17px; background: var(--green); font-size: .82rem; font-weight: 900; }
+.cleaner-application-preview-identity strong, .cleaner-application-preview-identity small { display: block; }
+.cleaner-application-preview-identity strong { font-size: 1.08rem; }
+.cleaner-application-preview-identity small { margin-top: 3px; color: var(--muted); }
+.cleaner-application-preview > p { margin: 0; }
+.cleaner-application-preview-services { display: flex; flex-wrap: wrap; gap: 7px; }
+.cleaner-application-preview-services span { padding: .4rem .62rem; color: var(--green-dark); border-radius: 999px; background: var(--mint); font-size: .76rem; font-weight: 800; }
+.cleaner-application-preview-details { display: grid; grid-template-columns: 1fr 1fr; margin: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.cleaner-application-preview-details div { padding: 12px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.cleaner-application-preview-details div:last-child { grid-column: 1 / -1; }
+.cleaner-application-preview-details dt { color: var(--muted); font-size: .68rem; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
+.cleaner-application-preview-details dd { margin: 4px 0 0; font-size: .82rem; font-weight: 720; overflow-wrap: anywhere; }
+.cleaner-application-preview-readiness { display: grid; grid-template-columns: 1fr minmax(120px, .5fr); gap: 16px; align-items: center; padding: 13px; border-radius: 12px; background: var(--mint-pale); }
+.cleaner-application-preview-readiness strong, .cleaner-application-preview-readiness small { display: block; }
+.cleaner-application-preview-readiness small { margin-top: 3px; color: var(--muted); }
+.cleaner-application-preview-readiness progress { width: 100%; height: 10px; accent-color: var(--green); }
+.cleaner-application-preview-boundary { padding: 11px 13px; color: #6b5a46; border-left: 3px solid var(--orange); background: #fff9ea; font-size: .78rem; }
 .submit-button { justify-self: start; min-width: 220px; }
 .submit-button[disabled] { cursor: not-allowed; opacity: .65; transform: none; }
 .submit-button[aria-busy="true"] { cursor: progress; }
@@ -832,6 +855,12 @@ textarea { resize: vertical; }
   .guided-form-actions .button { width: 100%; }
   .field-row { grid-template-columns: 1fr; }
   .service-options { grid-template-columns: 1fr; }
+  .cleaner-application-preview { padding: 16px 14px; }
+  .cleaner-application-preview-heading { display: grid; }
+  .cleaner-application-preview-heading > strong { justify-self: start; }
+  .cleaner-application-preview-details { grid-template-columns: 1fr; }
+  .cleaner-application-preview-details div:last-child { grid-column: auto; }
+  .cleaner-application-preview-readiness { grid-template-columns: 1fr; }
   .submit-button { width: 100%; }
   .final-cta .shell { flex-direction: column; align-items: flex-start; }
   .footer-grid { grid-template-columns: 1fr; gap: 30px; }
