@@ -2429,6 +2429,27 @@ function renderConfigPreview(result, valid) {
     item.textContent = message;
     return item;
   }));
+  const economics = result.economics || {};
+  const economicsPanel = configPreviewPanel.querySelector("[data-config-preview-economics]");
+  economicsPanel.hidden = !economics.available;
+  if (economics.available) {
+    economicsPanel.querySelector("[data-configured-job-total]").textContent = `${money.format(economics.configured.customerTotal)} at ${money.format(economics.configuredCustomerRate)}/hour for ${economics.minimumHours} hours`;
+    economicsPanel.querySelector("[data-configured-cleaner-pay]").textContent = money.format(economics.configured.cleanerPay);
+    economicsPanel.querySelector("[data-configured-job-costs]").textContent = money.format(economics.configured.nonCleanerCosts);
+    economicsPanel.querySelector("[data-configured-contribution]").textContent = money.format(economics.configured.contribution);
+    economicsPanel.querySelector("[data-configured-margin]").textContent = `${Number(economics.configured.marginPercent).toFixed(1)}%`;
+    economicsPanel.querySelector("[data-target-safe-rate]").textContent = `${money.format(economics.targetSafeCustomerRate)}/hour (${money.format(economics.targetSafeCustomerTotal)} total)`;
+    const guidance = economicsPanel.querySelector("[data-config-economics-guidance]");
+    if (!economics.targetRateSupported) {
+      guidance.textContent = "These assumptions require a target-safe rate above Tideway's supported proposal limit. Revise the verified cost, pay, duration or margin assumptions before saving or quoting.";
+    } else if (!economics.costAssumptionsConfirmed) {
+      guidance.textContent = "Planning result only: confirm that every cost assumption, including deliberate Â£0 values, has been reviewed before relying on this rate.";
+    } else if (economics.configuredMeetsTarget) {
+      guidance.textContent = `The configured minimum job clears the ${Number(economics.targetMarginPercent).toFixed(1)}% contribution-margin floor by these assumptions. This is not a customer quote or a launch approval.`;
+    } else {
+      guidance.textContent = `The configured rate is ${money.format(economics.configuredRateGap)}/hour below the target-safe minimum for the ${Number(economics.targetMarginPercent).toFixed(1)}% floor. Revise price, pay or verified costs before saving or quoting.`;
+    }
+  }
   configPreviewPanel.hidden = false;
   configPreviewPanel.focus();
 }

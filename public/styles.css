@@ -148,6 +148,12 @@ h3 { margin-bottom: 10px; font-size: 1.25rem; }
 .config-preview-result > span, .config-preview-result > small { color: var(--muted); }
 .config-preview-result ul { margin: 3px 0; padding-left: 20px; }
 .config-preview-result.config-preview-invalid { border-color: #dca8a0; background: #fff6f4; }
+.config-preview-economics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 12px; border: 1px solid #9bcdbf; border-radius: 9px; background: #fff; }
+.config-preview-economics > strong, .config-preview-economics > p { grid-column: 1 / -1; }
+.config-preview-economics > div { display: grid; gap: 2px; padding: 8px; border-radius: 7px; background: #f2f8f6; }
+.config-preview-economics span, .config-preview-economics p { color: var(--muted); }
+.config-preview-economics p { margin: 2px 0 0; }
+@media (max-width: 680px) { .config-preview-economics { grid-template-columns: 1fr; } }
 .guided-form-step { scroll-margin-top: 92px; display: grid; gap: 18px; }
 .guided-form-step[hidden] { display: none; }
 .guided-step-heading { padding-bottom: 14px; border-bottom: 1px solid var(--line); outline: none; }

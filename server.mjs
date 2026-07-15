@@ -1578,6 +1578,74 @@ function calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, a
   return { customerTotal, cleanerPay, labourOnCosts, paymentFees, travelCosts, suppliesCosts, riskContingency, otherCosts, nonCleanerCosts, contribution, marginPercent, costAssumptions };
 }
 
+function launchEconomicsRehearsal(config) {
+  const minimumHours = Number(config.minimumHours);
+  const configuredCustomerRate = Number(config.customerHourlyRate);
+  const cleanerHourlyPay = Number(config.cleanerHourlyPay);
+  const targetMarginPercent = Number(config.minimumContributionMarginPercent);
+  const assumptions = costAssumptionsFromConfig(config);
+  const targetFactor = 1 - ((assumptions.paymentFeePercent + assumptions.riskContingencyPercent + targetMarginPercent) / 100);
+  const assumptionsSupported = Object.values(assumptions).every(Number.isFinite)
+    && assumptions.labourOnCostPercent <= 100
+    && assumptions.paymentFeePercent <= 20
+    && assumptions.paymentFeeFixed <= 20
+    && assumptions.travelCostPerJob <= 200
+    && assumptions.suppliesCostPerJob <= 200
+    && assumptions.riskContingencyPercent <= 50;
+  const inputsAvailable = [minimumHours, configuredCustomerRate, cleanerHourlyPay, targetMarginPercent].every(Number.isFinite)
+    && minimumHours > 0
+    && minimumHours <= maxProposalHours
+    && configuredCustomerRate > 0
+    && configuredCustomerRate <= maxProposalHourlyRate
+    && cleanerHourlyPay > 0
+    && cleanerHourlyPay <= maxProposalHourlyRate
+    && targetMarginPercent > 0
+    && targetMarginPercent < 100
+    && assumptionsSupported
+    && targetFactor > 0;
+  if (!inputsAvailable) {
+    return {
+      available: false,
+      costAssumptionsConfirmed: costAssumptionsConfirmed(config),
+      configuredMeetsTarget: false,
+      targetMarginPercent: Number.isFinite(targetMarginPercent) ? targetMarginPercent : 0
+    };
+  }
+
+  const configured = calculateProposalEconomics(minimumHours, configuredCustomerRate, cleanerHourlyPay, 0, config);
+  const fixedCosts = configured.cleanerPay
+    + configured.labourOnCosts
+    + assumptions.paymentFeeFixed
+    + assumptions.travelCostPerJob
+    + assumptions.suppliesCostPerJob;
+  const targetSafeCustomerRate = moneyValue(Math.ceil(((fixedCosts / targetFactor) / minimumHours) * 100) / 100);
+  const targetSafe = calculateProposalEconomics(minimumHours, targetSafeCustomerRate, cleanerHourlyPay, 0, config);
+  const targetRateSupported = targetSafeCustomerRate <= maxProposalHourlyRate;
+  const configuredMeetsTarget = configured.contribution > 0 && configured.marginPercent >= targetMarginPercent;
+  return {
+    available: true,
+    costAssumptionsConfirmed: costAssumptionsConfirmed(config),
+    minimumHours,
+    configuredCustomerRate,
+    cleanerHourlyPay,
+    targetMarginPercent,
+    configured: {
+      customerTotal: configured.customerTotal,
+      cleanerPay: configured.cleanerPay,
+      nonCleanerCosts: configured.nonCleanerCosts,
+      contribution: configured.contribution,
+      marginPercent: configured.marginPercent
+    },
+    targetSafeCustomerRate,
+    targetSafeCustomerTotal: targetSafe.customerTotal,
+    targetSafeContribution: targetSafe.contribution,
+    targetSafeMarginPercent: targetSafe.marginPercent,
+    targetRateSupported,
+    configuredRateGap: moneyValue(Math.max(0, targetSafeCustomerRate - configuredCustomerRate)),
+    configuredMeetsTarget
+  };
+}
+
 function schedulesOverlap(left, right) {
   return left.startMs < right.endMs && right.startMs < left.endMs;
 }
@@ -4471,7 +4539,7 @@ async function addAdminActivity(request, response) {
 async function getAdminConfig(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   const config = await readJsonFile("business-config.json", {});
-  return json(response, 200, { ok: true, config, readiness: launchReadiness(config) });
+  return json(response, 200, { ok: true, config, readiness: launchReadiness(config), economics: launchEconomicsRehearsal(config) });
 }
 
 async function getAdminDataIntegrity(request, response) {
@@ -4593,24 +4661,24 @@ function evaluateAdminConfigInput(input) {
   if (config.inactiveMediaRetentionDays && !validRetentionDays(config.inactiveMediaRetentionDays)) errors.push("Inactive-enquiry media retention must be a whole number from 1 to 3650 days.");
   if (config.completedMediaRetentionDays && !validRetentionDays(config.completedMediaRetentionDays)) errors.push("Completed-booking media retention must be a whole number from 1 to 3650 days.");
   if (config.paymentProviderStatus === "live" && (!config.paymentProviderName || !config.refundProcess)) errors.push("Add the live payment provider and refund process.");
-  return { config, errors, readiness: launchReadiness(config) };
+  return { config, errors, readiness: launchReadiness(config), economics: launchEconomicsRehearsal(config) };
 }
 
 async function previewAdminConfig(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   ensureSameOrigin(request);
   const evaluation = evaluateAdminConfigInput(await readJson(request));
-  if (evaluation.errors.length) return json(response, 422, { ok: false, persisted: false, errors: evaluation.errors, readiness: evaluation.readiness });
-  return json(response, 200, { ok: true, persisted: false, readiness: evaluation.readiness });
+  if (evaluation.errors.length) return json(response, 422, { ok: false, persisted: false, errors: evaluation.errors, readiness: evaluation.readiness, economics: evaluation.economics });
+  return json(response, 200, { ok: true, persisted: false, readiness: evaluation.readiness, economics: evaluation.economics });
 }
 
 async function updateAdminConfig(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   ensureSameOrigin(request);
-  const { config, errors, readiness } = evaluateAdminConfigInput(await readJson(request));
+  const { config, errors, readiness, economics } = evaluateAdminConfigInput(await readJson(request));
   if (errors.length) return json(response, 422, { ok: false, errors });
   await saveJsonFile("business-config.json", config);
-  return json(response, 200, { ok: true, config, readiness });
+  return json(response, 200, { ok: true, config, readiness, economics });
 }
 
 async function updateAdminStatus(request, response) {

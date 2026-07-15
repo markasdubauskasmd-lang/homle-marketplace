@@ -6,13 +6,13 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Tideway control desk</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-50">
+  <link rel="stylesheet" href="/styles.css?v=20260715-51">
   <script src="/scope-time-breakdown.js?v=20260715-1" defer></script>
   <script src="/scan-review-workspace.js?v=20260715-2" defer></script>
   <script src="/scan-review-draft.js?v=20260715-1" defer></script>
   <script src="/readiness-navigator.js?v=20260715-1" defer></script>
   <script src="/dispatch-order.js?v=20260715-1" defer></script>
-  <script src="/admin.js?v=20260715-57" defer></script>
+  <script src="/admin.js?v=20260715-58" defer></script>
 </head>
 <body class="admin-page">
   <a class="skip-link" href="#admin-main">Skip to leads</a>
@@ -121,7 +121,7 @@
           <div class="field-row"><label>Customer quote response window (hours)<input name="customerQuoteValidityHours" type="number" min="1" max="168" step="1" inputmode="numeric" placeholder="For example: 24"></label><label>Cleaner opportunity response window (hours)<input name="cleanerOpportunityValidityHours" type="number" min="1" max="168" step="1" inputmode="numeric" placeholder="For example: 12"></label></div>
           <div class="evidence-panel"><div><strong>Private room-media retention</strong><span>Set the documented schedule. Tideway never deletes media automatically; deletion requires a verified backup and an exact-reference confirmation in the retention desk.</span></div><div class="field-row"><label>Inactive enquiry media (days)<input name="inactiveMediaRetentionDays" type="number" min="1" max="3650" step="1" inputmode="numeric" placeholder="For example: 90"></label><label>Completed booking media (days)<input name="completedMediaRetentionDays" type="number" min="1" max="3650" step="1" inputmode="numeric" placeholder="For example: 365"></label></div></div>
           <div class="config-actions"><button id="config-preview-button" class="button button-outline" type="button">Check without saving</button><button class="button" type="submit">Save launch details locally</button></div>
-          <div id="config-preview-result" class="config-preview-result" role="status" tabindex="-1" hidden><strong data-config-preview-title>Readiness rehearsal</strong><span data-config-preview-summary>Nothing has been saved.</span><ul data-config-preview-list></ul><small>Rehearsal only. Recorded readiness does not change until you explicitly save valid details.</small></div>
+          <div id="config-preview-result" class="config-preview-result" role="status" tabindex="-1" hidden><strong data-config-preview-title>Readiness rehearsal</strong><span data-config-preview-summary>Nothing has been saved.</span><ul data-config-preview-list></ul><div class="config-preview-economics" data-config-preview-economics hidden><strong>Minimum-job economics rehearsal</strong><div><span>Configured minimum job</span><b data-configured-job-total>â€”</b></div><div><span>Cleaner pay</span><b data-configured-cleaner-pay>â€”</b></div><div><span>Non-cleaner job costs</span><b data-configured-job-costs>â€”</b></div><div><span>Expected contribution</span><b data-configured-contribution>â€”</b></div><div><span>Expected margin</span><b data-configured-margin>â€”</b></div><div><span>Target-safe minimum rate</span><b data-target-safe-rate>â€”</b></div><p data-config-economics-guidance></p></div><small>Rehearsal only. Recorded readiness does not change until you explicitly save valid details.</small></div>
           <div id="config-result" class="success-panel" role="status" tabindex="-1" hidden><strong>Launch details saved.</strong><span>The readiness checks have been updated.</span></div>
         </form>
       </details>
