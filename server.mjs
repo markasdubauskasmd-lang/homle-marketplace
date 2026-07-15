@@ -259,6 +259,18 @@ function verifiedPublicSiteOrigin(value) {
   }
 }
 
+function publicSiteVerification(config) {
+  const origin = verifiedPublicSiteOrigin(config.publicSiteUrl);
+  const evidenceNote = text(config.publicSiteEvidenceNote, 800);
+  const verifiedDate = text(config.publicSiteVerifiedDate, 20);
+  const hostname = origin ? new URL(origin).hostname.toLowerCase() : "";
+  return {
+    origin,
+    evidenceMatches: Boolean(hostname && evidenceNote.length >= 20 && evidenceNote.toLowerCase().includes(hostname)),
+    dateValid: Boolean(isIsoCalendarDate(verifiedDate) && verifiedDate <= localDateToday())
+  };
+}
+
 function isUkPostcode(value) {
   return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(value);
 }
@@ -1439,6 +1451,7 @@ function findCleanerScheduleConflict(target, proposals, proposalUpdates, cleaner
 function launchReadiness(config) {
   const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
   const today = localDateToday();
+  const publicSite = publicSiteVerification(config);
   const requirements = {
     identity: [
       { label: "legal owner name", complete: Boolean(config.legalOwnerName) },
@@ -1449,7 +1462,9 @@ function launchReadiness(config) {
     contact: [
       { label: "valid support email", complete: Boolean(config.supportEmail && isEmail(config.supportEmail)) },
       { label: "valid support phone", complete: Boolean(config.supportPhone && isPhone(config.supportPhone)) },
-      { label: "verified HTTPS public website origin", complete: Boolean(verifiedPublicSiteOrigin(config.publicSiteUrl)) }
+      { label: "valid public HTTPS website origin", complete: Boolean(publicSite.origin) },
+      { label: "domain and deployment evidence naming this hostname", complete: publicSite.evidenceMatches },
+      { label: "public website verification date", complete: publicSite.dateValid }
     ],
     pilotArea: [
       { label: "at least one valid outward postcode", complete: pilotCoverage.configured && pilotCoverage.invalidCodes.length === 0 }
@@ -2588,7 +2603,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   if (!config.cancellationPolicy) warnings.push("Add an approved cancellation rule.");
   if (!config.paymentTiming) warnings.push("Add the customer payment timing.");
   if (!config.supportEmail || !config.supportPhone) warnings.push("Add verified support contact details.");
-  if (!currentPublicOrigin) warnings.push("Add the verified HTTPS public website origin before preparing any private handoff.");
+  if (!currentPublicOrigin) warnings.push("Add the evidence-backed public HTTPS website origin before preparing any private handoff.");
   if (["sent", "accepted"].includes(proposalStatus) && (!customerPublicOrigin || !cleanerPublicOrigin)) warnings.push("This sent offer has no frozen HTTPS public origin. Do not assemble a local link; prepare a newly reviewed replacement after configuration is complete.");
   if (!cleanerTravelCovered) warnings.push("The proposed cleaner's stated travel areas do not cover the customer postcode.");
   const availabilityCovered = Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents));
@@ -3798,6 +3813,8 @@ async function updateAdminConfig(request, response) {
     supportEmail: text(input.supportEmail, 160).toLowerCase(),
     supportPhone: text(input.supportPhone, 40),
     publicSiteUrl: verifiedPublicSiteOrigin(input.publicSiteUrl) || text(input.publicSiteUrl, 300),
+    publicSiteEvidenceNote: text(input.publicSiteEvidenceNote, 800),
+    publicSiteVerifiedDate: text(input.publicSiteVerifiedDate, 20),
     pilotPostcodes: text(input.pilotPostcodes, 400).toUpperCase(),
     cleanerModel: text(input.cleanerModel, 80),
     insuranceStatus: text(input.insuranceStatus, 40),
@@ -3831,6 +3848,9 @@ async function updateAdminConfig(request, response) {
   if (config.supportEmail && !isEmail(config.supportEmail)) errors.push("Enter a valid support email.");
   if (config.supportPhone && !isPhone(config.supportPhone)) errors.push("Enter a valid support phone number.");
   if (config.publicSiteUrl && !verifiedPublicSiteOrigin(config.publicSiteUrl)) errors.push("Public website origin must be HTTPS with no path, query, login details or fragment, for example https://www.example.com.");
+  const publicSite = publicSiteVerification(config);
+  if (publicSite.origin && config.publicSiteEvidenceNote && !config.publicSiteEvidenceNote.toLowerCase().includes(new URL(publicSite.origin).hostname.toLowerCase())) errors.push("Public website evidence summary must name the configured hostname.");
+  if (config.publicSiteVerifiedDate && !publicSite.dateValid) errors.push("Public website verification date must be a valid date no later than today.");
   if (config.insuranceReviewDate && !isIsoCalendarDate(config.insuranceReviewDate)) errors.push("Enter a valid insurance expiry or review date.");
   if (config.paymentProviderVerifiedDate && (!isIsoCalendarDate(config.paymentProviderVerifiedDate) || config.paymentProviderVerifiedDate > localDateToday())) errors.push("Payment-provider verification date must be a valid date no later than today.");
   const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
