@@ -17,6 +17,7 @@ For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the compu
 ## What works
 
 - Uber-simple customer intake that presents the complete server-validated request as three short stages—job, timing/access and contact—keeps entries when moving back, and only unlocks the required room scan after the request is created
+- Guided cleaner intake that separates basic details, work/travel preferences and availability/confirmations into three short stages while preserving mandatory service selection, matchable postcode coverage, right-to-work confirmation and consent
 - Retry-safe intake: customer requests, cleaner applications and room scans send random idempotency keys; concurrent or network-retried copies return the original reference instead of creating duplicate leads or scan versions, while changed details require a new key
 - High-entropy private customer tracker created with each request; it follows the real journey from required room scan through quote, cleaner confirmation, protected booking, job progress and completion
 - One-click private handoff from a completed request into the required room scan, with reference and email prefilled for that browser session

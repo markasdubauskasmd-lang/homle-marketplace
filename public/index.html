@@ -8,8 +8,8 @@
   <title>Tideway — cleaning, properly coordinated</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260715-41">
-  <script src="/app.js?v=20260715-41" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260715-42">
+  <script src="/app.js?v=20260715-42" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -112,16 +112,16 @@
             <p>Tell us what needs cleaning, when it can happen and how to reach you. The room scan comes next.</p>
             <div class="form-promise"><strong>No payment today</strong><span>This is a request, not a confirmed booking.</span></div>
           </div>
-          <form data-api-form data-customer-request action="/api/cleaning-requests" method="post" novalidate>
+          <form data-api-form data-guided-form data-guided-kind="customer" action="/api/cleaning-requests" method="post" novalidate>
             <div class="error-summary" role="alert" tabindex="-1" hidden></div>
-            <ol class="request-progress" data-request-progress aria-label="Cleaning request progress">
-              <li data-request-progress-step="1"><span>1</span><strong>Job</strong></li>
-              <li data-request-progress-step="2"><span>2</span><strong>Timing</strong></li>
-              <li data-request-progress-step="3"><span>3</span><strong>Contact</strong></li>
+            <ol class="guided-progress" data-guided-progress aria-label="Cleaning request progress">
+              <li data-guided-progress-step="1"><span>1</span><strong>Job</strong></li>
+              <li data-guided-progress-step="2"><span>2</span><strong>Timing</strong></li>
+              <li data-guided-progress-step="3"><span>3</span><strong>Contact</strong></li>
             </ol>
 
-            <section class="request-form-step" data-request-step="1" aria-labelledby="request-step-1-title">
-              <div class="request-step-heading" tabindex="-1">
+            <section class="guided-form-step" data-guided-step="1" aria-labelledby="request-step-1-title">
+              <div class="guided-step-heading" tabindex="-1">
                 <span>Step 1 of 3</span>
                 <h3 id="request-step-1-title">What needs cleaning?</h3>
                 <p>Start with the property and service. Detailed room instructions come in the scan.</p>
@@ -135,13 +135,13 @@
                 <label>Service <select name="service" required><option value="">Choose one</option><option>Rental turnover clean</option><option>End-of-tenancy clean</option><option>Regular workplace clean</option><option>Communal area clean</option><option>One-off deep clean</option><option>Not sure yet</option></select></label>
               </div>
               <label>Site size or rooms <input name="siteSize" required placeholder="For example: 2 bedrooms and 1 bathroom, or 1,500 sq ft office"></label>
-              <div class="request-form-actions">
-                <button class="button" type="button" data-request-next>Continue to timing</button>
+              <div class="guided-form-actions">
+                <button class="button" type="button" data-guided-next>Continue to timing</button>
               </div>
             </section>
 
-            <section class="request-form-step" data-request-step="2" aria-labelledby="request-step-2-title">
-              <div class="request-step-heading" tabindex="-1">
+            <section class="guided-form-step" data-guided-step="2" aria-labelledby="request-step-2-title">
+              <div class="guided-step-heading" tabindex="-1">
                 <span>Step 2 of 3</span>
                 <h3 id="request-step-2-title">When and how can the cleaner enter?</h3>
                 <p>These details help Tideway check a suitable cleaner and realistic visit window.</p>
@@ -156,14 +156,14 @@
                 <label>Preferred arrival window <select name="preferredTimeWindow"><option>Flexible</option><option>Morning (8am–12pm)</option><option>Afternoon (12pm–5pm)</option><option>Evening (5pm–8pm)</option></select></label>
               </div>
               <label>Job details <span>(optional)</span><textarea name="details" rows="4" placeholder="Deadline, special tasks or anything else we should know"></textarea></label>
-              <div class="request-form-actions">
-                <button class="button button-outline" type="button" data-request-back>Back</button>
-                <button class="button" type="button" data-request-next>Continue to contact</button>
+              <div class="guided-form-actions">
+                <button class="button button-outline" type="button" data-guided-back>Back</button>
+                <button class="button" type="button" data-guided-next>Continue to contact</button>
               </div>
             </section>
 
-            <section class="request-form-step" data-request-step="3" aria-labelledby="request-step-3-title">
-              <div class="request-step-heading" tabindex="-1">
+            <section class="guided-form-step" data-guided-step="3" aria-labelledby="request-step-3-title">
+              <div class="guided-step-heading" tabindex="-1">
                 <span>Step 3 of 3</span>
                 <h3 id="request-step-3-title">Where should we send the next step?</h3>
                 <p>After this, you will scan the rooms and review the cleaner checklist.</p>
@@ -177,8 +177,8 @@
                 <label>Phone <input name="phone" type="tel" autocomplete="tel" inputmode="tel" required></label>
               </div>
               <label class="checkbox"><input name="consent" type="checkbox" required><span>I agree that Tideway may use these details to respond to my request. See the <a href="/privacy">privacy notice</a>.</span></label>
-              <div class="request-form-actions">
-                <button class="button button-outline" type="button" data-request-back>Back</button>
+              <div class="guided-form-actions">
+                <button class="button button-outline" type="button" data-guided-back>Back</button>
                 <button class="button submit-button" type="submit">Create request and scan rooms</button>
               </div>
             </section>
@@ -190,39 +190,78 @@
         <article id="cleaner-application" class="form-card form-card-alt">
           <div class="form-intro">
             <p class="eyebrow">For cleaners</p>
-            <h2>Apply to join the pilot</h2>
-            <p>Tell us where and when you want to work. This first step does not ask for identity documents or bank details.</p>
+            <h2>Apply in three short steps</h2>
+            <p>Share your details, the cleaning work you want and when you are usually available. No identity documents or bank details are requested here.</p>
             <div class="form-promise"><strong>You stay in control</strong><span>Applying does not commit you to accept work.</span></div>
           </div>
-          <form data-api-form action="/api/cleaner-applications" method="post" novalidate>
+          <form data-api-form data-guided-form data-guided-kind="cleaner" action="/api/cleaner-applications" method="post" novalidate>
             <div class="error-summary" role="alert" tabindex="-1" hidden></div>
-            <div class="field-row">
-              <label>Full name <input name="fullName" autocomplete="name" required></label>
-              <label>Home postcode <input name="postcode" autocomplete="postal-code" required></label>
-            </div>
-            <div class="field-row">
-              <label>Email <input name="email" type="email" autocomplete="email" required></label>
-              <label>Phone <input name="phone" type="tel" autocomplete="tel" required></label>
-            </div>
-            <label>Areas you can work <span>(postcode districts or areas)</span><input name="travelAreas" required placeholder="For example: SW1A, SW4, or broader areas SW, SE"></label>
-            <div class="field-row">
-              <label>Cleaning experience <select name="experience" required><option value="">Choose one</option><option>New to professional cleaning</option><option>Less than 1 year</option><option>1–3 years</option><option>3–5 years</option><option>More than 5 years</option></select></label>
-              <label>Transport <select name="transport"><option>Public transport</option><option>Own car or van</option><option>Bicycle</option><option>Other</option></select></label>
-            </div>
-            <fieldset class="service-options" data-service-group>
-              <legend>Cleaning work you want <span>(choose at least one)</span></legend>
-              <label class="checkbox"><input name="serviceTurnovers" type="checkbox"><span>Rental turnovers</span></label>
-              <label class="checkbox"><input name="serviceEndOfTenancy" type="checkbox"><span>End-of-tenancy</span></label>
-              <label class="checkbox"><input name="serviceWorkplaces" type="checkbox"><span>Offices and workplaces</span></label>
-              <label class="checkbox"><input name="serviceCommunal" type="checkbox"><span>Communal areas</span></label>
-              <label class="checkbox"><input name="serviceDeepCleans" type="checkbox"><span>Deep cleans</span></label>
-            </fieldset>
-            <label>Usual availability <input name="availability" required placeholder="For example: weekdays 8am–3pm, weekends by arrangement"></label>
-            <label>Anything else? <span>(optional)</span><textarea name="notes" rows="4" placeholder="Types of cleaning you prefer, languages, equipment or questions"></textarea></label>
-            <label class="checkbox"><input name="rightToWork" type="checkbox" required><span>I confirm that I have the right to work in the UK. Evidence will only be requested later through a secure process.</span></label>
-            <label class="checkbox"><input name="consent" type="checkbox" required><span>I agree that Tideway may use these details to assess my application and contact me about suitable work. See the <a href="/privacy">privacy notice</a>.</span></label>
+            <ol class="guided-progress" data-guided-progress aria-label="Cleaner application progress">
+              <li data-guided-progress-step="1"><span>1</span><strong>Details</strong></li>
+              <li data-guided-progress-step="2"><span>2</span><strong>Work</strong></li>
+              <li data-guided-progress-step="3"><span>3</span><strong>Availability</strong></li>
+            </ol>
+
+            <section class="guided-form-step" data-guided-step="1" aria-labelledby="cleaner-step-1-title">
+              <div class="guided-step-heading" tabindex="-1">
+                <span>Step 1 of 3</span>
+                <h3 id="cleaner-step-1-title">How can Tideway reach you?</h3>
+                <p>Only basic contact details are needed for the initial application.</p>
+              </div>
+              <div class="field-row">
+                <label>Full name <input name="fullName" autocomplete="name" required></label>
+                <label>Home postcode <input name="postcode" autocomplete="postal-code" inputmode="text" required></label>
+              </div>
+              <div class="field-row">
+                <label>Email <input name="email" type="email" autocomplete="email" inputmode="email" required></label>
+                <label>Phone <input name="phone" type="tel" autocomplete="tel" inputmode="tel" required></label>
+              </div>
+              <div class="guided-form-actions">
+                <button class="button" type="button" data-guided-next>Continue to work preferences</button>
+              </div>
+            </section>
+
+            <section class="guided-form-step" data-guided-step="2" aria-labelledby="cleaner-step-2-title">
+              <div class="guided-step-heading" tabindex="-1">
+                <span>Step 2 of 3</span>
+                <h3 id="cleaner-step-2-title">What cleaning work suits you?</h3>
+                <p>Clear travel coverage and service choices prevent unsuitable job offers.</p>
+              </div>
+              <label>Areas you can work <span>(postcode districts or areas)</span><input name="travelAreas" required placeholder="For example: SW1A, SW4, or broader areas SW, SE"></label>
+              <div class="field-row">
+                <label>Cleaning experience <select name="experience" required><option value="">Choose one</option><option>New to professional cleaning</option><option>Less than 1 year</option><option>1–3 years</option><option>3–5 years</option><option>More than 5 years</option></select></label>
+                <label>Transport <select name="transport"><option>Public transport</option><option>Own car or van</option><option>Bicycle</option><option>Other</option></select></label>
+              </div>
+              <fieldset class="service-options" data-service-group>
+                <legend>Cleaning work you want <span>(choose at least one)</span></legend>
+                <label class="checkbox"><input name="serviceTurnovers" type="checkbox"><span>Rental turnovers</span></label>
+                <label class="checkbox"><input name="serviceEndOfTenancy" type="checkbox"><span>End-of-tenancy</span></label>
+                <label class="checkbox"><input name="serviceWorkplaces" type="checkbox"><span>Offices and workplaces</span></label>
+                <label class="checkbox"><input name="serviceCommunal" type="checkbox"><span>Communal areas</span></label>
+                <label class="checkbox"><input name="serviceDeepCleans" type="checkbox"><span>Deep cleans</span></label>
+              </fieldset>
+              <div class="guided-form-actions">
+                <button class="button button-outline" type="button" data-guided-back>Back</button>
+                <button class="button" type="button" data-guided-next>Continue to availability</button>
+              </div>
+            </section>
+
+            <section class="guided-form-step" data-guided-step="3" aria-labelledby="cleaner-step-3-title">
+              <div class="guided-step-heading" tabindex="-1">
+                <span>Step 3 of 3</span>
+                <h3 id="cleaner-step-3-title">When do you usually want work?</h3>
+                <p>This is general availability only. Every real opportunity still needs your separate acceptance.</p>
+              </div>
+              <label>Usual availability <input name="availability" required placeholder="For example: weekdays 8am–3pm, weekends by arrangement"></label>
+              <label>Anything else? <span>(optional)</span><textarea name="notes" rows="4" placeholder="Types of cleaning you prefer, languages, equipment or questions"></textarea></label>
+              <label class="checkbox"><input name="rightToWork" type="checkbox" required><span>I confirm that I have the right to work in the UK. Evidence will only be requested later through a secure process.</span></label>
+              <label class="checkbox"><input name="consent" type="checkbox" required><span>I agree that Tideway may use these details to assess my application and contact me about suitable work. See the <a href="/privacy">privacy notice</a>.</span></label>
+              <div class="guided-form-actions">
+                <button class="button button-outline" type="button" data-guided-back>Back</button>
+                <button class="button submit-button" type="submit">Send cleaner application</button>
+              </div>
+            </section>
             <input type="hidden" name="website" value="">
-            <button class="button submit-button" type="submit">Send cleaner application</button>
             <div class="success-panel" role="status" tabindex="-1" hidden><strong>Application received.</strong><span>Your reference is <b data-reference></b>. Applying does not guarantee or require you to accept work.</span></div>
           </form>
         </article>

@@ -43,11 +43,11 @@ function showError(form, messages) {
   summary.focus();
 }
 
-const requestWizards = new WeakMap();
+const guidedForms = new WeakMap();
 
-function enhanceCustomerRequest(form) {
-  const steps = Array.from(form.querySelectorAll("[data-request-step]"));
-  const progress = form.querySelector("[data-request-progress]");
+function enhanceGuidedForm(form) {
+  const steps = Array.from(form.querySelectorAll("[data-guided-step]"));
+  const progress = form.querySelector("[data-guided-progress]");
   if (steps.length < 2 || !progress) return;
 
   let currentStep = 1;
@@ -57,25 +57,31 @@ function enhanceCustomerRequest(form) {
   function showStep(stepNumber, moveFocus = true) {
     currentStep = Math.max(1, Math.min(lastStep, stepNumber));
     steps.forEach((step) => {
-      step.hidden = Number(step.dataset.requestStep) !== currentStep;
+      step.hidden = Number(step.dataset.guidedStep) !== currentStep;
     });
-    progress.querySelectorAll("[data-request-progress-step]").forEach((item) => {
-      const itemStep = Number(item.dataset.requestProgressStep);
+    progress.querySelectorAll("[data-guided-progress-step]").forEach((item) => {
+      const itemStep = Number(item.dataset.guidedProgressStep);
       item.classList.toggle("complete", itemStep < currentStep);
       item.classList.toggle("current", itemStep === currentStep);
       if (itemStep === currentStep) item.setAttribute("aria-current", "step");
       else item.removeAttribute("aria-current");
     });
     summary.hidden = true;
-    form.dataset.currentRequestStep = String(currentStep);
+    form.dataset.currentGuidedStep = String(currentStep);
     if (moveFocus) {
-      const heading = steps[currentStep - 1].querySelector(".request-step-heading");
+      const heading = steps[currentStep - 1].querySelector(".guided-step-heading");
       heading?.focus({ preventScroll: true });
       steps[currentStep - 1].scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }
 
   function validateCurrentStep() {
+    const serviceGroup = steps[currentStep - 1].querySelector("[data-service-group]");
+    if (serviceGroup && !serviceGroup.querySelector('input[type="checkbox"]:checked')) {
+      showError(form, "Choose at least one type of cleaning work before continuing.");
+      serviceGroup.querySelector('input[type="checkbox"]')?.focus();
+      return false;
+    }
     const controls = Array.from(steps[currentStep - 1].querySelectorAll("input, select, textarea"));
     const invalid = controls.find((control) => !control.checkValidity());
     if (!invalid) return true;
@@ -100,30 +106,30 @@ function enhanceCustomerRequest(form) {
     complete() {
       progress.hidden = true;
       steps.forEach((step) => { step.hidden = true; });
-      delete form.dataset.currentRequestStep;
+      delete form.dataset.currentGuidedStep;
     }
   };
 
-  form.querySelectorAll("[data-request-next]").forEach((button) => {
+  form.querySelectorAll("[data-guided-next]").forEach((button) => {
     button.addEventListener("click", () => wizard.advance());
   });
-  form.querySelectorAll("[data-request-back]").forEach((button) => {
+  form.querySelectorAll("[data-guided-back]").forEach((button) => {
     button.addEventListener("click", () => wizard.back());
   });
 
-  form.classList.add("request-wizard-ready");
-  requestWizards.set(form, wizard);
+  form.classList.add("guided-form-ready");
+  guidedForms.set(form, wizard);
   showStep(1, false);
 }
 
-document.querySelectorAll("[data-customer-request]").forEach(enhanceCustomerRequest);
+document.querySelectorAll("[data-guided-form]").forEach(enhanceGuidedForm);
 
 document.querySelectorAll("[data-api-form]").forEach((form) => {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const requestWizard = requestWizards.get(form);
-    if (requestWizard && !requestWizard.isFinal()) {
-      requestWizard.advance();
+    const guidedForm = guidedForms.get(form);
+    if (guidedForm && !guidedForm.isFinal()) {
+      guidedForm.advance();
       return;
     }
     const summary = form.querySelector(".error-summary");
@@ -177,7 +183,7 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
         statusLink.href = `/request-status#${result.customerStatusToken}`;
         statusLink.hidden = false;
       }
-      requestWizard?.complete();
+      guidedForm?.complete();
       success.hidden = false;
       success.focus();
       pendingSubmissions.delete(form);
