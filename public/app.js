@@ -3,6 +3,19 @@ import { newSubmissionKey } from "./submission-key.js";
 
 const pendingSubmissions = new WeakMap();
 
+const focusedEntryRoutes = {
+  "/request": { kind: "request", target: "request-cleaning", title: "Request a clean — Tideway", description: "Request a Tideway clean in three short steps, then scan the rooms and turn spoken notes into a clear cleaner checklist." },
+  "/join": { kind: "join", target: "cleaner-application", title: "Apply as a cleaner — Tideway", description: "Apply to join the Tideway cleaning pilot and choose the areas, services and usual times that suit you." }
+};
+const focusedEntryRoute = focusedEntryRoutes[location.pathname] || null;
+if (focusedEntryRoute) {
+  document.body.classList.add("entry-route", `entry-route-${focusedEntryRoute.kind}`);
+  document.title = focusedEntryRoute.title;
+  const description = document.querySelector('meta[name="description"]');
+  if (description) description.content = focusedEntryRoute.description;
+  history.replaceState(null, "", `${location.pathname}${location.search}#${focusedEntryRoute.target}`);
+}
+
 const menuButton = document.querySelector(".menu-toggle");
 const mainNav = document.querySelector(".main-nav");
 
@@ -200,6 +213,3 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
     }
   });
 });
-
-if (location.pathname === "/request") location.hash = "request-cleaning";
-if (location.pathname === "/join") location.hash = "cleaner-application";

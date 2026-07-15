@@ -111,6 +111,13 @@ h3 { margin-bottom: 10px; font-size: 1.25rem; }
 .benefit-list small { margin-top: 3px; color: #bdd7d0; font-size: .9rem; }
 
 .forms-section { background: #f4f7f4; }
+.entry-route .main-nav,
+.entry-route .menu-toggle,
+.entry-route main > section:not(.forms-section),
+.entry-route-request #cleaner-application,
+.entry-route-join #request-cleaning { display: none; }
+.entry-route .forms-section { min-height: calc(100vh - 76px); padding-block: 48px 64px; }
+.entry-route .form-stack { display: block; }
 .form-stack { display: grid; gap: 30px; }
 .form-card { scroll-margin-top: 96px; display: grid; grid-template-columns: .72fr 1.28fr; gap: 56px; padding: clamp(28px, 5vw, 58px); border: 1px solid var(--line); border-radius: 30px; background: #fff; box-shadow: 0 16px 55px rgba(15, 66, 57, .08); }
 .form-card-alt { background: #fbfaf6; }
