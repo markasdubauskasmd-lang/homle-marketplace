@@ -21,6 +21,8 @@ import { createPropertyRepository } from "./property-repository.mjs";
 import { createPropertyService } from "./property-service.mjs";
 import { createProgressRepository } from "./progress-repository.mjs";
 import { createProgressService } from "./progress-service.mjs";
+import { createMediaRepository } from "./media-repository.mjs";
+import { createMediaService } from "./media-service.mjs";
 
 export function createMarketplaceRuntime(pool, options = {}) {
   const env = options.env || process.env;
@@ -60,7 +62,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const journeyService = createJourneyService(journeyRepository, { etaProvider: options.etaProvider });
   const progressRepository = createProgressRepository(database);
   const progressService = createProgressService(progressRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService }, { onUnexpectedError: options.onUnexpectedError });
+  const mediaRepository = createMediaRepository(database);
+  const mediaService = createMediaService(mediaRepository, { objectStorage: options.objectStorage });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService }, { onUnexpectedError: options.onUnexpectedError });
   const authenticationDependencies = [options.emailDelivery, options.rateLimiter, options.clientKey];
   const suppliedAuthenticationDependencies = authenticationDependencies.filter(Boolean).length;
   if (suppliedAuthenticationDependencies > 0 && suppliedAuthenticationDependencies < authenticationDependencies.length) throw new TypeError("Authentication HTTP composition requires email delivery, shared rate limiting and a trusted client-key resolver together.");
@@ -96,6 +100,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     journeyService,
     progressRepository,
     progressService,
+    mediaRepository,
+    mediaService,
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
     marketplaceRouter,

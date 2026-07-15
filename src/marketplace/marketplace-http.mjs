@@ -16,6 +16,9 @@ const cleaningFinishPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern
 const cleaningTasksPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/tasks$`);
 const cleaningTaskPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/tasks/(${uuidPattern})$`);
 const cleaningTaskDecisionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/tasks/(${uuidPattern})/decision$`);
+const jobPhotoIntentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/intents$`);
+const jobPhotoCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/(${uuidPattern})/complete$`);
+const jobPhotoAccessPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/(${uuidPattern})/access$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
 const apiPrefix = "/api/marketplace/";
 
@@ -41,6 +44,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const matching = dependencies?.matchingService;
   const journeys = dependencies?.journeyService;
   const progress = dependencies?.progressService;
+  const media = dependencies?.mediaService;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
@@ -49,6 +53,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!matching || typeof matching.recommendForRequest !== "function") throw new TypeError("Marketplace HTTP routes require the request matching service.");
   if (!journeys || !["startJourney", "updateLocation", "markArrived", "getTracking"].every((method) => typeof journeys[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking journey service.");
   if (!progress || !["getProgress", "startCleaning", "setPause", "updateTask", "addUnexpectedTask", "decideUnexpectedTask", "finishCleaning"].every((method) => typeof progress[method] === "function")) throw new TypeError("Marketplace HTTP routes require the cleaning-progress service.");
+  if (!media || !["createUploadIntent", "completeUpload", "getPhotoAccess"].every((method) => typeof media[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private job-media service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
 
   return {
@@ -178,6 +183,28 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
           const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
           sendJson(response, 200, { ok: true, progress: await progress.startCleaning(context.actor, selectedCleaningStart[1]) });
+          return true;
+        }
+        const selectedPhotoIntent = pathname.match(jobPhotoIntentPath);
+        if (selectedPhotoIntent) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          const intent = await media.createUploadIntent(context.actor, selectedPhotoIntent[1], await readJsonObject(request));
+          sendJson(response, 201, { ok: true, upload: intent });
+          return true;
+        }
+        const selectedPhotoCompletion = pathname.match(jobPhotoCompletionPath);
+        if (selectedPhotoCompletion) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, progress: await media.completeUpload(context.actor, selectedPhotoCompletion[1], selectedPhotoCompletion[2]) });
+          return true;
+        }
+        const selectedPhotoAccess = pathname.match(jobPhotoAccessPath);
+        if (selectedPhotoAccess) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          sendJson(response, 200, { ok: true, photo: await media.getPhotoAccess(context.actor, selectedPhotoAccess[1], selectedPhotoAccess[2]) });
           return true;
         }
         const selectedCleaningPause = pathname.match(cleaningPausePath);

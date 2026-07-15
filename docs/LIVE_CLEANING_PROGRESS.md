@@ -9,7 +9,7 @@ This Phase 4 checkpoint prepares the transactional active-job checklist shared b
 - Each checklist task can move through Not started, In progress, Completed, Skipped or Issue reported. Skipped and issue states require a note.
 - Every task change records previous/new state, timestamp and responsible user. A durable monotonically increasing progress event is committed in the same transaction for later WebSocket delivery/reconnect.
 - The Landlord sees overall resolved percentage, completed-task count, room completion, elapsed time excluding pauses, task notes, issues, photo metadata and the latest 50 durable events.
-- Only participant-safe photo metadata is projected. Private object keys are never returned; authenticated before/after upload/read endpoints still require the private object-storage phase.
+- Only participant-safe photo metadata is projected. Private object keys are never returned; the authenticated before/after/issue upload and read contracts now exist in `docs/PRIVATE_JOB_MEDIA.md` and remain detached until an approved private-storage adapter passes staging checks.
 
 ## Unexpected work and frozen economics
 
@@ -23,7 +23,7 @@ Finish cleaning is unavailable while paused, while any standard task is unresolv
 
 ## Security boundary
 
-Mutation routes require exact origin, CSRF, the appropriate role and booking participation. Direct runtime writes to bookings, task state/history, pauses, unexpected decisions, progress events, photos, locations and notifications are revoked. The app role must use the restricted actor-aware functions in migration 013. An unrelated account receives no snapshot.
+Mutation routes require exact origin, CSRF, the appropriate role and booking participation. Direct runtime writes to bookings, task state/history, pauses, unexpected decisions, progress events, photos, upload intents, locations and notifications are revoked. The app role must use the restricted actor-aware functions in migrations 013 and 014. An unrelated account receives no snapshot.
 
 Before enabling, execute migration 013 in staging and test concurrent pause, repeated updates, issue notes, another booking’s task ID, Cleaner self-approval denial, final-decision replay, unchanged-price confirmation, unresolved finish denial, participant reads and event ordering.
 

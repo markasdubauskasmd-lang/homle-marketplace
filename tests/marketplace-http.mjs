@@ -89,8 +89,13 @@ const progressService = {
   async decideUnexpectedTask(actor, bookingId, taskId, input) { calls.push({ kind: "progress-decision", actor, bookingId, taskId, input }); return { bookingId, status: "cleaning-in-progress" }; },
   async finishCleaning(actor, bookingId) { calls.push({ kind: "progress-finish", actor, bookingId }); return { bookingId, status: "awaiting-review", overallPercentage: 100 }; }
 };
+const mediaService = {
+  async createUploadIntent(actor, bookingId, input) { calls.push({ kind: "media-intent", actor, bookingId, input }); return { uploadId: "88888888-8888-4888-8888-888888888888", uploadUrl: "https://storage.example/write", method: "PUT" }; },
+  async completeUpload(actor, bookingId, uploadId) { calls.push({ kind: "media-complete", actor, bookingId, uploadId }); return { bookingId, status: "cleaning-in-progress", eventVersion: 8 }; },
+  async getPhotoAccess(actor, bookingId, photoId) { calls.push({ kind: "media-access", actor, bookingId, photoId }); return { photoId, url: "https://storage.example/read" }; }
+};
 let unexpectedError;
-const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService }, { onUnexpectedError(error) { unexpectedError = error; } });
+const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService }, { onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
   origin: "http://127.0.0.1:4173",
@@ -158,6 +163,11 @@ const cleaningTask = await dispatch(router, "PUT", `/api/marketplace/bookings/${
 const unexpectedTask = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks`, { headers: authHeaders, body: { roomName: "Hall", description: "Clear packaging", estimatedAdditionalMinutes: 15 } });
 const cleaningFinished = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/finish`, { headers: authHeaders, body: {} });
 assert([cleaningStarted, cleaningPaused, cleaningTask, unexpectedTask, cleaningFinished].every((result) => result.response.statusCode < 300) && cleaningFinished.body.progress.status === "awaiting-review" && calls.slice(-5).map((call) => call.kind).join(",") === "progress-start,progress-pause,progress-task,progress-add,progress-finish", "Cleaner progress routes lost start/pause/task/unexpected/finish actions or role binding.");
+const photoUploadId = "88888888-8888-4888-8888-888888888888";
+const photoIntent = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/photos/intents`, { headers: authHeaders, body: { photoType: "before", mimeType: "image/jpeg", byteSize: 1234, checksumSha256: "a".repeat(64) } });
+const photoCompletion = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/photos/${photoUploadId}/complete`, { headers: authHeaders, body: {} });
+const photoAccess = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/cleaning-progress/photos/${photoUploadId}/access`, { headers: { cookie: authHeaders.cookie } });
+assert(photoIntent.response.statusCode === 201 && photoCompletion.response.statusCode === 200 && photoAccess.response.statusCode === 200 && calls.slice(-3).map((call) => call.kind).join(",") === "media-intent,media-complete,media-access", "Private media routes did not bind Cleaner uploads and participant reads to the booking actor.");
 const cleanerPropertyWrite = await dispatch(router, "POST", "/api/marketplace/properties", { headers: authHeaders, body: { name: "Attempt" } });
 assert(cleanerPropertyWrite.response.statusCode === 403 && cleanerPropertyWrite.body.code === "role-rejected", "A Cleaner entered the Landlord-only property route.");
 sessions.landlord = { ...sessions.landlord, user_id: "11111111-1111-4111-8111-111111111111", selected_role: "landlord", roles: ["landlord"] };
@@ -186,7 +196,7 @@ const baseEnvironment = {
 };
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress and HTTP layers or safely kept incomplete authentication delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media and HTTP layers or safely kept incomplete authentication delivery detached.");
 let partialAuthenticationRejected = false;
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, emailDelivery: { send() {} } }); } catch (error) { partialAuthenticationRejected = error.message.includes("requires email delivery, shared rate limiting"); }
 assert(partialAuthenticationRejected, "A partially supplied authentication HTTP boundary was silently enabled.");

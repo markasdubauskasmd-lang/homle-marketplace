@@ -167,9 +167,16 @@ Implemented live cleaning-progress checkpoint:
 - Finish is blocked by an open pause, unresolved task or pending added-task decision and moves a fully resolved visit to `awaiting-review`.
 - Direct web-role writes to progress/photo/notification tables are revoked. Details are in `docs/LIVE_CLEANING_PROGRESS.md`.
 
+Implemented private job-media checkpoint:
+
+- Assigned-Cleaner-only ten-minute upload intents use server-generated quarantine/final keys, exact declared MIME/size/SHA-256 values and private signed writes; object keys and bucket credentials never enter a browser response.
+- Completion reads authoritative object metadata and rejects mismatches before a server-side decode, safety inspection, metadata strip and JPEG re-encode boundary.
+- One audited database transaction creates the sanitized private photo, progress event and idempotent Landlord notification; abandoned intents are claimed by a bounded worker for quarantine cleanup.
+- Participant-only reads receive a five-minute signed URL after database authorization. Missing storage infrastructure fails closed, and the implementation remains detached until a real adapter plus staging security evidence exists. Details are in `docs/PRIVATE_JOB_MEDIA.md`.
+
 - Add authenticated booking-scoped WebSocket channels with origin checks, heartbeat, bounded reconnect/backoff and per-user connection limits.
 - Add the mobile tracking page with foreground `watchPosition`, map rendering, permission/offline/retry states and large Start journey / I have arrived controls after an approved map provider is configured.
-- Add the mobile active-job screen and authenticated private object-storage endpoints for before/after/issue photos.
+- Add the mobile active-job screen and connect it to the prepared private before/after/issue-photo endpoints after staging object-storage approval.
 - Store updates transactionally, then broadcast progress snapshots and durable event identifiers so reconnects can catch up without blind polling.
 - Add poor-connection/offline status, queued non-destructive task updates and clear conflict/retry handling.
 

@@ -19,5 +19,6 @@ $$;
 GRANT USAGE ON SCHEMA tideway_private TO tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.expire_due_cleaner_invitations(integer) TO tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.purge_expired_cleaner_locations(integer) TO tideway_worker;
+GRANT EXECUTE ON FUNCTION tideway_private.expire_due_job_photo_uploads(integer) TO tideway_worker;
 
 COMMIT;
