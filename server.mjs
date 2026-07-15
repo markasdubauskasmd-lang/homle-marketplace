@@ -4354,10 +4354,7 @@ async function purgeAdminMedia(request, response) {
   return json(response, 200, { ok: true, event });
 }
 
-async function updateAdminConfig(request, response) {
-  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
-  ensureSameOrigin(request);
-  const input = await readJson(request);
+function evaluateAdminConfigInput(input) {
   const config = {
     legalOwnerName: text(input.legalOwnerName, 160),
     businessStructure: text(input.businessStructure, 80),
@@ -4426,9 +4423,24 @@ async function updateAdminConfig(request, response) {
   if (config.inactiveMediaRetentionDays && !validRetentionDays(config.inactiveMediaRetentionDays)) errors.push("Inactive-enquiry media retention must be a whole number from 1 to 3650 days.");
   if (config.completedMediaRetentionDays && !validRetentionDays(config.completedMediaRetentionDays)) errors.push("Completed-booking media retention must be a whole number from 1 to 3650 days.");
   if (config.paymentProviderStatus === "live" && (!config.paymentProviderName || !config.refundProcess)) errors.push("Add the live payment provider and refund process.");
+  return { config, errors, readiness: launchReadiness(config) };
+}
+
+async function previewAdminConfig(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const evaluation = evaluateAdminConfigInput(await readJson(request));
+  if (evaluation.errors.length) return json(response, 422, { ok: false, persisted: false, errors: evaluation.errors, readiness: evaluation.readiness });
+  return json(response, 200, { ok: true, persisted: false, readiness: evaluation.readiness });
+}
+
+async function updateAdminConfig(request, response) {
+  if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
+  ensureSameOrigin(request);
+  const { config, errors, readiness } = evaluateAdminConfigInput(await readJson(request));
   if (errors.length) return json(response, 422, { ok: false, errors });
   await saveJsonFile("business-config.json", config);
-  return json(response, 200, { ok: true, config, readiness: launchReadiness(config) });
+  return json(response, 200, { ok: true, config, readiness });
 }
 
 async function updateAdminStatus(request, response) {
@@ -5028,6 +5040,9 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/admin/config") {
       return await getAdminConfig(request, response);
+    }
+    if (request.method === "POST" && requestUrl.pathname === "/api/admin/config/preview") {
+      return await previewAdminConfig(request, response);
     }
     if (request.method === "PUT" && requestUrl.pathname === "/api/admin/config") {
       return await updateAdminConfig(request, response);

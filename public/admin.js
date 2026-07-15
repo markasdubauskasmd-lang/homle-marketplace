@@ -2377,8 +2377,10 @@ document.querySelector("#business-config-form").addEventListener("submit", async
   const form = event.currentTarget;
   const button = form.querySelector('button[type="submit"]');
   const resultPanel = document.querySelector("#config-result");
+  const previewPanel = document.querySelector("#config-preview-result");
   button.disabled = true;
   resultPanel.hidden = true;
+  previewPanel.hidden = true;
   try {
     const body = Object.fromEntries(new FormData(form).entries());
     const response = await fetch("/api/admin/config", { method: "PUT", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
@@ -2396,6 +2398,52 @@ document.querySelector("#business-config-form").addEventListener("submit", async
     button.disabled = false;
   }
 });
+
+const configForm = document.querySelector("#business-config-form");
+const configPreviewButton = document.querySelector("#config-preview-button");
+const configPreviewPanel = document.querySelector("#config-preview-result");
+
+function renderConfigPreview(result, valid) {
+  const title = configPreviewPanel.querySelector("[data-config-preview-title]");
+  const summary = configPreviewPanel.querySelector("[data-config-preview-summary]");
+  const list = configPreviewPanel.querySelector("[data-config-preview-list]");
+  const areaLabels = { identity: "Legal identity", contact: "Contact and public site", pilotArea: "Pilot area", economics: "Pricing and pay", insurance: "Insurance evidence", payments: "Payment readiness", operatingRules: "Operating rules" };
+  configPreviewPanel.classList.toggle("config-preview-invalid", !valid);
+  title.textContent = valid ? `${result.readiness.completed} of ${result.readiness.total} areas would be ready` : "Readiness rehearsal found invalid inputs";
+  summary.textContent = valid
+    ? (result.readiness.ready ? "All seven areas pass the current rules, but nothing has been saved or approved for launch." : "Nothing has been saved. Complete the items below before relying on these settings.")
+    : "Nothing has been saved. Correct these validation errors before checking readiness again.";
+  const entries = valid
+    ? Object.entries(result.readiness.missing || {}).filter(([, missing]) => missing.length).map(([key, missing]) => `${areaLabels[key] || key}: ${missing.join(", ")}`)
+    : (result.errors || []);
+  list.replaceChildren(...entries.map((message) => {
+    const item = document.createElement("li");
+    item.textContent = message;
+    return item;
+  }));
+  configPreviewPanel.hidden = false;
+  configPreviewPanel.focus();
+}
+
+configPreviewButton.addEventListener("click", async () => {
+  configPreviewButton.disabled = true;
+  document.querySelector("#config-result").hidden = true;
+  try {
+    const body = Object.fromEntries(new FormData(configForm).entries());
+    const response = await fetch("/api/admin/config/preview", { method: "POST", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
+    const result = await response.json();
+    if (response.status === 401) { showAuth(); return; }
+    if (!result.readiness || (!response.ok && !Array.isArray(result.errors))) throw new Error(result.error || "Launch details could not be checked.");
+    renderConfigPreview(result, response.ok && result.ok);
+  } catch (error) {
+    showAdminError(error.message);
+  } finally {
+    configPreviewButton.disabled = false;
+  }
+});
+
+configForm.addEventListener("input", () => { configPreviewPanel.hidden = true; });
+configForm.addEventListener("change", () => { configPreviewPanel.hidden = true; });
 
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 const quoteFields = ["#quote-hours", "#quote-customer-rate", "#quote-cleaner-rate", "#quote-costs"].map((selector) => document.querySelector(selector));

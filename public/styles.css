@@ -142,6 +142,12 @@ h3 { margin-bottom: 10px; font-size: 1.25rem; }
 .application-draft-status.is-offline { color: #7b4300; border-color: #e6c88a; background: #fff8e8; }
 .application-draft-status .text-button { flex: 0 0 auto; }
 .review-draft-status { margin-bottom: 14px; }
+.config-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.config-preview-result { display: grid; gap: 7px; padding: 14px; border: 1px solid #9bcdbf; border-radius: 11px; background: #f1fbf7; }
+.config-preview-result > strong, .config-preview-result > span, .config-preview-result > small { display: block; }
+.config-preview-result > span, .config-preview-result > small { color: var(--muted); }
+.config-preview-result ul { margin: 3px 0; padding-left: 20px; }
+.config-preview-result.config-preview-invalid { border-color: #dca8a0; background: #fff6f4; }
 .guided-form-step { scroll-margin-top: 92px; display: grid; gap: 18px; }
 .guided-form-step[hidden] { display: none; }
 .guided-step-heading { padding-bottom: 14px; border-bottom: 1px solid var(--line); outline: none; }
