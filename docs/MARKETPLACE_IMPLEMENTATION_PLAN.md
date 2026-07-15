@@ -4,7 +4,7 @@ This plan extends the current Tideway application. It does not replace the worki
 
 ## Phase 0 — architecture and safety foundation
 
-Status: started.
+Status: complete as a source-code foundation; the migrations still require a staging PostgreSQL execution test.
 
 - Add PostgreSQL migrations for accounts, identities, profiles, properties, marketplace requests, bookings, status history, tasks, current location, messages, reviews, notifications, disputes, privacy requests and audit logs.
 - Add database exclusion and review constraints plus row-level security policies.
@@ -23,6 +23,21 @@ Files added or changed:
 - `server.mjs`, `package.json`, `tests/smoke.mjs`
 
 ## Phase 1 — accounts, authentication and onboarding
+
+Status: in progress.
+
+Implemented checkpoint:
+
+- PostgreSQL-compatible transaction adapter with transaction-local RLS identity/role context, rollback and connection release.
+- Separate pre-authentication, authenticated-account, role-bearing user and first-account-provisioning transaction boundaries; a verified first-time account can hold a session while role onboarding is still pending.
+- Cryptographically random opaque session and CSRF tokens stored as HMAC hashes, production host-only cookies and a separate non-secure local-development cookie name.
+- Bounded scrypt password hashing and verification.
+- Restricted parameterized authentication lookup functions for password accounts, active sessions and verified-email deduplication.
+- Authentication repository methods for lookup, session creation, single-session logout and logout-all-sessions.
+- RLS on password credentials, verification tokens, reset tokens and sessions, plus a checked non-bypass runtime-role grant script.
+- Setup details in `docs/DATABASE_SETUP.md` and isolated regression tests using a fake PostgreSQL-compatible pool.
+
+Not yet enabled: database driver composition, signup/login HTTP routes, email delivery, OAuth callbacks, onboarding screens or a production PostgreSQL instance. Provider capability flags therefore remain off.
 
 - Add a PostgreSQL connection/repository layer and transaction helper that always sets the RLS user context.
 - Add opaque secure sessions, `HttpOnly; Secure; SameSite=Lax` cookies, CSRF tokens, rotation, logout-all-sessions and session expiry.
