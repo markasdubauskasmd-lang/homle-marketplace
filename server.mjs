@@ -9,6 +9,7 @@ import { briefRoomOptions, maxBriefPhotos, maxBriefVideos } from "./public/brief
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "./public/scope-signals.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mjs";
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverage.mjs";
+import { businessDateToday, businessEpochFromWallClock, businessWallClockMs, earliestBookableWallClockMs } from "./business-clock.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(root, "public");
@@ -236,7 +237,7 @@ function publicRecordFingerprint(record) {
 }
 
 function localDateToday(now = new Date()) {
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 10);
+  return businessDateToday(now);
 }
 
 function isIsoCalendarDate(value) {
@@ -546,7 +547,7 @@ async function decideCleanerAvailabilityRequest({ requestId, decision, note }) {
         throw Object.assign(new Error("Only a currently approved, fully screened cleaner can have this time confirmed."), { statusCode: 422 });
       }
       const schedule = availabilitySlotSchedule(availabilityRequest);
-      if (!schedule || schedule.endMs <= Date.now()) throw Object.assign(new Error("This requested availability is no longer a valid future window."), { statusCode: 422 });
+      if (!schedule || schedule.endMs <= businessWallClockMs()) throw Object.assign(new Error("This requested availability is no longer a valid future window."), { statusCode: 422 });
       const overlap = activeCleanerAvailability(events, cleaner.id).find((slot) => schedulesOverlap(schedule, availabilitySlotSchedule(slot)));
       if (overlap) throw Object.assign(new Error(`This request overlaps confirmed availability window ${overlap.id}.`), { statusCode: 409 });
       const slot = { id: `AVL-${randomUUID().slice(0, 8).toUpperCase()}`, cleanerId: cleaner.id, sourceRequestId: requestId, action: "confirmed", status: "active", availableDate: availabilityRequest.availableDate, startTime: availabilityRequest.startTime, endTime: availabilityRequest.endTime, confirmationNote: note, createdAt: new Date().toISOString() };
@@ -1189,8 +1190,7 @@ function schedulableAvailability(slot, customerRequest, requiredHours, nowMs = D
   const arrivalWindow = preferredArrivalWindows[arrivalPreference];
   const windowStartMs = arrivalWindow ? utcTimeOnDate(slot.availableDate, arrivalWindow.startTime) : schedule.startMs;
   const windowEndMs = arrivalWindow ? utcTimeOnDate(slot.availableDate, arrivalWindow.endTime) : schedule.endMs;
-  const quarterHourMs = 15 * 60 * 1000;
-  const earliestBookableMs = Math.ceil((nowMs + quarterHourMs) / quarterHourMs) * quarterHourMs;
+  const earliestBookableMs = earliestBookableWallClockMs(nowMs);
   const requiredMs = requiredHours * 60 * 60 * 1000;
   let suggestedStartMs = Math.max(schedule.startMs, windowStartMs, earliestBookableMs);
   let heldIntervalsAvoided = 0;
@@ -1521,7 +1521,7 @@ function dispatchActionsForRecord({ kind, status, nextActionAt, proposals = [], 
   const add = (code, severity, group, title, detail) => {
     if (!actions.some((action) => action.code === code)) actions.push({ code, severity, group, title, detail });
   };
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateToday();
   const closed = ["completed", "lost", "rejected"].includes(status);
   if (!closed && nextActionAt && nextActionAt <= today) add("follow-up-due", "high", "lead", "Follow-up is due", `The recorded next-action date was ${nextActionAt}. Review the lead before making any promise.`);
 
@@ -1676,7 +1676,7 @@ function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, pr
   const dispatchReadyCleanerIds = new Set(cleaners.filter((cleaner) => {
     const status = latestStatuses.get(cleaner.id) || cleaner.status || "new";
     const screened = latestCleanerScreening(cleaner.id, screenings)?.complete === true;
-    const hasFutureAvailability = activeCleanerAvailability(availabilityEvents, cleaner.id).some((slot) => availabilitySlotSchedule(slot)?.endMs > Date.now());
+    const hasFutureAvailability = activeCleanerAvailability(availabilityEvents, cleaner.id).some((slot) => availabilitySlotSchedule(slot)?.endMs > businessWallClockMs());
     return status === "approved" && screened && hasFutureAvailability;
   }).map((cleaner) => cleaner.id));
   const activeRequestIds = new Set(requests.filter((customerRequest) => !["lost", "completed"].includes(latestStatuses.get(customerRequest.id) || customerRequest.status || "new")).map((customerRequest) => customerRequest.id));
@@ -1817,8 +1817,8 @@ async function getAdminRecords(request, response) {
     const outcome = booking ? outcomesByBooking.get(booking.id) || null : null;
     const leadBriefs = kind === "request" ? (briefsByRequest.get(record.id) || []).sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 5) : [];
     const screening = kind === "cleaner" ? latestCleanerScreening(record.id, screenings) : null;
-    const cleanerAvailability = kind === "cleaner" ? activeCleanerAvailability(availabilityEvents, record.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > Date.now()) : [];
-    const availabilityRequests = kind === "cleaner" ? cleanerAvailabilityRequests(availabilityEvents, record.id).filter((item) => item.status === "pending" && availabilitySlotSchedule(item)?.endMs > Date.now()).map(({ submissionKey: ignoredKey, submissionFingerprint: ignoredFingerprint, ...item }) => item) : [];
+    const cleanerAvailability = kind === "cleaner" ? activeCleanerAvailability(availabilityEvents, record.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > businessWallClockMs()) : [];
+    const availabilityRequests = kind === "cleaner" ? cleanerAvailabilityRequests(availabilityEvents, record.id).filter((item) => item.status === "pending" && availabilitySlotSchedule(item)?.endMs > businessWallClockMs()).map(({ submissionKey: ignoredKey, submissionFingerprint: ignoredFingerprint, ...item }) => item) : [];
     const pilotCoverage = kind === "request" ? pilotPostcodeCoverage(record.postcode, config.pilotPostcodes) : null;
     const status = latestStatuses.get(record.id) || record.status || "new";
     const nextActionAt = leadActivities.find((activity) => activity.nextActionAt)?.nextActionAt || "";
@@ -1867,7 +1867,7 @@ async function createAdminCleanerAvailability(request, response) {
   const endTime = text(input.endTime, 10);
   const confirmationNote = text(input.confirmationNote, 500);
   const schedule = availabilitySlotSchedule({ availableDate, startTime, endTime });
-  if (!schedule || schedule.endMs <= Date.now()) return json(response, 422, { ok: false, error: "Add a valid future availability window with an end time after its start time." });
+  if (!schedule || schedule.endMs <= businessWallClockMs()) return json(response, 422, { ok: false, error: "Add a valid future availability window with an end time after its start time." });
   if (confirmationNote.length < 10) return json(response, 422, { ok: false, error: "Add a confirmation note of at least 10 characters explaining how this availability was verified." });
   const [cleaners, updates, screenings] = await Promise.all([
     readRecords("cleaner-applications.ndjson"),
@@ -2071,11 +2071,12 @@ async function updateAdminProposalStatus(request, response) {
   }
   const updatedAt = new Date().toISOString();
   const schedule = jobSchedule(proposal);
-  if (status === "sent" && (!schedule || schedule.startMs <= Date.parse(updatedAt))) {
-    return json(response, 422, { ok: false, error: "The proposed visit must start in the future before these offers can be sent." });
+  const visitStartEpochMs = schedule ? businessEpochFromWallClock(proposal.proposedDate, proposal.proposedStartTime) : NaN;
+  if (status === "sent" && (!schedule || !Number.isFinite(visitStartEpochMs) || schedule.startMs < earliestBookableWallClockMs(updatedAt))) {
+    return json(response, 422, { ok: false, error: "The proposed visit must start at least 15 minutes in the future in UK local time before these offers can be sent." });
   }
-  const customerOfferExpiresAt = status === "sent" ? offerDeadline(updatedAt, config.customerQuoteValidityHours, schedule.startMs) : "";
-  const cleanerOfferExpiresAt = status === "sent" ? offerDeadline(updatedAt, config.cleanerOpportunityValidityHours, schedule.startMs) : "";
+  const customerOfferExpiresAt = status === "sent" ? offerDeadline(updatedAt, config.customerQuoteValidityHours, visitStartEpochMs) : "";
+  const cleanerOfferExpiresAt = status === "sent" ? offerDeadline(updatedAt, config.cleanerOpportunityValidityHours, visitStartEpochMs) : "";
   if (status === "sent" && (!customerOfferExpiresAt || !cleanerOfferExpiresAt)) {
     return json(response, 422, { ok: false, error: "Set valid customer and cleaner response windows before sending these offers." });
   }
@@ -2642,7 +2643,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Thank you for requesting ${customerRequest.service.toLowerCase()} in ${customerRequest.postcode}.`,
     "",
     `Proposed date: ${proposal.proposedDate}`,
-    `Proposed time: ${proposal.proposedStartTime}–${proposal.proposedEndTime}`,
+    `Proposed time (UK local time): ${proposal.proposedStartTime}–${proposal.proposedEndTime}`,
     `Requested frequency: ${requestFrequency(customerRequest)}`,
     `Site scope: ${customerRequest.siteSize || "[Confirm site size before sending]"}`,
     `Estimated cleaning time: ${proposal.estimatedHours} hours`,
@@ -2671,7 +2672,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Site scope: ${customerRequest.siteSize || "Confirm before accepting"}`,
     `Known hazards: ${customerRequest.hazards || "Confirm before accepting"}`,
     `Proposed date: ${proposal.proposedDate}`,
-    `Proposed time: ${proposal.proposedStartTime}–${proposal.proposedEndTime}`,
+    `Proposed time (UK local time): ${proposal.proposedStartTime}–${proposal.proposedEndTime}`,
     `Estimated time: ${proposal.estimatedHours} hours`,
     `Proposed cleaner pay: ${money(proposal.cleanerPay)} total (${money(proposal.cleanerRate)} per hour)`,
     ...(latestBrief?.status === "reviewed" && latestBrief.scopeSignals.length ? ["Price-sensitive items included in these hours and proposed pay:", ...latestBrief.scopeSignals.map((signal) => `- ${signal.label}`)] : []),
@@ -2730,7 +2731,7 @@ async function getAdminBookingDrafts(request, response, bookingId) {
     `Service: ${customerPack.service || customerRequest.service}`,
     `Requested frequency: ${customerPack.frequency || requestFrequency(customerRequest)}`,
     `Date: ${booking.proposedDate}`,
-    `Time: ${booking.proposedStartTime}–${booking.proposedEndTime}`,
+    `Time (UK local time): ${booking.proposedStartTime}–${booking.proposedEndTime}`,
     `Estimated cleaning time: ${booking.estimatedHours} hours`,
     "",
     "Open your private booking pack to review the confirmed address, checklist, access plan and support route. Keep the link private.",
@@ -2750,7 +2751,7 @@ async function getAdminBookingDrafts(request, response, bookingId) {
     `Service: ${cleanerPack.service || customerRequest.service}`,
     `Requested frequency: ${cleanerPack.frequency || requestFrequency(customerRequest)}`,
     `Date: ${booking.proposedDate}`,
-    `Time: ${booking.proposedStartTime}–${booking.proposedEndTime}`,
+    `Time (UK local time): ${booking.proposedStartTime}–${booking.proposedEndTime}`,
     `Estimated cleaning time: ${booking.estimatedHours} hours`,
     `Agreed cleaner pay: £${Number(booking.plannedCleanerPay).toFixed(2)}`,
     "",
@@ -3261,7 +3262,7 @@ async function getPrivateRequestStatus(request, response) {
     { key: "scan", label: "Room scan reviewed", state: scanComplete ? "complete" : ["room-scan", "scan-revision"].includes(currentStage) ? "action" : "current", detail: !latestBrief ? "Photos and spoken notes required" : latestBrief.status === "reviewed" ? `${latestBrief.checklist.length} tasks · ${latestBrief.scopeEstimateHours} reviewed hours` : latestBrief.status === "needs-revision" ? "Revision requested" : "Awaiting Tideway review" },
     { key: "quote", label: "Quote accepted", state: quoteComplete ? "complete" : ["quote-review", "quote-expired"].includes(currentStage) ? "action" : proposal ? "current" : "waiting", detail: quoteExpired ? "Response window ended" : proposal ? proposal.status : "Not prepared yet" },
     { key: "cleaner", label: "Cleaner confirmed", state: cleanerComplete ? "complete" : selectedCleanerEligibilityLost || cleanerDecision?.status === "declined" ? "action" : quoteComplete ? "current" : "waiting", detail: selectedCleanerEligibilityLost ? "Rematching in progress" : cleanerDecision?.status || "Awaiting an accepted quote" },
-    { key: "booking", label: "Visit confirmed", state: bookingComplete ? "complete" : cleanerComplete ? "current" : "waiting", detail: booking ? `${booking.proposedDate} · ${booking.proposedStartTime}–${booking.proposedEndTime}` : "Final checks pending" },
+    { key: "booking", label: "Visit confirmed", state: bookingComplete ? "complete" : cleanerComplete ? "current" : "waiting", detail: booking ? `${booking.proposedDate} · ${booking.proposedStartTime}–${booking.proposedEndTime} UK local time` : "Final checks pending" },
     { key: "clean", label: "Clean completed", state: cleanComplete ? "complete" : bookingComplete ? "current" : "waiting", detail: cleanComplete ? "Completion recorded" : bookingComplete ? "Visit not completed yet" : "Waiting for a confirmed visit" }
   ];
   const outwardCode = customerRequest.postcode.replace(/\s+/g, "").slice(0, -3);
@@ -3301,7 +3302,7 @@ async function createPrivateCleanerAvailabilityRequest(request, response) {
   const endTime = text(input.endTime, 10);
   const note = text(input.note, 500);
   const schedule = availabilitySlotSchedule({ availableDate, startTime, endTime });
-  if (!schedule || schedule.endMs <= Date.now() || schedule.endMs - schedule.startMs > 16 * 60 * 60 * 1000) return json(response, 422, { ok: false, error: "Choose a valid future availability window of no more than 16 hours." });
+  if (!schedule || schedule.endMs <= businessWallClockMs() || schedule.endMs - schedule.startMs > 16 * 60 * 60 * 1000) return json(response, 422, { ok: false, error: "Choose a valid future availability window of no more than 16 hours." });
   const key = submissionKey(request);
   const fingerprint = submissionFingerprint({ cleanerId: cleaner.id, availableDate, startTime, endTime, note });
   const availabilityRequest = { id: `AVR-${randomUUID().slice(0, 8).toUpperCase()}`, cleanerId: cleaner.id, action: "requested", status: "pending", availableDate, startTime, endTime, note, createdAt: new Date().toISOString(), submissionKey: key, submissionFingerprint: fingerprint };
@@ -3328,8 +3329,8 @@ async function getPrivateCleanerStatus(request, response) {
   const screening = latestCleanerScreening(cleaner.id, screenings);
   const screeningComplete = screening?.complete === true;
   const approvalRecorded = status === "approved" || status === "paused" || ownStatusUpdates.some((update) => update.status === "approved");
-  const futureAvailability = activeCleanerAvailability(availabilityEvents, cleaner.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > Date.now());
-  const pendingAvailabilityRequests = cleanerAvailabilityRequests(availabilityEvents, cleaner.id).filter((item) => item.status === "pending" && availabilitySlotSchedule(item)?.endMs > Date.now());
+  const futureAvailability = activeCleanerAvailability(availabilityEvents, cleaner.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > businessWallClockMs());
+  const pendingAvailabilityRequests = cleanerAvailabilityRequests(availabilityEvents, cleaner.id).filter((item) => item.status === "pending" && availabilitySlotSchedule(item)?.endMs > businessWallClockMs());
   const readyForOpportunities = status === "approved" && screeningComplete && futureAvailability.length > 0;
 
   let stage = "application-review";
@@ -3672,6 +3673,7 @@ async function createAdminProposal(request, response) {
   if (estimatedHours <= 0 || estimatedHours > 16 || customerRate <= 0 || cleanerRate <= 0) errors.push("Hours must be between 0 and 16, and customer rate and cleaner pay must be greater than zero.");
   const schedule = jobSchedule({ proposedDate, proposedStartTime, estimatedHours });
   if (proposedDate && proposedStartTime && estimatedHours > 0 && !schedule) errors.push("The proposed cleaning must start and finish on a valid calendar date.");
+  if (schedule && schedule.startMs < earliestBookableWallClockMs()) errors.push("The proposed cleaning must start at least 15 minutes in the future in UK local time.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
   const [requests, cleaners, updates, config, screenings, availabilityEvents, proposals, bookings] = await Promise.all([

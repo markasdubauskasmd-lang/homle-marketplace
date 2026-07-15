@@ -516,6 +516,7 @@ async function findMatches(record, results, button) {
       return;
     }
     if (result.matchGate?.confirmedExtras?.length) addText(results, "span", `Reviewed extras included in the time estimate: ${result.matchGate.confirmedExtras.join(", ")}.`, "scope-signal-summary");
+    addText(results, "span", "All suggested visits and confirmed availability windows use UK local time (Europe/London).", "match-timezone");
     for (const match of result.matches) {
       const item = document.createElement("article");
       item.className = "match-result";
