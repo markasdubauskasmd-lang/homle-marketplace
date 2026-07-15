@@ -34,6 +34,8 @@ Phase 3 has started with [account-backed cleaning requests](docs/ACCOUNT_CLEANIN
 
 The [frozen Cleaner invitation and acceptance transaction](docs/BOOKING_INVITATIONS.md) now keeps all price, Cleaner pay, costs and margin inputs on the trusted server; rechecks profile, services and exact availability in PostgreSQL; freezes the room scope and terms; preserves declined attempts for replacement matching; and uses the database exclusion constraint as the final concurrent double-booking guard. Invitation creation stays safely unavailable until every private `BOOKING_*` assumption is explicitly approved and configured. No invitation is delivered from the live pilot.
 
+[Request-specific Cleaner matching](docs/REQUEST_MATCHING.md) now filters for active complete profiles, property-type preference, every required service, whole-window availability, non-overlap and declared postcode/radius coverage before ranking. The shortlist combines distance, verified review evidence, a profitable budget-aware estimate, previous Landlord relationship and internal acceptance reliability, while returning only safe public fields and plain-language match reasons. It does not contact or automatically assign anyone.
+
 ## What works
 
 - Truthful pre-launch geography: public copy says the limited local pilot is still being prepared and that coverage is verified before any quote or booking; it does not name London, claim applications are open or imply a service area while the founder-approved pilot postcode list is empty

@@ -34,6 +34,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.consume_password_reset(bytea, text) TO
 GRANT EXECUTE ON FUNCTION tideway_private.search_cleaner_directory(text, text, timestamptz, timestamptz, numeric, integer, boolean, numeric, numeric, numeric, integer, integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.invite_cleaner(uuid, uuid, uuid, timestamptz, integer, integer, integer, integer, integer, integer, integer, integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.respond_to_cleaner_invitation(uuid, text, text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.recommend_cleaners_for_request(uuid, integer) TO tideway_app;
 
 -- Booking transitions are only writable through the audited, actor-aware functions above.
 REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, conversations FROM tideway_app;

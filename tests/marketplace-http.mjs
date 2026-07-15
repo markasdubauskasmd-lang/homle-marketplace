@@ -71,8 +71,11 @@ const bookingWorkflowService = {
   async inviteCleaner(actor, input) { calls.push({ kind: "booking-invite", actor, input }); return { bookingId: "55555555-5555-4555-8555-555555555555", status: "pending-cleaner-acceptance" }; },
   async respondToInvitation(actor, bookingId, input) { calls.push({ kind: "booking-response", actor, bookingId, input }); return { bookingId, status: input.decision === "accept" ? "confirmed" : "cancelled" }; }
 };
+const matchingService = {
+  async recommendForRequest(actor, cleaningRequestId) { calls.push({ kind: "request-matches", actor, cleaningRequestId }); return { cleaningRequestId, generatedAt: "2026-07-15T15:00:00.000Z", candidates: [{ cleanerId: "22222222-2222-4222-8222-222222222222", rank: 1 }] }; }
+};
 let unexpectedError;
-const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService }, { onUnexpectedError(error) { unexpectedError = error; } });
+const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService }, { onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
   origin: "http://127.0.0.1:4173",
@@ -110,6 +113,8 @@ const requestCreated = await dispatch(router, "POST", "/api/marketplace/cleaning
 const requestList = await dispatch(router, "GET", "/api/marketplace/cleaning-requests", { headers: { cookie: authHeaders.cookie } });
 assert(requestCreated.response.statusCode === 201 && requestCreated.body.cleaningRequest.status === "searching-for-cleaner" && calls.at(-2).kind === "request-create" && calls.at(-2).actor.userId === sessions.landlord.user_id && requestList.response.statusCode === 200 && calls.at(-1).kind === "request-list", "Account cleaning-request routes did not bind Landlord creation/listing to the authenticated actor.");
 const cleanerId = "22222222-2222-4222-8222-222222222222";
+const matches = await dispatch(router, "GET", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/matches", { headers: { cookie: authHeaders.cookie } });
+assert(matches.response.statusCode === 200 && matches.body.candidates[0].cleanerId === cleanerId && calls.at(-1).kind === "request-matches" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Request-specific matching did not bind the authenticated Landlord or return the safe recommendation projection.");
 const invitation = await dispatch(router, "POST", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/invitations`, { headers: authHeaders, body: { cleanerId, customerPricePence: 1 } });
 assert(invitation.response.statusCode === 201 && calls.at(-1).kind === "booking-invite" && calls.at(-1).input.cleanerId === cleanerId && !Object.hasOwn(calls.at(-1).input, "customerPricePence"), "Invitation routing trusted browser-supplied economics or lost the selected cleaner.");
 const bookingId = "55555555-5555-4555-8555-555555555555";
@@ -148,7 +153,7 @@ const baseEnvironment = {
 };
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, booking and HTTP layers or safely kept incomplete authentication delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking and HTTP layers or safely kept incomplete authentication delivery detached.");
 let partialAuthenticationRejected = false;
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, emailDelivery: { send() {} } }); } catch (error) { partialAuthenticationRejected = error.message.includes("requires email delivery, shared rate limiting"); }
 assert(partialAuthenticationRejected, "A partially supplied authentication HTTP boundary was silently enabled.");

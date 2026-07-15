@@ -6,6 +6,8 @@ import { createCleanerProfileService } from "./cleaner-profile.mjs";
 import { createCleanerProfileRepository } from "./cleaner-repository.mjs";
 import { createBookingRepository } from "./booking-repository.mjs";
 import { bookingPricingPolicyFromEnvironment, createBookingWorkflowService } from "./booking-workflow.mjs";
+import { createMatchingRepository } from "./matching-repository.mjs";
+import { createMatchingService } from "./matching-service.mjs";
 import { createCleaningRequestRepository } from "./cleaning-request-repository.mjs";
 import { createCleaningRequestService } from "./cleaning-request-service.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config.mjs";
@@ -46,8 +48,11 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const cleaningRequestRepository = createCleaningRequestRepository(database);
   const cleaningRequestService = createCleaningRequestService(cleaningRequestRepository);
   const bookingRepository = createBookingRepository(database);
-  const bookingWorkflowService = createBookingWorkflowService(bookingRepository, { pricingPolicy: options.bookingPricingPolicy || bookingPricingPolicyFromEnvironment(env) });
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService }, { onUnexpectedError: options.onUnexpectedError });
+  const bookingPricingPolicy = options.bookingPricingPolicy || bookingPricingPolicyFromEnvironment(env);
+  const bookingWorkflowService = createBookingWorkflowService(bookingRepository, { pricingPolicy: bookingPricingPolicy });
+  const matchingRepository = createMatchingRepository(database);
+  const matchingService = createMatchingService(matchingRepository, { pricingPolicy: bookingPricingPolicy });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService }, { onUnexpectedError: options.onUnexpectedError });
   const authenticationDependencies = [options.emailDelivery, options.rateLimiter, options.clientKey];
   const suppliedAuthenticationDependencies = authenticationDependencies.filter(Boolean).length;
   if (suppliedAuthenticationDependencies > 0 && suppliedAuthenticationDependencies < authenticationDependencies.length) throw new TypeError("Authentication HTTP composition requires email delivery, shared rate limiting and a trusted client-key resolver together.");
@@ -77,6 +82,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     cleaningRequestService,
     bookingRepository,
     bookingWorkflowService,
+    matchingRepository,
+    matchingService,
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
     marketplaceRouter,
