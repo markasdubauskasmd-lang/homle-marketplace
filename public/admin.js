@@ -1,7 +1,9 @@
 const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null, dataIntegrity: null };
 const scanReviewWorkspace = globalThis.TidewayScanReviewWorkspace;
 const scopeTimeWorksheet = globalThis.TidewayScopeTimeBreakdown;
+const scanReviewDraft = globalThis.TidewayScanReviewDraft;
 const readinessNavigator = globalThis.TidewayReadinessNavigator;
+const scanReviewDraftControls = new WeakMap();
 
 const leadList = document.querySelector("#lead-list");
 const dispatchQueueList = document.querySelector("#dispatch-queue-list");
@@ -1371,6 +1373,119 @@ function readReviewTimeBreakdown(brief, form) {
   });
 }
 
+function reviewDraftContext(brief) {
+  return {
+    briefId: brief.id,
+    areas: scopeTimeWorksheet.scopeTimeAreas(brief).map((area) => area.area),
+    visualIds: (brief.photos || []).map((photo) => photo.id),
+    signalCodes: (brief.scopeSignals || []).map((signal) => signal.code)
+  };
+}
+
+function reviewDraftInput(form) {
+  return {
+    decision: form.elements.status.value,
+    areaMinutes: [...form.querySelectorAll("[data-scope-time-area]")].map((input) => ({ area: input.dataset.scopeTimeArea, minutes: input.value })),
+    overheadMinutes: form.elements.scopeOverheadMinutes?.value || "",
+    confidence: form.elements.scopeConfidence.value,
+    note: form.elements.note.value
+  };
+}
+
+function enhanceScanReviewDraft(brief, form, syncEstimateFields) {
+  if (!scanReviewDraft) return;
+  const context = reviewDraftContext(brief);
+  const status = document.createElement("div");
+  status.className = "application-draft-status review-draft-status";
+  status.setAttribute("role", "status");
+  const copy = document.createElement("div");
+  const title = document.createElement("strong");
+  title.textContent = "Private review draft protection is on";
+  const detail = document.createElement("span");
+  detail.textContent = "Room timings, confidence and note stay in this tab for 30 minutes. Evidence confirmations are never restored.";
+  copy.append(title, detail);
+  const discard = document.createElement("button");
+  discard.type = "button";
+  discard.className = "text-button";
+  discard.textContent = "Discard saved timings and note";
+  discard.hidden = true;
+  status.append(copy, discard);
+  form.prepend(status);
+  let saveTimer = null;
+  let submitted = false;
+  let restored = false;
+
+  function hasContent() {
+    const input = reviewDraftInput(form);
+    return input.decision === "needs-revision" || input.areaMinutes.some((row) => row.minutes !== "") || input.overheadMinutes !== "" || input.confidence !== "" || input.note.trim() !== "";
+  }
+
+  function render() {
+    discard.hidden = !hasContent();
+    if (restored) {
+      title.textContent = "Your manual review inputs were recovered";
+      detail.textContent = "Re-open every visual and repeat every checklist and price-sensitive confirmation before approval.";
+    } else {
+      title.textContent = "Private review draft protection is on";
+      detail.textContent = "Room timings, confidence and note stay in this tab for 30 minutes. Evidence confirmations are never restored.";
+    }
+  }
+
+  function save() {
+    clearTimeout(saveTimer);
+    if (submitted) return;
+    try { scanReviewDraft.saveScanReviewDraft(window.sessionStorage, context, reviewDraftInput(form)); } catch {}
+    if (!hasContent()) restored = false;
+    render();
+  }
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 250);
+    render();
+  }
+
+  let draft = null;
+  try { draft = scanReviewDraft.readScanReviewDraft(window.sessionStorage, context); } catch {}
+  if (draft) {
+    form.elements.status.value = draft.values.decision;
+    draft.values.areaMinutes.forEach((row) => {
+      const input = [...form.querySelectorAll("[data-scope-time-area]")].find((candidate) => candidate.dataset.scopeTimeArea === row.area);
+      if (input) input.value = row.minutes;
+    });
+    form.elements.scopeOverheadMinutes.value = draft.values.overheadMinutes;
+    form.elements.scopeConfidence.value = draft.values.confidence;
+    form.elements.note.value = draft.values.note;
+    restored = true;
+  }
+
+  form.addEventListener("input", scheduleSave);
+  form.addEventListener("change", scheduleSave);
+  discard.addEventListener("click", () => {
+    clearTimeout(saveTimer);
+    try { scanReviewDraft.clearScanReviewDraft(window.sessionStorage, context); } catch {}
+    form.elements.status.value = "reviewed";
+    form.querySelectorAll("[data-scope-time-area]").forEach((input) => { input.value = ""; });
+    form.elements.scopeOverheadMinutes.value = "";
+    form.elements.scopeConfidence.value = "";
+    form.elements.note.value = "";
+    restored = false;
+    syncEstimateFields();
+    render();
+    form.querySelector("[data-scope-time-area]")?.focus();
+  });
+  scanReviewDraftControls.set(form, {
+    complete() {
+      clearTimeout(saveTimer);
+      submitted = true;
+      try { scanReviewDraft.clearScanReviewDraft(window.sessionStorage, context); } catch {}
+      status.hidden = true;
+    }
+  });
+  syncEstimateFields();
+  render();
+}
+
 async function changeBriefStatus(brief, form) {
   const select = form.elements.status;
   const note = form.elements.note;
@@ -1385,6 +1500,7 @@ async function changeBriefStatus(brief, form) {
     });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.error || "Job brief review could not be saved.");
+    scanReviewDraftControls.get(form)?.complete();
     await loadRecords();
   } catch (error) {
     showAdminError(error.message);
@@ -1995,7 +2111,7 @@ function buildCard(record) {
       reviewForm.addEventListener("input", syncEstimateFields);
       reviewForm.addEventListener("change", syncEstimateFields);
       reviewForm.append(statusLabel, timeFieldset, hoursLabel, confidenceLabel, signalFieldset, evidenceFieldset, noteLabel, readiness, save);
-      syncEstimateFields();
+      enhanceScanReviewDraft(brief, reviewForm, syncEstimateFields);
       reviewForm.addEventListener("submit", (event) => { event.preventDefault(); changeBriefStatus(brief, reviewForm); });
       briefSummary.append(reviewForm);
     } else {
