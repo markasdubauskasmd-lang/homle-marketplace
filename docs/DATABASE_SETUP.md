@@ -48,6 +48,28 @@ psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/runtime-role-grants.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/worker-role-grants.sql
 ```
 
+## Verify the deployed boundary
+
+After the migrations and role grants are applied, run the read-only deployment verifier as the migration owner. Keep this separate verification URL in the deployment secret manager; the runner passes credentials to `psql` through libpq environment variables and never places them in process arguments.
+
+PowerShell:
+
+```powershell
+$env:DATABASE_VERIFICATION_URL = "postgresql://migration_owner:password@staging-host/tideway?sslmode=verify-full"
+node tools/postgres-verification-runner.mjs
+Remove-Item Env:DATABASE_VERIFICATION_URL
+```
+
+POSIX shell:
+
+```sh
+DATABASE_VERIFICATION_URL='postgresql://migration_owner:password@staging-host/tideway?sslmode=verify-full' node tools/postgres-verification-runner.mjs
+```
+
+The command requires the `psql` client and runs `db/integration/deployment-verification.sql` inside an explicit read-only transaction. It verifies PostgreSQL and extension versions, the complete RLS table inventory, non-bypass runtime/worker roles, ownership, critical constraints and indexes, trusted `SECURITY DEFINER` search paths, required function grants, revoked direct access to protected data, and worker isolation. Remote URLs default to `sslmode=verify-full`; only `sslmode`, `sslrootcert` and a 1–60 second `connect_timeout` are accepted as URL parameters.
+
+This is a deployed-structure and effective-grant check, not a substitute for the real multi-account RLS, transaction-concurrency, double-booking and notification-worker integration tests in E2. It has not run on this development computer because neither PostgreSQL nor `psql` is installed and no founder-approved staging database is connected.
+
 The application transaction boundary sets `app.user_id` and `app.user_roles` locally after `BEGIN` and before any protected query. Pre-login lookups can call only restricted `SECURITY DEFINER` authentication functions. A verified account may have an authenticated session with no selected role while onboarding is pending. First-account provisioning binds writes to the new user ID but does not grant a role; only Cleaner or Landlord onboarding may add a self-selected role. Administrator is never self-selectable.
 
 Run `SELECT * FROM tideway_private.expire_due_cleaner_invitations(100);`, `SELECT * FROM tideway_private.purge_expired_cleaner_locations(500);` and `SELECT * FROM tideway_private.expire_due_job_photo_uploads(500);` through the deployment scheduler using only the `tideway_worker` connection, at least once per minute. Run `SELECT * FROM tideway_private.purge_expired_sessions(500);` through the same restricted role at least every 15 minutes; `createSessionPurgeWorker` drains at most five batches by default and reports `moreMayRemain` for an immediate follow-up. The functions use bounded `SKIP LOCKED` batches so concurrent workers do not process the same row. For every expired upload, the worker must also delete both returned quarantine and final object keys through the private storage adapter; a bucket lifecycle rule must be the final cleanup backstop. Monitor failures and continue immediately while a run returns the batch limit. The web role has its direct session-delete grant revoked and must receive no execute grant on maintenance functions.

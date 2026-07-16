@@ -1,0 +1,139 @@
+\set ON_ERROR_STOP on
+
+BEGIN TRANSACTION READ ONLY;
+
+DO $verification$
+DECLARE
+  selected_name text;
+  selected_role record;
+  selected_table record;
+  selected_function oid;
+  rls_tables constant text[] := ARRAY[
+    'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
+    'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
+    'cleaning_requests','cleaning_request_tasks','cleaning_request_photos','cleaning_request_status_history','bookings','booking_status_history',
+    'cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events','job_photos','job_photo_uploads',
+    'cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','favourite_cleaners','disputes','privacy_requests','audit_logs'
+  ];
+  protected_write_tables constant text[] := ARRAY[
+    'bookings','booking_status_history','cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events',
+    'job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','audit_logs'
+  ];
+  protected_read_tables constant text[] := ARRAY['job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews'];
+  app_functions constant text[] := ARRAY[
+    'tideway_private.lookup_session(bytea)',
+    'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
+    'tideway_private.search_cleaner_directory(text,text,timestamp with time zone,timestamp with time zone,numeric,integer,boolean,numeric,numeric,numeric,integer,integer)',
+    'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
+    'tideway_private.start_cleaner_journey(uuid,boolean,numeric,numeric,numeric,timestamp with time zone)',
+    'tideway_private.submit_booking_review(uuid,uuid,smallint,smallint,smallint,smallint,smallint,text)'
+  ];
+  worker_functions constant text[] := ARRAY[
+    'tideway_private.expire_due_cleaner_invitations(integer)',
+    'tideway_private.purge_expired_cleaner_locations(integer)',
+    'tideway_private.expire_due_job_photo_uploads(integer)',
+    'tideway_private.claim_due_email_notifications(uuid,integer,integer)',
+    'tideway_private.complete_email_notification(uuid,uuid,text,text)',
+    'tideway_private.purge_expired_sessions(integer)'
+  ];
+BEGIN
+  IF current_setting('server_version_num')::integer < 160000 THEN
+    RAISE EXCEPTION 'Tideway requires PostgreSQL 16 or newer; found %', current_setting('server_version');
+  END IF;
+
+  FOREACH selected_name IN ARRAY ARRAY['pgcrypto','citext','btree_gist'] LOOP
+    IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = selected_name) THEN
+      RAISE EXCEPTION 'Required extension is missing: %', selected_name;
+    END IF;
+  END LOOP;
+
+  FOREACH selected_name IN ARRAY ARRAY['tideway_app','tideway_worker'] LOOP
+    SELECT rolsuper, rolbypassrls, rolcanlogin INTO selected_role FROM pg_roles WHERE rolname = selected_name;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Required database role is missing: %', selected_name; END IF;
+    IF selected_role.rolsuper OR selected_role.rolbypassrls OR NOT selected_role.rolcanlogin THEN
+      RAISE EXCEPTION 'Role % must be a login role without superuser or BYPASSRLS', selected_name;
+    END IF;
+  END LOOP;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_class relation JOIN pg_roles owner_role ON owner_role.oid = relation.relowner
+    WHERE relation.relnamespace = 'public'::regnamespace AND relation.relkind IN ('r','p') AND owner_role.rolname IN ('tideway_app','tideway_worker')
+  ) THEN
+    RAISE EXCEPTION 'Runtime or worker role owns a public table and could bypass the intended privilege boundary';
+  END IF;
+
+  FOREACH selected_name IN ARRAY rls_tables LOOP
+    SELECT relation.relrowsecurity AS rls_enabled, pg_get_userbyid(relation.relowner) AS owner_name
+      INTO selected_table
+      FROM pg_class relation
+      WHERE relation.oid = to_regclass(format('public.%I', selected_name)) AND relation.relkind IN ('r','p');
+    IF NOT FOUND THEN RAISE EXCEPTION 'Required RLS table is missing: %', selected_name; END IF;
+    IF selected_table.rls_enabled IS NOT TRUE THEN RAISE EXCEPTION 'Row-level security is disabled on %', selected_name; END IF;
+    IF selected_table.owner_name IN ('tideway_app','tideway_worker') THEN RAISE EXCEPTION 'Restricted role owns RLS table %', selected_name; END IF;
+  END LOOP;
+
+  IF to_regclass('public.sessions_expiry_purge_idx') IS NULL THEN RAISE EXCEPTION 'Expired-session purge index is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.bookings'::regclass AND conname = 'bookings_no_cleaner_overlap' AND contype = 'x') THEN
+    RAISE EXCEPTION 'Cleaner overlap exclusion constraint is missing';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.reviews'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) = 'UNIQUE (booking_id)') THEN
+    RAISE EXCEPTION 'One-review-per-booking unique constraint is missing';
+  END IF;
+  IF to_regclass('public.bookings_one_live_attempt_per_request_idx') IS NULL THEN RAISE EXCEPTION 'One-live-invitation index is missing'; END IF;
+
+  FOREACH selected_name IN ARRAY app_functions || worker_functions LOOP
+    selected_function := to_regprocedure(selected_name);
+    IF selected_function IS NULL THEN RAISE EXCEPTION 'Required protected function is missing: %', selected_name; END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid = selected_function AND procedure.prosecdef
+        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+    ) THEN
+      RAISE EXCEPTION 'Protected function is not SECURITY DEFINER with the trusted search path: %', selected_name;
+    END IF;
+  END LOOP;
+
+  FOREACH selected_name IN ARRAY app_functions LOOP
+    IF NOT has_function_privilege('tideway_app', selected_name, 'EXECUTE') THEN RAISE EXCEPTION 'App role is missing required function execution: %', selected_name; END IF;
+  END LOOP;
+  FOREACH selected_name IN ARRAY worker_functions LOOP
+    IF NOT has_function_privilege('tideway_worker', selected_name, 'EXECUTE') THEN RAISE EXCEPTION 'Worker role is missing required function execution: %', selected_name; END IF;
+    IF has_function_privilege('tideway_app', selected_name, 'EXECUTE') THEN RAISE EXCEPTION 'App role can execute worker-only function: %', selected_name; END IF;
+  END LOOP;
+
+  FOREACH selected_name IN ARRAY protected_write_tables LOOP
+    IF has_table_privilege('tideway_app', format('public.%I', selected_name), 'INSERT')
+       OR has_table_privilege('tideway_app', format('public.%I', selected_name), 'UPDATE')
+       OR has_table_privilege('tideway_app', format('public.%I', selected_name), 'DELETE') THEN
+      RAISE EXCEPTION 'App role has direct mutation privilege on protected table %', selected_name;
+    END IF;
+  END LOOP;
+  FOREACH selected_name IN ARRAY protected_read_tables LOOP
+    IF has_table_privilege('tideway_app', format('public.%I', selected_name), 'SELECT') THEN
+      RAISE EXCEPTION 'App role has direct read privilege on protected table %', selected_name;
+    END IF;
+  END LOOP;
+  IF has_table_privilege('tideway_app', 'public.sessions', 'DELETE') OR has_function_privilege('tideway_app', 'tideway_private.purge_expired_sessions(integer)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'App role can physically purge sessions';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_class relation
+    WHERE relation.relnamespace = 'public'::regnamespace AND relation.relkind IN ('r','p')
+      AND (has_table_privilege('tideway_worker', relation.oid, 'SELECT') OR has_table_privilege('tideway_worker', relation.oid, 'INSERT')
+        OR has_table_privilege('tideway_worker', relation.oid, 'UPDATE') OR has_table_privilege('tideway_worker', relation.oid, 'DELETE')
+        OR has_table_privilege('tideway_worker', relation.oid, 'TRUNCATE'))
+  ) THEN
+    RAISE EXCEPTION 'Worker role has direct public-table privileges';
+  END IF;
+END
+$verification$;
+
+SELECT json_build_object(
+  'verified', true,
+  'postgresqlVersion', current_setting('server_version'),
+  'rlsTableCount', 37,
+  'appFunctionChecks', 6,
+  'workerFunctionChecks', 6
+) AS tideway_deployment_verification;
+
+ROLLBACK;
