@@ -7,6 +7,22 @@ Tideway supports two deliberately separate production modes:
 
 The public-site mode no longer requires placeholder database credentials. It remains detached from marketplace authentication and payments, and `/api/auth/providers` must report every provider as unavailable.
 
+## Host-neutral container artifact
+
+`Dockerfile` is the prepared production build boundary. It uses the exact Node 24.17.0 Bookworm-slim tag in two stages, verifies the locked dependency graph before a frozen production-only install, and copies only the runtime files. `.dockerignore` denies the whole workspace first and then allowlists those inputs. It excludes `.env`, private `data`, Git history, tests, launch notes and the browser-facing local tracking-lab assets. The final process runs as the image's unprivileged `node` user, defaults both marketplace and payments off, uses `/var/lib/tideway` outside the application source, handles `SIGTERM`, and checks the public health contract without adding `curl`.
+
+Docker is not installed on the current development computer, so the repository test proves the source contract but **not** a successful image build, native Sharp load, image vulnerability state or hosting behavior. On the selected host/build service, record the exact release commit and run:
+
+```text
+docker build --pull --tag tideway:<release-commit> .
+docker run --rm --entrypoint node tideway:<release-commit> --version
+docker run --rm --entrypoint node tideway:<release-commit> -e "Promise.all([import('pg'),import('sharp'),import('nodemailer'),import('@aws-sdk/client-s3'),import('stripe')]).then(()=>console.log('runtime dependencies load')).catch(error=>{console.error(error.message);process.exit(1)})"
+```
+
+Record the resolved base/image digest and scan the **built image**, not only the JavaScript lockfile, with the approved host scanner before deployment. Do not launch with an unresolved critical/high finding merely because `pnpm audit` is green; base operating-system and bundled-tool findings are a separate boundary. Review and rebuild after any base-tag change.
+
+For runtime, mount an encrypted persistent volume at `/var/lib/tideway`, confirm it is writable by the container's `node` user, keep the root filesystem read-only where the host supports it, drop Linux capabilities, and set `no-new-privileges`. Do not place secrets in build arguments, image layers or an environment file committed beside the source. The real domain, Administrator key and exact immediate-proxy CIDRs must come from the hosting secret/configuration service. The existing production preflight intentionally prevents the image from starting without them.
+
 ## Mandatory preflight
 
 Every public production process must provide:
@@ -43,7 +59,7 @@ The preflight performs no DNS change, deployment, database connection, email, st
 1. Select hosting and record its deployment identity, region, persistent-volume behavior, HTTPS proxy behavior and immediate proxy networks.
 2. Put private pilot data on an encrypted persistent volume or access-restricted host directory. Never use the source checkout or an ephemeral filesystem for real submissions.
 3. Configure the mandatory environment through the platform secret manager and keep both marketplace and payments false.
-4. Run the dependency lock, complete tests and production preflight against the exact release commit.
+4. Run the dependency lock, complete tests and production preflight against the exact release commit. If using the container artifact, also build it on the selected Linux builder, load every native/runtime dependency, record its digest and pass the approved image scan.
 5. Start the process and require `/api/health` to return HTTP 200, `ok: true`, healthy integrity, writes allowed, `marketplace.enabled: false` and `localDemosEnabled: false` with `Cache-Control: no-store`.
 6. Verify `/api/auth/providers` reports Google, Facebook, Apple and email/password as false.
 7. Verify `/tracking-test`, `/tracking-test.html`, `/tracking-test.js` and `/api/tracking-test/session` all return 404. The real-location simulator is a local development lab, not a public feature.

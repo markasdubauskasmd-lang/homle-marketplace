@@ -15,7 +15,7 @@ Do not put registrar credentials, transfer codes, DNS API tokens, private keys o
 
 ## Deployment requirements
 
-1. Deploy the reviewed source checkpoint to the approved host without enabling payments or the account marketplace.
+1. Deploy the reviewed source checkpoint to the approved host without enabling payments or the account marketplace. The prepared host-neutral container may be used only after its Linux build, native dependency load, resolved digest and image vulnerability scan are recorded as described in `PRODUCTION_DEPLOYMENT.md`.
 2. Point only the purchased hostname to that host. The final hostname must not resolve to loopback, private or reserved addresses.
 3. Issue a publicly trusted certificate for the exact canonical hostname. Redirect plain HTTP permanently to the same HTTPS origin; do not redirect through Polsia or another unrelated hostname.
 4. Configure the HTTPS proxy/CDN to preserve the request host safely and add `Strict-Transport-Security: max-age=31536000; includeSubDomains` only after HTTPS works on every intended subdomain. The Node application already supplies CSP, framing, MIME, referrer and device-permission policies.
