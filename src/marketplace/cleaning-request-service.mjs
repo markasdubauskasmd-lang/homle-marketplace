@@ -128,6 +128,9 @@ function projection(record) {
     frequency: Object.entries(recurrenceRules).find(([, rule]) => rule === (record.recurrence_rule || null))?.[0] || "one-time",
     tasks: recordTasks(record.tasks).map((task) => ({ roomName: task.roomName ?? task.room_name, description: task.description, sortOrder: Number(task.sortOrder ?? task.sort_order) || 0 })),
     scopeFingerprint: record.scope_fingerprint,
+    scanFingerprint: record.scan_fingerprint || null,
+    scopeConfirmedAt: record.customer_scope_confirmed_at ? new Date(record.customer_scope_confirmed_at).toISOString() : null,
+    cleanerPreviewAuthorized: record.cleaner_preview_authorized === true,
     submittedAt: record.submitted_at ? new Date(record.submitted_at).toISOString() : null,
     createdAt: record.created_at ? new Date(record.created_at).toISOString() : null,
     automaticDispatch: {
@@ -160,15 +163,31 @@ function dispatchProjection(record) {
 }
 
 export function createCleaningRequestService(repository, options = {}) {
-  if (!repository || typeof repository.createOwnRequest !== "function" || typeof repository.listOwnRequests !== "function" || typeof repository.configureAutomaticDispatch !== "function") throw new TypeError("A complete cleaning-request repository is required.");
+  if (!repository || typeof repository.createOwnRequest !== "function" || typeof repository.listOwnRequests !== "function" || typeof repository.submitOwnRequest !== "function" || typeof repository.configureAutomaticDispatch !== "function") throw new TypeError("A complete cleaning-request repository is required.");
   return {
     async createOwnRequest(actor, input) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to create a cleaning request.");
-      return projection(await repository.createOwnRequest(actor, normalizedCleaningRequest(input, options)));
+      return projection(await repository.createOwnRequest(actor, normalizedCleaningRequest({ ...input, submit: false }, options)));
     },
     async listOwnRequests(actor) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to list cleaning requests.");
       return (await repository.listOwnRequests(actor)).map(projection);
+    },
+    async submitOwnRequest(actor, cleaningRequestId, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to submit a cleaning request.");
+      if (input.scopeReviewed !== true) throw new TypeError("Review and confirm the complete room scan and cleaner checklist before submission.");
+      if (typeof input.cleanerPreviewAuthorized !== "boolean") throw new TypeError("Choose whether an invited Cleaner may preview room photos before accepting.");
+      const result = await repository.submitOwnRequest(actor, uuid(cleaningRequestId, "cleaning request id"), { scopeReviewed: true, cleanerPreviewAuthorized: input.cleanerPreviewAuthorized });
+      if (!result || result.status !== "searching-for-cleaner") throw new Error("The submitted cleaning request could not be verified.");
+      return Object.freeze({
+        cleaningRequestId: result.cleaningRequestId,
+        status: result.status,
+        submittedAt: new Date(result.submittedAt).toISOString(),
+        scopeConfirmedAt: new Date(result.scopeConfirmedAt).toISOString(),
+        cleanerPreviewAuthorized: result.cleanerPreviewAuthorized === true,
+        photoCount: Number(result.photoCount),
+        taskCount: Number(result.taskCount)
+      });
     },
     async configureAutomaticDispatch(actor, cleaningRequestId, input = {}) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to authorize automatic matching.");

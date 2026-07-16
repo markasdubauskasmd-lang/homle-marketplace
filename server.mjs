@@ -168,10 +168,12 @@ const mimeTypes = {
 function setSecurityHeaders(response, requestPath = "") {
   const paymentPage = requestPath === "/booking-payment";
   const activeJobPage = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
-  const activeJobStorage = activeJobPage && objectStorageOrigins.length ? ` ${objectStorageOrigins.join(" ")}` : "";
+  const landlordDashboardPage = requestPath === "/landlord/dashboard";
+  const privateMediaPage = activeJobPage || landlordDashboardPage;
+  const activeJobStorage = privateMediaPage && objectStorageOrigins.length ? ` ${objectStorageOrigins.join(" ")}` : "";
   response.setHeader("Content-Security-Policy", paymentPage
     ? "default-src 'self'; img-src 'self' data: blob: https://*.stripe.com; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://r.stripe.com https://m.stripe.network; frame-src https://js.stripe.com https://hooks.stripe.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
-    : activeJobPage
+    : privateMediaPage
       ? `default-src 'self'; img-src 'self' data: blob:${activeJobStorage}; style-src 'self'; script-src 'self'; connect-src 'self'${activeJobStorage}; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
       : "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
   response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -179,7 +181,7 @@ function setSecurityHeaders(response, requestPath = "") {
   response.setHeader("X-Frame-Options", "DENY");
   response.setHeader("Permissions-Policy", requestPath === "/booking-payment"
     ? "camera=(), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\" \"https://hooks.stripe.com\")"
-    : requestPath === "/brief"
+    : requestPath === "/brief" || landlordDashboardPage
     ? "camera=(self), microphone=(self), geolocation=()"
     : activeJobPage
       ? "camera=(self), microphone=(), geolocation=(self)"

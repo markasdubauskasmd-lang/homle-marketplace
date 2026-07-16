@@ -29,6 +29,7 @@ let recognition = null;
 let listening = false;
 let dirty = false;
 let loading = false;
+const requestScans = new Map();
 
 function storedCsrf() {
   try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
@@ -106,6 +107,221 @@ function propertyFact(label, value) {
   return wrapper;
 }
 
+function roomNames(request) {
+  return [...new Set((request.tasks || []).map((task) => String(task.roomName || "").trim()).filter(Boolean))];
+}
+
+function humanFileSize(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 1) return "Unknown size";
+  return bytes < 1_000_000 ? `${Math.ceil(bytes / 1000)} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+async function sha256(file) {
+  if (!crypto?.subtle || typeof file?.arrayBuffer !== "function") throw new Error("This browser cannot verify the photo securely. Try a current mobile browser.");
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()))].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function checkedUploadResponse(response) {
+  if (!response.ok) throw new Error("The private photo upload did not reach secure storage. Try again.");
+}
+
+function renderScanPhotos(requestId, scan, list, count) {
+  const photos = Array.isArray(scan?.photos) ? scan.photos : [];
+  count.textContent = `${photos.length} of 10 private room ${photos.length === 1 ? "photo" : "photos"}`;
+  list.replaceChildren();
+  for (const photo of photos) {
+    const item = element("li", "landlord-scan-photo");
+    const copy = element("div");
+    copy.append(element("strong", "", photo.roomName), element("span", "", photo.note), element("small", "", `${humanFileSize(photo.byteSize)} · metadata removed · private JPEG`));
+    const view = element("button", "button button-outline", "View privately");
+    view.type = "button";
+    view.addEventListener("click", async () => {
+      const privateWindow = window.open("about:blank", "_blank");
+      if (privateWindow) privateWindow.opener = null;
+      view.disabled = true;
+      try {
+        if (!privateWindow) throw new Error("Allow this site to open the private photo viewer, then try again.");
+        const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/photos/${encodeURIComponent(photo.photoId)}/access`);
+        const url = new URL(result.photo?.url || "");
+        if (url.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(url.hostname)) throw new Error("The private photo link was unsafe.");
+        privateWindow.location.replace(url.toString());
+      } catch (error) { privateWindow?.close(); window.alert(error.message); }
+      finally { view.disabled = false; }
+    });
+    item.append(copy, view);
+    list.append(item);
+  }
+  list.hidden = photos.length === 0;
+}
+
+function requestScanPanel(request) {
+  const details = element("details", "landlord-request-scan");
+  const summary = element("summary", "", request.status === "draft" ? "Add room photos and submit" : "View reviewed room scan");
+  details.append(summary);
+  const panel = element("div", "landlord-request-scan-body");
+  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? "Choose the checklist room, add a clear note and take a current photo. Tideway strips metadata and keeps the sanitized image private." : "This is the reviewed room-scan handoff attached to the request.");
+  const feedback = element("div", "landlord-form-feedback");
+  feedback.hidden = true;
+  feedback.tabIndex = -1;
+  const count = element("strong", "landlord-scan-count", "Loading private room photos…");
+  const list = element("ul", "landlord-scan-photo-list");
+  list.hidden = true;
+  panel.append(intro, count, list);
+  let loaded = false;
+
+  async function loadScan() {
+    try {
+      const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/scan`);
+      requestScans.set(request.requestId, result.scan);
+      renderScanPhotos(request.requestId, result.scan, list, count);
+      loaded = true;
+    } catch (error) {
+      count.textContent = "Private room scan unavailable";
+      showFeedback(feedback, error.message);
+    }
+  }
+  details.addEventListener("toggle", () => { if (details.open && !loaded) loadScan(); });
+
+  if (request.status === "draft") {
+    const form = element("form", "landlord-scan-upload-form");
+    form.noValidate = true;
+    const roomLabel = element("label", "", "Checklist room");
+    const room = element("select");
+    room.name = "roomName";
+    room.required = true;
+    room.append(element("option", "", "Choose a room"));
+    room.firstElementChild.value = "";
+    for (const name of roomNames(request)) { const option = element("option", "", name); option.value = name; room.append(option); }
+    roomLabel.append(room);
+    const noteLabel = element("label", "", "What this photo shows");
+    const note = element("textarea");
+    note.name = "note";
+    note.rows = 3;
+    note.maxLength = 1000;
+    note.required = true;
+    note.placeholder = "For example: Grease around the hob and splashback";
+    noteLabel.append(note);
+    const pickerActions = element("div", "landlord-scan-picker-actions");
+    const cameraButton = element("button", "button", "Open rear camera");
+    const libraryButton = element("button", "button button-outline", "Choose existing photo");
+    cameraButton.type = libraryButton.type = "button";
+    const cameraInput = element("input");
+    cameraInput.type = "file";
+    cameraInput.accept = "image/*";
+    cameraInput.setAttribute("capture", "environment");
+    cameraInput.hidden = true;
+    const libraryInput = element("input");
+    libraryInput.type = "file";
+    libraryInput.accept = "image/jpeg,image/png,image/webp,image/heic,.heic,.heif";
+    libraryInput.hidden = true;
+    const selected = element("span", "landlord-scan-selected", "No photo selected");
+    let file = null;
+    function choose(event) {
+      const candidate = event.target.files?.[0] || null;
+      event.target.value = "";
+      if (!candidate) return;
+      if (!new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]).has(candidate.type) || candidate.size < 1 || candidate.size > 15_000_000) {
+        file = null;
+        return showFeedback(feedback, "Choose one JPEG, PNG, WebP or HEIC image up to 15 MB.");
+      }
+      file = candidate;
+      selected.textContent = `${candidate.name || "Camera photo"} · ${humanFileSize(candidate.size)}`;
+      feedback.hidden = true;
+    }
+    cameraInput.addEventListener("change", choose);
+    libraryInput.addEventListener("change", choose);
+    cameraButton.addEventListener("click", () => cameraInput.click());
+    libraryButton.addEventListener("click", () => libraryInput.click());
+    pickerActions.append(cameraButton, libraryButton, cameraInput, libraryInput);
+    const upload = element("button", "button", "Upload private room photo");
+    upload.type = "submit";
+    form.append(roomLabel, noteLabel, pickerActions, selected, upload);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      feedback.hidden = true;
+      if (!form.reportValidity()) return;
+      if (!file) return showFeedback(feedback, "Take a current room photo or choose one from this device.");
+      const csrf = storedCsrf();
+      if (!csrf) return showFeedback(feedback, "Your secure editing token is missing. Sign in again before uploading.");
+      setPending(upload, true, "Checking and uploading…");
+      try {
+        const checksumSha256 = await sha256(file);
+        const intent = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/intents`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ roomName: room.value, note: note.value, mimeType: file.type, byteSize: file.size, checksumSha256 }) });
+        const signed = intent.upload;
+        if (signed?.method !== "PUT" || !signed.uploadId || !signed.uploadUrl || !signed.requiredHeaders || Object.keys(signed.requiredHeaders).length !== 4) throw new Error("The secure upload instructions were incomplete.");
+        const destination = new URL(signed.uploadUrl);
+        if (destination.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(destination.hostname)) throw new Error("The secure upload destination was unsafe.");
+        checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer" }));
+        const completed = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/${encodeURIComponent(signed.uploadId)}/complete`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}" });
+        requestScans.set(request.requestId, completed.scan);
+        renderScanPhotos(request.requestId, completed.scan, list, count);
+        file = null;
+        selected.textContent = "No photo selected";
+        note.value = "";
+        loaded = true;
+        showFeedback(feedback, "Private room photo checked, sanitized and attached.", "success");
+      } catch (error) { showFeedback(feedback, error.message); }
+      finally { setPending(upload, false, "Upload private room photo"); }
+    });
+    panel.append(form);
+
+    const submitForm = element("form", "landlord-request-submit-form");
+    const confirmLabel = element("label", "checkbox landlord-review-confirmation");
+    const confirm = element("input");
+    confirm.type = "checkbox";
+    confirm.required = true;
+    confirm.name = "scopeReviewed";
+    confirmLabel.append(confirm, element("span", "", "I reviewed the concise Cleaner checklist and every attached room photo. This is the exact work I want Tideway to match and quote."));
+    const previewLabel = element("label", "checkbox");
+    const preview = element("input");
+    preview.type = "checkbox";
+    preview.name = "cleanerPreviewAuthorized";
+    previewLabel.append(preview, element("span", "", "Allow the one invited Cleaner to privately preview these room photos before accepting. My identity, exact address and access details remain hidden."));
+    const autoLabel = element("label", "checkbox");
+    const auto = element("input");
+    auto.type = "checkbox";
+    auto.name = "automaticDispatch";
+    autoLabel.append(auto, element("span", "", "After submission, automatically invite the best eligible profitable match. No booking exists until a Cleaner accepts."));
+    const attemptsLabel = element("label", "landlord-attempt-limit", "Maximum Cleaner invitations");
+    const attempts = element("select");
+    attempts.name = "attemptLimit";
+    attempts.disabled = true;
+    for (const value of [1, 2, 3, 4, 5]) { const option = element("option", "", String(value)); option.value = String(value); if (value === 3) option.selected = true; attempts.append(option); }
+    attemptsLabel.append(attempts);
+    auto.addEventListener("change", () => { attempts.disabled = !auto.checked; });
+    const submit = element("button", "button", "Submit cleaning request");
+    submit.type = "submit";
+    submitForm.append(confirmLabel, previewLabel, autoLabel, attemptsLabel, submit);
+    submitForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      feedback.hidden = true;
+      if (!submitForm.reportValidity()) return;
+      if (!(requestScans.get(request.requestId)?.photos?.length > 0)) return showFeedback(feedback, "Upload and finish at least one current room photo before submission.");
+      const csrf = storedCsrf();
+      if (!csrf) return showFeedback(feedback, "Your secure editing token is missing. Sign in again before submitting.");
+      setPending(submit, true, "Submitting reviewed scan…");
+      let submitted = false;
+      try {
+        const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/submit`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ scopeReviewed: true, cleanerPreviewAuthorized: preview.checked }) });
+        submitted = result.submission?.status === "searching-for-cleaner";
+        if (!submitted) throw new Error("The submitted request could not be verified.");
+        const index = requests.findIndex((item) => item.requestId === request.requestId);
+        if (index >= 0) requests[index] = { ...requests[index], status: "searching-for-cleaner", submittedAt: result.submission.submittedAt, cleanerPreviewAuthorized: preview.checked };
+        if (auto.checked) await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/automatic-dispatch`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ enabled: true, attemptLimit: Number(attempts.value) }) });
+        renderRequests();
+        showFeedback(requestFeedback, auto.checked ? "Room scan submitted and automatic matching authorized. No booking exists until an eligible Cleaner accepts." : "Room scan submitted for matching. No Cleaner has been invited automatically and no booking or payment exists.", "success");
+      } catch (error) {
+        showFeedback(requestFeedback, submitted ? `The room scan was submitted, but automatic matching was not enabled: ${error.message}` : error.message);
+      } finally { setPending(submit, false, "Submit cleaning request"); }
+    });
+    panel.append(submitForm);
+  }
+  panel.append(feedback);
+  details.append(panel);
+  return details;
+}
+
 function renderRequests() {
   requestList.replaceChildren();
   for (const request of requests) {
@@ -120,7 +336,7 @@ function renderRequests() {
     const end = new Date(request.requestedEndAt);
     facts.append(propertyFact("Requested", Number.isNaN(start.getTime()) ? "Unavailable" : new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(start)), propertyFact("Duration", Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) ? "Unavailable" : `${Math.round((end - start) / 3_600_000 * 10) / 10} hours`), propertyFact("Tasks", Array.isArray(request.tasks) ? request.tasks.length : 0), propertyFact("Frequency", String(request.frequency || "one-time").replace(/-/g, " ")));
     const boundary = element("p", "landlord-request-boundary", request.status === "draft" ? "Private draft only — no Cleaner has been invited and no booking or payment exists." : "This request has entered the account workflow.");
-    card.append(heading, facts, boundary);
+    card.append(heading, facts, boundary, requestScanPanel(request));
     requestList.append(card);
   }
   requestEmpty.hidden = requests.length > 0;
@@ -264,7 +480,7 @@ async function createRequestDraft(event) {
     renderRequests();
     requestForm.reset();
     initialiseRequestDefaults();
-    showFeedback(requestFeedback, `Private draft ${result.request.requestId} saved. It was not sent for matching.`, "success");
+    showFeedback(requestFeedback, `Private draft ${result.cleaningRequest.requestId} saved. It was not sent for matching.`, "success");
     dirty = false;
   } catch (error) { showFeedback(requestFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message); }
   finally { setPending(requestSave, false, "Save private draft"); }
@@ -340,6 +556,10 @@ document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addE
   document.querySelectorAll("[data-landlord-tab]").forEach((item) => { const active = item === button; item.classList.toggle("current", active); item.setAttribute("aria-selected", String(active)); });
   document.querySelectorAll("[data-landlord-panel]").forEach((panel) => { panel.hidden = panel.dataset.landlordPanel !== name; });
 }));
+document.querySelector("[data-open-request-tab]").addEventListener("click", () => {
+  document.querySelector('[data-landlord-tab="requests"]').click();
+  document.querySelector('[data-landlord-panel="requests"]').scrollIntoView({ behavior: "smooth", block: "start" });
+});
 document.querySelector("[data-toggle-property-form]").addEventListener("click", () => { propertyForm.hidden = false; propertyForm.querySelector("input")?.focus(); });
 document.querySelector("[data-close-property-form]").addEventListener("click", () => { if (!dirty || window.confirm("Close the property form and keep unsaved entries on this page?")) propertyForm.hidden = true; });
 document.querySelector("[data-use-saved-checklist]").addEventListener("click", useSavedChecklist);

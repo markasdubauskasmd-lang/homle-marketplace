@@ -1529,7 +1529,7 @@ textarea { resize: vertical; }
   .cleaner-editor-save > span { text-align: center; }
 }
 
-/* Authenticated Landlord workspace. Real records only; request creation is draft-only until account scan media is attached. */
+/* Authenticated Landlord workspace. Real records only; room scans stay private until reviewed submission. */
 .landlord-dashboard-page { min-height: 100vh; background: #f3f7f5; }
 .landlord-dashboard-main { padding-block: 42px 100px; }
 .landlord-dashboard-state { display: grid; grid-template-columns: 44px 1fr; gap: 15px; align-items: start; padding: 25px; border: 1px solid #9bcdbf; border-radius: 20px; background: var(--mint-pale); }
@@ -1603,6 +1603,31 @@ textarea { resize: vertical; }
 .landlord-draft-boundary { color: #6b5a46; }
 .landlord-request-card { background: #fff; }
 .landlord-request-boundary { margin: 15px 0 0; padding: 10px 12px; color: #6b5a46; border-left: 3px solid var(--orange); background: #fff9ea; font-size: .75rem; }
+.landlord-request-scan { margin-top: 14px; border-top: 1px solid var(--line); }
+.landlord-request-scan > summary { padding-top: 14px; color: var(--green-dark); font-weight: 850; cursor: pointer; }
+.landlord-request-scan-body { display: grid; gap: 14px; margin-top: 14px; padding: 16px; border: 1px solid #acd3c7; border-radius: 14px; background: var(--mint-pale); }
+.landlord-request-scan-copy { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.5; }
+.landlord-scan-count { color: var(--green-dark); font-size: .84rem; }
+.landlord-scan-upload-form, .landlord-request-submit-form { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.landlord-scan-upload-form label, .landlord-attempt-limit { display: grid; gap: 6px; font-size: .78rem; font-weight: 800; }
+.landlord-scan-picker-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.landlord-scan-selected { color: var(--muted); font-size: .72rem; overflow-wrap: anywhere; }
+.landlord-scan-photo-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.landlord-scan-photo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px; border: 1px solid #b9d9d1; border-radius: 10px; background: #fff; }
+.landlord-scan-photo strong, .landlord-scan-photo span, .landlord-scan-photo small { display: block; }
+.landlord-scan-photo span { margin-top: 3px; font-size: .75rem; }
+.landlord-scan-photo small { margin-top: 3px; color: var(--muted); font-size: .65rem; }
+.landlord-request-submit-form { border-color: #d9b471; background: #fffaf0; }
+.landlord-request-submit-form .button, .landlord-scan-upload-form .button[type="submit"] { justify-self: start; }
+.cleaner-request-scan { margin-top: 14px; padding: 12px 14px; border: 1px solid #abd2c6; border-radius: 12px; background: var(--mint-pale); }
+.cleaner-request-scan > summary { color: var(--green-dark); font-weight: 850; cursor: pointer; }
+.cleaner-request-scan-body { display: grid; gap: 10px; margin-top: 12px; }
+.cleaner-request-scan-body > p { margin: 0; color: var(--muted); font-size: .76rem; }
+.cleaner-scan-privacy { padding: 10px; border-left: 3px solid var(--orange); background: #fff; }
+.cleaner-request-scan-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.cleaner-request-scan-list li { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.cleaner-request-scan-list strong, .cleaner-request-scan-list span { display: block; }
+.cleaner-request-scan-list span { margin-top: 3px; font-size: .72rem; }
 
 @media (max-width: 980px) {
   .landlord-dashboard-heading { grid-template-columns: 1fr; }
@@ -1632,6 +1657,12 @@ textarea { resize: vertical; }
   .landlord-speech-heading, .landlord-checklist-heading { display: grid; }
   .landlord-speech-heading .button, .landlord-checklist-heading .text-button { width: 100%; }
   .landlord-record-form .button[type="submit"] { width: 100%; }
+  .landlord-scan-picker-actions { display: grid; grid-template-columns: 1fr; }
+  .landlord-scan-picker-actions .button, .landlord-request-submit-form .button, .landlord-scan-upload-form .button[type="submit"] { width: 100%; }
+  .landlord-scan-photo { grid-template-columns: 1fr; }
+  .landlord-scan-photo .button { width: 100%; }
+  .cleaner-request-scan-list li { grid-template-columns: 1fr; }
+  .cleaner-request-scan-list .button { width: 100%; }
 }
 
 /* Authenticated booking payment */

@@ -6,6 +6,8 @@ const bookingId = "55555555-5555-4555-8555-555555555555";
 const photoId = "88888888-8888-4888-8888-888888888888";
 const quarantineKey = `quarantine/job-photos/${bookingId}/${photoId}`;
 const finalKey = `job-photos/${bookingId}/${photoId}.jpg`;
+const requestQuarantineKey = `quarantine/request-photos/${bookingId}/${photoId}`;
+const requestFinalKey = `request-photos/${bookingId}/${photoId}.jpg`;
 const checksum = "a".repeat(64);
 const sourceBytes = Buffer.from("synthetic-image-input");
 const outputBytes = Buffer.from("synthetic-sanitized-jpeg");
@@ -89,6 +91,9 @@ const read = await storage.createReadUrl({ storageKey: finalKey, expiresAt: "202
 assert.equal(read.url, "https://objects.invalid.example/signed/2");
 assert.equal(signed[1].options.expiresIn, 300);
 assert.equal(signed[1].command.input.ResponseCacheControl, "private, no-store, max-age=0");
+const requestUpload = await storage.createUploadUrl({ storageKey: requestQuarantineKey, mimeType: "image/png", byteSize: sourceBytes.length, checksumSha256: checksum, expiresAt: "2026-07-16T12:10:00.000Z" });
+const requestRead = await storage.createReadUrl({ storageKey: requestFinalKey, expiresAt: "2026-07-16T12:05:00.000Z" });
+assert(requestUpload.uploadUrl === undefined && requestUpload.url.endsWith("/3") && requestRead.url.endsWith("/4") && signed[2].command.input.Key === requestQuarantineKey && signed[3].command.input.Key === requestFinalKey, "Private request-photo prefixes were not signed through the same bounded object-storage contract.");
 await storage.deleteObject({ storageKey: quarantineKey });
 assert(commands.at(-1) instanceof DeleteObjectCommand);
 storage.close();

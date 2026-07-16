@@ -42,6 +42,13 @@ GRANT EXECUTE ON FUNCTION tideway_private.respond_to_cleaner_invitation(uuid, te
 GRANT EXECUTE ON FUNCTION tideway_private.list_my_booking_summaries(integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.recommend_cleaners_for_request(uuid, integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.configure_automatic_dispatch(uuid,boolean,smallint) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.create_request_photo_upload_intent(uuid,uuid,text,text,text,text,text,integer,text,timestamptz) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_request_photo_upload_for_completion(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.reject_request_photo_upload(uuid,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.complete_request_photo_upload(uuid,integer,text,integer,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_request_scan(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_request_photo_object(uuid,uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.submit_cleaning_request(uuid,boolean,boolean) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_tracking(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.start_cleaner_journey(uuid, boolean, numeric, numeric, numeric, timestamptz) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.update_cleaner_location(uuid, numeric, numeric, numeric, timestamptz) TO tideway_app;
@@ -96,5 +103,6 @@ REVOKE ALL ON TABLE tideway_private.cleaner_payout_accounts, tideway_private.pay
 REVOKE DELETE ON sessions FROM tideway_app;
 -- Submitted requests may be created directly under owner RLS, but dispatch consent and lifecycle changes are function-only.
 REVOKE UPDATE, DELETE ON cleaning_requests FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaning_request_photos, cleaning_request_photo_uploads FROM tideway_app;
 
 COMMIT;

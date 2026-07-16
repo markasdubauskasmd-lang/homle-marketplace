@@ -21,7 +21,10 @@ assert.match(sources.get("marketplace-integration-setup.sql"), /integration-land
 assert.match(sources.get("marketplace-integration-setup.sql"), /invite_cleaner[\s\S]*invite_cleaner/);
 assert.match(sources.get("marketplace-integration-setup.sql"), /cleaner_service_areas[\s\S]*SW1A/);
 assert.match(sources.get("marketplace-integration-setup.sql"), /invite_cleaner_before_eligibility_hardening/);
+assert.match(sources.get("marketplace-integration-setup.sql"), /cleaning_request_photos[\s\S]*submit_cleaning_request/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account can read bookings/);
+assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account can read a private room scan/);
+assert.match(sources.get("marketplace-rls-behaviour.sql"), /Cleaner can read a room scan without Landlord preview consent/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /insufficient_privilege/);
 assert.match(sources.get("marketplace-post-concurrency.sql"), /Cleaner property access did not follow the accepted booking/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Journey started without a payment authorization/);

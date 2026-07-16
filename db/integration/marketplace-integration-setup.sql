@@ -41,15 +41,22 @@ INSERT INTO cleaning_requests (
   id, landlord_user_id, property_id, status, requested_start_at, requested_end_at,
   cleaning_type, required_services, budget_pence, scope_fingerprint, submitted_at
 ) VALUES
-  ('30000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'searching-for-cleaner', now() + interval '48 hours', now() + interval '50 hours', 'standard', ARRAY['standard-clean'], 10000, repeat('a', 64), now()),
-  ('30000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000002', 'searching-for-cleaner', now() + interval '48 hours 30 minutes', now() + interval '50 hours 30 minutes', 'standard', ARRAY['standard-clean'], 10000, repeat('b', 64), now());
+  ('30000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'draft', now() + interval '48 hours', now() + interval '50 hours', 'standard', ARRAY['standard-clean'], 10000, repeat('a', 64), NULL),
+  ('30000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000002', 'draft', now() + interval '48 hours 30 minutes', now() + interval '50 hours 30 minutes', 'standard', ARRAY['standard-clean'], 10000, repeat('b', 64), NULL);
 
 INSERT INTO cleaning_request_tasks (cleaning_request_id, room_name, description, sort_order) VALUES
   ('30000000-0000-4000-8000-000000000001', 'Kitchen', 'Clean worktops', 0),
   ('30000000-0000-4000-8000-000000000002', 'Bathroom', 'Clean shower', 0);
 
+INSERT INTO cleaning_request_photos (id,cleaning_request_id,storage_key,room_name,note,mime_type,byte_size,checksum_sha256,width_pixels,height_pixels,sanitized_at) VALUES
+  ('60000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001','request-photos/30000000-0000-4000-8000-000000000001/60000000-0000-4000-8000-000000000001.jpg','Kitchen','Synthetic integration room photo','image/jpeg',1000,decode(repeat('ca',32),'hex'),800,600,now()),
+  ('60000000-0000-4000-8000-000000000002','30000000-0000-4000-8000-000000000002','request-photos/30000000-0000-4000-8000-000000000002/60000000-0000-4000-8000-000000000002.jpg','Bathroom','Synthetic integration room photo','image/jpeg',1000,decode(repeat('cb',32),'hex'),800,600,now());
+
 SELECT set_config('app.user_id', '10000000-0000-4000-8000-000000000001', true);
 SELECT set_config('app.user_roles', 'landlord', true);
+
+SELECT tideway_private.submit_cleaning_request('30000000-0000-4000-8000-000000000001',true,true);
+SELECT tideway_private.submit_cleaning_request('30000000-0000-4000-8000-000000000002',true,false);
 
 SELECT id FROM tideway_private.invite_cleaner(
   '40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001',

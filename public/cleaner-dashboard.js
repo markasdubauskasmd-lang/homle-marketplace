@@ -66,6 +66,52 @@ function bookingFacts(booking) {
   return facts;
 }
 
+function requestScanPreview(booking, pending = false) {
+  const details = element("details", "cleaner-request-scan");
+  details.append(element("summary", "", pending ? "Review private room scan" : "View private room scan"));
+  const body = element("div", "cleaner-request-scan-body");
+  body.append(element("p", "", "Loading the Landlord-approved room handoff…"));
+  details.append(body);
+  let loaded = false;
+  details.addEventListener("toggle", async () => {
+    if (!details.open || loaded) return;
+    loaded = true;
+    try {
+      const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(booking.cleaningRequestId)}/scan`);
+      const photos = Array.isArray(result.scan?.photos) ? result.scan.photos : [];
+      body.replaceChildren(element("p", "cleaner-scan-privacy", "Only room labels, work notes and approved photos are shown here. The Landlord’s identity, exact address and access details remain hidden until confirmation."));
+      const list = element("ul", "cleaner-request-scan-list");
+      for (const photo of photos) {
+        const item = element("li");
+        const copy = element("div");
+        copy.append(element("strong", "", photo.roomName), element("span", "", photo.note));
+        const view = element("button", "button button-outline", "View private photo");
+        view.type = "button";
+        view.addEventListener("click", async () => {
+          const privateWindow = window.open("about:blank", "_blank");
+          if (privateWindow) privateWindow.opener = null;
+          view.disabled = true;
+          try {
+            if (!privateWindow) throw new Error("Allow this site to open the private photo viewer, then try again.");
+            const access = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(booking.cleaningRequestId)}/photos/${encodeURIComponent(photo.photoId)}/access`);
+            const url = new URL(access.photo?.url || "");
+            if (url.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(url.hostname)) throw new Error("The private photo link was unsafe.");
+            privateWindow.location.replace(url.toString());
+          } catch (error) { privateWindow?.close(); showFeedback(error.message, "error"); }
+          finally { view.disabled = false; }
+        });
+        item.append(copy, view);
+        list.append(item);
+      }
+      body.append(photos.length ? list : element("p", "", "No room photos are available for pre-acceptance review."));
+    } catch (error) {
+      body.replaceChildren(element("p", "cleaner-scan-privacy", error.statusCode === 404 ? "The Landlord kept room photos private until a Cleaner accepts. Review the time, area, checklist size and offered pay before deciding." : "The private room scan could not be opened. Try again before accepting."));
+      if (error.statusCode !== 404) loaded = false;
+    }
+  });
+  return details;
+}
+
 function bookingCard(booking, pending = false) {
   const card = element("article", "booking-summary-card");
   const heading = element("div", "booking-summary-heading");
@@ -83,6 +129,7 @@ function bookingCard(booking, pending = false) {
     accept.addEventListener("click", () => acceptBooking(booking, accept));
     decline.addEventListener("click", () => openDecline(booking));
     actions.append(accept, decline);
+    if (booking.cleaningRequestId) card.append(requestScanPreview(booking, true));
     card.append(deadline, actions);
   } else {
     const action = bookingSummaryPrimaryAction(booking, "cleaner");
@@ -91,6 +138,7 @@ function bookingCard(booking, pending = false) {
       link.href = `/bookings/${booking.bookingId}`;
       card.append(link);
     }
+    if (booking.cleaningRequestId && !["cancelled", "expired"].includes(booking.status)) card.append(requestScanPreview(booking));
   }
   return card;
 }

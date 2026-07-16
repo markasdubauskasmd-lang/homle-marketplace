@@ -10,6 +10,11 @@ BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 0 THEN RAISE EXCEPTION 'Unrelated account can read bookings'; END IF;
   IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 0 THEN RAISE EXCEPTION 'Unrelated account can read property instructions'; END IF;
   IF (SELECT count(*) FROM cleaning_requests WHERE id::text LIKE '30000000-0000-4000-8000-%') <> 0 THEN RAISE EXCEPTION 'Unrelated account can read cleaning requests'; END IF;
+  BEGIN
+    PERFORM tideway_private.get_cleaning_request_scan('30000000-0000-4000-8000-000000000001');
+    RAISE EXCEPTION 'Unrelated account can read a private room scan';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
   UPDATE properties SET name = 'unauthorised' WHERE id = '20000000-0000-4000-8000-000000000001';
   GET DIAGNOSTICS affected = ROW_COUNT;
   IF affected <> 0 THEN RAISE EXCEPTION 'Unrelated account modified a property'; END IF;
@@ -51,6 +56,16 @@ BEGIN
     RAISE EXCEPTION 'Runtime role can read payment provider references directly';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  BEGIN
+    PERFORM 1 FROM cleaning_request_photos;
+    RAISE EXCEPTION 'Runtime role can read private request-photo object keys directly';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM 1 FROM cleaning_request_photo_uploads;
+    RAISE EXCEPTION 'Runtime role can read private request-photo upload verification records directly';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
 
   FOR attempt IN 1..10 LOOP
     SELECT * INTO decision FROM tideway_private.consume_rate_limit('login', decode(repeat('ab', 32), 'hex'));
@@ -78,9 +93,19 @@ $landlord$;
 SELECT set_config('app.user_id', '10000000-0000-4000-8000-000000000002', true);
 SELECT set_config('app.user_roles', 'cleaner', true);
 DO $cleaner$
+DECLARE scan jsonb; object_record record;
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Assigned cleaner cannot read invitations'; END IF;
   IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 0 THEN RAISE EXCEPTION 'Cleaner received access instructions before acceptance'; END IF;
+  SELECT tideway_private.get_cleaning_request_scan('30000000-0000-4000-8000-000000000001') INTO scan;
+  IF jsonb_array_length(scan->'photos')<>1 OR scan->'photos'->0->>'roomName'<>'Kitchen' THEN RAISE EXCEPTION 'Consented invited-Cleaner room scan is unavailable'; END IF;
+  SELECT * INTO object_record FROM tideway_private.get_cleaning_request_photo_object('30000000-0000-4000-8000-000000000001','60000000-0000-4000-8000-000000000001');
+  IF object_record.storage_key IS NULL THEN RAISE EXCEPTION 'Consented invited-Cleaner room photo is unavailable'; END IF;
+  BEGIN
+    PERFORM tideway_private.get_cleaning_request_scan('30000000-0000-4000-8000-000000000002');
+    RAISE EXCEPTION 'Cleaner can read a room scan without Landlord preview consent';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
 END
 $cleaner$;
 

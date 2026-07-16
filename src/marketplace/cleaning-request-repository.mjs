@@ -29,6 +29,24 @@ export function createCleaningRequestRepository(database) {
         return result.rows;
       });
     },
+    submitOwnRequest(actor, requestId, choice) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.submit_cleaning_request($1::uuid,$2::boolean,$3::boolean) AS submission", [requestId, choice.scopeReviewed, choice.cleanerPreviewAuthorized]);
+          return result.rows[0]?.submission;
+        } catch (error) {
+          const mapped = {
+            "request-not-found": [404, "request-not-found", "The cleaning-request draft was not found."],
+            "request-review-required": [422, "request-review-required", "Review and confirm the room scan before submission."],
+            "request-not-submittable": [409, "request-not-submittable", "Only a future private draft can be submitted."],
+            "request-scan-incomplete": [409, "request-scan-incomplete", "Finish at least one private room photo and wait for every upload to complete."],
+            "request-scan-room-mismatch": [409, "request-scan-room-mismatch", "Every room photo must use a room from the reviewed cleaner checklist."]
+          }[error?.message];
+          if (!mapped) throw error;
+          throw Object.assign(new Error(mapped[2]), { statusCode: mapped[0], code: mapped[1], cause: error });
+        }
+      });
+    },
     configureAutomaticDispatch(actor, requestId, choice) {
       return database.withUserTransaction(actor, async (client) => {
         try {

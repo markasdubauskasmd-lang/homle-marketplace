@@ -11,17 +11,17 @@ DECLARE
   rls_tables constant text[] := ARRAY[
     'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
-    'cleaning_requests','cleaning_request_tasks','cleaning_request_photos','cleaning_request_status_history','bookings','booking_status_history',
+    'cleaning_requests','cleaning_request_tasks','cleaning_request_photos','cleaning_request_photo_uploads','cleaning_request_status_history','bookings','booking_status_history',
     'cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events','job_photos','job_photo_uploads',
     'cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','favourite_cleaners','disputes','privacy_requests','audit_logs',
     'booking_payments','payment_commands','payment_status_history'
   ];
   protected_write_tables constant text[] := ARRAY[
     'authentication_identities','bookings','booking_status_history','cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events',
-    'job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','audit_logs',
+    'cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','audit_logs',
     'booking_payments','payment_commands','payment_status_history'
   ];
-  protected_read_tables constant text[] := ARRAY['authentication_identities','job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','booking_payments','payment_commands','payment_status_history'];
+  protected_read_tables constant text[] := ARRAY['authentication_identities','cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','booking_payments','payment_commands','payment_status_history'];
   app_functions constant text[] := ARRAY[
     'tideway_private.lookup_session(bytea)',
     'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
@@ -29,6 +29,13 @@ DECLARE
     'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.list_my_booking_summaries(integer)',
     'tideway_private.configure_automatic_dispatch(uuid,boolean,smallint)',
+    'tideway_private.create_request_photo_upload_intent(uuid,uuid,text,text,text,text,text,integer,text,timestamp with time zone)',
+    'tideway_private.get_request_photo_upload_for_completion(uuid)',
+    'tideway_private.reject_request_photo_upload(uuid,text)',
+    'tideway_private.complete_request_photo_upload(uuid,integer,text,integer,integer)',
+    'tideway_private.get_cleaning_request_scan(uuid)',
+    'tideway_private.get_cleaning_request_photo_object(uuid,uuid)',
+    'tideway_private.submit_cleaning_request(uuid,boolean,boolean)',
     'tideway_private.start_cleaner_journey(uuid,boolean,numeric,numeric,numeric,timestamp with time zone)',
     'tideway_private.submit_booking_review(uuid,uuid,smallint,smallint,smallint,smallint,smallint,text)',
     'tideway_private.consume_rate_limit(text,bytea)',
@@ -49,6 +56,7 @@ DECLARE
     'tideway_private.expire_due_cleaner_invitations(integer)',
     'tideway_private.purge_expired_cleaner_locations(integer)',
     'tideway_private.expire_due_job_photo_uploads(integer)',
+    'tideway_private.expire_due_request_photo_uploads(integer)',
     'tideway_private.claim_due_email_notifications(uuid,integer,integer)',
     'tideway_private.complete_email_notification(uuid,uuid,text,text)',
     'tideway_private.purge_expired_sessions(integer)',
@@ -110,6 +118,9 @@ BEGIN
   END IF;
   IF to_regclass('public.bookings_one_live_attempt_per_request_idx') IS NULL THEN RAISE EXCEPTION 'One-live-invitation index is missing'; END IF;
   IF to_regclass('public.cleaning_requests_automatic_dispatch_due_idx') IS NULL THEN RAISE EXCEPTION 'Automatic-dispatch due index is missing'; END IF;
+  IF to_regclass('public.cleaning_request_photo_uploads_expiry_idx') IS NULL OR to_regclass('public.cleaning_request_photos_request_created_idx') IS NULL THEN RAISE EXCEPTION 'Private request-photo lifecycle indexes are missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.cleaning_requests'::regclass AND conname='cleaning_requests_reviewed_submission_check' AND contype='c') THEN RAISE EXCEPTION 'Reviewed room-scan submission constraint is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.cleaning_requests'::regclass AND tgname='cleaning_requests_reviewed_submission_guard' AND NOT tgisinternal) THEN RAISE EXCEPTION 'Reviewed room-scan submission guard is missing'; END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.cleaning_requests'::regclass AND conname='cleaning_requests_dispatch_authorization_check' AND contype='c') THEN RAISE EXCEPTION 'Automatic-dispatch consent constraint is missing'; END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.cleaning_requests'::regclass AND conname='cleaning_requests_dispatch_lease_check' AND contype='c') THEN RAISE EXCEPTION 'Automatic-dispatch lease constraint is missing'; END IF;
   IF to_regclass('public.payment_one_live_capture_idx') IS NULL OR to_regclass('public.payment_one_live_transfer_idx') IS NULL THEN RAISE EXCEPTION 'Payment command uniqueness indexes are missing'; END IF;

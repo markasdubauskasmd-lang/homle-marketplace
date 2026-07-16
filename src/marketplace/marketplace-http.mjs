@@ -7,6 +7,11 @@ const bookingResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPatter
 const requestInvitationPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitations$`);
 const requestMatchesPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/matches$`);
 const requestAutomaticDispatchPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/automatic-dispatch$`);
+const requestSubmissionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/submit$`);
+const requestScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/scan$`);
+const requestPhotoIntentPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/intents$`);
+const requestPhotoCompletionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/complete$`);
+const requestPhotoAccessPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/access$`);
 const bookingTrackingPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/tracking$`);
 const journeyStartPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/start$`);
 const journeyLocationPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/location$`);
@@ -56,6 +61,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const journeys = dependencies?.journeyService;
   const progress = dependencies?.progressService;
   const media = dependencies?.mediaService;
+  const requestMedia = dependencies?.requestMediaService;
   const messages = dependencies?.messageService;
   const realtime = dependencies?.realtimeService;
   const notifications = dependencies?.notificationService;
@@ -65,12 +71,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || typeof cleaners.getOwnProfile !== "function" || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
-  if (!cleaningRequests || typeof cleaningRequests.createOwnRequest !== "function" || typeof cleaningRequests.listOwnRequests !== "function" || typeof cleaningRequests.configureAutomaticDispatch !== "function") throw new TypeError("Marketplace HTTP routes require the cleaning-request service.");
+  if (!cleaningRequests || typeof cleaningRequests.createOwnRequest !== "function" || typeof cleaningRequests.listOwnRequests !== "function" || typeof cleaningRequests.submitOwnRequest !== "function" || typeof cleaningRequests.configureAutomaticDispatch !== "function") throw new TypeError("Marketplace HTTP routes require the cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
   if (!matching || typeof matching.recommendForRequest !== "function") throw new TypeError("Marketplace HTTP routes require the request matching service.");
   if (!journeys || !["startJourney", "updateLocation", "markArrived", "getTracking"].every((method) => typeof journeys[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking journey service.");
   if (!progress || !["getProgress", "startCleaning", "setPause", "updateTask", "addUnexpectedTask", "decideUnexpectedTask", "finishCleaning"].every((method) => typeof progress[method] === "function")) throw new TypeError("Marketplace HTTP routes require the cleaning-progress service.");
   if (!media || !["createUploadIntent", "completeUpload", "getPhotoAccess"].every((method) => typeof media[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private job-media service.");
+  if (!requestMedia || !["createUploadIntent", "completeUpload", "getScan", "getPhotoAccess"].every((method) => typeof requestMedia[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private request-media service.");
   if (!messages || !["sendMessage", "listMessages"].every((method) => typeof messages[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-message service.");
   if (!realtime || typeof realtime.openStream !== "function") throw new TypeError("Marketplace HTTP routes require the booking real-time service.");
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
@@ -97,7 +104,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         if (pathname === "/api/marketplace/payments/config") {
           if (!payments) return false;
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
-          const context = await security.protect(request, { roles: ["landlord"] });
+          const context = await security.protect(request);
           sendJson(response, 200, { ok: true, payment: payments.getClientConfiguration(context.actor) });
           return true;
         }
@@ -189,6 +196,42 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             return true;
           }
           return methodNotAllowed(response, ["GET", "POST"]), true;
+        }
+        const selectedRequestSubmission = pathname.match(requestSubmissionPath);
+        if (selectedRequestSubmission) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const submission = await cleaningRequests.submitOwnRequest(context.actor, selectedRequestSubmission[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, submission });
+          return true;
+        }
+        const selectedRequestScan = pathname.match(requestScanPath);
+        if (selectedRequestScan) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["landlord"] });
+          sendJson(response, 200, { ok: true, scan: await requestMedia.getScan(context.actor, selectedRequestScan[1]) });
+          return true;
+        }
+        const selectedRequestPhotoIntent = pathname.match(requestPhotoIntentPath);
+        if (selectedRequestPhotoIntent) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          sendJson(response, 201, { ok: true, upload: await requestMedia.createUploadIntent(context.actor, selectedRequestPhotoIntent[1], await readJsonObject(request)) });
+          return true;
+        }
+        const selectedRequestPhotoCompletion = pathname.match(requestPhotoCompletionPath);
+        if (selectedRequestPhotoCompletion) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          sendJson(response, 200, { ok: true, scan: await requestMedia.completeUpload(context.actor, selectedRequestPhotoCompletion[1], selectedRequestPhotoCompletion[2]) });
+          return true;
+        }
+        const selectedRequestPhotoAccess = pathname.match(requestPhotoAccessPath);
+        if (selectedRequestPhotoAccess) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          sendJson(response, 200, { ok: true, photo: await requestMedia.getPhotoAccess(context.actor, selectedRequestPhotoAccess[1], selectedRequestPhotoAccess[2]) });
+          return true;
         }
         if (pathname === "/api/marketplace/notifications") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;

@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Landlord workspace | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-58">
-  <script src="/landlord-dashboard.js?v=20260716-1" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-64">
+  <script src="/landlord-dashboard.js?v=20260716-2" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
@@ -38,7 +38,7 @@
       </section>
 
       <section class="landlord-scan-boundary" aria-labelledby="scan-boundary-title">
-        <span aria-hidden="true">01</span><div><p class="eyebrow">Room scan remains the core input</p><h2 id="scan-boundary-title">Photograph, speak, then review.</h2><p>Account photo/video storage is intentionally closed until Tideway's private production bucket passes security staging. For a real pilot request today, use the working private scan route. The account form below saves drafts only and cannot start matching.</p></div><a class="button" href="/request">Start working room scan</a>
+        <span aria-hidden="true">01</span><div><p class="eyebrow">Room scan is the core booking input</p><h2 id="scan-boundary-title">Speak, save, photograph, then submit.</h2><p>First create a private request draft from your spoken room walkthrough. Then add at least one private room photo, check the concise Cleaner instructions and deliberately open the request for matching.</p></div><button class="button" type="button" data-open-request-tab>Prepare a room scan</button>
       </section>
 
       <nav class="landlord-workspace-tabs" aria-label="Landlord workspace sections"><button type="button" class="current" data-landlord-tab="properties" aria-selected="true">Properties</button><button type="button" data-landlord-tab="requests" aria-selected="false">Request drafts</button></nav>
@@ -91,7 +91,7 @@
 
             <div class="landlord-checklist-heading"><label for="request-tasks">Reviewed room checklist</label><button class="text-button" type="button" data-use-saved-checklist>Use property's saved checklist</button></div>
             <textarea id="request-tasks" name="tasks" rows="8" required placeholder="Kitchen: Wipe the worktops&#10;Bathroom: Remove limescale from the shower screen"></textarea>
-            <label class="checkbox landlord-review-confirmation"><input name="scopeReviewed" type="checkbox" required><span>I reviewed every concise room task and confirm this draft reflects the work I want quoted. I understand photographs/video are not attached to this account draft yet.</span></label>
+            <label class="checkbox landlord-review-confirmation"><input name="scopeReviewed" type="checkbox" required><span>I reviewed every concise room task and confirm this private draft reflects the work I want quoted.</span></label>
             <div class="landlord-form-feedback" data-request-feedback role="status" aria-live="polite" hidden></div>
             <button class="button" type="submit" data-save-request>Save private draft</button>
             <small class="landlord-draft-boundary">This action sets <strong>Draft</strong>. It cannot invite a Cleaner, confirm a booking or take payment.</small>

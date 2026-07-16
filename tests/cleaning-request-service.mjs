@@ -83,16 +83,20 @@ let stored;
 const fakeRepository = {
   async createOwnRequest(actor, record) { calls.push({ kind: "create", actor, record }); stored = row(record); return stored; },
   async listOwnRequests(actor) { calls.push({ kind: "list", actor }); return [stored]; },
+  async submitOwnRequest(actor, suppliedRequestId, choice) { calls.push({ kind: "submit", actor, suppliedRequestId, choice }); return { cleaningRequestId: suppliedRequestId, status: "searching-for-cleaner", submittedAt: now.toISOString(), scopeConfirmedAt: now.toISOString(), cleanerPreviewAuthorized: choice.cleanerPreviewAuthorized, photoCount: 2, taskCount: 2 }; },
   async configureAutomaticDispatch(actor, suppliedRequestId, choice) { calls.push({ kind: "dispatch", actor, suppliedRequestId, choice }); return { cleaningRequestId: suppliedRequestId, enabled: choice.enabled, attemptLimit: choice.attemptLimit, attemptCount: 0, authorizedAt: choice.enabled ? now.toISOString() : null, lastResult: choice.enabled ? "authorized" : null }; }
 };
 const service = createCleaningRequestService(fakeRepository, { clock: () => new Date(now) });
 const landlord = { userId: landlordId, roles: ["landlord"] };
 const created = await service.createOwnRequest(landlord, { ...input, landlordUserId: "22222222-2222-4222-8222-222222222222" });
 const listed = await service.listOwnRequests(landlord);
+const submitted = await service.submitOwnRequest(landlord, requestId, { scopeReviewed: true, cleanerPreviewAuthorized: true });
 const dispatch = await service.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 3 });
-assert(calls[0].actor.userId === landlordId && !Object.hasOwn(calls[0].record, "landlordUserId") && created.requestId === requestId && created.tasks.length === 2 && listed[0].scopeFingerprint === canonical.scopeFingerprint && listed[0].automaticDispatch.enabled === false && !Object.hasOwn(created, "landlordUserId"), "Cleaning-request service trusted a submitted owner, lost frozen scope or leaked its owner field.");
+assert(calls[0].actor.userId === landlordId && calls[0].record.status === "draft" && !Object.hasOwn(calls[0].record, "landlordUserId") && created.requestId === requestId && created.tasks.length === 2 && listed[0].scopeFingerprint === canonical.scopeFingerprint && listed[0].automaticDispatch.enabled === false && !Object.hasOwn(created, "landlordUserId"), "Cleaning-request service trusted a submitted owner, bypassed the private-draft boundary, lost frozen scope or leaked its owner field.");
+assert(submitted.status === "searching-for-cleaner" && submitted.photoCount === 2 && calls.at(-2).kind === "submit" && calls.at(-2).choice.cleanerPreviewAuthorized === true, "Reviewed room-scan submission was not explicit, owner-bound or safely projected.");
 assert(dispatch.enabled && dispatch.attemptLimit === 3 && calls.at(-1).kind === "dispatch" && calls.at(-1).actor.userId === landlordId, "Explicit Landlord automatic-matching consent was not owner-bound or safely projected.");
 assert(await rejects(() => service.createOwnRequest({ userId: "cleaner", roles: ["cleaner"] }, input), "Landlord account"), "A Cleaner could create a Landlord cleaning request.");
+assert(await rejects(() => service.submitOwnRequest(landlord, requestId, { scopeReviewed: false, cleanerPreviewAuthorized: false }), "Review and confirm") && await rejects(() => service.submitOwnRequest(landlord, requestId, { scopeReviewed: true }), "Choose whether"), "Request submission accepted missing scope review or an implicit photo-preview choice.");
 assert(await rejects(() => service.configureAutomaticDispatch({ userId: "cleaner", roles: ["cleaner"] }, requestId, { enabled: true }), "Landlord account") && await rejects(() => service.configureAutomaticDispatch(landlord, requestId, { enabled: "yes" }), "Choose whether") && await rejects(() => service.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 6 }), "between 1 and 5"), "Automatic matching accepted the wrong role, implicit consent or an unbounded attempt limit.");
 
 const databaseCalls = [];
@@ -104,6 +108,7 @@ const database = {
       if (text.startsWith("SELECT id FROM properties")) return { rows: propertyOwned ? [{ id: propertyId }] : [] };
       if (text.startsWith("INSERT INTO cleaning_requests")) return { rows: [row(canonical)] };
       if (text.startsWith("SELECT request.*")) return { rows: [row(canonical)] };
+      if (text.startsWith("SELECT tideway_private.submit_cleaning_request")) return { rows: [{ submission: { cleaningRequestId: requestId, status: "searching-for-cleaner", submittedAt: now.toISOString(), scopeConfirmedAt: now.toISOString(), cleanerPreviewAuthorized: false, photoCount: 2, taskCount: 2 } }] };
       if (text.startsWith("SELECT tideway_private.configure_automatic_dispatch")) return { rows: [{ dispatch: { cleaningRequestId: requestId, enabled: true, attemptLimit: 3, attemptCount: 0, authorizedAt: now.toISOString(), lastResult: "authorized" } }] };
       return { rows: [] };
     } });
@@ -112,14 +117,17 @@ const database = {
 const repository = createCleaningRequestRepository(database);
 await repository.createOwnRequest(landlord, canonical);
 await repository.listOwnRequests(landlord);
+await repository.submitOwnRequest(landlord, requestId, { scopeReviewed: true, cleanerPreviewAuthorized: false });
 await repository.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 3 });
-assert(databaseCalls[0].text.includes("id=$1::uuid AND landlord_user_id=$2::uuid") && databaseCalls[0].values[1] === landlordId && databaseCalls[1].values[1] === landlordId && databaseCalls[2].text.includes("unnest($2::text[], $3::text[], $4::integer[])") && databaseCalls[3].text.includes("cleaning_request_status_history") && databaseCalls[3].values[2] === landlordId && databaseCalls[4].text.includes("request.landlord_user_id=$1::uuid") && databaseCalls[5].text.includes("configure_automatic_dispatch($1::uuid,$2::boolean,$3::smallint)"), "Cleaning-request repository did not enforce property ownership, parameterized tasks, owner identity, status audit and function-only dispatch consent inside actor transactions.");
+assert(databaseCalls[0].text.includes("id=$1::uuid AND landlord_user_id=$2::uuid") && databaseCalls[0].values[1] === landlordId && databaseCalls[1].values[1] === landlordId && databaseCalls[2].text.includes("unnest($2::text[], $3::text[], $4::integer[])") && databaseCalls[3].text.includes("cleaning_request_status_history") && databaseCalls[3].values[2] === landlordId && databaseCalls[4].text.includes("request.landlord_user_id=$1::uuid") && databaseCalls[5].text.includes("submit_cleaning_request($1::uuid,$2::boolean,$3::boolean)") && databaseCalls[6].text.includes("configure_automatic_dispatch($1::uuid,$2::boolean,$3::smallint)"), "Cleaning-request repository did not enforce property ownership, parameterized tasks, owner identity, status audit, reviewed submission and function-only dispatch consent inside actor transactions.");
 propertyOwned = false;
 assert(await rejects(() => repository.createOwnRequest(landlord, canonical), "Property was not found"), "A Landlord could create a request against another account's property.");
 
 const migration = await readFile(new URL("../db/migrations/008_account_cleaning_requests.sql", import.meta.url), "utf8");
+const scanMigration = await readFile(new URL("../db/migrations/030_private_request_room_scans.sql", import.meta.url), "utf8");
 const rls = await readFile(new URL("../db/migrations/002_marketplace_row_level_security.sql", import.meta.url), "utf8");
 assert(migration.includes("cleaning_request_status_history") && migration.includes("request_history_owner_or_admin") && migration.includes("scope_fingerprint") && migration.includes("digest(concat_ws") && migration.includes("submitted_at") && migration.includes("UPDATE cleaning_requests SET status = CASE status"), "Request migration omitted safe legacy backfill, immutable scope evidence, submission state or owner-only audit history.");
 assert(rls.includes("requests_owner_or_admin") && rls.includes("request_tasks_owner_or_admin"), "Cleaning request or room tasks lack row-level owner authorization.");
+for (const required of ["submit_cleaning_request", "scope_reviewed IS NOT TRUE", "request-scan-incomplete", "submission_review_version=1", "cleaning_requests_reviewed_submission_guard", "scan_fingerprint", "customer_scope_confirmed_at", "cleaner_preview_authorized", "cleaning-request-submitted"]) assert(scanMigration.includes(required), `Reviewed request submission migration omitted ${required}.`);
 
 console.log("Cleaning request tests passed: validated future scope, recurrence, room tasks, stable fingerprinting, owner-bound property writes, auditable submission and private projections.");

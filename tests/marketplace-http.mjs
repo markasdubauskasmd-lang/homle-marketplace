@@ -65,8 +65,9 @@ const propertyService = {
   async getBookingProperty(actor, bookingId) { calls.push({ kind: "booking-property", actor, bookingId }); if (actor.userId === "33333333-3333-4333-8333-333333333333") throw new AccountHttpError(403, "forbidden", "Booking property access is forbidden."); return { propertyId: "44444444-4444-4444-8444-444444444444", accessInstructions: "Protected" }; }
 };
 const cleaningRequestService = {
-  async createOwnRequest(actor, input) { calls.push({ kind: "request-create", actor, input }); return { requestId: "66666666-6666-4666-8666-666666666666", propertyId: input.propertyId, status: "searching-for-cleaner" }; },
+  async createOwnRequest(actor, input) { calls.push({ kind: "request-create", actor, input }); return { requestId: "66666666-6666-4666-8666-666666666666", propertyId: input.propertyId, status: "draft" }; },
   async listOwnRequests(actor) { calls.push({ kind: "request-list", actor }); return []; },
+  async submitOwnRequest(actor, cleaningRequestId, input) { calls.push({ kind: "request-submit", actor, cleaningRequestId, input }); return { cleaningRequestId, status: "searching-for-cleaner", submittedAt: "2026-07-15T15:00:00.000Z", scopeConfirmedAt: "2026-07-15T15:00:00.000Z", cleanerPreviewAuthorized: input.cleanerPreviewAuthorized, photoCount: 1, taskCount: 2 }; },
   async configureAutomaticDispatch(actor, cleaningRequestId, input) { calls.push({ kind: "request-dispatch", actor, cleaningRequestId, input }); return { cleaningRequestId, enabled: input.enabled, attemptLimit: input.attemptLimit, attemptCount: 0 }; }
 };
 const bookingWorkflowService = {
@@ -96,6 +97,12 @@ const mediaService = {
   async createUploadIntent(actor, bookingId, input) { calls.push({ kind: "media-intent", actor, bookingId, input }); return { uploadId: "88888888-8888-4888-8888-888888888888", uploadUrl: "https://storage.example/write", method: "PUT" }; },
   async completeUpload(actor, bookingId, uploadId) { calls.push({ kind: "media-complete", actor, bookingId, uploadId }); return { bookingId, status: "cleaning-in-progress", eventVersion: 8 }; },
   async getPhotoAccess(actor, bookingId, photoId) { calls.push({ kind: "media-access", actor, bookingId, photoId }); return { photoId, url: "https://storage.example/read" }; }
+};
+const requestMediaService = {
+  async createUploadIntent(actor, cleaningRequestId, input) { calls.push({ kind: "request-media-intent", actor, cleaningRequestId, input }); return { uploadId: "88888888-8888-4888-8888-888888888888", uploadUrl: "https://storage.example/request-write", method: "PUT", requiredHeaders: {} }; },
+  async completeUpload(actor, cleaningRequestId, uploadId) { calls.push({ kind: "request-media-complete", actor, cleaningRequestId, uploadId }); return { cleaningRequestId, status: "draft", photos: [{ photoId: uploadId }] }; },
+  async getScan(actor, cleaningRequestId) { calls.push({ kind: "request-media-scan", actor, cleaningRequestId }); return { cleaningRequestId, status: "draft", photos: [] }; },
+  async getPhotoAccess(actor, cleaningRequestId, photoId) { calls.push({ kind: "request-media-access", actor, cleaningRequestId, photoId }); return { photoId, url: "https://storage.example/request-read" }; }
 };
 const messageService = {
   async sendMessage(actor, bookingId, input) { calls.push({ kind: "message-send", actor, bookingId, input }); return { messageId: "88888888-8888-4888-8888-888888888888", clientMessageId: input.clientMessageId, bookingId, senderUserId: actor.userId, senderRole: actor.roles[0], body: input.body, createdAt: "2026-07-15T16:00:00.000Z" }; },
@@ -144,7 +151,7 @@ const rateLimiter = {
     return input.scope === rateLimitedScope ? { allowed: false, retryAfterSeconds: 99999 } : { allowed: true };
   }
 };
-const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService, paymentService, rateLimiter };
+const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, paymentService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -242,7 +249,18 @@ const updated = await dispatch(router, "PUT", `/api/marketplace/properties/${pro
 assert(updated.response.statusCode === 200 && calls.at(-1).input.id === propertyId, "Property update trusted a body property ID instead of the protected route resource.");
 const requestCreated = await dispatch(router, "POST", "/api/marketplace/cleaning-requests", { headers: authHeaders, body: { propertyId, landlordUserId: "33333333-3333-4333-8333-333333333333" } });
 const requestList = await dispatch(router, "GET", "/api/marketplace/cleaning-requests", { headers: { cookie: authHeaders.cookie } });
-assert(requestCreated.response.statusCode === 201 && requestCreated.body.cleaningRequest.status === "searching-for-cleaner" && calls.at(-2).kind === "request-create" && calls.at(-2).actor.userId === sessions.landlord.user_id && requestList.response.statusCode === 200 && calls.at(-1).kind === "request-list", "Account cleaning-request routes did not bind Landlord creation/listing to the authenticated actor.");
+assert(requestCreated.response.statusCode === 201 && requestCreated.body.cleaningRequest.status === "draft" && calls.at(-2).kind === "request-create" && calls.at(-2).actor.userId === sessions.landlord.user_id && requestList.response.statusCode === 200 && calls.at(-1).kind === "request-list", "Account cleaning-request routes did not bind private-draft creation/listing to the authenticated Landlord.");
+const requestScanUrl = "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/scan";
+const requestIntentUrl = "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/photos/intents";
+const requestPhotoId = "88888888-8888-4888-8888-888888888888";
+const requestScan = await dispatch(router, "GET", requestScanUrl, { headers: { cookie: authHeaders.cookie } });
+const missingRequestMediaCsrf = await dispatch(router, "POST", requestIntentUrl, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { roomName: "Kitchen" } });
+const requestIntent = await dispatch(router, "POST", requestIntentUrl, { headers: authHeaders, body: { roomName: "Kitchen", note: "Hob", mimeType: "image/jpeg", byteSize: 10, checksumSha256: "a".repeat(64) } });
+const requestCompletion = await dispatch(router, "POST", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/photos/${requestPhotoId}/complete`, { headers: authHeaders, body: {} });
+const requestPhotoAccess = await dispatch(router, "GET", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/photos/${requestPhotoId}/access`, { headers: { cookie: authHeaders.cookie } });
+const requestSubmission = await dispatch(router, "POST", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/submit", { headers: authHeaders, body: { scopeReviewed: true, cleanerPreviewAuthorized: true } });
+assert(requestScan.response.statusCode === 200 && missingRequestMediaCsrf.response.statusCode === 403 && requestIntent.response.statusCode === 201 && requestCompletion.response.statusCode === 200 && requestPhotoAccess.response.statusCode === 200 && requestSubmission.response.statusCode === 200 && requestSubmission.body.submission.status === "searching-for-cleaner", "Private request scan routes lost authentication, CSRF, completion, signed read or reviewed submission.");
+assert(calls.slice(-5).map((call) => call.kind).join(",") === "request-media-scan,request-media-intent,request-media-complete,request-media-access,request-submit" && calls.at(-1).input.cleanerPreviewAuthorized === true, "Room-scan routing lost the owner resource, explicit preview choice or service order.");
 const dispatchAuthorized = await dispatch(router, "POST", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/automatic-dispatch", { headers: authHeaders, body: { enabled: true, attemptLimit: 3 } });
 assert(dispatchAuthorized.response.statusCode === 200 && dispatchAuthorized.body.automaticDispatch.enabled === true && calls.at(-1).kind === "request-dispatch" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Automatic matching was not protected by Landlord role, CSRF and explicit request-level consent.");
 const cleanerId = "22222222-2222-4222-8222-222222222222";
@@ -328,6 +346,7 @@ const runtimeAbuseControl = { rateLimiter: { async consume() { return { allowed:
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl });
 assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews and HTTP layers or safely keep incomplete authentication delivery detached.");
 let unconfiguredEmailRejected = false;
+assert(runtime.requestMediaService && runtime.requestMediaRepository, "Marketplace runtime did not compose private cleaning-request room media.");
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl, emailDelivery: { send() {} } }); } catch (error) { unconfiguredEmailRejected = error.message.includes("requires SMTP_URL and EMAIL_FROM"); }
 assert(unconfiguredEmailRejected, "An email authentication boundary was enabled without trusted delivery configuration.");
 let missingAbuseControl = false;

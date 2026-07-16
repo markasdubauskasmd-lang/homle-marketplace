@@ -15,7 +15,12 @@ This checkpoint composes the existing PostgreSQL, session security, cleaner prof
 | `PUT /api/marketplace/properties/:propertyId` | Landlord | Session, exact origin, CSRF, Landlord role and owner-bound update query |
 | `GET /api/marketplace/bookings/:bookingId/property` | Participant/admin | Session plus participant repository check, service authorization and protected-field projection |
 | `GET /api/marketplace/cleaning-requests` | Landlord | Session and Landlord role; owner-only RLS listing |
-| `POST /api/marketplace/cleaning-requests` | Landlord | Session, exact origin, CSRF, Landlord role, owned property and frozen room-task scope |
+| `POST /api/marketplace/cleaning-requests` | Landlord | Session, exact origin, CSRF, Landlord role and owned property; always creates a private draft |
+| `GET /api/marketplace/cleaning-requests/:requestId/scan` | Authorized participant/admin | Safe room/photo metadata only; invited Cleaner requires Landlord preview consent |
+| `POST /api/marketplace/cleaning-requests/:requestId/photos/intents` | Landlord | Owner draft, session/origin/CSRF, reviewed-room binding, checksum/type/size and server-owned quarantine/final keys |
+| `POST /api/marketplace/cleaning-requests/:requestId/photos/:uploadId/complete` | Landlord | Exact stored-object verification, bounded image decode, metadata-stripping JPEG re-encode and function-only completion |
+| `GET /api/marketplace/cleaning-requests/:requestId/photos/:photoId/access` | Authorized participant/admin | Five-minute private no-store signed read; no object key/checksum projection |
+| `POST /api/marketplace/cleaning-requests/:requestId/submit` | Landlord | Owner draft, session/origin/CSRF, at least one sanitized room photo, reviewed scope, explicit preview choice and audited combined fingerprint |
 | `GET /api/marketplace/bookings/:bookingId/payment` | Booking Landlord/admin | Session, role plus owner-bound security-definer status projection; no provider IDs, retry material, payout destination or client secret |
 | `POST /api/marketplace/bookings/:bookingId/payment` | Booking Landlord | Session, exact origin, CSRF, Landlord role, strong retry key and server-frozen booking amount; route absent while payments are detached |
 | `POST /api/marketplace/payments/webhook` | Stripe-signed event only | Exact raw bytes, 1 MiB limit, test-mode signature/version validation and allowlisted reconciliation; route absent while payments are detached |

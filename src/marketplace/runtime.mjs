@@ -29,6 +29,8 @@ import { createProgressRepository } from "./progress-repository.mjs";
 import { createProgressService } from "./progress-service.mjs";
 import { createMediaRepository } from "./media-repository.mjs";
 import { createMediaService } from "./media-service.mjs";
+import { createRequestMediaRepository } from "./request-media-repository.mjs";
+import { createRequestMediaService } from "./request-media-service.mjs";
 import { createMessageRepository } from "./message-repository.mjs";
 import { createMessageService } from "./message-service.mjs";
 import { createRealtimeRepository } from "./realtime-repository.mjs";
@@ -103,6 +105,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const progressService = createProgressService(progressRepository);
   const mediaRepository = createMediaRepository(database);
   const mediaService = createMediaService(mediaRepository, { objectStorage: options.objectStorage });
+  const requestMediaRepository = createRequestMediaRepository(database);
+  const requestMediaService = createRequestMediaService(requestMediaRepository, { objectStorage: options.objectStorage });
   const messageRepository = createMessageRepository(database);
   const messageService = createMessageService(messageRepository);
   const realtimeRepository = createRealtimeRepository(database);
@@ -112,7 +116,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const notificationService = createNotificationService(notificationRepository);
   const reviewRepository = createReviewRepository(database);
   const reviewService = createReviewService(reviewRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService, paymentService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, paymentService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires SMTP_URL and EMAIL_FROM configuration.");
   const authenticationRouter = options.emailDelivery
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
@@ -154,6 +158,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     progressService,
     mediaRepository,
     mediaService,
+    requestMediaRepository,
+    requestMediaService,
     messageRepository,
     messageService,
     realtimeRepository,

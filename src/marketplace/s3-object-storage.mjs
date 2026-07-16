@@ -4,7 +4,7 @@ const checksumPattern = /^[a-f0-9]{64}$/;
 const bucketPattern = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
 const regionPattern = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const uuidSource = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
-const storageKeyPattern = new RegExp(`^(?:quarantine/job-photos/${uuidSource}/${uuidSource}|job-photos/${uuidSource}/${uuidSource}\\.jpg)$`);
+const storageKeyPattern = new RegExp(`^(?:quarantine/(?:job-photos|request-photos)/${uuidSource}/${uuidSource}|(?:job-photos|request-photos)/${uuidSource}/${uuidSource}\\.jpg)$`);
 const mimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]);
 
 function bounded(value, maximum, label) {
@@ -34,6 +34,12 @@ function configuration(env) {
 function storageKey(value, prefix) {
   const selected = bounded(value, 180, "Object storage key").toLowerCase();
   if (!storageKeyPattern.test(selected) || (prefix && !selected.startsWith(prefix))) throw new TypeError("Object storage key is outside Tideway's private media prefixes.");
+  return selected;
+}
+
+function finalImageKey(value) {
+  const selected = storageKey(value);
+  if (!selected.startsWith("job-photos/") && !selected.startsWith("request-photos/")) throw new TypeError("Object storage key is outside Tideway's private final-image prefixes.");
   return selected;
 }
 
@@ -173,7 +179,7 @@ export async function createS3ObjectStorage(env = process.env, options = {}) {
     },
     async inspectAndSanitizeImage(input) {
       const sourceKey = storageKey(input?.sourceStorageKey, "quarantine/");
-      const targetKey = storageKey(input?.targetStorageKey, "job-photos/");
+      const targetKey = finalImageKey(input?.targetStorageKey);
       mimeType(input?.sourceMimeType);
       const maximumBytes = byteSize(input?.maximumBytes);
       if (input?.stripMetadata !== true) throw new TypeError("Private images must strip metadata.");
@@ -194,7 +200,7 @@ export async function createS3ObjectStorage(env = process.env, options = {}) {
       return Object.freeze({ safe: true, outputMimeType: "image/jpeg", outputByteSize: bytes.length, outputChecksumSha256, width: Number(output.info.width), height: Number(output.info.height) });
     },
     async createReadUrl(input) {
-      const key = storageKey(input?.storageKey, "job-photos/");
+      const key = finalImageKey(input?.storageKey);
       const expiresIn = expirySeconds(input?.expiresAt, 300, now);
       const command = new sdk.GetObjectCommand({ Bucket: selected.bucket, Key: key, ResponseContentType: "image/jpeg", ResponseCacheControl: "private, no-store, max-age=0" });
       return Object.freeze({ url: await sign(command, expiresIn) });
