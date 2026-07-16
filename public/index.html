@@ -9,7 +9,7 @@
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260716-62">
-  <script src="/app.js?v=20260716-56" type="module"></script>
+  <script src="/app.js?v=20260716-57" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -155,10 +155,7 @@
                 <h3 id="request-step-1-title">What needs cleaning?</h3>
                 <p>Start with the property and service. Detailed room instructions come in the scan.</p>
               </div>
-              <div class="field-row">
-                <label>UK postcode <input name="postcode" autocomplete="postal-code" inputmode="text" required></label>
-                <label>I am a <select name="customerType" required><option value="">Choose one</option><option>Homeowner or tenant</option><option>Landlord</option><option>Letting or property manager</option><option>Business or office manager</option><option>Short-let operator</option><option>Other</option></select></label>
-              </div>
+              <label>UK postcode <input name="postcode" autocomplete="postal-code" inputmode="text" required></label>
               <div class="field-row">
                 <label>Property type <select name="propertyType" required><option value="">Choose one</option><option>Flat or house</option><option>Office or workplace</option><option>Communal area</option><option>Short-let property</option><option>Other commercial space</option></select></label>
                 <label>Service <select name="service" required><option value="">Choose one</option><option>Regular home clean</option><option>Rental turnover clean</option><option>End-of-tenancy clean</option><option>Regular workplace clean</option><option>Communal area clean</option><option>One-off deep clean</option></select><small data-service-suggestion>Choose the closest service; the room scan confirms the exact tasks.</small></label>
@@ -172,14 +169,13 @@
             <section class="guided-form-step" data-guided-step="2" aria-labelledby="request-step-2-title">
               <div class="guided-step-heading" tabindex="-1">
                 <span>Step 2 of 3</span>
-                <h3 id="request-step-2-title">When and how can the cleaner enter?</h3>
-                <p>These details help Homle check a suitable cleaner and realistic visit window.</p>
+                <h3 id="request-step-2-title">When should the clean happen?</h3>
+                <p>Choose the first suitable date. Private access instructions come only after a booking is accepted.</p>
               </div>
               <div class="field-row">
                 <label>Known hazards <select name="hazards" required><option value="">Choose one</option><option>None known</option><option>Pets present</option><option>Stairs or limited access</option><option>Building works or heavy soiling</option><option>Other — explain below</option></select></label>
                 <label>Frequency <select name="frequency"><option>One-off</option><option>Weekly</option><option>Several times a week</option><option>Fortnightly</option><option>As properties turn over</option><option>Not sure yet</option></select></label>
               </div>
-              <label>General access approach <input name="accessNotes" required data-access-detail-safe aria-describedby="access-notes-help" placeholder="For example: meet site manager, collect keys from office, concierge access"><small id="access-notes-help">Do not enter a door, gate, alarm or key-safe code, password or hidden-key location in any request field. Homle collects exact access instructions privately only after a booking is accepted.</small></label>
               <div class="field-row">
                 <label>Preferred date <input name="preferredDate" type="date" required aria-describedby="preferred-date-help"><small id="preferred-date-help">Choose the first date you could accept. Homle will confirm the exact visit before booking.</small></label>
                 <label>Preferred arrival window <select name="preferredTimeWindow"><option>Flexible</option><option>Morning (8am–12pm)</option><option>Afternoon (12pm–5pm)</option><option>Evening (5pm–8pm)</option></select></label>
@@ -211,6 +207,8 @@
                 <button class="button submit-button" type="submit">Create request and scan rooms</button>
               </div>
             </section>
+            <input type="hidden" name="customerType" value="Cleaning customer">
+            <input type="hidden" name="accessNotes" value="Confirm privately after booking">
             <input type="hidden" name="website" value="">
             <div class="success-panel" role="status" tabindex="-1" hidden><strong>Request saved. Opening your private room scan…</strong><span>Your reference is <b data-reference></b>. If the next step does not open automatically, use the button below.</span><a class="button button-small" data-brief-link href="/brief">Continue to scan rooms and speak notes</a><a class="button button-small button-outline" data-status-link href="/request-status" hidden>Track this request</a></div>
           </form>

@@ -3,18 +3,16 @@ import { containsSensitiveAccessDetails } from "./access-detail-safety.js";
 const customerRequestDraftKey = "tidewayCustomerRequestDraftV1";
 const customerRequestDraftVersion = 1;
 const submissionKeyPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const accessSensitiveDraftFields = Object.freeze(["siteSize", "accessNotes", "details"]);
+const accessSensitiveDraftFields = Object.freeze(["siteSize", "details"]);
 
 export const customerRequestDraftLifetimeMs = 30 * 60 * 1000;
 export const customerRequestDraftFields = Object.freeze({
   postcode: 12,
-  customerType: 40,
   propertyType: 80,
   service: 80,
   siteSize: 160,
   hazards: 120,
   frequency: 80,
-  accessNotes: 500,
   preferredDate: 20,
   preferredTimeWindow: 80,
   details: 1200,

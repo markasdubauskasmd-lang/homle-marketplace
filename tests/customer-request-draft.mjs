@@ -23,11 +23,9 @@ assert.deepEqual(pilotServiceSuggestionState({ propertyType: "Office or workplac
 const saved = saveCustomerRequestDraft(storage, {
   fields: {
     postcode: "SW1A 1AA",
-    customerType: "Landlord",
     propertyType: "Flat or house",
     service: "Regular home clean",
     siteSize: "Two bedrooms",
-    accessNotes: "Meet at reception",
     contactName: "Test Landlord",
     email: "landlord@example.com",
     phone: "07123456789",
@@ -56,10 +54,9 @@ assert.equal(invalidRetry.currentStep, 3, "Restored steps must stay inside the t
 assert.equal(invalidRetry.retry, undefined, "Invalid retry keys must not survive draft validation.");
 clearCustomerRequestDraft(storage);
 assert.equal(values.size, 0);
-saveCustomerRequestDraft(storage, { fields: { postcode: "SW1A 1AA", accessNotes: "Meet the site manager", details: "Please clean the oven. Door code is 4821" }, currentStep: 2 }, now);
+saveCustomerRequestDraft(storage, { fields: { postcode: "SW1A 1AA", details: "Please clean the oven. Door code is 4821" }, currentStep: 2 }, now);
 const sensitiveDraftText = [...values.values()][0];
 assert(!sensitiveDraftText.includes("4821"), "An access code entered before booking acceptance was stored in the recovery draft.");
-assert.equal(readCustomerRequestDraft(storage, now)?.fields.accessNotes, "Meet the site manager", "A safe general access approach was removed from the recovery draft.");
 assert.equal(readCustomerRequestDraft(storage, now)?.fields.details, "", "A sensitive access detail outside the dedicated access field survived recovery-draft normalization.");
 clearCustomerRequestDraft(storage);
 saveCustomerRequestDraft(storage, {}, now);
@@ -77,6 +74,7 @@ const [html, app, privacy] = await Promise.all([
 ]);
 assert(html.includes("data-customer-draft-status") && html.includes("Access codes and privacy consent are never stored"));
 assert(html.includes("<option>Regular home clean</option>"), "The working customer request omitted ordinary household cleaning.");
+assert(html.includes('type="hidden" name="customerType" value="Cleaning customer"') && html.includes('type="hidden" name="accessNotes" value="Confirm privately after booking"') && !html.includes("I am a <select") && !html.includes("General access approach"), "The public request still asks for premature customer classification or access arrangements.");
 assert(app.includes("readCustomerRequestDraft") && app.includes("clearCustomerRequestDraft(window.sessionStorage)"));
 assert(app.includes("containsSensitiveAccessDetails") && app.includes("accessDetailsSafetyMessage"));
 assert(app.includes("pilotServiceSuggestionState({ propertyType: propertyType.value") && app.includes("if (event.isTrusted) customerSelected = true") && app.includes('new Event("input"') && html.includes("data-service-suggestion"), "The public request does not suggest a safe service or preserve a restored/manual choice.");
