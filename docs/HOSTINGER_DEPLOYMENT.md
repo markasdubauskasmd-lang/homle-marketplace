@@ -29,14 +29,17 @@ Authoritative Hostinger references:
 
 ## Prepared release
 
-- `../Homle-Hostinger-Node-release-9f5ce64.zip`
-- source commit `9f5ce64`
-- SHA-256 `7EFDAE5BDCA8CCDE3342944942B02F7FF10A14C19F9030A7E7585C63F00EE69C`
-- 178 runtime entries, 535,442 bytes; no `.env`, customer data, tests, documentation, Git history or local secrets
+- `../Homle-Hostinger-Node-release-70a31de5.zip`
+- evidence manifest `../Homle-Hostinger-Node-release-70a31de5.manifest.json`
+- source commit `70a31de5`
+- SHA-256 `93294BD36E4A68EFE1441AD7BC8B54B33654986D935BDB65F04F4A89C64FE239`
+- 180 ZIP entries / 175 files, 539,874 bytes; no `.env`, customer data, tests, documentation, Git history, local tracking lab or local secrets
 - Node type: `Other`
 - entry file: `server.mjs`
 - supported runtime: Node.js 24
 - start command from the package: `node server.mjs`
+
+This release is built by `pnpm run release:hostinger`. The builder follows committed local imports, includes the whole shipped `public/` and `src/` runtime, verifies the ZIP central directory against its exact allowlist, rejects private/internal paths and records a SHA-256 manifest. It caught that the older manual `9f5ce64` archive omitted the server-imported `travel-coverage.mjs` startup dependency; do not upload that superseded archive.
 
 ## Why it is not uploaded through File Manager
 
