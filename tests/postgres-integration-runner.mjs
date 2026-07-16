@@ -11,6 +11,7 @@ const integrationDirectory = path.join(projectRoot, "db", "integration");
 const requiredFiles = [
   "assert-integration-target.sql", "marketplace-integration-setup.sql", "marketplace-rls-behaviour.sql",
   "accept-booking-a.sql", "accept-booking-b.sql", "marketplace-post-concurrency.sql",
+  "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql",
   "marketplace-payment-gate.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
 ];
 const sources = new Map();
@@ -27,6 +28,10 @@ assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account ca
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Cleaner can read a room scan without Landlord preview consent/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /insufficient_privilege/);
 assert.match(sources.get("marketplace-post-concurrency.sql"), /Cleaner property access did not follow the accepted booking/);
+assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Runtime role can bypass the function-only dispute workflow/);
+assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Unrelated account opened a booking dispute/);
+assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Administrator dispute queue lost its safe case projection/);
+assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Post-completion dispute erased the recorded visit completion evidence/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Journey started without a payment authorization/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Stale payment authorization unlocked the journey transition/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Current payment authorization did not unlock journey start/);
@@ -65,10 +70,10 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, rls: true, concurrentOverlap: true, paymentJourneyGate: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "marketplace-integration-setup.sql",
-  "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "marketplace-integration-verify.sql",
+  "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-gate.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);
 for (const call of calls) {

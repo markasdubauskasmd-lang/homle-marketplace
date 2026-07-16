@@ -40,6 +40,8 @@ import { createNotificationRepository } from "./notification-repository.mjs";
 import { createNotificationService } from "./notification-service.mjs";
 import { createReviewRepository } from "./review-repository.mjs";
 import { createReviewService } from "./review-service.mjs";
+import { createDisputeRepository } from "./dispute-repository.mjs";
+import { createDisputeService } from "./dispute-service.mjs";
 
 export function createMarketplaceRuntime(pool, options = {}) {
   const env = options.env || process.env;
@@ -116,7 +118,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const notificationService = createNotificationService(notificationRepository);
   const reviewRepository = createReviewRepository(database);
   const reviewService = createReviewService(reviewRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, paymentService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  const disputeRepository = createDisputeRepository(database);
+  const disputeService = createDisputeService(disputeRepository);
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, paymentService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires SMTP_URL and EMAIL_FROM configuration.");
   const authenticationRouter = options.emailDelivery
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
@@ -169,6 +173,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     notificationService,
     reviewRepository,
     reviewService,
+    disputeRepository,
+    disputeService,
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
     googleOidcReady: authenticationRouter !== null && googleOidcProvider !== null,

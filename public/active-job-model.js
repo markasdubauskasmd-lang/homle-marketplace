@@ -2,6 +2,8 @@ const bookingIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-
 const messagingStatuses = new Set(["pending-cleaner-acceptance", "confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "disputed"]);
 const jobPhotoMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]);
 const jobPhotoStatuses = new Set(["cleaner-arrived", "cleaning-in-progress", "awaiting-review"]);
+const disputeCategories = new Set(["quality", "damage", "access", "safety", "conduct", "payment", "other"]);
+const disputableStatuses = new Set(["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "disputed"]);
 
 export const activeJobStages = Object.freeze([
   "confirmed",
@@ -72,6 +74,23 @@ export function taskCanBeUpdated(role, status) {
 
 export function activeJobMessagingOpen(status) {
   return messagingStatuses.has(status);
+}
+
+export function bookingDisputeView(status, dispute = null) {
+  const visible = disputableStatuses.has(status) || dispute !== null;
+  if (!visible) return Object.freeze({ visible: false, canOpen: false });
+  return Object.freeze({ visible: true, canOpen: dispute === null && status !== "disputed", status: dispute?.status || null });
+}
+
+export function bookingDisputePayload(input = {}) {
+  const requestId = String(input.requestId || "").trim().toLowerCase();
+  const category = String(input.category || "").trim().toLowerCase();
+  const description = reviewText(input.description, 5000, "Case description");
+  if (!bookingIdPattern.test(requestId)) throw new TypeError("Secure case retry protection is unavailable.");
+  if (!disputeCategories.has(category)) throw new TypeError("Choose what the case is about.");
+  if (description.length < 20) throw new TypeError("Describe what happened using at least 20 characters.");
+  if (input.confirmed !== true) throw new TypeError("Confirm that the case description is accurate before submitting.");
+  return Object.freeze({ requestId, category, description });
 }
 
 export function bookingReviewView(role, status, review = null) {

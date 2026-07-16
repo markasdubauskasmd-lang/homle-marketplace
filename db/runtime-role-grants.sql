@@ -87,15 +87,21 @@ GRANT EXECUTE ON FUNCTION tideway_private.record_booking_payment_command(uuid,te
 GRANT EXECUTE ON FUNCTION tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.read_booking_payment(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.current_booking_payment_authorized(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.open_booking_dispute(uuid,uuid,uuid,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_booking_dispute(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_admin_booking_disputes(text,integer,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.review_booking_dispute(uuid,text,text,text) TO tideway_app;
 
 -- Booking transitions are only writable through the audited, actor-aware functions above.
 REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, task_updates, job_pauses, unexpected_task_decisions, booking_progress_events, job_photos, job_photo_uploads, cleaner_locations, conversations, messages, notifications, audit_logs FROM tideway_app;
+REVOKE INSERT, UPDATE, DELETE ON disputes FROM tideway_app;
 -- Object keys and upload verification records are reachable only through the narrow SECURITY DEFINER projections.
 REVOKE SELECT ON job_photos, job_photo_uploads FROM tideway_app;
 REVOKE SELECT ON conversations, messages FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_realtime_events FROM tideway_app;
 REVOKE SELECT ON notifications FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON reviews FROM tideway_app;
+REVOKE SELECT ON disputes FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_payments, payment_commands, payment_status_history FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.request_rate_limits FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.pending_social_identities FROM tideway_app;

@@ -18,10 +18,10 @@ DECLARE
   ];
   protected_write_tables constant text[] := ARRAY[
     'authentication_identities','bookings','booking_status_history','cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events',
-    'cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','audit_logs',
+    'cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','disputes','audit_logs',
     'booking_payments','payment_commands','payment_status_history'
   ];
-  protected_read_tables constant text[] := ARRAY['authentication_identities','cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','booking_payments','payment_commands','payment_status_history'];
+  protected_read_tables constant text[] := ARRAY['authentication_identities','cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','disputes','booking_payments','payment_commands','payment_status_history'];
   app_functions constant text[] := ARRAY[
     'tideway_private.lookup_session(bytea)',
     'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
@@ -52,7 +52,11 @@ DECLARE
     'tideway_private.record_booking_payment_command(uuid,text,text)',
     'tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamp with time zone,character)',
     'tideway_private.read_booking_payment(uuid)',
-    'tideway_private.current_booking_payment_authorized(uuid)'
+    'tideway_private.current_booking_payment_authorized(uuid)',
+    'tideway_private.open_booking_dispute(uuid,uuid,uuid,text,text)',
+    'tideway_private.get_booking_dispute(uuid)',
+    'tideway_private.list_admin_booking_disputes(text,integer,integer)',
+    'tideway_private.review_booking_dispute(uuid,text,text,text)'
   ];
   worker_functions constant text[] := ARRAY[
     'tideway_private.expire_due_cleaner_invitations(integer)',
@@ -230,7 +234,7 @@ SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
-  'appFunctionChecks', 30,
+  'appFunctionChecks', 34,
   'workerFunctionChecks', 13
 ) AS tideway_deployment_verification;
 

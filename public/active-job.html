@@ -108,6 +108,19 @@
             <div class="active-review-feedback" data-review-feedback role="status" aria-live="polite" hidden></div>
           </section>
 
+          <section class="active-dispute-card" data-dispute-card hidden aria-labelledby="dispute-title">
+            <div class="active-card-heading"><div><p class="eyebrow">Private help and safety</p><h2 id="dispute-title">Open a Tideway case</h2></div><span class="active-private-pill" data-dispute-state>Booking participants only</span></div>
+            <p class="active-dispute-copy" data-dispute-copy>If something serious is wrong with this visit, record it here. Opening a case pauses the normal booking lifecycle until an Administrator records an outcome.</p>
+            <form class="active-dispute-form" data-dispute-form>
+              <label>What is this about?<select name="category" required><option value="">Choose a category</option><option value="quality">Cleaning quality or incomplete work</option><option value="damage">Damage or missing item</option><option value="access">Property access</option><option value="safety">Immediate safety concern</option><option value="conduct">Conduct or behaviour</option><option value="payment">Price or payment</option><option value="other">Something else</option></select></label>
+              <label>What happened?<textarea name="description" rows="5" minlength="20" maxlength="5000" required placeholder="State the room, task, timing and what outcome you need. Do not include bank or card details."></textarea></label>
+              <label class="active-dispute-confirm"><input name="confirmed" type="checkbox" required> <span>I confirm this description is accurate and can be shared privately with the other booking participant and an authorised Tideway Administrator.</span></label>
+              <button class="button button-outline" type="submit" data-dispute-submit>Open private case</button>
+            </form>
+            <div class="active-dispute-summary" data-dispute-summary hidden><dl><div><dt>Category</dt><dd data-dispute-category></dd></div><div><dt>Status</dt><dd data-dispute-status></dd></div><div><dt>Opened</dt><dd data-dispute-created></dd></div><div data-dispute-outcome-row hidden><dt>Booking outcome</dt><dd data-dispute-outcome></dd></div></dl><p data-dispute-description></p><div data-dispute-resolution-row hidden><strong>Administrator resolution</strong><p data-dispute-resolution></p></div></div>
+            <div class="active-dispute-feedback" data-dispute-feedback role="status" aria-live="polite" hidden></div>
+          </section>
+
           <section class="active-message-card" aria-labelledby="messages-title">
             <div class="active-card-heading"><div><p class="eyebrow">Private booking chat</p><h2 id="messages-title">Cleaner and Landlord messages</h2></div><span class="active-private-pill">No personal contact details</span></div>
             <p class="active-message-boundary">Keep visit coordination inside Tideway. Phone numbers, email addresses, links and outside-messaging handles are blocked.</p>

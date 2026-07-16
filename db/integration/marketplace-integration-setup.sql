@@ -5,12 +5,14 @@ BEGIN;
 INSERT INTO users (id, email, email_verified_at, display_name, selected_role) VALUES
   ('10000000-0000-4000-8000-000000000001', 'integration-landlord@invalid.example', now(), 'Integration Landlord', 'landlord'),
   ('10000000-0000-4000-8000-000000000002', 'integration-cleaner@invalid.example', now(), 'Integration Cleaner', 'cleaner'),
-  ('10000000-0000-4000-8000-000000000003', 'integration-outsider@invalid.example', now(), 'Integration Outsider', 'landlord');
+  ('10000000-0000-4000-8000-000000000003', 'integration-outsider@invalid.example', now(), 'Integration Outsider', 'landlord'),
+  ('10000000-0000-4000-8000-000000000004', 'integration-admin@invalid.example', now(), 'Integration Administrator', NULL);
 
 INSERT INTO user_roles (user_id, role) VALUES
   ('10000000-0000-4000-8000-000000000001', 'landlord'),
   ('10000000-0000-4000-8000-000000000002', 'cleaner'),
-  ('10000000-0000-4000-8000-000000000003', 'landlord');
+  ('10000000-0000-4000-8000-000000000003', 'landlord'),
+  ('10000000-0000-4000-8000-000000000004', 'administrator');
 
 INSERT INTO authentication_identities (user_id, provider, provider_subject, provider_email, provider_email_verified) VALUES
   ('10000000-0000-4000-8000-000000000001', 'google', 'integration-google-subject', 'integration-landlord@invalid.example', true),

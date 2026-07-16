@@ -124,6 +124,12 @@ const reviewService = {
   async respondToReview(actor, bookingId, input) { calls.push({ kind: "review-respond", actor, bookingId, input }); return { reviewId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId, cleanerId: actor.userId, rating: 5, moderationStatus: "approved", cleanerResponse: input.response, createdAt: "2026-07-15T19:00:00.000Z" }; },
   async moderateReview(actor, reviewId, input) { calls.push({ kind: "review-moderate", actor, reviewId, input }); return { reviewId, bookingId: "55555555-5555-4555-8555-555555555555", cleanerId: "22222222-2222-4222-8222-222222222222", rating: 5, moderationStatus: input.decision, createdAt: "2026-07-15T19:00:00.000Z" }; }
 };
+const disputeService = {
+  async open(actor, bookingId, input) { calls.push({ kind: "dispute-open", actor, bookingId, input }); return { disputeId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", bookingId, category: input.category, description: input.description, status: "open", resolutionNote: null, resolutionOutcome: null, createdAt: "2026-07-15T19:05:00.000Z", resolvedAt: null }; },
+  async getForBooking(actor, bookingId) { calls.push({ kind: "dispute-get", actor, bookingId }); return null; },
+  async listForAdministrator(actor, input) { calls.push({ kind: "dispute-list", actor, input }); return { disputes: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; },
+  async review(actor, disputeId, input) { calls.push({ kind: "dispute-review", actor, disputeId, input }); return { disputeId, bookingId: "55555555-5555-4555-8555-555555555555", category: "quality", description: "The agreed cleaning scope was not completed.", status: input.status, resolutionNote: input.resolutionNote || null, resolutionOutcome: input.resolutionOutcome || null, createdAt: "2026-07-15T19:05:00.000Z", resolvedAt: input.status === "resolved" ? "2026-07-15T20:00:00.000Z" : null }; }
+};
 const paymentService = {
   getClientConfiguration(actor) { calls.push({ kind: "payment-config", actor }); return { publishableKey: `pk_test_${"p".repeat(32)}`, testMode: true }; },
   async getForBooking(actor, bookingId) {
@@ -151,7 +157,7 @@ const rateLimiter = {
     return input.scope === rateLimitedScope ? { allowed: false, retryAfterSeconds: 99999 } : { allowed: true };
   }
 };
-const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, paymentService, rateLimiter };
+const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, paymentService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -273,6 +279,9 @@ const bookingCompletion = await dispatch(router, "POST", `/api/marketplace/booki
 const submittedReview = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/reviews`, { headers: authHeaders, body: { rating: 5, writtenReview: "Clear and professional." } });
 const bookingReview = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/reviews`, { headers: { cookie: authHeaders.cookie } });
 assert(bookingCompletion.response.statusCode === 200 && submittedReview.response.statusCode === 201 && bookingReview.response.statusCode === 200 && calls.slice(-3).map((call) => call.kind).join(",") === "review-complete-booking,review-submit,review-get" && calls.at(-2).actor.userId === sessions.landlord.user_id, "Landlord completion/review routes lost role, CSRF or participant binding.");
+const openedDispute = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/dispute`, { headers: authHeaders, body: { requestId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", category: "quality", description: "The agreed cleaning scope was not completed." } });
+const bookingDispute = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/dispute`, { headers: { cookie: authHeaders.cookie } });
+assert(openedDispute.response.statusCode === 201 && openedDispute.body.dispute.status === "open" && bookingDispute.response.statusCode === 200 && bookingDispute.body.dispute === null && calls.slice(-2).map((call) => call.kind).join(",") === "dispute-open,dispute-get", "Participant booking-case routes lost CSRF, authentication or booking binding.");
 const bookingProperty = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/property`, { headers: { cookie: authHeaders.cookie } });
 assert(bookingProperty.response.statusCode === 200 && calls.at(-1).bookingId === bookingId && bookingProperty.body.property.accessInstructions === "Protected", "Booking-scoped property route lost the authenticated participant projection.");
 const landlordTracking = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/tracking`, { headers: { cookie: authHeaders.cookie } });
@@ -317,6 +326,9 @@ assert(cleanerPropertyWrite.response.statusCode === 403 && cleanerPropertyWrite.
 sessions.landlord = { ...sessions.landlord, user_id: "33333333-3333-4333-8333-333333333333", selected_role: "administrator", roles: ["administrator"] };
 const moderatedReview = await dispatch(router, "POST", "/api/marketplace/admin/reviews/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/moderation", { headers: authHeaders, body: { decision: "approved" } });
 assert(moderatedReview.response.statusCode === 200 && calls.at(-1).kind === "review-moderate" && calls.at(-1).actor.roles.includes("administrator"), "Administrator review moderation route lost role or CSRF binding.");
+const disputeQueue = await dispatch(router, "GET", "/api/marketplace/admin/disputes?status=open&limit=25", { headers: { cookie: authHeaders.cookie } });
+const reviewedDispute = await dispatch(router, "PATCH", "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { headers: authHeaders, body: { status: "resolved", resolutionNote: "The evidence was reviewed and the booking has been cancelled.", resolutionOutcome: "cancelled" } });
+assert(disputeQueue.response.statusCode === 200 && calls.at(-2).kind === "dispute-list" && calls.at(-2).input.status === "open" && reviewedDispute.response.statusCode === 200 && reviewedDispute.body.dispute.resolutionOutcome === "cancelled" && calls.at(-1).kind === "dispute-review" && calls.at(-1).actor.roles.includes("administrator"), "Administrator booking-case queue or audited resolution route lost its role, query or CSRF boundary.");
 sessions.landlord = { ...sessions.landlord, user_id: "11111111-1111-4111-8111-111111111111", selected_role: "landlord", roles: ["landlord"] };
 
 const invalidJson = await dispatch(router, "POST", "/api/marketplace/properties", { headers: authHeaders, body: "{" });
@@ -329,6 +341,12 @@ const method = await dispatch(router, "DELETE", "/api/marketplace/properties", {
 assert(method.response.statusCode === 405 && method.response.headers.Allow === "GET, POST", "A recognized route did not return an explicit method boundary.");
 const unknown = await dispatch(router, "GET", "/api/marketplace/private-invention");
 assert(unknown.response.statusCode === 404 && unknown.body.code === "not-found", "Unknown marketplace paths escaped their isolated API namespace.");
+
+const originalCreateProperty = propertyService.createProperty;
+propertyService.createProperty = async () => { throw Object.assign(new Error("The supplied property details are invalid."), { statusCode: 422, code: "invalid-property" }); };
+const repositoryValidation = await dispatch(router, "POST", "/api/marketplace/properties", { headers: authHeaders, body: { name: "Invalid" } });
+assert(repositoryValidation.response.statusCode === 422 && repositoryValidation.body.code === "invalid-property", "A safe repository validation error was converted into an internal failure.");
+propertyService.createProperty = originalCreateProperty;
 
 propertyService.listOwnProperties = async () => { throw new Error("sensitive database detail"); };
 const internalFailure = await dispatch(router, "GET", "/api/marketplace/properties", { headers: { cookie: authHeaders.cookie } });
@@ -344,7 +362,7 @@ const baseEnvironment = {
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtimeAbuseControl = { rateLimiter: { async consume() { return { allowed: true }; } }, clientKey: () => "test-client" };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews and HTTP layers or safely keep incomplete authentication delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.disputeService && runtime.disputeRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews, disputes and HTTP layers or safely keep incomplete authentication delivery detached.");
 let unconfiguredEmailRejected = false;
 assert(runtime.requestMediaService && runtime.requestMediaRepository, "Marketplace runtime did not compose private cleaning-request room media.");
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl, emailDelivery: { send() {} } }); } catch (error) { unconfiguredEmailRejected = error.message.includes("requires SMTP_URL and EMAIL_FROM"); }

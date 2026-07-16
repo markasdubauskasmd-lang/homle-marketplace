@@ -36,6 +36,8 @@ const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern
 const bookingReviewResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews/response$`);
 const bookingPaymentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/payment$`);
 const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
+const bookingDisputePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/dispute$`);
+const adminDisputePath = new RegExp(`^/api/marketplace/admin/disputes/(${uuidPattern})$`);
 const apiPrefix = "/api/marketplace/";
 
 function queryFilters(url) {
@@ -66,6 +68,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const realtime = dependencies?.realtimeService;
   const notifications = dependencies?.notificationService;
   const reviews = dependencies?.reviewService;
+  const disputes = dependencies?.disputeService;
   const payments = dependencies?.paymentService || null;
   const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
@@ -82,6 +85,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!realtime || typeof realtime.openStream !== "function") throw new TypeError("Marketplace HTTP routes require the booking real-time service.");
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
+  if (!disputes || !["open", "getForBooking", "listForAdministrator", "review"].every((method) => typeof disputes[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-case service.");
   if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
   const limitPublicRead = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
@@ -339,6 +343,30 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
           const review = await reviews.moderateReview(context.actor, selectedAdminReview[1], await readJsonObject(request));
           sendJson(response, 200, { ok: true, review });
+          return true;
+        }
+        const selectedBookingDispute = pathname.match(bookingDisputePath);
+        if (selectedBookingDispute) {
+          if (!["GET", "POST"].includes(request.method)) return methodNotAllowed(response, ["GET", "POST"]), true;
+          const mutation = request.method === "POST";
+          const context = await security.protect(request, { mutation, roles: ["landlord", "cleaner"] });
+          const dispute = mutation ? await disputes.open(context.actor, selectedBookingDispute[1], await readJsonObject(request)) : await disputes.getForBooking(context.actor, selectedBookingDispute[1]);
+          sendJson(response, mutation ? 201 : 200, { ok: true, dispute });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/disputes") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const queue = await disputes.listForAdministrator(context.actor, { status: url.searchParams.get("status"), limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
+          sendJson(response, 200, { ok: true, ...queue });
+          return true;
+        }
+        const selectedAdminDispute = pathname.match(adminDisputePath);
+        if (selectedAdminDispute) {
+          if (request.method !== "PATCH") return methodNotAllowed(response, ["PATCH"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const dispute = await disputes.review(context.actor, selectedAdminDispute[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, dispute });
           return true;
         }
         const selectedMessages = pathname.match(bookingMessagesPath);

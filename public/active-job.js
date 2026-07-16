@@ -8,6 +8,8 @@ import {
   activeJobStatusLabels,
   bookingReviewPayload,
   bookingReviewView,
+  bookingDisputePayload,
+  bookingDisputeView,
   cleanerReviewResponse,
   createClientMessageId,
   elapsedLabel,
@@ -53,7 +55,9 @@ const reviewForm = document.querySelector("[data-review-form]");
 const reviewSubmit = document.querySelector("[data-review-submit]");
 const reviewResponseForm = document.querySelector("[data-review-response-form]");
 const reviewResponseSubmit = document.querySelector("[data-review-response-submit]");
-const state = { account: null, role: "", status: "", tracking: null, progress: null, property: null, review: null, reviewLoading: false, reviewMutationInFlight: false, messages: [], messageCursor: null, messagesHasMore: false, messageRetry: null, messageLoading: false, messageSending: false, photoFile: null, photoPreviewUrl: "", photoRetry: null, photoUploadInFlight: false, photoViewInFlight: false, eventSource: null, watchId: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false };
+const disputeForm = document.querySelector("[data-dispute-form]");
+const disputeSubmit = document.querySelector("[data-dispute-submit]");
+const state = { account: null, role: "", status: "", tracking: null, progress: null, property: null, review: null, reviewLoading: false, reviewMutationInFlight: false, dispute: null, disputeLoading: false, disputeMutationInFlight: false, disputeRetry: null, messages: [], messageCursor: null, messagesHasMore: false, messageRetry: null, messageLoading: false, messageSending: false, photoFile: null, photoPreviewUrl: "", photoRetry: null, photoUploadInFlight: false, photoViewInFlight: false, eventSource: null, watchId: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false };
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 document.querySelector("[data-booking-reference]").textContent = bookingId ? bookingId.slice(0, 8).toUpperCase() : "Invalid";
@@ -97,6 +101,13 @@ function showMessageFeedback(message, kind = "info") {
 
 function showReviewFeedback(message, kind = "info") {
   const feedback = document.querySelector("[data-review-feedback]");
+  feedback.hidden = !message;
+  feedback.dataset.kind = kind;
+  feedback.textContent = message;
+}
+
+function showDisputeFeedback(message, kind = "info") {
+  const feedback = document.querySelector("[data-dispute-feedback]");
   feedback.hidden = !message;
   feedback.dataset.kind = kind;
   feedback.textContent = message;
@@ -410,6 +421,36 @@ function renderReview() {
   renderReviewSummary(state.review);
 }
 
+function renderDispute() {
+  const card = document.querySelector("[data-dispute-card]");
+  const view = bookingDisputeView(currentStatus(), state.dispute);
+  card.hidden = !view.visible;
+  if (!view.visible) return;
+  disputeForm.hidden = !view.canOpen;
+  disputeSubmit.disabled = state.disputeMutationInFlight;
+  if (state.disputeMutationInFlight) disputeSubmit.setAttribute("aria-busy", "true"); else disputeSubmit.removeAttribute("aria-busy");
+  const summary = document.querySelector("[data-dispute-summary]");
+  summary.hidden = state.dispute === null;
+  const stateLabel = document.querySelector("[data-dispute-state]");
+  if (!state.dispute) {
+    stateLabel.textContent = currentStatus() === "disputed" ? "Loading case record" : "Booking participants only";
+    document.querySelector("[data-dispute-copy]").textContent = currentStatus() === "disputed" ? "This booking is paused while Tideway loads its private case record." : "If something serious is wrong with this visit, record it here. Opening a case pauses the normal booking lifecycle until an Administrator records an outcome.";
+    return;
+  }
+  stateLabel.textContent = state.dispute.status === "open" ? "Case recorded" : state.dispute.status === "reviewing" ? "Administrator reviewing" : "Case resolved";
+  document.querySelector("[data-dispute-copy]").textContent = state.dispute.status === "resolved" ? "The Administrator decision and booking outcome are recorded below." : "The normal booking lifecycle is paused while this private case is open.";
+  document.querySelector("[data-dispute-category]").textContent = state.dispute.category.replaceAll("-", " ");
+  document.querySelector("[data-dispute-status]").textContent = state.dispute.status;
+  document.querySelector("[data-dispute-created]").textContent = safeDateTime(state.dispute.createdAt);
+  document.querySelector("[data-dispute-description]").textContent = state.dispute.description;
+  const outcomeRow = document.querySelector("[data-dispute-outcome-row]");
+  outcomeRow.hidden = !state.dispute.resolutionOutcome;
+  document.querySelector("[data-dispute-outcome]").textContent = state.dispute.resolutionOutcome || "";
+  const resolutionRow = document.querySelector("[data-dispute-resolution-row]");
+  resolutionRow.hidden = !state.dispute.resolutionNote;
+  document.querySelector("[data-dispute-resolution]").textContent = state.dispute.resolutionNote || "";
+}
+
 function privatePhotoUrl(value) {
   let url;
   try { url = new URL(value); } catch { throw new Error("The short-lived private photo link is invalid."); }
@@ -527,6 +568,7 @@ function render() {
   renderProgress();
   renderPhotos();
   renderReview();
+  renderDispute();
   renderProperty();
   renderMessages();
   renderActions();
@@ -557,6 +599,18 @@ async function loadReview({ quiet = false } = {}) {
   } finally { state.reviewLoading = false; }
 }
 
+async function loadDispute({ quiet = false } = {}) {
+  if (state.disputeLoading) return;
+  state.disputeLoading = true;
+  try {
+    const result = await requestJson(`/api/marketplace/bookings/${bookingId}/dispute`);
+    state.dispute = result.dispute || null;
+    if (!workspace.hidden) renderDispute();
+  } catch (error) {
+    if (!quiet) showDisputeFeedback(error.message || "The private booking case could not be loaded. Try again.", "error");
+  } finally { state.disputeLoading = false; }
+}
+
 function openLiveStream() {
   closeLiveStream();
   if (!bookingId || typeof EventSource !== "function") return setConnection("offline", "Live connection unavailable", "Use Try again to refresh the booking safely.");
@@ -573,7 +627,8 @@ function openLiveStream() {
       if (snapshot.messages) applyMessagePage(snapshot.messages, { preserveCursor: true });
       render();
       if (["awaiting-review", "completed"].includes(currentStatus())) void loadReview({ quiet: true });
-      if (["completed", "cancelled", "disputed"].includes(snapshot.status)) {
+      if (state.dispute || currentStatus() === "disputed") void loadDispute({ quiet: true });
+      if (["completed", "cancelled"].includes(snapshot.status)) {
         closeLiveStream();
         setConnection("closed", "Booking updates finished", "This booking is now closed.");
       }
@@ -973,6 +1028,28 @@ messageInput.addEventListener("input", () => {
 
 messageOlder.addEventListener("click", loadEarlierMessages);
 
+disputeForm.addEventListener("input", () => { if (!state.disputeMutationInFlight) state.disputeRetry = null; });
+disputeForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (state.disputeMutationInFlight || state.dispute) return;
+  state.disputeMutationInFlight = true;
+  const values = Object.fromEntries(new FormData(disputeForm));
+  try {
+    if (!state.disputeRetry) state.disputeRetry = bookingDisputePayload({ ...values, confirmed: values.confirmed === "on", requestId: createClientMessageId() });
+    renderDispute();
+    showDisputeFeedback("Recording the private case without changing any payment…");
+    const result = await mutate(`/api/marketplace/bookings/${bookingId}/dispute`, "POST", state.disputeRetry);
+    state.dispute = result.dispute;
+    state.status = "disputed";
+    state.disputeRetry = null;
+    disputeForm.reset();
+    showDisputeFeedback("Private case recorded. The normal booking lifecycle is now paused.", "success");
+    render();
+  } catch (error) {
+    showDisputeFeedback(error.message || "The private case could not be recorded. Check the details and try again.", "error");
+  } finally { state.disputeMutationInFlight = false; renderDispute(); }
+});
+
 for (const button of document.querySelectorAll("[data-dialog-cancel]")) button.addEventListener("click", () => button.closest("dialog").close());
 
 function updateNetworkState() {
@@ -993,17 +1070,19 @@ async function load() {
     }
     state.role = activeJobRole(state.account);
     if (!state.role) return showGate("Choose a Cleaner or Landlord workspace", "This account has not completed role onboarding for active bookings.", { kind: "authentication", allowSignIn: true });
-    const [trackingResult, progressResult, propertyResult, messageResult] = await Promise.all([
+    const [trackingResult, progressResult, propertyResult, messageResult, disputeResult] = await Promise.all([
       requestJson(`/api/marketplace/bookings/${bookingId}/tracking`),
       requestJson(`/api/marketplace/bookings/${bookingId}/cleaning-progress`),
       requestJson(`/api/marketplace/bookings/${bookingId}/property`).catch(() => ({ property: null })),
-      requestJson(messagePagePath())
+      requestJson(messagePagePath()),
+      requestJson(`/api/marketplace/bookings/${bookingId}/dispute`)
     ]);
     state.tracking = trackingResult.tracking;
     state.progress = progressResult.progress;
-    state.status = [state.tracking?.status, state.progress?.status].filter(Boolean).sort((left, right) => activeJobStage(right) - activeJobStage(left))[0] || "confirmed";
+    state.status = disputeResult.dispute?.status === "open" || disputeResult.dispute?.status === "reviewing" ? "disputed" : [state.tracking?.status, state.progress?.status].filter(Boolean).sort((left, right) => activeJobStage(right) - activeJobStage(left))[0] || "confirmed";
     state.property = propertyResult.property;
     applyMessagePage(messageResult);
+    state.dispute = disputeResult.dispute || null;
     if (["awaiting-review", "completed"].includes(currentStatus())) await loadReview();
     showFeedback("");
     render();
