@@ -70,6 +70,22 @@ The command requires the `psql` client and runs `db/integration/deployment-verif
 
 This is a deployed-structure and effective-grant check, not a substitute for the real multi-account RLS, transaction-concurrency, double-booking and notification-worker integration tests in E2. It has not run on this development computer because neither PostgreSQL nor `psql` is installed and no founder-approved staging database is connected.
 
+## Run the marketplace integration suite
+
+Use a separate, disposable database whose name ends exactly in `_tideway_test`. Apply the locked migrations and both role-grant files first. The suite refuses any other database name, requires separate migration-owner and `tideway_app` credentials, runs the deployment verifier again, and uses only reserved `invalid.example` accounts and fixed test UUIDs. It proves unrelated-account denial, Landlord ownership, assigned-Cleaner access timing, direct booking-mutation denial and a real two-transaction overlap race in which exactly one acceptance succeeds. Its reserved fixtures are removed on success and cleanup is attempted after every test failure.
+
+PowerShell:
+
+```powershell
+$env:DATABASE_INTEGRATION_OWNER_URL = "postgresql://migration_owner:password@staging-host/tideway_ci_tideway_test?sslmode=verify-full"
+$env:DATABASE_INTEGRATION_APP_URL = "postgresql://tideway_app:password@staging-host/tideway_ci_tideway_test?sslmode=verify-full"
+$env:TIDEWAY_DATABASE_TEST_CONFIRMATION = "RUN TIDEWAY DISPOSABLE DATABASE TESTS"
+node tools/postgres-integration-runner.mjs
+Remove-Item Env:DATABASE_INTEGRATION_OWNER_URL, Env:DATABASE_INTEGRATION_APP_URL, Env:TIDEWAY_DATABASE_TEST_CONFIRMATION
+```
+
+Inject the two URLs from a secret manager in CI rather than committing or printing them. The runner passes credentials only through child-process environment variables and does not put connection URLs in `psql` arguments. It never contacts the normal `DATABASE_URL`, and the public/local pilot is not involved. A failed cleanup must be treated as a test-environment incident; remove the three reserved users and their cascaded fixtures before rerunning.
+
 The application transaction boundary sets `app.user_id` and `app.user_roles` locally after `BEGIN` and before any protected query. Pre-login lookups can call only restricted `SECURITY DEFINER` authentication functions. A verified account may have an authenticated session with no selected role while onboarding is pending. First-account provisioning binds writes to the new user ID but does not grant a role; only Cleaner or Landlord onboarding may add a self-selected role. Administrator is never self-selectable.
 
 Run `SELECT * FROM tideway_private.expire_due_cleaner_invitations(100);`, `SELECT * FROM tideway_private.purge_expired_cleaner_locations(500);` and `SELECT * FROM tideway_private.expire_due_job_photo_uploads(500);` through the deployment scheduler using only the `tideway_worker` connection, at least once per minute. Run `SELECT * FROM tideway_private.purge_expired_sessions(500);` through the same restricted role at least every 15 minutes; `createSessionPurgeWorker` drains at most five batches by default and reports `moreMayRemain` for an immediate follow-up. The functions use bounded `SKIP LOCKED` batches so concurrent workers do not process the same row. For every expired upload, the worker must also delete both returned quarantine and final object keys through the private storage adapter; a bucket lifecycle rule must be the final cleanup backstop. Monitor failures and continue immediately while a run returns the batch limit. The web role has its direct session-delete grant revoked and must receive no execute grant on maintenance functions.

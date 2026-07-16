@@ -7,6 +7,10 @@ const projectRoot = path.resolve(path.dirname(toolPath), "..");
 const defaultScriptPath = path.join(projectRoot, "db", "integration", "deployment-verification.sql");
 const allowedSslModes = new Set(["disable", "allow", "prefer", "require", "verify-ca", "verify-full"]);
 const allowedParameters = new Set(["sslmode", "sslrootcert", "connect_timeout"]);
+const inheritedEnvironmentNames = Object.freeze([
+  "PATH", "Path", "PATHEXT", "SystemRoot", "WINDIR", "ComSpec", "TEMP", "TMP",
+  "HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "LANG", "LC_ALL"
+]);
 
 function decoded(value, label) {
   try { return decodeURIComponent(value); } catch { throw new TypeError(`${label} contains invalid URL encoding.`); }
@@ -27,10 +31,10 @@ export function postgresVerificationEnvironment(connectionUrl, baseEnvironment =
   const connectTimeout = parsed.searchParams.get("connect_timeout") || "5";
   if (!/^\d{1,2}$/.test(connectTimeout) || Number(connectTimeout) < 1 || Number(connectTimeout) > 60) throw new TypeError("PostgreSQL connect_timeout must be between 1 and 60 seconds.");
 
-  const environment = { ...baseEnvironment };
-  delete environment.DATABASE_VERIFICATION_URL;
-  delete environment.DATABASE_URL;
-  delete environment.MIGRATION_DATABASE_URL;
+  const environment = {};
+  for (const name of inheritedEnvironmentNames) {
+    if (Object.hasOwn(baseEnvironment, name) && typeof baseEnvironment[name] === "string") environment[name] = baseEnvironment[name];
+  }
   Object.assign(environment, {
     PGHOST: parsed.hostname,
     PGPORT: parsed.port || "5432",
@@ -49,7 +53,7 @@ export function postgresVerificationEnvironment(connectionUrl, baseEnvironment =
   });
 }
 
-function sanitizedOutput(value) {
+export function sanitizePostgresOutput(value) {
   return String(value || "").replace(/postgres(?:ql)?:\/\/[^\s]+/gi, "[database-url-redacted]").slice(-8000);
 }
 
@@ -65,10 +69,10 @@ export function runPostgresDeploymentVerification(options = {}) {
   if (result?.error) throw new Error("PostgreSQL verification could not start the psql client.");
   if (result?.status !== 0) {
     const error = new Error("PostgreSQL deployment verification failed.");
-    error.verificationOutput = sanitizedOutput(`${result?.stdout || ""}\n${result?.stderr || ""}`);
+    error.verificationOutput = sanitizePostgresOutput(`${result?.stdout || ""}\n${result?.stderr || ""}`);
     throw error;
   }
-  return Object.freeze({ ...prepared.summary, output: sanitizedOutput(result.stdout), scriptPath });
+  return Object.freeze({ ...prepared.summary, output: sanitizePostgresOutput(result.stdout), scriptPath });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === toolPath) {

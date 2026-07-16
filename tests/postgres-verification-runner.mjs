@@ -18,11 +18,12 @@ assert.ok(!/\b(?:INSERT|UPDATE|DELETE|TRUNCATE|CREATE|ALTER|DROP)\s+(?:TABLE|INT
 const secret = "p@ss word/with:symbols";
 const encodedSecret = encodeURIComponent(secret);
 const url = `postgresql://migration_owner:${encodedSecret}@db.internal.example:6543/tideway_staging?sslmode=verify-full&connect_timeout=12&sslrootcert=C%3A%5Ccerts%5Croot.pem`;
-const prepared = postgresVerificationEnvironment(url, { PATH: "private-path", DATABASE_URL: "must-be-removed", DATABASE_VERIFICATION_URL: "must-be-removed" });
+const prepared = postgresVerificationEnvironment(url, { PATH: "private-path", DATABASE_URL: "must-be-removed", DATABASE_VERIFICATION_URL: "must-be-removed", SMTP_URL: "must-not-reach-psql" });
 assert.deepEqual(prepared.summary, { host: "db.internal.example", port: "6543", database: "tideway_staging", user: "migration_owner", sslMode: "verify-full" });
 assert.equal(prepared.environment.PGPASSWORD, secret);
 assert.equal(prepared.environment.PGSSLROOTCERT, "C:\\certs\\root.pem");
 assert.ok(!Object.hasOwn(prepared.environment, "DATABASE_URL") && !Object.hasOwn(prepared.environment, "DATABASE_VERIFICATION_URL"));
+assert.ok(!Object.hasOwn(prepared.environment, "SMTP_URL"), "Unrelated application secrets entered the psql environment.");
 
 let invocation;
 const successful = runPostgresDeploymentVerification({
