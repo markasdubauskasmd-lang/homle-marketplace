@@ -154,6 +154,14 @@ function safeJson(text, label) {
   try { return JSON.parse(text); } catch { throw new Error(`${label} did not return valid JSON.`); }
 }
 
+function privateBoundaryClosed(response, expectedStatus) {
+  return response.status === expectedStatus
+    && /^application\/json\b/i.test(response.headers.get("content-type") || "")
+    && /(?:^|,)\s*no-store\b/i.test(response.headers.get("cache-control") || "")
+    && !response.headers.has("location")
+    && !response.headers.has("set-cookie");
+}
+
 function secureFlowCookie(headers, provider) {
   const cookie = headers.get("set-cookie") || "";
   return cookie.startsWith(`__Host-tideway_${provider}_flow=`)
@@ -231,10 +239,25 @@ export async function verifyDomainReadiness(origin, options = {}) {
   try {
     const response = await request(fetchImplementation, `${target.origin}/api/health`);
     health = safeJson(await boundedText(response), "Health endpoint");
-    const healthy = response.status === 200 && health?.ok === true && health?.service === "tideway-marketplace" && health?.dataIntegrity === "healthy" && health?.writesAllowed === true;
-    record("health", healthy, "Tideway health must be HTTP 200 with healthy integrity and writes allowed.");
+    const healthy = response.status === 200 && health?.ok === true && health?.service === "tideway-marketplace" && health?.dataIntegrity === "healthy" && health?.writesAllowed === true && health?.localDemosEnabled === false;
+    record("health", healthy, "Tideway health must be HTTP 200 with healthy integrity, writes allowed and local demos disabled.");
     record("health-cache", /(?:^|,)\s*no-store\b/i.test(response.headers.get("cache-control") || ""), "Health endpoint must use Cache-Control: no-store.");
   } catch (error) { record("health", false, error.message); }
+
+  try {
+    const response = await request(fetchImplementation, `${target.origin}/admin`);
+    record("anonymous-admin-closed", privateBoundaryClosed(response, 401), "Anonymous /admin must return a non-cacheable JSON 401 without a redirect, session cookie or private control-desk HTML.");
+    await response.body?.cancel?.();
+  } catch (error) { record("anonymous-admin-closed", false, error.message); }
+
+  for (const pathname of ["/tracking-test", "/tracking-test.html", "/tracking-test.js", "/api/tracking-test/snapshot"]) {
+    const checkName = `local-demo-closed:${pathname}`;
+    try {
+      const response = await request(fetchImplementation, `${target.origin}${pathname}`);
+      record(checkName, privateBoundaryClosed(response, 404), `${pathname} must return a non-cacheable JSON 404 without a redirect or cookie in production.`);
+      await response.body?.cancel?.();
+    } catch (error) { record(checkName, false, error.message); }
+  }
 
   try {
     const response = await request(fetchImplementation, `${target.origin}/api/auth/providers`);

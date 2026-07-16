@@ -21,7 +21,7 @@ Do not put registrar credentials, transfer codes, DNS API tokens, private keys o
 4. Configure the HTTPS proxy/CDN to preserve the request host safely and add `Strict-Transport-Security: max-age=31536000; includeSubDomains` only after HTTPS works on every intended subdomain. The Node application already supplies CSP, framing, MIME, referrer and device-permission policies.
 5. Set `APP_ORIGIN` to the exact canonical HTTPS origin with no path or trailing data. Keep `MARKETPLACE_ENABLED=false` until PostgreSQL, the locked driver and every deployment adapter pass staging.
 6. Run `pnpm run preflight:production`. The server repeats this check before listening and refuses a public process without the protected Administrator key, private off-source data directory, exact HTTPS origin and reviewed trusted-proxy boundary. See `PRODUCTION_DEPLOYMENT.md`.
-7. Verify the homepage, `/api/health` and `/api/auth/providers` from outside the hosting network. Anonymous access must not create a session cookie, health responses must be non-cacheable, and no authentication provider may be advertised before its real route is attached.
+7. Verify the homepage, `/api/health` and `/api/auth/providers` from outside the hosting network. Anonymous access must not create a session cookie, health responses must be non-cacheable, and no authentication provider may be advertised before its real route is attached. The private `/admin` shell must return a JSON 401 to an anonymous request, and the local tracking lab must return JSON 404 responses throughout production.
 
 ## Automated evidence
 
@@ -53,11 +53,14 @@ The command performs no DNS or hosting changes. It requires:
 - an HTTP 200 HTML homepage;
 - CSP, HSTS, MIME, framing, referrer and Permissions Policy headers;
 - healthy Tideway integrity with writes allowed;
+- an explicit `localDemosEnabled: false` production-health signal;
 - `Cache-Control: no-store` on health/authentication discovery;
+- a read-only anonymous request to `/admin` that returns JSON 401 with `Cache-Control: no-store`, no redirect and no cookie;
+- read-only requests to `/tracking-test`, `/tracking-test.html`, `/tracking-test.js` and `/api/tracking-test/snapshot` that each return JSON 404 with `Cache-Control: no-store`, no redirect and no cookie;
 - role-safe, secret-free authentication capability discovery matching the exact expected Google/Facebook state while keeping Apple closed;
 - a manual, non-following request to each Google/Facebook start route: disabled providers must return 404 without a cookie or redirect, while enabled providers must return the exact external HTTPS provider route, canonical Tideway callback, secure host-only flow cookie and `Cache-Control: no-store`.
 
-The verifier never follows the Google or Facebook redirect and never exchanges an authorization code, creates an account or contacts the provider. It reports only pass/fail evidence rather than client IDs, state values, cookies or redirect URLs.
+The verifier never follows an application or Google/Facebook redirect, sends an Administrator key, starts a tracking session, exchanges an authorization code, creates an account or contacts the provider. It uses GET requests for the private/local-surface probes and reports only pass/fail evidence rather than response bodies, client IDs, state values, cookies or redirect URLs.
 
 Store the JSON result with the private launch evidence and record a concise hostname/date summary in the control desk. A passing result proves the public-origin boundary only; it does not prove legal identity, insurance, cleaner supply, pricing, payment readiness, PostgreSQL or end-to-end booking fulfilment.
 

@@ -47,7 +47,7 @@ The preflight performs no DNS change, deployment, database connection, email, st
 5. Start the process and require `/api/health` to return HTTP 200, `ok: true`, healthy integrity, writes allowed, `marketplace.enabled: false` and `localDemosEnabled: false` with `Cache-Control: no-store`.
 6. Verify `/api/auth/providers` reports Google, Facebook, Apple and email/password as false.
 7. Verify `/tracking-test`, `/tracking-test.html`, `/tracking-test.js` and `/api/tracking-test/session` all return 404. The real-location simulator is a local development lab, not a public feature.
-8. Connect the approved domain only after external `tools/domain-readiness.mjs` passes. This action still requires founder approval; preparation is not authorization to publish.
+8. Connect the approved domain only after external `tools/domain-readiness.mjs` passes. Its read-only probes independently require the production health flag, anonymous `/admin` denial and closed local tracking surfaces without redirects, cacheable responses or cookies. This action still requires founder approval; preparation is not authorization to publish.
 9. Submit only synthetic records during staging, verify the control desk and remove every synthetic record before real intake.
 
 ## Marketplace promotion
