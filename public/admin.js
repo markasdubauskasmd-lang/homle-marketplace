@@ -4,6 +4,7 @@ const scanReviewWorkspace = globalThis.TidewayScanReviewWorkspace;
 const scopeTimeWorksheet = globalThis.TidewayScopeTimeBreakdown;
 const scanReviewDraft = globalThis.TidewayScanReviewDraft;
 const readinessNavigator = globalThis.TidewayReadinessNavigator;
+const proposalEconomics = globalThis.TidewayProposalEconomics;
 const scanReviewDraftControls = new WeakMap();
 
 const leadList = document.querySelector("#lead-list");
@@ -86,20 +87,115 @@ function proposalField(labelText, name, type = "number", value = "") {
   return label;
 }
 
+function proposalEconomicsPanel(form, submit, minimumRequiredHours) {
+  const panel = document.createElement("section");
+  panel.className = "proposal-economics-preview";
+  const heading = document.createElement("strong");
+  heading.textContent = "Profit check for this draft";
+  const metrics = document.createElement("div");
+  const metricElements = {};
+  for (const [key, label] of [["customerTotal", "Customer total"], ["cleanerPay", "Cleaner pay"], ["nonCleanerCosts", "Other job costs"], ["contribution", "Contribution"], ["marginPercent", "Margin"]]) {
+    const metric = document.createElement("div");
+    const name = document.createElement("span");
+    const value = document.createElement("b");
+    name.textContent = label;
+    value.textContent = "—";
+    metric.append(name, value);
+    metrics.append(metric);
+    metricElements[key] = value;
+  }
+  const guidance = document.createElement("p");
+  guidance.setAttribute("role", "status");
+  guidance.textContent = "Enter the hours, customer rate and Cleaner pay to verify this draft.";
+  const useSafeRate = document.createElement("button");
+  useSafeRate.type = "button";
+  useSafeRate.className = "button button-outline button-small";
+  useSafeRate.hidden = true;
+  panel.append(heading, metrics, guidance, useSafeRate);
+
+  const hoursInput = form.elements.estimatedHours;
+  const customerRateInput = form.elements.customerRate;
+  const cleanerRateInput = form.elements.cleanerRate;
+  const otherCostsInput = form.elements.otherCosts;
+  const assumptions = {
+    labourOnCostPercent: Number(state.config.labourOnCostPercent) || 0,
+    paymentFeePercent: Number(state.config.paymentFeePercent) || 0,
+    paymentFeeFixed: Number(state.config.paymentFeeFixed) || 0,
+    travelCostPerJob: Number(state.config.travelCostPerJob) || 0,
+    suppliesCostPerJob: Number(state.config.suppliesCostPerJob) || 0,
+    riskContingencyPercent: Number(state.config.riskContingencyPercent) || 0
+  };
+  const targetMarginPercent = Number(state.config.minimumContributionMarginPercent) || 0;
+
+  const refresh = () => {
+    const hours = Number(hoursInput.value);
+    const customerRate = Number(customerRateInput.value);
+    const cleanerRate = Number(cleanerRateInput.value);
+    const additionalCosts = Number(otherCostsInput.value || 0);
+    const validInputs = [hours, customerRate, cleanerRate, additionalCosts].every(Number.isFinite)
+      && hours >= minimumRequiredHours && customerRate > 0 && cleanerRate > 0 && additionalCosts >= 0;
+    useSafeRate.hidden = true;
+    panel.classList.remove("proposal-economics-safe", "proposal-economics-blocked");
+    if (!proposalEconomics || state.config.variableCostsConfirmed !== true) {
+      submit.disabled = true;
+      panel.classList.add("proposal-economics-blocked");
+      guidance.textContent = "Confirm the payment, travel, supplies, labour and risk assumptions in Launch details before saving a draft.";
+      return;
+    }
+    if (!validInputs) {
+      submit.disabled = true;
+      panel.classList.add("proposal-economics-blocked");
+      guidance.textContent = `Use at least ${minimumRequiredHours} hour${minimumRequiredHours === 1 ? "" : "s"}, with positive customer and Cleaner rates.`;
+      return;
+    }
+    const economics = proposalEconomics.calculateProposalEconomics({ hours, customerRate, cleanerRate, additionalCosts, assumptions });
+    metricElements.customerTotal.textContent = money.format(economics.customerTotal);
+    metricElements.cleanerPay.textContent = money.format(economics.cleanerPay);
+    metricElements.nonCleanerCosts.textContent = money.format(economics.nonCleanerCosts);
+    metricElements.contribution.textContent = money.format(economics.contribution);
+    metricElements.marginPercent.textContent = `${economics.marginPercent.toFixed(1)}%`;
+    const marginSafe = targetMarginPercent > 0 && economics.contribution > 0 && economics.marginPercent + 1e-9 >= targetMarginPercent;
+    const safeRate = targetMarginPercent > 0 ? proposalEconomics.minimumSafeCustomerRate({ hours, cleanerRate, additionalCosts, targetMarginPercent, assumptions }) : { available: false };
+    submit.disabled = !marginSafe;
+    panel.classList.add(marginSafe ? "proposal-economics-safe" : "proposal-economics-blocked");
+    if (marginSafe) {
+      guidance.textContent = `Passes the recorded ${targetMarginPercent.toFixed(1)}% contribution-margin floor. The server will verify the same frozen inputs before saving.`;
+    } else if (targetMarginPercent <= 0) {
+      guidance.textContent = "Record a positive contribution-margin floor in Launch details before preparing a price.";
+    } else if (safeRate.available) {
+      guidance.textContent = `This draft is below the ${targetMarginPercent.toFixed(1)}% floor. Use at least ${money.format(safeRate.customerRate)} per hour for these exact hours, pay and costs.`;
+      useSafeRate.textContent = `Use ${money.format(safeRate.customerRate)}/hour minimum`;
+      useSafeRate.hidden = false;
+      useSafeRate.onclick = () => {
+        customerRateInput.value = safeRate.customerRate.toFixed(2);
+        refresh();
+        customerRateInput.focus();
+      };
+    } else {
+      guidance.textContent = "No target-safe price could be calculated from these inputs. Review the hours, Cleaner pay and confirmed costs.";
+    }
+  };
+  for (const input of [hoursInput, customerRateInput, cleanerRateInput, otherCostsInput]) input.addEventListener("input", refresh);
+  refresh();
+  return { panel, refresh };
+}
+
 function showProposalForm(record, match, target) {
   target.replaceChildren();
   const form = document.createElement("form");
   form.className = "proposal-form";
   const reviewedScanHours = record.briefs?.[0]?.status === "reviewed" && Number.isFinite(record.briefs[0].scopeEstimateHours) ? record.briefs[0].scopeEstimateHours : 0;
   const preferredAvailability = match.availabilitySlots?.find((slot) => slot.availableDate === record.preferredDate) || match.availabilitySlots?.[0] || null;
+  const minimumRequiredHours = Math.max(Number(state.config.minimumHours) || 0, reviewedScanHours);
   form.append(
     proposalField("Proposed date", "proposedDate", "date", preferredAvailability?.availableDate || record.preferredDate),
     proposalField("Exact start time", "proposedStartTime", "time", preferredAvailability?.suggestedStartTime || preferredAvailability?.startTime || (record.preferredTimeWindow?.startsWith("Afternoon") ? "13:00" : record.preferredTimeWindow?.startsWith("Evening") ? "17:00" : "09:00")),
-    proposalField("Estimated hours", "estimatedHours", "number", Math.max(Number(state.config.minimumHours) || 0, reviewedScanHours)),
+    proposalField("Estimated hours", "estimatedHours", "number", minimumRequiredHours),
     proposalField("Customer rate per hour (£)", "customerRate", "number", state.config.customerHourlyRate),
     proposalField("Cleaner pay per hour (£)", "cleanerRate", "number", state.config.cleanerHourlyPay),
     proposalField("Additional job costs (£)", "otherCosts", "number", "0")
   );
+  form.elements.estimatedHours.min = String(minimumRequiredHours);
   const noteLabel = document.createElement("label");
   noteLabel.append(document.createTextNode("Internal proposal note"));
   const note = document.createElement("textarea");
@@ -110,7 +206,8 @@ function showProposalForm(record, match, target) {
   submit.type = "submit";
   submit.className = "button button-small";
   submit.textContent = `Save draft with ${match.fullName}`;
-  form.append(noteLabel, submit);
+  const economicsPreview = proposalEconomicsPanel(form, submit, minimumRequiredHours);
+  form.append(economicsPreview.panel, noteLabel, submit);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     submit.disabled = true;
@@ -130,7 +227,7 @@ function showProposalForm(record, match, target) {
     } catch (error) {
       showAdminError(error.message);
     } finally {
-      submit.disabled = false;
+      economicsPreview.refresh();
     }
   });
   target.append(form);

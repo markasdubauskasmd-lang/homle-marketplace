@@ -706,6 +706,15 @@ textarea { resize: vertical; }
 .proposal-form textarea { min-height: 70px; }
 .proposal-form label:nth-last-of-type(1) { grid-column: 1 / -1; }
 .proposal-form button { justify-self: start; }
+.proposal-economics-preview { display: grid; grid-column: 1 / -1; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
+.proposal-economics-preview > div { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.proposal-economics-preview > div > div { padding: 9px 10px; border-radius: 8px; background: var(--surface); }
+.proposal-economics-preview span, .proposal-economics-preview b { display: block; }
+.proposal-economics-preview span { color: var(--muted); font-size: .7rem; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; }
+.proposal-economics-preview b { margin-top: 3px; font-size: .92rem; }
+.proposal-economics-preview p { margin: 0; color: var(--muted); font-size: .8rem; }
+.proposal-economics-safe { border-color: #72b99f; background: var(--mint-pale); }
+.proposal-economics-blocked { border-color: #d7a25e; background: #fff8e9; }
 .proposal-summary { display: grid; gap: 4px; margin-top: 18px; padding: 15px 16px; color: #fff; border-radius: 11px; background: var(--green); }
 .proposal-summary span { color: #d8eee8; font-size: .83rem; }
 .proposal-summary label { max-width: 360px; margin-top: 8px; color: #fff; }
@@ -975,6 +984,7 @@ textarea { resize: vertical; }
   .brief-review-form button { grid-column: 1 / -1; justify-self: start; }
   .lead-followup form { grid-template-columns: 1fr 1fr; }
   .proposal-form { grid-template-columns: 1fr 1fr; }
+  .proposal-economics-preview > div { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .availability-form { grid-template-columns: 1fr 1fr; }
   .job-outcome-form { grid-template-columns: 1fr 1fr; }
   .outcome-adjustment-form { grid-template-columns: 1fr 1fr; }
@@ -1078,6 +1088,7 @@ textarea { resize: vertical; }
   .brief-review-form button { grid-column: auto; width: 100%; }
   .lead-followup form { grid-template-columns: 1fr; }
   .proposal-form { grid-template-columns: 1fr; }
+  .proposal-economics-preview > div { grid-template-columns: 1fr 1fr; }
   .availability-form, .availability-withdraw-form, .availability-request-form, .cleaner-availability-request-form { grid-template-columns: 1fr; }
   .availability-form label:nth-of-type(4) { grid-column: auto; }
   .cleaner-availability-request-form .availability-request-note { grid-column: auto; }
