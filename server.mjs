@@ -5125,6 +5125,7 @@ async function serveFile(requestPath, response) {
     "/booking-confirmation": "booking-pack.html",
     "/assignment": "booking-pack.html",
     "/admin": "admin.html",
+    "/admin/cases": "admin-cases.html",
     "/privacy": "privacy.html",
     "/terms": "terms.html"
   };

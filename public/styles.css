@@ -2064,6 +2064,43 @@ textarea { resize: vertical; }
 .booking-dashboard-feedback[data-kind="error"] { color: #782119; border-color: #dfa9a2; background: #fff2ef; }
 .landlord-booking-section { margin-bottom: 24px; }
 
+/* Authenticated marketplace case operations */
+.admin-cases-page .admin-nav > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 16px; }
+.admin-cases-page .admin-nav .back-link { margin-left: 0; }
+.network-status { position: sticky; z-index: 20; top: 10px; margin-bottom: 18px; padding: 12px 16px; border: 1px solid #d9a55f; border-radius: 12px; color: #70420a; background: #fff6df; box-shadow: 0 8px 24px rgba(74,45,10,.12); font-weight: 800; }
+.admin-cases-section { padding: 0; overflow: hidden; }
+.admin-cases-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: clamp(20px, 4vw, 30px); border-bottom: 1px solid var(--line); }
+.admin-cases-toolbar h2 { margin: 0 0 6px; color: var(--green-dark); font-size: clamp(1.5rem, 3vw, 2.1rem); }
+.admin-cases-toolbar p { max-width: 690px; margin: 0; color: var(--muted); }
+.admin-cases-toolbar label { display: grid; flex: 0 0 min(220px, 34vw); gap: 7px; color: var(--green-dark); font-size: .8rem; font-weight: 900; }
+.admin-cases-toolbar select { min-height: 46px; }
+.admin-cases-list { display: grid; gap: 0; }
+.admin-case-card { display: grid; gap: 18px; padding: clamp(20px, 4vw, 30px); border-bottom: 1px solid var(--line); background: #fff; }
+.admin-case-card:last-child { border-bottom: 0; }
+.admin-case-card-heading { display: flex; align-items: start; justify-content: space-between; gap: 24px; }
+.admin-case-card-heading h3 { margin: 9px 0 4px; color: var(--green-dark); font-size: 1.45rem; }
+.admin-case-card-heading p { margin: 0; color: var(--muted); }
+.admin-case-card-heading time { color: var(--muted); font-size: .78rem; font-weight: 800; white-space: nowrap; }
+.admin-case-status-open { color: #7a4205; border-color: #e1b36e; background: #fff4da; }
+.admin-case-status-reviewing { color: #174d65; border-color: #9ecadd; background: #edf8fc; }
+.admin-case-status-resolved, .admin-case-status-closed { color: #0d584d; border-color: #9ed2c4; background: #edf9f5; }
+.admin-case-description { max-width: 900px; margin: 0; color: #243d37; font-size: 1rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-case-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: #f8fbfa; }
+.admin-case-facts div { padding: 12px 14px; border-right: 1px solid var(--line); }
+.admin-case-facts div:last-child { border-right: 0; }
+.admin-case-facts dt { color: var(--muted); font-size: .67rem; font-weight: 850; text-transform: uppercase; }
+.admin-case-facts dd { margin: 4px 0 0; color: var(--green-dark); font-weight: 850; }
+.admin-case-resolution { padding: 16px 18px; border-left: 4px solid var(--green); border-radius: 0 12px 12px 0; background: var(--mint-pale); }
+.admin-case-resolution strong { color: var(--green-dark); }
+.admin-case-resolution p { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-case-resolution small { color: var(--muted); }
+.admin-cases-pagination { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 20px; border-top: 1px solid var(--line); background: #f8fbfa; }
+.admin-cases-pagination span { min-width: 70px; color: var(--green-dark); font-weight: 900; text-align: center; }
+.admin-case-dialog small { color: var(--muted); line-height: 1.45; }
+.admin-case-dialog textarea { resize: vertical; }
+.admin-case-confirmation { grid-template-columns: 22px 1fr !important; align-items: start; padding: 14px; border: 1px solid #e1b36e; border-radius: 12px; background: #fff8e8; }
+.admin-case-confirmation input { width: 19px; height: 19px; margin-top: 2px; accent-color: var(--green); }
+
 @media (max-width: 820px) {
   .booking-dashboard-list { grid-template-columns: 1fr; }
   .booking-dashboard-heading { display: grid; gap: 18px; }
@@ -2080,6 +2117,21 @@ textarea { resize: vertical; }
   .booking-dashboard-stats div:last-child { border-bottom: 0; }
   .booking-dashboard-stats dd { grid-row: 1; grid-column: 2; margin: 0; }
   .booking-dashboard-section, .booking-history-section { padding: 20px 14px; border-radius: 18px; }
+  .admin-cases-page .admin-nav { align-items: start; }
+  .admin-cases-page .admin-nav > div { display: grid; justify-items: end; gap: 4px; }
+  .admin-cases-section { padding: 0; }
+  .admin-cases-toolbar, .admin-case-card-heading { display: grid; align-items: start; }
+  .admin-cases-toolbar { gap: 18px; padding: 20px 14px; }
+  .admin-cases-toolbar label { width: 100%; }
+  .admin-case-card { padding: 20px 14px; }
+  .admin-case-card-heading { gap: 9px; }
+  .admin-case-card-heading time { white-space: normal; }
+  .admin-case-facts { grid-template-columns: 1fr; }
+  .admin-case-facts div { border-right: 0; border-bottom: 1px solid var(--line); }
+  .admin-case-facts div:last-child { border-bottom: 0; }
+  .admin-cases-pagination { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .admin-cases-pagination span { grid-column: 1 / -1; grid-row: 1; }
+  .admin-cases-pagination .button { width: 100%; }
   .booking-section-heading { display: grid; }
   .booking-private-pill { justify-self: start; }
   .booking-summary-heading { display: grid; }

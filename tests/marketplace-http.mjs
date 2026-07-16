@@ -323,11 +323,15 @@ const photoAccess = await dispatch(router, "GET", `/api/marketplace/bookings/${b
 assert(photoIntent.response.statusCode === 201 && photoCompletion.response.statusCode === 200 && photoAccess.response.statusCode === 200 && calls.slice(-3).map((call) => call.kind).join(",") === "media-intent,media-complete,media-access", "Private media routes did not bind Cleaner uploads and participant reads to the booking actor.");
 const cleanerPropertyWrite = await dispatch(router, "POST", "/api/marketplace/properties", { headers: authHeaders, body: { name: "Attempt" } });
 assert(cleanerPropertyWrite.response.statusCode === 403 && cleanerPropertyWrite.body.code === "role-rejected", "A Cleaner entered the Landlord-only property route.");
+const participantDisputeQueue = await dispatch(router, "GET", "/api/marketplace/admin/disputes", { headers: { cookie: authHeaders.cookie } });
+assert(participantDisputeQueue.response.statusCode === 403 && participantDisputeQueue.body.code === "role-rejected", "A booking participant entered the Administrator case queue.");
 sessions.landlord = { ...sessions.landlord, user_id: "33333333-3333-4333-8333-333333333333", selected_role: "administrator", roles: ["administrator"] };
 const moderatedReview = await dispatch(router, "POST", "/api/marketplace/admin/reviews/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/moderation", { headers: authHeaders, body: { decision: "approved" } });
 assert(moderatedReview.response.statusCode === 200 && calls.at(-1).kind === "review-moderate" && calls.at(-1).actor.roles.includes("administrator"), "Administrator review moderation route lost role or CSRF binding.");
 const disputeQueue = await dispatch(router, "GET", "/api/marketplace/admin/disputes?status=open&limit=25", { headers: { cookie: authHeaders.cookie } });
+const missingDisputeCsrf = await dispatch(router, "PATCH", "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": "application/json; charset=utf-8" }, body: { status: "reviewing" } });
 const reviewedDispute = await dispatch(router, "PATCH", "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { headers: authHeaders, body: { status: "resolved", resolutionNote: "The evidence was reviewed and the booking has been cancelled.", resolutionOutcome: "cancelled" } });
+assert(missingDisputeCsrf.response.statusCode === 403 && missingDisputeCsrf.body.code === "csrf-rejected", "Administrator case mutation accepted a missing CSRF token.");
 assert(disputeQueue.response.statusCode === 200 && calls.at(-2).kind === "dispute-list" && calls.at(-2).input.status === "open" && reviewedDispute.response.statusCode === 200 && reviewedDispute.body.dispute.resolutionOutcome === "cancelled" && calls.at(-1).kind === "dispute-review" && calls.at(-1).actor.roles.includes("administrator"), "Administrator booking-case queue or audited resolution route lost its role, query or CSRF boundary.");
 sessions.landlord = { ...sessions.landlord, user_id: "11111111-1111-4111-8111-111111111111", selected_role: "landlord", roles: ["landlord"] };
 

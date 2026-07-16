@@ -300,10 +300,12 @@ try {
   const cleanerDirectoryPage = await fetch(`${base}/cleaners`);
   const cleanerEditorPage = await fetch(`${base}/cleaner/profile`);
   const landlordDashboardPage = await fetch(`${base}/landlord/dashboard`);
+  const adminCasesPage = await fetch(`${base}/admin/cases`);
   const cleanerDirectoryText = await cleanerDirectoryPage.text();
   const cleanerEditorText = await cleanerEditorPage.text();
   const landlordDashboardText = await landlordDashboardPage.text();
-  assert(cleanerDirectoryPage.ok && cleanerEditorPage.ok && landlordDashboardPage.ok && homeText.includes('href="/cleaners">Find a Cleaner</a>') && cleanerDirectoryText.includes("Find the right Cleaner for the job") && cleanerDirectoryText.includes("data-directory-state") && cleanerEditorText.includes("Build a profile landlords can trust") && cleanerEditorText.includes("data-cleaner-profile-form hidden") && cleanerEditorText.includes("data-profile-controls disabled") && landlordDashboardText.includes("Checking secure Landlord access") && landlordDashboardText.includes("data-landlord-workspace hidden") && landlordDashboardText.includes("Save private draft"), "The real Cleaner/Landlord routes, homepage entry point or fail-closed private controls are not served by the pilot runtime.");
+  const adminCasesText = await adminCasesPage.text();
+  assert(cleanerDirectoryPage.ok && cleanerEditorPage.ok && landlordDashboardPage.ok && adminCasesPage.ok && adminCasesPage.headers.get("cache-control") === "no-store" && homeText.includes('href="/cleaners">Find a Cleaner</a>') && cleanerDirectoryText.includes("Find the right Cleaner for the job") && cleanerDirectoryText.includes("data-directory-state") && cleanerEditorText.includes("Build a profile landlords can trust") && cleanerEditorText.includes("data-cleaner-profile-form hidden") && cleanerEditorText.includes("data-profile-controls disabled") && landlordDashboardText.includes("Checking secure Landlord access") && landlordDashboardText.includes("data-landlord-workspace hidden") && landlordDashboardText.includes("Save private draft") && adminCasesText.includes("Marketplace trust and safety") && adminCasesText.includes("data-admin-cases-workspace hidden") && adminCasesText.includes("This screen never refunds, charges or pays anyone"), "The real Cleaner/Landlord/Administrator routes, homepage entry point or fail-closed private controls are not served by the pilot runtime.");
   const paymentPage = await fetch(`${base}/booking-payment?bookingId=55555555-5555-4555-8555-555555555555`);
   const paymentPageText = await paymentPage.text();
   const paymentPageScript = await fetch(`${base}/booking-payment.js?v=smoke-test`);
