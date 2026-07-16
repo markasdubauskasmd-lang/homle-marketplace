@@ -12,13 +12,19 @@ Decision rule: **Can the user complete this action with fewer screens, fewer dec
 - The Cleaner dashboard contained the right information, but the urgent request or live job competed with headings, statistics and multiple lists.
 - The public page has a clear account-first booking action, but the older pilot request/application forms remain visually long further down the page. They should not become the authenticated marketplace journey.
 
+## Public conversion path
+
+The public homepage is now a separate lightweight page rather than the old intake page with two long forms attached below it. It gives each visitor one immediate route: **Book a clean**, **Find a cleaner**, **Work as a cleaner** or **Sign in**. The explanation is reduced to four steps: book, scan and speak, review, follow.
+
+The working concierge-pilot forms are preserved only on `/request` and `/join`. This keeps the safe fallback available without making a new customer scroll through or download its form-processing experience on the main conversion path. The homepage loads a small menu/year script and does not load customer-request drafts, Cleaner-application drafts, validation or submission code.
+
 ## Simplified journeys
 
 ### Customer
 
 `Book a clean` → Google/Facebook/email account → Landlord onboarding → the Landlord dashboard's single next action.
 
-The account-first action remains visible in the hero and navigation. Provider sign-in retains the booking intent and avoids asking for contact information again. The next improvement is to remove or clearly separate the legacy pilot forms once the authenticated marketplace is enabled in staging.
+The account-first action remains visible in the hero and navigation. Provider sign-in retains the booking intent and avoids asking for contact information again. Legacy pilot forms are now separated from the homepage and remain dedicated fallbacks only.
 
 ### Landlord or property owner
 
@@ -38,8 +44,8 @@ The urgent action appears before counts and lists. Invitation cards retain the e
 - Web speech recognition depends on browser support and may use the browser vendor's service; typed notes remain the fallback.
 - Mobile web background location remains less reliable than a native app after the screen is locked.
 - Real Google/Facebook accounts, managed PostgreSQL, private object storage, email delivery, Stripe test mode and two-phone HTTPS testing are still staging gates.
-- The current public page still carries legacy pilot forms below the account-first marketplace entry. Remove them from the public conversion path only when the authenticated replacement is enabled and proven.
+- `/request` and `/join` still use the longer concierge-pilot intake because they must collect enough safe information to operate without the managed account marketplace. They are no longer part of the homepage scroll.
 
 ## Verification
 
-Static journey tests assert the single-next-action state, optional-field disclosures, removal of the duplicate service decision, automatic speech summary, safe text rendering, CSRF/session protection, role-specific booking information and mobile layouts. Full project checks cover database privileges, account security, scan consent, booking overlap, tracking, progress, messages, payments, reviews and disputes.
+Static journey tests assert the lightweight homepage boundary, its direct role actions, absence of the legacy forms and form-processing script, dedicated fallback intake routes, single-next-action dashboards, optional-field disclosures, removal of the duplicate service decision, automatic speech summary, safe text rendering, CSRF/session protection, role-specific booking information and mobile layouts. Full project checks cover database privileges, account security, scan consent, booking overlap, tracking, progress, messages, payments, reviews and disputes.

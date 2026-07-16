@@ -5133,7 +5133,7 @@ function streamTrackingTest(request, response) {
 
 async function serveFile(requestPath, response) {
   const routes = {
-    "/": "index.html",
+    "/": "home.html",
     "/request": "index.html",
     "/join": "index.html",
     "/login": "account.html",
