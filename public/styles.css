@@ -1643,6 +1643,18 @@ textarea { resize: vertical; }
 .dashboard-optional-fields summary { display: flex; justify-content: space-between; gap: 15px; padding: 14px; color: var(--green-dark); font-weight: 850; cursor: pointer; }
 .dashboard-optional-fields summary span { color: var(--muted); font-size: .78rem; }
 .dashboard-optional-fields > div { display: grid; gap: 17px; padding: 4px 14px 16px; }
+
+.cleaner-payout-main { min-height: calc(100vh - 12rem); display: grid; place-items: center; padding-block: clamp(2rem, 8vw, 5rem); }
+.cleaner-payout-card { width: min(100%, 42rem); background: #fff; border: 1px solid rgba(14, 102, 91, .18); border-radius: 1.5rem; padding: clamp(1.25rem, 5vw, 2.25rem); box-shadow: 0 1.25rem 3rem rgba(11, 48, 43, .09); }
+.cleaner-payout-card h1 { margin: .3rem 0 .8rem; max-width: 18ch; }
+.cleaner-payout-state { display: grid; grid-template-columns: auto 1fr; gap: .85rem; align-items: start; margin: 1.5rem 0; padding: 1rem; border-radius: 1rem; background: #edf7f5; }
+.cleaner-payout-state[data-kind="ready"] { background: #e8f7ed; }
+.cleaner-payout-state[data-kind="error"] { background: #fff1ee; }
+.cleaner-payout-state p { margin: .2rem 0 0; }
+.cleaner-payout-mark { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: #0e665b; color: #fff; font-weight: 800; }
+.cleaner-payout-state[data-kind="error"] .cleaner-payout-mark { background: #a63822; }
+.cleaner-payout-action { width: 100%; min-height: 3.25rem; }
+.cleaner-payout-note { margin: 1rem 0 0; font-size: .9rem; color: #52625f; }
 .landlord-request-form { margin-top: 0; margin-bottom: 22px; }
 .landlord-required-services { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .landlord-speech-scope { display: grid; gap: 14px; padding: 18px; border: 1px solid #b7d8ce; border-radius: 15px; background: var(--mint-pale); }

@@ -58,7 +58,11 @@ DECLARE
     'tideway_private.list_admin_booking_disputes(text,integer,integer)',
     'tideway_private.review_booking_dispute(uuid,text,text,text)',
     'tideway_private.request_my_privacy_action(uuid,text)',
-    'tideway_private.get_my_privacy_requests()'
+    'tideway_private.get_my_privacy_requests()',
+    'tideway_private.get_my_cleaner_payout_onboarding()',
+    'tideway_private.begin_my_cleaner_payout_onboarding(uuid)',
+    'tideway_private.attach_my_cleaner_payout_account(uuid,text)',
+    'tideway_private.sync_my_cleaner_payout_account(text,boolean,boolean,boolean)'
   ];
   worker_functions constant text[] := ARRAY[
     'tideway_private.expire_due_cleaner_invitations(integer)',
@@ -226,6 +230,11 @@ BEGIN
      OR has_table_privilege('tideway_app', 'tideway_private.payment_provider_events', 'UPDATE')
      OR has_table_privilege('tideway_app', 'tideway_private.payment_provider_events', 'DELETE')
      OR has_table_privilege('tideway_worker', 'tideway_private.cleaner_payout_accounts', 'SELECT')
+     OR has_table_privilege('tideway_app', 'tideway_private.cleaner_payout_onboarding', 'SELECT')
+     OR has_table_privilege('tideway_app', 'tideway_private.cleaner_payout_onboarding', 'INSERT')
+     OR has_table_privilege('tideway_app', 'tideway_private.cleaner_payout_onboarding', 'UPDATE')
+     OR has_table_privilege('tideway_app', 'tideway_private.cleaner_payout_onboarding', 'DELETE')
+     OR has_table_privilege('tideway_worker', 'tideway_private.cleaner_payout_onboarding', 'SELECT')
      OR has_table_privilege('tideway_worker', 'tideway_private.payment_provider_events', 'SELECT') THEN
     RAISE EXCEPTION 'Restricted roles have direct access to private payment provider material';
   END IF;
@@ -245,7 +254,7 @@ SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
-  'appFunctionChecks', 36,
+  'appFunctionChecks', 40,
   'workerFunctionChecks', 13
 ) AS tideway_deployment_verification;
 

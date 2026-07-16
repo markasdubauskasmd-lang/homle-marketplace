@@ -22,6 +22,9 @@ This checkpoint composes the existing PostgreSQL, session security, cleaner prof
 | `GET /api/marketplace/cleaning-requests/:requestId/photos/:photoId/access` | Authorized participant/admin | Five-minute private no-store signed read; no object key/checksum projection |
 | `POST /api/marketplace/cleaning-requests/:requestId/submit` | Landlord | Owner draft, session/origin/CSRF, at least one sanitized room photo, reviewed scope, explicit preview choice and audited combined fingerprint |
 | `GET /api/marketplace/bookings/:bookingId/payment` | Booking Landlord/admin | Session, role plus owner-bound security-definer status projection; no provider IDs, retry material, payout destination or client secret |
+| `GET /api/marketplace/cleaner/payout-account` | Cleaner | Session and Cleaner role; returns readiness only, never the stored provider destination |
+| `POST /api/marketplace/cleaner/payout-account/onboarding` | Cleaner | Exact origin, CSRF and Cleaner role; creates/reuses server-owned test account and returns one short-lived exact Stripe-hosted link |
+| `POST /api/marketplace/cleaner/payout-account/refresh` | Cleaner | Exact origin, CSRF and Cleaner role; retrieves provider status and stores only bounded readiness flags |
 | `POST /api/marketplace/bookings/:bookingId/payment` | Booking Landlord | Session, exact origin, CSRF, Landlord role, strong retry key and server-frozen booking amount; route absent while payments are detached |
 | `POST /api/marketplace/payments/webhook` | Stripe-signed event only | Exact raw bytes, 1 MiB limit, test-mode signature/version validation and allowlisted reconciliation; route absent while payments are detached |
 

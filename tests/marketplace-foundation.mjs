@@ -71,6 +71,8 @@ assert(pilotProduction.ok, "A production public-site deployment could not stay s
 const incompleteProduction = validateMarketplaceEnvironment({ NODE_ENV: "production", MARKETPLACE_ENABLED: "true", APP_ORIGIN: "http://example.com" });
 assert(!incompleteProduction.ok && incompleteProduction.errors.some((error) => error.includes("DATABASE_URL")) && incompleteProduction.errors.some((error) => error.includes("AUTH_TOKEN_SECRET")) && incompleteProduction.errors.some((error) => error.includes("HTTPS")), "Production marketplace configuration passed without its database, token-secret, encryption or HTTPS boundary.");
 assert(!validateMarketplaceEnvironment({ MARKETPLACE_ENABLED: "false", PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_PUBLISHABLE_KEY: `pk_test_${"c".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` }).ok, "Payments could be requested while the marketplace remained detached.");
+const insecurePayoutOrigin = validateMarketplaceEnvironment({ MARKETPLACE_ENABLED: "true", PAYMENTS_ENABLED: "true", APP_ORIGIN: "http://127.0.0.1:4173", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_PUBLISHABLE_KEY: `pk_test_${"c".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` });
+assert(!insecurePayoutOrigin.ok && insecurePayoutOrigin.errors.some((error) => error.includes("Cleaner payout onboarding")), "Payment mode accepted an HTTP origin that Stripe cannot use for secure payout return and refresh links.");
 const validProduction = {
   NODE_ENV: "production",
   MARKETPLACE_ENABLED: "true",

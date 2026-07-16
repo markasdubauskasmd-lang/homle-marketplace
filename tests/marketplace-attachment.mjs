@@ -126,7 +126,7 @@ assert.equal(clientKeyCreated, 1);
 assert.equal(smtpVerified, 1);
 assert.equal(storageVerified, 1);
 assert.equal(released, 1);
-assert.ok(probeQueries[0].includes("current_user") && probeQueries[0].includes("tideway_private.lookup_session") && probeQueries[0].includes("list_my_booking_summaries") && probeQueries[0].includes("configure_automatic_dispatch") && probeQueries[0].includes("submit_cleaning_request") && probeQueries[0].includes("create_request_photo_upload_intent") && probeQueries[0].includes("connect_social_identity") && probeQueries[0].includes("request_my_privacy_action"));
+assert.ok(probeQueries[0].includes("current_user") && probeQueries[0].includes("tideway_private.lookup_session") && probeQueries[0].includes("list_my_booking_summaries") && probeQueries[0].includes("configure_automatic_dispatch") && probeQueries[0].includes("submit_cleaning_request") && probeQueries[0].includes("create_request_photo_upload_intent") && probeQueries[0].includes("connect_social_identity") && probeQueries[0].includes("request_my_privacy_action") && probeQueries[0].includes("begin_my_cleaner_payout_onboarding"));
 assert.equal(attachment.authenticationCapabilities.emailPassword, true);
 assert.equal(attachment.authenticationCapabilities.passwordReset, true);
 assert.equal(attachment.authenticationCapabilities.emailVerification, true);
@@ -154,7 +154,13 @@ const paymentAttachment = await createMarketplaceAttachment({
   createRateLimiter() { return sharedRateLimiter; },
   async createPaymentProvider(configuration) {
     paymentProviderConfiguration = configuration;
-    return { name: "stripe", async verify() { paymentAdapterVerified += 1; return { ready: true, testMode: true }; } };
+    return {
+      name: "stripe",
+      async verify() { paymentAdapterVerified += 1; return { ready: true, testMode: true }; },
+      async createPayoutAccount() {},
+      async retrievePayoutAccount() {},
+      async createPayoutOnboardingLink() {}
+    };
   },
   createRuntime(selectedPool, options) {
     assert.equal(options.paymentProvider.name, "stripe");

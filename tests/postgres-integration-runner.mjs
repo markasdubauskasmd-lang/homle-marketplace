@@ -33,6 +33,8 @@ assert.match(sources.get("marketplace-rls-behaviour.sql"), /Cleaner can read a r
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /insufficient_privilege/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Privacy export intake lost active-request idempotency/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Runtime role can read account privacy requests directly/);
+assert.match(sources.get("marketplace-rls-behaviour.sql"), /Cleaner payout onboarding lost owner binding, stable retry or verified readiness state/);
+assert.match(sources.get("marketplace-rls-behaviour.sql"), /Runtime role can read private Cleaner payout onboarding material/);
 assert.match(sources.get("marketplace-post-concurrency.sql"), /Cleaner property access did not follow the accepted booking/);
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Runtime role can bypass the function-only dispute workflow/);
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Unrelated account opened a booking dispute/);

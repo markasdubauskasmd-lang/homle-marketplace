@@ -52,6 +52,7 @@ await assert.rejects(repository.beginCommand(actor, { commandId, paymentId, kind
 
 const migration = await readFile(new URL("../db/migrations/022_marketplace_payment_ledger.sql", import.meta.url), "utf8");
 const paymentStatusMigration = await readFile(new URL("../db/migrations/023_landlord_payment_status.sql", import.meta.url), "utf8");
+const payoutMigration = await readFile(new URL("../db/migrations/036_cleaner_payout_onboarding.sql", import.meta.url), "utf8");
 const grants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const runtime = await readFile(new URL("../src/marketplace/runtime.mjs", import.meta.url), "utf8");
 const attachment = await readFile(new URL("../src/marketplace/attachment.mjs", import.meta.url), "utf8");
@@ -64,10 +65,11 @@ for (const required of [
   "payment_one_live_capture_idx", "payment_one_live_transfer_idx", "ENABLE ROW LEVEL SECURITY"
 ]) assert(migration.includes(required), `Payment migration omitted ${required}.`);
 assert(!migration.includes("client_secret") && !migration.includes("card_number") && !migration.includes("raw_payload"), "Payment migration attempted to persist client secrets, card details or raw provider payloads.");
-for (const required of ["begin_booking_payment_authorization", "reconcile_payment_provider_event", "REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_payments", "REVOKE ALL ON TABLE tideway_private.cleaner_payout_accounts"]) assert(grants.includes(required), `Runtime payment grants omitted ${required}.`);
+for (const required of ["begin_booking_payment_authorization", "reconcile_payment_provider_event", "get_my_cleaner_payout_onboarding", "begin_my_cleaner_payout_onboarding", "attach_my_cleaner_payout_account", "sync_my_cleaner_payout_account", "REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_payments", "REVOKE ALL ON TABLE tideway_private.cleaner_payout_accounts"]) assert(grants.includes(required), `Runtime payment grants omitted ${required}.`);
+for (const required of ["cleaner_payout_onboarding", "pg_advisory_xact_lock", "payout-account-conflict", "sync_my_cleaner_payout_account", "REVOKE ALL ON TABLE"]) assert(payoutMigration.includes(required), `Cleaner payout migration omitted ${required}.`);
 for (const required of ["read_booking_payment", "booking.landlord_user_id = actor_id", "payment.amount_captured_pence", "REVOKE ALL ON FUNCTION"]) assert(paymentStatusMigration.includes(required), `Landlord payment-status migration omitted ${required}.`);
 assert(!paymentStatusMigration.includes("provider_payment_id") && !paymentStatusMigration.includes("idempotency_key_hash") && grants.includes("read_booking_payment(uuid)"), "Landlord payment status exposed private provider/idempotency material or lacked its narrow grant.");
-assert(runtime.includes("createPaymentRepository(database)") && runtime.includes("options.paymentProvider ? createPaymentService") && runtime.includes("paymentReady: paymentService !== null"), "Marketplace runtime did not keep payment composition explicitly detached behind a provider adapter.");
+assert(runtime.includes("createPaymentRepository(database)") && runtime.includes("options.paymentProvider ? createPaymentService") && runtime.includes("createCleanerPayoutRepository(database)") && runtime.includes("options.paymentProvider ? createCleanerPayoutService") && runtime.includes("paymentReady: paymentService !== null"), "Marketplace runtime did not keep checkout and Cleaner payout composition explicitly detached behind a provider adapter.");
 assert(attachment.includes("payment_ledger_ready") && attachment.includes("payment_access_ready") && attachment.includes("begin_booking_payment_authorization(uuid,uuid,text,bytea)") && attachment.includes("read_booking_payment(uuid)"), "Marketplace startup could attach against a database missing the locked payment ledger or Landlord status projection.");
 
 console.log("Payment repository tests passed: frozen booking money, function-only mutations, server-owned payout terms, idempotent event ledger, safe error mapping and least-privilege grants.");

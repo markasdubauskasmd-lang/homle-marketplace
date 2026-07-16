@@ -3,6 +3,7 @@ const testKeyPattern = /^sk_test_[A-Za-z0-9_]{16,200}$/;
 const webhookSecretPattern = /^whsec_[A-Za-z0-9_]{16,200}$/;
 const providerReferencePattern = /^(?:pi|re|tr|ch|acct|evt)_[A-Za-z0-9_]{3,250}$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const payoutIdempotencyPattern = /^tideway_cleaner_payout_[0-9a-f-]{36}$/;
 
 function reference(value, label) {
   if (!providerReferencePattern.test(value || "")) throw new TypeError(`Stripe returned an invalid ${label}.`);
@@ -26,6 +27,25 @@ function metadata(input) {
     tideway_booking_id: input.bookingId,
     ...(input.commandId ? { tideway_command_id: input.commandId } : {})
   };
+}
+
+function payoutAccount(account) {
+  const outstanding = Array.isArray(account?.requirements?.currently_due) ? account.requirements.currently_due.length : 0;
+  if (!Number.isInteger(outstanding) || outstanding < 0 || outstanding > 100) throw new TypeError("Stripe returned invalid payout requirements.");
+  return Object.freeze({
+    id: reference(account?.id, "connected account id"),
+    testMode: true,
+    chargesEnabled: account?.charges_enabled === true,
+    payoutsEnabled: account?.payouts_enabled === true,
+    detailsSubmitted: account?.details_submitted === true,
+    remainingRequirements: outstanding
+  });
+}
+
+function exactHttpsUrl(value, label) {
+  const url = new URL(value || "");
+  if (url.protocol !== "https:" || url.username || url.password || url.hash) throw new TypeError(`A safe HTTPS ${label} is required.`);
+  return url.toString();
 }
 
 function authorizationResult(intent) {
@@ -98,7 +118,7 @@ export async function createStripePaymentProvider(configuration = {}, options = 
     if (typeof Stripe !== "function") throw new TypeError("The reviewed Stripe SDK is unavailable.");
     stripe = new Stripe(secretKey, { apiVersion: stripeApiVersion, maxNetworkRetries: 2, timeout: 10_000, telemetry: false });
   }
-  const required = ["accounts", "paymentIntents", "refunds", "transfers", "charges", "webhooks"];
+  const required = ["accounts", "accountLinks", "paymentIntents", "refunds", "transfers", "charges", "webhooks"];
   if (!required.every((key) => stripe?.[key])) throw new TypeError("The Stripe SDK client is incomplete.");
 
   async function eventWithDisputePayment(event, dispute) {
@@ -143,6 +163,31 @@ export async function createStripePaymentProvider(configuration = {}, options = 
       const account = await stripe.accounts.retrieve();
       if (!/^acct_[A-Za-z0-9_]{3,250}$/.test(account?.id || "") || account?.charges_enabled !== true) throw new TypeError("The Stripe test platform is not ready to create charges.");
       return Object.freeze({ ready: true, testMode: true });
+    },
+    async createPayoutAccount(input) {
+      if (!uuidPattern.test(input?.requestId || "") || !payoutIdempotencyPattern.test(input?.idempotencyKey || "")) throw new TypeError("A complete Tideway payout setup request is required.");
+      const account = await stripe.accounts.create({
+        type: "express",
+        country: "GB",
+        capabilities: { transfers: { requested: true } },
+        metadata: { tideway_payout_request_id: input.requestId }
+      }, { idempotencyKey: input.idempotencyKey });
+      return payoutAccount(account);
+    },
+    async retrievePayoutAccount(input) {
+      return payoutAccount(await stripe.accounts.retrieve(reference(input?.accountId, "connected account id")));
+    },
+    async createPayoutOnboardingLink(input) {
+      const accountId = reference(input?.accountId, "connected account id");
+      const link = await stripe.accountLinks.create({
+        account: accountId,
+        refresh_url: exactHttpsUrl(input?.refreshUrl, "payout refresh URL"),
+        return_url: exactHttpsUrl(input?.returnUrl, "payout return URL"),
+        type: "account_onboarding"
+      });
+      const url = new URL(link?.url || "");
+      if (url.protocol !== "https:" || url.origin !== "https://connect.stripe.com" || !Number.isInteger(link?.expires_at) || link.expires_at * 1000 <= Date.now()) throw new TypeError("Stripe returned an invalid payout onboarding link.");
+      return Object.freeze({ url: url.toString(), expiresAt: link.expires_at });
     },
     async createAuthorization(input) {
       const selected = paymentInput(input);

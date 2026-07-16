@@ -71,6 +71,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const disputes = dependencies?.disputeService;
   const privacyRequests = dependencies?.privacyRequestService;
   const payments = dependencies?.paymentService || null;
+  const cleanerPayouts = dependencies?.cleanerPayoutService || null;
   const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
@@ -89,6 +90,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!disputes || !["open", "getForBooking", "listForAdministrator", "review"].every((method) => typeof disputes[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-case service.");
   if (!privacyRequests || !["list", "request"].every((method) => typeof privacyRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account privacy-request service.");
   if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
+  if (cleanerPayouts && !["getStatus", "refreshStatus", "beginOnboarding"].every((method) => typeof cleanerPayouts[method] === "function")) throw new TypeError("Marketplace Cleaner payout routes require the complete payout service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
   const limitPublicRead = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
 
@@ -112,6 +114,27 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);
           sendJson(response, 200, { ok: true, payment: payments.getClientConfiguration(context.actor) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/payout-account") {
+          if (!cleanerPayouts) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, payout: await cleanerPayouts.getStatus(context.actor) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/payout-account/refresh") {
+          if (!cleanerPayouts) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, payout: await cleanerPayouts.refreshStatus(context.actor) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/payout-account/onboarding") {
+          if (!cleanerPayouts) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          sendJson(response, 201, { ok: true, payout: await cleanerPayouts.beginOnboarding(context.actor) });
           return true;
         }
         const selectedBookingPayment = pathname.match(bookingPaymentPath);

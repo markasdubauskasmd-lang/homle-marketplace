@@ -8,9 +8,14 @@ const secretKey = `sk_test_${"a".repeat(32)}`;
 const webhookSecret = `whsec_${"b".repeat(32)}`;
 const calls = [];
 let nextEvent;
+const payoutRequestId = "77777777-7777-4777-8777-777777777777";
 
 const client = {
-  accounts: { async retrieve() { calls.push({ kind: "account" }); return { id: "acct_test_platform", charges_enabled: true }; } },
+  accounts: {
+    async create(input, options) { calls.push({ kind: "payout-account-create", input, options }); return { id: "acct_test_cleaner", charges_enabled: false, payouts_enabled: false, details_submitted: false, requirements: { currently_due: ["external_account"] } }; },
+    async retrieve(id) { calls.push({ kind: id ? "payout-account-retrieve" : "account", id }); return id ? { id, charges_enabled: false, payouts_enabled: true, details_submitted: true, requirements: { currently_due: [] } } : { id: "acct_test_platform", charges_enabled: true }; }
+  },
+  accountLinks: { async create(input) { calls.push({ kind: "payout-link", input }); return { url: "https://connect.stripe.com/setup/c/acct_test_cleaner/secret", expires_at: Math.floor(Date.now() / 1000) + 300 }; } },
   paymentIntents: {
     async create(input, options) { calls.push({ kind: "intent-create", input, options }); return { id: "pi_test_authorization", status: "requires_payment_method", amount: input.amount, currency: input.currency, client_secret: "pi_test_client_secret" }; },
     async retrieve(id, options) {
@@ -32,6 +37,16 @@ await assert.rejects(createStripePaymentProvider({ secretKey, webhookSecret: "wr
 
 const provider = await createStripePaymentProvider({ secretKey, webhookSecret }, { stripeClient: client });
 assert.deepEqual(await provider.verify(), { ready: true, testMode: true });
+const payoutAccount = await provider.createPayoutAccount({ requestId: payoutRequestId, idempotencyKey: `tideway_cleaner_payout_${payoutRequestId}` });
+assert.deepEqual(payoutAccount, { id: "acct_test_cleaner", testMode: true, chargesEnabled: false, payoutsEnabled: false, detailsSubmitted: false, remainingRequirements: 1 });
+const payoutCreate = calls.find((call) => call.kind === "payout-account-create");
+assert.deepEqual(payoutCreate.input, { type: "express", country: "GB", capabilities: { transfers: { requested: true } }, metadata: { tideway_payout_request_id: payoutRequestId } });
+assert.equal(payoutCreate.options.idempotencyKey, `tideway_cleaner_payout_${payoutRequestId}`);
+assert.deepEqual(await provider.retrievePayoutAccount({ accountId: "acct_test_cleaner" }), { id: "acct_test_cleaner", testMode: true, chargesEnabled: false, payoutsEnabled: true, detailsSubmitted: true, remainingRequirements: 0 });
+const payoutLink = await provider.createPayoutOnboardingLink({ accountId: "acct_test_cleaner", refreshUrl: "https://tideway.example/cleaner/payouts?resume=1", returnUrl: "https://tideway.example/cleaner/payouts?returned=1" });
+assert.equal(payoutLink.url, "https://connect.stripe.com/setup/c/acct_test_cleaner/secret");
+assert.deepEqual(calls.find((call) => call.kind === "payout-link").input, { account: "acct_test_cleaner", refresh_url: "https://tideway.example/cleaner/payouts?resume=1", return_url: "https://tideway.example/cleaner/payouts?returned=1", type: "account_onboarding" });
+await assert.rejects(provider.createPayoutOnboardingLink({ accountId: "acct_test_cleaner", refreshUrl: "http://tideway.example/cleaner/payouts", returnUrl: "https://tideway.example/cleaner/payouts" }), /safe HTTPS/);
 const shared = { paymentId, bookingId, amountPence: 12_000, currency: "gbp" };
 const authorization = await provider.createAuthorization({ ...shared, idempotencyKey: `tideway_payment_${paymentId}`, transferGroup: `tideway_booking_${bookingId}` });
 assert.equal(authorization.status, "requires-customer-action");
@@ -94,4 +109,4 @@ nextEvent = stripeEvent("customer.created", { id: "cus_version", metadata: {} },
 await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /API version/);
 assert(!JSON.stringify(provider).includes(secretKey) && !JSON.stringify(provider).includes(webhookSecret));
 
-console.log("Stripe payment provider tests passed: test-key-only adapter, manual authorization, exact server commands, source-backed transfer and raw signed event projection.");
+console.log("Stripe payment provider tests passed: test-key-only adapter, hosted Cleaner payout onboarding, manual authorization, exact server commands, source-backed transfer and raw signed event projection.");

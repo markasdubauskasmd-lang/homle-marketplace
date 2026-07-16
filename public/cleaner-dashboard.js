@@ -11,6 +11,7 @@ let bookings = [];
 let selectedDeclineBookingId = "";
 let loading = false;
 let responding = false;
+let payoutStatus = null;
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 
@@ -160,10 +161,10 @@ function renderBookings() {
   document.querySelector("[data-cleaner-active-count]").textContent = String(buckets.active.length);
   document.querySelector("[data-cleaner-upcoming-count]").textContent = String(buckets.upcoming.length);
   document.querySelector("[data-cleaner-history-count]").textContent = String(buckets.history.length);
-  renderNextAction(buckets);
+  renderNextAction(buckets, payoutStatus);
 }
 
-function renderNextAction(buckets) {
+function renderNextAction(buckets, payout) {
   const title = document.querySelector("[data-cleaner-next-title]");
   const copy = document.querySelector("[data-cleaner-next-copy]");
   const link = document.querySelector("[data-cleaner-next-link]");
@@ -185,10 +186,25 @@ function renderNextAction(buckets) {
     link.textContent = active ? "Open active job" : "View job checklist";
     return;
   }
+  if (payout && !payout.ready) {
+    title.textContent = payout.status === "action-required" ? "Finish payout setup" : "Set up how you get paid";
+    copy.textContent = "Use one secure Stripe form. Tideway never receives your bank details.";
+    link.href = "/cleaner/payouts";
+    link.textContent = payout.status === "action-required" ? "Continue payout setup" : "Set up payouts";
+    return;
+  }
   title.textContent = "Keep your profile ready";
   copy.textContent = "Confirm your services and availability so suitable requests can reach you.";
   link.href = "/cleaner/profile";
   link.textContent = "Open profile";
+}
+
+async function loadOptionalPayoutStatus() {
+  try { return (await requestJson("/api/marketplace/cleaner/payout-account")).payout || null; }
+  catch (error) {
+    if ([404, 503].includes(error.statusCode)) return null;
+    throw error;
+  }
 }
 
 async function refreshBookings() {
@@ -245,10 +261,12 @@ async function loadDashboard() {
   loading = true;
   showGate("Checking secure Cleaner access…", "Requests and jobs open only inside the assigned Cleaner account.");
   try {
-    const [accountResult, bookingResult] = await Promise.all([requestJson("/api/marketplace/account"), requestJson("/api/marketplace/bookings?limit=50")]);
+    const [accountResult, bookingResult, payoutResult] = await Promise.all([requestJson("/api/marketplace/account"), requestJson("/api/marketplace/bookings?limit=50"), loadOptionalPayoutStatus()]);
     const account = accountResult.account;
     if (account?.selectedRole !== "cleaner" || !account?.roles?.includes("cleaner")) return showGate("This is not a Cleaner account.", "Use the Cleaner workspace selected during onboarding.", { kind: "authentication", allowSignIn: true });
     bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
+    payoutStatus = payoutResult;
+    document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
     document.querySelector("[data-cleaner-name]").textContent = account.displayName || "Cleaner";
     renderBookings();
     showFeedback("");

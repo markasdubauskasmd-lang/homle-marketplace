@@ -50,6 +50,11 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
+    PERFORM 1 FROM tideway_private.cleaner_payout_onboarding;
+    RAISE EXCEPTION 'Runtime role can read private Cleaner payout onboarding material';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
     PERFORM 1 FROM tideway_private.payment_provider_events;
     RAISE EXCEPTION 'Runtime role can read private payment provider events';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
@@ -129,7 +134,7 @@ $landlord$;
 SELECT set_config('app.user_id', '10000000-0000-4000-8000-000000000002', true);
 SELECT set_config('app.user_roles', 'cleaner', true);
 DO $cleaner$
-DECLARE scan jsonb; object_record record;
+DECLARE scan jsonb; object_record record; payout_first jsonb; payout_retry jsonb; payout_synced jsonb;
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Assigned cleaner cannot read invitations'; END IF;
   IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 0 THEN RAISE EXCEPTION 'Cleaner received access instructions before acceptance'; END IF;
@@ -142,6 +147,17 @@ BEGIN
     RAISE EXCEPTION 'Cleaner can read a room scan without Landlord preview consent';
   EXCEPTION WHEN no_data_found THEN NULL;
   END;
+  SELECT tideway_private.begin_my_cleaner_payout_onboarding('72000000-0000-4000-8000-000000000001') INTO payout_first;
+  SELECT tideway_private.attach_my_cleaner_payout_account('72000000-0000-4000-8000-000000000001','acct_integration_cleaner') INTO payout_synced;
+  SELECT tideway_private.begin_my_cleaner_payout_onboarding('72000000-0000-4000-8000-000000000002') INTO payout_retry;
+  SELECT tideway_private.sync_my_cleaner_payout_account('acct_integration_cleaner',false,true,true) INTO payout_synced;
+  IF payout_first->>'requestId'<>'72000000-0000-4000-8000-000000000001'
+     OR payout_retry->>'requestId'<>'72000000-0000-4000-8000-000000000001'
+     OR payout_synced->>'destinationAccountId'<>'acct_integration_cleaner'
+     OR (payout_synced->>'payoutsEnabled')::boolean IS NOT TRUE
+     OR (payout_synced->>'detailsSubmitted')::boolean IS NOT TRUE THEN
+    RAISE EXCEPTION 'Cleaner payout onboarding lost owner binding, stable retry or verified readiness state';
+  END IF;
 END
 $cleaner$;
 

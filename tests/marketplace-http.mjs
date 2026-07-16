@@ -37,6 +37,7 @@ async function dispatch(router, method, url, options) {
 
 const sessionSecret = "marketplace-http-session-secret-over-thirty-two-characters";
 const material = createSessionMaterial(sessionSecret, new Date("2026-07-15T15:00:00.000Z"), 3600);
+const cleanerMaterial = createSessionMaterial(sessionSecret, new Date("2026-07-15T15:00:00.000Z"), 3600);
 const sessions = {
   landlord: {
     session_id: "77777777-7777-4777-8777-777777777777",
@@ -48,9 +49,20 @@ const sessions = {
     roles: ["landlord"],
     csrf_secret_hash: material.csrfHash,
     expires_at: material.expiresAt
+  },
+  cleaner: {
+    session_id: "88888888-8888-4888-8888-888888888888",
+    user_id: "22222222-2222-4222-8222-222222222222",
+    email: "cleaner@example.com",
+    email_verified_at: "2026-07-15T14:00:00.000Z",
+    display_name: "Cleaner Example",
+    selected_role: "cleaner",
+    roles: ["cleaner"],
+    csrf_secret_hash: cleanerMaterial.csrfHash,
+    expires_at: cleanerMaterial.expiresAt
   }
 };
-const security = createAccountSecurity({ async findSession(hash) { return hash.equals(material.tokenHash) ? sessions.landlord : null; } }, { sessionSecret, appOrigin: "http://127.0.0.1:4173", production: false });
+const security = createAccountSecurity({ async findSession(hash) { return hash.equals(material.tokenHash) ? sessions.landlord : hash.equals(cleanerMaterial.tokenHash) ? sessions.cleaner : null; } }, { sessionSecret, appOrigin: "http://127.0.0.1:4173", production: false });
 const calls = [];
 const cleanerProfileService = {
   async searchPublicProfiles(filters) { calls.push({ kind: "search", filters }); return [{ cleanerId: "public-cleaner", displayName: "Public Cleaner" }]; },
@@ -150,6 +162,11 @@ const paymentService = {
     return { accepted: true, duplicate: false, ignored: false };
   }
 };
+const cleanerPayoutService = {
+  async getStatus(actor) { calls.push({ kind: "payout-get", actor }); return { status: "not-started", ready: false, detailsSubmitted: false, payoutsEnabled: false, remainingRequirements: null, updatedAt: null }; },
+  async refreshStatus(actor) { calls.push({ kind: "payout-refresh", actor }); return { status: "action-required", ready: false, detailsSubmitted: true, payoutsEnabled: false, remainingRequirements: 1, updatedAt: "2026-07-16T17:00:00.000Z" }; },
+  async beginOnboarding(actor) { calls.push({ kind: "payout-onboarding", actor }); return { status: "action-required", ready: false, detailsSubmitted: false, payoutsEnabled: false, remainingRequirements: 3, updatedAt: null, onboardingUrl: "https://connect.stripe.com/setup/c/test", expiresAt: "2026-07-16T17:05:00.000Z" }; }
+};
 let unexpectedError;
 let rateLimitedScope = "";
 let limiterFailure = null;
@@ -161,12 +178,18 @@ const rateLimiter = {
     return input.scope === rateLimitedScope ? { allowed: false, retryAfterSeconds: 99999 } : { allowed: true };
   }
 };
-const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, privacyRequestService, paymentService, rateLimiter };
+const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
   origin: "http://127.0.0.1:4173",
   "x-csrf-token": material.csrfToken,
+  "content-type": "application/json; charset=utf-8"
+};
+const cleanerAuthHeaders = {
+  cookie: `${developmentSessionCookieName}=${cleanerMaterial.token}`,
+  origin: "http://127.0.0.1:4173",
+  "x-csrf-token": cleanerMaterial.csrfToken,
   "content-type": "application/json; charset=utf-8"
 };
 
@@ -181,7 +204,7 @@ const rejectedWebhook = await dispatch(router, "POST", "/api/marketplace/payment
 assert(rejectedWebhook.response.statusCode === 400 && rejectedWebhook.body.code === "invalid-payment-webhook" && !rejectedWebhook.response.body.includes("secret"), "Invalid Stripe signatures did not fail closed with a bounded response.");
 const wrongWebhookMethod = await dispatch(router, "GET", "/api/marketplace/payments/webhook");
 assert(wrongWebhookMethod.response.statusCode === 405 && wrongWebhookMethod.response.headers.Allow === "POST", "Payment webhook accepted a non-POST method.");
-const noPaymentRouter = createMarketplaceHttpRouter({ ...dependencies, paymentService: null }, { clientKey: () => trustedClientKey });
+const noPaymentRouter = createMarketplaceHttpRouter({ ...dependencies, paymentService: null, cleanerPayoutService: null }, { clientKey: () => trustedClientKey });
 const absentWebhookResponse = response();
 assert(await noPaymentRouter.handle(request("POST", "/api/marketplace/payments/webhook", { body: Buffer.from("{}") }), absentWebhookResponse, new URL("http://127.0.0.1:4173/api/marketplace/payments/webhook")) === false && absentWebhookResponse.statusCode === null, "Disabled payments exposed a webhook route.");
 
@@ -201,6 +224,16 @@ const paymentStatus = await dispatch(router, "GET", bookingPaymentUrl, { headers
 assert(paymentStatus.response.statusCode === 200 && paymentStatus.body.payment.status === "authorized" && !JSON.stringify(paymentStatus.body).includes("pi_test_client_secret") && calls.at(-1).kind === "payment-get", "Landlord payment status exposed customer-action material or missed its owner-bound service.");
 const absentBookingPaymentResponse = response();
 assert(await noPaymentRouter.handle(request("GET", bookingPaymentUrl), absentBookingPaymentResponse, new URL(`http://127.0.0.1:4173${bookingPaymentUrl}`)) === false && absentBookingPaymentResponse.statusCode === null, "Disabled payments exposed a participant payment route.");
+
+const payoutUrl = "/api/marketplace/cleaner/payout-account";
+const landlordPayout = await dispatch(router, "GET", payoutUrl, { headers: { cookie: authHeaders.cookie } });
+const cleanerPayout = await dispatch(router, "GET", payoutUrl, { headers: { cookie: cleanerAuthHeaders.cookie } });
+const missingPayoutCsrf = await dispatch(router, "POST", `${payoutUrl}/onboarding`, { headers: { cookie: cleanerAuthHeaders.cookie, origin: cleanerAuthHeaders.origin, "content-type": cleanerAuthHeaders["content-type"] }, body: {} });
+const payoutOnboarding = await dispatch(router, "POST", `${payoutUrl}/onboarding`, { headers: cleanerAuthHeaders, body: {} });
+const payoutRefresh = await dispatch(router, "POST", `${payoutUrl}/refresh`, { headers: cleanerAuthHeaders, body: {} });
+assert(landlordPayout.response.statusCode === 403 && cleanerPayout.response.statusCode === 200 && cleanerPayout.body.payout.status === "not-started" && missingPayoutCsrf.response.statusCode === 403 && payoutOnboarding.response.statusCode === 201 && payoutOnboarding.body.payout.onboardingUrl.startsWith("https://connect.stripe.com/") && payoutRefresh.response.statusCode === 200 && calls.slice(-3).map((call) => call.kind).join(",") === "payout-get,payout-onboarding,payout-refresh", "Cleaner payout routes lost role isolation, CSRF protection, exact onboarding handoff or status refresh.");
+const absentPayoutResponse = response();
+assert(await noPaymentRouter.handle(request("GET", payoutUrl), absentPayoutResponse, new URL(`http://127.0.0.1:4173${payoutUrl}`)) === false && absentPayoutResponse.statusCode === null, "Disabled payments exposed a Cleaner payout route.");
 
 const directory = await dispatch(router, "GET", "/api/marketplace/cleaners?outwardPostcode=SW1A&verifiedOnly=true&limit=10");
 assert(directory.handled && directory.response.statusCode === 200 && directory.body.cleaners.length === 1 && calls.at(-1).filters.outwardPostcode === "SW1A" && calls.at(-1).filters.verifiedOnly === true && calls.at(-1).filters.limit === "10", "Public cleaner discovery did not parse its bounded service filters.");
@@ -374,7 +407,7 @@ const baseEnvironment = {
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtimeAbuseControl = { rateLimiter: { async consume() { return { allowed: true }; } }, clientKey: () => "test-client" };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.disputeService && runtime.disputeRepository && runtime.privacyRequestService && runtime.privacyRequestRepository && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews, disputes, privacy requests and HTTP layers or safely keep incomplete authentication delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.disputeService && runtime.disputeRepository && runtime.privacyRequestService && runtime.privacyRequestRepository && runtime.cleanerPayoutRepository && runtime.cleanerPayoutService === null && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews, disputes, privacy requests, payout repository and HTTP layers or safely keep incomplete provider delivery detached.");
 let unconfiguredEmailRejected = false;
 assert(runtime.requestMediaService && runtime.requestMediaRepository, "Marketplace runtime did not compose private cleaning-request room media.");
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl, emailDelivery: { send() {} } }); } catch (error) { unconfiguredEmailRejected = error.message.includes("requires SMTP_URL and EMAIL_FROM"); }

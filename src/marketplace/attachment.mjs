@@ -64,7 +64,11 @@ export async function probeMarketplaceDatabase(pool) {
         to_regprocedure('tideway_private.consume_rate_limit(text,bytea)') IS NOT NULL AS rate_limit_ready,
         to_regprocedure('tideway_private.consume_pending_social_identity(bytea)') IS NOT NULL AS facebook_pending_identity_ready,
         to_regprocedure('tideway_private.connect_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)') IS NOT NULL AS provider_connection_ready,
-        to_regprocedure('tideway_private.begin_booking_payment_authorization(uuid,uuid,text,bytea)') IS NOT NULL AS payment_ledger_ready,
+        to_regprocedure('tideway_private.begin_booking_payment_authorization(uuid,uuid,text,bytea)') IS NOT NULL
+          AND to_regprocedure('tideway_private.get_my_cleaner_payout_onboarding()') IS NOT NULL
+          AND to_regprocedure('tideway_private.begin_my_cleaner_payout_onboarding(uuid)') IS NOT NULL
+          AND to_regprocedure('tideway_private.attach_my_cleaner_payout_account(uuid,text)') IS NOT NULL
+          AND to_regprocedure('tideway_private.sync_my_cleaner_payout_account(text,boolean,boolean,boolean)') IS NOT NULL AS payment_ledger_ready,
         to_regprocedure('tideway_private.read_booking_payment(uuid)') IS NOT NULL AS payment_access_ready,
         to_regprocedure('tideway_private.current_booking_payment_authorized(uuid)') IS NOT NULL AS payment_journey_gate_ready,
         to_regprocedure('tideway_private.request_my_privacy_action(uuid,text)') IS NOT NULL
@@ -137,7 +141,7 @@ export async function createMarketplaceAttachment(options = {}) {
     await objectStorage.verify();
     if (environment.payments.requested) {
       paymentProvider = await createPaymentProvider({ secretKey: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET });
-      if (!paymentProvider || paymentProvider.name !== "stripe" || typeof paymentProvider.verify !== "function") throw new TypeError("Stripe payment adapter did not compose completely.");
+      if (!paymentProvider || paymentProvider.name !== "stripe" || !["verify", "createPayoutAccount", "retrievePayoutAccount", "createPayoutOnboardingLink"].every((method) => typeof paymentProvider[method] === "function")) throw new TypeError("Stripe payment adapter did not compose completely.");
       await paymentProvider.verify();
     }
     const rateLimiter = (options.createRateLimiter || createPostgresRateLimiter)(pool, { secret: env.SESSION_SECRET });

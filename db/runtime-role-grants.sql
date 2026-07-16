@@ -93,6 +93,10 @@ GRANT EXECUTE ON FUNCTION tideway_private.list_admin_booking_disputes(text,integ
 GRANT EXECUTE ON FUNCTION tideway_private.review_booking_dispute(uuid,text,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.request_my_privacy_action(uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_privacy_requests() TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_my_cleaner_payout_onboarding() TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.begin_my_cleaner_payout_onboarding(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.attach_my_cleaner_payout_account(uuid,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.sync_my_cleaner_payout_account(text,boolean,boolean,boolean) TO tideway_app;
 REVOKE ALL ON FUNCTION tideway_private.provision_bootstrap_administrator(citext,uuid,text,text) FROM tideway_app;
 
 -- Booking transitions are only writable through the audited, actor-aware functions above.
@@ -110,7 +114,7 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_payments, payment_commands, pay
 REVOKE ALL ON TABLE tideway_private.request_rate_limits FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.pending_social_identities FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON authentication_identities FROM tideway_app;
-REVOKE ALL ON TABLE tideway_private.cleaner_payout_accounts, tideway_private.payment_provider_events FROM tideway_app;
+REVOKE ALL ON TABLE tideway_private.cleaner_payout_accounts, tideway_private.cleaner_payout_onboarding, tideway_private.payment_provider_events FROM tideway_app;
 -- Sessions may be created/revoked through actor-bound application transactions, but only the restricted worker may physically purge expired rows.
 REVOKE DELETE ON sessions FROM tideway_app;
 -- Submitted requests may be created directly under owner RLS, but dispatch consent and lifecycle changes are function-only.

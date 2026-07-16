@@ -19,7 +19,7 @@ The disposable PostgreSQL 16.14 suite proves restricted-role denial, exact owner
 
 Complete these prerequisites first:
 
-1. Apply and verify all 35 locked migrations and both restricted-role grant files against managed staging/production.
+1. Apply and verify all 36 locked migrations and both restricted-role grant files against managed staging/production.
 2. Enable the approved authentication provider on the final HTTPS domain.
 3. Create the founder's normal Tideway account through that public authentication flow and verify its email.
 4. Record explicit founder approval for the exact account, operator/change reference and reason. Do not put passwords, database URLs, provider secrets or recovery codes in the reason.

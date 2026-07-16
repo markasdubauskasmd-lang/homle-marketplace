@@ -71,6 +71,10 @@ export function validateMarketplaceEnvironment(env = process.env) {
   if (booleanSetting(env, "MARKETPLACE_ENABLED") === null) errors.push("MARKETPLACE_ENABLED must be true or false.");
   if (booleanSetting(env, "PAYMENTS_ENABLED") === null) errors.push("PAYMENTS_ENABLED must be true or false.");
   if (state.payments.requested && !state.marketplace.requested) errors.push("PAYMENTS_ENABLED requires MARKETPLACE_ENABLED=true.");
+  if (state.payments.requested && state.appOrigin) {
+    try { if (new URL(state.appOrigin).protocol !== "https:") errors.push("PAYMENTS_ENABLED requires an HTTPS APP_ORIGIN for Stripe checkout and Cleaner payout onboarding."); }
+    catch {}
+  }
   if (state.payments.partial) errors.push(`Stripe payments are partially configured; missing ${state.payments.missing.join(", ")}.`);
   if (state.payments.requested && !state.payments.stripeConfigured) errors.push(`PAYMENTS_ENABLED requires ${state.payments.missing.join(", ")}.`);
   if (present(env, "STRIPE_SECRET_KEY") && !/^sk_test_[A-Za-z0-9_]{16,200}$/.test(env.STRIPE_SECRET_KEY.trim())) errors.push("STRIPE_SECRET_KEY must be a Stripe test secret key; live keys are prohibited by this adapter.");
