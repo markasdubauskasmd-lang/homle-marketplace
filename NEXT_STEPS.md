@@ -80,6 +80,8 @@ The intended product is an Uber-style cleaning marketplace: *request → room sc
 
 **Latest UX closure (16 July 2026):** authenticated Cleaners can now add exact future availability through one focused mobile-first screen instead of a vague profile label. The dashboard makes this the next action when no future window exists. The server owns role/CSRF checks, timezone-aware bounds, serialized overlap prevention, booking-safe withdrawal and automatic matchability status. No migration was required because the existing RLS-protected `cleaner_availability` model is reused. Managed staging remains required before this detached marketplace path can serve real accounts.
 
+Cleaner publication also no longer requires an email-based applicant to paste an externally hosted image URL. Verified social-login photos remain server-owned when present; otherwise the public initials fallback is used. Completion now measures nine real profile decisions, reducing first-supply friction without inventing identity or verification evidence.
+
 **The app is ~40% of the business.** The rest is cleaner supply, trust/insurance, and moving money — those are founder tasks and set the real timeline (see §8).
 
 ---

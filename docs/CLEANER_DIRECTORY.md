@@ -6,7 +6,7 @@ This is a source-code and database-migration checkpoint. The public `/cleaners` 
 
 A Cleaner account can save only its own profile: the repository obtains the target user ID from the authenticated actor and every query runs inside that actor's RLS transaction. Landlord accounts cannot enter the profile-edit service. Identity/background status, rating aggregates, completed-job counts, verified badges and acceptance rate are never accepted from the cleaner-edit input.
 
-Completion is deterministic, with ten equally weighted sections: secure profile photo, substantive biography, service, usable pricing, travel radius, outward-postcode service area, experience, language, supplied equipment/products and residential/commercial preference. An incomplete profile may be saved privately but cannot set `is_public` until it reaches 100%.
+Completion is deterministic across nine genuine profile requirements: substantive biography, service, usable pricing, travel radius, outward-postcode service area, experience, language, supplied equipment/products and residential/commercial preference. A remote image URL is not required. Social onboarding preserves a verified provider photo when available; the public interface otherwise uses initials. An incomplete profile may be saved privately but cannot set `is_public` until it reaches 100%.
 
 ## Public discovery
 

@@ -13,6 +13,7 @@ Decision rule: **Can the user complete this action with fewer screens, fewer dec
 - The Cleaner dashboard contained the right information, but the urgent request or live job competed with headings, statistics and multiple lists.
 - The Cleaner profile editor exposed introduction, services, pricing, travel boundaries and publication checks in one long form, even when only one section needed attention.
 - A signed-in Cleaner could set only a vague Available/Limited label even though matching requires an exact future start and end; the real schedule existed only in the concierge fallback and Administrator workflow.
+- Email-based Cleaners were required to find and paste an external HTTPS image URL before reaching 100% profile completion, despite the directory already having a safe initials fallback.
 - Cleaner search exposed postcode, service, rating, price, availability and verification controls at once, then hid the request action inside each profile's detail disclosure.
 - The public page has a clear account-first booking action, but the older pilot request/application forms remain visually long further down the page. They should not become the authenticated marketplace journey.
 
@@ -49,6 +50,8 @@ The separate concierge fallback at `/join` now collects only contact details, ma
 The authenticated profile editor now opens the first incomplete section and shows one clear next action. Introduction, services and pricing, work boundaries, and final review are four short steps rather than one long page. Each step shows its own completion state, progress can be saved at any time, and publication remains deliberately unavailable until the same ten server-backed profile requirements are complete.
 
 The Cleaner dashboard now sends a Cleaner with no future schedule directly to **Add availability**. The focused `/cleaner/availability` screen asks only for day, start and end, with tomorrow and normal working hours prefilled. One **I'm available** action creates the exact matchable window and updates the broad matching state automatically. Upcoming windows are shown in a short private list. Removing a time requires one confirmation, is blocked when an invitation or live job overlaps, and automatically marks the profile unavailable after the last future window is removed. The old manual Available/Limited profile choice is gone, so exact windows are the single source of truth.
+
+Cleaner publication no longer depends on an image-hosting task. A genuine Google/Facebook photo imported during verified onboarding is preserved automatically; otherwise the public profile uses the existing initials avatar. Profile editing cannot replace that server-owned value with an arbitrary remote URL. Completion now reflects nine genuine work/profile decisions rather than counting a pasted link.
 
 ## Remaining limitations
 

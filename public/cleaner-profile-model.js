@@ -68,13 +68,11 @@ export function preservedServiceAreas(codes, existingAreas = []) {
 }
 
 export function profileCompletionDetails(profile) {
-  const photoValid = (() => { try { return new URL(profile.profilePhotoUrl).protocol === "https:"; } catch { return false; } })();
   const groups = [
     {
       key: "introduction",
       label: "Introduction",
       checks: [
-        [photoValid, "profile photo"],
         [String(profile.biography || "").trim().length >= 40, "biography"],
         [profile.yearsExperience != null, "experience"],
         [Array.isArray(profile.languages) && profile.languages.length > 0, "languages"],
@@ -104,7 +102,8 @@ export function profileCompletionDetails(profile) {
     return Object.freeze({ key: group.key, label: group.label, completed: group.checks.length - missing.length, total: group.checks.length, complete: missing.length === 0, missing: Object.freeze(missing) });
   });
   const completed = sections.reduce((total, section) => total + section.completed, 0);
-  return Object.freeze({ percent: completed * 10, completed, total: 10, sections: Object.freeze(sections) });
+  const total = sections.reduce((sum, section) => sum + section.total, 0);
+  return Object.freeze({ percent: Math.round((completed / total) * 100), completed, total, sections: Object.freeze(sections) });
 }
 
 export function profileCompletion(profile) {

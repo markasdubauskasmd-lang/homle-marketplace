@@ -32,18 +32,6 @@ function stringList(value, maximumItems, maximumLength, label) {
   return items;
 }
 
-function profilePhotoUrl(value) {
-  const url = boundedText(value, 2048, "Profile photo URL");
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:") throw new Error();
-    return parsed.toString();
-  } catch {
-    throw new TypeError("Profile photo URL must use HTTPS.");
-  }
-}
-
 function fixedPriceOptions(value) {
   if (!Array.isArray(value)) return [];
   if (value.length > 12) throw new TypeError("Too many fixed-price options.");
@@ -87,7 +75,6 @@ function serviceAreas(value) {
 
 export function profileCompletionPercent(profile) {
   const checks = [
-    Boolean(profile.profilePhotoUrl),
     profile.biography.length >= 40,
     profile.services.length > 0,
     profile.hourlyRatePence != null || profile.fixedPriceOptions.length > 0 || profile.services.some((service) => service.pricePence != null),
@@ -98,12 +85,11 @@ export function profileCompletionPercent(profile) {
     profile.equipmentSupplied.length + profile.productsSupplied.length > 0,
     profile.residentialPreference || profile.commercialPreference
   ];
-  return checks.filter(Boolean).length * 10;
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
 
 export function normalizedCleanerProfile(input = {}) {
   const normalized = {
-    profilePhotoUrl: profilePhotoUrl(input.profilePhotoUrl),
     biography: boundedText(input.biography, 1200, "Biography"),
     hourlyRatePence: optionalInteger(input.hourlyRatePence, 1, 1_000_000, "Hourly rate"),
     fixedPriceOptions: fixedPriceOptions(input.fixedPriceOptions),
@@ -253,7 +239,7 @@ export function createCleanerProfileService(repository, options = {}) {
       requireCleaner(actor, "edit this profile");
       const profile = normalizedCleanerProfile(input);
       const saved = await repository.saveOwnProfile(actor, profile);
-      return { cleanerId: saved.user_id || actor.userId, publicSlug: saved.public_slug || null, ...profile, currentAvailabilityStatus: saved.current_availability_status || "unavailable" };
+      return { cleanerId: saved.user_id || actor.userId, publicSlug: saved.public_slug || null, ...profile, profilePhotoUrl: saved.profile_photo_url || null, currentAvailabilityStatus: saved.current_availability_status || "unavailable" };
     },
     async listOwnAvailability(actor) {
       requireCleaner(actor, "view availability");

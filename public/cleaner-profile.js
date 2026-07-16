@@ -82,7 +82,6 @@ function draftProfile(strict = true) {
   try { fixedPriceOptions = fixedPriceOptionsFromText(form.elements.fixedPriceOptions.value); } catch (error) { if (strict) throw error; }
   try { serviceAreas = preservedServiceAreas(outwardPostcodes(form.elements.serviceAreas.value), currentProfile?.serviceAreas); } catch (error) { if (strict) throw error; }
   return {
-    profilePhotoUrl: form.elements.profilePhotoUrl.value.trim(),
     biography: form.elements.biography.value.trim(),
     hourlyRatePence: parsedMoney(form.elements.hourlyRate.value, "Hourly rate", false, strict),
     fixedPriceOptions,
@@ -152,8 +151,9 @@ function updateCompletion() {
   } else {
     if (publicControl.checked) publicControl.checked = false;
     publicControl.disabled = true;
-    completionCopy.textContent = `${10 - percent / 10} required ${percent === 90 ? "section remains" : "sections remain"}.`;
-    publishHelp.textContent = "Complete all ten profile sections before the public option becomes available.";
+    const remaining = details.total - details.completed;
+    completionCopy.textContent = `${remaining} required ${remaining === 1 ? "detail remains" : "details remain"}.`;
+    publishHelp.textContent = `Complete all ${details.total} required profile details before the public option becomes available.`;
   }
   return details;
 }
@@ -164,7 +164,6 @@ function setField(name, value) {
 
 function populate(profile) {
   currentProfile = profile;
-  setField("profilePhotoUrl", profile.profilePhotoUrl);
   setField("biography", profile.biography);
   setField("hourlyRate", penceToMoney(profile.hourlyRatePence));
   setField("fixedPriceOptions", fixedPriceOptionsToText(profile.fixedPriceOptions));

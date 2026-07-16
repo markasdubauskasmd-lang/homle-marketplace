@@ -312,6 +312,9 @@ textarea { resize: vertical; }
 .profile-availability-link strong, .profile-availability-link span { display: block; }
 .profile-availability-link span { margin-top: 3px; color: var(--muted); font-size: .82rem; }
 .profile-availability-link .button { flex: 0 0 auto; }
+.profile-photo-source { padding: 15px; border: 1px solid var(--line); border-radius: 13px; background: #f7faf9; }
+.profile-photo-source strong, .profile-photo-source span { display: block; }
+.profile-photo-source span { margin-top: 4px; color: var(--muted); font-size: .82rem; }
 @media (max-width: 680px) {
   .availability-main { padding-block: 28px 64px; }
   .availability-add-card { grid-template-columns: 1fr; }

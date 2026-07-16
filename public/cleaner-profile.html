@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Your Cleaner profile | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-63">
-  <script src="/cleaner-profile.js?v=20260716-2" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-69">
+  <script src="/cleaner-profile.js?v=20260716-3" type="module"></script>
 </head>
 <body class="cleaner-editor-page">
   <a class="skip-link" href="#profile-main">Skip to profile editor</a>
@@ -47,7 +47,7 @@
         <section id="profile-step-introduction" class="cleaner-editor-section" data-profile-section="introduction" tabindex="-1">
           <div class="cleaner-editor-section-copy"><p class="eyebrow">1 · Introduction</p><h2>Present yourself professionally</h2><p>Use accurate details only. Tideway does not create badges or claims from this form.</p></div>
           <div class="cleaner-editor-fields">
-            <label>Profile photo URL<input name="profilePhotoUrl" type="url" inputmode="url" maxlength="2048" placeholder="https://…"><small>For now, use an HTTPS image URL. Private photo upload will be added with production storage.</small></label>
+            <div class="profile-photo-source"><strong>Your public identity is handled automatically</strong><span>Tideway uses your verified Google or Facebook photo when available. Otherwise your profile shows safe initials, so you do not need to find or paste an image link.</span></div>
             <label>Short biography<textarea name="biography" rows="6" maxlength="1200" placeholder="Describe how you work, the properties you clean and how you communicate."></textarea><small>At least 40 characters are needed for a complete profile.</small></label>
             <label>Years of experience<input name="yearsExperience" type="number" inputmode="numeric" min="0" max="80" step="1"></label>
             <div class="profile-availability-link"><div><strong>Set your real working times separately</strong><span>Exact future windows keep matching accurate and prevent vague availability settings.</span></div><a class="button button-outline" href="/cleaner/availability">Set availability</a></div>
@@ -86,7 +86,7 @@
         </section>
 
         <section id="profile-step-review" class="cleaner-publish-section" data-profile-section="review" tabindex="-1" hidden>
-          <div><p class="eyebrow">Visibility</p><h2>Review before publishing</h2><p data-publish-help>Complete all ten profile sections before the public option becomes available.</p></div>
+          <div><p class="eyebrow">Visibility</p><h2>Review before publishing</h2><p data-publish-help>Complete all nine required profile details before the public option becomes available.</p></div>
           <label class="cleaner-publish-control"><input name="isPublic" type="checkbox" disabled><span><strong>Show my completed profile in Cleaner search</strong><small>This exposes only the public profile fields above—not email, phone, home address or exact coordinates.</small></span></label>
         </section>
 

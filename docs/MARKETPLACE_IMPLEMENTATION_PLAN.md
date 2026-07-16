@@ -68,7 +68,7 @@ Status: in progress.
 Implemented cleaner-profile checkpoint:
 
 - Ownership-only profile replacement with bounded biography, pricing, services, outward-postcode areas, radius, experience, languages, supplied equipment/products, work preference and availability status.
-- Deterministic ten-section completion scoring; incomplete profiles remain private and cannot enter discovery.
+- Deterministic nine-requirement completion scoring; incomplete profiles remain private and cannot enter discovery. Provider photos are preserved when present, while email accounts can use the safe initials fallback instead of pasting a remote image URL.
 - Restricted public directory search across location, full-window availability, rating, price, service, distance, verified status and pagination.
 - Public projection whitelist that excludes cleaner email, phone, home address, service-area coordinates and internal acceptance rate even if a lower layer accidentally returns them.
 - Service-area coordinates removed from direct public RLS access; the directory may return only rounded calculated distance.

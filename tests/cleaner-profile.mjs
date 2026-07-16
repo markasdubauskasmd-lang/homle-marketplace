@@ -37,7 +37,7 @@ const completeInput = {
   isPublic: true
 };
 const completeProfile = normalizedCleanerProfile(completeInput);
-assert(completeProfile.profileCompletionPercent === 100 && completeProfile.isPublic && completeProfile.serviceAreas[0].outwardPostcode === "SW1A" && completeProfile.services.length === 2 && !Object.hasOwn(completeProfile, "currentAvailabilityStatus"), "A complete cleaner profile did not reach publishable canonical state or retained a client-controlled availability label.");
+assert(completeProfile.profileCompletionPercent === 100 && completeProfile.isPublic && completeProfile.serviceAreas[0].outwardPostcode === "SW1A" && completeProfile.services.length === 2 && !Object.hasOwn(completeProfile, "currentAvailabilityStatus") && !Object.hasOwn(completeProfile, "profilePhotoUrl"), "A complete cleaner profile did not reach publishable canonical state or retained a client-controlled availability/photo field.");
 assert(throws(() => normalizedCleanerProfile({ biography: "Short", isPublic: true }), "Complete every required") && throws(() => normalizedCleanerProfile({ ...completeInput, services: [{ serviceCode: "invented", pricingModel: "quote" }] }), "supported and unique") && throws(() => normalizedCleanerProfile({ ...completeInput, serviceAreas: [{ outwardPostcode: "London" }] }), "Outward postcode"), "Incomplete, invented-service or vague-area cleaner data was accepted.");
 
 const serviceCalls = [];
@@ -109,7 +109,7 @@ const repository = createCleanerProfileRepository(database);
 await repository.getOwnProfile(cleanerActor);
 await repository.saveOwnProfile(cleanerActor, completeProfile);
 await repository.searchPublicProfiles(normalizedCleanerSearch({ outwardPostcode: "SW1A", limit: 20 }));
-assert(databaseCalls[0].text.includes("WHERE profile.user_id=$1::uuid") && databaseCalls[0].text.includes("cleaner_service_areas") && databaseCalls[0].values[0] === cleanerActor.userId && databaseCalls.slice(0, 6).every((call) => call.boundary === "user") && databaseCalls.at(-1).boundary === "public" && databaseCalls.at(-1).text.includes("search_cleaner_directory") && databaseCalls.every((call) => call.text.includes("$1") && !call.text.includes("current_availability_status=$")), "Cleaner repository accepted a target profile id, allowed profile editing to overwrite schedule status, omitted owner detail, left the RLS boundary or used non-parameterized queries.");
+assert(databaseCalls[0].text.includes("WHERE profile.user_id=$1::uuid") && databaseCalls[0].text.includes("cleaner_service_areas") && databaseCalls[0].values[0] === cleanerActor.userId && databaseCalls.slice(0, 6).every((call) => call.boundary === "user") && databaseCalls.at(-1).boundary === "public" && databaseCalls.at(-1).text.includes("search_cleaner_directory") && databaseCalls.every((call) => call.text.includes("$1") && !call.text.includes("current_availability_status=$") && !call.text.includes("profile_photo_url=$")), "Cleaner repository accepted a target profile id, allowed profile editing to overwrite server-owned schedule/photo state, omitted owner detail, left the RLS boundary or used non-parameterized queries.");
 
 const availabilityQueries = [];
 const availabilityDatabase = {
