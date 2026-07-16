@@ -35,7 +35,8 @@ Do not add credentials to source control or `.env.example`.
 
 5. Store `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the hosting secret manager.
 6. Complete PostgreSQL 16 migrations/RLS/concurrency tests, verify internal SMTP and private S3/Sharp boundaries against approved providers, prove shared limiting, and attach monitoring before enabling `MARKETPLACE_ENABLED=true`.
-7. Verify `/api/auth/providers` reports Google true only after full attachment, then test new-account creation, repeat login, role onboarding, password-account collision/step-up, logout and mobile browser behavior under the final domain.
+7. Run the default domain verifier first to prove Google is closed. After full attachment is deliberately enabled, set `TIDEWAY_EXPECT_SOCIAL_PROVIDERS=google` and rerun it: the report must prove the advertised capability, exact Google authorization host/path, canonical callback, PKCE request, secure host-only flow cookie and no-store response without following the provider redirect.
+8. Test new-account creation, repeat login, role onboarding, password-account collision/step-up, logout and mobile browser behavior under the final domain.
 
 ## Facebook security model
 
@@ -60,5 +61,6 @@ Before Facebook can become public:
 - complete Meta app review where required, the data-deletion callback, production privacy disclosures and provider-disconnection handling;
 - implement authenticated provider linking with recent password/provider step-up for existing password accounts;
 - pass the locked migration, RLS, concurrency, SMTP-delivery and full mobile-browser staging suites under the final domain.
+- rerun `tools/domain-readiness.mjs` with `TIDEWAY_EXPECT_SOCIAL_PROVIDERS=google,facebook` (or `facebook` if Google is intentionally closed) and retain the passing, secret-free result.
 
 Until those conditions pass against real infrastructure, the Facebook button remains hidden and `/api/auth/providers` reports `facebook: false`.

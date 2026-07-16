@@ -8,6 +8,20 @@ const toolPath = fileURLToPath(import.meta.url);
 const maximumResponseBytes = 128 * 1024;
 const requiredCspDirectives = Object.freeze(["default-src 'self'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"]);
 const authenticationNames = Object.freeze(["emailPassword", "passwordReset", "emailVerification", "google", "apple", "facebook"]);
+const verifiableSocialProviders = Object.freeze(["google", "facebook"]);
+
+function expectedSocialProviders(value = []) {
+  if (!Array.isArray(value)) throw new TypeError("Expected social providers must be an array.");
+  const normalized = value.map((entry) => String(entry || "").trim().toLowerCase());
+  if (normalized.some((entry) => !verifiableSocialProviders.includes(entry))) throw new TypeError("Expected social providers may contain only google and facebook.");
+  if (new Set(normalized).size !== normalized.length) throw new TypeError("Expected social providers must not contain duplicates.");
+  return Object.freeze(new Set(normalized));
+}
+
+function expectedSocialProvidersFromEnvironment(value) {
+  const text = String(value || "").trim();
+  return text ? text.split(",").map((entry) => entry.trim()) : [];
+}
 
 function exactPublicOrigin(value) {
   let url;
@@ -140,10 +154,48 @@ function safeJson(text, label) {
   try { return JSON.parse(text); } catch { throw new Error(`${label} did not return valid JSON.`); }
 }
 
+function secureFlowCookie(headers, provider) {
+  const cookie = headers.get("set-cookie") || "";
+  return cookie.startsWith(`__Host-tideway_${provider}_flow=`)
+    && /;\s*Path=\//i.test(cookie)
+    && /;\s*HttpOnly(?:;|$)/i.test(cookie)
+    && /;\s*Secure(?:;|$)/i.test(cookie)
+    && /;\s*SameSite=Lax(?:;|$)/i.test(cookie)
+    && !/;\s*Domain=/i.test(cookie);
+}
+
+function validSocialStartLocation(value, provider, origin) {
+  let location;
+  try { location = new URL(value); } catch { return false; }
+  const redirectUri = `${origin}/api/marketplace/auth/${provider}/callback`;
+  const common = location.protocol === "https:"
+    && !location.username
+    && !location.password
+    && !location.hash
+    && location.searchParams.get("redirect_uri") === redirectUri
+    && location.searchParams.get("response_type") === "code"
+    && /^[A-Za-z0-9_-]{32,128}$/.test(location.searchParams.get("state") || "");
+  if (!common) return false;
+  if (provider === "google") {
+    const scopes = new Set((location.searchParams.get("scope") || "").split(/\s+/).filter(Boolean));
+    return location.hostname === "accounts.google.com"
+      && location.pathname === "/o/oauth2/v2/auth"
+      && ["openid", "email", "profile"].every((scope) => scopes.has(scope))
+      && location.searchParams.get("code_challenge_method") === "S256"
+      && /^[A-Za-z0-9_-]{32,128}$/.test(location.searchParams.get("nonce") || "")
+      && /^[A-Za-z0-9_-]{43,128}$/.test(location.searchParams.get("code_challenge") || "");
+  }
+  return provider === "facebook"
+    && location.hostname === "www.facebook.com"
+    && /^\/v\d{1,2}\.\d{1,2}\/dialog\/oauth$/.test(location.pathname)
+    && new Set((location.searchParams.get("scope") || "").split(/[\s,]+/).filter(Boolean)).has("email");
+}
+
 export async function verifyDomainReadiness(origin, options = {}) {
   const target = exactPublicOrigin(origin);
   const fetchImplementation = options.fetch || globalThis.fetch;
   if (typeof fetchImplementation !== "function") throw new TypeError("A fetch implementation is required.");
+  const expectedSocial = expectedSocialProviders(options.expectedSocialProviders);
   const errors = [];
   const checks = [];
   const record = (name, ok, detail) => { checks.push(Object.freeze({ name, ok, detail })); if (!ok) errors.push(detail); };
@@ -192,18 +244,39 @@ export async function verifyDomainReadiness(origin, options = {}) {
     const rolesValid = providers?.roles?.join(",") === "cleaner,landlord";
     const marketplaceAuthReady = health?.marketplace?.authenticationReady === true;
     const emailStateValid = ["emailPassword", "passwordReset", "emailVerification"].every((name) => providers?.[name] === marketplaceAuthReady);
-    const oauthClosed = ["google", "apple", "facebook"].every((name) => providers?.[name] === false);
+    const socialStateValid = ["google", "facebook"].every((name) => providers?.[name] === expectedSocial.has(name)) && providers?.apple === false;
+    const expectedStatePossible = expectedSocial.size === 0 || marketplaceAuthReady;
     const typesValid = authenticationNames.every((name) => typeof providers?.[name] === "boolean");
-    record("authentication-capabilities", response.status === 200 && rolesValid && emailStateValid && oauthClosed && typesValid && !containsSecretName, "Authentication discovery must match runtime readiness, keep OAuth closed and expose no secret names.");
+    const expectation = expectedSocial.size ? [...expectedSocial].join(" and ") : "no social provider";
+    record("authentication-capabilities", response.status === 200 && rolesValid && emailStateValid && socialStateValid && expectedStatePossible && typesValid && !containsSecretName, `Authentication discovery must match runtime readiness, advertise exactly ${expectation}, keep Apple closed and expose no secret names.`);
     record("authentication-cache", /(?:^|,)\s*no-store\b/i.test(response.headers.get("cache-control") || ""), "Authentication capability endpoint must use Cache-Control: no-store.");
   } catch (error) { record("authentication-capabilities", false, error.message); }
+
+  for (const provider of verifiableSocialProviders) {
+    try {
+      const response = await request(fetchImplementation, `${target.origin}/api/marketplace/auth/${provider}/start`);
+      if (expectedSocial.has(provider)) {
+        const valid = response.status === 302
+          && validSocialStartLocation(response.headers.get("location"), provider, target.origin)
+          && secureFlowCookie(response.headers, provider)
+          && /(?:^|,)\s*no-store\b/i.test(response.headers.get("cache-control") || "");
+        record(`${provider}-sign-in-start`, valid, `${provider[0].toUpperCase()}${provider.slice(1)} sign-in must start through its exact HTTPS provider route with the canonical callback, a secure flow cookie and no-store response.`);
+      } else {
+        const closed = response.status === 404 && !response.headers.has("location") && !response.headers.has("set-cookie");
+        record(`${provider}-sign-in-closed`, closed, `${provider[0].toUpperCase()}${provider.slice(1)} sign-in must return 404 without a redirect or cookie while it is not expected.`);
+      }
+      await response.body?.cancel?.();
+    } catch (error) { record(`${provider}-sign-in-${expectedSocial.has(provider) ? "start" : "closed"}`, false, error.message); }
+  }
 
   return Object.freeze({ ok: errors.length === 0, origin: target.origin, hostname: target.hostname, checkedAt: new Date().toISOString(), checks: Object.freeze(checks), errors: Object.freeze(errors) });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === toolPath) {
   try {
-    const result = await verifyDomainReadiness(process.env.TIDEWAY_PUBLIC_ORIGIN);
+    const result = await verifyDomainReadiness(process.env.TIDEWAY_PUBLIC_ORIGIN, {
+      expectedSocialProviders: expectedSocialProvidersFromEnvironment(process.env.TIDEWAY_EXPECT_SOCIAL_PROVIDERS)
+    });
     console.log(JSON.stringify(result, null, 2));
     if (!result.ok) process.exitCode = 1;
   } catch (error) {

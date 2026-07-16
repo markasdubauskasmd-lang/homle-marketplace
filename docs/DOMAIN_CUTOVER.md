@@ -32,6 +32,18 @@ node tools/domain-readiness.mjs
 Remove-Item Env:TIDEWAY_PUBLIC_ORIGIN
 ```
 
+The first run deliberately expects Google and Facebook to be closed. After PostgreSQL, SMTP, HTTPS and the deployment-held provider credentials pass staging, state exactly which social providers should be live and run the same verifier again:
+
+```powershell
+$env:TIDEWAY_PUBLIC_ORIGIN = "https://your-domain.example"
+$env:TIDEWAY_EXPECT_SOCIAL_PROVIDERS = "google,facebook"
+node tools/domain-readiness.mjs
+Remove-Item Env:TIDEWAY_EXPECT_SOCIAL_PROVIDERS
+Remove-Item Env:TIDEWAY_PUBLIC_ORIGIN
+```
+
+Use `google` alone if Facebook has not completed its operational review. The expectation accepts only `google` and `facebook`, rejects duplicates and never accepts Apple because Apple sign-in has not been implemented. Do not set an expected provider merely to make the report pass: the value must describe the provider buttons intentionally approved for that deployment.
+
 The command performs no DNS or hosting changes. It requires:
 
 - public IPv4/IPv6 resolution only;
@@ -41,7 +53,10 @@ The command performs no DNS or hosting changes. It requires:
 - CSP, HSTS, MIME, framing, referrer and Permissions Policy headers;
 - healthy Tideway integrity with writes allowed;
 - `Cache-Control: no-store` on health/authentication discovery;
-- role-safe, secret-free authentication capability discovery with Google, Facebook and Apple still closed until their complete provider-specific staging gates pass.
+- role-safe, secret-free authentication capability discovery matching the exact expected Google/Facebook state while keeping Apple closed;
+- a manual, non-following request to each Google/Facebook start route: disabled providers must return 404 without a cookie or redirect, while enabled providers must return the exact external HTTPS provider route, canonical Tideway callback, secure host-only flow cookie and `Cache-Control: no-store`.
+
+The verifier never follows the Google or Facebook redirect and never exchanges an authorization code, creates an account or contacts the provider. It reports only pass/fail evidence rather than client IDs, state values, cookies or redirect URLs.
 
 Store the JSON result with the private launch evidence and record a concise hostname/date summary in the control desk. A passing result proves the public-origin boundary only; it does not prove legal identity, insurance, cleaner supply, pricing, payment readiness, PostgreSQL or end-to-end booking fulfilment.
 
