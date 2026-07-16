@@ -44,29 +44,32 @@
         </div>
 
         <div class="brief-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 1</p><h2>Room photos, short videos and notes</h2><p>Choose the room once, then add its visuals. New photos and videos receive that room automatically, and every card remains editable. Add up to ten room visuals, including no more than two videos of 30 seconds and 15 MB each; the complete upload is capped at 20 MB. A photo note is optional because the room checklist already carries the cleaning instructions. Avoid people, identity documents, post, keys and security codes.</p></div><strong id="photo-count">0/10</strong></div>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 1</p><h2>Capture one room at a time</h2><p>Choose the room once, then take photos and speak naturally from this panel. Homle labels both with that room automatically. Change the room as you walk. Add up to ten room visuals, including no more than two videos of 30 seconds and 15 MB each; the complete upload is capped at 20 MB. A photo note is optional because the room checklist already carries the cleaning instructions. Avoid people, identity documents, post, keys and security codes.</p></div><strong id="photo-count">0/10</strong></div>
           <div class="capture-room-control">
             <label>Current room for photos, videos and voice notes<select id="capture-room" aria-describedby="capture-room-status speech-room-context"><option value="" selected disabled>Choose the exact room first</option></select></label>
-            <p id="capture-room-status" role="status">Choose a room to unlock the camera and existing-photo buttons.</p>
+            <p id="capture-room-status" role="status">Choose a room to unlock photos, videos and speech.</p>
           </div>
           <div class="photo-picker-actions">
             <label class="photo-picker is-disabled">Take a room photo<input id="brief-camera" type="file" accept="image/*" capture="environment" aria-describedby="capture-room-status" disabled></label>
             <label class="photo-picker photo-picker-secondary is-disabled">Choose existing photos or videos<input id="brief-photos" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" multiple aria-describedby="capture-room-status" disabled></label>
+            <button id="voice-button" class="button button-outline capture-voice-action" type="button" aria-describedby="voice-status speech-room-context" disabled>Start speaking</button>
           </div>
-          <p class="privacy-hint">On a phone, <strong>Take a room photo</strong> opens a single rear-camera capture. Use the second button only for visuals already saved on the device.</p>
+          <div class="capture-voice-feedback">
+            <div id="voice-status" class="voice-status" role="status">Choose the current room to unlock speech.</div>
+            <p id="speech-room-context" class="speech-room-context" aria-live="polite">Choose a current room before speaking so Homle can group the notes automatically.</p>
+          </div>
+          <p class="privacy-hint">On a phone, <strong>Take a room photo</strong> opens a single rear-camera capture. Use the second button only for visuals already saved on the device. Homle saves speech as text, not an audio recording; your browser may provide the speech-to-text service.</p>
           <div id="photo-preview" class="photo-preview" aria-live="polite"><p class="empty-photo-state">No room visuals added yet.</p></div>
         </div>
 
         <div class="brief-panel">
-          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 2</p><h2>Speak or type the instructions</h2><p>Choose the current room above, then speak naturally. Homle adds a visible room marker to the notes when listening starts; change the current room as you walk and the next speech stays grouped correctly. You can still say “this is the kitchen” or “we’re moving into the bathroom”, then describe the work or what you see, such as “the floor needs mopping” or “there is grease around the hob.” Say “do not”, “no need” or “skip” for anything the Cleaner must leave alone. Homle keeps those exclusions as clear instructions, turns supported conditions into direct tasks and removes repeated bullets for your review.</p></div><button id="voice-button" class="button button-outline" type="button" aria-describedby="voice-status speech-room-context">Start speaking</button></div>
-          <div id="voice-status" class="voice-status" role="status">Voice capture checks your browser support. You can always type instead.</div>
-          <p id="speech-room-context" class="speech-room-context" aria-live="polite">Choose a current room before speaking, or name the room in your instructions.</p>
+          <div class="brief-panel-heading"><div><p class="eyebrow">Scan stage 2</p><h2>Review what Homle heard</h2><p>Homle adds a visible room marker whenever listening starts. You can still say “this is the kitchen” or “we’re moving into the bathroom”, then describe the work or what you see, such as “the floor needs mopping” or “there is grease around the hob.” Say “do not”, “no need” or “skip” for anything the Cleaner must leave alone. Homle keeps those exclusions as clear instructions, turns supported conditions into direct tasks and removes repeated bullets for your review. Correct the text here only if speech recognition misunderstood you.</p></div></div>
           <div id="brief-draft-status" class="brief-draft-status" role="status">
             <div><strong data-draft-title>Private reload protection is on</strong><span data-draft-copy>Your spoken or typed notes and checklist stay in this tab for up to 30 minutes. Photos and videos are never stored in the recovery draft.</span></div>
             <button class="text-button" type="button" data-discard-draft hidden>Discard saved text</button>
           </div>
           <label>Instructions<textarea id="brief-transcript" name="transcript" rows="9" maxlength="5000" required placeholder="For example: In the kitchen, wipe every worktop, degrease the hob, clean inside the microwave and mop the floor. In the bathroom, remove limescale from the shower screen and disinfect the toilet. Do not move the locked cupboard."></textarea></label>
-          <p class="privacy-hint">Homle saves the final text, not an audio recording. Your browser may provide the speech-to-text service, so review the transcript carefully.</p>
+          <p class="privacy-hint">Review the transcript carefully before creating the Cleaner checklist.</p>
           <button id="generate-checklist" class="button" type="button">Summarise into concise bullets</button>
           <section id="checklist-change-review" class="checklist-change-review" aria-labelledby="checklist-change-title" aria-live="polite" hidden>
             <strong id="checklist-change-title">Review checklist changes before applying</strong>

@@ -2,13 +2,19 @@
 
 ## Current decision
 
-The public brand and intended domain are **Homle** and `https://homle.co.uk`. The live domain currently serves an unrelated Brazilian hair-treatment site. A public rollback snapshot was captured before any replacement:
+The public brand and canonical domain are **Homle** and `https://homle.co.uk`. The Homle Node application is now publicly reachable on that domain. A public rollback snapshot was captured before the previous site was replaced:
 
 - `../homle.co.uk-public-rollback-2026-07-16.zip`
 - SHA-256 `ACCAE642DF16D00FC38BA0C242846D4220EC383B5BCC3B6B4E9984B661191DD1`
 - 10 entries: the public HTML, eight same-origin images and a capture manifest
 
 This snapshot covers the public files only. Before hPanel removes the existing website, verify whether that website also owns email, databases or other private configuration and use Hostinger's account backup for those resources.
+
+## Verified live state — 16 July 2026
+
+The current Hostinger deployment serves the new Homle homepage and working concierge-pilot routes. Both current apex A-record origins returned the Homle cleaning page during the live audit. `/api/health` reports a healthy writable pilot, but deliberately reports `marketplace.enabled=false`, `authenticationReady=false` and `paymentsReady=false`. `/api/auth/providers` therefore reports Google, Facebook and email/password as unavailable, and the two social start routes correctly return 404 instead of beginning an insecure or incomplete login.
+
+The private `/brief` route correctly allows same-origin camera and microphone access; ordinary pages keep those browser permissions closed. No code-only button change can enable social sign-in. Activation requires the managed PostgreSQL database and migrations, SMTP, private object storage, monitoring adapter, exact production secrets and approved Google/Meta app credentials described below. Until those pass staging, the homepage intentionally keeps visitors on the working guided request rather than exposing broken account buttons.
 
 ## Correct Hostinger deployment surface
 
@@ -56,6 +62,6 @@ Uploading only `public/` would make the site look live while registration, booki
 7. Attach managed staging services and complete the two-account, two-phone test before enabling accounts or payments.
 8. Run the external domain verifier, then remove every synthetic staging record before real intake.
 
-## Current automation limitation
+## Current control boundary
 
-The signed-in browser-control connection failed before hPanel could be inspected or changed. No Hostinger file, website, database, email setting, DNS record or deployment was modified. Resume at step 1 when hPanel browser control is available or the founder manually opens the **Deploy Web App** upload step.
+The initial application upload was completed outside this Codex task. This live audit was read-only: it verified the public pages, health response, provider capability response, social start-route closure, current DNS origins and room-scan permission headers. It did not change hPanel files, environment variables, DNS, email, databases or credentials.

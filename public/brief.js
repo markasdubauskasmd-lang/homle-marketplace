@@ -25,6 +25,10 @@ const scanReadinessList = document.querySelector("#scan-readiness-list");
 const voiceButton = document.querySelector("#voice-button");
 const voiceStatus = document.querySelector("#voice-status");
 const speechRoomContext = document.querySelector("#speech-room-context");
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let listening = false;
+let voiceErrorMessage = "";
 const form = document.querySelector("#job-brief-form");
 const errorBox = document.querySelector("#brief-error");
 const successBox = document.querySelector("#brief-success");
@@ -70,14 +74,19 @@ function renderCaptureRoomControl() {
   const disabled = !room;
   cameraInput.disabled = disabled;
   photoInput.disabled = disabled;
+  voiceButton.disabled = disabled || !SpeechRecognition;
   cameraInput.closest(".photo-picker").classList.toggle("is-disabled", disabled);
   photoInput.closest(".photo-picker").classList.toggle("is-disabled", disabled);
   captureRoomStatus.textContent = room
-    ? `New visuals will be labelled ${room}. You can change the room on any card before submitting.`
-    : "Choose a room to unlock the camera and existing-photo buttons.";
+    ? `Photos, videos and speech will be labelled ${room}. Change the room as you walk.`
+    : "Choose a room to unlock photos, videos and speech.";
   speechRoomContext.textContent = room
     ? `Voice notes will be grouped under ${room}. Change the current room as you walk.`
-    : "Choose a current room before speaking, or name the room in your instructions.";
+    : "Choose a current room before speaking so Homle can group the notes automatically.";
+  if (!SpeechRecognition) voiceStatus.textContent = "Voice capture is not supported in this browser. Type the instructions below instead.";
+  else if (!listening) voiceStatus.textContent = room
+    ? `Ready to listen in ${room}. Tap Start speaking and describe what needs cleaning.`
+    : "Choose the current room to unlock speech.";
 }
 
 function appendCurrentRoomMarker() {
@@ -611,10 +620,6 @@ function photoDataUrl(photo) {
   });
 }
 
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
-let listening = false;
-let voiceErrorMessage = "";
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
   recognition.lang = "en-GB";
@@ -655,10 +660,15 @@ if (SpeechRecognition) {
     }
     if (interimText) voiceStatus.textContent = `Listening: ${interimText}`;
   };
-  voiceStatus.textContent = "Voice capture is available. Your browser may provide the speech-to-text service.";
+  renderCaptureRoomControl();
   voiceButton.addEventListener("click", () => {
     if (listening) recognition.stop();
     else {
+      if (!currentCaptureRoom()) {
+        voiceStatus.textContent = "Choose the current room before speaking so Homle can group the notes automatically.";
+        captureRoomSelect.focus();
+        return;
+      }
       appendCurrentRoomMarker();
       recognition.start();
     }

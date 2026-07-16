@@ -794,6 +794,9 @@ textarea { resize: vertical; }
 .capture-room-control { display: grid; grid-template-columns: minmax(240px, 360px) 1fr; gap: 16px; align-items: end; margin-bottom: 14px; padding: 14px; border: 1px solid #b7d9d0; border-radius: 12px; background: var(--mint-pale); }
 .capture-room-control p { margin: 0 0 11px; color: var(--muted); font-size: .86rem; line-height: 1.45; }
 .photo-picker-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.capture-voice-action { min-height: 51px; }
+.capture-voice-feedback { display: grid; gap: 6px; margin-top: 12px; }
+.capture-voice-feedback .voice-status, .capture-voice-feedback .speech-room-context { margin: 0; }
 .photo-picker { display: inline-grid; padding: 13px 18px; color: #fff; border: 2px solid var(--green); border-radius: 9px; background: var(--green); font-weight: 800; cursor: pointer; }
 .photo-picker-secondary { color: var(--green-dark); background: #fff; }
 .photo-picker.is-disabled { opacity: .52; cursor: not-allowed; }
@@ -1093,6 +1096,7 @@ textarea { resize: vertical; }
   .checklist-change-actions .button { width: 100%; }
   .photo-picker-actions { display: grid; grid-template-columns: 1fr; }
   .photo-picker { width: 100%; place-items: center; text-align: center; }
+  .capture-voice-action { width: 100%; }
   .scan-readiness ul { grid-template-columns: 1fr; }
   .photo-preview { grid-template-columns: 1fr; }
   .brief-nav .button { display: none; }
