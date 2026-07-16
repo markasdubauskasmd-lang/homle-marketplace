@@ -53,7 +53,7 @@ function renderChangeHistory(requests) {
     item.append(heading, document.createTextNode(" — "), detail);
     if (request.resolutionNote) {
       const resolution = document.createElement("small");
-      resolution.textContent = ` Tideway response: ${request.resolutionNote}`;
+      resolution.textContent = ` Homle response: ${request.resolutionNote}`;
       item.append(resolution);
     }
     list.append(item);
@@ -76,7 +76,7 @@ const jobEventDefinitions = {
     checks: [
       ["checklistCompleted", "I completed the agreed checklist or explained every exception."],
       ["siteSecured", "I left the site secured according to the access instructions."],
-      ["issuesDisclosed", "I reported every known issue, damage or incomplete item to Tideway."]
+      ["issuesDisclosed", "I reported every known issue, damage or incomplete item to Homle."]
     ],
     button: "Record cleaner completion"
   },
@@ -84,7 +84,7 @@ const jobEventDefinitions = {
     title: "Acknowledge service completion",
     checks: [
       ["serviceReceived", "The cleaning visit took place."],
-      ["completionDetailsAccurate", "The completion details shown by Tideway are accurate to my knowledge."]
+      ["completionDetailsAccurate", "The completion details shown by Homle are accurate to my knowledge."]
     ],
     button: "Acknowledge completion"
   }
@@ -181,7 +181,7 @@ function renderJobProgress(progress = {}, audience, timing = {}) {
   });
   if (audience === "cleaner") {
     if (!progress.cleanerArrivedAt && timing.arrivalCanBeRecorded !== true) {
-      actions.textContent = timing.arrivalOpensAt ? `Arrival confirmation opens 30 minutes before the visit, at ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(timing.arrivalOpensAt))} UK local time. Reload this private pack then.` : "Tideway must review the confirmed visit time before arrival can be recorded.";
+      actions.textContent = timing.arrivalOpensAt ? `Arrival confirmation opens 30 minutes before the visit, at ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(timing.arrivalOpensAt))} UK local time. Reload this private pack then.` : "Homle must review the confirmed visit time before arrival can be recorded.";
     } else if (!progress.cleanerArrivedAt) actions.append(eventForm("cleaner-arrived"));
     else if (!progress.cleanerCompletedAt && timing.completionCanBeRecorded !== true) {
       actions.textContent = "Cleaner completion opens at the confirmed visit start. Reload this private pack at that time.";
@@ -192,7 +192,7 @@ function renderJobProgress(progress = {}, audience, timing = {}) {
   } else if (!progress.customerCompletedAt) {
     actions.append(eventForm("customer-completed"));
   } else {
-    actions.textContent = "Completion has been acknowledged. Tideway can now review final job economics after all open change or safety requests are closed.";
+    actions.textContent = "Completion has been acknowledged. Homle can now review final job economics after all open change or safety requests are closed.";
   }
 }
 
@@ -243,7 +243,7 @@ async function renderBooking(booking) {
   const cleanerView = booking.audience === "cleaner";
   setText("[data-audience-label]", cleanerView ? "Confirmed cleaner assignment pack" : "Confirmed customer booking");
   setText("[data-pack-heading]", cleanerView ? "Your cleaning assignment" : "Your cleaning booking");
-  setText("[data-greeting]", `Hello ${cleanerView ? booking.cleanerName : booking.customerName}. These are the visit details recorded by Tideway.`);
+  setText("[data-greeting]", `Hello ${cleanerView ? booking.cleanerName : booking.customerName}. These are the visit details recorded by Homle.`);
   setText("[data-booking-id]", booking.bookingId);
   setText("[data-service]", booking.service);
   setText("[data-frequency]", booking.frequency || "Not recorded");

@@ -11,13 +11,13 @@ function reference(value, label) {
 }
 
 function paymentInput(input) {
-  if (!input || !uuidPattern.test(input.paymentId || "") || !uuidPattern.test(input.bookingId || "") || !Number.isInteger(input.amountPence) || input.amountPence < 1 || input.amountPence > 10_000_000 || input.currency !== "gbp" || !/^tideway_(?:payment|payment_command)_[0-9a-f-]{36}$/.test(input.idempotencyKey || "")) throw new TypeError("A complete Tideway payment request is required.");
+  if (!input || !uuidPattern.test(input.paymentId || "") || !uuidPattern.test(input.bookingId || "") || !Number.isInteger(input.amountPence) || input.amountPence < 1 || input.amountPence > 10_000_000 || input.currency !== "gbp" || !/^tideway_(?:payment|payment_command)_[0-9a-f-]{36}$/.test(input.idempotencyKey || "")) throw new TypeError("A complete Homle payment request is required.");
   return input;
 }
 
 function commandInput(input) {
   paymentInput(input);
-  if (!uuidPattern.test(input.commandId || "")) throw new TypeError("A Tideway payment command reference is required.");
+  if (!uuidPattern.test(input.commandId || "")) throw new TypeError("A Homle payment command reference is required.");
   return input;
 }
 
@@ -89,7 +89,7 @@ function metadataReferences(value) {
   const commandId = supplied.tideway_command_id;
   const hasAnyTidewayReference = Object.keys(supplied).some((key) => key.startsWith("tideway_"));
   if (!hasAnyTidewayReference) return null;
-  if (!uuidPattern.test(paymentId || "") || (commandId != null && !uuidPattern.test(commandId))) throw new TypeError("Stripe event metadata contains an invalid Tideway reference.");
+  if (!uuidPattern.test(paymentId || "") || (commandId != null && !uuidPattern.test(commandId))) throw new TypeError("Stripe event metadata contains an invalid Homle reference.");
   return { paymentId: paymentId.toLowerCase(), commandId: commandId ? commandId.toLowerCase() : null };
 }
 
@@ -165,7 +165,7 @@ export async function createStripePaymentProvider(configuration = {}, options = 
       return Object.freeze({ ready: true, testMode: true });
     },
     async createPayoutAccount(input) {
-      if (!uuidPattern.test(input?.requestId || "") || !payoutIdempotencyPattern.test(input?.idempotencyKey || "")) throw new TypeError("A complete Tideway payout setup request is required.");
+      if (!uuidPattern.test(input?.requestId || "") || !payoutIdempotencyPattern.test(input?.idempotencyKey || "")) throw new TypeError("A complete Homle payout setup request is required.");
       const account = await stripe.accounts.create({
         type: "express",
         country: "GB",

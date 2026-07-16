@@ -201,7 +201,7 @@ async function loadProfile() {
     if (!response.ok) {
       if (response.status === 401) return editorState("Sign in as a Cleaner to edit this profile.", "Your profile is private and cannot be opened without an authenticated Cleaner session.", { allowSignIn: true, kind: "authentication" });
       if (response.status === 403) return editorState("This account does not have the Cleaner role.", "Use a Cleaner account, or return to the workspace selected during onboarding.", { allowSignIn: true, kind: "authentication" });
-      if (response.status === 404 || response.status === 503) return editorState("Cleaner accounts are not connected yet.", "The profile editor is ready, but remains closed until Tideway's secure marketplace database and account runtime are activated.", { allowRetry: true, kind: "unavailable" });
+      if (response.status === 404 || response.status === 503) return editorState("Cleaner accounts are not connected yet.", "The profile editor is ready, but remains closed until Homle's secure marketplace database and account runtime are activated.", { allowRetry: true, kind: "unavailable" });
       throw new Error(result.error || result.message || "The profile could not be loaded.");
     }
     if (!result.profile || typeof result.profile !== "object") throw new Error("The profile response was incomplete.");

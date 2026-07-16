@@ -15,7 +15,7 @@ function messageBody(value) {
   const normalized = typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
   if (normalized.length < 1 || normalized.length > 2000) throw new TypeError("Message must contain 1 to 2000 characters.");
   if (/[\u0000-\u001f\u007f]/.test(normalized)) throw new TypeError("Message contains unsupported control characters.");
-  if (emailPattern.test(normalized) || urlPattern.test(normalized) || ukPhonePattern.test(normalized) || outsideContactPattern.test(normalized)) throw new TypeError("Keep communication inside Tideway and remove phone numbers, email addresses, links or outside-messaging handles.");
+  if (emailPattern.test(normalized) || urlPattern.test(normalized) || ukPhonePattern.test(normalized) || outsideContactPattern.test(normalized)) throw new TypeError("Keep communication inside Homle and remove phone numbers, email addresses, links or outside-messaging handles.");
   return normalized;
 }
 
@@ -92,5 +92,5 @@ export function createMessageService(repository, options = {}) {
 }
 
 export function containsDirectContactDetails(value) {
-  try { messageBody(value); return false; } catch (error) { return error.message.includes("Keep communication inside Tideway"); }
+  try { messageBody(value); return false; } catch (error) { return error.message.includes("Keep communication inside Homle"); }
 }

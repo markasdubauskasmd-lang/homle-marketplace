@@ -21,7 +21,7 @@ assert.equal(requested.created, true);
 assert.equal(calls.at(-1).input.requestId, "33333333-3333-4333-8333-333333333333");
 await assert.rejects(() => service.request(actor, { requestId: "not-a-uuid", requestType: "export" }), /valid privacy request retry id/);
 await assert.rejects(() => service.request(actor, { requestId: "33333333-3333-4333-8333-333333333333", requestType: "erase-everything" }), /Choose data export or account deletion/);
-await assert.rejects(() => service.list({ roles: ["landlord"] }), /signed-in Tideway account/);
+await assert.rejects(() => service.list({ roles: ["landlord"] }), /signed-in Homle account/);
 
 let captured;
 const repositoryBoundary = createPrivacyRequestRepository({

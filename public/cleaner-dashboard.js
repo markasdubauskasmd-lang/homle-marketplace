@@ -134,7 +134,7 @@ function bookingCard(booking, pending = false) {
     decline.addEventListener("click", () => openDecline(booking));
     actions.append(accept, decline);
     if (booking.cleaningRequestId) card.append(requestScanPreview(booking, true));
-    card.append(deadline, element("p", "booking-accept-boundary", "One tap confirms you are available for this exact time and pay. Tideway rechecks overlaps before confirming."), actions);
+    card.append(deadline, element("p", "booking-accept-boundary", "One tap confirms you are available for this exact time and pay. Homle rechecks overlaps before confirming."), actions);
   } else {
     const action = bookingSummaryPrimaryAction(booking, "cleaner");
     if (action.kind === "active-job") {
@@ -205,14 +205,14 @@ function renderNextAction(buckets, profile, payout, availability) {
   }
   if (!availability.some((window) => window.status === "available")) {
     title.textContent = "Add when you can clean";
-    copy.textContent = "One exact future time lets Tideway match suitable requests to you.";
+    copy.textContent = "One exact future time lets Homle match suitable requests to you.";
     link.href = "/cleaner/availability";
     link.textContent = "Add availability";
     return;
   }
   if (payout && !payout.ready) {
     title.textContent = payout.status === "action-required" ? "Finish payout setup" : "Set up how you get paid";
-    copy.textContent = "Use one secure Stripe form. Tideway never receives your bank details.";
+    copy.textContent = "Use one secure Stripe form. Homle never receives your bank details.";
     link.href = "/cleaner/payouts";
     link.textContent = payout.status === "action-required" ? "Continue payout setup" : "Set up payouts";
     return;
@@ -249,9 +249,9 @@ async function respondToBooking(bookingId, decision, reason, button) {
   showFeedback("");
   try {
     const result = await requestJson(`/api/marketplace/bookings/${bookingId}/response`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ decision, reason }) });
-    if (decision === "accept" && Object.hasOwn(result.booking || {}, "customerPricePence")) throw new Error("Tideway withheld this response because private marketplace pricing was exposed.");
+    if (decision === "accept" && Object.hasOwn(result.booking || {}, "customerPricePence")) throw new Error("Homle withheld this response because private marketplace pricing was exposed.");
     await refreshBookings();
-    showFeedback(decision === "accept" ? "Request accepted. Tideway rechecked your availability and the confirmed job is now in your dashboard." : "Request declined. Matching has reopened for the Landlord.", "success");
+    showFeedback(decision === "accept" ? "Request accepted. Homle rechecked your availability and the confirmed job is now in your dashboard." : "Request declined. Matching has reopened for the Landlord.", "success");
   } catch (error) {
     showFeedback(error.statusCode === 409 ? error.message : error.statusCode === 401 || error.statusCode === 403 ? "Your session expired or this request is no longer assigned to you. Sign in and refresh." : error.message, "error");
   } finally {
@@ -304,7 +304,7 @@ async function loadDashboard() {
   } catch (error) {
     if (error.statusCode === 401) showGate("Sign in as a Cleaner to open this dashboard.", "Requests and jobs are private to the assigned Cleaner account.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 403) showGate("This account cannot open the Cleaner dashboard.", "Use a Cleaner account selected during onboarding.", { kind: "authentication", allowSignIn: true });
-    else if ([404, 503].includes(error.statusCode)) showGate("Cleaner accounts are not connected yet.", "The dashboard is ready but remains closed until Tideway’s protected marketplace database and HTTPS runtime pass staging.", { kind: "unavailable", allowRetry: true });
+    else if ([404, 503].includes(error.statusCode)) showGate("Cleaner accounts are not connected yet.", "The dashboard is ready but remains closed until Homle’s protected marketplace database and HTTPS runtime pass staging.", { kind: "unavailable", allowRetry: true });
     else showGate("The Cleaner dashboard is temporarily unavailable.", "No request was accepted or declined. Check the connection and try again.", { kind: "error", allowRetry: true });
   } finally { loading = false; }
 }

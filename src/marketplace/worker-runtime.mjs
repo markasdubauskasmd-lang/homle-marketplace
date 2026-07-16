@@ -13,7 +13,7 @@ function integer(value, minimum, maximum, fallback, label) {
 }
 
 export function createMarketplaceWorkerRuntime(pool, options = {}) {
-  if (!pool || typeof pool.query !== "function") throw new TypeError("A dedicated Tideway worker PostgreSQL pool is required.");
+  if (!pool || typeof pool.query !== "function") throw new TypeError("A dedicated Homle worker PostgreSQL pool is required.");
   if (typeof options.onUnexpectedError !== "function") throw new TypeError("Marketplace workers require private operational error monitoring.");
   const jobs = [...createMarketplaceMaintenanceJobs((options.createMaintenanceRepository || createMaintenanceRepository)(pool), {
     objectStorage: options.objectStorage,

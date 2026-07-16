@@ -44,7 +44,7 @@ function publicText(value, maximum, label, required = false) {
 }
 
 function role(actor, requiredRole, action) {
-  if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.includes(requiredRole)) throw new TypeError(`A ${requiredRole === "administrator" ? "Tideway Administrator" : requiredRole === "landlord" ? "Landlord" : "Cleaner"} account is required to ${action}.`);
+  if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.includes(requiredRole)) throw new TypeError(`A ${requiredRole === "administrator" ? "Homle Administrator" : requiredRole === "landlord" ? "Landlord" : "Cleaner"} account is required to ${action}.`);
 }
 
 function authenticated(actor) {

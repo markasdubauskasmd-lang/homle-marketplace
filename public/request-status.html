@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Privately follow a Tideway cleaning request from room scan to confirmed visit and completion.">
+  <meta name="description" content="Privately follow a Homle cleaning request from room scan to confirmed visit and completion.">
   <meta name="theme-color" content="#0e665b">
-  <title>Track your cleaning request — Tideway</title>
+  <title>Track your cleaning request — Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260715-44">
   <script src="/request-status.js?v=20260715-33" type="module"></script>
@@ -14,7 +14,7 @@
   <a class="skip-link" href="#status-main">Skip to request status</a>
   <header class="site-header">
     <div class="shell nav-wrap">
-      <a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a>
+      <a class="brand" href="/" aria-label="Homle home"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a>
       <nav class="main-nav brief-nav" aria-label="Status navigation"><a href="/">Website</a><button class="button button-small button-outline status-refresh" type="button" data-refresh hidden>Refresh status</button></nav>
     </div>
   </header>
@@ -24,7 +24,7 @@
       <div id="status-loading" class="quote-state">
         <p class="eyebrow">Private request tracker</p>
         <h1>Checking your cleaning request…</h1>
-        <p>Please wait while Tideway loads the latest recorded stage.</p>
+        <p>Please wait while Homle loads the latest recorded stage.</p>
       </div>
 
       <div id="status-error" class="quote-state" role="alert" hidden>
@@ -70,7 +70,7 @@
             <label>New requested date <input name="preferredDate" type="date" required></label>
             <label>New requested arrival <select name="preferredTimeWindow" required><option value="Flexible">Flexible</option><option value="Morning (8am–12pm)">Morning (8am–12pm)</option><option value="Afternoon (12pm–5pm)">Afternoon (12pm–5pm)</option><option value="Evening (5pm–8pm)">Evening (5pm–8pm)</option></select></label>
             <label>Why has the timing changed? <textarea name="reason" rows="3" minlength="10" maxlength="500" required placeholder="For example: The property handover moved to next week"></textarea></label>
-            <label class="checkbox"><input name="confirmed" type="checkbox" required><span>I confirm this replaces my current requested timing. Tideway must match and quote the new timing before any visit is confirmed.</span></label>
+            <label class="checkbox"><input name="confirmed" type="checkbox" required><span>I confirm this replaces my current requested timing. Homle must match and quote the new timing before any visit is confirmed.</span></label>
             <div class="error-summary" data-schedule-error role="alert" tabindex="-1" hidden></div>
             <button class="button" type="submit">Save new requested timing</button>
           </form>
@@ -78,7 +78,7 @@
         </details>
         <details class="request-withdrawal" data-withdrawal hidden>
           <summary>Close this unbooked request</summary>
-          <p>Use this only if you no longer want Tideway to match or quote this enquiry. It does not delete the audit record or cancel a confirmed visit.</p>
+          <p>Use this only if you no longer want Homle to match or quote this enquiry. It does not delete the audit record or cancel a confirmed visit.</p>
           <form data-withdrawal-form>
             <label>Reason <select name="reason" required><option value="">Choose one</option><option value="no-longer-needed">Cleaning is no longer needed</option><option value="timing-changed">My timing changed</option><option value="duplicate-request">I submitted another request</option><option value="other">Other</option></select></label>
             <label>Optional note <textarea name="note" rows="3" maxlength="500" placeholder="Do not include payment or identity-document details"></textarea></label>
@@ -87,11 +87,11 @@
             <button class="button button-outline" type="submit">Close unbooked request</button>
           </form>
         </details>
-        <div class="quote-result"><strong>This tracker does not take payment.</strong><span>It shows only stages recorded by Tideway. A request, accepted quote or cleaner response is not a confirmed booking until a protected booking pack appears here.</span></div>
+        <div class="quote-result"><strong>This tracker does not take payment.</strong><span>It shows only stages recorded by Homle. A request, accepted quote or cleaner response is not a confirmed booking until a protected booking pack appears here.</span></div>
       </div>
     </article>
   </main>
 
-  <footer class="site-footer"><div class="shell footer-bottom"><span>© <span data-year></span> Tideway. Pilot service.</span><span>Keep this private tracker link confidential.</span></div></footer>
+  <footer class="site-footer"><div class="shell footer-bottom"><span>© <span data-year></span> Homle. Pilot service.</span><span>Keep this private tracker link confidential.</span></div></footer>
 </body>
 </html>

@@ -97,7 +97,7 @@ async function loadStripe() {
 async function preparePayment() {
   if (loading) return;
   const csrf = storedCsrf();
-  if (!csrf) return showState("Sign in again before payment", "Your secure editing token is missing. Tideway has not attempted a payment.", { kind: "authentication", allowSignIn: true });
+  if (!csrf) return showState("Sign in again before payment", "Your secure editing token is missing. Homle has not attempted a payment.", { kind: "authentication", allowSignIn: true });
   loading = true;
   prepare.disabled = true;
   prepare.setAttribute("aria-busy", "true");
@@ -144,7 +144,7 @@ async function confirmPayment(event) {
     if (result.error) throw new Error(result.error.message || "Payment details could not be authorized.");
     form.hidden = true;
     document.querySelector("[data-payment-message-title]").textContent = "Authorization submitted";
-    document.querySelector("[data-payment-message-copy]").textContent = "Tideway is waiting for the signed provider confirmation. Do not submit another payment.";
+    document.querySelector("[data-payment-message-copy]").textContent = "Homle is waiting for the signed provider confirmation. Do not submit another payment.";
     for (const delay of [0, 700, 1400, 2800]) {
       if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
       const payment = await refreshStatus();
@@ -169,7 +169,7 @@ async function load() {
   } catch (error) {
     if (error.statusCode === 401) showState("Sign in as the booking Landlord", "Payment status is private to the verified Landlord account.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 403) showState("This account cannot access the payment", "Use the Landlord account that owns this booking.", { kind: "authentication", allowSignIn: true });
-    else if ([404, 503].includes(error.statusCode)) showState("Secure account payments are not connected yet", "The checkout is prepared but remains closed until Tideway's database, test payment account and HTTPS runtime pass staging.", { kind: "unavailable", allowRetry: true });
+    else if ([404, 503].includes(error.statusCode)) showState("Secure account payments are not connected yet", "The checkout is prepared but remains closed until Homle's database, test payment account and HTTPS runtime pass staging.", { kind: "unavailable", allowRetry: true });
     else showState("Payment status could not be checked", "No payment was attempted. Check your connection and try again.", { kind: "error", allowRetry: true });
   }
 }

@@ -428,7 +428,7 @@ assert(unconfiguredEmailRejected, "An email authentication boundary was enabled 
 let missingAbuseControl = false;
 try { createMarketplaceRuntime(pool, { env: baseEnvironment }); } catch (error) { missingAbuseControl = error.message.includes("shared rate limiter and trusted client-key resolver"); }
 assert(missingAbuseControl, "Marketplace runtime composed public reads without shared abuse control.");
-const enabledEnvironment = { ...baseEnvironment, SMTP_URL: "smtps://mail.example.com", EMAIL_FROM: "Tideway <hello@example.com>" };
+const enabledEnvironment = { ...baseEnvironment, SMTP_URL: "smtps://mail.example.com", EMAIL_FROM: "Homle <hello@example.com>" };
 const enabledRuntime = createMarketplaceRuntime(pool, {
   env: enabledEnvironment,
   emailDelivery: { async send() {} },

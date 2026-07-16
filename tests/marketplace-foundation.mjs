@@ -82,7 +82,7 @@ const validProduction = {
   AUTH_TOKEN_SECRET: "t".repeat(32),
   DATA_ENCRYPTION_KEY: "e".repeat(32),
   SMTP_URL: "smtps://mail.example.com",
-  EMAIL_FROM: "Tideway <hello@example.com>",
+  EMAIL_FROM: "Homle <hello@example.com>",
   GOOGLE_CLIENT_ID: "google-client",
   GOOGLE_CLIENT_SECRET: "google-secret"
 };

@@ -51,7 +51,7 @@ function requireRole(actor, ...roles) {
 }
 
 function currency(value) {
-  if (value !== "gbp") throw new TypeError("Only GBP payments are supported in the Tideway pilot.");
+  if (value !== "gbp") throw new TypeError("Only GBP payments are supported in the Homle pilot.");
   return value;
 }
 

@@ -1,6 +1,8 @@
-# Tideway marketplace
+# Homle marketplace
 
 Independent pilot website for matching landlords and businesses with cleaning professionals. It does not use Polsia or Polsia credits.
+
+The public company and product brand is **Homle**. Stable internal identifiers, database schemas, environment variables, security metadata and historical migration names still use `tideway` so the rebrand does not create a risky data or authorization migration.
 
 ## Run locally
 

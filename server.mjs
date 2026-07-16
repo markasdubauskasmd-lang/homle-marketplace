@@ -38,7 +38,7 @@ const proposalEconomicsModel = globalThis.TidewayProposalEconomics;
 const publicDir = path.join(root, "public");
 const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(root, "data");
 const dataDirectorySafety = assessPrivateDataDirectory(dataDir, { explicitlyConfigured: Boolean(process.env.DATA_DIR) });
-if (dataDirectorySafety.warning) console.warn(`[Tideway privacy warning] ${dataDirectorySafety.warning}`);
+if (dataDirectorySafety.warning) console.warn(`[Homle privacy warning] ${dataDirectorySafety.warning}`);
 const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || 4173);
 const lanPort = Number(process.env.LAN_PORT || 0);
@@ -708,9 +708,9 @@ async function saveBookingChangeRequest(record) {
       readRecords("booking-change-status.ndjson")
     ]);
     const sameAudience = records.filter((item) => item.bookingId === record.bookingId && item.audience === record.audience).map((item) => applyBookingChangeStatus(item, updates));
-    if (sameAudience.length >= 10) throw Object.assign(new Error("This booking already has ten change or issue requests. Contact Tideway directly."), { statusCode: 409 });
+    if (sameAudience.length >= 10) throw Object.assign(new Error("This booking already has ten change or issue requests. Contact Homle directly."), { statusCode: 409 });
     if (sameAudience.filter((item) => ["open", "reviewing"].includes(item.status)).length >= 3) {
-      throw Object.assign(new Error("Three requests are already open for this booking. Wait for Tideway to review them or contact support."), { statusCode: 409 });
+      throw Object.assign(new Error("Three requests are already open for this booking. Wait for Homle to review them or contact support."), { statusCode: 409 });
     }
     await appendFile(path.join(dataDir, "booking-change-requests.ndjson"), `${JSON.stringify(record)}\n`, { encoding: "utf8", mode: 0o600 });
   });
@@ -750,7 +750,7 @@ function bookingJobTiming(booking, now = Date.now()) {
 
 function assertJobEventTiming(booking, record) {
   const timing = bookingJobTiming(booking, Date.parse(record.createdAt));
-  if (!timing.valid) throw Object.assign(new Error("The confirmed visit has no valid UK-local start time. Tideway must review the booking before recording job events."), { statusCode: 409 });
+  if (!timing.valid) throw Object.assign(new Error("The confirmed visit has no valid UK-local start time. Homle must review the booking before recording job events."), { statusCode: 409 });
   if (record.type === "cleaner-arrived" && !timing.arrivalCanBeRecorded) {
     throw Object.assign(new Error("Arrival can only be recorded from 30 minutes before the confirmed visit start. The booking remains unchanged."), { statusCode: 409 });
   }
@@ -1939,7 +1939,7 @@ function dispatchActionsForRecord({ kind, status, createdAt, preferredDate = "",
   if (!latestBrief) {
     if (scanAttention) add(scanAttention.code, scanAttention.severity, scanAttention.group, scanAttention.title, scanAttention.detail);
     else if (status === "new") add("review-request", "high", "scan", "Review new request and room-scan handoff", "Check the request and make sure the customer has the private route to submit required photos and spoken notes.");
-    else add("scan-pending", "monitor", "scan", "Required room scan is still pending", "A quote cannot advance until the customer submits photos and spoken notes and Tideway reviews the resulting room-by-room tasks.");
+    else add("scan-pending", "monitor", "scan", "Required room scan is still pending", "A quote cannot advance until the customer submits photos and spoken notes and Homle reviews the resulting room-by-room tasks.");
     return actions;
   }
   if (latestBrief.status === "landlord-draft") {
@@ -1948,7 +1948,7 @@ function dispatchActionsForRecord({ kind, status, createdAt, preferredDate = "",
   }
   if (latestBrief.status === "needs-revision") {
     if (scanAttention) add(scanAttention.code, scanAttention.severity, scanAttention.group, scanAttention.title, scanAttention.detail);
-    else add("scan-revision-pending", "monitor", "scan", "Revised room scan is pending", "The customer must correct the recorded scope issue before Tideway can prepare another quote.");
+    else add("scan-revision-pending", "monitor", "scan", "Revised room scan is pending", "The customer must correct the recorded scope issue before Homle can prepare another quote.");
     return actions;
   }
 
@@ -2493,7 +2493,7 @@ async function updateAdminProposalStatus(request, response) {
   }
   const pilotCoverage = pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes);
   if (["ready", "sent", "accepted"].includes(status) && !pilotCoverage.covered) {
-    return json(response, 422, { ok: false, error: `${pilotCoverage.outwardCode || "This postcode"} is outside the configured Tideway pilot area.` });
+    return json(response, 422, { ok: false, error: `${pilotCoverage.outwardCode || "This postcode"} is outside the configured Homle pilot area.` });
   }
   const latestBrief = briefs.filter((brief) => brief.requestId === proposal.requestId).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const reviewedBrief = latestBrief ? applyBriefStatus(latestBrief, briefUpdates) : null;
@@ -2768,10 +2768,10 @@ async function decidePrivateQuote(request, response) {
   if (!context.ok) return json(response, context.statusCode, { ok: false, error: context.error });
   if (context.proposalStatus !== "sent") return json(response, 409, { ok: false, error: "This quote is not awaiting a decision." });
   if (!context.readyChecks.requestActive) return json(response, 409, { ok: false, error: "This cleaning request is closed and the quote can no longer be accepted." });
-  if (context.cleanerDecision?.status === "declined") return json(response, 409, { ok: false, error: "The proposed cleaner is no longer available. Tideway must prepare a replacement proposal." });
-  if (context.cleanerOfferClosed) return json(response, 409, { ok: false, error: "The cleaner response window has ended. Tideway must prepare a replacement proposal." });
-  if (!offerIsOpen(context.quoteSnapshot?.offerExpiresAt)) return json(response, 409, { ok: false, error: "This quote's response window has ended. Tideway must review and issue a new proposal." });
-  if (!Object.values(context.readyChecks).every(Boolean)) return json(response, 409, { ok: false, error: "This quote changed and must be reviewed by Tideway before you decide." });
+  if (context.cleanerDecision?.status === "declined") return json(response, 409, { ok: false, error: "The proposed cleaner is no longer available. Homle must prepare a replacement proposal." });
+  if (context.cleanerOfferClosed) return json(response, 409, { ok: false, error: "The cleaner response window has ended. Homle must prepare a replacement proposal." });
+  if (!offerIsOpen(context.quoteSnapshot?.offerExpiresAt)) return json(response, 409, { ok: false, error: "This quote's response window has ended. Homle must review and issue a new proposal." });
+  if (!Object.values(context.readyChecks).every(Boolean)) return json(response, 409, { ok: false, error: "This quote changed and must be reviewed by Homle before you decide." });
 
   const decision = text(input.decision, 20);
   const typedName = text(input.typedName, 120);
@@ -2999,8 +2999,8 @@ async function decidePrivateCleanerOpportunity(request, response) {
   if (!["sent", "accepted"].includes(context.proposalStatus)) return json(response, 409, { ok: false, error: "This opportunity is not awaiting a decision." });
   if (!context.readyChecks.requestActive) return json(response, 409, { ok: false, error: "The customer closed this cleaning request, so the opportunity can no longer be accepted." });
   if (context.decision) return json(response, 409, { ok: false, error: "This private decision has already been recorded." });
-  if (!offerIsOpen(context.opportunitySnapshot?.offerExpiresAt)) return json(response, 409, { ok: false, error: "This opportunity's response window has ended. Tideway must review and issue a new opportunity." });
-  if (!Object.values(context.readyChecks).every(Boolean)) return json(response, 409, { ok: false, error: "This opportunity changed and must be reviewed by Tideway before you decide." });
+  if (!offerIsOpen(context.opportunitySnapshot?.offerExpiresAt)) return json(response, 409, { ok: false, error: "This opportunity's response window has ended. Homle must review and issue a new opportunity." });
+  if (!Object.values(context.readyChecks).every(Boolean)) return json(response, 409, { ok: false, error: "This opportunity changed and must be reviewed by Homle before you decide." });
 
   const decision = text(input.decision, 20);
   const typedName = text(input.typedName, 120);
@@ -3122,7 +3122,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   const cleanerTravelCovered = cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode).covered;
   const warnings = [];
   if (!readiness.ready) warnings.push("Complete all seven launch-readiness checks before using these drafts.");
-  if (!pilotCoverage.covered) warnings.push(`${pilotCoverage.outwardCode || "This postcode"} is outside the configured Tideway pilot area.`);
+  if (!pilotCoverage.covered) warnings.push(`${pilotCoverage.outwardCode || "This postcode"} is outside the configured Homle pilot area.`);
   if (!["ready", "sent", "accepted"].includes(proposalStatus)) warnings.push("The proposal is still a draft and has not been internally approved.");
   if (!latestBrief) warnings.push("The customer must complete the room scan before a cleaner-ready proposal can be used.");
   else if (!briefReviewed) warnings.push("Review and approve the latest customer room scan before using the cleaner draft.");
@@ -3145,10 +3145,10 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   if (proposalExhausted && cleanerDecision?.status === "declined") warnings.push("The cleaner declined this opportunity. Do not use either handoff; prepare a reviewed replacement.");
 
   const money = (value) => `£${Number(value).toFixed(2)}`;
-  const signoff = [config.legalBusinessName || "Tideway", config.supportEmail, config.supportPhone].filter(Boolean).join("\n");
+  const signoff = [config.legalBusinessName || "Homle", config.supportEmail, config.supportPhone].filter(Boolean).join("\n");
   const responseDeadline = (expiresAt, validityHours) => expiresAt
     ? new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(expiresAt))
-    : `${validityHours || "[set]"} hours after Tideway records the offer as sent, never later than the visit start`;
+    : `${validityHours || "[set]"} hours after Homle records the offer as sent, never later than the visit start`;
   const customerBody = [
     `Hello ${customerRequest.contactName},`,
     "",
@@ -3167,7 +3167,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Respond by: ${responseDeadline(quoteSnapshot?.offerExpiresAt, config.customerQuoteValidityHours)}`,
     "",
     "This proposal covers the one dated visit above. A repeat schedule requires separate confirmed visits.",
-    "This is a proposal, not a confirmed booking. Tideway will only confirm after you accept the scope and price and an approved cleaner has confirmed availability.",
+    "This is a proposal, not a confirmed booking. Homle will only confirm after you accept the scope and price and an approved cleaner has confirmed availability.",
     "",
     "Kind regards,",
     signoff
@@ -3176,7 +3176,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
   const cleanerBody = [
     `Hello ${cleaner.fullName},`,
     "",
-    "A Tideway pilot cleaning opportunity may suit your services and work area.",
+    "A Homle pilot cleaning opportunity may suit your services and work area.",
     "",
     `Service: ${customerRequest.service}`,
     `Requested frequency: ${requestFrequency(customerRequest)}`,
@@ -3189,12 +3189,12 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Proposed cleaner pay: ${money(proposal.cleanerPay)} total (${money(proposal.cleanerRate)} per hour)`,
     ...(latestBrief?.status === "reviewed" && latestBrief.scopeSignals.length ? ["Price-sensitive items included in these hours and proposed pay:", ...latestBrief.scopeSignals.map((signal) => `- ${signal.label}`)] : []),
     `Respond by: ${responseDeadline(opportunitySnapshot?.offerExpiresAt, config.cleanerOpportunityValidityHours)}`,
-    ...(latestBrief ? ["", latestBrief.status === "reviewed" ? "Tideway-reviewed cleaner checklist:" : "Landlord-draft cleaner checklist (Tideway review required):", ...latestBrief.checklist.map((task) => `- ${task}`), latestBrief.cleanerPhotoSharingConsent === true ? `Customer-authorised room visuals: ${latestBrief.photos.length}. View photos and short videos only through the private opportunity link after Tideway sends it.` : `Room visuals held privately: ${latestBrief.photos.length}. The customer has not authorised pre-booking cleaner access.`] : []),
+    ...(latestBrief ? ["", latestBrief.status === "reviewed" ? "Homle-reviewed cleaner checklist:" : "Landlord-draft cleaner checklist (Homle review required):", ...latestBrief.checklist.map((task) => `- ${task}`), latestBrief.cleanerPhotoSharingConsent === true ? `Customer-authorised room visuals: ${latestBrief.photos.length}. View photos and short videos only through the private opportunity link after Homle sends it.` : `Room visuals held privately: ${latestBrief.photos.length}. The customer has not authorised pre-booking cleaner access.`] : []),
     "",
     "This opportunity covers the one dated visit above. A repeat schedule requires separate confirmed assignments.",
     "This is an invitation to consider the opportunity, not a confirmed assignment. You may accept or decline. Full access details are shared only after both sides confirm.",
     "",
-    `Tideway operating model: ${config.cleanerModel || "[Confirm the approved cleaner engagement model before sending]"}`,
+    `Homle operating model: ${config.cleanerModel || "[Confirm the approved cleaner engagement model before sending]"}`,
     "",
     "Kind regards,",
     signoff
@@ -3210,8 +3210,8 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     sendAllowed: baseSendAllowed,
     handoffReady: customerHandoffReady || cleanerHandoffReady,
     warnings,
-    customer: { subject: `Tideway cleaning proposal ${proposal.id}`, body: customerBody, recipient: { email: customerRequest.email, phone: customerRequest.phone }, privateUrl: customerPublicOrigin ? `${customerPublicOrigin}/quote#${proposal.reviewToken}` : "", handoffReady: customerHandoffReady },
-    cleaner: { subject: `Tideway cleaning opportunity ${proposal.id}`, body: cleanerBody, recipient: { email: cleaner.email, phone: cleaner.phone }, privateUrl: cleanerPublicOrigin ? `${cleanerPublicOrigin}/opportunity#${proposal.cleanerReviewToken}` : "", handoffReady: cleanerHandoffReady }
+    customer: { subject: `Homle cleaning proposal ${proposal.id}`, body: customerBody, recipient: { email: customerRequest.email, phone: customerRequest.phone }, privateUrl: customerPublicOrigin ? `${customerPublicOrigin}/quote#${proposal.reviewToken}` : "", handoffReady: customerHandoffReady },
+    cleaner: { subject: `Homle cleaning opportunity ${proposal.id}`, body: cleanerBody, recipient: { email: cleaner.email, phone: cleaner.phone }, privateUrl: cleanerPublicOrigin ? `${cleanerPublicOrigin}/opportunity#${proposal.cleanerReviewToken}` : "", handoffReady: cleanerHandoffReady }
   });
 }
 
@@ -3233,11 +3233,11 @@ async function getAdminBookingDrafts(request, response, bookingId) {
   const cleanerUrl = publicOrigin && booking.cleanerViewToken ? `${publicOrigin}/assignment#${booking.cleanerViewToken}` : "";
   const customerPack = booking.customerBookingPack || {};
   const cleanerPack = booking.cleanerBookingPack || {};
-  const signoff = [customerPack.legalBusinessName || cleanerPack.legalBusinessName || "Tideway", customerPack.supportEmail || cleanerPack.supportEmail, customerPack.supportPhone || cleanerPack.supportPhone].filter(Boolean).join("\n");
+  const signoff = [customerPack.legalBusinessName || cleanerPack.legalBusinessName || "Homle", customerPack.supportEmail || cleanerPack.supportEmail, customerPack.supportPhone || cleanerPack.supportPhone].filter(Boolean).join("\n");
   const customerBody = [
     `Hello ${customerRequest.contactName},`,
     "",
-    "Your Tideway cleaning visit is confirmed.",
+    "Your Homle cleaning visit is confirmed.",
     "",
     `Booking reference: ${booking.id}`,
     `Service: ${customerPack.service || customerRequest.service}`,
@@ -3248,7 +3248,7 @@ async function getAdminBookingDrafts(request, response, bookingId) {
     "",
     "Open your private booking pack to review the confirmed address, checklist, access plan and support route. Keep the link private.",
     "This confirmation covers this one dated visit only. Any repeat schedule needs another confirmed booking.",
-    "Tideway recorded the agreed external payment step; opening this link does not charge you.",
+    "Homle recorded the agreed external payment step; opening this link does not charge you.",
     "A change request is reviewed separately and does not automatically cancel or reschedule the visit.",
     "",
     "Kind regards,",
@@ -3257,7 +3257,7 @@ async function getAdminBookingDrafts(request, response, bookingId) {
   const cleanerBody = [
     `Hello ${cleaner.fullName},`,
     "",
-    "Your Tideway cleaning assignment is confirmed.",
+    "Your Homle cleaning assignment is confirmed.",
     "",
     `Booking reference: ${booking.id}`,
     `Service: ${cleanerPack.service || customerRequest.service}`,
@@ -3283,8 +3283,8 @@ async function getAdminBookingDrafts(request, response, bookingId) {
     bookingId,
     handoffReady,
     warnings,
-    customer: { subject: `Tideway booking confirmed ${booking.id}`, body: customerBody, recipient: { email: customerRequest.email, phone: customerRequest.phone }, privateUrl: customerUrl, handoffReady: Boolean(customerUrl) },
-    cleaner: { subject: `Tideway assignment confirmed ${booking.id}`, body: cleanerBody, recipient: { email: cleaner.email, phone: cleaner.phone }, privateUrl: cleanerUrl, handoffReady: Boolean(cleanerUrl) }
+    customer: { subject: `Homle booking confirmed ${booking.id}`, body: customerBody, recipient: { email: customerRequest.email, phone: customerRequest.phone }, privateUrl: customerUrl, handoffReady: Boolean(customerUrl) },
+    cleaner: { subject: `Homle assignment confirmed ${booking.id}`, body: cleanerBody, recipient: { email: cleaner.email, phone: cleaner.phone }, privateUrl: cleanerUrl, handoffReady: Boolean(cleanerUrl) }
   });
 }
 
@@ -3666,45 +3666,45 @@ async function getPrivateRequestStatus(request, response) {
 
   let currentStage = "room-scan";
   let headline = "Complete the room scan";
-  let nextAction = "Add room photos and spoken notes so Tideway can review the cleaning scope.";
+  let nextAction = "Add room photos and spoken notes so Homle can review the cleaning scope.";
   if (latestBrief?.status === "landlord-draft") {
     currentStage = "scan-review";
     headline = "Room scan received";
-    nextAction = "Tideway must review the images, tasks and cleaning-time estimate before preparing a quote.";
+    nextAction = "Homle must review the images, tasks and cleaning-time estimate before preparing a quote.";
   } else if (latestBrief?.status === "needs-revision") {
     currentStage = "scan-revision";
     headline = "Room scan needs an update";
-    nextAction = latestBrief.reviewNote || "Submit a revised room scan before Tideway can prepare a quote.";
+    nextAction = latestBrief.reviewNote || "Submit a revised room scan before Homle can prepare a quote.";
   } else if (latestBrief?.status === "reviewed" && latestBrief.reviewEvidenceConfirmed) {
     currentStage = "matching";
     headline = "Scope reviewed — matching in progress";
-    nextAction = "Tideway is checking cleaner suitability, availability and profitable quote terms.";
+    nextAction = "Homle is checking cleaner suitability, availability and profitable quote terms.";
   }
   if (requestedDatePassed && scheduleChangeAllowed) {
     currentStage = "schedule-update";
     headline = "Choose a new requested cleaning date";
-    nextAction = "Your previous requested date has passed. Choose a future date and arrival window here before Tideway resumes matching.";
+    nextAction = "Your previous requested date has passed. Choose a future date and arrival window here before Homle resumes matching.";
   }
   if (proposal?.status === "draft" || proposal?.status === "ready") {
     currentStage = "quote-preparation";
     headline = "Quote being prepared";
-    nextAction = "Tideway is checking the schedule, cleaner and job economics before making the quote available.";
+    nextAction = "Homle is checking the schedule, cleaner and job economics before making the quote available.";
   } else if (quotePricingChanged) {
     currentStage = "quote-preparation";
     headline = "Quote needs recalculation";
-    nextAction = "Tideway must apply the current confirmed cost assumptions and prepare a new proposal before you can decide.";
+    nextAction = "Homle must apply the current confirmed cost assumptions and prepare a new proposal before you can decide.";
   } else if (quoteAvailabilityLost) {
     currentStage = "rematching";
     headline = "Cleaner availability changed";
-    nextAction = "Tideway must recheck availability and issue a newly controlled proposal before you can decide.";
+    nextAction = "Homle must recheck availability and issue a newly controlled proposal before you can decide.";
   } else if (quoteExpired) {
     currentStage = "quote-expired";
     headline = "Quote response window ended";
-    nextAction = "Tideway must recheck the scope, cleaner availability and pricing before issuing a new proposal.";
+    nextAction = "Homle must recheck the scope, cleaner availability and pricing before issuing a new proposal.";
   } else if (proposal?.status === "sent" && proposal.exhausted && !quoteExpired) {
     currentStage = "rematching";
     headline = "Cleaner unavailable — rematching required";
-    nextAction = "Tideway must select another screened cleaner and issue a new controlled proposal before booking.";
+    nextAction = "Homle must select another screened cleaner and issue a new controlled proposal before booking.";
   } else if (proposal?.status === "sent") {
     currentStage = "quote-review";
     headline = proposal.quoteSnapshot?.replacement ? "Your replacement quote is ready" : "Your quote is ready to review";
@@ -3718,36 +3718,36 @@ async function getPrivateRequestStatus(request, response) {
   } else if (proposal?.status === "declined") {
     currentStage = "quote-declined";
     headline = "Quote declined";
-    nextAction = "No booking was created. Tideway can prepare a different proposal only after the scope and terms are reviewed again.";
+    nextAction = "No booking was created. Homle can prepare a different proposal only after the scope and terms are reviewed again.";
   } else if (proposal?.status === "cancelled") {
     currentStage = "rematching";
     headline = "Proposal withdrawn — rematching in progress";
-    nextAction = "No booking was created. Tideway must review the scope, availability and economics before issuing another proposal.";
+    nextAction = "No booking was created. Homle must review the scope, availability and economics before issuing another proposal.";
   }
   if (proposal?.status === "accepted" && cleanerDecision?.status === "declined") {
     currentStage = "rematching";
     headline = "Cleaner unavailable — rematching required";
-    nextAction = "Tideway must select another screened cleaner and issue a new controlled opportunity before booking.";
+    nextAction = "Homle must select another screened cleaner and issue a new controlled opportunity before booking.";
   } else if (selectedCleanerEligibilityLost) {
     currentStage = "rematching";
     headline = "Cleaner matching changed";
-    nextAction = "Tideway is reviewing another eligible cleaner before your booking can continue.";
+    nextAction = "Homle is reviewing another eligible cleaner before your booking can continue.";
   } else if (cleanerPricingChanged) {
     currentStage = "rematching";
     headline = "Proposal needs recalculation";
-    nextAction = "Tideway must recheck the job economics before the booking can proceed.";
+    nextAction = "Homle must recheck the job economics before the booking can proceed.";
   } else if (cleanerAvailabilityLost) {
     currentStage = "rematching";
     headline = "Cleaner availability changed";
-    nextAction = "Tideway must select a confirmed available cleaner before the booking can proceed.";
+    nextAction = "Homle must select a confirmed available cleaner before the booking can proceed.";
   } else if (cleanerOfferExpired) {
     currentStage = "rematching";
     headline = "Cleaner response window ended";
-    nextAction = "Tideway must recheck cleaner availability and issue a new controlled opportunity before booking.";
+    nextAction = "Homle must recheck cleaner availability and issue a new controlled opportunity before booking.";
   } else if (proposal?.status === "accepted" && cleanerDecision?.status === "accepted") {
     currentStage = "finalising-booking";
     headline = "Both sides accepted — final checks underway";
-    nextAction = "Tideway must confirm the final address, access, emergency instructions and payment authorisation before recording the booking.";
+    nextAction = "Homle must confirm the final address, access, emergency instructions and payment authorisation before recording the booking.";
   }
   if (booking) {
     currentStage = "booking-confirmed";
@@ -3766,7 +3766,7 @@ async function getPrivateRequestStatus(request, response) {
     if (jobProgress.customerCompletedAt) {
       currentStage = "completion-recorded";
       headline = "Visit completion acknowledged";
-      nextAction = "Tideway can now review the actual job economics after all open change or safety requests are closed.";
+      nextAction = "Homle can now review the actual job economics after all open change or safety requests are closed.";
     }
   }
   if (outcome) {
@@ -3786,7 +3786,7 @@ async function getPrivateRequestStatus(request, response) {
   const cleanComplete = Boolean(outcome || jobProgress.customerCompletedAt);
   const steps = [
     { key: "request", label: "Request received", state: "complete", detail: `Reference ${customerRequest.id}` },
-    { key: "scan", label: "Room scan reviewed", state: scanComplete ? "complete" : ["room-scan", "scan-revision"].includes(currentStage) ? "action" : "current", detail: !latestBrief ? "Photos and spoken notes required" : scanComplete ? `${latestBrief.checklist.length} tasks · ${latestBrief.scopeEstimateHours} reviewed hours` : latestBrief.status === "needs-revision" ? "Revision requested" : "Awaiting complete Tideway review" },
+    { key: "scan", label: "Room scan reviewed", state: scanComplete ? "complete" : ["room-scan", "scan-revision"].includes(currentStage) ? "action" : "current", detail: !latestBrief ? "Photos and spoken notes required" : scanComplete ? `${latestBrief.checklist.length} tasks · ${latestBrief.scopeEstimateHours} reviewed hours` : latestBrief.status === "needs-revision" ? "Revision requested" : "Awaiting complete Homle review" },
     { key: "quote", label: "Quote accepted", state: quoteComplete ? "complete" : ["quote-review", "quote-expired"].includes(currentStage) ? "action" : proposal ? "current" : "waiting", detail: quoteExpired ? "Response window ended" : proposal ? proposal.status : "Not prepared yet" },
     { key: "cleaner", label: "Cleaner confirmed", state: cleanerComplete ? "complete" : selectedCleanerEligibilityLost || cleanerDecision?.status === "declined" ? "action" : quoteComplete ? "current" : "waiting", detail: selectedCleanerEligibilityLost ? "Rematching in progress" : cleanerDecision?.status || "Awaiting an accepted quote" },
     { key: "booking", label: "Visit confirmed", state: bookingComplete ? "complete" : cleanerComplete ? "current" : "waiting", detail: booking ? `${booking.proposedDate} · ${booking.proposedStartTime}–${booking.proposedEndTime} UK local time` : "Final checks pending" },
@@ -3898,7 +3898,7 @@ async function changePrivateCustomerSchedule(request, response) {
       const lifecycle = proposalLifecycle(proposal, proposalUpdates);
       return ["draft", "ready"].includes(lifecycle.status) || (["sent", "accepted"].includes(lifecycle.status) && !proposalOfferIsExhausted(proposal, proposalUpdates, cleanerDecisions));
     });
-    if (activeProposal) throw Object.assign(new Error("Tideway has already started a controlled quote for this timing. Review or close that unbooked proposal before choosing another date."), { statusCode: 409 });
+    if (activeProposal) throw Object.assign(new Error("Homle has already started a controlled quote for this timing. Review or close that unbooked proposal before choosing another date."), { statusCode: 409 });
     if (customerRequest.preferredDate === preferredDate && (customerRequest.preferredTimeWindow || "Flexible") === preferredTimeWindow) {
       const latest = scheduleUpdates.filter((update) => update.requestId === customerRequest.id).at(-1) || null;
       return { reference: latest?.id || "", requestReference: customerRequest.id, preferredDate, preferredTimeWindow, changedAt: latest?.createdAt || customerRequest.createdAt, replayed: true };
@@ -3972,7 +3972,7 @@ async function createPrivateCleanerProfileStarter(request, response) {
   const fingerprint = submissionFingerprint({ cleanerId: cleaner.id, ...profile });
   const record = { id: `CPU-${randomUUID().slice(0, 8).toUpperCase()}`, cleanerId: cleaner.id, ...profile, createdAt: new Date().toISOString(), submissionKey: key, submissionFingerprint: fingerprint };
   const saved = await saveCleanerProfileStarterUpdate(record);
-  return json(response, saved.replayed ? 200 : 201, { ok: true, replayed: saved.replayed, profile: { captured: true, languageCount: saved.update.languages.length, updatedAt: saved.update.createdAt }, message: "Your private professional profile details were saved for Tideway review. They are not public or verified yet." });
+  return json(response, saved.replayed ? 200 : 201, { ok: true, replayed: saved.replayed, profile: { captured: true, languageCount: saved.update.languages.length, updatedAt: saved.update.createdAt }, message: "Your private professional profile details were saved for Homle review. They are not public or verified yet." });
 }
 
 async function createPrivateCleanerAvailabilityRequest(request, response) {
@@ -4001,7 +4001,7 @@ async function createPrivateCleanerAvailabilityRequest(request, response) {
   const availabilityRequest = { id: `AVR-${randomUUID().slice(0, 8).toUpperCase()}`, cleanerId: cleaner.id, action: "requested", status: "pending", availableDate, startTime, endTime, note, createdAt: new Date().toISOString(), submissionKey: key, submissionFingerprint: fingerprint };
   const saved = await saveCleanerAvailabilityRequest(availabilityRequest);
   const safeRequest = { reference: saved.request.id, availableDate: saved.request.availableDate, startTime: saved.request.startTime, endTime: saved.request.endTime, status: "pending" };
-  return json(response, saved.replayed ? 200 : 201, { ok: true, request: safeRequest, replayed: saved.replayed, message: "Availability submitted for Tideway confirmation. It cannot be used for matching until screening, current approval and a separate Tideway confirmation are complete." });
+  return json(response, saved.replayed ? 200 : 201, { ok: true, request: safeRequest, replayed: saved.replayed, message: "Availability submitted for Homle confirmation. It cannot be used for matching until screening, current approval and a separate Homle confirmation are complete." });
 }
 
 async function getPrivateCleanerStatus(request, response) {
@@ -4036,28 +4036,28 @@ async function getPrivateCleanerStatus(request, response) {
   let stage = "application-review";
   let headline = "Application received";
   let nextAction = !profileStarterCaptured && profileStarterSubmissionAllowed
-    ? "Complete the private professional profile below while Tideway reviews the application. It is required before screening can finish."
-    : firstAvailabilityFuture ? "Tideway has received the application and its first exact window. Keep future times current below while screening, approval and separate availability confirmation remain incomplete." : "The first supplied window has passed or was not captured. Add a current future time below while Tideway reviews the application.";
+    ? "Complete the private professional profile below while Homle reviews the application. It is required before screening can finish."
+    : firstAvailabilityFuture ? "Homle has received the application and its first exact window. Keep future times current below while screening, approval and separate availability confirmation remain incomplete." : "The first supplied window has passed or was not captured. Add a current future time below while Homle reviews the application.";
   if (status === "contacted") {
     stage = "screening";
     headline = "Contact step recorded";
-    nextAction = "Tideway must still complete the required screening checks before any approval decision.";
+    nextAction = "Homle must still complete the required screening checks before any approval decision.";
   } else if (status === "screening" && !screeningComplete) {
     stage = "screening";
     headline = "Screening in progress";
-    nextAction = "Tideway must complete and record every required screening check before approval can be considered.";
+    nextAction = "Homle must complete and record every required screening check before approval can be considered.";
   } else if (status === "screening" && screeningComplete) {
     stage = "approval-review";
     headline = "Screening checks recorded";
-    nextAction = "Tideway must record a separate approval decision. Completed checks alone do not approve or assign work.";
+    nextAction = "Homle must record a separate approval decision. Completed checks alone do not approve or assign work.";
   } else if (status === "approved" && !futureAvailability.length) {
     stage = "availability";
     headline = pendingAvailabilityRequests.length ? "Availability awaiting confirmation" : "Application approved — availability needed";
-    nextAction = pendingAvailabilityRequests.length ? "Tideway must confirm or decline the submitted exact time before it can be used for matching." : "Submit an exact future time below. Tideway must separately confirm it before matching.";
+    nextAction = pendingAvailabilityRequests.length ? "Homle must confirm or decline the submitted exact time before it can be used for matching." : "Submit an exact future time below. Homle must separately confirm it before matching.";
   } else if (readyForOpportunities) {
     stage = "ready";
     headline = "Ready for suitable opportunities";
-    nextAction = "No work is guaranteed. Tideway may send a separate private opportunity when a suitable job, scope, area and time align.";
+    nextAction = "No work is guaranteed. Homle may send a separate private opportunity when a suitable job, scope, area and time align.";
   } else if (status === "paused") {
     stage = "paused";
     headline = "Application paused";
@@ -4075,7 +4075,7 @@ async function getPrivateCleanerStatus(request, response) {
     { key: "profile", label: "Professional profile", state: profileStarterCaptured ? "complete" : profileStarterSubmissionAllowed ? "current" : "waiting", detail: profileStarterCaptured ? "Private starter captured; not public or verified" : "Complete before screening can finish" },
     { key: "screening", label: "Screening checks", state: screeningComplete ? "complete" : screeningReached ? "current" : "waiting", detail: screeningComplete ? "Required checks recorded" : screeningReached ? "Checks not yet complete" : "Not started" },
     { key: "approval", label: "Approval decision", state: approvalRecorded ? "complete" : screeningComplete ? "current" : "waiting", detail: approvalRecorded ? (status === "approved" ? "Currently approved" : "Approval was previously recorded") : status === "rejected" ? "No approval recorded" : "Decision not recorded" },
-    { key: "availability", label: "Exact availability confirmed", state: readyForOpportunities ? "complete" : status === "approved" ? "current" : "waiting", detail: readyForOpportunities ? `${futureAvailability.length} future confirmed ${futureAvailability.length === 1 ? "window" : "windows"}` : pendingAvailabilityRequests.length ? `${pendingAvailabilityRequests.length} submitted — awaiting Tideway confirmation` : firstAvailabilityCaptured ? "First window captured — not confirmed for matching" : "Not confirmed for matching" },
+    { key: "availability", label: "Exact availability confirmed", state: readyForOpportunities ? "complete" : status === "approved" ? "current" : "waiting", detail: readyForOpportunities ? `${futureAvailability.length} future confirmed ${futureAvailability.length === 1 ? "window" : "windows"}` : pendingAvailabilityRequests.length ? `${pendingAvailabilityRequests.length} submitted — awaiting Homle confirmation` : firstAvailabilityCaptured ? "First window captured — not confirmed for matching" : "Not confirmed for matching" },
     { key: "opportunities", label: "Suitable opportunities", state: readyForOpportunities ? "current" : "waiting", detail: readyForOpportunities ? "Eligible to be considered — work is not guaranteed" : inactive ? "Not active for matching" : "Waiting for screening, approval and availability" }
   ];
 
@@ -4216,7 +4216,7 @@ async function createAdminJobOutcome(request, response) {
     return json(response, 422, { ok: false, error: "Add a settlement evidence note of at least 20 characters." });
   }
   if (input.settlementConfirmed !== true) {
-    return json(response, 422, { ok: false, error: "Confirm that the customer receipt and cleaner payout already occurred outside Tideway." });
+    return json(response, 422, { ok: false, error: "Confirm that the customer receipt and cleaner payout already occurred outside Homle." });
   }
   if (!Number.isFinite(settlementVerifiedMs) || settlementVerifiedMs > Date.now()) {
     return json(response, 422, { ok: false, error: "Enter a valid settlement verification time that is not in the future." });
@@ -4315,7 +4315,7 @@ async function createAdminJobOutcomeAdjustment(request, response) {
   if (!allowedReasons.has(reasonType)) errors.push("Choose a valid adjustment reason.");
   if (sourceReference.length < 4) errors.push("Add a unique external case or transaction reference of at least four characters.");
   if (internalNote.length < 20) errors.push("Add an evidence note of at least 20 characters explaining what changed.");
-  if (input.externalActionConfirmed !== true) errors.push("Confirm that any work or money movement already happened outside Tideway and this entry is record-only.");
+  if (input.externalActionConfirmed !== true) errors.push("Confirm that any work or money movement already happened outside Homle and this entry is record-only.");
   if (values.some((value) => !Number.isFinite(value) || value < 0)) errors.push("Adjustment hours and amounts must be non-negative numbers.");
   if (amounts.additionalHours > maxOutcomeHours || values.slice(1).some((value) => value > maxFinancialRecordAmount)) errors.push("Adjustment values exceed the supported audit limits.");
   if (!values.some((value) => value > 0)) errors.push("Record at least one additional hour or financial amount.");
@@ -4793,7 +4793,7 @@ async function handleJobBrief(request, response) {
   const photoInputs = Array.isArray(input.photos) ? input.photos.slice(0, maxBriefPhotos + 1) : [];
   const scopeSignals = detectPriceSensitiveScope({ transcript, checklist, photos: photoInputs });
   const errors = [];
-  if (!/^REQ-[A-Z0-9]{8}$/.test(requestId)) errors.push("Enter a valid Tideway cleaning-request reference.");
+  if (!/^REQ-[A-Z0-9]{8}$/.test(requestId)) errors.push("Enter a valid Homle cleaning-request reference.");
   if (!requestTokenValid) errors.push("Open the room scan from your valid private request tracker.");
   if (!transcript) errors.push("Add or dictate the cleaning instructions.");
   if (!checklist.length) errors.push("Generate and review at least one checklist task.");
@@ -4809,7 +4809,7 @@ async function handleJobBrief(request, response) {
   if (checklist.length && handoff.workCount === 0) errors.push("Add at least one cleaning task; exclusions alone are not a cleanable scope.");
   if (handoff.missingWorkAreas.length) errors.push(`Add at least one room-labelled cleaning task for: ${handoff.missingWorkAreas.join(", ")}.`);
   if (!customerScopeConfirmed) errors.push("Review the concise cleaner checklist and confirm that it includes every task you want quoted.");
-  if (!consent) errors.push("Confirm that you may share these room visuals and instructions with Tideway.");
+  if (!consent) errors.push("Confirm that you may share these room visuals and instructions with Homle.");
   if (errors.length) return json(response, 422, { ok: false, errors });
 
   const [requests, updates] = await Promise.all([
@@ -5396,11 +5396,11 @@ const lanServer = lanPort ? createServer(handleHttpRequest) : null;
 const trackingTestExpiryTimer = trackingTestStore ? setInterval(() => trackingTestStore.activeSessionCount(), 30_000) : null;
 trackingTestExpiryTimer?.unref?.();
 server.listen(port, host, () => {
-  console.log(`Tideway is running at http://${host}:${port}`);
+  console.log(`Homle is running at http://${host}:${port}`);
 });
 if (lanServer) {
   lanServer.listen(lanPort, lanHost, () => {
-    console.log(`Tideway Wi-Fi preview is running on ${lanHost}:${lanPort}`);
+    console.log(`Homle Wi-Fi preview is running on ${lanHost}:${lanPort}`);
   });
 }
 

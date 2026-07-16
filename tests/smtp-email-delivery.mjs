@@ -18,7 +18,7 @@ const nodemailer = {
 
 const env = {
   SMTP_URL: "smtps://mailer%40invalid.example:private%20password@smtp.invalid.example:465",
-  EMAIL_FROM: "Tideway <no-reply@invalid.example>",
+  EMAIL_FROM: "Homle <no-reply@invalid.example>",
   APP_ORIGIN: "https://staging.tideway.example"
 };
 const delivery = await createSmtpEmailDelivery(env, { nodemailer });
@@ -47,7 +47,7 @@ const repeated = await delivery.send(verification);
 assert.equal(first.messageId, repeated.messageId, "A retry changed the stable SMTP Message-ID.");
 assert.equal(messages[0].from, env.EMAIL_FROM);
 assert.equal(messages[0].to, verification.recipient);
-assert.equal(messages[0].subject, "Tideway: verify your email");
+assert.equal(messages[0].subject, "Homle: verify your email");
 assert(messages[0].text.includes(verification.link) && messages[0].text.includes(verification.expiresAt));
 assert(!Object.hasOwn(messages[0], "html") && !Object.hasOwn(messages[0], "attachments"));
 assert.match(messages[0].headers["X-Tideway-Delivery-Id"], /^[a-f0-9]{64}$/);
@@ -59,14 +59,14 @@ const facebookVerification = await delivery.send({
   expiresAt: "2026-07-16T13:00:00.000Z"
 });
 assert.notEqual(facebookVerification.messageId, first.messageId);
-assert.equal(messages.at(-1).subject, "Tideway: verify your email for Facebook sign-in");
+assert.equal(messages.at(-1).subject, "Homle: verify your email for Facebook sign-in");
 assert(messages.at(-1).text.includes("finish Facebook sign-in") && messages.at(-1).text.includes("/verify-facebook#token="));
 
 const notification = await delivery.send({
   to: "cleaner@invalid.example",
   idempotencyKey: "00000000-0000-4000-8000-000000000001",
-  subject: "Tideway: Cleaner arrived",
-  text: "Hello,\n\nThe Cleaner recorded their arrival.\n\nOpen Tideway: https://staging.tideway.example"
+  subject: "Homle: Cleaner arrived",
+  text: "Hello,\n\nThe Cleaner recorded their arrival.\n\nOpen Homle: https://staging.tideway.example"
 });
 assert.notEqual(notification.messageId, first.messageId);
 
@@ -87,7 +87,7 @@ for (const invalid of [
   { ...env, SMTP_URL: "smtp://user:pass@127.0.0.1:587" },
   { ...env, SMTP_URL: "smtp://smtp.invalid.example:587" },
   { ...env, SMTP_URL: "smtp://user:pass@smtp.invalid.example:587?tls.rejectUnauthorized=false" },
-  { ...env, EMAIL_FROM: "Tideway\r\nBcc: attacker@invalid.example" }
+  { ...env, EMAIL_FROM: "Homle\r\nBcc: attacker@invalid.example" }
 ]) await assert.rejects(() => createSmtpEmailDelivery(invalid, { nodemailer }), /SMTP_URL|EMAIL_FROM/);
 
 await assert.rejects(() => createSmtpEmailDelivery({ ...env, APP_ORIGIN: "https://staging.tideway.example/path" }, { nodemailer }), /APP_ORIGIN/);

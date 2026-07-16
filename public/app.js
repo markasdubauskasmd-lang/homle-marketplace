@@ -11,8 +11,8 @@ const cleanerDraftControls = new WeakMap();
 const customerDraftControls = new WeakMap();
 
 const focusedEntryRoutes = {
-  "/request": { kind: "request", target: "request-cleaning", title: "Request a clean — Tideway", description: "Request a Tideway clean in three short steps, then scan the rooms and turn spoken notes into a clear cleaner checklist." },
-  "/join": { kind: "join", target: "cleaner-application", title: "Apply as a cleaner — Tideway", description: "Apply to join the Tideway cleaning pilot and choose your travel areas, services and first available work window." }
+  "/request": { kind: "request", target: "request-cleaning", title: "Request a clean — Homle", description: "Request a Homle clean in three short steps, then scan the rooms and turn spoken notes into a clear cleaner checklist." },
+  "/join": { kind: "join", target: "cleaner-application", title: "Apply as a cleaner — Homle", description: "Apply to join the Homle cleaning pilot and choose your travel areas, services and first available work window." }
 };
 const focusedEntryRoute = focusedEntryRoutes[location.pathname] || null;
 if (focusedEntryRoute) {

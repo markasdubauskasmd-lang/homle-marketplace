@@ -4,6 +4,8 @@
 **Companion audit:** `../TIDEWAY_AUDIT_2026-07-15.md` (full findings, evidence, line refs). Finding IDs below (F1–F21) map to that audit.
 **Last updated:** 16 July 2026.
 
+**Public brand decision:** the customer-facing company and product name is now **Homle**, with the intended public hostname `homle.co.uk`. Visible website, account, booking, payment, operations and notification copy plus the manifest and H-mark logo have been updated. Stable internal `tideway` database schemas, environment variables, storage metadata and migration identifiers deliberately remain unchanged to avoid an unnecessary security/data migration. Public deployment still requires the production runtime gate and verified hosting configuration; the existing site must not be replaced by a static shell whose accounts and bookings cannot work.
+
 ## Implementation progress — 16 July 2026
 
 - **P0-1, P0-2, P0-4 and P0-8 complete** in `719cc24`: room scans require their private tracker token and never return it; browser mutations fail closed without same-origin evidence; `/admin` and `/admin.html` share the same gate; `ADMIN_REQUIRE_KEY=true` closes the localhost exception; isolated HTTP regressions cover each boundary.

@@ -1,5 +1,5 @@
 export function createSessionPurgeRepository(pool) {
-  if (!pool || typeof pool.query !== "function") throw new TypeError("A dedicated Tideway worker PostgreSQL pool is required.");
+  if (!pool || typeof pool.query !== "function") throw new TypeError("A dedicated Homle worker PostgreSQL pool is required.");
 
   return Object.freeze({
     async purgeBatch(batchLimit) {

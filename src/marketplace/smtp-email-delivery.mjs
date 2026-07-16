@@ -79,8 +79,8 @@ function preparedMessage(input, appOrigin) {
     if (!Number.isFinite(expiresAt.getTime()) || expiresAt.toISOString() !== input.expiresAt) throw new TypeError("Authentication email expiry is invalid.");
     const verification = input.kind !== "password-reset";
     const facebookVerification = input.kind === "facebook-email-verification";
-    const subject = facebookVerification ? "Tideway: verify your email for Facebook sign-in" : verification ? "Tideway: verify your email" : "Tideway: reset your password";
-    const action = facebookVerification ? "Verify this email address to finish Facebook sign-in" : verification ? "Verify your email address" : "Reset your Tideway password";
+    const subject = facebookVerification ? "Homle: verify your email for Facebook sign-in" : verification ? "Homle: verify your email" : "Homle: reset your password";
+    const action = facebookVerification ? "Verify this email address to finish Facebook sign-in" : verification ? "Verify your email address" : "Reset your Homle password";
     const purpose = facebookVerification ? "Facebook sign-in verification" : verification ? "email verification" : "password reset";
     const text = `${action}:\n\n${link}\n\nThis private ${purpose} link expires at ${expiresAt.toISOString()}. If you did not request this, you can ignore this email.`;
     return { recipient, subject, text, seed: `${input.kind}\0${recipient.toLowerCase()}\0${link}\0${input.expiresAt}` };
@@ -88,7 +88,7 @@ function preparedMessage(input, appOrigin) {
   const recipient = emailAddress(input.to, "Email recipient");
   const idempotencyKey = boundedLine(input.idempotencyKey, 100, "Email idempotency key");
   const subject = boundedLine(input.subject, 200, "Email subject");
-  if (!subject.startsWith("Tideway:")) throw new TypeError("Notification email subject is invalid.");
+  if (!subject.startsWith("Homle:")) throw new TypeError("Notification email subject is invalid.");
   const text = boundedText(input.text);
   return { recipient, subject, text, seed: `notification\0${idempotencyKey}` };
 }

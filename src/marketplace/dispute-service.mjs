@@ -19,7 +19,7 @@ function text(value, minimum, maximum, label, optional = false) {
 
 function role(actor, allowed, action) {
   if (!actor?.userId || !Array.isArray(actor.roles) || !allowed.some((item) => actor.roles.includes(item))) {
-    const label = allowed.length > 1 ? "An authorised booking account" : allowed[0] === "administrator" ? "A Tideway Administrator" : "A booking participant";
+    const label = allowed.length > 1 ? "An authorised booking account" : allowed[0] === "administrator" ? "A Homle Administrator" : "A booking participant";
     throw new TypeError(`${label} is required to ${action}.`);
   }
 }

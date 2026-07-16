@@ -28,7 +28,7 @@ const page = await service.listMessages(landlord, bookingId, { limit: "25", befo
 assert(page.messages.length === 1 && page.hasMore && page.nextCursor.beforeMessageId === messageId && calls.at(-1).input.limit === 25, "Message pagination lost its stable cursor or bounded page size.");
 for (const prohibited of ["Email me at cleaner@example.com", "Call 07123 456789", "Open https://example.com", "Message me on WhatsApp"]) {
   assert(containsDirectContactDetails(prohibited), `Contact-detail detector accepted: ${prohibited}`);
-  assert(await rejects(() => service.sendMessage(cleaner, bookingId, { clientMessageId, body: prohibited }), "Keep communication inside Tideway"), "A direct contact route entered booking messages.");
+  assert(await rejects(() => service.sendMessage(cleaner, bookingId, { clientMessageId, body: prohibited }), "Keep communication inside Homle"), "A direct contact route entered booking messages.");
 }
 assert(!containsDirectContactDetails("The lockbox code is 4821 and I am outside."), "A safe short access code was mistaken for a phone number.");
 assert(await rejects(() => service.sendMessage(outsider, bookingId, { clientMessageId, body: "Attempt" }), "Cleaner or Landlord"), "An Administrator sent a participant message.");

@@ -54,7 +54,7 @@ const requiredWorkerFunctions = Object.freeze([
 ]);
 
 export async function probeMarketplaceWorkerDatabase(pool) {
-  if (!pool || typeof pool.query !== "function") throw new TypeError("A dedicated Tideway worker PostgreSQL pool is required.");
+  if (!pool || typeof pool.query !== "function") throw new TypeError("A dedicated Homle worker PostgreSQL pool is required.");
   const result = await pool.query(`
     SELECT current_user AS database_role,
       current_setting('server_version_num')::integer AS server_version_num,

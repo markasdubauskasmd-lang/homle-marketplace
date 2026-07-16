@@ -14,7 +14,7 @@ function text(value, maximum, label, required = false) {
 }
 
 function claims(value) {
-  if (!value || value.emailVerified !== false) throw new TypeError("Facebook claims must remain unverified until Tideway verifies the mailbox.");
+  if (!value || value.emailVerified !== false) throw new TypeError("Facebook claims must remain unverified until Homle verifies the mailbox.");
   const subject = text(value.subject, 255, "Facebook subject", true);
   const email = value.email ? normalizedEmail(value.email) : null;
   const displayName = text(value.displayName, 120, "Facebook display name");

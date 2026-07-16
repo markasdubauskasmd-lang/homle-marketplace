@@ -104,23 +104,23 @@ function renderQuote(quote) {
     if (quote.requestClosed) {
       locked.innerHTML = "<strong>This cleaning request is closed.</strong><span>The quote can no longer be accepted and no new booking can be created from it.</span>";
     } else if (quote.status === "cancelled") {
-      locked.innerHTML = "<strong>This proposal was withdrawn before booking.</strong><span>No booking was created and no payment was taken through Tideway.</span>";
+      locked.innerHTML = "<strong>This proposal was withdrawn before booking.</strong><span>No booking was created and no payment was taken through Homle.</span>";
     } else if (quote.cleanerDeclined || quote.cleanerOfferClosed) {
-      locked.innerHTML = "<strong>The proposed cleaner is no longer available.</strong><span>Tideway must review a replacement before another quote can be offered.</span>";
+      locked.innerHTML = "<strong>The proposed cleaner is no longer available.</strong><span>Homle must review a replacement before another quote can be offered.</span>";
     } else if (quote.decision?.status === "accepted") {
-      locked.innerHTML = "<strong>Quote accepted.</strong><span>Tideway recorded your decision. This is not yet a confirmed booking and no payment was taken.</span>";
+      locked.innerHTML = "<strong>Quote accepted.</strong><span>Homle recorded your decision. This is not yet a confirmed booking and no payment was taken.</span>";
     } else if (quote.decision?.status === "declined") {
-      locked.innerHTML = "<strong>Quote declined.</strong><span>Tideway recorded your decision and no booking was made.</span>";
+      locked.innerHTML = "<strong>Quote declined.</strong><span>Homle recorded your decision and no booking was made.</span>";
     } else if (quote.pricingChanged) {
-      locked.innerHTML = "<strong>This quote needs recalculation.</strong><span>Tideway must apply the current confirmed cost assumptions and issue a new proposal before you can decide.</span>";
+      locked.innerHTML = "<strong>This quote needs recalculation.</strong><span>Homle must apply the current confirmed cost assumptions and issue a new proposal before you can decide.</span>";
     } else if (quote.availabilityChanged) {
-      locked.innerHTML = "<strong>Cleaner availability changed.</strong><span>Tideway must recheck availability and issue a newly controlled proposal before you can decide.</span>";
+      locked.innerHTML = "<strong>Cleaner availability changed.</strong><span>Homle must recheck availability and issue a newly controlled proposal before you can decide.</span>";
     } else if (quote.expired) {
-      locked.innerHTML = "<strong>This quote has expired.</strong><span>Tideway must recheck availability, scope and pricing before issuing a new proposal.</span>";
+      locked.innerHTML = "<strong>This quote has expired.</strong><span>Homle must recheck availability, scope and pricing before issuing a new proposal.</span>";
     } else if (quote.status === "ready") {
-      locked.innerHTML = "<strong>Preview only.</strong><span>Tideway has not yet recorded this quote as sent, so no decision can be submitted.</span>";
+      locked.innerHTML = "<strong>Preview only.</strong><span>Homle has not yet recorded this quote as sent, so no decision can be submitted.</span>";
     } else {
-      locked.innerHTML = "<strong>This quote is closed.</strong><span>Contact Tideway if you need help.</span>";
+      locked.innerHTML = "<strong>This quote is closed.</strong><span>Contact Homle if you need help.</span>";
     }
   }
 }
@@ -170,8 +170,8 @@ form.addEventListener("submit", async (event) => {
     form.hidden = true;
     locked.hidden = false;
     locked.innerHTML = result.status === "accepted"
-      ? "<strong>Quote accepted.</strong><span>Tideway recorded your decision. This is not yet a confirmed booking and no payment was taken.</span>"
-      : "<strong>Quote declined.</strong><span>Tideway recorded your decision and no booking was made.</span>";
+      ? "<strong>Quote accepted.</strong><span>Homle recorded your decision. This is not yet a confirmed booking and no payment was taken.</span>"
+      : "<strong>Quote declined.</strong><span>Homle recorded your decision and no booking was made.</span>";
     locked.focus();
   } catch (error) {
     summary.textContent = error.message;

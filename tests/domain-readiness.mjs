@@ -31,7 +31,7 @@ const good = await verifyDomainReadiness("https://tidewaycleaning.co.uk", {
   async fetch(url, options) {
     requested.push({ url, options });
     if (url === "http://tidewaycleaning.co.uk/") return new Response(null, { status: 308, headers: { location: "https://tidewaycleaning.co.uk/" } });
-    if (url === "https://tidewaycleaning.co.uk/") return new Response("<!doctype html><title>Tideway</title>", { status: 200, headers: { ...securityHeaders, "content-type": "text/html; charset=utf-8" } });
+    if (url === "https://tidewaycleaning.co.uk/") return new Response("<!doctype html><title>Homle</title>", { status: 200, headers: { ...securityHeaders, "content-type": "text/html; charset=utf-8" } });
     if (url.endsWith("/api/health")) return jsonResponse({ ok: true, service: "tideway-marketplace", dataIntegrity: "healthy", writesAllowed: true, localDemosEnabled: false, marketplace: { enabled: false, ready: false, authenticationReady: false } });
     const boundary = privateBoundaryResponse(url);
     if (boundary) return boundary;
@@ -56,7 +56,7 @@ const activeProviders = await verifyDomainReadiness("https://tidewaycleaning.co.
   async fetch(url, options) {
     activeProviderRequests.push({ url, options });
     if (url === "http://tidewaycleaning.co.uk/") return new Response(null, { status: 308, headers: { location: "https://tidewaycleaning.co.uk/" } });
-    if (url === "https://tidewaycleaning.co.uk/") return new Response("<!doctype html><title>Tideway</title>", { status: 200, headers: { ...securityHeaders, "content-type": "text/html; charset=utf-8" } });
+    if (url === "https://tidewaycleaning.co.uk/") return new Response("<!doctype html><title>Homle</title>", { status: 200, headers: { ...securityHeaders, "content-type": "text/html; charset=utf-8" } });
     if (url.endsWith("/api/health")) return jsonResponse({ ok: true, service: "tideway-marketplace", dataIntegrity: "healthy", writesAllowed: true, localDemosEnabled: false, marketplace: { enabled: true, ready: true, authenticationReady: true } });
     const boundary = privateBoundaryResponse(url);
     if (boundary) return boundary;
@@ -86,7 +86,7 @@ const spoofedGoogle = await verifyDomainReadiness("https://tidewaycleaning.co.uk
   async tlsProbe() { return { daysRemaining: 60 }; },
   async fetch(url) {
     if (url === "http://tidewaycleaning.co.uk/") return new Response(null, { status: 308, headers: { location: "https://tidewaycleaning.co.uk/" } });
-    if (url === "https://tidewaycleaning.co.uk/") return new Response("<!doctype html><title>Tideway</title>", { status: 200, headers: { ...securityHeaders, "content-type": "text/html" } });
+    if (url === "https://tidewaycleaning.co.uk/") return new Response("<!doctype html><title>Homle</title>", { status: 200, headers: { ...securityHeaders, "content-type": "text/html" } });
     if (url.endsWith("/api/health")) return jsonResponse({ ok: true, service: "tideway-marketplace", dataIntegrity: "healthy", writesAllowed: true, localDemosEnabled: false, marketplace: { enabled: true, ready: true, authenticationReady: true } });
     const boundary = privateBoundaryResponse(url);
     if (boundary) return boundary;
@@ -104,7 +104,7 @@ const exposedPrivateSurfaces = await verifyDomainReadiness("https://tidewayclean
   async tlsProbe() { return { daysRemaining: 60 }; },
   async fetch(url) {
     if (url === "http://tidewaycleaning.co.uk/") return new Response(null, { status: 308, headers: { location: "https://tidewaycleaning.co.uk/" } });
-    if (url === "https://tidewaycleaning.co.uk/") return new Response("<!doctype html><title>Tideway</title>", { status: 200, headers: { ...securityHeaders, "content-type": "text/html" } });
+    if (url === "https://tidewaycleaning.co.uk/") return new Response("<!doctype html><title>Homle</title>", { status: 200, headers: { ...securityHeaders, "content-type": "text/html" } });
     if (url.endsWith("/api/health")) return jsonResponse({ ok: true, service: "tideway-marketplace", dataIntegrity: "healthy", writesAllowed: true, localDemosEnabled: true, marketplace: { enabled: false, ready: false, authenticationReady: false } });
     if (url.endsWith("/admin")) return new Response(null, { status: 302, headers: { location: "/login", "set-cookie": "admin_probe=leaked; Path=/; Secure; HttpOnly", "cache-control": "no-store" } });
     if (url.endsWith("/tracking-test")) return new Response("local demo", { status: 200, headers: { "content-type": "text/html", "cache-control": "no-store" } });

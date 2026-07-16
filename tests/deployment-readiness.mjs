@@ -37,7 +37,7 @@ async function waitForStart(child) {
     const onExit = (code) => { clearTimeout(timer); reject(new Error(`Production server exited before readiness (${code}). ${output}`)); };
     const onOutput = (chunk) => {
       output += chunk;
-      if (output.includes("Tideway is running")) {
+      if (output.includes("Homle is running")) {
         clearTimeout(timer);
         child.off("exit", onExit);
         child.stdout.off("data", onOutput);
@@ -63,7 +63,7 @@ try {
     [{ APP_ORIGIN: "http://tideway.example.com" }, "HTTPS"],
     [{ APP_ORIGIN: "https://127.0.0.1" }, "domain"],
     [{ DATA_DIR: path.join(projectRoot, "private-data") }, "outside the deployed source"],
-    [{ DATA_DIR: path.join(path.parse(projectRoot).root, "OneDrive", "Tideway") }, "OneDrive"],
+    [{ DATA_DIR: path.join(path.parse(projectRoot).root, "OneDrive", "Homle") }, "OneDrive"],
     [{ ADMIN_REQUIRE_KEY: "false" }, "ADMIN_REQUIRE_KEY"],
     [{ ADMIN_KEY: "short" }, "ADMIN_KEY"],
     [{ TRUST_PROXY: "false" }, "TRUST_PROXY"],
@@ -87,7 +87,7 @@ try {
     AUTH_TOKEN_SECRET: "different-auth-secret-with-at-least-32-chars",
     DATA_ENCRYPTION_KEY: "third-encryption-secret-with-32-characters",
     SMTP_URL: "smtps://mailer.example.com:465",
-    EMAIL_FROM: "Tideway <no-reply@example.com>",
+    EMAIL_FROM: "Homle <no-reply@example.com>",
     OBJECT_STORAGE_ENDPOINT: "https://objects.example.com",
     OBJECT_STORAGE_BUCKET: "tideway-private-media",
     OBJECT_STORAGE_REGION: "eu-west-2",

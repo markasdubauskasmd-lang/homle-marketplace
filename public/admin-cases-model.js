@@ -27,7 +27,7 @@ const casePolicies = Object.freeze({
     priority: "Immediate safety review",
     summary: "Separate immediate danger from the booking decision and restrict sensitive safety information to the minimum needed.",
     evidence: Object.freeze(["Issue report and exact event times", "Relevant job photos only", "Journey and cleaning-status timeline", "Participant statements, labelled as statements"]),
-    boundary: "Tideway is not an emergency service. Do not expose live location, promise an emergency response or treat an allegation as a verified fact."
+    boundary: "Homle is not an emergency service. Do not expose live location, promise an emergency response or treat an allegation as a verified fact."
   }),
   conduct: Object.freeze({
     priority: "Priority review",
@@ -37,7 +37,7 @@ const casePolicies = Object.freeze({
   }),
   payment: Object.freeze({
     priority: "Standard review",
-    summary: "Compare only Tideway's provider-neutral payment status with the accepted booking amount and outcome.",
+    summary: "Compare only Homle's provider-neutral payment status with the accepted booking amount and outcome.",
     evidence: Object.freeze(["Accepted customer total", "Provider-neutral authorization status", "Recorded booking outcome", "Existing payment-action audit references"]),
     boundary: "Do not enter card, bank or provider-secret data. This case resolution does not capture, cancel, refund or transfer money."
   }),

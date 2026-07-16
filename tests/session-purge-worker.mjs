@@ -39,6 +39,6 @@ assert.deepEqual(await repository.purgeBatch(500), { deletedCount: 12, batchFull
 assert.equal(poolCalls[0].text, "SELECT * FROM tideway_private.purge_expired_sessions($1::integer)");
 assert.deepEqual(poolCalls[0].values, [500]);
 assert.ok(!poolCalls[0].text.includes("DELETE FROM sessions"), "The worker repository bypassed the narrow purge function.");
-assert.throws(() => createSessionPurgeRepository(null), /dedicated Tideway worker/);
+assert.throws(() => createSessionPurgeRepository(null), /dedicated Homle worker/);
 
 console.log("Session purge tests passed: bounded SKIP LOCKED deletion, least privilege, multi-batch draining, idempotency and failure propagation.");

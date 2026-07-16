@@ -17,8 +17,8 @@ assert(!/^\s*(?:ADD|COPY)\s+\.\s+/m.test(dockerfile) && !dockerfile.includes("CO
 assert(!/(?:COPY|ADD)[^\n]*(?:\.env|data\/|tests\/|docs\/|NEXT_STEPS|RECOVERY|\.git)/i.test(dockerfile), "Container explicitly copies a secret, private-data or non-runtime path.");
 assert(dockerfile.includes("RUN install -d -o node -g node /var/lib/tideway") && dockerfile.includes("USER node"), "Container does not prepare private storage and drop root privileges.");
 assert(dockerfile.includes("DATA_DIR=/var/lib/tideway") && dockerfile.includes("MARKETPLACE_ENABLED=false") && dockerfile.includes("PAYMENTS_ENABLED=false") && dockerfile.includes("LAN_PORT=0"), "Container does not default to the fail-closed public-site mode.");
-assert(dockerfile.includes("STOPSIGNAL SIGTERM") && dockerfile.includes('CMD ["node", "server.mjs"]'), "Container does not preserve Tideway's graceful production lifecycle.");
-assert(dockerfile.includes("HEALTHCHECK") && dockerfile.includes("/api/health") && dockerfile.includes("b.service==='tideway-marketplace'"), "Container health check does not verify the Tideway health contract.");
+assert(dockerfile.includes("STOPSIGNAL SIGTERM") && dockerfile.includes('CMD ["node", "server.mjs"]'), "Container does not preserve Homle's graceful production lifecycle.");
+assert(dockerfile.includes("HEALTHCHECK") && dockerfile.includes("/api/health") && dockerfile.includes("b.service==='tideway-marketplace'"), "Container health check does not verify the Homle health contract.");
 
 const ignoreLines = dockerignore.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 assert.equal(ignoreLines[0], "**", "Container context must deny everything before its explicit allowlist.");

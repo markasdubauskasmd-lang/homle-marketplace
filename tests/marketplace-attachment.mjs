@@ -9,7 +9,7 @@ const completeEnvironment = Object.freeze({
   DATA_ENCRYPTION_KEY: "encryption-secret-is-also-different-and-long",
   APP_ORIGIN: "https://staging.tideway.example",
   SMTP_URL: "smtps://mailer.example",
-  EMAIL_FROM: "Tideway <test@invalid.example>",
+  EMAIL_FROM: "Homle <test@invalid.example>",
   OBJECT_STORAGE_ENDPOINT: "https://objects.example",
   OBJECT_STORAGE_BUCKET: "tideway-private-test",
   OBJECT_STORAGE_REGION: "eu-west-2",

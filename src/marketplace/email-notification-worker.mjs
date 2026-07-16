@@ -4,14 +4,14 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const eventCopy = Object.freeze({
   "new-booking-request": ["New cleaning request", "A new cleaning request is waiting for your response."],
-  "cleaner-declined": ["Cleaner response received", "The invited Cleaner declined. Matching can continue in Tideway."],
-  "booking-confirmed": ["Cleaning booking confirmed", "The Cleaner accepted the booking. Review the confirmed details in Tideway."],
+  "cleaner-declined": ["Cleaner response received", "The invited Cleaner declined. Matching can continue in Homle."],
+  "booking-confirmed": ["Cleaning booking confirmed", "The Cleaner accepted the booking. Review the confirmed details in Homle."],
   "cleaner-invitation-expired": ["Cleaning invitation expired", "The Cleaner invitation expired without a response."],
   "cleaner-started-travelling": ["Cleaner started travelling", "The Cleaner started their journey for the confirmed booking."],
   "cleaner-nearby": ["Cleaner is nearby", "The Cleaner is near the property for the confirmed booking."],
   "cleaner-arrived": ["Cleaner arrived", "The Cleaner recorded their arrival for the confirmed booking."],
   "cleaning-started": ["Cleaning started", "The Cleaner started the cleaning checklist."],
-  "cleaning-paused": ["Cleaning paused", "The Cleaner paused the active cleaning job. Review the update in Tideway."],
+  "cleaning-paused": ["Cleaning paused", "The Cleaner paused the active cleaning job. Review the update in Homle."],
   "cleaning-resumed": ["Cleaning resumed", "The Cleaner resumed the active cleaning job."],
   "cleaning-progress-update": ["Cleaning progress updated", "The Cleaner updated the room-by-room checklist."],
   "issue-reported": ["Cleaning issue reported", "The Cleaner reported an issue on the active booking."],
@@ -22,8 +22,8 @@ const eventCopy = Object.freeze({
   "cleaning-completed": ["Cleaning checklist completed", "The Cleaner finished the cleaning checklist."],
   "booking-completed": ["Cleaning visit completed", "The Landlord confirmed the finished cleaning visit."],
   "review-requested": ["Review the completed clean", "The cleaning checklist is complete and ready for your review."],
-  "review-submitted": ["Tideway review submitted", "A review was submitted for a completed booking and is awaiting moderation."],
-  "booking-message": ["New Tideway booking message", "A booking participant sent a private message in Tideway."]
+  "review-submitted": ["Homle review submitted", "A review was submitted for a completed booking and is awaiting moderation."],
+  "booking-message": ["New Homle booking message", "A booking participant sent a private message in Homle."]
 });
 
 function integer(value, minimum, maximum, fallback, label) {
@@ -63,8 +63,8 @@ export function notificationEmail(record, appOrigin) {
   return Object.freeze({
     to: selected.recipientEmail,
     idempotencyKey: selected.notificationId,
-    subject: `Tideway: ${subject}`,
-    text: `${greeting}\n\n${update}\n\nOpen Tideway to see the private booking details: ${appOrigin}\n\nFor privacy, this email does not include an address, access instructions, contact details, photos or live location.`
+    subject: `Homle: ${subject}`,
+    text: `${greeting}\n\n${update}\n\nOpen Homle to see the private booking details: ${appOrigin}\n\nFor privacy, this email does not include an address, access instructions, contact details, photos or live location.`
   });
 }
 
@@ -73,7 +73,7 @@ export function createEmailNotificationWorker(repository, delivery, options = {}
   if (!delivery || typeof delivery.send !== "function") throw new TypeError("A transactional email delivery adapter is required.");
   const createId = typeof options.createId === "function" ? options.createId : randomUUID;
   const appOrigin = trustedOrigin(options.appOrigin);
-  if (!appOrigin) throw new TypeError("A trusted Tideway application origin is required for notification email.");
+  if (!appOrigin) throw new TypeError("A trusted Homle application origin is required for notification email.");
   const batchLimit = integer(options.batchLimit, 1, 100, 25, "Email batch limit");
   const leaseSeconds = integer(options.leaseSeconds, 30, 600, 180, "Email lease duration");
 

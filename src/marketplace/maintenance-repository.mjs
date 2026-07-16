@@ -30,7 +30,7 @@ function uploadRows(result, limit) {
 }
 
 export function createMaintenanceRepository(pool) {
-  if (!pool || typeof pool.query !== "function") throw new TypeError("A dedicated Tideway worker PostgreSQL pool is required.");
+  if (!pool || typeof pool.query !== "function") throw new TypeError("A dedicated Homle worker PostgreSQL pool is required.");
   return Object.freeze({
     async expireInvitations(limit) {
       const selected = boundedLimit(limit, 500, "Invitation expiry batch limit");

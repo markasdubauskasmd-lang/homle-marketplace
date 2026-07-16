@@ -1,6 +1,6 @@
 function mapPrivacyRequestError(error) {
   const errors = {
-    "not-authenticated": [401, "not-authenticated", "Sign in before managing your Tideway data."],
+    "not-authenticated": [401, "not-authenticated", "Sign in before managing your Homle data."],
     "account-not-active": [403, "account-not-active", "This account cannot create a new privacy request."],
     "invalid-privacy-request": [422, "invalid-privacy-request", "Choose a valid account privacy request."],
     "privacy-request-id-reused": [409, "privacy-request-id-reused", "This privacy request could not be safely retried."]

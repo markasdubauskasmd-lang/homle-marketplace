@@ -122,7 +122,7 @@ function showRequestCompletion(submission, { automaticDispatch = false, warning 
   requestCompleteLead.textContent = warning
     ? "Your reviewed scan is submitted for matching. No booking or payment exists yet."
     : automaticDispatch
-    ? "Your reviewed scan is submitted and Tideway is authorised to invite an eligible profitable match within your chosen attempt limit."
+    ? "Your reviewed scan is submitted and Homle is authorised to invite an eligible profitable match within your chosen attempt limit."
     : "Your reviewed scan is submitted for matching. No Cleaner has been invited automatically.";
   requestCompleteWarning.textContent = warning;
   requestCompleteWarning.hidden = !warning;
@@ -297,7 +297,7 @@ function requestScanPanel(request) {
   const summary = element("summary", "", request.status === "draft" ? "Add room photos and submit" : "View reviewed room scan");
   details.append(summary);
   const panel = element("div", "landlord-request-scan-body");
-  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? "Choose the checklist room, add a clear note and take a current photo. Tideway strips metadata and keeps the sanitized image private." : "This is the reviewed room-scan handoff attached to the request.");
+  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? "Choose the checklist room, add a clear note and take a current photo. Homle strips metadata and keeps the sanitized image private." : "This is the reviewed room-scan handoff attached to the request.");
   const feedback = element("div", "landlord-form-feedback");
   feedback.hidden = true;
   feedback.tabIndex = -1;
@@ -409,7 +409,7 @@ function requestScanPanel(request) {
     confirm.type = "checkbox";
     confirm.required = true;
     confirm.name = "scopeReviewed";
-    confirmLabel.append(confirm, element("span", "", "I reviewed the concise Cleaner checklist and every attached room photo. This is the exact work I want Tideway to match and quote."));
+    confirmLabel.append(confirm, element("span", "", "I reviewed the concise Cleaner checklist and every attached room photo. This is the exact work I want Homle to match and quote."));
     const previewLabel = element("label", "checkbox");
     const preview = element("input");
     preview.type = "checkbox";
@@ -453,7 +453,7 @@ function requestScanPanel(request) {
       } catch (error) {
         if (submitted) {
           renderRequests();
-          showRequestCompletion(submission, { warning: `The room scan is safely submitted, but Tideway could not verify automatic invitation authorisation: ${error.message} Check the request before retrying.` });
+          showRequestCompletion(submission, { warning: `The room scan is safely submitted, but Homle could not verify automatic invitation authorisation: ${error.message} Check the request before retrying.` });
         } else showFeedback(requestFeedback, error.message);
       } finally { setPending(submit, false, "Submit cleaning request"); }
     });
@@ -564,7 +564,7 @@ function renderNextAction() {
   const activeRequest = requests.find((request) => ["searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "matched"].includes(request.status));
   if (activeRequest) {
     const waitingForCleaner = ["cleaner-invited", "pending-cleaner-acceptance"].includes(activeRequest.status);
-    nextTitle.textContent = waitingForCleaner ? "A Cleaner is reviewing your request" : activeRequest.status === "matched" ? "Your Cleaner is matched" : "Tideway is looking for your Cleaner";
+    nextTitle.textContent = waitingForCleaner ? "A Cleaner is reviewing your request" : activeRequest.status === "matched" ? "Your Cleaner is matched" : "Homle is looking for your Cleaner";
     nextCopy.textContent = `${requestStatusLabel(activeRequest.status)} · Review the submitted rooms, tasks and current status in one place.`;
     nextButton.textContent = "View request status";
     nextButton.dataset.nextAction = "submitted";
@@ -613,7 +613,7 @@ async function loadWorkspace() {
   } catch (error) {
     if (error.statusCode === 401) showState("Sign in as a Landlord to open this workspace.", "Your properties and request drafts are private to your verified account.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 403) showState("This account cannot open the Landlord workspace.", "Use a Landlord/Property Manager account selected during onboarding.", { kind: "authentication", allowSignIn: true });
-    else if (error.statusCode === 404 || error.statusCode === 503) showState("Landlord accounts are not connected yet.", "The workspace is ready but remains closed until Tideway's secure marketplace database and account runtime are activated.", { kind: "unavailable", allowRetry: true });
+    else if (error.statusCode === 404 || error.statusCode === 503) showState("Landlord accounts are not connected yet.", "The workspace is ready but remains closed until Homle's secure marketplace database and account runtime are activated.", { kind: "unavailable", allowRetry: true });
     else showState("The Landlord workspace is temporarily unavailable.", "No property or request was changed. Check the connection and try again.", { kind: "error", allowRetry: true });
   } finally {
     loading = false;

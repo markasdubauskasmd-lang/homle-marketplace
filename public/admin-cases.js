@@ -185,7 +185,7 @@ async function loadQueue(offset = 0) {
 async function load() {
   if (loading) return;
   loading = true;
-  showGate("Checking secure Administrator access…", "Booking cases open only inside an authenticated Tideway Administrator account.");
+  showGate("Checking secure Administrator access…", "Booking cases open only inside an authenticated Homle Administrator account.");
   try {
     const account = (await requestJson("/api/marketplace/account")).account;
     if (!account?.roles?.includes("administrator")) return showGate("Administrator account required", "Landlord, Cleaner and unrelated accounts cannot view or change booking cases.", { kind: "authentication", allowSignIn: true });
@@ -193,9 +193,9 @@ async function load() {
     workspace.hidden = false;
     await loadQueue(0);
   } catch (error) {
-    if (error.statusCode === 401) showGate("Sign in as a Tideway Administrator", "Booking cases contain private participant reports and are not available without an authenticated Administrator account.", { kind: "authentication", allowSignIn: true });
+    if (error.statusCode === 401) showGate("Sign in as a Homle Administrator", "Booking cases contain private participant reports and are not available without an authenticated Administrator account.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 403) showGate("Administrator account required", "This account is not authorised to view or change booking cases.", { kind: "authentication", allowSignIn: true });
-    else if ([404, 503].includes(error.statusCode)) showGate("Secure marketplace administration is not connected yet", "The case screen is ready, but it remains closed until Tideway’s protected database and account runtime pass staging.", { kind: "unavailable", allowRetry: true });
+    else if ([404, 503].includes(error.statusCode)) showGate("Secure marketplace administration is not connected yet", "The case screen is ready, but it remains closed until Homle’s protected database and account runtime pass staging.", { kind: "unavailable", allowRetry: true });
     else showGate("Booking cases could not be opened", navigator.onLine ? "Try again. No case was changed." : "Reconnect to the internet, then try again. No case was changed.", { kind: "error", allowRetry: true });
   } finally { loading = false; }
 }

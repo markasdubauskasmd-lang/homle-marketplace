@@ -103,7 +103,7 @@ function cleanerCard(cleaner) {
     detail("Products", listText(cleaner.productsSupplied, "Not supplied")),
     detail("Preferred work", [cleaner.residentialPreference ? "Residential" : "", cleaner.commercialPreference ? "Commercial" : ""].filter(Boolean).join(" and ") || "Not supplied")
   );
-  const boundary = element("p", "directory-profile-boundary", "Requesting a Cleaner does not confirm a booking. Tideway must recheck the room checklist, date, price and availability.");
+  const boundary = element("p", "directory-profile-boundary", "Requesting a Cleaner does not confirm a booking. Homle must recheck the room checklist, date, price and availability.");
   details.append(summary, facts, boundary);
   const requestLink = element("a", "button directory-cleaner-action", "Start a cleaning request");
   requestLink.href = "/signup?intent=book";

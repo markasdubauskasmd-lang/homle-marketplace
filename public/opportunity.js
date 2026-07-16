@@ -92,9 +92,9 @@ function renderOpportunity(opportunity) {
     setText("[data-photo-note]", opportunity.photoAccessAllowed
       ? `${opportunity.photoCount} customer-authorised room ${opportunity.photoCount === 1 ? "photo is" : "photos are"} available below through this private review.`
       : opportunity.photoSharingConsent && opportunity.status === "ready"
-        ? "The customer authorised private room-photo review. Photos unlock only after Tideway records this opportunity as sent."
+        ? "The customer authorised private room-photo review. Photos unlock only after Homle records this opportunity as sent."
         : opportunity.photoCount > 0
-          ? `${opportunity.photoCount} private room ${opportunity.photoCount === 1 ? "photo is" : "photos are"} held by Tideway; the customer has not authorised pre-booking cleaner access through this link.`
+          ? `${opportunity.photoCount} private room ${opportunity.photoCount === 1 ? "photo is" : "photos are"} held by Homle; the customer has not authorised pre-booking cleaner access through this link.`
           : "No private photo references are attached.");
     document.querySelector("[data-checklist-section]").hidden = false;
   }
@@ -117,21 +117,21 @@ function renderOpportunity(opportunity) {
     if (opportunity.requestClosed) {
       locked.innerHTML = "<strong>This cleaning request is closed.</strong><span>The opportunity can no longer be accepted and no new assignment can be created from it.</span>";
     } else if (opportunity.status === "cancelled") {
-      locked.innerHTML = "<strong>This opportunity was withdrawn before assignment.</strong><span>No assignment was created. Contact Tideway if you need help.</span>";
+      locked.innerHTML = "<strong>This opportunity was withdrawn before assignment.</strong><span>No assignment was created. Contact Homle if you need help.</span>";
     } else if (opportunity.decision?.status === "accepted") {
-      locked.innerHTML = "<strong>Opportunity accepted.</strong><span>Tideway recorded your decision. This is not yet a confirmed assignment.</span>";
+      locked.innerHTML = "<strong>Opportunity accepted.</strong><span>Homle recorded your decision. This is not yet a confirmed assignment.</span>";
     } else if (opportunity.decision?.status === "declined") {
-      locked.innerHTML = "<strong>Opportunity declined.</strong><span>Tideway recorded your decision and no assignment was made.</span>";
+      locked.innerHTML = "<strong>Opportunity declined.</strong><span>Homle recorded your decision and no assignment was made.</span>";
     } else if (opportunity.pricingChanged) {
-      locked.innerHTML = "<strong>This opportunity needs recalculation.</strong><span>Tideway must apply the current confirmed cost assumptions before issuing another controlled opportunity.</span>";
+      locked.innerHTML = "<strong>This opportunity needs recalculation.</strong><span>Homle must apply the current confirmed cost assumptions before issuing another controlled opportunity.</span>";
     } else if (opportunity.availabilityChanged) {
-      locked.innerHTML = "<strong>This availability is no longer confirmed.</strong><span>Tideway must recheck the visit window before issuing another controlled opportunity.</span>";
+      locked.innerHTML = "<strong>This availability is no longer confirmed.</strong><span>Homle must recheck the visit window before issuing another controlled opportunity.</span>";
     } else if (opportunity.expired) {
-      locked.innerHTML = "<strong>This opportunity has expired.</strong><span>Tideway must recheck availability and issue a new controlled opportunity.</span>";
+      locked.innerHTML = "<strong>This opportunity has expired.</strong><span>Homle must recheck availability and issue a new controlled opportunity.</span>";
     } else if (opportunity.status === "ready") {
-      locked.innerHTML = "<strong>Preview only.</strong><span>Tideway has not yet recorded this opportunity as sent, so no decision can be submitted.</span>";
+      locked.innerHTML = "<strong>Preview only.</strong><span>Homle has not yet recorded this opportunity as sent, so no decision can be submitted.</span>";
     } else {
-      locked.innerHTML = "<strong>This opportunity is closed.</strong><span>Contact Tideway if you need help.</span>";
+      locked.innerHTML = "<strong>This opportunity is closed.</strong><span>Contact Homle if you need help.</span>";
     }
   }
 }
@@ -181,8 +181,8 @@ form.addEventListener("submit", async (event) => {
     form.hidden = true;
     locked.hidden = false;
     locked.innerHTML = result.status === "accepted"
-      ? "<strong>Opportunity accepted.</strong><span>Tideway recorded your decision. This is not yet a confirmed assignment.</span>"
-      : "<strong>Opportunity declined.</strong><span>Tideway recorded your decision and no assignment was made.</span>";
+      ? "<strong>Opportunity accepted.</strong><span>Homle recorded your decision. This is not yet a confirmed assignment.</span>"
+      : "<strong>Opportunity declined.</strong><span>Homle recorded your decision and no assignment was made.</span>";
     locked.focus();
   } catch (error) {
     summary.textContent = error.message;

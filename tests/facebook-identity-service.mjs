@@ -73,4 +73,4 @@ for (const evidence of [
 assert(runtimeGrants.includes("consume_pending_social_identity(bytea) TO tideway_app") && runtimeGrants.includes("REVOKE ALL ON TABLE tideway_private.pending_social_identities FROM tideway_app"));
 assert(workerGrants.includes("purge_expired_pending_social_identities(integer) TO tideway_worker"));
 
-console.log("Facebook identity tests passed: existing-subject reuse, provider-email distrust, Tideway mailbox verification, pending-token hashing, race recovery and password-account collision boundary.");
+console.log("Facebook identity tests passed: existing-subject reuse, provider-email distrust, Homle mailbox verification, pending-token hashing, race recovery and password-account collision boundary.");

@@ -12,7 +12,7 @@ const [page, script, dashboardPage, dashboardScript, server, migration, grants, 
   readFile(new URL("../package.json", import.meta.url), "utf8")
 ]);
 
-assert(page.includes("Get paid without sharing bank details with Tideway") && page.includes("connect.stripe.com") && page.includes("no real payment or payout") && page.includes("data-payout-action"), "The Cleaner payout screen is not a clear one-action, test-only handoff.");
+assert(page.includes("Get paid without sharing bank details with Homle") && page.includes("connect.stripe.com") && page.includes("no real payment or payout") && page.includes("data-payout-action"), "The Cleaner payout screen is not a clear one-action, test-only handoff.");
 assert(script.includes('destination.origin !== "https://connect.stripe.com"') && script.includes('"X-CSRF-Token"') && script.includes('credentials: "same-origin"') && script.includes("history.replaceState") && !script.includes("innerHTML"), "The payout handoff lost exact Stripe destination, CSRF/session protection, callback cleanup or safe rendering.");
 assert(script.includes("?resume=1") || script.includes('query.get("resume")'), "Expired Stripe payout links cannot resume through a fresh authenticated link.");
 assert(dashboardPage.includes("data-cleaner-payout-link") && dashboardScript.includes("loadOptionalPayoutStatus") && dashboardScript.includes('link.href = "/cleaner/payouts"') && dashboardScript.includes("payout && !payout.ready"), "The Cleaner dashboard does not surface payout setup as the next relevant action.");

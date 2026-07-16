@@ -3,21 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Manage Tideway account sign-in methods privately.">
+  <meta name="description" content="Manage Homle account sign-in methods privately.">
   <meta name="theme-color" content="#0e665b">
-  <title>Account settings | Tideway</title>
+  <title>Account settings | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260716-65">
   <script src="/settings.js?v=20260716-3" type="module"></script>
 </head>
 <body class="account-page">
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header"><div class="shell nav-wrap"><a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a><nav class="account-nav" aria-label="Account settings navigation"><a href="/">Back to Tideway</a></nav></div></header>
+  <header class="site-header"><div class="shell nav-wrap"><a class="brand" href="/" aria-label="Homle home"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><nav class="account-nav" aria-label="Account settings navigation"><a href="/">Back to Homle</a></nav></div></header>
   <main id="main" class="account-main settings-main">
     <section class="shell settings-shell" aria-labelledby="settings-title">
       <p class="eyebrow">Private account security</p>
       <h1 id="settings-title">Sign-in methods</h1>
-      <p class="account-lead">Connect another trusted sign-in method without changing your Tideway role, profile or bookings.</p>
+      <p class="account-lead">Connect another trusted sign-in method without changing your Homle role, profile or bookings.</p>
       <div class="account-state" role="status" aria-live="polite" data-settings-state><span class="account-state-mark" aria-hidden="true">i</span><div><strong data-settings-title>Checking your account…</strong><p data-settings-copy>Connection controls stay unavailable until your signed-in account and the provider are verified.</p></div></div>
       <div class="account-feedback" data-settings-feedback role="status" aria-live="polite" hidden></div>
       <section class="settings-card" data-settings-content hidden aria-labelledby="methods-title">
@@ -26,36 +26,36 @@
         <div class="settings-connect" data-provider-actions hidden>
           <h2>Connect another method</h2>
           <div class="settings-step-up" data-step-up-actions hidden><strong>Confirm it is you</strong><p>Use one of your existing providers. After it confirms the same private provider identity, you can connect or remove another method for ten minutes.</p><div class="settings-provider-actions"><button class="button button-outline" type="button" data-step-up-provider="google" hidden>Verify with Google</button><button class="button button-outline" type="button" data-step-up-provider="facebook" hidden>Verify with Facebook</button></div></div>
-          <p data-provider-action-copy>Confirm a current sign-in method before continuing. Tideway never receives a Google or Facebook password.</p>
+          <p data-provider-action-copy>Confirm a current sign-in method before continuing. Homle never receives a Google or Facebook password.</p>
           <div class="settings-provider-actions"><button class="button button-outline" type="button" data-connect-provider="google" hidden>Connect Google</button><button class="button button-outline" type="button" data-connect-provider="facebook" hidden>Connect Facebook</button></div>
         </div>
       </section>
       <section class="settings-card settings-privacy-card" data-privacy-content hidden aria-labelledby="privacy-rights-title">
-        <div><p class="eyebrow">Your information</p><h2 id="privacy-rights-title">Privacy requests</h2><p>Ask for a copy of your Tideway account data or request account deletion. Requests are privately reviewed before anything changes.</p></div>
+        <div><p class="eyebrow">Your information</p><h2 id="privacy-rights-title">Privacy requests</h2><p>Ask for a copy of your Homle account data or request account deletion. Requests are privately reviewed before anything changes.</p></div>
         <div class="settings-privacy-actions"><button class="button button-outline" type="button" data-privacy-action="export">Request my data</button><button class="button button-outline settings-danger-button" type="button" data-privacy-action="deletion">Request account deletion</button></div>
         <div class="account-feedback" data-privacy-feedback role="status" aria-live="polite" hidden></div>
         <div data-privacy-history hidden><h3>Your requests</h3><ul class="settings-privacy-list" data-privacy-list></ul></div>
-        <p class="settings-privacy-note"><strong>Important:</strong> a deletion request does not instantly delete your account, cancel a booking or change a payment. Tideway must first verify your identity and review any active booking, dispute, payment or legal-retention requirement.</p>
+        <p class="settings-privacy-note"><strong>Important:</strong> a deletion request does not instantly delete your account, cancel a booking or change a payment. Homle must first verify your identity and review any active booking, dispute, payment or legal-retention requirement.</p>
       </section>
       <div class="account-actions"><a class="button button-outline" href="/login">Return to sign in</a></div>
     </section>
   </main>
   <dialog class="settings-dialog" data-link-dialog aria-labelledby="link-dialog-title">
     <form method="dialog" data-link-form>
-      <div><p class="eyebrow">Security check</p><h2 id="link-dialog-title" data-link-title>Connect sign-in method</h2><p data-link-copy>Enter your current Tideway password to continue.</p></div>
-      <label data-password-field>Current Tideway password<input name="password" type="password" autocomplete="current-password" minlength="12" maxlength="128"></label>
+      <div><p class="eyebrow">Security check</p><h2 id="link-dialog-title" data-link-title>Connect sign-in method</h2><p data-link-copy>Enter your current Homle password to continue.</p></div>
+      <label data-password-field>Current Homle password<input name="password" type="password" autocomplete="current-password" minlength="12" maxlength="128"></label>
       <div class="account-feedback" data-link-feedback role="status" aria-live="polite" hidden></div>
       <div class="settings-dialog-actions"><button class="button button-outline" type="button" data-link-cancel>Cancel</button><button class="button" type="submit" data-link-submit>Continue securely</button></div>
     </form>
   </dialog>
   <dialog class="settings-dialog" data-privacy-dialog aria-labelledby="privacy-dialog-title">
     <form method="dialog" data-privacy-form>
-      <div><p class="eyebrow">Private account request</p><h2 id="privacy-dialog-title" data-privacy-dialog-title>Request my data</h2><p data-privacy-dialog-copy>Tideway will verify your request and prepare a secure response.</p></div>
+      <div><p class="eyebrow">Private account request</p><h2 id="privacy-dialog-title" data-privacy-dialog-title>Request my data</h2><p data-privacy-dialog-copy>Homle will verify your request and prepare a secure response.</p></div>
       <label class="settings-confirmation" data-deletion-confirmation hidden><input type="checkbox" name="confirmDeletion"> <span>I understand this is a request for review and does not immediately cancel bookings, refund payments or delete data.</span></label>
       <div class="account-feedback" data-privacy-dialog-feedback role="status" aria-live="polite" hidden></div>
       <div class="settings-dialog-actions"><button class="button button-outline" type="button" data-privacy-cancel>Cancel</button><button class="button" type="submit" data-privacy-submit>Send private request</button></div>
     </form>
   </dialog>
-  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Tideway private pilot.</span><a href="/privacy">Privacy notice</a></div></footer>
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle private pilot.</span><a href="/privacy">Privacy notice</a></div></footer>
 </body>
 </html>

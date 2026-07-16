@@ -1,12 +1,12 @@
 import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent } from "./account-intent.js";
 
 const modes = Object.freeze({
-  "/login": { form: "login", title: "Sign in to Tideway", lead: "Use your verified account to open the correct private workspace." },
-  "/signup": { form: "signup", title: "Create a Tideway account", lead: "Start as a Cleaner or Landlord/Property Manager after verifying your email." },
+  "/login": { form: "login", title: "Sign in to Homle", lead: "Use your verified account to open the correct private workspace." },
+  "/signup": { form: "signup", title: "Create a Homle account", lead: "Start as a Cleaner or Landlord/Property Manager after verifying your email." },
   "/verify-email": { form: "verify", title: "Verify your email", lead: "Use the private one-time link sent to your email address." },
-  "/verify-facebook": { form: "facebook-verify", title: "Finish Facebook sign-in", lead: "Verify the private email link before Tideway creates or connects an account." },
+  "/verify-facebook": { form: "facebook-verify", title: "Finish Facebook sign-in", lead: "Verify the private email link before Homle creates or connects an account." },
   "/reset-password": { form: "reset", title: "Reset your password", lead: "Replace your password and close every existing session." },
-  "/onboarding": { form: "onboarding", title: "Choose your Tideway workspace", lead: "Select Cleaner or Landlord/Property Manager to complete account setup." }
+  "/onboarding": { form: "onboarding", title: "Choose your Homle workspace", lead: "Select Cleaner or Landlord/Property Manager to complete account setup." }
 });
 
 const selectedMode = modes[location.pathname] || modes["/login"];
@@ -36,15 +36,15 @@ let emailFormRevealed = false;
 let activeProviders = Object.freeze({});
 
 if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
-document.title = `${selectedMode.title} — Tideway`;
+document.title = `${selectedMode.title} — Homle`;
 if (title) title.textContent = `${selectedMode.title} is not open yet.`;
 if (lead) lead.textContent = location.pathname === "/login"
   ? "Existing pilot requests use their protected private tracker links while account sign-in is being prepared."
-  : "Cleaner and landlord onboarding is being built behind Tideway's secure database boundary.";
+  : "Cleaner and landlord onboarding is being built behind Homle's secure database boundary.";
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 
 if (bookingIntent && ["login", "signup"].includes(selectedMode.form)) {
-  document.title = `${selectedMode.form === "signup" ? "Create an account" : "Sign in"} to book a clean — Tideway`;
+  document.title = `${selectedMode.form === "signup" ? "Create an account" : "Sign in"} to book a clean — Homle`;
 }
 
 function clearCompletedIntent() {
@@ -90,7 +90,7 @@ function activateForm(providers) {
   lead.textContent = selectedMode.lead;
   if (bookingIntent && selectedMode.form === "signup") {
     title.textContent = "Create an account to book a clean";
-    lead.textContent = "Continue with Google or Facebook for the quickest setup. Tideway automatically creates your account when the verified provider is new, then asks you to confirm the Landlord workspace.";
+    lead.textContent = "Continue with Google or Facebook for the quickest setup. Homle automatically creates your account when the verified provider is new, then asks you to confirm the Landlord workspace.";
   } else if (bookingIntent && selectedMode.form === "login") {
     title.textContent = "Sign in to book a clean";
     lead.textContent = "Use Google, Facebook or your verified email account, then continue to your private Landlord workspace.";
@@ -154,7 +154,7 @@ async function openSignedInWorkspace() {
   if (!response.ok) return false;
   const result = await response.json();
   if (accountIntent === "book" && result.account?.roles?.length && !result.account.roles.includes("landlord")) {
-    showFeedback("This account currently has only a Cleaner workspace. Use a Landlord account to book a clean; Tideway has not changed your role.", "error");
+    showFeedback("This account currently has only a Cleaner workspace. Use a Landlord account to book a clean; Homle has not changed your role.", "error");
     return true;
   }
   const destination = workspacePath(result.account);
@@ -181,14 +181,14 @@ async function submitAccountForm(event) {
       const result = await post("/api/marketplace/auth/login", body);
       if (!storeCsrf(result.csrfToken)) {
         await post("/api/marketplace/auth/logout", {}, result.csrfToken);
-        throw new Error("Secure browser storage is unavailable, so Tideway closed the new session. Try a standard browser window.");
+        throw new Error("Secure browser storage is unavailable, so Homle closed the new session. Try a standard browser window.");
       }
       if (!result.account?.roles?.length) {
         location.assign(bookingIntent ? "/onboarding?intent=book" : "/onboarding");
         return;
       }
       if (bookingIntent && !result.account.roles.includes("landlord")) {
-        showFeedback("This account currently has only a Cleaner workspace. Use a Landlord account to book a clean; Tideway has not changed your role.", "error");
+        showFeedback("This account currently has only a Cleaner workspace. Use a Landlord account to book a clean; Homle has not changed your role.", "error");
         return;
       }
       const destination = workspacePath(result.account);
@@ -217,13 +217,13 @@ async function submitAccountForm(event) {
       const result = await post("/api/marketplace/auth/facebook/verification/confirm", { token: privateToken });
       if (!storeCsrf(result.csrfToken)) {
         await post("/api/marketplace/auth/logout", {}, result.csrfToken);
-        throw new Error("Secure browser storage is unavailable, so Tideway closed the new session. Try a standard browser window.");
+        throw new Error("Secure browser storage is unavailable, so Homle closed the new session. Try a standard browser window.");
       }
       if (!result.account?.roles?.length) {
         location.assign(`${bookingIntent ? "/onboarding?intent=book" : "/onboarding"}#social=facebook-verified${bookingIntent ? "&intent=book" : ""}`);
         return;
       }
-      showFeedback("Facebook sign-in verified. Your secure Tideway session is ready.", "success");
+      showFeedback("Facebook sign-in verified. Your secure Homle session is ready.", "success");
       form.querySelector("fieldset").disabled = true;
     } else if (kind === "verification-request") {
       await post("/api/marketplace/auth/verification/resend", { email: body.email, ...(bookingIntent ? { intent: "book" } : {}) });
@@ -246,7 +246,7 @@ async function submitAccountForm(event) {
       const result = await post("/api/marketplace/onboarding", { role: body.role }, csrfToken);
       if (!storeCsrf(result.csrfToken)) {
         await post("/api/marketplace/auth/logout", {}, result.csrfToken);
-        throw new Error("Secure browser storage is unavailable, so Tideway closed the rotated session. Sign in again in a standard browser window.");
+        throw new Error("Secure browser storage is unavailable, so Homle closed the rotated session. Sign in again in a standard browser window.");
       }
       const destination = workspacePath(result.account);
       if (destination) {
@@ -292,35 +292,35 @@ try {
     if (socialResult === "google" && socialCsrfToken) {
       if (storeCsrf(socialCsrfToken)) {
         const opened = location.pathname !== "/onboarding" && await openSignedInWorkspace();
-        if (!opened) showFeedback(location.pathname === "/onboarding" ? (bookingIntent ? "Google sign-in succeeded. Confirm the booking workspace below." : "Google sign-in succeeded. Choose how you will use Tideway.") : "Google sign-in succeeded. Your secure Tideway session is ready.", "success");
+        if (!opened) showFeedback(location.pathname === "/onboarding" ? (bookingIntent ? "Google sign-in succeeded. Confirm the booking workspace below." : "Google sign-in succeeded. Choose how you will use Homle.") : "Google sign-in succeeded. Your secure Homle session is ready.", "success");
       } else {
         await post("/api/marketplace/auth/logout", {}, socialCsrfToken);
-        showFeedback("Secure browser storage is unavailable, so Tideway closed the Google session. Try a standard browser window.", "error");
+        showFeedback("Secure browser storage is unavailable, so Homle closed the Google session. Try a standard browser window.", "error");
       }
     } else if (socialResult === "google-failed") {
-      showFeedback("Google sign-in could not be completed. No Tideway session was created; please try again.", "error");
+      showFeedback("Google sign-in could not be completed. No Homle session was created; please try again.", "error");
     } else if (socialResult === "facebook" && socialCsrfToken) {
       if (storeCsrf(socialCsrfToken)) {
         const opened = location.pathname !== "/onboarding" && await openSignedInWorkspace();
-        if (!opened) showFeedback(location.pathname === "/onboarding" ? (bookingIntent ? "Facebook sign-in succeeded. Confirm the booking workspace below." : "Facebook sign-in succeeded. Choose how you will use Tideway.") : "Facebook sign-in succeeded. Your secure Tideway session is ready.", "success");
+        if (!opened) showFeedback(location.pathname === "/onboarding" ? (bookingIntent ? "Facebook sign-in succeeded. Confirm the booking workspace below." : "Facebook sign-in succeeded. Choose how you will use Homle.") : "Facebook sign-in succeeded. Your secure Homle session is ready.", "success");
       } else {
         await post("/api/marketplace/auth/logout", {}, socialCsrfToken);
-        showFeedback("Secure browser storage is unavailable, so Tideway closed the Facebook session. Try a standard browser window.", "error");
+        showFeedback("Secure browser storage is unavailable, so Homle closed the Facebook session. Try a standard browser window.", "error");
       }
     } else if (socialResult === "facebook-verified") {
-      showFeedback(bookingIntent ? "Your email is verified and Facebook sign-in is complete. Confirm the booking workspace below." : "Your email is verified and Facebook sign-in is complete. Choose how you will use Tideway.", "success");
+      showFeedback(bookingIntent ? "Your email is verified and Facebook sign-in is complete. Confirm the booking workspace below." : "Your email is verified and Facebook sign-in is complete. Choose how you will use Homle.", "success");
     } else if (socialResult === "facebook-verification-sent") {
-      showFeedback("Facebook identity was confirmed. Check the private email link to finish creating or connecting your Tideway account.", "success");
+      showFeedback("Facebook identity was confirmed. Check the private email link to finish creating or connecting your Homle account.", "success");
     } else if (socialResult === "facebook-email-unavailable") {
       showFeedback("Facebook did not provide an email address. Use email sign-in, or allow email access in Facebook and try again.", "error");
     } else if (socialResult === "facebook-failed") {
-      showFeedback("Facebook sign-in could not be completed. No Tideway session was created; please try again.", "error");
+      showFeedback("Facebook sign-in could not be completed. No Homle session was created; please try again.", "error");
     } else if (socialResult === "rate-limited") {
       showFeedback("Too many sign-in attempts were made. Please wait before trying again.", "error");
     }
   } else {
     stateTitle.textContent = "Account access is safely unavailable.";
-    stateCopy.textContent = "The database, verified email delivery and sign-in runtime are not active, so Tideway is not showing buttons that cannot work.";
+    stateCopy.textContent = "The database, verified email delivery and sign-in runtime are not active, so Homle is not showing buttons that cannot work.";
   }
 } catch {
   stateTitle.textContent = "Account availability could not be checked.";

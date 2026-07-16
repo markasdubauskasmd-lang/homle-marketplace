@@ -52,7 +52,7 @@ const roomScan = (requestId) => ({
 
 try {
   await waitForServer();
-  assert(serverOutput.includes("Tideway privacy warning") && serverOutput.includes("OneDrive") && serverOutput.includes("DATA_DIR"), "A cloud-synchronised private data path did not produce the required startup warning.");
+  assert(serverOutput.includes("Homle privacy warning") && serverOutput.includes("OneDrive") && serverOutput.includes("DATA_DIR"), "A cloud-synchronised private data path did not produce the required startup warning.");
 
   const missingOrigin = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
   assert(missingOrigin.status === 403 && (await missingOrigin.json()).error.includes("same-origin"), "A mutation without Origin was not rejected before validation.");

@@ -352,7 +352,7 @@ function renderDataIntegrity(audit) {
   status.textContent = audit.healthy ? "Healthy — writes allowed" : "Degraded — writes stopped";
   message.textContent = audit.healthy
     ? "Every readable private record and its required booking links passed the latest check."
-    : "Tideway found a damaged or disconnected private record. No new changes will be written until recovery is verified.";
+    : "Homle found a damaged or disconnected private record. No new changes will be written until recovery is verified.";
   document.querySelector("#integrity-file-count").textContent = String(fileCount);
   document.querySelector("#integrity-record-count").textContent = String(recordCount);
   document.querySelector("#integrity-issue-count").textContent = String(audit.issueCount);
@@ -362,7 +362,7 @@ function renderDataIntegrity(audit) {
     const healthy = document.createElement("div");
     healthy.className = "integrity-result integrity-result-healthy";
     addText(healthy, "strong", "All private record checks passed.");
-    addText(healthy, "span", "No files were changed. Tideway will repeat this check before every new write.");
+    addText(healthy, "span", "No files were changed. Homle will repeat this check before every new write.");
     issueList.append(healthy);
     return;
   }
@@ -457,7 +457,7 @@ function renderScanReviewWorkspace() {
     return;
   }
   if (!nextRecord) {
-    addText(copy, "strong", "No submitted scope is awaiting Tideway review.");
+    addText(copy, "strong", "No submitted scope is awaiting Homle review.");
     addText(copy, "span", `${summary.reviewed} reviewed · ${summary.revisionRequested} returned for customer revision.`);
     target.append(copy);
     return;
@@ -628,13 +628,13 @@ async function findMatches(record, results, button) {
         addText(results, "span", `${result.pilotCoverage.outwardCode || "This postcode"} is not included in ${result.pilotCoverage.allowedCodes.join(", ") || "the pilot postcode list"}. Do not promise coverage.`);
       } else if (result.matchGate?.reason === "reviewed-room-scan-required") {
         addText(results, "strong", "Review the room scan before matching.");
-        addText(results, "span", "Tideway needs the reviewed cleaning-time estimate before it can prove that a cleaner window is long enough.");
+        addText(results, "span", "Homle needs the reviewed cleaning-time estimate before it can prove that a cleaner window is long enough.");
       } else if (result.matchGate?.reason === "customer-scope-confirmation-required") {
         addText(results, "strong", "Customer scope confirmation is required before matching.");
         addText(results, "span", "The customer must confirm that the final concise checklist includes every task they want quoted.");
       } else if (result.matchGate?.reason === "price-sensitive-scope-review-required") {
         addText(results, "strong", "Confirm the price-sensitive scan items before matching.");
-        addText(results, "span", "Every detected extra must be included in the reviewed cleaning-time estimate before Tideway can suggest a cleaner window.");
+        addText(results, "span", "Every detected extra must be included in the reviewed cleaning-time estimate before Homle can suggest a cleaner window.");
       } else if (result.matchGate?.reason === "requested-date-passed") {
         addText(results, "strong", "The customer's requested cleaning date has passed.");
         addText(results, "span", "Do not substitute another date. The customer must choose a new future date through their private request tracker before matching can continue.");
@@ -727,7 +727,7 @@ function draftSection(title, draft) {
   addText(section, "span", `Recipient: ${[draft.recipient.email, draft.recipient.phone].filter(Boolean).join(" · ")}`, "draft-recipient");
   addText(section, "span", `Subject: ${draft.subject}`, "draft-subject");
   const privateUrl = draft.privateUrl || "";
-  const handoffBody = draft.handoffReady ? `${draft.body}\n\nOpen your private Tideway review:\n${privateUrl}\n\nKeep this private link confidential.` : draft.body;
+  const handoffBody = draft.handoffReady ? `${draft.body}\n\nOpen your private Homle review:\n${privateUrl}\n\nKeep this private link confidential.` : draft.body;
   addText(section, "span", draft.handoffReady ? "Complete copy-only handoff: the correct private link is included below." : "Review text only: the private link is withheld until this offer is recorded as sent.", "draft-link-state");
   const textarea = document.createElement("textarea");
   textarea.readOnly = true;
@@ -757,7 +757,7 @@ async function loadRequestFollowupDraft(record, target, button) {
     addText(safety, "strong", result.handoffReady ? "Copy-only private follow-up ready" : "Review draft only — private link withheld");
     addText(safety, "span", result.handoffReady
       ? "The verified public tracker link is included only in the copy below. Copying never sends or contacts the customer. Founder approval is still required before outreach."
-      : "Tideway will not expose the private token through localhost or an unverified deployment. Verify the public HTTPS site before customer outreach.");
+      : "Homle will not expose the private token through localhost or an unverified deployment. Verify the public HTTPS site before customer outreach.");
     if (result.warnings?.length) {
       const list = document.createElement("ul");
       result.warnings.forEach((warning) => addText(list, "li", warning));
@@ -770,7 +770,7 @@ async function loadRequestFollowupDraft(record, target, button) {
     addText(section, "span", `Recipient: ${result.recipient.email}`, "draft-recipient");
     addText(section, "span", `Subject: ${result.subject}`, "draft-subject");
     const completeBody = result.handoffReady
-      ? `${result.body}\n\nOpen your private Tideway request tracker:\n${result.privateUrl}`
+      ? `${result.body}\n\nOpen your private Homle request tracker:\n${result.privateUrl}`
       : result.body;
     const textarea = document.createElement("textarea");
     textarea.readOnly = true;
@@ -825,7 +825,7 @@ async function loadProposalDrafts(proposal, target, button) {
     const safety = document.createElement("div");
     safety.className = result.sendAllowed ? "draft-safety draft-ready" : "draft-safety draft-blocked";
     addText(safety, "strong", result.handoffReady ? "Copy-only dispatch pack ready" : result.sendAllowed ? "Internally ready for your review" : "Review only — not ready to use");
-    addText(safety, "span", result.handoffReady ? "Each message below contains only that recipient's correct private link. Copying never sends it." : "Tideway does not send these messages automatically. Private links enter the pack only after the offer is recorded as sent.");
+    addText(safety, "span", result.handoffReady ? "Each message below contains only that recipient's correct private link. Copying never sends it." : "Homle does not send these messages automatically. Private links enter the pack only after the offer is recorded as sent.");
     if (result.warnings.length) {
       const list = document.createElement("ul");
       result.warnings.forEach((warning) => addText(list, "li", warning));
@@ -908,7 +908,7 @@ function appendBookingForm(record, proposal, target) {
   const form = document.createElement("form");
   form.className = "booking-confirmation-form";
   addText(form, "strong", "Record the four remaining manual confirmations");
-  addText(form, "span", "Capture the final visit pack after both sides accept. Tideway verifies a reference for an external payment step but never charges or refunds anyone. Never enter alarm codes, key-safe codes, card details, passwords or provider credentials here.");
+  addText(form, "span", "Capture the final visit pack after both sides accept. Homle verifies a reference for an external payment step but never charges or refunds anyone. Never enter alarm codes, key-safe codes, card details, passwords or provider credentials here.");
   const paymentReferenceField = bookingDetailField("External payment evidence reference", "paymentEvidenceReference", { placeholder: "Provider transaction, authorisation or invoice reference only", maxLength: 100 });
   const paymentAmountField = bookingDetailField("Externally verified amount (£)", "paymentEvidenceAmount", { type: "number", value: String(proposal.customerTotal) });
   paymentAmountField.querySelector("input").min = "0.01";
@@ -1024,7 +1024,7 @@ function buildBookingPackPanel(record) {
     payment.className = "payment-evidence-summary";
     addText(payment, "strong", `External payment evidence · ${money.format(booking.paymentEvidence.amount)}`);
     addText(payment, "span", `${booking.paymentEvidence.providerName} · ${booking.paymentEvidence.status.replaceAll("-", " ")} · verified ${formatDate(booking.paymentEvidence.verifiedAt)}`);
-    addText(payment, "span", `Reference ${booking.paymentEvidence.reference} · evidence only; Tideway did not move money`);
+    addText(payment, "span", `Reference ${booking.paymentEvidence.reference} · evidence only; Homle did not move money`);
     panel.append(payment);
   }
   const progress = document.createElement("ol");
@@ -1070,7 +1070,7 @@ function buildBookingPackPanel(record) {
       item.className = `quote-review-link${change.type === "safety-issue" ? " draft-blocked" : ""}`;
       addText(item, "strong", `${change.type.replaceAll("-", " ")} · ${change.audience} · ${change.status}`);
       addText(item, "span", change.type === "reschedule" ? `${change.proposedDate} at ${change.proposedStartTime} · ${change.message}` : change.message);
-      if (change.resolutionNote) addText(item, "span", `Tideway response: ${change.resolutionNote}`);
+      if (change.resolutionNote) addText(item, "span", `Homle response: ${change.resolutionNote}`);
       const allowed = change.status === "open" ? ["reviewing", "closed"] : change.status === "reviewing" ? ["open", "closed"] : [];
       if (allowed.length) {
         const form = document.createElement("form");
@@ -1130,7 +1130,7 @@ function appendOutcomeAdjustmentDesk(record, panel) {
   const summary = document.createElement("summary");
   summary.textContent = `Later refunds, re-cleans and costs · ${record.outcome.adjustmentCount || 0} adjustments`;
   details.append(summary);
-  addText(details, "p", "Record only work or money movements that already happened outside Tideway. This form never refunds, charges or pays anyone, and every entry is permanent.");
+  addText(details, "p", "Record only work or money movements that already happened outside Homle. This form never refunds, charges or pays anyone, and every entry is permanent.");
   if (record.outcome.adjustments?.length) {
     const history = document.createElement("ol");
     history.className = "outcome-adjustment-history";
@@ -1204,7 +1204,7 @@ function appendOutcomeAdjustmentDesk(record, panel) {
   confirmation.name = "externalActionConfirmed";
   confirmation.required = true;
   const confirmationText = document.createElement("span");
-  confirmationText.textContent = "I confirm any work or money movement already happened outside Tideway; this entry records evidence only.";
+  confirmationText.textContent = "I confirm any work or money movement already happened outside Homle; this entry records evidence only.";
   confirmationLabel.append(confirmation, confirmationText);
   const submit = document.createElement("button");
   submit.type = "submit";
@@ -1248,7 +1248,7 @@ function buildJobOutcome(record) {
       addText(evidence, "strong", "External receipt and cleaner payout verified");
       addText(evidence, "span", `${record.outcome.settlementEvidence.providerName} · verified ${formatDate(record.outcome.settlementEvidence.verifiedAt)}`);
       addText(evidence, "span", `Customer receipt ${record.outcome.settlementEvidence.customerReceiptReference} · cleaner payout ${record.outcome.settlementEvidence.cleanerPayoutReference}`);
-      addText(evidence, "span", "Private evidence only; Tideway did not collect or send this money.");
+      addText(evidence, "span", "Private evidence only; Homle did not collect or send this money.");
       panel.append(evidence);
     } else {
       addText(panel, "span", "Legacy outcome: external customer receipt and cleaner payout evidence were not recorded. It cannot satisfy the first profitable paid-booking milestone.", "settlement-evidence-warning");
@@ -1289,7 +1289,7 @@ function buildJobOutcome(record) {
   const evidenceGuidance = document.createElement("div");
   evidenceGuidance.className = "settlement-guidance";
   addText(evidenceGuidance, "strong", "Private external settlement evidence");
-  addText(evidenceGuidance, "span", "Enter provider references only after the customer receipt and cleaner payout have completed outside Tideway. Never enter card details, bank details, passwords or provider credentials.");
+  addText(evidenceGuidance, "span", "Enter provider references only after the customer receipt and cleaner payout have completed outside Homle. Never enter card details, bank details, passwords or provider credentials.");
   const receiptReference = bookingDetailField("Customer receipt or capture reference", "customerReceiptReference", { placeholder: "Non-sensitive provider reference", maxLength: 100 });
   const payoutReference = bookingDetailField("Cleaner payout reference", "cleanerPayoutReference", { placeholder: "Non-sensitive payout reference", maxLength: 100 });
   const localNow = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -1300,7 +1300,7 @@ function buildJobOutcome(record) {
   verifiedAt.querySelector("input").max = localNow;
   evidenceNote.querySelector("textarea").minLength = 20;
   evidenceNote.classList.add("settlement-note");
-  const settlementConfirmation = bookingConfirmation("I confirm the customer receipt and cleaner payout already occurred outside Tideway, the amounts and references were checked, and this entry only records that evidence.", "settlementConfirmed");
+  const settlementConfirmation = bookingConfirmation("I confirm the customer receipt and cleaner payout already occurred outside Homle, the amounts and references were checked, and this entry only records that evidence.", "settlementConfirmed");
   settlementConfirmation.classList.add("settlement-confirmation");
   form.append(evidenceGuidance, receiptReference, payoutReference, verifiedAt, evidenceNote, settlementConfirmation);
   const note = document.createElement("textarea");
@@ -1911,7 +1911,7 @@ function buildCard(record) {
   if (record.kind === "request" && record.briefs?.length) {
     const brief = record.briefs[0];
     const briefStatusLabels = {
-      "landlord-draft": "Awaiting Tideway review",
+      "landlord-draft": "Awaiting Homle review",
       reviewed: "Reviewed and approved",
       "needs-revision": "Revision requested"
     };
@@ -1921,7 +1921,7 @@ function buildCard(record) {
     const videoCount = brief.photos.filter((photo) => photo.kind === "video").length;
     summary.textContent = `Room scan · ${brief.checklist.length} tasks · ${brief.photos.length} visuals${videoCount ? ` · ${videoCount} videos` : ""}`;
     addText(briefSummary, "strong", `${brief.id} · ${briefStatusLabels[brief.status] || brief.status}`);
-    addText(briefSummary, "span", brief.cleanerPhotoSharingConsent === true ? "Customer authorised private room-media review by the selected cleaner before booking." : "Room photos and videos remain Tideway-only until a booking is confirmed.");
+    addText(briefSummary, "span", brief.cleanerPhotoSharingConsent === true ? "Customer authorised private room-media review by the selected cleaner before booking." : "Room photos and videos remain Homle-only until a booking is confirmed.");
     addText(briefSummary, "span", brief.customerScopeConfirmed === true ? "Customer confirmed that the final concise checklist includes every task they want quoted." : "Customer scope-completeness confirmation is missing.", brief.customerScopeConfirmed === true ? "brief-review-note" : "scope-signal-summary");
     const tasks = document.createElement("ul");
     brief.checklist.forEach((task) => addText(tasks, "li", task));
@@ -1967,7 +1967,7 @@ function buildCard(record) {
       const timeLegend = document.createElement("legend");
       timeLegend.textContent = "Room-by-room cleaning time";
       const timeHelp = document.createElement("p");
-      timeHelp.textContent = "Enter your own reviewed minutes for every room. Tideway totals and rounds up to the next quarter-hour; it never estimates the rooms for you.";
+      timeHelp.textContent = "Enter your own reviewed minutes for every room. Homle totals and rounds up to the next quarter-hour; it never estimates the rooms for you.";
       timeFieldset.append(timeLegend, timeHelp);
       scopeTimeWorksheet.scopeTimeAreas(brief).forEach((area) => {
         const label = document.createElement("label");
@@ -2384,7 +2384,7 @@ async function loadRecords() {
     renderRecords();
   } catch (error) {
     showAdminError(error.message);
-    leadList.innerHTML = '<div class="empty-state"><strong>Control desk unavailable.</strong><span>Check that the Tideway server is running locally.</span></div>';
+    leadList.innerHTML = '<div class="empty-state"><strong>Control desk unavailable.</strong><span>Check that the Homle server is running locally.</span></div>';
   } finally {
     refreshButton.disabled = false;
   }
@@ -2480,7 +2480,7 @@ function renderConfigPreview(result, valid) {
     economicsPanel.querySelector("[data-target-safe-rate]").textContent = `${money.format(economics.targetSafeCustomerRate)}/hour (${money.format(economics.targetSafeCustomerTotal)} total)`;
     const guidance = economicsPanel.querySelector("[data-config-economics-guidance]");
     if (!economics.targetRateSupported) {
-      guidance.textContent = "These assumptions require a target-safe rate above Tideway's supported proposal limit. Revise the verified cost, pay, duration or margin assumptions before saving or quoting.";
+      guidance.textContent = "These assumptions require a target-safe rate above Homle's supported proposal limit. Revise the verified cost, pay, duration or margin assumptions before saving or quoting.";
     } else if (!economics.costAssumptionsConfirmed) {
       guidance.textContent = "Planning result only: confirm that every cost assumption, including deliberate £0 values, has been reviewed before relying on this rate.";
     } else if (economics.configuredMeetsTarget) {

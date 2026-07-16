@@ -111,8 +111,8 @@ function openPrivacyDialog(type) {
   const deletion = type === "deletion";
   privacyDialogTitle.textContent = deletion ? "Request account deletion" : "Request my data";
   privacyDialogCopy.textContent = deletion
-    ? "Tideway will verify your identity and review active obligations before any account data can be removed."
-    : "Tideway will verify your identity and prepare a secure copy of the account data it holds about you.";
+    ? "Homle will verify your identity and review active obligations before any account data can be removed."
+    : "Homle will verify your identity and prepare a secure copy of the account data it holds about you.";
   deletionConfirmation.hidden = !deletion;
   deletionCheckbox.required = deletion;
   privacyDialog.showModal();
@@ -128,7 +128,7 @@ function openDialog(action, provider) {
   const removal = action === "remove";
   dialogTitle.textContent = `${removal ? "Remove" : "Connect"} ${label}`;
   dialogCopy.textContent = removal
-    ? `${label} will stop working for sign-in and all Tideway sessions will be signed out. Your profile and bookings will remain.`
+    ? `${label} will stop working for sign-in and all Homle sessions will be signed out. Your profile and bookings will remain.`
     : `${label} will ask you to approve another secure way to sign in. Your role, profile and bookings will not change.`;
   passwordField.hidden = !passwordStepUpAvailable;
   passwordInput.required = passwordStepUpAvailable;
@@ -209,9 +209,9 @@ async function load() {
     stepUpActions.hidden = verifiable === 0;
     providerActions.hidden = connectable === 0 && verifiable === 0;
     actionCopy.textContent = passwordStepUpAvailable
-      ? "Your current Tideway password protects every connection or removal. Tideway never receives a Google or Facebook password."
+      ? "Your current Homle password protects every connection or removal. Homle never receives a Google or Facebook password."
       : recentStepUpProvider
-        ? `${providerLabels[recentStepUpProvider]} recently confirmed it is you. Tideway clears this approval when another connection starts.`
+        ? `${providerLabels[recentStepUpProvider]} recently confirmed it is you. Homle clears this approval when another connection starts.`
         : "Confirm one existing provider before connecting or removing another sign-in method.";
     content.hidden = false;
     privacyRecords = Array.isArray(privacyResult.privacyRequests) ? privacyResult.privacyRequests : [];
@@ -219,11 +219,11 @@ async function load() {
     privacyContent.hidden = false;
     stateTitle.textContent = "Your account is protected.";
     stateCopy.textContent = connectable || verifiable
-      ? "You can add another method without changing your Tideway role, profile or bookings."
+      ? "You can add another method without changing your Homle role, profile or bookings."
       : methodCount <= 1 ? "Your only sign-in method cannot be removed." : "No additional provider change is currently available.";
   } catch (error) {
     stateTitle.textContent = error.status === 401 ? "Sign in to open settings." : "Account settings are not available yet.";
-    stateCopy.textContent = error.status === 401 ? "Use your verified Tideway account, then return here." : "The secure account database and provider services must be ready before these controls appear.";
+    stateCopy.textContent = error.status === 401 ? "Use your verified Homle account, then return here." : "The secure account database and provider services must be ready before these controls appear.";
   }
 }
 
@@ -276,7 +276,7 @@ privacyForm.addEventListener("submit", async (event) => {
     privacyRecords = [result.privacyRequest, ...privacyRecords.filter((record) => record.requestId !== result.privacyRequest.requestId && !(record.requestType === result.privacyRequest.requestType && ["requested", "verifying", "processing"].includes(record.status)))];
     renderPrivacyRequests();
     privacyDialog.close();
-    showFeedback(privacyFeedback, `${privacyLabel(selectedPrivacyType)} request received. Tideway will verify it before anything changes.`, "success");
+    showFeedback(privacyFeedback, `${privacyLabel(selectedPrivacyType)} request received. Homle will verify it before anything changes.`, "success");
   } catch (error) {
     showFeedback(privacyDialogFeedback, error.message);
   } finally {

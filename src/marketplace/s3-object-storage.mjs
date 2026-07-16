@@ -33,13 +33,13 @@ function configuration(env) {
 
 function storageKey(value, prefix) {
   const selected = bounded(value, 180, "Object storage key").toLowerCase();
-  if (!storageKeyPattern.test(selected) || (prefix && !selected.startsWith(prefix))) throw new TypeError("Object storage key is outside Tideway's private media prefixes.");
+  if (!storageKeyPattern.test(selected) || (prefix && !selected.startsWith(prefix))) throw new TypeError("Object storage key is outside Homle's private media prefixes.");
   return selected;
 }
 
 function finalImageKey(value) {
   const selected = storageKey(value);
-  if (!selected.startsWith("job-photos/") && !selected.startsWith("request-photos/")) throw new TypeError("Object storage key is outside Tideway's private final-image prefixes.");
+  if (!selected.startsWith("job-photos/") && !selected.startsWith("request-photos/")) throw new TypeError("Object storage key is outside Homle's private final-image prefixes.");
   return selected;
 }
 

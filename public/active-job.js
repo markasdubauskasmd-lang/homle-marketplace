@@ -192,7 +192,7 @@ function renderJourney() {
   document.querySelector("[data-location-heading]").textContent = live ? "Live position received" : stopped ? "Location sharing stopped" : "Location sharing is off";
   document.querySelector("[data-location-copy]").textContent = live
     ? `Updated ${safeDateTime(live.recordedAt, { date: false })}. Only the latest point is retained.`
-    : stopped ? "Tideway no longer receives the Cleaner’s position for this booking." : "No Cleaner coordinates are being collected.";
+    : stopped ? "Homle no longer receives the Cleaner’s position for this booking." : "No Cleaner coordinates are being collected.";
 }
 
 function labelledTaskStatus(value) {
@@ -420,7 +420,7 @@ function renderReviewSummary(review) {
   written.textContent = review.writtenReview || "";
   const moderation = document.querySelector("[data-review-moderation]");
   moderation.hidden = !(state.role === "landlord" && review.moderationNote);
-  moderation.textContent = review.moderationNote ? `Tideway moderation note: ${review.moderationNote}` : "";
+  moderation.textContent = review.moderationNote ? `Homle moderation note: ${review.moderationNote}` : "";
   const response = document.querySelector("[data-review-response]");
   response.hidden = !review.cleanerResponse;
   response.querySelector("p").textContent = review.cleanerResponse || "";
@@ -464,7 +464,7 @@ function renderDispute() {
   const stateLabel = document.querySelector("[data-dispute-state]");
   if (!state.dispute) {
     stateLabel.textContent = currentStatus() === "disputed" ? "Loading case record" : "Booking participants only";
-    document.querySelector("[data-dispute-copy]").textContent = currentStatus() === "disputed" ? "This booking is paused while Tideway loads its private case record." : "If something serious is wrong with this visit, record it here. Opening a case pauses the normal booking lifecycle until an Administrator records an outcome.";
+    document.querySelector("[data-dispute-copy]").textContent = currentStatus() === "disputed" ? "This booking is paused while Homle loads its private case record." : "If something serious is wrong with this visit, record it here. Opening a case pauses the normal booking lifecycle until an Administrator records an outcome.";
     return;
   }
   stateLabel.textContent = state.dispute.status === "open" ? "Case recorded" : state.dispute.status === "reviewing" ? "Administrator reviewing" : "Case resolved";
@@ -663,11 +663,11 @@ function openLiveStream() {
         setConnection("closed", "Booking updates finished", "This booking is now closed.");
       }
     } catch {
-      setConnection("offline", "Update could not be verified", "Tideway kept the last verified booking state and will reconnect.");
+      setConnection("offline", "Update could not be verified", "Homle kept the last verified booking state and will reconnect.");
     }
   });
   stream.addEventListener("stream-error", () => setConnection("offline", "Live update interrupted", "The secure connection will retry automatically."));
-  stream.addEventListener("error", () => setConnection("offline", "Reconnecting securely", "The last verified state remains visible while Tideway reconnects."));
+  stream.addEventListener("error", () => setConnection("offline", "Reconnecting securely", "The last verified state remains visible while Homle reconnects."));
 }
 
 function positionOptions() {
@@ -676,7 +676,7 @@ function positionOptions() {
 
 function currentPosition() {
   return new Promise((resolve, reject) => {
-    if (!globalThis.isSecureContext || !navigator.geolocation) return reject(new Error("Live location needs HTTPS and location permission. Open Tideway on its secure domain, then try again."));
+    if (!globalThis.isSecureContext || !navigator.geolocation) return reject(new Error("Live location needs HTTPS and location permission. Open Homle on its secure domain, then try again."));
     navigator.geolocation.getCurrentPosition(resolve, reject, positionOptions());
   });
 }
@@ -687,7 +687,7 @@ function coordinates(position) {
 
 function locationFailure(error) {
   const denied = error?.code === 1;
-  showLocationFeedback(denied ? "Location permission was denied. Tideway did not start sharing; allow location in browser settings and try again." : error?.message || "Your current position could not be read. Check GPS and connection, then try again.", "error");
+  showLocationFeedback(denied ? "Location permission was denied. Homle did not start sharing; allow location in browser settings and try again." : error?.message || "Your current position could not be read. Check GPS and connection, then try again.", "error");
 }
 
 function stopLocationSharing() {
@@ -775,7 +775,7 @@ function handleReviewSubmission(event) {
     if (result.review?.bookingId !== bookingId) throw new Error("The submitted review response could not be verified.");
     state.review = result.review;
     reviewForm.reset();
-    showReviewFeedback("Verified review submitted for Tideway moderation.", "success");
+    showReviewFeedback("Verified review submitted for Homle moderation.", "success");
     renderReview();
   });
 }
@@ -964,7 +964,7 @@ async function uploadSelectedPhoto() {
       retry.intent = verifiedUploadContract(result.upload, { mimeType: checked.mimeType, checksumSha256: retry.checksumSha256 });
     }
     if (!retry.uploaded) {
-      showPhotoUploadState("Uploading directly to Tideway's private quarantine storage. Keep this page open…");
+      showPhotoUploadState("Uploading directly to Homle's private quarantine storage. Keep this page open…");
       const response = await fetch(retry.intent.url, { method: "PUT", mode: "cors", credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer", headers: retry.intent.headers, body: retry.file, signal: AbortSignal.timeout(120_000) });
       if (!response.ok) throw new Error("The private photo upload was not accepted. Check the connection and try again.");
       retry.uploaded = true;
@@ -1088,17 +1088,17 @@ for (const button of document.querySelectorAll("[data-dialog-cancel]")) button.a
 function updateNetworkState() {
   const banner = document.querySelector("[data-network-state]");
   banner.hidden = navigator.onLine;
-  document.querySelector("[data-network-copy]").textContent = "You are offline. Tideway has stopped sending updates and will reconnect when the connection returns.";
+  document.querySelector("[data-network-copy]").textContent = "You are offline. Homle has stopped sending updates and will reconnect when the connection returns.";
   if (!navigator.onLine) setConnection("offline", "Offline", "The last verified booking state remains visible.");
 }
 
 async function load() {
   if (!bookingId) return showGate("Open a valid private booking link", "This address does not contain a valid booking reference. No booking or location information was requested.", { kind: "error" });
-  showGate("Opening your private booking…", "Tideway is checking your account and participant access.");
+  showGate("Opening your private booking…", "Homle is checking your account and participant access.");
   try {
     try { state.account = (await requestJson("/api/marketplace/account")).account; }
     catch (error) {
-      if ([404, 503].includes(error.statusCode)) return showGate("Secure marketplace accounts are not connected yet", "The active-job screen is ready, but it remains closed until Tideway’s protected database and HTTPS runtime pass staging.", { kind: "unavailable", allowRetry: true });
+      if ([404, 503].includes(error.statusCode)) return showGate("Secure marketplace accounts are not connected yet", "The active-job screen is ready, but it remains closed until Homle’s protected database and HTTPS runtime pass staging.", { kind: "unavailable", allowRetry: true });
       throw error;
     }
     state.role = activeJobRole(state.account);
@@ -1122,7 +1122,7 @@ async function load() {
     openLiveStream();
   } catch (error) {
     if (error.statusCode === 401) showGate("Sign in to open this booking", "Live journey and cleaning updates are private to the confirmed booking participants.", { kind: "authentication", allowSignIn: true });
-    else if (error.statusCode === 403 || error.statusCode === 404) showGate("This account cannot open the booking", "Use the assigned Cleaner or owning Landlord account. Tideway has not revealed any booking details.", { kind: "authentication", allowSignIn: true });
+    else if (error.statusCode === 403 || error.statusCode === 404) showGate("This account cannot open the booking", "Use the assigned Cleaner or owning Landlord account. Homle has not revealed any booking details.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 503) showGate("Secure marketplace accounts are temporarily unavailable", "No location sharing started and no booking update was attempted. Try again when the protected runtime is healthy.", { kind: "unavailable", allowRetry: true });
     else showGate("The booking could not be opened", "No location sharing started. Check your connection and try again.", { kind: "error", allowRetry: true });
   }

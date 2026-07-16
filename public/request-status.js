@@ -125,7 +125,7 @@ function renderStatus(result) {
   if (result.links.roomScanRequired) actions.append(actionLink(result.roomScan?.status === "needs-revision" ? "Submit revised room scan" : "Complete room scan", `/brief?reference=${encodeURIComponent(result.request.reference)}#${token}`, !actions.children.length));
   if (!actions.children.length) {
     const waiting = document.createElement("p");
-    waiting.textContent = "No customer action is currently required. Refresh this private page after Tideway records the next stage.";
+    waiting.textContent = "No customer action is currently required. Refresh this private page after Homle records the next stage.";
     actions.append(waiting);
   }
 }

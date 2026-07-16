@@ -3,7 +3,7 @@ const requestTypes = new Set(["export", "deletion"]);
 const statuses = new Set(["requested", "verifying", "processing", "completed", "rejected"]);
 
 function actorAccount(actor) {
-  if (!uuidPattern.test(actor?.userId || "")) throw new TypeError("A signed-in Tideway account is required.");
+  if (!uuidPattern.test(actor?.userId || "")) throw new TypeError("A signed-in Homle account is required.");
 }
 
 function uuid(value, label) {
