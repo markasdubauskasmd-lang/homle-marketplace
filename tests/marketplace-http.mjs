@@ -67,7 +67,10 @@ const calls = [];
 const cleanerProfileService = {
   async searchPublicProfiles(filters) { calls.push({ kind: "search", filters }); return [{ cleanerId: "public-cleaner", displayName: "Public Cleaner" }]; },
   async getOwnProfile(actor) { calls.push({ kind: "cleaner-get", actor }); return { cleanerId: actor.userId, biography: "Careful cleaner", profileCompletionPercent: 60, isPublic: false, services: [], serviceAreas: [] }; },
-  async saveOwnProfile(actor, input) { calls.push({ kind: "cleaner-save", actor, input }); return { profileCompletionPercent: 100 }; }
+  async saveOwnProfile(actor, input) { calls.push({ kind: "cleaner-save", actor, input }); return { profileCompletionPercent: 100 }; },
+  async listOwnAvailability(actor) { calls.push({ kind: "availability-list", actor }); return [{ availabilityId: "33333333-3333-4333-8333-333333333333", startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T17:00:00.000Z", status: "available" }]; },
+  async createOwnAvailability(actor, input) { calls.push({ kind: "availability-create", actor, input }); return { availabilityId: "44444444-4444-4444-8444-444444444444", ...input, status: "available" }; },
+  async withdrawOwnAvailability(actor, availabilityId) { calls.push({ kind: "availability-withdraw", actor, availabilityId }); return { availabilityId, startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T17:00:00.000Z", status: "withdrawn" }; }
 };
 const propertyService = {
   async saveLandlordProfile(actor, input) { calls.push({ kind: "landlord-save", actor, input }); return { organisationName: input.organisationName || null, biography: input.biography || "" }; },
@@ -279,6 +282,12 @@ const unauthenticatedBookingList = await dispatch(router, "GET", "/api/marketpla
 assert(unauthenticatedBookingList.response.statusCode === 401 && unauthenticatedBookingList.body.code === "authentication-required", "Booking summaries were exposed without an authenticated participant.");
 const landlordCleanerEdit = await dispatch(router, "PUT", "/api/marketplace/cleaner/profile", { headers: authHeaders, body: { biography: "Attempt" } });
 assert(landlordCleanerEdit.response.statusCode === 403 && landlordCleanerEdit.body.code === "role-rejected", "A landlord entered the Cleaner-only profile route.");
+const availabilityList = await dispatch(router, "GET", "/api/marketplace/cleaner/availability", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const missingAvailabilityCsrf = await dispatch(router, "POST", "/api/marketplace/cleaner/availability", { headers: { cookie: cleanerAuthHeaders.cookie, origin: cleanerAuthHeaders.origin, "content-type": cleanerAuthHeaders["content-type"] }, body: { startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T17:00:00.000Z" } });
+const availabilityCreated = await dispatch(router, "POST", "/api/marketplace/cleaner/availability", { headers: cleanerAuthHeaders, body: { startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T17:00:00.000Z" } });
+const availabilityWithdrawn = await dispatch(router, "DELETE", "/api/marketplace/cleaner/availability/44444444-4444-4444-8444-444444444444", { headers: cleanerAuthHeaders });
+const landlordAvailability = await dispatch(router, "GET", "/api/marketplace/cleaner/availability", { headers: { cookie: authHeaders.cookie } });
+assert(availabilityList.response.statusCode === 200 && availabilityList.body.availability.length === 1 && missingAvailabilityCsrf.response.statusCode === 403 && availabilityCreated.response.statusCode === 201 && availabilityWithdrawn.response.statusCode === 200 && availabilityWithdrawn.body.availability.status === "withdrawn" && landlordAvailability.response.statusCode === 403 && calls.slice(-3).map((call) => call.kind).join(",") === "availability-list,availability-create,availability-withdraw", "Cleaner availability routes lost account ownership, role isolation, CSRF protection or exact-window lifecycle.");
 const wrongOrigin = await dispatch(router, "POST", "/api/marketplace/properties", { headers: { ...authHeaders, origin: "https://attacker.example" }, body: { name: "Attempt" } });
 assert(wrongOrigin.response.statusCode === 403 && wrongOrigin.body.code === "origin-rejected", "Property mutation accepted a cross-origin request.");
 const missingCsrf = await dispatch(router, "POST", "/api/marketplace/properties", { headers: { ...authHeaders, "x-csrf-token": "" }, body: { name: "Attempt" } });

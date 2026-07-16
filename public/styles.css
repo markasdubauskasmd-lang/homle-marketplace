@@ -277,6 +277,48 @@ textarea { resize: vertical; }
 .settings-privacy-status { padding: 6px 9px; border-radius: 999px; background: #edf5f2; color: var(--green-dark); font-size: .82rem; font-weight: 900; text-align: center; }
 .settings-confirmation { grid-template-columns: 22px 1fr !important; align-items: start; padding: 14px; border: 1px solid #d8a8a3; border-radius: 13px; background: #fff6f5; }
 .settings-confirmation input { width: 18px; height: 18px; margin-top: 2px; }
+.cleaner-availability-page { min-height: 100vh; background: #f3f7f5; }
+.availability-main { max-width: 860px; padding-block: 42px 86px; }
+.availability-main > .back-link { display: inline-block; margin-bottom: 30px; }
+.availability-heading { max-width: 680px; margin-bottom: 28px; }
+.availability-heading h1 { margin-bottom: 14px; font-size: clamp(2.45rem, 7vw, 4.5rem); }
+.availability-heading > p:last-child { color: var(--muted); font-size: 1.04rem; }
+.availability-gate, .availability-add-card, .availability-list-section { padding: clamp(22px, 5vw, 34px); border: 1px solid var(--line); border-radius: 22px; background: #fff; box-shadow: 0 14px 42px rgba(15,66,57,.08); }
+.availability-gate strong { color: var(--green-dark); font-size: 1.12rem; }
+.availability-gate p { margin: 6px 0 16px; color: var(--muted); }
+.availability-gate > div { display: flex; flex-wrap: wrap; gap: 10px; }
+.availability-gate[data-kind="error"], .availability-feedback[data-kind="error"] { border-color: #dda8a1; background: #fff6f5; }
+.availability-gate[data-kind="authentication"] { border-color: #d9c28d; background: #fffaf0; }
+.availability-add-card { display: grid; grid-template-columns: .8fr 1.2fr; gap: clamp(24px, 6vw, 56px); align-items: start; }
+.availability-add-card h2, .availability-list-section h2 { margin-bottom: 8px; font-size: clamp(1.7rem, 4vw, 2.35rem); }
+.availability-add-card > div > p:last-child { margin: 0; color: var(--muted); }
+.availability-add-card form { gap: 14px; }
+.availability-add-card .button { width: 100%; }
+.availability-feedback { margin: 18px 0; padding: 15px 17px; border: 1px solid #9bcdbf; border-radius: 12px; color: var(--green-dark); background: var(--mint-pale); font-weight: 750; }
+.availability-list-section { margin-top: 22px; }
+.availability-list { display: grid; gap: 10px; }
+.availability-window { display: flex; justify-content: space-between; gap: 18px; align-items: center; min-height: 72px; padding: 15px 17px; border: 1px solid var(--line); border-radius: 13px; background: #f8fbfa; }
+.availability-window strong, .availability-window span { display: block; }
+.availability-window strong { color: var(--green-dark); }
+.availability-window span { margin-top: 3px; color: var(--muted); font-size: .84rem; }
+.availability-remove { flex: 0 0 auto; color: #8a2f28; }
+.availability-dialog { width: min(520px, calc(100% - 28px)); padding: 0; border: 0; border-radius: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.24); }
+.availability-dialog::backdrop { background: rgba(4,34,30,.68); }
+.availability-dialog form { padding: clamp(24px, 5vw, 34px); }
+.availability-dialog h2 { margin-bottom: 8px; font-size: 1.9rem; }
+.availability-dialog p { margin: 0; color: var(--muted); }
+.availability-dialog form > div { display: flex; flex-wrap: wrap; gap: 10px; }
+.profile-availability-link { display: flex; justify-content: space-between; gap: 18px; align-items: center; padding: 15px; border: 1px solid #b7d9d0; border-radius: 13px; background: var(--mint-pale); }
+.profile-availability-link strong, .profile-availability-link span { display: block; }
+.profile-availability-link span { margin-top: 3px; color: var(--muted); font-size: .82rem; }
+.profile-availability-link .button { flex: 0 0 auto; }
+@media (max-width: 680px) {
+  .availability-main { padding-block: 28px 64px; }
+  .availability-add-card { grid-template-columns: 1fr; }
+  .availability-window { align-items: flex-start; }
+  .availability-dialog form > div .button { flex: 1 1 140px; }
+  .profile-availability-link { align-items: stretch; flex-direction: column; }
+}
 .brief-complete-page { min-height: 100vh; background: linear-gradient(180deg, #eef8f5, #fff); }
 .brief-complete-shell { max-width: 880px; }
 .brief-complete-card { padding: clamp(30px, 7vw, 68px); border: 1px solid var(--line); border-radius: 26px; background: #fff; box-shadow: 0 24px 70px rgba(11,70,63,.11); text-align: center; }

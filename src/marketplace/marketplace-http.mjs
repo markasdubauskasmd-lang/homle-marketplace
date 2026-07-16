@@ -31,6 +31,7 @@ const bookingEventsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern}
 const notificationReadPath = new RegExp(`^/api/marketplace/notifications/(${uuidPattern})/read$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
 const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
+const cleanerAvailabilityPath = new RegExp(`^/api/marketplace/cleaner/availability/(${uuidPattern})$`);
 const bookingCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/completion$`);
 const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews$`);
 const bookingReviewResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews/response$`);
@@ -75,7 +76,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
-  if (!cleaners || typeof cleaners.getOwnProfile !== "function" || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
+  if (!cleaners || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof cleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaner profile service.");
   if (!cleaningRequests || typeof cleaningRequests.createOwnRequest !== "function" || typeof cleaningRequests.listOwnRequests !== "function" || typeof cleaningRequests.submitOwnRequest !== "function" || typeof cleaningRequests.configureAutomaticDispatch !== "function") throw new TypeError("Marketplace HTTP routes require the cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
   if (!matching || typeof matching.recommendForRequest !== "function") throw new TypeError("Marketplace HTTP routes require the request matching service.");
@@ -197,6 +198,24 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation, roles: ["cleaner"] });
           const profile = mutation ? await cleaners.saveOwnProfile(context.actor, await readJsonObject(request)) : await cleaners.getOwnProfile(context.actor);
           sendJson(response, 200, { ok: true, profile });
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/availability") {
+          if (request.method !== "GET" && request.method !== "POST") return methodNotAllowed(response, ["GET", "POST"]), true;
+          const mutation = request.method === "POST";
+          const context = await security.protect(request, { mutation, roles: ["cleaner"] });
+          const availability = mutation
+            ? await cleaners.createOwnAvailability(context.actor, await readJsonObject(request))
+            : await cleaners.listOwnAvailability(context.actor);
+          sendJson(response, mutation ? 201 : 200, { ok: true, availability });
+          return true;
+        }
+        const selectedCleanerAvailability = pathname.match(cleanerAvailabilityPath);
+        if (selectedCleanerAvailability) {
+          if (request.method !== "DELETE") return methodNotAllowed(response, ["DELETE"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          const availability = await cleaners.withdrawOwnAvailability(context.actor, selectedCleanerAvailability[1]);
+          sendJson(response, 200, { ok: true, availability });
           return true;
         }
         if (pathname === "/api/marketplace/landlord/profile") {

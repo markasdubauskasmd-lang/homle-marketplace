@@ -12,6 +12,7 @@ let selectedDeclineBookingId = "";
 let loading = false;
 let responding = false;
 let payoutStatus = null;
+let availabilityWindows = [];
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 
@@ -162,10 +163,10 @@ function renderBookings() {
   document.querySelector("[data-cleaner-active-count]").textContent = String(buckets.active.length);
   document.querySelector("[data-cleaner-upcoming-count]").textContent = String(buckets.upcoming.length);
   document.querySelector("[data-cleaner-history-count]").textContent = String(buckets.history.length);
-  renderNextAction(buckets, payoutStatus);
+  renderNextAction(buckets, payoutStatus, availabilityWindows);
 }
 
-function renderNextAction(buckets, payout) {
+function renderNextAction(buckets, payout, availability) {
   const title = document.querySelector("[data-cleaner-next-title]");
   const copy = document.querySelector("[data-cleaner-next-copy]");
   const link = document.querySelector("[data-cleaner-next-link]");
@@ -185,6 +186,13 @@ function renderNextAction(buckets, payout) {
     copy.textContent = `${booking.propertyName || "Cleaning property"} · ${formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)}`;
     link.href = `/bookings/${booking.bookingId}`;
     link.textContent = active ? "Open active job" : "View job checklist";
+    return;
+  }
+  if (!availability.length) {
+    title.textContent = "Add when you can clean";
+    copy.textContent = "One exact future time lets Tideway match suitable requests to you.";
+    link.href = "/cleaner/availability";
+    link.textContent = "Add availability";
     return;
   }
   if (payout && !payout.ready) {
@@ -264,11 +272,12 @@ async function loadDashboard() {
   loading = true;
   showGate("Checking secure Cleaner access…", "Requests and jobs open only inside the assigned Cleaner account.");
   try {
-    const [accountResult, bookingResult, payoutResult] = await Promise.all([requestJson("/api/marketplace/account"), requestJson("/api/marketplace/bookings?limit=50"), loadOptionalPayoutStatus()]);
+    const [accountResult, bookingResult, payoutResult, availabilityResult] = await Promise.all([requestJson("/api/marketplace/account"), requestJson("/api/marketplace/bookings?limit=50"), loadOptionalPayoutStatus(), requestJson("/api/marketplace/cleaner/availability")]);
     const account = accountResult.account;
     if (account?.selectedRole !== "cleaner" || !account?.roles?.includes("cleaner")) return showGate("This is not a Cleaner account.", "Use the Cleaner workspace selected during onboarding.", { kind: "authentication", allowSignIn: true });
     bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
     payoutStatus = payoutResult;
+    availabilityWindows = Array.isArray(availabilityResult.availability) ? availabilityResult.availability : [];
     document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
     document.querySelector("[data-cleaner-name]").textContent = account.displayName || "Cleaner";
     renderBookings();

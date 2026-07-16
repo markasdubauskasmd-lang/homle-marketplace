@@ -12,6 +12,7 @@ Decision rule: **Can the user complete this action with fewer screens, fewer dec
 - Draft scans were present lower on the page, but the user had to find the correct request card.
 - The Cleaner dashboard contained the right information, but the urgent request or live job competed with headings, statistics and multiple lists.
 - The Cleaner profile editor exposed introduction, services, pricing, travel boundaries and publication checks in one long form, even when only one section needed attention.
+- A signed-in Cleaner could set only a vague Available/Limited label even though matching requires an exact future start and end; the real schedule existed only in the concierge fallback and Administrator workflow.
 - Cleaner search exposed postcode, service, rating, price, availability and verification controls at once, then hid the request action inside each profile's detail disclosure.
 - The public page has a clear account-first booking action, but the older pilot request/application forms remain visually long further down the page. They should not become the authenticated marketplace journey.
 
@@ -47,6 +48,8 @@ The separate concierge fallback at `/join` now collects only contact details, ma
 
 The authenticated profile editor now opens the first incomplete section and shows one clear next action. Introduction, services and pricing, work boundaries, and final review are four short steps rather than one long page. Each step shows its own completion state, progress can be saved at any time, and publication remains deliberately unavailable until the same ten server-backed profile requirements are complete.
 
+The Cleaner dashboard now sends a Cleaner with no future schedule directly to **Add availability**. The focused `/cleaner/availability` screen asks only for day, start and end, with tomorrow and normal working hours prefilled. One **I'm available** action creates the exact matchable window and updates the broad matching state automatically. Upcoming windows are shown in a short private list. Removing a time requires one confirmation, is blocked when an invitation or live job overlaps, and automatically marks the profile unavailable after the last future window is removed. The old manual Available/Limited profile choice is gone, so exact windows are the single source of truth.
+
 ## Remaining limitations
 
 - A real mobile visual pass is still required because the desktop browser-control runtime could not connect during this audit.
@@ -57,4 +60,4 @@ The authenticated profile editor now opens the first incomplete section and show
 
 ## Verification
 
-Static journey tests assert the lightweight homepage boundary, its direct role actions, absence of the legacy forms and form-processing script, dedicated fallback intake routes, provider-first account entry, two-field Cleaner search, optional discovery filters, direct account-first result actions, the one-decision booking-role confirmation, single-next-action dashboards, the guided four-step Cleaner profile editor, exact section completion, minimum property setup, privacy-safe automatic labels, sole-property selection, safe cleaning-type suggestions, optional-field disclosures, removal of the duplicate service decision, automatic speech summary, safe text rendering, CSRF/session protection, role-specific booking information and mobile layouts. Full project checks cover database privileges, account security, scan consent, booking overlap, tracking, progress, messages, payments, reviews and disputes.
+Static journey tests assert the lightweight homepage boundary, its direct role actions, absence of the legacy forms and form-processing script, dedicated fallback intake routes, provider-first account entry, two-field Cleaner search, optional discovery filters, direct account-first result actions, the one-decision booking-role confirmation, single-next-action dashboards, the guided four-step Cleaner profile editor, exact section completion, one-step exact Cleaner availability, minimum property setup, privacy-safe automatic labels, sole-property selection, safe cleaning-type suggestions, optional-field disclosures, removal of duplicate service and availability decisions, automatic speech summary, safe text rendering, CSRF/session protection, role-specific booking information and mobile layouts. Full project checks cover database privileges, account security, scan consent, booking and availability overlap, tracking, progress, messages, payments, reviews and disputes.

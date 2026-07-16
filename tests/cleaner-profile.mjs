@@ -1,4 +1,4 @@
-import { createCleanerProfileService, editableCleanerProjection, normalizedCleanerProfile, normalizedCleanerSearch, publicCleanerProjection } from "../src/marketplace/cleaner-profile.mjs";
+import { createCleanerProfileService, editableCleanerProjection, normalizedAvailabilityWindow, normalizedCleanerProfile, normalizedCleanerSearch, publicCleanerProjection } from "../src/marketplace/cleaner-profile.mjs";
 import { createCleanerProfileRepository } from "../src/marketplace/cleaner-repository.mjs";
 import { readFile } from "node:fs/promises";
 
@@ -37,7 +37,7 @@ const completeInput = {
   isPublic: true
 };
 const completeProfile = normalizedCleanerProfile(completeInput);
-assert(completeProfile.profileCompletionPercent === 100 && completeProfile.isPublic && completeProfile.serviceAreas[0].outwardPostcode === "SW1A" && completeProfile.services.length === 2, "A complete cleaner profile did not reach publishable canonical state.");
+assert(completeProfile.profileCompletionPercent === 100 && completeProfile.isPublic && completeProfile.serviceAreas[0].outwardPostcode === "SW1A" && completeProfile.services.length === 2 && !Object.hasOwn(completeProfile, "currentAvailabilityStatus"), "A complete cleaner profile did not reach publishable canonical state or retained a client-controlled availability label.");
 assert(throws(() => normalizedCleanerProfile({ biography: "Short", isPublic: true }), "Complete every required") && throws(() => normalizedCleanerProfile({ ...completeInput, services: [{ serviceCode: "invented", pricingModel: "quote" }] }), "supported and unique") && throws(() => normalizedCleanerProfile({ ...completeInput, serviceAreas: [{ outwardPostcode: "London" }] }), "Outward postcode"), "Incomplete, invented-service or vague-area cleaner data was accepted.");
 
 const serviceCalls = [];
@@ -73,9 +73,12 @@ const publicRows = [{
 const fakeServiceRepository = {
   async getOwnProfile(actor) { serviceCalls.push({ kind: "get-own", actor }); return { ...publicRows[0], cleaner_id: actor.userId, user_id: actor.userId, is_public: true, service_areas: [{ outwardPostcode: "SW1A", latitude: 51.501, longitude: -0.142 }] }; },
   async saveOwnProfile(actor, profile) { serviceCalls.push({ kind: "save", actor, profile }); return { profileCompletionPercent: profile.profileCompletionPercent }; },
-  async searchPublicProfiles(filters) { serviceCalls.push({ kind: "search", filters }); return publicRows; }
+  async searchPublicProfiles(filters) { serviceCalls.push({ kind: "search", filters }); return publicRows; },
+  async listOwnAvailability(actor, currentTime) { serviceCalls.push({ kind: "availability-list", actor, currentTime }); return [{ id: "33333333-3333-4333-8333-333333333333", starts_at: "2026-07-20T09:00:00.000Z", ends_at: "2026-07-20T17:00:00.000Z", status: "available" }]; },
+  async createOwnAvailability(actor, availability) { serviceCalls.push({ kind: "availability-create", actor, availability }); return { id: "44444444-4444-4444-8444-444444444444", starts_at: availability.startAt, ends_at: availability.endAt, status: "available" }; },
+  async withdrawOwnAvailability(actor, availabilityId, currentTime) { serviceCalls.push({ kind: "availability-withdraw", actor, availabilityId, currentTime }); return { id: availabilityId, starts_at: "2026-07-20T09:00:00.000Z", ends_at: "2026-07-20T17:00:00.000Z", status: "withdrawn" }; }
 };
-const service = createCleanerProfileService(fakeServiceRepository);
+const service = createCleanerProfileService(fakeServiceRepository, { now: () => new Date("2026-07-16T12:00:00.000Z") });
 const cleanerActor = { userId: "11111111-1111-4111-8111-111111111111", roles: ["cleaner"] };
 const ownProfile = await service.getOwnProfile(cleanerActor);
 await service.saveOwnProfile(cleanerActor, completeInput);
@@ -86,6 +89,12 @@ assert(ownProfile.cleanerId === cleanerActor.userId && ownProfile.isPublic === t
 assert(!JSON.stringify(ownProfile).includes("private@example.com") && await rejects(() => service.getOwnProfile({ userId: "landlord", roles: ["landlord"] }), "Cleaner account"), "The owner profile read leaked private account fields or accepted another role.");
 assert(!serialisedPublicResult.includes("private@example.com") && !serialisedPublicResult.includes("07123456789") && !serialisedPublicResult.includes("Private address") && !serialisedPublicResult.includes("acceptance_rate"), "Public cleaner projection exposed private contact, address or internal acceptance data.");
 assert(throws(() => normalizedCleanerSearch({ startAt: "2026-07-20T09:00:00Z" }), "start and end") && throws(() => normalizedCleanerSearch({ maximumDistanceKm: 10 }), "requires search coordinates"), "Cleaner search accepted incomplete availability or distance filters.");
+const availabilityInput = normalizedAvailabilityWindow({ startAt: "2026-07-20T09:00:00+01:00", endAt: "2026-07-20T17:00:00+01:00" }, new Date("2026-07-16T12:00:00.000Z"));
+const ownAvailability = await service.listOwnAvailability(cleanerActor);
+const createdAvailability = await service.createOwnAvailability(cleanerActor, { startAt: "2026-07-21T09:00:00+01:00", endAt: "2026-07-21T17:00:00+01:00" });
+const withdrawnAvailability = await service.withdrawOwnAvailability(cleanerActor, "44444444-4444-4444-8444-444444444444");
+assert(availabilityInput.startAt === "2026-07-20T08:00:00.000Z" && ownAvailability[0].availabilityId === "33333333-3333-4333-8333-333333333333" && createdAvailability.status === "available" && withdrawnAvailability.status === "withdrawn", "Cleaner availability was not normalized, owner-projected or lifecycle-safe.");
+assert(throws(() => normalizedAvailabilityWindow({ startAt: "2026-07-20T09:00", endAt: "2026-07-20T17:00" }, new Date("2026-07-16T12:00:00.000Z")), "timezone") && throws(() => normalizedAvailabilityWindow({ startAt: "2026-07-16T12:01:00Z", endAt: "2026-07-16T13:00:00Z" }, new Date("2026-07-16T12:00:00.000Z")), "five minutes") && await rejects(() => service.createOwnAvailability({ userId: "landlord", roles: ["landlord"] }, availabilityInput), "Cleaner account"), "Availability accepted ambiguous local time, an immediate window or a non-Cleaner actor.");
 
 const databaseCalls = [];
 const database = {
@@ -100,7 +109,25 @@ const repository = createCleanerProfileRepository(database);
 await repository.getOwnProfile(cleanerActor);
 await repository.saveOwnProfile(cleanerActor, completeProfile);
 await repository.searchPublicProfiles(normalizedCleanerSearch({ outwardPostcode: "SW1A", limit: 20 }));
-assert(databaseCalls[0].text.includes("WHERE profile.user_id=$1::uuid") && databaseCalls[0].text.includes("cleaner_service_areas") && databaseCalls[0].values[0] === cleanerActor.userId && databaseCalls.slice(0, 6).every((call) => call.boundary === "user") && databaseCalls.at(-1).boundary === "public" && databaseCalls.at(-1).text.includes("search_cleaner_directory") && databaseCalls.every((call) => call.text.includes("$1")), "Cleaner repository accepted a target profile id, omitted owner detail, left the RLS boundary or used non-parameterized queries.");
+assert(databaseCalls[0].text.includes("WHERE profile.user_id=$1::uuid") && databaseCalls[0].text.includes("cleaner_service_areas") && databaseCalls[0].values[0] === cleanerActor.userId && databaseCalls.slice(0, 6).every((call) => call.boundary === "user") && databaseCalls.at(-1).boundary === "public" && databaseCalls.at(-1).text.includes("search_cleaner_directory") && databaseCalls.every((call) => call.text.includes("$1") && !call.text.includes("current_availability_status=$")), "Cleaner repository accepted a target profile id, allowed profile editing to overwrite schedule status, omitted owner detail, left the RLS boundary or used non-parameterized queries.");
+
+const availabilityQueries = [];
+const availabilityDatabase = {
+  async withUserTransaction(actor, operation) {
+    return operation({ async query(text, values) {
+      availabilityQueries.push({ actor, text, values });
+      if (text.startsWith("SELECT id, starts_at")) return { rows: [{ id: "33333333-3333-4333-8333-333333333333", starts_at: "2026-07-20T09:00:00.000Z", ends_at: "2026-07-20T17:00:00.000Z", status: "available" }] };
+      if (text.startsWith("SELECT 1 FROM cleaner_availability") && text.includes("tstzrange")) return { rows: [] };
+      if (text.startsWith("INSERT INTO cleaner_availability")) return { rows: [{ id: "44444444-4444-4444-8444-444444444444", starts_at: values[1], ends_at: values[2], status: "available" }] };
+      return { rows: [] };
+    } });
+  },
+  async withAuthenticationTransaction() { throw new Error("Public boundary not expected."); }
+};
+const availabilityRepository = createCleanerProfileRepository(availabilityDatabase);
+await availabilityRepository.listOwnAvailability(cleanerActor, "2026-07-16T12:00:00.000Z");
+await availabilityRepository.createOwnAvailability(cleanerActor, availabilityInput);
+assert(availabilityQueries.every((call) => call.actor.userId === cleanerActor.userId && call.text.includes("$1")) && availabilityQueries.some((call) => call.text.includes("pg_advisory_xact_lock")) && availabilityQueries.some((call) => call.text.includes("tstzrange")) && availabilityQueries.some((call) => call.text.includes("current_availability_status='available'")), "Exact availability did not remain owner-bound, parameterized, serialized, overlap-safe and reflected in matching status.");
 
 const projection = publicCleanerProjection(publicRows[0]);
 assert(Object.keys(projection).every((key) => !["email", "phone", "homeAddress", "acceptanceRate", "latitude", "longitude"].includes(key)), "Cleaner public projection contains a forbidden field name.");
@@ -115,4 +142,4 @@ assert(!rlsSql.includes("CREATE POLICY public_cleaner_areas") && !rlsSql.include
 assert(directorySql.includes("candidate_outward_postcode") && directorySql.includes("candidate_service_code") && directorySql.includes("candidate_start_at") && directorySql.includes("candidate_minimum_rating") && directorySql.includes("candidate_maximum_price_pence") && directorySql.includes("candidate_verified_only") && directorySql.includes("candidate_maximum_distance_km") && directorySql.includes("profile_completion_percent = 100"), "Cleaner directory omitted a required public discovery filter or completeness gate.");
 assert(!returnedColumns.includes("email") && !returnedColumns.includes("phone") && !returnedColumns.includes("latitude") && !returnedColumns.includes("longitude") && runtimeGrantsSql.includes("search_cleaner_directory(text, text, timestamptz"), "Cleaner directory returns private location/contact data or lacks its restricted grant.");
 
-console.log("Cleaner profile tests passed: validated ownership-only editing, deterministic completion, publish gating, privacy-safe projections, requested discovery filters and non-public service-area coordinates.");
+console.log("Cleaner profile tests passed: validated ownership-only editing, deterministic completion, exact future availability, publish gating, privacy-safe projections, requested discovery filters and non-public service-area coordinates.");

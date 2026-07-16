@@ -93,7 +93,6 @@ function draftProfile(strict = true) {
     productsSupplied: parsedList(form.elements.productsSupplied.value, 30, 100, "Product", strict),
     residentialPreference: form.elements.residentialPreference.checked,
     commercialPreference: form.elements.commercialPreference.checked,
-    currentAvailabilityStatus: form.elements.currentAvailabilityStatus.value,
     services: services(strict),
     serviceAreas,
     isPublic: publicControl.checked
@@ -174,7 +173,6 @@ function populate(profile) {
   setField("languages", (profile.languages || []).join(", "));
   setField("equipmentSupplied", (profile.equipmentSupplied || []).join(", "));
   setField("productsSupplied", (profile.productsSupplied || []).join(", "));
-  setField("currentAvailabilityStatus", profile.currentAvailabilityStatus || "unavailable");
   setField("serviceAreas", (profile.serviceAreas || []).map((area) => area.outwardPostcode).join(", "));
   form.elements.residentialPreference.checked = profile.residentialPreference === true;
   form.elements.commercialPreference.checked = profile.commercialPreference === true;
