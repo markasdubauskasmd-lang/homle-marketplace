@@ -42,13 +42,13 @@ Implemented checkpoint:
 - Fail-closed provider capability flags that require the complete database/session/origin boundary and a separate `AUTH_TOKEN_SECRET` for verification/reset material.
 - Reusable account middleware for environment-specific cookies, hashed session lookup, exact-origin and CSRF mutation checks, server-side role enforcement and role-pending onboarding isolation.
 - Branded mobile `/login` and `/signup` entry pages that show no non-working provider/form controls and keep the operational request and cleaner-application paths available while account runtime composition is incomplete.
-- Isolated POST-only authentication controller for signup, verification resend/confirmation, login, reset request/confirmation, exact logout, logout-all and Cleaner/Landlord onboarding rotation. Trusted email delivery, shared rate limiting and a server-derived client key are mandatory composition dependencies.
+- Isolated POST-only authentication controller for signup, verification resend/confirmation, login, reset request/confirmation, exact logout, logout-all and Cleaner/Landlord onboarding rotation. Internally verified SMTP delivery, shared rate limiting and a server-derived client key are mandatory composition dependencies.
 - Capability-gated mobile account forms for login, signup, verification/recovery, reset and role onboarding; markup is hidden/disabled until the complete email-password runtime reports ready, and fragment tokens are removed before network activity.
 - RLS on password credentials, verification tokens, reset tokens and sessions, plus a checked non-bypass runtime-role grant script.
 - Bounded, concurrency-safe expired-session deletion through the separately credentialed worker role; web runtime `DELETE` authority on sessions is revoked and the orchestration loop reports when capped batches may remain.
 - Setup details in `docs/DATABASE_SETUP.md`, the mandatory provider-verification boundary in `docs/AUTHENTICATION_SECURITY.md`, and isolated regression tests using fake PostgreSQL-compatible repositories.
 
-Not yet enabled: server attachment of the prepared mutation handlers/forms, a database driver, cryptographic provider adapters, SMTP delivery, OAuth callbacks or a production PostgreSQL instance. Provider capability flags therefore remain off behind an explicit runtime-composition gate. The social resolver must never receive browser-supplied claims directly, and internal email-delivery material must never be returned by a public API.
+Not yet enabled: real PostgreSQL execution, approved SMTP credentials/provider evidence, private object storage, final monitoring, HTTPS deployment or genuine accounts. The server attachment, exact database driver, internal strict-TLS SMTP adapter and Google OIDC callback are prepared behind an explicit runtime-composition gate. Provider capability flags remain off. The social resolver must never receive browser-supplied claims directly, and internal email-delivery material must never be returned by a public API.
 
 - Add a PostgreSQL connection/repository layer and transaction helper that always sets the RLS user context.
 - Add opaque secure sessions, `HttpOnly; Secure; SameSite=Lax` cookies, CSRF tokens, rotation, logout-all-sessions and session expiry.
@@ -204,7 +204,7 @@ Implemented notification inbox/outbox checkpoint:
 - Authenticated account-only inbox routes provide a bounded tuple cursor, exact unread count, single-read and race-safe read-all actions; transaction-local identity is rechecked by narrow database functions and direct runtime table access stays revoked.
 - PostgreSQL derives one privacy-minimal email row from each supported lifecycle notification with a channel-prefixed idempotency key; names, contact/address/access data, message bodies, photos and coordinates never enter the outbox payload.
 - A separate worker role claims bounded batches with `SKIP LOCKED` leases, retries transient failures with bounded backoff, stops after five attempts/permanent failure and excludes inactive or unverified recipients.
-- Text-only email rendering uses the notification UUID as provider idempotency evidence and a trusted HTTPS origin. No worker or provider is enabled without PostgreSQL, approved SMTP credentials and staging evidence. Details are in `docs/NOTIFICATIONS.md`; coverage is in `tests/notification-service.mjs` and `tests/marketplace-http.mjs`.
+- Text-only email rendering uses the notification UUID to derive a stable SMTP Message-ID and delivery header under a trusted HTTPS origin. SMTP remains at-least-once because it cannot guarantee provider deduplication. No worker or provider is enabled without PostgreSQL, approved SMTP credentials and staging evidence. Details are in `docs/NOTIFICATIONS.md` and `docs/SMTP_EMAIL_DELIVERY.md`.
 
 Implemented verified-review checkpoint:
 

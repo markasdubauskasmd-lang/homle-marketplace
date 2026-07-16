@@ -19,7 +19,6 @@ const completeEnvironment = Object.freeze({
 });
 
 const adapters = Object.freeze({
-  emailDelivery: { async send() {} },
   objectStorage: {
     async createUploadUrl() {}, async headObject() {}, async inspectAndSanitizeImage() {},
     async createReadUrl() {}, async deleteObject() {}
@@ -54,6 +53,8 @@ assert.equal(invalidProxyLoadedAdapters, false, "Invalid proxy trust loaded depl
 let released = 0;
 let ended = 0;
 let realtimeClosed = 0;
+let smtpVerified = 0;
+let smtpClosed = 0;
 const probeQueries = [];
 const pool = {
   async connect() {
@@ -69,6 +70,7 @@ const pool = {
 };
 const router = { async handle() { return true; } };
 const sharedRateLimiter = { async consume() { return { allowed: true }; } };
+const emailDelivery = { async verify() { smtpVerified += 1; }, async send() {}, close() { smtpClosed += 1; } };
 const trustedClientKey = () => "direct:ipv4:198.51.100.10";
 let limiterCreated = 0;
 let clientKeyCreated = 0;
@@ -76,6 +78,11 @@ const attachment = await createMarketplaceAttachment({
   env: completeEnvironment,
   adapters,
   async createPool() { return pool; },
+  async createEmailDelivery(selectedEnvironment, options) {
+    assert.equal(selectedEnvironment, completeEnvironment);
+    assert.equal(options.onUnexpectedError, adapters.onUnexpectedError);
+    return emailDelivery;
+  },
   createClientKeyResolver(selectedEnvironment) {
     clientKeyCreated += 1;
     assert.equal(selectedEnvironment, completeEnvironment);
@@ -91,6 +98,7 @@ const attachment = await createMarketplaceAttachment({
     assert.equal(selectedPool, pool);
     assert.equal(options.rateLimiter, sharedRateLimiter);
     assert.equal(options.clientKey, trustedClientKey);
+    assert.equal(options.emailDelivery, emailDelivery);
     assert.equal(options.objectStorage, adapters.objectStorage);
     return {
       router,
@@ -105,6 +113,7 @@ assert.equal(attachment.ready, true);
 assert.equal(attachment.router, router);
 assert.equal(limiterCreated, 1);
 assert.equal(clientKeyCreated, 1);
+assert.equal(smtpVerified, 1);
 assert.equal(released, 1);
 assert.ok(probeQueries[0].includes("current_user") && probeQueries[0].includes("tideway_private.lookup_session"));
 assert.equal(attachment.authenticationCapabilities.emailPassword, true);
@@ -114,6 +123,7 @@ assert.equal(attachment.authenticationCapabilities.google, true, "A configured a
 await attachment.close();
 await attachment.close();
 assert.equal(realtimeClosed, 1);
+assert.equal(smtpClosed, 1);
 assert.equal(ended, 1);
 
 let unsafeReleased = 0;
@@ -137,13 +147,16 @@ await assert.rejects(probeMarketplaceDatabase({
 }), /migrations or runtime grants are incomplete/);
 
 let failedPoolEnded = 0;
+let failedSmtpClosed = 0;
 await assert.rejects(createMarketplaceAttachment({
   env: completeEnvironment,
   adapters,
+  async createEmailDelivery() { return { async verify() {}, async send() {}, close() { failedSmtpClosed += 1; } }; },
   async createPool() { return { async end() { failedPoolEnded += 1; } }; },
   async probeDatabase() { throw new Error("staging probe failed"); },
   createRuntime() { throw new Error("must not compose"); }
 }), /staging probe failed/);
 assert.equal(failedPoolEnded, 1, "Failed marketplace startup did not close its pool.");
+assert.equal(failedSmtpClosed, 1, "Failed marketplace startup did not close SMTP delivery.");
 
 console.log("Marketplace attachment tests passed: disabled isolation, complete-adapter gate, restricted database probe, truthful auth capabilities and idempotent resource shutdown.");

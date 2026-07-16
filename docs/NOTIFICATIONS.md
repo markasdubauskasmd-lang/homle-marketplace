@@ -29,7 +29,7 @@ A separately credentialed `tideway_worker` claims due rows with `FOR UPDATE SKIP
 - sanitize stored error codes and never return recipient details in run statistics;
 - permanently close rows for inactive accounts or unverified email addresses before delivery.
 
-`createEmailNotificationWorker` produces text-only privacy-minimal mail with a trusted HTTPS application origin. It does not accept an insecure public origin. The adapter passed to `delivery.send` must support the supplied `idempotencyKey`; otherwise a provider timeout after accepting a message can still cause an at-least-once duplicate on retry.
+`createEmailNotificationWorker` produces text-only privacy-minimal mail with a trusted HTTPS application origin. It does not accept an insecure public origin. The internal [SMTP adapter](SMTP_EMAIL_DELIVERY.md) converts the supplied `idempotencyKey` into a stable Message-ID and delivery header. Standard SMTP does not guarantee provider-side idempotency, so a provider timeout after accepting a message can still cause an at-least-once duplicate on retry; this must be measured with the chosen provider.
 
 ## Deployment boundary
 
@@ -38,7 +38,7 @@ A separately credentialed `tideway_worker` claims due rows with `FOR UPDATE SKIP
 3. Give the web process only the `tideway_app` database identity.
 4. Give the email worker a separate pool authenticated only as `tideway_worker`; it receives execute rights on claim/complete functions and no direct table rights.
 5. Configure `APP_ORIGIN` with the verified HTTPS host and keep `SMTP_URL`, `EMAIL_FROM` and provider credentials in the deployment secret manager.
-6. Compose the provider adapter, run one worker instance in staging, and prove provider idempotency, retry classification, lease expiry, inactive/unverified-recipient suppression and no-address/no-location email content.
+6. Run the internal SMTP adapter and one worker instance in staging, and prove provider duplicate behavior, retry classification, lease expiry, inactive/unverified-recipient suppression and no-address/no-location email content.
 7. Monitor pending age, retry count and permanent-failure rate without logging recipient addresses or payloads.
 
 No email worker is scheduled locally, no SMTP provider was called and no participant was contacted by this change.

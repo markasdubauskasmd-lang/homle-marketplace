@@ -4,6 +4,7 @@ import { marketplaceEnvironment, publicAuthenticationCapabilities, validateMarke
 import { postgresPoolOptions } from "./database.mjs";
 import { createPostgresRateLimiter } from "./postgres-rate-limiter.mjs";
 import { createMarketplaceRuntime } from "./runtime.mjs";
+import { createSmtpEmailDelivery } from "./smtp-email-delivery.mjs";
 import { createTrustedClientKeyResolver } from "./trusted-client-key.mjs";
 
 function enabledState(env) {
@@ -67,9 +68,8 @@ export async function probeMarketplaceDatabase(pool) {
 }
 
 function requireAdapters(adapters) {
-  if (!adapters?.emailDelivery || typeof adapters.emailDelivery.send !== "function") throw new TypeError("Marketplace enablement requires a trusted email-delivery adapter.");
   const storageMethods = ["createUploadUrl", "headObject", "inspectAndSanitizeImage", "createReadUrl", "deleteObject"];
-  if (!adapters.objectStorage || !storageMethods.every((method) => typeof adapters.objectStorage[method] === "function")) throw new TypeError("Marketplace enablement requires complete private object storage.");
+  if (!adapters?.objectStorage || !storageMethods.every((method) => typeof adapters.objectStorage[method] === "function")) throw new TypeError("Marketplace enablement requires complete private object storage.");
 }
 
 function unavailableAttachment(env, reason = "disabled") {
@@ -103,28 +103,32 @@ export async function createMarketplaceAttachment(options = {}) {
   requireAdapters(adapters);
 
   const createPool = options.createPool || createDefaultPostgresPool;
-  const pool = await createPool(env);
+  const createEmailDelivery = options.createEmailDelivery || createSmtpEmailDelivery;
+  let emailDelivery;
+  let pool;
   let runtime;
   try {
+    emailDelivery = await createEmailDelivery(env, { onUnexpectedError: adapters.onUnexpectedError });
+    if (!emailDelivery || typeof emailDelivery.send !== "function" || typeof emailDelivery.verify !== "function" || typeof emailDelivery.close !== "function") throw new TypeError("Marketplace SMTP delivery did not compose completely.");
+    pool = await createPool(env);
     await (options.probeDatabase || probeMarketplaceDatabase)(pool);
+    await emailDelivery.verify();
     const rateLimiter = (options.createRateLimiter || createPostgresRateLimiter)(pool, { secret: env.SESSION_SECRET });
     runtime = (options.createRuntime || createMarketplaceRuntime)(pool, {
       env,
       rateLimiter,
       clientKey,
-      emailDelivery: adapters.emailDelivery,
+      emailDelivery,
       objectStorage: adapters.objectStorage,
       etaProvider: adapters.etaProvider,
       onUnexpectedError: adapters.onUnexpectedError
     });
+    if (!runtime?.router || typeof runtime.router.handle !== "function" || runtime.authenticationHttpReady !== true) throw new TypeError("Marketplace runtime did not compose its router and authentication boundary completely.");
   } catch (error) {
-    try { await pool.end?.(); } catch {}
-    throw error;
-  }
-  if (!runtime?.router || typeof runtime.router.handle !== "function" || runtime.authenticationHttpReady !== true) {
     try { await runtime?.realtimeSignalSource?.close?.(); } catch {}
-    try { await pool.end?.(); } catch {}
-    throw new TypeError("Marketplace runtime did not compose its router and authentication boundary completely.");
+    try { await emailDelivery?.close?.(); } catch {}
+    try { await pool?.end?.(); } catch {}
+    throw error;
   }
 
   const authenticationCapabilities = publicAuthenticationCapabilities(env, {
@@ -148,6 +152,7 @@ export async function createMarketplaceAttachment(options = {}) {
       closed = true;
       const failures = [];
       try { await runtime.realtimeSignalSource?.close?.(); } catch (error) { failures.push(error); }
+      try { await emailDelivery.close(); } catch (error) { failures.push(error); }
       try { await pool.end?.(); } catch (error) { failures.push(error); }
       if (failures.length) throw new AggregateError(failures, "Marketplace resources did not close cleanly.");
     }
