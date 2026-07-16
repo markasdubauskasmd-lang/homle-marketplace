@@ -56,7 +56,6 @@ function bookingFacts(booking) {
   const values = [
     ["When", formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)],
     ["Area", booking.propertyArea || "Shared after confirmation"],
-    [bookingSummaryPriceLabel("cleaner"), formatBookingMoney(booking.pricePence)],
     ["Checklist", `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`]
   ];
   for (const [label, value] of values) {
@@ -118,12 +117,14 @@ function bookingCard(booking, pending = false) {
   const heading = element("div", "booking-summary-heading");
   const title = element("div");
   title.append(element("span", "booking-status-pill", bookingSummaryStatusLabels[booking.status] || "Booking"), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Cleaning property"} · ${booking.counterpartyName || "Landlord"}`));
-  heading.append(title, element("strong", "booking-summary-price", formatBookingMoney(booking.pricePence)));
+  const pay = element("div", "booking-summary-price");
+  pay.append(element("small", "", bookingSummaryPriceLabel("cleaner")), element("strong", "", formatBookingMoney(booking.pricePence)));
+  heading.append(title, pay);
   card.append(heading, bookingFacts(booking));
   if (pending) {
     const deadline = element("p", "booking-response-deadline", booking.responseDeadline ? `Respond by ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(booking.responseDeadline))}` : "Response window unavailable");
     const actions = element("div", "booking-summary-actions");
-    const accept = element("button", "button", "Accept request");
+    const accept = element("button", "button", `Accept ${formatBookingMoney(booking.pricePence)} job`);
     accept.type = "button";
     const decline = element("button", "button button-outline", "Decline");
     decline.type = "button";
@@ -131,7 +132,7 @@ function bookingCard(booking, pending = false) {
     decline.addEventListener("click", () => openDecline(booking));
     actions.append(accept, decline);
     if (booking.cleaningRequestId) card.append(requestScanPreview(booking, true));
-    card.append(deadline, actions);
+    card.append(deadline, element("p", "booking-accept-boundary", "One tap confirms you are available for this exact time and pay. Tideway rechecks overlaps before confirming."), actions);
   } else {
     const action = bookingSummaryPrimaryAction(booking, "cleaner");
     if (action.kind === "active-job") {
@@ -218,8 +219,10 @@ async function respondToBooking(bookingId, decision, reason, button) {
   const csrf = storedCsrf();
   if (!csrf) return showFeedback("Your secure editing token is missing. Sign in again before answering this request.", "error");
   responding = true;
+  const originalLabel = button.textContent;
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
+  button.textContent = decision === "accept" ? "Accepting…" : "Declining…";
   showFeedback("");
   try {
     const result = await requestJson(`/api/marketplace/bookings/${bookingId}/response`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ decision, reason }) });
@@ -232,12 +235,12 @@ async function respondToBooking(bookingId, decision, reason, button) {
     responding = false;
     button.disabled = false;
     button.removeAttribute("aria-busy");
+    button.textContent = originalLabel;
   }
 }
 
 function acceptBooking(booking, button) {
-  const message = `Accept this cleaning request for ${formatBookingMoney(booking.pricePence)} on ${formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)}? Tideway will recheck your availability before confirming.`;
-  if (globalThis.confirm(message)) respondToBooking(booking.bookingId, "accept", "", button);
+  respondToBooking(booking.bookingId, "accept", "", button);
 }
 
 function openDecline(booking) {

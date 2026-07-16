@@ -2136,12 +2136,15 @@ textarea { resize: vertical; }
 .booking-status-pill { display: inline-block; padding: .32rem .5rem; color: var(--green-dark); border: 1px solid #b7d8ce; border-radius: 999px; background: #edf8f4; font-size: .58rem; font-weight: 850; }
 .booking-summary-heading h3 { margin: 8px 0 3px; color: var(--green-dark); font-size: 1.18rem; text-transform: capitalize; }
 .booking-summary-heading p { margin: 0; color: var(--muted); font-size: .72rem; }
-.booking-summary-price { flex: 0 0 auto; color: var(--green-dark); font-size: 1.15rem; }
+.booking-summary-price { display: grid; flex: 0 0 auto; gap: 2px; justify-items: end; color: var(--green-dark); }
+.booking-summary-price small { color: var(--muted); font-size: .56rem; font-weight: 850; text-transform: uppercase; }
+.booking-summary-price strong { font-size: 1.15rem; }
 .booking-summary-facts { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1px; margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--line); }
 .booking-summary-facts div { min-width: 0; padding: 10px 11px; background: #fff; }
 .booking-summary-facts dt { color: var(--muted); font-size: .57rem; font-weight: 800; text-transform: uppercase; }
 .booking-summary-facts dd { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--green-dark); font-size: .7rem; font-weight: 780; }
 .booking-response-deadline { margin: 0; color: #7c4a0b; font-size: .7rem; font-weight: 800; }
+.booking-accept-boundary { margin: 0; padding: 10px 12px; color: #31534d; border-left: 3px solid var(--green); background: var(--mint-pale); font-size: .72rem; line-height: 1.45; }
 .booking-summary-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: auto; }
 .booking-summary-actions .button, .booking-summary-card > .button { min-height: 46px; }
 .booking-dashboard-empty { margin-top: 18px; padding: 22px; border: 1px dashed #b8cac4; border-radius: 13px; text-align: center; }
@@ -2235,7 +2238,7 @@ textarea { resize: vertical; }
   .booking-section-heading { display: grid; }
   .booking-private-pill { justify-self: start; }
   .booking-summary-heading { display: grid; }
-  .booking-summary-price { font-size: 1.4rem; }
+  .booking-summary-price strong { font-size: 1.4rem; }
   .booking-summary-facts { grid-template-columns: 1fr; }
   .booking-summary-actions { display: grid; }
   .booking-summary-actions .button, .booking-summary-card > .button { width: 100%; }

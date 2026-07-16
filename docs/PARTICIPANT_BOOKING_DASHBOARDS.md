@@ -4,7 +4,7 @@
 
 Tideway now has authenticated, mobile-first booking lists for both marketplace roles:
 
-- `/cleaner/dashboard` shows pending invitations, active/upcoming work and history. A Cleaner can accept or decline an assigned invitation. Acceptance is still decided by the server after it rechecks invitation expiry, eligibility, availability and overlapping confirmed work.
+- `/cleaner/dashboard` shows pending invitations, active/upcoming work and history. The invitation presents pay once with an exact label and a one-tap **Accept £X job** action; adjacent copy makes the availability/time/pay commitment explicit before the tap. Decline retains its separate confirmation. Acceptance is still decided by the server after it rechecks invitation expiry, eligibility, availability and overlapping confirmed work.
 - `/landlord/dashboard` shows the signed-in Landlord's active/upcoming bookings and history alongside their properties and request-draft workspace. Eligible bookings link to payment authorization and confirmed work links to the participant-only active-job screen.
 
 Both pages remain closed while the default-off PostgreSQL marketplace attachment is unavailable. They contain no sample people, prices, properties or bookings.
