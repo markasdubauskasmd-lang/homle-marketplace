@@ -53,6 +53,8 @@ const input = {
 };
 const canonical = normalizedProperty(input, encryptionSecret);
 assert(canonical.postcode === "SW1A 1AA" && canonical.id === propertyId && Buffer.isBuffer(canonical.accessInstructionsCiphertext) && canonical.savedChecklist.length === 1, "Property input was not validated and canonicalized.");
+const safelyNamed = normalizedProperty({ ...input, name: "" }, encryptionSecret);
+assert(safelyNamed.name === "Flat in London" && !safelyNamed.name.includes(input.addressLine1), "An omitted property label was not replaced with a privacy-safe type-and-locality name.");
 assert(throws(() => normalizedProperty({ ...input, bathrooms: 1.25 }, encryptionSecret), "supported range") && throws(() => normalizedProperty({ ...input, postcode: "London" }, encryptionSecret), "valid UK postcode") && throws(() => normalizedProperty({ ...input, longitude: null }, encryptionSecret), "supplied together") && throws(() => normalizedProperty({ ...input, savedChecklist: Array.from({ length: 101 }, () => input.savedChecklist[0]) }, encryptionSecret), "too many"), "Invalid property numbers, location or checklist data were accepted.");
 
 function propertyRow(property, status = "confirmed") {

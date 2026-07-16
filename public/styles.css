@@ -1662,6 +1662,10 @@ textarea { resize: vertical; }
 .cleaner-payout-action { width: 100%; min-height: 3.25rem; }
 .cleaner-payout-note { margin: 1rem 0 0; font-size: .9rem; color: #52625f; }
 .landlord-request-form { margin-top: 0; margin-bottom: 22px; }
+.landlord-sole-property { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 14px; padding: 14px 16px; border: 1px solid #9fcfc2; border-radius: 13px; background: var(--mint-pale); }
+.landlord-sole-property > span { color: var(--muted); font-size: .7rem; font-weight: 850; text-transform: uppercase; }
+.landlord-sole-property > strong { grid-row: 1 / 3; grid-column: 2; align-self: center; color: var(--green-dark); overflow-wrap: anywhere; }
+.landlord-sole-property > small { color: var(--muted); }
 .landlord-required-services { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .landlord-speech-scope { display: grid; gap: 14px; padding: 18px; border: 1px solid #b7d8ce; border-radius: 15px; background: var(--mint-pale); }
 .landlord-speech-heading { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
@@ -1733,6 +1737,8 @@ textarea { resize: vertical; }
   .landlord-panel-heading { align-items: end; }
   .landlord-property-grid, .landlord-request-list { grid-template-columns: 1fr; }
   .landlord-record-form { padding: 18px 14px; border-radius: 16px; }
+  .landlord-sole-property { grid-template-columns: 1fr; }
+  .landlord-sole-property > strong { grid-row: auto; grid-column: 1; }
   .landlord-form-title { align-items: start; }
   .landlord-required-services { grid-template-columns: 1fr; }
   .landlord-speech-heading, .landlord-checklist-heading { display: grid; }

@@ -21,6 +21,9 @@ const propertyEmpty = document.querySelector("[data-property-empty]");
 const requestList = document.querySelector("[data-request-list]");
 const requestEmpty = document.querySelector("[data-request-empty]");
 const propertySelect = document.querySelector("[data-property-select]");
+const propertySelectLabel = document.querySelector("[data-property-select-label]");
+const soleProperty = document.querySelector("[data-sole-property]");
+const solePropertyName = document.querySelector("[data-sole-property-name]");
 const propertyFeedback = document.querySelector("[data-property-feedback]");
 const requestFeedback = document.querySelector("[data-request-feedback]");
 const propertySave = document.querySelector("[data-save-property]");
@@ -188,6 +191,13 @@ function renderProperties() {
     option.value = property.propertyId;
     propertySelect.append(option);
   }
+  const hasSoleProperty = properties.length === 1;
+  propertySelectLabel.hidden = hasSoleProperty;
+  soleProperty.hidden = !hasSoleProperty;
+  if (hasSoleProperty) {
+    propertySelect.value = properties[0].propertyId;
+    solePropertyName.textContent = properties[0].name || "Saved property";
+  } else solePropertyName.textContent = "";
   propertyEmpty.hidden = properties.length > 0;
   propertyList.hidden = properties.length === 0;
   requestForm.querySelector("[data-request-controls]").disabled = properties.length === 0;
@@ -661,6 +671,7 @@ function initialiseRequestDefaults() {
   requestForm.elements.requestedDate.min = localDate;
   requestForm.elements.durationMinutes.value = "120";
   requestForm.elements.frequency.value = "one-time";
+  if (properties.length === 1) propertySelect.value = properties[0].propertyId;
 }
 
 function useSavedChecklist() {
@@ -771,7 +782,7 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
   workspace.hidden = false;
   selectWorkspaceTab("requests");
   requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
-  propertySelect.focus({ preventScroll: true });
+  (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
 window.addEventListener("beforeunload", (event) => { if (dirty) event.preventDefault(); });
 document.querySelector("[data-year]").textContent = new Date().getFullYear();

@@ -59,14 +59,16 @@ export function normalizedProperty(input = {}, dataEncryptionSecret, id = input.
   const selectedPropertyId = uuid(id, "property id");
   const selectedType = boundedText(input.propertyType, 40, "Property type", 1);
   if (!propertyTypes.includes(selectedType)) throw new TypeError("A supported property type is required.");
+  const locality = boundedText(input.locality, 120, "Locality", 1);
+  const defaultName = `${selectedType === "communal" ? "Communal area" : `${selectedType[0].toUpperCase()}${selectedType.slice(1)}`} in ${locality}`;
   const coordinates = normalizedCoordinates(input.latitude, input.longitude);
   const accessInstructions = boundedText(input.accessInstructions, 3000, "Access instructions");
   return {
     id: selectedPropertyId,
-    name: boundedText(input.name, 160, "Property name", 1),
+    name: boundedText(input.name, 160, "Property name") || defaultName,
     addressLine1: boundedText(input.addressLine1, 240, "Address line 1", 1),
     addressLine2: boundedText(input.addressLine2, 240, "Address line 2") || null,
-    locality: boundedText(input.locality, 120, "Locality", 1),
+    locality,
     postcode: postcode(input.postcode),
     propertyType: selectedType,
     bedrooms: boundedNumber(input.bedrooms, 0, 200, "Bedrooms", 1),
