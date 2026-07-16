@@ -153,14 +153,19 @@
               <div class="guided-step-heading" tabindex="-1">
                 <span>Step 1 of 3</span>
                 <h3 id="request-step-1-title">What needs cleaning?</h3>
-                <p>Start with the property and service. Detailed room instructions come in the scan.</p>
+                <p>Start with the postcode, property and service. The required room scan captures the detailed scope next.</p>
               </div>
               <label>UK postcode <input name="postcode" autocomplete="postal-code" inputmode="text" required></label>
               <div class="field-row">
                 <label>Property type <select name="propertyType" required><option value="">Choose one</option><option>Flat or house</option><option>Office or workplace</option><option>Communal area</option><option>Short-let property</option><option>Other commercial space</option></select></label>
                 <label>Service <select name="service" required><option value="">Choose one</option><option>Regular home clean</option><option>Rental turnover clean</option><option>End-of-tenancy clean</option><option>Regular workplace clean</option><option>Communal area clean</option><option>One-off deep clean</option></select><small data-service-suggestion>Choose the closest service; the room scan confirms the exact tasks.</small></label>
               </div>
-              <label>Site size or rooms <input name="siteSize" required data-access-detail-safe placeholder="For example: 2 bedrooms and 1 bathroom, or 1,500 sq ft office"></label>
+              <details class="application-optional-fields">
+                <summary>Add a property size hint <span>Optional</span></summary>
+                <div>
+                  <label>Approximate size or rooms <span>(optional)</span><input name="siteSize" data-access-detail-safe placeholder="For example: 2 bedrooms and 1 bathroom, or 1,500 sq ft office"><small>Leave this blank if the room scan will show the full cleaning area.</small></label>
+                </div>
+              </details>
               <div class="guided-form-actions">
                 <button class="button" type="button" data-guided-next>Continue to timing</button>
               </div>

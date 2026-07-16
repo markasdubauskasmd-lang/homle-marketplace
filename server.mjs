@@ -151,10 +151,22 @@ const cleanerScreeningChecks = [
 ];
 
 const requestFrequencies = new Set(["One-off", "Weekly", "Several times a week", "Fortnightly", "As properties turn over", "Not sure yet"]);
+const scanDefinedSiteScope = "Room scope supplied through required scan";
 
 function requestFrequency(record) {
   const value = text(record?.frequency, 80);
   return requestFrequencies.has(value) ? value : "One-off";
+}
+
+function requestSiteScope(record, brief = null) {
+  const supplied = text(record?.siteSize, 160);
+  if (supplied && supplied !== scanDefinedSiteScope) return supplied;
+  if (brief?.status === "reviewed") {
+    const rooms = [...new Set((brief.photos || []).map((photo) => text(photo?.area, 80)).filter(Boolean))];
+    if (rooms.length) return `Reviewed room scan: ${rooms.join(", ")}`;
+    if (Array.isArray(brief.checklist) && brief.checklist.length) return "Reviewed room-scan checklist";
+  }
+  return "Room scan required before quote";
 }
 
 const mimeTypes = {
@@ -2537,7 +2549,7 @@ async function updateAdminProposalStatus(request, response) {
     service: customerRequest.service,
     frequency: requestFrequency(customerRequest),
     postcode: customerRequest.postcode,
-    siteSize: customerRequest.siteSize,
+    siteSize: requestSiteScope(customerRequest, reviewedBrief),
     requestedDate: customerRequest.preferredDate || "",
     requestedTimeWindow: customerRequest.preferredTimeWindow || "Flexible",
     proposedDate: proposal.proposedDate,
@@ -2572,7 +2584,7 @@ async function updateAdminProposalStatus(request, response) {
         service: customerRequest.service,
         frequency: requestFrequency(customerRequest),
         area: pilotCoverage.outwardCode,
-        siteSize: customerRequest.siteSize,
+        siteSize: requestSiteScope(customerRequest, reviewedBrief),
         hazards: customerRequest.hazards,
         proposedDate: proposal.proposedDate,
         proposedStartTime: proposal.proposedStartTime,
@@ -2665,7 +2677,7 @@ async function getQuoteContext(token) {
     service: customerRequest.service,
     frequency: requestFrequency(customerRequest),
     postcode: customerRequest.postcode,
-    siteSize: customerRequest.siteSize,
+    siteSize: requestSiteScope(customerRequest, latestBrief),
     proposedDate: proposal.proposedDate,
     proposedStartTime: proposal.proposedStartTime,
     proposedEndTime: proposal.proposedEndTime,
@@ -2686,7 +2698,7 @@ function publicQuote(context) {
     service: customerRequest.service,
     frequency: requestFrequency(customerRequest),
     postcode: customerRequest.postcode,
-    siteSize: customerRequest.siteSize,
+    siteSize: requestSiteScope(customerRequest, latestBrief),
     proposedDate: proposal.proposedDate,
     proposedStartTime: proposal.proposedStartTime,
     proposedEndTime: proposal.proposedEndTime,
@@ -2794,7 +2806,7 @@ async function decidePrivateQuote(request, response) {
       service: context.customerRequest.service,
       frequency: requestFrequency(context.customerRequest),
       postcode: context.customerRequest.postcode,
-      siteSize: context.customerRequest.siteSize,
+      siteSize: requestSiteScope(context.customerRequest, context.latestBrief),
       requestedDate: context.customerRequest.preferredDate || "",
       requestedTimeWindow: context.customerRequest.preferredTimeWindow || "Flexible",
       proposedDate: context.proposal.proposedDate,
@@ -2885,7 +2897,7 @@ function publicCleanerOpportunity(context) {
     service: customerRequest.service,
     frequency: requestFrequency(customerRequest),
     area: pilotCoverage.outwardCode,
-    siteSize: customerRequest.siteSize,
+    siteSize: requestSiteScope(customerRequest, latestBrief),
     hazards: customerRequest.hazards,
     proposedDate: proposal.proposedDate,
     proposedStartTime: proposal.proposedStartTime,
@@ -3150,7 +3162,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Proposed date: ${proposal.proposedDate}`,
     `Proposed time (UK local time): ${proposal.proposedStartTime}–${proposal.proposedEndTime}`,
     `Requested frequency: ${requestFrequency(customerRequest)}`,
-    `Site scope: ${customerRequest.siteSize || "[Confirm site size before sending]"}`,
+    `Site scope: ${requestSiteScope(customerRequest, latestBrief)}`,
     `Estimated cleaning time: ${proposal.estimatedHours} hours`,
     `Proposed customer total: ${money(proposal.customerTotal)}`,
     ...(latestBrief?.status === "reviewed" && latestBrief.scopeSignals.length ? ["Price-sensitive items included in this reviewed time and total:", ...latestBrief.scopeSignals.map((signal) => `- ${signal.label}`)] : []),
@@ -3174,7 +3186,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     `Service: ${customerRequest.service}`,
     `Requested frequency: ${requestFrequency(customerRequest)}`,
     `Area: ${outwardCode}`,
-    `Site scope: ${customerRequest.siteSize || "Confirm before accepting"}`,
+    `Site scope: ${requestSiteScope(customerRequest, latestBrief)}`,
     `Known hazards: ${customerRequest.hazards || "Confirm before accepting"}`,
     `Proposed date: ${proposal.proposedDate}`,
     `Proposed time (UK local time): ${proposal.proposedStartTime}–${proposal.proposedEndTime}`,
@@ -3345,7 +3357,7 @@ async function buildBookingAudit(proposalId) {
     customerScopeConfirmed: latestBrief?.customerScopeConfirmed === true,
     priceSensitiveScopeConfirmed: Boolean(latestBrief?.priceSensitiveScopeConfirmed),
     scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
-    scopeCaptured: Boolean(customerRequest.siteSize),
+    scopeCaptured: Boolean((customerRequest.siteSize && customerRequest.siteSize !== scanDefinedSiteScope) || (latestBrief?.status === "reviewed" && latestBrief.customerScopeConfirmed === true)),
     accessCaptured: Boolean(customerRequest.accessNotes),
     hazardsCaptured: Boolean(customerRequest.hazards),
     publicOriginFrozen: Boolean(publicSiteUrl),
@@ -3471,7 +3483,7 @@ async function createAdminBooking(request, response) {
       frequency: requestFrequency(audit.customerRequest),
       serviceAddress: details.serviceAddress,
       servicePostcode: details.servicePostcode,
-      siteSize: audit.customerRequest.siteSize,
+      siteSize: requestSiteScope(audit.customerRequest, audit.latestBrief),
       proposedDate: audit.proposal.proposedDate,
       proposedStartTime: audit.proposal.proposedStartTime,
       proposedEndTime: audit.proposal.proposedEndTime,
@@ -3497,7 +3509,7 @@ async function createAdminBooking(request, response) {
       frequency: requestFrequency(audit.customerRequest),
       serviceAddress: details.serviceAddress,
       servicePostcode: details.servicePostcode,
-      siteSize: audit.customerRequest.siteSize,
+      siteSize: requestSiteScope(audit.customerRequest, audit.latestBrief),
       hazards: audit.customerRequest.hazards,
       proposedDate: audit.proposal.proposedDate,
       proposedStartTime: audit.proposal.proposedStartTime,
@@ -3787,7 +3799,7 @@ async function getPrivateRequestStatus(request, response) {
   const outwardCode = customerRequest.postcode.replace(/\s+/g, "").slice(0, -3);
   return json(response, 200, {
     ok: true,
-    request: { reference: customerRequest.id, service: customerRequest.service, frequency: requestFrequency(customerRequest), propertyType: customerRequest.propertyType, siteSize: customerRequest.siteSize, outwardCode, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" },
+    request: { reference: customerRequest.id, service: customerRequest.service, frequency: requestFrequency(customerRequest), propertyType: customerRequest.propertyType, siteSize: requestSiteScope(customerRequest, latestBrief), outwardCode, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" },
     current: { stage: currentStage, headline, nextAction },
     steps,
     roomScan: latestBrief ? { status: scanComplete ? "reviewed" : latestBrief.status === "reviewed" ? "review-pending" : latestBrief.status, reference: latestBrief.id, taskCount: latestBrief.checklist.length, photoCount: latestBrief.photos.length, reviewedHours: scanComplete ? latestBrief.scopeEstimateHours : null, confidence: scanComplete ? latestBrief.scopeConfidence : "", confirmedExtras: scanComplete && latestBrief.priceSensitiveScopeConfirmed ? latestBrief.scopeSignals.map((signal) => signal.label) : [], revisionNote: latestBrief.status === "needs-revision" ? latestBrief.reviewNote : "" } : null,
@@ -4895,7 +4907,7 @@ async function handleCleaningRequest(request, response) {
     customerType: text(input.customerType, 40) || "Cleaning customer",
     propertyType: text(input.propertyType, 80),
     service: text(input.service, 80),
-    siteSize: text(input.siteSize, 160),
+    siteSize: text(input.siteSize, 160) || scanDefinedSiteScope,
     accessNotes: text(input.accessNotes, 500) || "Confirm privately after booking",
     hazards: text(input.hazards, 120),
     frequency: text(input.frequency, 80) || "One-off",
@@ -4912,7 +4924,6 @@ async function handleCleaningRequest(request, response) {
   required(record.customerType, "Customer type", errors);
   required(record.propertyType, "Property type", errors);
   required(record.service, "Service", errors);
-  required(record.siteSize, "Site size or rooms", errors);
   required(record.accessNotes, "Access arrangements", errors);
   required(record.hazards, "Known hazards", errors);
   required(record.preferredDate, "Preferred date", errors);
