@@ -38,10 +38,17 @@ let currentContext = {
 };
 const security = {
   requireOrigin(req) { if (req.headers.origin !== origin) throw new AccountHttpError(403, "origin-rejected", "The request origin was rejected."); },
-  async protect(req) {
-    this.requireOrigin(req);
-    if (req.headers["x-csrf-token"] !== "valid-csrf") throw new AccountHttpError(403, "csrf-rejected", "The security token is missing or expired.");
+  async authenticate(req) {
+    if (!String(req.headers.cookie || "").includes("__Host-tideway_session=opaque")) throw new AccountHttpError(401, "authentication-required", "Sign in is required.");
     return currentContext;
+  },
+  async protect(req, policy = {}) {
+    const context = await this.authenticate(req);
+    if (policy.mutation) {
+      this.requireOrigin(req);
+      if (req.headers["x-csrf-token"] !== "valid-csrf") throw new AccountHttpError(403, "csrf-rejected", "The security token is missing or expired.");
+    }
+    return context;
   }
 };
 let signInResult = { authenticated: false, reason: "invalid-credentials" };
@@ -57,8 +64,11 @@ const credentialService = {
 };
 const identityService = {
   async socialSignIn(provider, claims) { calls.push({ kind: "social-sign-in", provider, claims }); return { user_id: currentContext.actor.userId, email: claims.email, email_verified_at: "2026-07-15T12:00:00.000Z", display_name: claims.displayName, selected_role: null, roles: [] }; },
-  async completeOnboarding(actor, role) { calls.push({ kind: "onboarding", actor, role }); return { user_id: actor.userId, selected_role: role, roles: [role] }; }
+  async completeOnboarding(actor, role) { calls.push({ kind: "onboarding", actor, role }); return { user_id: actor.userId, selected_role: role, roles: [role] }; },
+  async connectedProviders(actor) { calls.push({ kind: "connected-providers", actor }); return connectedProviders; },
+  async connectProvider(actor, provider, claims) { calls.push({ kind: "connect-provider", actor, provider, claims }); connectedProviders.push({ provider, connectedAt: "2026-07-16T12:00:00.000Z", lastUsedAt: null }); return { provider }; }
 };
+const connectedProviders = [{ provider: "password", connectedAt: "2026-07-15T12:00:00.000Z", lastUsedAt: null }];
 const accountSessionService = {
   async establish(account, metadata) { calls.push({ kind: "establish", account, metadata }); return { account, csrfToken: "new-csrf-private", expiresAt: "2026-07-16T15:00:00.000Z", setCookie: "__Host-tideway_session=opaque; Path=/; HttpOnly; SameSite=Lax; Secure" }; },
   async rotate(context, account, metadata) { calls.push({ kind: "rotate", context, account, metadata }); return { account, csrfToken: "rotated-csrf-private", expiresAt: "2026-07-16T15:00:00.000Z", setCookie: "__Host-tideway_session=rotated; Path=/; HttpOnly; SameSite=Lax; Secure" }; },
@@ -73,25 +83,27 @@ let nowValue = 1000;
 const waits = [];
 let unexpectedError;
 let googleCompletionError = null;
+let googlePurpose = "sign-in";
 const googleOidcProvider = {
   name: "google",
   clearCookie: "tideway_google_flow=; Max-Age=0; HttpOnly; Secure",
-  begin() { calls.push({ kind: "google-start" }); return { location: "https://accounts.google.com/o/oauth2/v2/auth?state=opaque", setCookie: "tideway_google_flow=signed; HttpOnly; Secure" }; },
+  begin(options = {}) { googlePurpose = options.purpose || "sign-in"; calls.push({ kind: "google-start", purpose: googlePurpose }); return { location: "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&redirect_uri=https%3A%2F%2Ftideway.example.com%2Fapi%2Fmarketplace%2Fauth%2Fgoogle%2Fcallback&state=opaque", setCookie: "tideway_google_flow=signed; HttpOnly; Secure" }; },
   async complete(url, cookie) {
     calls.push({ kind: "google-complete", url: url.toString(), cookie });
     if (googleCompletionError) throw googleCompletionError;
-    return { subject: "google-subject", email: "owner@example.com", emailVerified: true, displayName: "Property Owner", avatarUrl: "", locale: "en-GB" };
+    return { subject: "google-subject", email: "owner@example.com", emailVerified: true, displayName: "Property Owner", avatarUrl: "", locale: "en-GB", flowPurpose: googlePurpose };
   }
 };
 let facebookCompletionError = null;
+let facebookPurpose = "sign-in";
 const facebookLoginProvider = {
   name: "facebook",
   clearCookie: "tideway_facebook_flow=; Max-Age=0; HttpOnly; Secure",
-  begin() { calls.push({ kind: "facebook-start" }); return { location: "https://www.facebook.com/v99.0/dialog/oauth?state=opaque", setCookie: "tideway_facebook_flow=signed; HttpOnly; Secure" }; },
+  begin(options = {}) { facebookPurpose = options.purpose || "sign-in"; calls.push({ kind: "facebook-start", purpose: facebookPurpose }); return { location: "https://www.facebook.com/v99.0/dialog/oauth?response_type=code&redirect_uri=https%3A%2F%2Ftideway.example.com%2Fapi%2Fmarketplace%2Fauth%2Ffacebook%2Fcallback&state=opaque", setCookie: "tideway_facebook_flow=signed; HttpOnly; Secure" }; },
   async complete(url, cookie) {
     calls.push({ kind: "facebook-complete", url: url.toString(), cookie });
     if (facebookCompletionError) throw facebookCompletionError;
-    return { subject: "facebook-subject", email: "owner@example.com", emailVerified: false, displayName: "Property Owner", avatarUrl: "", locale: "" };
+    return { subject: "facebook-subject", email: "owner@example.com", emailVerified: false, displayName: "Property Owner", avatarUrl: "", locale: "", flowPurpose: facebookPurpose };
   }
 };
 let facebookBeginResult = { authenticated: false, verificationRequired: true, emailDelivery: { kind: "facebook-email-verification", recipient: "owner@example.com", token: "facebook-verification-private", expiresAt: "2026-07-16T13:00:00.000Z" } };
@@ -100,7 +112,17 @@ const facebookIdentityService = {
   async begin(claims) { calls.push({ kind: "facebook-identity-begin", claims }); return facebookBeginResult; },
   async verify(token) { calls.push({ kind: "facebook-identity-verify", token }); return facebookVerifyResult; }
 };
-const router = createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, accountSessionService, emailDelivery, rateLimiter, googleOidcProvider, facebookLoginProvider }, {
+const providerLinkState = {
+  clearCookie: "__Host-tideway_provider_link=; Max-Age=0; HttpOnly; Secure",
+  has(cookie) { return String(cookie || "").includes("__Host-tideway_provider_link="); },
+  begin(context, provider) { calls.push({ kind: "provider-link-begin", context, provider }); return `__Host-tideway_provider_link=${provider}-signed; HttpOnly; Secure`; },
+  verify(cookie, context, provider) {
+    calls.push({ kind: "provider-link-verify", cookie, context, provider });
+    if (!String(cookie).includes(`__Host-tideway_provider_link=${provider}-signed`)) throw new TypeError("The provider connection attempt is missing or expired.");
+    return { provider, userId: context.actor.userId, sessionId: context.sessionId };
+  }
+};
+const router = createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, providerLinkState, accountSessionService, emailDelivery, rateLimiter, googleOidcProvider, facebookLoginProvider }, {
   appOrigin: origin,
   clientKey: () => "198.51.100.10",
   minimumPublicResponseMs: 500,
@@ -145,6 +167,27 @@ facebookCompletionError = new TypeError("private Facebook rejection");
 const failedFacebookCallback = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=bad&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed" });
 assert(failedFacebookCallback.response.statusCode === 303 && failedFacebookCallback.response.headers.Location === "/login#social=facebook-failed" && !failedFacebookCallback.response.headers.Location.includes("private Facebook rejection"), "Rejected Facebook callback leaked provider detail or retained flow state.");
 facebookCompletionError = null;
+
+const providerList = await dispatch(router, "GET", "/api/marketplace/auth/provider-links", undefined, privateHeaders);
+assert(providerList.response.statusCode === 200 && providerList.body.connected.length === 1 && providerList.body.connected[0].provider === "password" && providerList.body.available.google === true && providerList.body.available.facebook === true && providerList.body.available.apple === false, "Authenticated settings did not return the narrow connected/available provider projection.");
+const failedLinkStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/google/start", { password: "wrong" }, privateHeaders);
+assert(failedLinkStart.response.statusCode === 401 && failedLinkStart.body.code === "step-up-failed" && !failedLinkStart.response.headers["Set-Cookie"], "Provider connection began without current-password step-up.");
+signInResult = { authenticated: true, account: { userId: currentContext.actor.userId, email: "owner@example.com", emailVerifiedAt: "2026-07-15T12:00:00.000Z", displayName: "Property Owner", selectedRole: null, roles: [] } };
+const googleLinkStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/google/start", { password: "correct" }, privateHeaders);
+assert(googleLinkStart.response.statusCode === 200 && googleLinkStart.body.provider === "google" && googleLinkStart.body.location.startsWith("https://accounts.google.com/") && googleLinkStart.response.headers["Set-Cookie"].length === 2 && calls.some((call) => call.kind === "google-start" && call.purpose === "link") && calls.some((call) => call.kind === "provider-link-begin" && call.provider === "google"), "Password step-up did not create both signed Google and session-bound connection states.");
+const googleLinkCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=link&state=opaque", undefined, { cookie: "__Host-tideway_session=opaque; tideway_google_flow=signed; __Host-tideway_provider_link=google-signed" });
+assert(googleLinkCallback.response.statusCode === 303 && googleLinkCallback.response.headers.Location === "/settings#provider=google-connected" && googleLinkCallback.response.headers["Set-Cookie"].length === 2 && calls.some((call) => call.kind === "connect-provider" && call.provider === "google") && !googleLinkCallback.response.headers.Location.includes("link"), "Google provider callback did not connect only to the authenticated session or clear both flow cookies.");
+const socialSignInsBeforeMissingLinkState = calls.filter((call) => call.kind === "social-sign-in").length;
+const missingLinkState = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=link-without-binding&state=opaque", undefined, { cookie: "__Host-tideway_session=opaque; tideway_google_flow=signed" });
+assert(missingLinkState.response.headers.Location === "/login#social=google-failed" && calls.filter((call) => call.kind === "social-sign-in").length === socialSignInsBeforeMissingLinkState, "A signed provider-link callback without its session binding downgraded into ordinary social sign-in.");
+const duplicateGoogleLink = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/google/start", { password: "correct" }, privateHeaders);
+assert(duplicateGoogleLink.response.statusCode === 409 && duplicateGoogleLink.body.code === "provider-already-connected", "An already-connected provider started a replacement flow.");
+const facebookLinkStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/facebook/start", { password: "correct" }, privateHeaders);
+assert(facebookLinkStart.response.statusCode === 200 && facebookLinkStart.body.location.startsWith("https://www.facebook.com/") && calls.some((call) => call.kind === "facebook-start" && call.purpose === "link"), "Facebook connection did not preserve the authenticated link purpose.");
+const facebookIdentityCallsBeforeLink = calls.filter((call) => call.kind === "facebook-identity-begin").length;
+const facebookLinkCallback = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=link&state=opaque", undefined, { cookie: "__Host-tideway_session=opaque; tideway_facebook_flow=signed; __Host-tideway_provider_link=facebook-signed" });
+assert(facebookLinkCallback.response.headers.Location === "/settings#provider=facebook-connected" && calls.some((call) => call.kind === "connect-provider" && call.provider === "facebook") && calls.filter((call) => call.kind === "facebook-identity-begin").length === facebookIdentityCallsBeforeLink, "Authenticated Facebook connection incorrectly entered the untrusted pre-login mailbox-linking flow.");
+signInResult = { authenticated: false, reason: "invalid-credentials" };
 
 const signup = await dispatch(router, "POST", "/api/marketplace/auth/signup", { email: "new@example.com", displayName: "New User", password: "long password" }, publicHeaders);
 const signupDelivery = deliveries.at(-1);
@@ -194,4 +237,4 @@ emailDelivery.send = async () => { throw new Error("private SMTP detail"); };
 const deliveryFailure = await dispatch(router, "POST", "/api/marketplace/auth/password-reset/request", { email: "owner@example.com" }, publicHeaders);
 assert(deliveryFailure.response.statusCode === 500 && deliveryFailure.body.error === "Something went wrong. Please try again." && !deliveryFailure.response.body.includes("SMTP") && unexpectedError?.message === "private SMTP detail", "Delivery failure leaked private provider details or bypassed private monitoring.");
 
-console.log("Authentication HTTP tests passed: generic signup/resend/reset, fragment-only email tokens, verified login session issuance, persistent lock handling, exact logout, onboarding rotation, trusted rate limiting and sanitized delivery failures.");
+console.log("Authentication HTTP tests passed: generic credential lifecycle, social sign-in, password-step-up/session-bound Google/Facebook connection, exact logout, onboarding rotation, trusted limiting and sanitized failures.");

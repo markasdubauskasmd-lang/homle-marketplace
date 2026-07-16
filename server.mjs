@@ -5106,6 +5106,7 @@ async function serveFile(requestPath, response) {
     "/verify-facebook": "account.html",
     "/reset-password": "account.html",
     "/onboarding": "account.html",
+    "/settings": "settings.html",
     "/cleaners": "cleaners.html",
     "/cleaner/dashboard": "cleaner-dashboard.html",
     "/cleaner/profile": "cleaner-profile.html",

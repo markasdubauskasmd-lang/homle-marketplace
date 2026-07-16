@@ -142,6 +142,31 @@ export function createAuthenticationRepository(database) {
       });
     },
 
+    async listConnectedIdentities(actor) {
+      return database.withAccountTransaction(actor, async (client) => {
+        const result = await client.query("SELECT * FROM tideway_private.list_my_authentication_identities()");
+        return result.rows;
+      });
+    },
+
+    async connectSocialIdentity(actor, providerValue, claims) {
+      const provider = socialProvider(providerValue);
+      if (!claims || typeof claims.emailVerified !== "boolean") throw new TypeError("Provider connection claims are required.");
+      const subject = boundedProviderText(claims.subject, "Provider subject", 255);
+      const email = claims.email == null || claims.email === "" ? null : normalizedEmail(claims.email);
+      const displayName = boundedProviderText(claims.displayName, "Provider display name", 120, false);
+      const avatarUrl = boundedProviderText(claims.avatarUrl, "Provider avatar URL", 2048, false);
+      const profile = claims.profile && typeof claims.profile === "object" && !Array.isArray(claims.profile) ? claims.profile : {};
+      if (JSON.stringify(profile).length > 4096) throw new TypeError("Provider profile snapshot is too large.");
+      return database.withAccountTransaction(actor, async (client) => {
+        const result = await client.query(
+          "SELECT * FROM tideway_private.connect_social_identity($1::authentication_provider,$2::text,$3::citext,$4::boolean,$5::text,$6::text,$7::jsonb)",
+          [provider, subject, email, claims.emailVerified, displayName, avatarUrl, profile]
+        );
+        return result.rows[0] || null;
+      });
+    },
+
     async completeRoleOnboarding(actor, role) {
       if (!actor) throw new TypeError("An authenticated account is required.");
       if (role !== "cleaner" && role !== "landlord") throw new TypeError("Onboarding role must be Cleaner or Landlord.");

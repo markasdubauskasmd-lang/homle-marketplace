@@ -18,7 +18,7 @@ The callback must consume the login attempt exactly once before creating a Tidew
 - A new provider identity may attach to an existing active Tideway account only when the provider has verified the exact same canonical email.
 - Concurrent first callbacks are serialized by provider-subject and canonical-email advisory transaction locks; database uniqueness remains the final guard.
 - Suspended, deletion-pending or deleted accounts cannot be bypassed by signing in through another provider.
-- Connecting or removing an additional provider from Settings still requires a recent authenticated session and provider re-authentication. The pre-login resolver does not implement provider removal.
+- Connecting Google or Facebook from Settings now requires the existing live session, same-origin CSRF, current-password step-up, a signed link-purpose OAuth flow and a second user/session/provider-bound cookie. Social-only step-up and lockout-safe provider removal remain closed; the pre-login resolver never performs either action.
 
 ## Onboarding and sessions
 

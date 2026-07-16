@@ -1,4 +1,4 @@
-import { createIdentityService, normalizedVerifiedSocialClaims, selectedOnboardingRole } from "../src/marketplace/identity-service.mjs";
+import { createIdentityService, normalizedProviderConnectionClaims, normalizedVerifiedSocialClaims, selectedOnboardingRole } from "../src/marketplace/identity-service.mjs";
 import { readFile } from "node:fs/promises";
 
 function assert(condition, message) {
@@ -35,6 +35,14 @@ const repository = {
     if (previous && previous !== role) throw new Error("role change rejected");
     onboarding.set(actor.userId, role);
     return { user_id: actor.userId, selected_role: role, roles: [role], profile_created: !previous };
+  },
+  async listConnectedIdentities(actor) {
+    return [{ provider: "password", connected_at: "2026-07-16T09:00:00.000Z", last_used_at: null }, ...[...identities.entries()].filter(([, identity]) => identity.user_id === actor.userId).map(([key]) => ({ provider: key.split(":", 1)[0], connected_at: "2026-07-16T10:00:00.000Z", last_used_at: null }))];
+  },
+  async connectSocialIdentity(actor, provider, claims) {
+    const key = `${provider}:${claims.subject}`;
+    identities.set(key, { user_id: actor.userId, ...claims });
+    return { provider, connected_at: "2026-07-16T10:00:00.000Z", last_used_at: null, already_connected: false };
   }
 };
 const service = createIdentityService(repository);
@@ -43,6 +51,8 @@ const googleClaims = { subject: "google-subject-1", email: " Owner@Example.com "
 const normalized = normalizedVerifiedSocialClaims("google", googleClaims);
 assert(normalized.email === "owner@example.com" && normalized.displayName === "Property Owner" && normalized.avatarUrl.startsWith("https://") && normalized.profile.locale === "en-GB", "Verified provider claims were not safely normalized.");
 assert(expectThrow(() => normalizedVerifiedSocialClaims("google", { ...googleClaims, emailVerified: false }), "must verify") && expectThrow(() => normalizedVerifiedSocialClaims("password", googleClaims), "supported social") && expectThrow(() => selectedOnboardingRole("administrator"), "Cleaner or Landlord"), "Unverified social email, password-as-social or administrator self-selection was accepted.");
+const facebookConnectionClaims = normalizedProviderConnectionClaims("facebook", { ...googleClaims, emailVerified: false });
+assert(facebookConnectionClaims.email === "owner@example.com" && facebookConnectionClaims.emailVerified === false && expectThrow(() => normalizedProviderConnectionClaims("google", { ...googleClaims, emailVerified: false }), "must verify"), "Authenticated provider connection did not preserve the distinct Google/Facebook email trust boundary.");
 
 const firstGoogleLogin = await service.socialSignIn("google", googleClaims);
 const repeatedGoogleLogin = await service.socialSignIn("google", googleClaims);
@@ -68,6 +78,9 @@ try {
   passwordAccountStepUpRequired = error.message.includes("authenticated settings");
 }
 assert(passwordAccountStepUpRequired && !identities.has("facebook:facebook-for-password-account"), "A pre-authenticated social callback attached to a password account without account step-up.");
+const connectedFromSettings = await service.connectProvider({ userId: "verified-password-account", roles: ["landlord"] }, "facebook", { ...googleClaims, subject: "facebook-after-step-up", emailVerified: false });
+const listedConnections = await service.connectedProviders({ userId: "verified-password-account", roles: ["landlord"] });
+assert(connectedFromSettings.provider === "facebook" && listedConnections.some((item) => item.provider === "password") && listedConnections.some((item) => item.provider === "facebook") && identities.get("facebook:facebook-after-step-up")?.emailVerified === false, "Authenticated settings did not connect and safely list the additional provider.");
 
 const cleanerOnboarding = await service.completeOnboarding({ userId: firstGoogleLogin.user_id, roles: [] }, "cleaner");
 const repeatedCleanerOnboarding = await service.completeOnboarding({ userId: firstGoogleLogin.user_id, roles: ["cleaner"] }, "cleaner");
@@ -77,11 +90,14 @@ try { await service.completeOnboarding({ userId: firstGoogleLogin.user_id, roles
 assert(roleSwitchRejected, "A self-service role change bypassed the reviewed account workflow.");
 
 const migrationSql = await readFile(new URL("../db/migrations/004_social_identity_and_onboarding.sql", import.meta.url), "utf8");
+const connectionMigration = await readFile(new URL("../db/migrations/027_authenticated_provider_connections.sql", import.meta.url), "utf8");
 const runtimeGrantsSql = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const unverifiedMergeGuard = migrationSql.indexOf("IF resolved_email_verified_at IS NULL");
 const socialIdentityInsert = migrationSql.indexOf("INSERT INTO authentication_identities (", unverifiedMergeGuard);
 assert(migrationSql.includes("resolve_social_identity") && migrationSql.includes("asserted_email_verified IS DISTINCT FROM true") && (migrationSql.match(/pg_advisory_xact_lock/g) || []).length === 2 && migrationSql.includes("SELECT u.id, u.account_status, u.email_verified_at INTO resolved_user_id, resolved_status, resolved_email_verified_at") && migrationSql.includes("WHERE u.email = normalized_email FOR UPDATE") && migrationSql.includes("ai.provider = 'password'") && migrationSql.includes("resolved_email_verified_at IS NULL OR resolved_has_password_identity") && unverifiedMergeGuard > 0 && socialIdentityInsert > unverifiedMergeGuard && migrationSql.includes("authenticated settings") && migrationSql.includes("UNSUPPORTED_PLACEHOLDER") === false, "Social identity migration lacks the verified-email, password-account step-up, unverified-account takeover, concurrency or deduplication safeguards.");
 assert(migrationSql.includes("complete_role_onboarding") && migrationSql.includes("chosen_role NOT IN ('cleaner', 'landlord')") && migrationSql.includes("ON CONFLICT (user_id) DO NOTHING") && migrationSql.includes("account.role.selected") && (migrationSql.match(/REVOKE ALL ON FUNCTION/g) || []).length === 2, "Role onboarding migration is not idempotent, auditable or restricted.");
 assert(runtimeGrantsSql.includes("resolve_social_identity(authentication_provider, text, citext, boolean, text, text, jsonb)") && runtimeGrantsSql.includes("complete_role_onboarding(user_role)"), "The restricted runtime role cannot execute the social identity or onboarding functions.");
+assert(connectionMigration.includes("list_my_authentication_identities") && connectionMigration.includes("connect_social_identity") && connectionMigration.includes("tideway_private.current_user_id()") && (connectionMigration.match(/pg_advisory_xact_lock/g) || []).length === 2 && connectionMigration.includes("provider-identity-already-connected") && connectionMigration.includes("account-provider-already-connected") && connectionMigration.includes("authentication-provider-connected") && connectionMigration.trimEnd().endsWith("COMMIT;"), "Authenticated provider connection lacks actor binding, collision locks, audit history or atomic migration boundaries.");
+assert(runtimeGrantsSql.includes("connect_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)") && runtimeGrantsSql.includes("REVOKE SELECT, INSERT, UPDATE, DELETE ON authentication_identities FROM tideway_app"), "Provider connection bypasses the function-only runtime boundary.");
 
-console.log("Authentication service tests passed: verified Google account creation, repeat-login identity reuse, safe social-only email deduplication, password-account step-up enforcement, unverified-account merge rejection, role-specific idempotent onboarding and administrator self-selection denial.");
+console.log("Authentication service tests passed: safe social sign-in, takeover-resistant password-account step-up, authenticated provider connection/listing, collision-locked migration and role onboarding.");

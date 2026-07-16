@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Manage Tideway account sign-in methods privately.">
+  <meta name="theme-color" content="#0e665b">
+  <title>Account settings | Tideway</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260716-63">
+  <script src="/settings.js?v=20260716-1" type="module"></script>
+</head>
+<body class="account-page">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><div class="shell nav-wrap"><a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a><nav class="account-nav" aria-label="Account settings navigation"><a href="/">Back to Tideway</a></nav></div></header>
+  <main id="main" class="account-main settings-main">
+    <section class="shell settings-shell" aria-labelledby="settings-title">
+      <p class="eyebrow">Private account security</p>
+      <h1 id="settings-title">Sign-in methods</h1>
+      <p class="account-lead">Connect another trusted sign-in method without changing your Tideway role, profile or bookings.</p>
+      <div class="account-state" role="status" aria-live="polite" data-settings-state><span class="account-state-mark" aria-hidden="true">i</span><div><strong data-settings-title>Checking your account…</strong><p data-settings-copy>Connection controls stay unavailable until your signed-in account and the provider are verified.</p></div></div>
+      <div class="account-feedback" data-settings-feedback role="status" aria-live="polite" hidden></div>
+      <section class="settings-card" data-settings-content hidden aria-labelledby="methods-title">
+        <div><h2 id="methods-title">Your methods</h2><p>Provider subjects, access tokens and private account identifiers are never shown here.</p></div>
+        <ul class="settings-provider-list" data-provider-list></ul>
+        <div class="settings-connect" data-provider-actions hidden>
+          <h2>Connect another method</h2>
+          <p>For security, enter your current Tideway password before continuing to Google or Facebook. Tideway never receives that provider’s password.</p>
+          <div class="settings-provider-actions"><button class="button button-outline" type="button" data-connect-provider="google" hidden>Connect Google</button><button class="button button-outline" type="button" data-connect-provider="facebook" hidden>Connect Facebook</button></div>
+        </div>
+      </section>
+      <div class="account-actions"><a class="button button-outline" href="/login">Return to sign in</a></div>
+    </section>
+  </main>
+  <dialog class="settings-dialog" data-link-dialog aria-labelledby="link-dialog-title">
+    <form method="dialog" data-link-form>
+      <div><p class="eyebrow">Security check</p><h2 id="link-dialog-title" data-link-title>Connect sign-in method</h2><p data-link-copy>Enter your current Tideway password to continue.</p></div>
+      <label>Current Tideway password<input name="password" type="password" autocomplete="current-password" minlength="12" maxlength="128" required></label>
+      <div class="account-feedback" data-link-feedback role="status" aria-live="polite" hidden></div>
+      <div class="settings-dialog-actions"><button class="button button-outline" type="button" data-link-cancel>Cancel</button><button class="button" type="submit" data-link-submit>Continue securely</button></div>
+    </form>
+  </dialog>
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Tideway private pilot.</span><a href="/privacy">Privacy notice</a></div></footer>
+</body>
+</html>

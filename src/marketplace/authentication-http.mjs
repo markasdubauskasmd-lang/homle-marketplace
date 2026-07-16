@@ -59,9 +59,10 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const google = dependencies?.googleOidcProvider || null;
   const facebook = dependencies?.facebookLoginProvider || null;
   const facebookIdentity = dependencies?.facebookIdentityService || null;
+  const providerLink = dependencies?.providerLinkState || null;
   if (!security || typeof security.protect !== "function" || typeof security.requireOrigin !== "function") throw new TypeError("Authentication HTTP routes require account security.");
   if (!credentials || ["register", "requestEmailVerification", "verifyEmail", "signIn", "requestPasswordReset", "resetPassword"].some((method) => typeof credentials[method] !== "function")) throw new TypeError("Authentication HTTP routes require the credential service.");
-  if (!identity || typeof identity.completeOnboarding !== "function" || (google && typeof identity.socialSignIn !== "function")) throw new TypeError("Authentication HTTP routes require the identity service.");
+  if (!identity || ["completeOnboarding", "connectedProviders", "connectProvider"].some((method) => typeof identity[method] !== "function") || (google && typeof identity.socialSignIn !== "function")) throw new TypeError("Authentication HTTP routes require the identity service.");
   if (facebook && (!facebookIdentity || typeof facebookIdentity.begin !== "function" || typeof facebookIdentity.verify !== "function")) throw new TypeError("Facebook authentication routes require the pending identity service.");
   if (!sessions || ["establish", "rotate", "logout", "logoutAll"].some((method) => typeof sessions[method] !== "function")) throw new TypeError("Authentication HTTP routes require the session service.");
   if (!emailDelivery || typeof emailDelivery.send !== "function") throw new TypeError("Authentication HTTP routes require a trusted email-delivery adapter.");
@@ -74,6 +75,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const limit = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
   if (google && (google.name !== "google" || typeof google.begin !== "function" || typeof google.complete !== "function" || typeof google.clearCookie !== "string")) throw new TypeError("Google authentication routes require a complete OIDC provider.");
   if (facebook && (facebook.name !== "facebook" || typeof facebook.begin !== "function" || typeof facebook.complete !== "function" || typeof facebook.clearCookie !== "string")) throw new TypeError("Facebook authentication routes require a complete provider verifier.");
+  if (!providerLink || ["begin", "verify", "has"].some((method) => typeof providerLink[method] !== "function") || typeof providerLink.clearCookie !== "string") throw new TypeError("Authentication HTTP routes require provider connection state.");
 
   async function privateDelivery(delivery) {
     if (!delivery) return;
@@ -89,12 +91,55 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
     return { userAgent: header(request, "user-agent"), ipAddress: limit.clientKey(request) };
   }
 
+  function providerAdapter(name) {
+    return name === "google" ? google : name === "facebook" ? facebook : null;
+  }
+
+  async function completeProviderConnection(request, response, provider, claims, adapter) {
+    const context = await security.authenticate(request);
+    providerLink.verify(header(request, "cookie"), context, provider);
+    await identity.connectProvider(context.actor, provider, claims);
+    sendRedirect(response, 303, `/settings#provider=${provider}-connected`, [adapter.clearCookie, providerLink.clearCookie]);
+  }
+
   return {
     async handle(request, response, suppliedUrl) {
       const url = suppliedUrl instanceof URL ? suppliedUrl : new URL(request.url || "/", "http://localhost");
       if (!url.pathname.startsWith(prefix) && url.pathname !== "/api/marketplace/onboarding") return false;
       const startedAt = now();
       try {
+        if (url.pathname === `${prefix}provider-links`) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          const connected = await identity.connectedProviders(context.actor);
+          sendJson(response, 200, { ok: true, connected, available: { google: Boolean(google), facebook: Boolean(facebook), apple: false } });
+          return true;
+        }
+        const linkStartMatch = url.pathname.match(new RegExp(`^${prefix}provider-links/(google|facebook)/start$`));
+        if (linkStartMatch) {
+          const selectedProvider = linkStartMatch[1];
+          const adapter = providerAdapter(selectedProvider);
+          if (!adapter) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true });
+          await limit(request, "login");
+          await limit(request, `${selectedProvider}-start`);
+          const passwordStepUp = await credentials.signIn(context.account.email, (await readJsonObject(request)).password);
+          const sameAccount = passwordStepUp.authenticated === true && passwordStepUp.account?.userId === context.actor.userId;
+          if (!sameAccount) {
+            const locked = passwordStepUp.reason === "temporarily-locked";
+            sendJson(response, locked ? 429 : 401, { ok: false, code: locked ? "temporarily-locked" : "step-up-failed", error: locked ? "Sign in is temporarily locked. Try again later." : "Your current password is required before connecting another sign-in method." });
+            return true;
+          }
+          const connected = await identity.connectedProviders(context.actor);
+          if (connected.some((item) => item.provider === selectedProvider)) {
+            sendJson(response, 409, { ok: false, code: "provider-already-connected", error: `${selectedProvider === "google" ? "Google" : "Facebook"} is already connected to this account.` });
+            return true;
+          }
+          const attempt = adapter.begin({ purpose: "link" });
+          sendJson(response, 200, { ok: true, provider: selectedProvider, location: attempt.location }, { "Set-Cookie": [attempt.setCookie, providerLink.begin(context, selectedProvider)] });
+          return true;
+        }
         if (url.pathname === `${prefix}google/start`) {
           if (!google) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
@@ -109,6 +154,11 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           try {
             await limit(request, "google-callback");
             const claims = await google.complete(url, header(request, "cookie"));
+            if ((claims.flowPurpose ?? "sign-in") === "link") {
+              await completeProviderConnection(request, response, "google", claims, google);
+              return true;
+            }
+            if ((claims.flowPurpose ?? "sign-in") !== "sign-in") throw new TypeError("Google returned an invalid flow purpose.");
             const account = await identity.socialSignIn("google", claims);
             const session = await sessions.establish(account, metadata(request));
             const destination = session.account.roles.length ? "/login" : "/onboarding";
@@ -117,8 +167,9 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           } catch (error) {
             const rateLimited = error?.statusCode === 429;
             if (!rateLimited && !(error instanceof TypeError)) onUnexpectedError(error);
-            const fragment = new URLSearchParams({ social: rateLimited ? "rate-limited" : "google-failed" });
-            sendRedirect(response, 303, `/login#${fragment}`, [google.clearCookie]);
+            const linking = providerLink.has(header(request, "cookie"));
+            const fragment = new URLSearchParams({ [linking ? "provider" : "social"]: rateLimited ? "rate-limited" : "google-failed" });
+            sendRedirect(response, 303, `${linking ? "/settings" : "/login"}#${fragment}`, [google.clearCookie, ...(linking ? [providerLink.clearCookie] : [])]);
           }
           return true;
         }
@@ -136,6 +187,11 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           try {
             await limit(request, "facebook-callback");
             const claims = await facebook.complete(url, header(request, "cookie"));
+            if ((claims.flowPurpose ?? "sign-in") === "link") {
+              await completeProviderConnection(request, response, "facebook", claims, facebook);
+              return true;
+            }
+            if ((claims.flowPurpose ?? "sign-in") !== "sign-in") throw new TypeError("Facebook returned an invalid flow purpose.");
             const result = await facebookIdentity.begin(claims);
             if (result.authenticated) {
               const session = await sessions.establish(result.account, metadata(request));
@@ -151,8 +207,9 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           } catch (error) {
             const rateLimited = error?.statusCode === 429;
             if (!rateLimited && !(error instanceof TypeError)) onUnexpectedError(error);
-            const fragment = new URLSearchParams({ social: rateLimited ? "rate-limited" : "facebook-failed" });
-            sendRedirect(response, 303, `/login#${fragment}`, [facebook.clearCookie]);
+            const linking = providerLink.has(header(request, "cookie"));
+            const fragment = new URLSearchParams({ [linking ? "provider" : "social"]: rateLimited ? "rate-limited" : "facebook-failed" });
+            sendRedirect(response, 303, `${linking ? "/settings" : "/login"}#${fragment}`, [facebook.clearCookie, ...(linking ? [providerLink.clearCookie] : [])]);
           }
           return true;
         }

@@ -59,9 +59,15 @@ assert.equal(first.state.length, 43);
 assert(first.attempt.setCookie.startsWith("__Host-tideway_facebook_flow=") && first.attempt.setCookie.includes("HttpOnly") && first.attempt.setCookie.includes("SameSite=Lax") && first.attempt.setCookie.includes("Secure") && first.attempt.setCookie.includes("Max-Age=600") && !first.attempt.setCookie.includes(appSecret));
 
 const claims = await provider.complete(new URL(`${provider.callbackUrl}?code=private-code&state=${encodeURIComponent(first.state)}`), first.cookie);
-assert.deepEqual(claims, { subject: "facebook-subject-123", email: "owner@example.com", emailVerified: false, displayName: "Property Owner", avatarUrl: "https://images.example.com/owner.jpg", locale: "" });
+assert.deepEqual(claims, { subject: "facebook-subject-123", email: "owner@example.com", emailVerified: false, displayName: "Property Owner", avatarUrl: "https://images.example.com/owner.jpg", locale: "", flowPurpose: "sign-in" });
 assert.equal(requests.length, 3);
 assert(provider.clearCookie.includes("Max-Age=0") && provider.clearCookie.includes("Secure"));
+
+const link = provider.begin({ purpose: "link" });
+const linkLocation = new URL(link.location);
+const linkClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=link&state=${encodeURIComponent(linkLocation.searchParams.get("state"))}`), link.setCookie.split(";", 1)[0]);
+assert.equal(linkClaims.flowPurpose, "link");
+assert.throws(() => provider.begin({ purpose: "unexpected" }), /purpose/i);
 
 const proxied = start();
 await provider.complete(new URL(`http://127.0.0.1:4173/api/marketplace/auth/facebook/callback?code=proxied&state=${encodeURIComponent(proxied.state)}`), proxied.cookie);
@@ -109,4 +115,4 @@ await assert.rejects(
   (error) => error instanceof TypeError && error.message.includes("temporarily unavailable") && !error.message.includes(accessToken)
 );
 
-console.log("Facebook Login tests passed: version-pinned authorization, signed state, bounded server exchange, app-bound token inspection, app-secret proof, subject matching, unverified-email boundary and cookie cleanup.");
+console.log("Facebook Login tests passed: version-pinned authorization, signed sign-in/link purpose, bounded server exchange, app-bound token inspection, app-secret proof, subject matching, unverified-email boundary and cookie cleanup.");

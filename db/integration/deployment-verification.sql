@@ -17,11 +17,11 @@ DECLARE
     'booking_payments','payment_commands','payment_status_history'
   ];
   protected_write_tables constant text[] := ARRAY[
-    'bookings','booking_status_history','cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events',
+    'authentication_identities','bookings','booking_status_history','cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events',
     'job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','audit_logs',
     'booking_payments','payment_commands','payment_status_history'
   ];
-  protected_read_tables constant text[] := ARRAY['job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','booking_payments','payment_commands','payment_status_history'];
+  protected_read_tables constant text[] := ARRAY['authentication_identities','job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','booking_payments','payment_commands','payment_status_history'];
   app_functions constant text[] := ARRAY[
     'tideway_private.lookup_session(bytea)',
     'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
@@ -34,6 +34,8 @@ DECLARE
     'tideway_private.lookup_existing_social_identity(authentication_provider,text)',
     'tideway_private.begin_pending_social_identity(authentication_provider,text,citext,text,text,jsonb,bytea,timestamp with time zone)',
     'tideway_private.consume_pending_social_identity(bytea)',
+    'tideway_private.list_my_authentication_identities()',
+    'tideway_private.connect_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
     'tideway_private.begin_booking_payment_authorization(uuid,uuid,text,bytea)',
     'tideway_private.record_booking_payment_authorization(uuid,text,text)',
     'tideway_private.begin_booking_payment_command(uuid,uuid,text,integer,bytea)',

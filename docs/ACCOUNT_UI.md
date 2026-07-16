@@ -1,6 +1,6 @@
 # Capability-gated account interface
 
-Tideway now has mobile-first account form markup and browser logic for `/login`, `/signup`, `/verify-email`, `/verify-facebook`, `/reset-password` and `/onboarding`. The existing Tideway card, typography, spacing, focus and button system is reused; no second frontend framework was added.
+Tideway now has mobile-first account form markup and browser logic for `/login`, `/signup`, `/verify-email`, `/verify-facebook`, `/reset-password`, `/onboarding` and `/settings`. The existing Tideway card, typography, spacing, focus and button system is reused; no second frontend framework was added.
 
 ## Fail-closed behaviour
 
@@ -17,6 +17,7 @@ Tideway now has mobile-first account form markup and browser logic for `/login`,
 - A first Facebook callback never trusts the provider email: it sends a private Tideway verification link. `/verify-facebook` removes the token before its first request, consumes it once, establishes only Tideway's opaque session and continues a new role-pending account to onboarding. A previously verified Facebook subject follows the normal social-session path.
 - If session storage is unavailable, the browser immediately logs the newly issued/rotated session out instead of leaving an unusable authenticated state.
 - A role-pending login continues to `/onboarding`, where only Cleaner or Landlord/Property Manager can be selected.
+- `/settings` fails closed until the authenticated provider-list route succeeds. Verified password accounts can connect an available Google or Facebook identity only after current-password step-up; returned navigation is allowlisted to the exact provider host and canonical callback. Social-only accounts see no dead connection button until recent-provider step-up exists.
 - Email-verification and password-reset tokens are removed from the address bar before any availability request or form interaction.
 - A missing verification token opens a generic resend form; a missing reset token opens the generic reset-request form.
 - Signup, verification resend and reset request keep their generic anti-enumeration copy.

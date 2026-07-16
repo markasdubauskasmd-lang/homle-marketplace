@@ -66,6 +66,7 @@ function verifiedFlow(value, secret, nowSeconds) {
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new TypeError("The Google sign-in attempt is missing or expired.");
   const payload = safeJson(decodeBase64url(parts[0], "Google sign-in cookie", 3072), "Google sign-in cookie");
   if (payload.v !== 1 || !Number.isInteger(payload.iat) || !Number.isInteger(payload.exp) || payload.iat > nowSeconds + maximumClockSkewSeconds || payload.exp < nowSeconds || payload.exp - payload.iat !== flowLifetimeSeconds) throw new TypeError("The Google sign-in attempt is missing or expired.");
+  if (!["sign-in", "link"].includes(payload.purpose)) throw new TypeError("The Google sign-in attempt is missing or expired.");
   for (const key of ["state", "nonce", "verifier"]) if (typeof payload[key] !== "string" || payload[key].length < 32 || payload[key].length > 128 || !/^[A-Za-z0-9_-]+$/.test(payload[key])) throw new TypeError("The Google sign-in attempt is missing or expired.");
   return payload;
 }
@@ -194,13 +195,15 @@ export function createGoogleOidcProvider(options = {}) {
     name: "google",
     callbackUrl,
     clearCookie: expiredFlowCookie(secure, cookieName),
-    begin() {
+    begin(options = {}) {
+      const purpose = options.purpose ?? "sign-in";
+      if (!["sign-in", "link"].includes(purpose)) throw new TypeError("Google sign-in purpose is invalid.");
       const nowSeconds = Math.floor(clock() / 1000);
       const state = base64url(entropy(32));
       const nonce = base64url(entropy(32));
       const verifier = base64url(entropy(32));
       const challenge = base64url(createHash("sha256").update(verifier, "ascii").digest());
-      const payload = { v: 1, state, nonce, verifier, iat: nowSeconds, exp: nowSeconds + flowLifetimeSeconds };
+      const payload = { v: 1, purpose, state, nonce, verifier, iat: nowSeconds, exp: nowSeconds + flowLifetimeSeconds };
       const url = new URL(authorizationEndpoint);
       url.search = new URLSearchParams({ response_type: "code", client_id: clientId, redirect_uri: callbackUrl, scope: "openid email profile", state, nonce, code_challenge: challenge, code_challenge_method: "S256" }).toString();
       return { location: url.toString(), setCookie: flowCookie(signedFlow(payload, stateSecret), secure, cookieName) };
@@ -220,7 +223,7 @@ export function createGoogleOidcProvider(options = {}) {
       const response = await fetcher(tokenEndpoint, providerRequest({ method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body, redirect: "error" }));
       const tokens = await jsonProviderResponse(response, "Google token exchange");
       if (typeof tokens.id_token !== "string") throw new TypeError("Google did not return an identity token.");
-      return verifyIdentityToken(tokens.id_token, flow.nonce);
+      return { ...await verifyIdentityToken(tokens.id_token, flow.nonce), flowPurpose: flow.purpose };
     }
   });
 }

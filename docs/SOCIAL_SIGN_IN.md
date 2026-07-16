@@ -4,7 +4,20 @@
 
 Google OpenID Connect is implemented in source and connected to the detached marketplace runtime. It is disabled on the current local pilot because the required PostgreSQL runtime, HTTPS domain and real Google Web OAuth credentials are not configured. The account page never reveals the Google control unless `/api/auth/providers` truthfully reports `google: true`.
 
-Facebook Login is now implemented in detached source but remains disabled on the local pilot. Tideway validates the provider identity and App ID, but deliberately treats Facebook's `email` field as unverified. A first-time Facebook subject receives a separate Tideway mailbox-verification link before an account or identity is created. Existing password accounts are never auto-linked by this pre-authenticated flow; they still require a future authenticated settings and step-up journey.
+Facebook Login is now implemented in detached source but remains disabled on the local pilot. Tideway validates the provider identity and App ID, but deliberately treats Facebook's `email` field as unverified. A first-time Facebook subject receives a separate Tideway mailbox-verification link before an account or identity is created. Existing password accounts are never auto-linked by this pre-authenticated flow; they use the authenticated `/settings` connection journey described below.
+
+## Authenticated connection from Settings
+
+An existing verified password account can connect Google or Facebook without relying on an email match:
+
+1. `/settings` reads only provider names and connection timestamps through an actor-bound function; provider subjects and emails are not returned.
+2. The account submits its current Tideway password over the same-origin, session and CSRF-protected connection route. The normal persistent password-attempt lock is reused.
+3. A successful step-up creates both the provider's signed OAuth state and a second ten-minute HTTP-only cookie bound to the exact Tideway user, session and provider.
+4. The provider state is itself signed as `link`, so a missing/expired connection cookie cannot downgrade the callback into ordinary pre-authenticated sign-in.
+5. The callback requires the original live Tideway session, verifies both state cookies and connects the provider subject through a collision-locked database function. It cannot change role, profile, email or bookings.
+6. The database rejects a provider subject already owned by another account and rejects replacing an account's existing provider subject. Only provider name and email-verification status enter the audit record.
+
+Connection controls remain hidden when the provider is unavailable, already connected, the marketplace attachment is off or the account has no password identity. Social-only accounts still need a future recent-provider step-up flow. Provider removal also remains unavailable until Tideway can prove it will not lock out the last usable sign-in method.
 
 ## Google security model
 
@@ -59,7 +72,7 @@ Before Facebook can become public:
 - create the Meta app under the approved legal business account and register the exact HTTPS callback `/api/marketplace/auth/facebook/callback`;
 - store `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` and an explicitly selected supported `FACEBOOK_GRAPH_API_VERSION` in deployment secrets;
 - complete Meta app review where required, the data-deletion callback, production privacy disclosures and provider-disconnection handling;
-- implement authenticated provider linking with recent password/provider step-up for existing password accounts;
+- retain the authenticated current-password connection proof and add recent-provider step-up for social-only accounts plus lockout-safe provider removal;
 - pass the locked migration, RLS, concurrency, SMTP-delivery and full mobile-browser staging suites under the final domain.
 - rerun `tools/domain-readiness.mjs` with `TIDEWAY_EXPECT_SOCIAL_PROVIDERS=google,facebook` (or `facebook` if Google is intentionally closed) and retain the passing, secret-free result.
 

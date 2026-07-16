@@ -256,6 +256,26 @@ textarea { resize: vertical; }
 .account-footer { padding: 20px 0; color: var(--muted); font-size: .86rem; }
 .account-footer .shell { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
 .account-footer a { color: var(--green-dark); font-weight: 750; }
+.settings-main { align-items: start; }
+.settings-shell { width: min(820px, calc(100% - 32px)); padding: clamp(30px, 5vw, 54px); border: 1px solid var(--line); border-radius: 28px; background: #fff; box-shadow: 0 22px 65px rgba(15, 66, 57, .11); }
+.settings-shell > h1 { margin: 9px 0 14px; font-size: clamp(2.3rem, 7vw, 4.4rem); }
+.settings-card { display: grid; gap: 24px; margin-top: 24px; }
+.settings-card h2 { margin: 0 0 6px; color: var(--green-dark); font-size: 1.45rem; }
+.settings-card p { margin: 0; color: var(--muted); }
+.settings-provider-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.settings-provider-list li { display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: center; padding: 15px; border: 1px solid var(--line); border-radius: 13px; background: #fbfdfc; }
+.settings-provider-mark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 50%; color: #fff; background: var(--green); font-weight: 900; }
+.settings-provider-list strong, .settings-provider-list small { display: block; }
+.settings-provider-list small { margin-top: 3px; color: var(--muted); }
+.settings-connect { display: grid; gap: 12px; padding-top: 22px; border-top: 1px solid var(--line); }
+.settings-provider-actions, .settings-dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.settings-dialog { width: min(520px, calc(100% - 28px)); padding: 0; border: 0; border-radius: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.24); }
+.settings-dialog::backdrop { background: rgba(4, 34, 30, .68); }
+.settings-dialog form { display: grid; gap: 18px; padding: clamp(22px, 5vw, 34px); }
+.settings-dialog h2 { margin: 6px 0 8px; color: var(--green-dark); font-size: 1.8rem; }
+.settings-dialog p { margin: 0; color: var(--muted); }
+.settings-dialog label { display: grid; gap: 7px; font-weight: 800; }
+.settings-dialog button:disabled { cursor: wait; opacity: .65; }
 .brief-complete-page { min-height: 100vh; background: linear-gradient(180deg, #eef8f5, #fff); }
 .brief-complete-shell { max-width: 880px; }
 .brief-complete-card { padding: clamp(30px, 7vw, 68px); border: 1px solid var(--line); border-radius: 26px; background: #fff; box-shadow: 0 24px 70px rgba(11,70,63,.11); text-align: center; }
@@ -910,6 +930,8 @@ textarea { resize: vertical; }
   .form-card { padding: 25px 18px; border-radius: 18px; }
   .account-main { align-items: start; padding: 28px 0 48px; }
   .account-card, .account-side { padding: 26px 20px; border-radius: 19px; }
+  .settings-shell { width: min(100% - 20px, 820px); padding: 26px 20px; border-radius: 19px; }
+  .settings-provider-actions .button, .settings-dialog-actions .button { width: 100%; }
   .account-card h1 { font-size: clamp(2.15rem, 12vw, 3.25rem); }
   .account-actions .button { width: 100%; }
   .account-form .button { width: 100%; }
