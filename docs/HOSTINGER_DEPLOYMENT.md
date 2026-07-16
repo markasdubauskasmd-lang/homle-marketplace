@@ -23,10 +23,10 @@ Authoritative Hostinger references:
 
 ## Prepared release
 
-- `../Homle-Hostinger-Node-release-29a2113.zip`
-- source commit `29a2113`
-- SHA-256 `86E66CF8CFFC6D19D81355483609884E6BDFD86BE8FD4F139933324CAA437D71`
-- 174 runtime entries, 532,429 bytes; no `.env`, customer data, tests, documentation, Git history or local secrets
+- `../Homle-Hostinger-Node-release-0e8e012.zip`
+- source commit `0e8e012`
+- SHA-256 `AA95EA784C48DF6DCB9832FE176BDB78F8A8649AD9E301928F6B29DD874937DB`
+- 176 runtime entries, 530,400 bytes; no `.env`, customer data, tests, documentation, Git history or local secrets
 - Node type: `Other`
 - entry file: `server.mjs`
 - supported runtime: Node.js 24
