@@ -180,8 +180,18 @@ function renderScanPhotos(requestId, scan, list, count) {
   list.hidden = photos.length === 0;
 }
 
+function openRequestScan(requestId) {
+  const details = [...requestList.querySelectorAll("[data-request-scan-id]")].find((item) => item.dataset.requestScanId === requestId);
+  if (!details) return false;
+  details.open = true;
+  details.scrollIntoView({ behavior: "smooth", block: "start" });
+  details.querySelector('select[name="roomName"]')?.focus({ preventScroll: true });
+  return true;
+}
+
 function requestScanPanel(request) {
   const details = element("details", "landlord-request-scan");
+  details.dataset.requestScanId = request.requestId;
   const summary = element("summary", "", request.status === "draft" ? "Add room photos and submit" : "View reviewed room scan");
   details.append(summary);
   const panel = element("div", "landlord-request-scan-body");
@@ -514,6 +524,7 @@ async function createRequestDraft(event) {
     initialiseRequestDefaults();
     showFeedback(requestFeedback, `Private draft ${result.cleaningRequest.requestId} saved. It was not sent for matching.`, "success");
     dirty = false;
+    openRequestScan(result.cleaningRequest.requestId);
   } catch (error) { showFeedback(requestFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message); }
   finally { setPending(requestSave, false, "Save private draft"); }
 }
