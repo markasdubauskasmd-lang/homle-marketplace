@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#0e665b">
+  <title>Active cleaning job | Tideway</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260716-60">
+  <script src="/active-job.js?v=20260716-1" type="module"></script>
+</head>
+<body class="active-job-page">
+  <a class="skip-link" href="#active-job-main">Skip to active job</a>
+  <header class="site-header active-job-header"><div class="shell nav-wrap"><a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a><nav aria-label="Active job navigation"><a data-workspace-link href="/login">My workspace</a><a href="/login">Account</a></nav></div></header>
+
+  <main id="active-job-main" class="active-job-main shell">
+    <section class="active-job-network" data-network-state hidden role="status"><span></span><strong data-network-copy>Connection unavailable</strong></section>
+
+    <section class="active-job-gate" data-job-gate data-kind="checking" role="status" aria-live="polite">
+      <span aria-hidden="true">i</span><div><strong data-gate-title>Opening your private booking…</strong><p data-gate-copy>Tideway is checking your account and booking access.</p><div><a class="button" href="/login" data-gate-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-gate-retry hidden>Try again</button></div></div>
+    </section>
+
+    <div data-job-workspace hidden>
+      <section class="active-job-heading">
+        <div><p class="eyebrow" data-role-label>Private booking</p><h1 data-status-heading>Booking status</h1><p data-status-copy>Updates are shared only with the Cleaner and Landlord on this booking.</p></div>
+        <div class="active-job-reference"><span>Booking</span><strong data-booking-reference></strong><small data-live-state>Connecting…</small></div>
+      </section>
+
+      <ol class="active-job-stages" data-stage-list aria-label="Cleaning booking stages">
+        <li data-stage="confirmed"><span>1</span><small>Confirmed</small></li>
+        <li data-stage="cleaner-en-route"><span>2</span><small>En route</small></li>
+        <li data-stage="cleaner-arrived"><span>3</span><small>Arrived</small></li>
+        <li data-stage="cleaning-in-progress"><span>4</span><small>Cleaning</small></li>
+        <li data-stage="awaiting-review"><span>5</span><small>Review</small></li>
+        <li data-stage="completed"><span>6</span><small>Complete</small></li>
+      </ol>
+
+      <div class="active-job-layout">
+        <div class="active-job-primary">
+          <section class="active-journey-card" aria-labelledby="journey-title">
+            <div class="active-card-heading"><div><p class="eyebrow">Private live journey</p><h2 id="journey-title" data-journey-title>Journey has not started</h2></div><span class="active-private-pill">Booking participants only</span></div>
+            <div class="active-location-surface" data-location-surface data-state="off" aria-label="Private journey status, not a street map">
+              <div class="active-location-route" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="active-location-cleaner" data-location-marker hidden aria-hidden="true"><span>C</span></div>
+              <div class="active-location-home" aria-hidden="true"><span>⌂</span></div>
+              <div class="active-location-copy"><strong data-location-heading>Location sharing is off</strong><span data-location-copy>No Cleaner coordinates are being collected.</span></div>
+            </div>
+            <p class="active-map-boundary">Tideway receives the current point only. It is not sent to an advertising or public map provider; detailed history is not kept.</p>
+            <dl class="active-journey-facts"><div><dt>Estimated arrival</dt><dd data-eta>Not available</dd></div><div><dt>Last location update</dt><dd data-location-time>Not recorded</dd></div><div><dt>Scheduled start</dt><dd data-scheduled-start>Not recorded</dd></div><div><dt>Cleaner</dt><dd data-cleaner-name>Assigned Cleaner</dd></div></dl>
+            <div class="active-location-feedback" data-location-feedback role="status" aria-live="polite" hidden></div>
+          </section>
+
+          <section class="active-progress-card" aria-labelledby="progress-title">
+            <div class="active-card-heading"><div><p class="eyebrow">Live room checklist</p><h2 id="progress-title">Cleaning progress</h2></div><strong class="active-progress-percent" data-progress-percent>0%</strong></div>
+            <div class="active-progress-track" role="progressbar" aria-label="Cleaning checklist progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i data-progress-bar></i></div>
+            <div class="active-progress-facts"><span><strong data-completed-count>0</strong> completed</span><span><strong data-resolved-count>0</strong> resolved</span><span><strong data-total-count>0</strong> total</span><span><strong data-elapsed>0m</strong> elapsed</span></div>
+            <div class="active-pause-notice" data-pause-notice hidden><strong>Cleaning paused</strong><span>The elapsed-work clock is paused and both participants can see this state.</span></div>
+            <div class="active-task-list" data-task-list></div>
+            <div class="active-empty-tasks" data-task-empty hidden><strong>No checklist is available.</strong><p>The reviewed room checklist must be present before the Cleaner can finish the job.</p></div>
+          </section>
+
+          <section class="active-property-card" data-property-card hidden aria-labelledby="property-title">
+            <div class="active-card-heading"><div><p class="eyebrow">Confirmed visit</p><h2 id="property-title" data-property-name>Property</h2></div><span class="active-private-pill">Protected details</span></div>
+            <p data-property-address></p>
+            <dl class="active-property-instructions"><div><dt>Access</dt><dd data-property-access>Not supplied</dd></div><div><dt>Parking</dt><dd data-property-parking>Not supplied</dd></div><div><dt>Special notes</dt><dd data-property-notes>Not supplied</dd></div></dl>
+          </section>
+        </div>
+
+        <aside class="active-job-actions" aria-labelledby="actions-title">
+          <div><p class="eyebrow" data-action-eyebrow>Your next step</p><h2 id="actions-title" data-action-title>Live booking updates</h2><p data-action-copy>Status changes are checked on the server before they are saved.</p></div>
+          <button class="button active-primary-action" type="button" data-primary-action disabled>Checking booking…</button>
+          <ol class="active-action-sequence" aria-label="Cleaner job actions"><li>Start journey</li><li>I have arrived</li><li>Start cleaning</li><li>Finish cleaning</li></ol>
+          <button class="button button-outline" type="button" data-pause-action hidden>Pause cleaning</button>
+          <button class="button button-outline" type="button" data-add-task-action hidden>Add unexpected task</button>
+          <div class="active-action-feedback" data-action-feedback role="status" aria-live="polite" hidden></div>
+          <section class="active-job-evidence"><strong>Before and after evidence</strong><p><span data-photo-count>0</span> private job photos recorded. Photo contents open only through an authorised, short-lived link.</p></section>
+          <section class="active-connection-card"><span data-connection-dot></span><div><strong data-connection-title>Connecting securely</strong><small data-connection-copy>Opening durable booking updates.</small></div></section>
+        </aside>
+      </div>
+    </div>
+  </main>
+
+  <dialog class="active-job-dialog" data-pause-dialog><form method="dialog" data-pause-form><h2 data-pause-title>Pause cleaning</h2><p data-pause-copy>Give the Landlord a short reason for the pause.</p><label>Reason<textarea name="note" rows="4" maxlength="1000" required></textarea></label><div><button class="button button-outline" value="cancel" type="button" data-dialog-cancel>Cancel</button><button class="button" value="confirm" type="submit">Save pause</button></div></form></dialog>
+
+  <dialog class="active-job-dialog" data-task-dialog><form method="dialog" data-task-form><h2>Add an unexpected task</h2><p>The Landlord must approve this at the frozen booking price before it can be treated as agreed work.</p><label>Room<input name="roomName" maxlength="120" required></label><label>Task<textarea name="description" rows="3" maxlength="1000" required></textarea></label><label>Estimated additional minutes<input name="estimatedAdditionalMinutes" type="number" inputmode="numeric" min="1" max="480" required></label><label>Note <span>(optional)</span><textarea name="note" rows="2" maxlength="2000"></textarea></label><div><button class="button button-outline" value="cancel" type="button" data-dialog-cancel>Cancel</button><button class="button" value="confirm" type="submit">Ask Landlord to approve</button></div></form></dialog>
+
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Tideway.</span><a href="/privacy">Privacy notice</a></div></footer>
+</body>
+</html>

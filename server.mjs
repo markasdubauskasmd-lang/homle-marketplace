@@ -159,6 +159,7 @@ const mimeTypes = {
 
 function setSecurityHeaders(response, requestPath = "") {
   const paymentPage = requestPath === "/booking-payment";
+  const activeJobPage = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
   response.setHeader("Content-Security-Policy", paymentPage
     ? "default-src 'self'; img-src 'self' data: blob: https://*.stripe.com; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://r.stripe.com https://m.stripe.network; frame-src https://js.stripe.com https://hooks.stripe.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     : "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
@@ -169,7 +170,7 @@ function setSecurityHeaders(response, requestPath = "") {
     ? "camera=(), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\" \"https://hooks.stripe.com\")"
     : requestPath === "/brief"
     ? "camera=(self), microphone=(self), geolocation=()"
-    : requestPath === "/tracking-test"
+    : requestPath === "/tracking-test" || activeJobPage
       ? "camera=(), microphone=(), geolocation=(self)"
       : "camera=(), microphone=(), geolocation=()");
 }
@@ -5110,7 +5111,8 @@ async function serveFile(requestPath, response) {
     "/privacy": "privacy.html",
     "/terms": "terms.html"
   };
-  const relative = routes[requestPath] || requestPath.replace(/^\/+/, "");
+  const activeJobRoute = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
+  const relative = activeJobRoute ? "active-job.html" : routes[requestPath] || requestPath.replace(/^\/+/, "");
   const filePath = path.resolve(publicDir, relative);
   if (!filePath.startsWith(`${path.resolve(publicDir)}${path.sep}`)) return false;
 
