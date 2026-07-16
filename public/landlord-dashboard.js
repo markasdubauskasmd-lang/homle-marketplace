@@ -1,6 +1,6 @@
 import { checklistFromTranscript } from "./checklist.js";
 import { isUkPostcode } from "./contact-validation.js";
-import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-3";
+import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-4";
 import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js";
 
 const state = document.querySelector("[data-landlord-state]");

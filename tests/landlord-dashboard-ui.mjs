@@ -12,7 +12,7 @@ function throws(operation, expected) {
 
 const tasks = requestTasksFromLines("Kitchen: Wipe the worktops\nBathroom: Remove limescale");
 assert(tasks.length === 2 && tasks[0].roomName === "Kitchen" && tasks[1].description === "Remove limescale" && tasksToLines(tasks) === "Kitchen: Wipe the worktops\nBathroom: Remove limescale", "Room-labelled draft tasks were not parsed and displayed losslessly.");
-assert(throws(() => requestTasksFromLines("Wipe the worktops"), "must start with a room") && throws(() => requestTasksFromLines("Kitchen: Wipe sink\nKitchen: Wipe sink"), "unique"), "Unlabelled or duplicate request tasks were accepted.");
+assert(throws(() => requestTasksFromLines("Wipe the worktops"), "must start with a room") && throws(() => requestTasksFromLines("Kitchen: Wipe sink\nKitchen: Wipe sink"), "unique") && throws(() => requestTasksFromLines("Kitchen: clean everything"), "specific Cleaner action"), "Unlabelled, duplicate or vague request tasks were accepted.");
 const now = new Date("2026-07-16T08:00:00.000Z");
 const window = requestedWindow("2026-07-20", "10:00", 180, now);
 assert(Date.parse(window.requestedEndAt) - Date.parse(window.requestedStartAt) === 180 * 60_000 && throws(() => requestedWindow("2026-07-15", "10:00", 180, now), "future"), "The draft request window lost its exact duration or accepted past work.");

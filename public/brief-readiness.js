@@ -1,4 +1,5 @@
 import { cleanerHandoffPreview } from "./cleaner-handoff-preview.js";
+import { cleanerTaskGuidance, unclearCleanerTasks } from "./task-quality.js?v=20260716-1";
 
 const labels = {
   connectedRequest: "Request reference and email are complete",
@@ -67,20 +68,23 @@ export function briefReadiness({ requestId = "", email = "", requestAuthorised =
   const safePhotos = Array.isArray(photos) ? photos : [];
   const photographedAreas = [...new Set(safePhotos.map((photo) => normaliseBriefRoom(photo?.area)).filter(Boolean))];
   const handoff = cleanerHandoffPreview({ tasks: safeTasks, photographedAreas, roomOptions: briefRoomOptions });
+  const unclearTasks = unclearCleanerTasks(safeTasks);
   const uncoveredAreas = handoff.missingWorkAreas;
   const checks = {
     connectedRequest: /^REQ-[A-Z0-9]{8}$/i.test(String(requestId || "").trim()) && (requestAuthorised === true || hasEmail(email)),
     roomPhotos: safePhotos.length > 0 && safePhotos.length <= maxBriefPhotos,
     photoDetails: safePhotos.length > 0 && safePhotos.every((photo) => Boolean(normaliseBriefRoom(photo?.area)) && String(photo?.note || "").trim().length >= 3),
     instructions: String(transcript || "").trim().length > 0,
-    conciseTasks: handoff.workCount > 0 && checklistCurrent === true,
+    conciseTasks: handoff.workCount > 0 && unclearTasks.length === 0 && checklistCurrent === true,
     roomCoverage: safePhotos.length > 0 && photographedAreas.length > 0 && uncoveredAreas.length === 0,
     scopeConfirmed: scopeCompleteConfirmed === true,
     privacyConsent: consent === true
   };
   const itemLabels = { ...labels };
   if (requestAuthorised === true) itemLabels.connectedRequest = "Private request tracker securely connected";
-  if (safeTasks.length > 0 && checklistCurrent !== true) {
+  if (unclearTasks.length) {
+    itemLabels.conciseTasks = `${unclearTasks.length} checklist ${unclearTasks.length === 1 ? "item needs" : "items need"} a clearer action. ${cleanerTaskGuidance}`;
+  } else if (safeTasks.length > 0 && checklistCurrent !== true) {
     itemLabels.conciseTasks = "Summarise again after the latest speech or photo-note changes";
   } else if (safeTasks.length > 0 && handoff.workCount === 0) {
     itemLabels.conciseTasks = "Add at least one cleaning task; exclusions alone are not a cleanable scope";
@@ -89,5 +93,5 @@ export function briefReadiness({ requestId = "", email = "", requestAuthorised =
     itemLabels.roomCoverage = `Add cleaning ${uncoveredAreas.length === 1 ? "task" : "tasks"} for: ${uncoveredAreas.join(", ")}`;
   }
   const items = Object.entries(checks).map(([key, complete]) => ({ key, label: itemLabels[key], complete }));
-  return { ready: items.every((item) => item.complete), remaining: items.filter((item) => !item.complete).length, checks, items, uncoveredAreas };
+  return { ready: items.every((item) => item.complete), remaining: items.filter((item) => !item.complete).length, checks, items, uncoveredAreas, unclearTasks };
 }

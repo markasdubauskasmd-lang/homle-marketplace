@@ -48,8 +48,9 @@ assert(
   && throws(() => normalizedCleaningRequest({ ...input, requestedStartAt: "2026-02-30T09:00:00.000Z" }, { clock: () => new Date("2026-01-01T00:00:00.000Z") }), "valid timestamp")
   && throws(() => normalizedCleaningRequest({ ...input, requiredServices: ["invented-service"] }, { clock: () => new Date(now) }), "supported and unique")
   && throws(() => normalizedCleaningRequest({ ...input, cleaningType: "regular-domestic" }, { clock: () => new Date(now) }), "included")
-  && throws(() => normalizedCleaningRequest({ ...input, tasks: [input.tasks[0], { ...input.tasks[0], roomName: "kitchen" }] }, { clock: () => new Date(now) }), "unique")
-  && throws(() => normalizedCleaningRequest({ ...input, frequency: "daily" }, { clock: () => new Date(now) }), "supported"),
+   && throws(() => normalizedCleaningRequest({ ...input, tasks: [input.tasks[0], { ...input.tasks[0], roomName: "kitchen" }] }, { clock: () => new Date(now) }), "unique")
+  && throws(() => normalizedCleaningRequest({ ...input, tasks: [{ roomName: "Kitchen", description: "clean everything" }] }, { clock: () => new Date(now) }), "specific Cleaner action")
+   && throws(() => normalizedCleaningRequest({ ...input, frequency: "daily" }, { clock: () => new Date(now) }), "supported"),
   "Invalid time, service, task or recurrence entered a cleaning request."
 );
 

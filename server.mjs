@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { checklistFromTranscript, normaliseChecklistTask } from "./public/checklist.js";
 import { briefRoomOptions, maxBriefPhotos, maxBriefVideos } from "./public/brief-readiness.js";
 import { cleanerHandoffPreview } from "./public/cleaner-handoff-preview.js";
+import { cleanerTaskGuidance, unclearCleanerTasks } from "./public/task-quality.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "./public/scope-signals.js";
 import { isEmail, isPhone, isUkPostcode } from "./public/contact-validation.js";
 import { accessDetailsSafetyMessage, containsSensitiveAccessDetails } from "./public/access-detail-safety.js";
@@ -4773,6 +4774,8 @@ async function handleJobBrief(request, response) {
   if (!requestTokenValid) errors.push("Open the room scan from your valid private request tracker.");
   if (!transcript) errors.push("Add or dictate the cleaning instructions.");
   if (!checklist.length) errors.push("Generate and review at least one checklist task.");
+  const unclearTasks = unclearCleanerTasks(checklist);
+  if (unclearTasks.length) errors.push(`${unclearTasks.length} checklist ${unclearTasks.length === 1 ? "item needs" : "items need"} a clearer action. ${cleanerTaskGuidance}`);
   if (!photoInputs.length) errors.push("Add at least one room photo or short video.");
   if (photoInputs.length > maxBriefPhotos) errors.push(`Add no more than ${maxBriefPhotos} room visuals.`);
   if (photoInputs.filter((photo) => String(photo?.dataUrl || "").startsWith("data:video/")).length > maxBriefVideos) errors.push(`Add no more than ${maxBriefVideos} short room videos.`);

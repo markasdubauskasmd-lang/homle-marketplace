@@ -1,7 +1,7 @@
 import { checklistFromTranscript, normaliseChecklistTask } from "./checklist.js?v=20260715-2";
 import { clearBriefHandoff, readBriefHandoff } from "./brief-handoff.js";
 import { detectPriceSensitiveScope } from "./scope-signals.js";
-import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos, normaliseBriefRoom, roomSpeechMarker } from "./brief-readiness.js?v=20260715-2";
+import { briefReadiness, briefRoomOptions, briefScopeConfirmationIsCurrent, briefScopeFingerprint, briefSourceFingerprint, maxBriefPhotos, maxBriefVideos, normaliseBriefRoom, roomSpeechMarker } from "./brief-readiness.js?v=20260716-3";
 import { newSubmissionKey } from "./submission-key.js";
 import { cleanerHandoffPreview } from "./cleaner-handoff-preview.js";
 import { checklistChangeReview } from "./checklist-change-review.js";

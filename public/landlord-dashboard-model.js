@@ -1,3 +1,5 @@
+import { cleanerTaskGuidance, cleanerTaskQuality } from "./task-quality.js?v=20260716-1";
+
 export function requestTasksFromLines(value) {
   const lines = String(value || "").split(/\r?\n/).map((line) => line.trim().replace(/^[-*•\d.)\s]+/, "")).filter(Boolean);
   if (!lines.length || lines.length > 200) throw new TypeError("Add between 1 and 200 room-labelled cleaning tasks.");
@@ -8,6 +10,7 @@ export function requestTasksFromLines(value) {
     const roomName = line.slice(0, separator).trim();
     const description = line.slice(separator + 1).trim();
     if (!roomName || roomName.length > 120 || !description || description.length > 1000) throw new TypeError(`Task ${index + 1} is incomplete or too long.`);
+    if (!cleanerTaskQuality(description).clear) throw new TypeError(`Task ${index + 1} needs a specific Cleaner action. ${cleanerTaskGuidance}`);
     const key = `${roomName.toLowerCase()}\0${description.toLowerCase()}`;
     if (seen.has(key)) throw new TypeError("Room tasks must be unique.");
     seen.add(key);

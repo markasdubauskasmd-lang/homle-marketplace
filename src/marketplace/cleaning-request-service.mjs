@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { serviceCodes } from "./cleaner-profile.mjs";
+import { cleanerTaskGuidance, cleanerTaskQuality } from "../../public/task-quality.js";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const recurrenceRules = Object.freeze({
@@ -43,6 +44,7 @@ function tasks(value) {
       description: boundedText(task?.description, 1000, `Task ${index + 1} description`, 1),
       sortOrder: index
     };
+    if (!cleanerTaskQuality(normalized.description).clear) throw new TypeError(`Task ${index + 1} needs a specific Cleaner action. ${cleanerTaskGuidance}`);
     const key = `${normalized.roomName.toLowerCase()}\0${normalized.description.toLowerCase()}`;
     if (seen.has(key)) throw new TypeError("Room tasks must be unique.");
     seen.add(key);

@@ -37,4 +37,17 @@ const exclusionOnlyReadiness = briefReadiness({
 assert(!exclusionOnlyReadiness.checks.conciseTasks && !exclusionOnlyReadiness.checks.roomCoverage && exclusionOnlyReadiness.uncoveredAreas[0] === "Kitchen", "Exclusions alone passed as a quotable photographed-room scope.");
 assert(exclusionOnlyReadiness.items.find((item) => item.key === "conciseTasks")?.label.includes("exclusions alone"), "The customer was not told why exclusion-only scope is incomplete.");
 
-console.log("Cleaner handoff preview tests passed: room grouping, boundary isolation, photographed-room coverage and exclusion-only blocking.");
+const unclearReadiness = briefReadiness({
+  requestId: "REQ-1234ABCD",
+  email: "customer@example.com",
+  transcript: "The kitchen needs cleaning.",
+  tasks: ["Kitchen: clean everything"],
+  photos: [{ area: "Kitchen", note: "Worktops need cleaning" }],
+  checklistCurrent: true,
+  scopeCompleteConfirmed: true,
+  consent: true
+});
+assert(!unclearReadiness.ready && !unclearReadiness.checks.conciseTasks && unclearReadiness.unclearTasks.length === 1, "A vague checklist appeared Cleaner-ready.");
+assert(unclearReadiness.items.find((item) => item.key === "conciseTasks")?.label.includes("specific Cleaner action"), "The room-scan readiness panel did not explain how to correct a vague task.");
+
+console.log("Cleaner handoff preview tests passed: room grouping, boundary isolation, photographed-room coverage, exclusion-only blocking and actionable-task readiness.");
