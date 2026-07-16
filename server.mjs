@@ -24,6 +24,7 @@ import { createTrustedClientAddressResolver } from "./src/marketplace/trusted-cl
 import { createTrackingTestStore } from "./tracking-test-store.mjs";
 import { assessPrivateDataDirectory } from "./data-directory-safety.mjs";
 import { validateProductionDeployment } from "./deployment-readiness.mjs";
+import { marketplaceActivationReadiness } from "./marketplace-activation-readiness.mjs";
 import "./public/scope-time-breakdown.js";
 import "./public/proposal-economics.js";
 
@@ -4594,7 +4595,17 @@ async function getAdminConfig(request, response) {
     relocationRequired: !dataDirectorySafety.safeForPrivatePilot,
     automaticRelocation: false
   };
-  return json(response, 200, { ok: true, config, readiness: launchReadiness(config), economics: launchEconomicsRehearsal(config), storageSafety });
+  const activationReadiness = marketplaceActivationReadiness({
+    privateDataStorageSafe: storageSafety.safeForPrivatePilot,
+    marketplaceEnabled: marketplaceAttachment.enabled,
+    marketplaceReady: marketplaceAttachment.ready,
+    authenticationReady: marketplaceAttachment.authenticationHttpReady,
+    providers: marketplaceAttachment.authenticationCapabilities,
+    paymentsReady: marketplaceAttachment.paymentsReady,
+    productionMode: process.env.NODE_ENV === "production",
+    localDemosEnabled: localDemoEnabled
+  });
+  return json(response, 200, { ok: true, config, readiness: launchReadiness(config), activationReadiness, economics: launchEconomicsRehearsal(config), storageSafety });
 }
 
 async function getAdminDataIntegrity(request, response) {

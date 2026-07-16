@@ -25,7 +25,7 @@ RUN install -d -o node -g node /var/lib/tideway
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node package.json ./package.json
 COPY --chown=node:node server.mjs ./server.mjs
-COPY --chown=node:node business-clock.mjs cleaner-profile-starter.mjs data-directory-safety.mjs deployment-readiness.mjs lead-attention.mjs offer-expiry.mjs request-followup-draft.mjs tracking-test-store.mjs travel-coverage.mjs ./
+COPY --chown=node:node business-clock.mjs cleaner-profile-starter.mjs data-directory-safety.mjs deployment-readiness.mjs lead-attention.mjs marketplace-activation-readiness.mjs offer-expiry.mjs request-followup-draft.mjs tracking-test-store.mjs travel-coverage.mjs ./
 COPY --chown=node:node public ./public
 COPY --chown=node:node src ./src
 COPY --chown=node:node scripts ./scripts

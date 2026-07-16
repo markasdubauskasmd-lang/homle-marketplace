@@ -9,6 +9,7 @@
 !data-directory-safety.mjs
 !deployment-readiness.mjs
 !lead-attention.mjs
+!marketplace-activation-readiness.mjs
 !offer-expiry.mjs
 !request-followup-draft.mjs
 !tracking-test-store.mjs

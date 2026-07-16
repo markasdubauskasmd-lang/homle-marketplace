@@ -1,4 +1,4 @@
-const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null, dataIntegrity: null, storageSafety: null };
+const state = { records: [], kind: "all", status: "all", action: "all", config: {}, dispatchSummary: {}, launchFunnel: null, mediaRetention: null, dataIntegrity: null, storageSafety: null, activationReadiness: null };
 const dispatchOrder = globalThis.TidewayDispatchOrder;
 const scanReviewWorkspace = globalThis.TidewayScanReviewWorkspace;
 const scopeTimeWorksheet = globalThis.TidewayScopeTimeBreakdown;
@@ -178,6 +178,24 @@ function renderPrivateDataStorage(storageSafety = {}) {
   action.hidden = safe;
 }
 
+function renderActivationReadiness(readiness = {}) {
+  state.activationReadiness = readiness;
+  document.querySelector("#technical-readiness-score").textContent = `${Number(readiness.completed) || 0}/${Number(readiness.total) || 6}`;
+  document.querySelectorAll("#technical-readiness-list [data-activation-check]").forEach((item) => {
+    const key = item.dataset.activationCheck;
+    const complete = readiness.checks?.[key] === true;
+    const missing = readiness.missing?.[key]?.[0] || "Verified environment evidence is still required";
+    item.classList.toggle("ready", complete);
+    item.querySelector(":scope > span").textContent = complete ? "✓" : "○";
+    item.querySelector("small").textContent = complete ? "Verified by the current running environment" : missing;
+  });
+  const next = document.querySelector("#technical-readiness-next");
+  next.classList.toggle("technical-readiness-complete", readiness.ready === true);
+  next.textContent = readiness.ready === true
+    ? "All six technical service attachments are verified in this running environment. Business approval and the final two-account booking, payment and mobile rehearsal still remain separate gates."
+    : `Next technical gate — ${readiness.next?.label || "environment evidence"}: ${readiness.next?.action || "complete the verified deployment setup"}.`;
+}
+
 function focusReadinessRequirement(target) {
   if (!target) return;
   const setup = document.querySelector(".setup-details");
@@ -208,6 +226,7 @@ async function loadConfig() {
     syncQuoteDefaults(result.config);
     renderReadiness(result.readiness);
     renderPrivateDataStorage(result.storageSafety);
+    renderActivationReadiness(result.activationReadiness);
     updateQuoteCalculator();
   } catch (error) {
     showAdminError(error.message);
