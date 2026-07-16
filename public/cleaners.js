@@ -104,10 +104,10 @@ function cleanerCard(cleaner) {
     detail("Preferred work", [cleaner.residentialPreference ? "Residential" : "", cleaner.commercialPreference ? "Commercial" : ""].filter(Boolean).join(" and ") || "Not supplied")
   );
   const boundary = element("p", "directory-profile-boundary", "Requesting a Cleaner does not confirm a booking. Tideway must recheck the room checklist, date, price and availability.");
-  const requestLink = element("a", "button", "Create a cleaning request");
-  requestLink.href = "/request";
-  details.append(summary, facts, boundary, requestLink);
-  card.append(identity, metrics, biography, chips, details);
+  details.append(summary, facts, boundary);
+  const requestLink = element("a", "button directory-cleaner-action", "Start a cleaning request");
+  requestLink.href = "/signup?intent=book";
+  card.append(identity, metrics, biography, chips, details, requestLink);
   return card;
 }
 
@@ -186,7 +186,11 @@ async function loadDirectory() {
 }
 
 form.addEventListener("submit", (event) => { event.preventDefault(); loadDirectory(); });
-form.addEventListener("reset", () => setTimeout(loadDirectory));
+form.addEventListener("reset", () => setTimeout(() => {
+  const advanced = document.querySelector("[data-directory-advanced]");
+  if (advanced) advanced.open = false;
+  loadDirectory();
+}));
 retry.addEventListener("click", loadDirectory);
 document.querySelector("[data-year]").textContent = new Date().getFullYear();
 loadDirectory();

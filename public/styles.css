@@ -1413,6 +1413,11 @@ textarea { resize: vertical; }
 .directory-filter-heading, .directory-results-heading { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
 .directory-filter-heading h2, .directory-results-heading h2 { margin: 3px 0 0; font-size: 1.55rem; }
 .directory-filter-heading .text-button { padding: .3rem; }
+.directory-primary-filters { display: grid; gap: 16px; }
+.directory-advanced-filters { border: 1px solid var(--line); border-radius: 13px; background: #f8fbf9; }
+.directory-advanced-filters > summary { padding: 14px; color: var(--green-dark); font-size: .86rem; font-weight: 850; cursor: pointer; }
+.directory-advanced-filters > summary span { display: block; margin: 3px 0 0 19px; color: var(--muted); font-size: .68rem; font-weight: 600; }
+.directory-advanced-filters > div { display: grid; gap: 15px; padding: 4px 14px 15px; }
 .directory-availability-fields { display: grid; gap: 12px; margin: 0; padding: 15px; border: 1px solid var(--line); border-radius: 12px; }
 .directory-availability-fields legend { padding: 0 5px; color: #203f39; font-size: .88rem; font-weight: 780; }
 .directory-availability-fields legend span { color: var(--muted); font-weight: 500; }
@@ -1457,7 +1462,7 @@ textarea { resize: vertical; }
 .directory-profile-facts dt { color: var(--muted); font-size: .68rem; font-weight: 820; text-transform: uppercase; }
 .directory-profile-facts dd { margin: 3px 0 0; font-size: .83rem; font-weight: 680; }
 .directory-profile-boundary { padding: 12px; color: #6b5a46; border-left: 3px solid var(--orange); background: #fff9ea; font-size: .77rem; }
-.directory-cleaner-details .button { margin-top: 3px; }
+.directory-cleaner-action { width: 100%; margin-top: 18px; }
 
 @media (max-width: 900px) {
   .directory-hero { grid-template-columns: 1fr; }

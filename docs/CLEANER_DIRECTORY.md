@@ -1,6 +1,6 @@
 # Cleaner profiles and directory boundary
 
-This is a source-code and database-migration checkpoint. The current local pilot has no approved account-backed cleaner profiles, so `/cleaners` is not exposed and Tideway must not imply that searchable cleaner supply exists.
+This is a source-code and database-migration checkpoint. The public `/cleaners` page exists, but the current local pilot has no approved account-backed Cleaner profiles. Its API-backed results therefore fail closed with an honest unavailable/empty state; Tideway must not imply that searchable Cleaner supply exists.
 
 ## Profile ownership and publication
 
@@ -22,6 +22,8 @@ The restricted PostgreSQL directory function returns only explicitly listed publ
 - bounded pagination.
 
 Only active accounts with a public 100%-complete profile can appear. Ranking is verified status, rating, completed jobs, distance, price and stable public slug. These are discovery factors, not an assertion that the cleaner is assigned or available for a booking; acceptance and overlap checks still run transactionally later.
+
+The browser keeps only outward postcode and service visible for the first search. Rating, price, exact availability and recorded-verification filters remain available under one **More filters** disclosure. Every result keeps profile facts optional but exposes one truthful **Start a cleaning request** action directly on the card. That action enters `/signup?intent=book`; it does not use the legacy `/request` form or claim that the displayed Cleaner has been selected. Tideway still rechecks the submitted room scan, date, price, travel coverage, availability and acceptance before confirmation.
 
 Cleaner service-area latitude/longitude is no longer directly readable under public RLS. The restricted directory function may use it to calculate a rounded distance, but coordinates are not returned. Public projection code also discards any injected email, phone, home address, coordinate or internal acceptance-rate field.
 

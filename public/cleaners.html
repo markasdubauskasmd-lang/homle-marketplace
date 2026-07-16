@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Find a Cleaner | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-56">
-  <script src="/cleaners.js?v=20260716-1" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-66">
+  <script src="/cleaners.js?v=20260716-2" type="module"></script>
 </head>
 <body class="cleaner-directory-page">
   <a class="skip-link" href="#directory-main">Skip to Cleaner search</a>
@@ -27,21 +27,28 @@
 
     <section class="shell directory-layout" aria-label="Cleaner search">
       <form class="directory-filters" data-directory-form novalidate>
-        <div class="directory-filter-heading"><div><p class="eyebrow">Your clean</p><h2>Search filters</h2></div><button type="reset" class="text-button">Clear</button></div>
-        <label>Outward postcode<input name="outwardPostcode" autocomplete="postal-code" inputmode="text" maxlength="4" placeholder="For example SW2"><small>Use the first part of the UK postcode. Exact addresses stay private.</small></label>
-        <label>Service<select name="serviceCode"><option value="">All services</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select></label>
-        <div class="field-row">
-          <label>Minimum rating<select name="minimumRating"><option value="">Any rating</option><option value="4">4+ stars</option><option value="4.5">4.5+ stars</option></select></label>
-          <label>Maximum price (£)<input name="maximumPrice" type="number" inputmode="decimal" min="1" max="10000" step="0.01" placeholder="No maximum"></label>
+        <div class="directory-filter-heading"><div><p class="eyebrow">Your clean</p><h2>Find nearby Cleaners</h2></div><button type="reset" class="text-button">Clear</button></div>
+        <div class="directory-primary-filters" data-directory-primary>
+          <label>Outward postcode<input name="outwardPostcode" autocomplete="postal-code" inputmode="text" maxlength="4" placeholder="For example SW2"><small>Use the first part only. Exact addresses stay private.</small></label>
+          <label>Cleaning service<select name="serviceCode"><option value="">Any cleaning service</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select></label>
         </div>
-        <fieldset class="directory-availability-fields">
-          <legend>Availability <span>optional</span></legend>
-          <label>Date<input name="date" type="date"></label>
-          <div class="field-row"><label>From<input name="startTime" type="time"></label><label>Until<input name="endTime" type="time"></label></div>
-        </fieldset>
-        <label class="checkbox"><input name="verifiedOnly" type="checkbox"><span>Show only profiles with a recorded verification badge</span></label>
+        <details class="directory-advanced-filters" data-directory-advanced>
+          <summary>More filters <span>Rating, price, availability and verification</span></summary>
+          <div>
+            <div class="field-row">
+              <label>Minimum rating<select name="minimumRating"><option value="">Any rating</option><option value="4">4+ stars</option><option value="4.5">4.5+ stars</option></select></label>
+              <label>Maximum price (£)<input name="maximumPrice" type="number" inputmode="decimal" min="1" max="10000" step="0.01" placeholder="No maximum"></label>
+            </div>
+            <fieldset class="directory-availability-fields">
+              <legend>Availability <span>optional</span></legend>
+              <label>Date<input name="date" type="date"></label>
+              <div class="field-row"><label>From<input name="startTime" type="time"></label><label>Until<input name="endTime" type="time"></label></div>
+            </fieldset>
+            <label class="checkbox"><input name="verifiedOnly" type="checkbox"><span>Only profiles with recorded verification evidence</span></label>
+          </div>
+        </details>
         <div class="directory-filter-error" data-filter-error role="alert" hidden></div>
-        <button class="button" type="submit">Search Cleaners</button>
+        <button class="button" type="submit">Find Cleaners</button>
       </form>
 
       <div class="directory-results">
