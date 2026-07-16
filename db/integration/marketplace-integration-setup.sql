@@ -27,6 +27,9 @@ INSERT INTO cleaner_profiles (
 INSERT INTO cleaner_services (cleaner_user_id, service_code, pricing_model, price_pence)
 VALUES ('10000000-0000-4000-8000-000000000002', 'standard-clean', 'hourly', 2500);
 
+INSERT INTO cleaner_service_areas (cleaner_user_id, outward_postcode)
+VALUES ('10000000-0000-4000-8000-000000000002', 'SW1A');
+
 INSERT INTO cleaner_availability (cleaner_user_id, starts_at, ends_at, status)
 VALUES ('10000000-0000-4000-8000-000000000002', now() + interval '47 hours', now() + interval '55 hours', 'available');
 
@@ -53,7 +56,10 @@ SELECT id FROM tideway_private.invite_cleaner(
   '10000000-0000-4000-8000-000000000002', now() + interval '24 hours',
   8000, 5000, 500, 300, 200, 100, 100, 1000
 );
-SELECT id FROM tideway_private.invite_cleaner(
+-- Use the migration-owner-only superseded function for the second invitation to create a
+-- legacy/race fixture. The runtime role cannot call it, while the final exclusion constraint
+-- must still prevent both overlapping invitations from being accepted.
+SELECT id FROM tideway_private.invite_cleaner_before_eligibility_hardening(
   '40000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000002',
   '10000000-0000-4000-8000-000000000002', now() + interval '24 hours',
   8000, 5000, 500, 300, 200, 100, 100, 1000

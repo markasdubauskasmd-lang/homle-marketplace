@@ -8,7 +8,8 @@ This Phase 3 checkpoint adds the first account-backed booking transaction. It re
 - The browser supplies only the request and Cleaner identifiers. Cleaner pay, platform costs, customer price and target margin come from one private server policy; submitted price fields are ignored.
 - The policy derives Cleaner pay from the Cleaner’s active service prices and requested duration, covers approved labour on-cost, payment, travel, supplies and other costs, then solves the smallest customer price meeting the approved contribution-margin floor.
 - Manual-quote services fail closed rather than receiving an invented price.
-- PostgreSQL rechecks ownership, request state, budget, Cleaner publication/completion, every required service, full-window availability and positive target-margin economics while holding the request lock.
+- PostgreSQL rechecks ownership, request state, budget, the active Cleaner account, publication/completion, property-type preference, every automatically priceable required service, exact current Cleaner pay, full-window availability, declared outward-postcode/radius coverage, every overlapping pending/confirmed job and positive target-margin economics while holding the request lock.
+- A transaction-scoped advisory lock serialises competing invitations for the same Cleaner. Only the current hardened wrapper is executable by the application role; superseded functions remain owner-only for migration/integration evidence and cannot be used by the web or worker role.
 - The booking freezes the request fingerprint, ordered room checklist, schedule and a separate terms fingerprint. Request tasks are copied into booking tasks in the same transaction.
 - An invitation response has a bounded deadline no later than the visit start. The assigned Cleaner alone can accept or decline.
 - Acceptance rechecks current scope, profile eligibility, services and availability. The existing GiST exclusion constraint makes the confirmed update the final concurrency-safe overlap decision.
@@ -27,10 +28,10 @@ These values are confidential operating inputs and must stay in the deployment s
 
 ## Migration and deployment boundary
 
-Apply `009_booking_invitation_and_acceptance.sql`, request matching migration 010 and expiry migration `011_invitation_expiry_and_requeue.sql` after migration 008. Migration 009 backfills evidence fields for legacy booking rows without fabricating legacy margin evidence. New and changed rows must pass the positive-contribution and target-margin checks. Migration 011 distinguishes user and system history actors and adds bounded idempotent expiry/requeue.
+Apply `009_booking_invitation_and_acceptance.sql`, request matching migration 010 and expiry migration `011_invitation_expiry_and_requeue.sql` after migration 008, then apply `028_invitation_eligibility_hardening.sql` in locked order. Migration 009 backfills evidence fields for legacy booking rows without fabricating legacy margin evidence. New and changed rows must pass the positive-contribution and target-margin checks. Migration 011 distinguishes user and system history actors and adds bounded idempotent expiry/requeue. Migration 028 makes the matching eligibility and Cleaner-pay assumptions authoritative again at the final invitation write.
 
 The public web role cannot call the expiry worker. Create a separate non-superuser, non-RLS-bypass `tideway_worker`, apply `db/worker-role-grants.sql`, and schedule `SELECT * FROM tideway_private.expire_due_cleaner_invitations(100);` at least once per minute through the deployment scheduler. Store its separate connection credential in the secret manager. Alert if a run fails or if due rows remain after repeated full batches.
 
-Before enabling routes, run the migrations against a restored staging copy, validate every legacy row, race two concurrent accept transactions, race two expiry workers, and verify `tideway_app` cannot directly update a booking or execute the expiry batch.
+Before enabling routes, run the migrations against a restored staging copy; test out-of-area, wrong-property, changed-price, inactive-account and overlapping-invitation rejection; validate every legacy row; race two invitations for one Cleaner; race two concurrent accept transactions; race two expiry workers; and verify `tideway_app` cannot directly update a booking, call a superseded function or execute the expiry batch.
 
 No customer was charged, Cleaner contacted, invitation sent or live pilot record modified by this checkpoint.

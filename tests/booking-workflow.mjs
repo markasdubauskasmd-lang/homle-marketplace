@@ -86,10 +86,22 @@ await repository.respondToInvitation(cleaner, bookingId, { decision: "accept", r
 assert(sqlCalls[0].text.includes("list_my_booking_summaries") && sqlCalls[0].values[0] === 50 && sqlCalls[1].text.includes("tideway_private.invite_cleaner") && sqlCalls[1].values.length === 12 && sqlCalls[2].text.includes("respond_to_cleaner_invitation") && sqlCalls[2].actor.userId === cleaner.userId, "Booking repository bypassed participant-safe summaries, actor-bound audited transitions or parameterized terms.");
 failure = Object.assign(new Error("duplicate overlap"), { code: "23P01" });
 assert(await rejects(() => repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null }), "overlaps"), "Concurrent exclusion violations were not mapped to a safe schedule conflict.");
+for (const [databaseMessage, publicMessage] of [
+  ["cleaner-account-inactive", "not currently eligible"],
+  ["cleaner-property-mismatch", "property type"],
+  ["cleaner-outside-service-area", "outside the cleaner's declared service area"],
+  ["cleaner-price-changed", "price changed"],
+  ["cleaner-has-overlapping-invitation", "overlapping invitation"]
+]) {
+  failure = new Error(databaseMessage);
+  assert(await rejects(() => repository.inviteCleaner(landlord, { bookingId, requestId, cleanerId: cleaner.userId }), publicMessage), `Invitation hardening error ${databaseMessage} was not mapped safely.`);
+}
+failure = null;
 
 const migration = await readFile(new URL("../db/migrations/009_booking_invitation_and_acceptance.sql", import.meta.url), "utf8");
 const summaryMigration = await readFile(new URL("../db/migrations/026_participant_booking_summaries.sql", import.meta.url), "utf8");
 const expiryMigration = await readFile(new URL("../db/migrations/011_invitation_expiry_and_requeue.sql", import.meta.url), "utf8");
+const hardeningMigration = await readFile(new URL("../db/migrations/028_invitation_eligibility_hardening.sql", import.meta.url), "utf8");
 const grants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const workerGrants = await readFile(new URL("../db/worker-role-grants.sql", import.meta.url), "utf8");
 for (const required of ["bookings_one_live_attempt_per_request_idx", "planned_contribution_pence", "bookings_target_margin_check", "cleaner_response_deadline", "scope_snapshot", "cleaner-services-mismatch", "cleaner-unavailable", "exclusion_violation", "booking_status_history", "cleaning_request_status_history", "ON CONFLICT (booking_id) DO NOTHING", "idempotency_key"]) assert(migration.includes(required), `Booking migration omitted ${required}.`);
@@ -98,5 +110,7 @@ for (const required of ["list_my_booking_summaries", "booking.landlord_user_id =
 assert(grants.includes("list_my_booking_summaries(integer)"), "The runtime cannot execute the participant-safe booking summary function.");
 for (const required of ["expired_at", "change_source", "booking_history_actor_source_check", "request_history_actor_source_check", "expire_cleaner_invitation", "expire_due_cleaner_invitations", "FOR UPDATE SKIP LOCKED", "matching reopened", "cleaner-invitation-expired", "respond_to_cleaner_invitation_core", "booking.cleaner_user_id = actor_id"]) assert(expiryMigration.includes(required), `Invitation expiry migration omitted ${required}.`);
 assert(!grants.includes("expire_due_cleaner_invitations") && workerGrants.includes("tideway_worker") && workerGrants.includes("expire_due_cleaner_invitations(integer)") && workerGrants.includes("rolbypassrls"), "Invitation expiry is callable by the web role or lacks a restricted non-bypass worker boundary.");
+for (const required of ["pg_advisory_xact_lock", "account.account_status='active'", "cleaner-property-mismatch", "cleaner-outside-service-area", "cleaner-price-changed", "cleaner-has-overlapping-invitation", "service.pricing_model IN ('hourly','fixed')", "expected_cleaner_pay<>proposed_cleaner_pay_pence", "cleaner_availability", "tstzrange", "invite_cleaner_before_eligibility_hardening", "respond_to_cleaner_invitation_before_eligibility_hardening", "REVOKE ALL"]) assert(hardeningMigration.includes(required), `Invitation eligibility hardening omitted ${required}.`);
+assert(hardeningMigration.indexOf("pg_advisory_xact_lock") < hardeningMigration.indexOf("cleaner-has-overlapping-invitation") && !grants.includes("invite_cleaner_before_eligibility_hardening") && !grants.includes("respond_to_cleaner_invitation_before_eligibility_hardening"), "Invitation schedule serialization happens too late or a superseded function is executable by the runtime role.");
 
-console.log("Booking workflow tests passed: server-owned profitable terms, frozen scope, eligible Cleaner acceptance, decline/retry history, idempotent responses and concurrent overlap protection.");
+console.log("Booking workflow tests passed: server-owned profitable terms, frozen scope, authoritative property/coverage/pay/availability eligibility, decline/retry history, idempotent responses and concurrent overlap protection.");

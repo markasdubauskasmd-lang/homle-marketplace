@@ -19,6 +19,8 @@ for (const file of requiredFiles) sources.set(file, await readFile(path.join(int
 assert.match(sources.get("assert-integration-target.sql"), /_tideway_test\$/);
 assert.match(sources.get("marketplace-integration-setup.sql"), /integration-landlord@invalid\.example/);
 assert.match(sources.get("marketplace-integration-setup.sql"), /invite_cleaner[\s\S]*invite_cleaner/);
+assert.match(sources.get("marketplace-integration-setup.sql"), /cleaner_service_areas[\s\S]*SW1A/);
+assert.match(sources.get("marketplace-integration-setup.sql"), /invite_cleaner_before_eligibility_hardening/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account can read bookings/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /insufficient_privilege/);
 assert.match(sources.get("marketplace-post-concurrency.sql"), /Cleaner property access did not follow the accepted booking/);
@@ -32,6 +34,7 @@ for (const file of ["accept-booking-a.sql", "accept-booking-b.sql"]) {
   assert.match(sources.get(file), /pg_sleep\(1\.5\)/);
 }
 for (const idPrefix of ["10000000", "20000000", "30000000", "40000000"]) assert.ok(sources.get("marketplace-integration-cleanup.sql").includes(idPrefix));
+assert.match(sources.get("marketplace-integration-cleanup.sql"), /DELETE FROM cleaner_service_areas/);
 
 const ownerPassword = "owner p@ss/secret";
 const appPassword = "app p@ss/secret";

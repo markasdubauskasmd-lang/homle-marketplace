@@ -126,6 +126,16 @@ BEGIN
   FOREACH selected_name IN ARRAY app_functions LOOP
     IF NOT has_function_privilege('tideway_app', selected_name, 'EXECUTE') THEN RAISE EXCEPTION 'App role is missing required function execution: %', selected_name; END IF;
   END LOOP;
+  FOREACH selected_name IN ARRAY ARRAY[
+    'tideway_private.invite_cleaner_before_eligibility_hardening(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
+    'tideway_private.respond_to_cleaner_invitation_before_eligibility_hardening(uuid,text,text)',
+    'tideway_private.respond_to_cleaner_invitation_core(uuid,text,text)'
+  ] LOOP
+    IF to_regprocedure(selected_name) IS NULL THEN RAISE EXCEPTION 'Superseded booking function is missing: %', selected_name; END IF;
+    IF has_function_privilege('tideway_app', selected_name, 'EXECUTE') OR has_function_privilege('tideway_worker', selected_name, 'EXECUTE') THEN
+      RAISE EXCEPTION 'Restricted role can bypass the current booking eligibility wrapper: %', selected_name;
+    END IF;
+  END LOOP;
   FOREACH selected_name IN ARRAY worker_functions LOOP
     IF NOT has_function_privilege('tideway_worker', selected_name, 'EXECUTE') THEN RAISE EXCEPTION 'Worker role is missing required function execution: %', selected_name; END IF;
     IF has_function_privilege('tideway_app', selected_name, 'EXECUTE') THEN RAISE EXCEPTION 'App role can execute worker-only function: %', selected_name; END IF;

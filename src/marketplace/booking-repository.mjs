@@ -1,11 +1,17 @@
 function mappedDatabaseError(error) {
   const messages = {
     "request-not-found": [404, "request-not-found", "The cleaning request was not found."],
+    "property-not-found": [409, "property-not-found", "The request property is no longer available."],
     "booking-not-found": [404, "booking-not-found", "The booking invitation was not found."],
     "request-not-matchable": [409, "request-not-matchable", "This cleaning request is no longer available for matching."],
     "cleaner-not-eligible": [409, "cleaner-not-eligible", "This cleaner is not currently eligible for invitations."],
+    "cleaner-account-inactive": [409, "cleaner-not-eligible", "This cleaner is not currently eligible for invitations."],
+    "cleaner-property-mismatch": [409, "property-mismatch", "This cleaner does not support the request property type."],
+    "cleaner-outside-service-area": [409, "outside-service-area", "This property is outside the cleaner's declared service area."],
     "cleaner-services-mismatch": [409, "services-mismatch", "The cleaner no longer offers every required service."],
+    "cleaner-price-changed": [409, "cleaner-price-changed", "The cleaner's service price changed before the invitation was created."],
     "cleaner-unavailable": [409, "cleaner-unavailable", "The cleaner is no longer available for this time."],
+    "cleaner-has-overlapping-invitation": [409, "schedule-conflict", "The cleaner already has an overlapping invitation or booking."],
     "invitation-expired": [409, "invitation-expired", "This invitation has expired."],
     "invitation-not-pending": [409, "invitation-not-pending", "This invitation has already been answered or closed."],
     "booking-scope-changed": [409, "scope-changed", "The cleaning scope changed after this invitation was created."],
