@@ -1,6 +1,6 @@
 # Account notifications and email outbox
 
-Tideway now has a source-complete notification boundary for authenticated marketplace accounts. It is not enabled on the current local pilot because the account runtime still has no staging PostgreSQL database or approved transactional-email account.
+Tideway now has a source-complete notification boundary for authenticated marketplace accounts. The separate worker process can schedule it, but `WORKER_EMAIL_ENABLED` remains false because there is no approved transactional-email account or managed staging evidence.
 
 ## In-app inbox
 
@@ -36,12 +36,12 @@ A separately credentialed `tideway_worker` claims due rows with `FOR UPDATE SKIP
 1. Apply migrations through `017_notification_inbox_and_outbox.sql` using the migration owner.
 2. Reapply `db/runtime-role-grants.sql` and `db/worker-role-grants.sql` after the functions exist.
 3. Give the web process only the `tideway_app` database identity.
-4. Give the email worker a separate pool authenticated only as `tideway_worker`; it receives execute rights on claim/complete functions and no direct table rights.
+4. Give the separate [worker process](WORKER_OPERATIONS.md) a pool authenticated only as `tideway_worker`; it receives execute rights on claim/complete functions and no direct table rights.
 5. Configure `APP_ORIGIN` with the verified HTTPS host and keep `SMTP_URL`, `EMAIL_FROM` and provider credentials in the deployment secret manager.
 6. Run the internal SMTP adapter and one worker instance in staging, and prove provider duplicate behavior, retry classification, lease expiry, inactive/unverified-recipient suppression and no-address/no-location email content.
 7. Monitor pending age, retry count and permanent-failure rate without logging recipient addresses or payloads.
 
-No email worker is scheduled locally, no SMTP provider was called and no participant was contacted by this change.
+The scheduler and restricted database-only jobs pass locally, but email scheduling remains capability-disabled. No SMTP provider was called and no participant was contacted by this change.
 
 ## Verification
 

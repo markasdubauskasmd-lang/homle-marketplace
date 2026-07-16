@@ -24,7 +24,7 @@ The invitation and request histories are system-attributed but retain private ev
 
 Before scheduling this worker:
 
-- apply and verify all 30 locked migrations and both restricted-role grant files on PostgreSQL 16;
+- apply and verify all 31 locked migrations and both restricted-role grant files on PostgreSQL 16;
 - pass the real multi-account RLS and two-worker concurrency harness;
 - configure and approve every private `BOOKING_*` cost and margin input;
 - provide genuine active Cleaner profiles, availability, coverage and prices;
@@ -32,4 +32,4 @@ Before scheduling this worker:
 - attach private monitoring and alert on leases, repeated transient failures and full batches;
 - keep `MARKETPLACE_ENABLED=false` until the complete authentication, private storage, email and deployment gates also pass.
 
-The current local repository has no worker scheduler or production worker credential. No dispatch job was run and no person was contacted.
+The repository now has a default-off monitored worker scheduler, and its five database-only jobs pass through the real restricted local PostgreSQL 16.14 role. Automatic dispatch remains separately disabled without a production worker credential, approved economics, genuine Cleaner supply, delivery and managed concurrency evidence. No dispatch job was run and no person was contacted.
