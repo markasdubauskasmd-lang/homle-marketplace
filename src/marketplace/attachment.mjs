@@ -6,6 +6,7 @@ import { createPostgresRateLimiter } from "./postgres-rate-limiter.mjs";
 import { createMarketplaceRuntime } from "./runtime.mjs";
 import { createS3ObjectStorage } from "./s3-object-storage.mjs";
 import { createSmtpEmailDelivery } from "./smtp-email-delivery.mjs";
+import { createStripePaymentProvider } from "./stripe-payment-provider.mjs";
 import { createTrustedClientKeyResolver } from "./trusted-client-key.mjs";
 
 function enabledState(env) {
@@ -82,6 +83,7 @@ function unavailableAttachment(env, reason = "disabled") {
     reason,
     authenticationHttpReady: false,
     authenticationCapabilities,
+    paymentsReady: false,
     router: null,
     async close() {}
   });
@@ -107,10 +109,12 @@ export async function createMarketplaceAttachment(options = {}) {
   const createPool = options.createPool || createDefaultPostgresPool;
   const createEmailDelivery = options.createEmailDelivery || createSmtpEmailDelivery;
   const createObjectStorage = options.createObjectStorage || createS3ObjectStorage;
+  const createPaymentProvider = options.createPaymentProvider || createStripePaymentProvider;
   let emailDelivery;
   let objectStorage;
   let pool;
   let runtime;
+  let paymentProvider;
   try {
     emailDelivery = await createEmailDelivery(env, { onUnexpectedError: adapters.onUnexpectedError });
     if (!emailDelivery || typeof emailDelivery.send !== "function" || typeof emailDelivery.verify !== "function" || typeof emailDelivery.close !== "function") throw new TypeError("Marketplace SMTP delivery did not compose completely.");
@@ -121,6 +125,11 @@ export async function createMarketplaceAttachment(options = {}) {
     await (options.probeDatabase || probeMarketplaceDatabase)(pool);
     await emailDelivery.verify();
     await objectStorage.verify();
+    if (environment.payments.requested) {
+      paymentProvider = await createPaymentProvider({ secretKey: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET });
+      if (!paymentProvider || paymentProvider.name !== "stripe" || typeof paymentProvider.verify !== "function") throw new TypeError("Stripe payment adapter did not compose completely.");
+      await paymentProvider.verify();
+    }
     const rateLimiter = (options.createRateLimiter || createPostgresRateLimiter)(pool, { secret: env.SESSION_SECRET });
     runtime = (options.createRuntime || createMarketplaceRuntime)(pool, {
       env,
@@ -128,10 +137,11 @@ export async function createMarketplaceAttachment(options = {}) {
       clientKey,
       emailDelivery,
       objectStorage,
+      paymentProvider,
       etaProvider: adapters.etaProvider,
       onUnexpectedError: adapters.onUnexpectedError
     });
-    if (!runtime?.router || typeof runtime.router.handle !== "function" || runtime.authenticationHttpReady !== true) throw new TypeError("Marketplace runtime did not compose its router and authentication boundary completely.");
+    if (!runtime?.router || typeof runtime.router.handle !== "function" || runtime.authenticationHttpReady !== true || (environment.payments.requested && runtime.paymentReady !== true)) throw new TypeError("Marketplace runtime did not compose its router, authentication and requested payment boundaries completely.");
   } catch (error) {
     try { await runtime?.realtimeSignalSource?.close?.(); } catch {}
     try { await emailDelivery?.close?.(); } catch {}
@@ -155,6 +165,7 @@ export async function createMarketplaceAttachment(options = {}) {
     reason: "ready",
     authenticationHttpReady: true,
     authenticationCapabilities,
+    paymentsReady: environment.payments.requested && runtime.paymentReady === true,
     router: runtime.router,
     async close() {
       if (closed) return;

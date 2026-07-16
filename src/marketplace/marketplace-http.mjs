@@ -1,4 +1,4 @@
-import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, sendJson } from "./http-support.mjs";
+import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
@@ -58,6 +58,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const realtime = dependencies?.realtimeService;
   const notifications = dependencies?.notificationService;
   const reviews = dependencies?.reviewService;
+  const payments = dependencies?.paymentService || null;
   const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
@@ -81,6 +82,15 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
       const pathname = url.pathname;
       if (!pathname.startsWith(apiPrefix)) return false;
       try {
+        if (pathname === "/api/marketplace/payments/webhook") {
+          if (!payments) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const signatureHeader = request.headers?.["stripe-signature"];
+          const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
+          const result = await payments.handleWebhook(await readRawBody(request), signature);
+          sendJson(response, 200, { ok: true, accepted: result?.accepted === true, duplicate: result?.duplicate === true, ignored: result?.ignored === true });
+          return true;
+        }
         if (pathname === "/api/marketplace/account") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);

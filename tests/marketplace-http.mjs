@@ -8,7 +8,7 @@ function assert(condition, message) {
 }
 
 function request(method, url, { body, headers = {} } = {}) {
-  const chunks = body === undefined ? [] : [Buffer.from(typeof body === "string" ? body : JSON.stringify(body))];
+  const chunks = body === undefined ? [] : [Buffer.isBuffer(body) ? body : Buffer.from(typeof body === "string" ? body : JSON.stringify(body))];
   return {
     method,
     url,
@@ -115,6 +115,13 @@ const reviewService = {
   async respondToReview(actor, bookingId, input) { calls.push({ kind: "review-respond", actor, bookingId, input }); return { reviewId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId, cleanerId: actor.userId, rating: 5, moderationStatus: "approved", cleanerResponse: input.response, createdAt: "2026-07-15T19:00:00.000Z" }; },
   async moderateReview(actor, reviewId, input) { calls.push({ kind: "review-moderate", actor, reviewId, input }); return { reviewId, bookingId: "55555555-5555-4555-8555-555555555555", cleanerId: "22222222-2222-4222-8222-222222222222", rating: 5, moderationStatus: input.decision, createdAt: "2026-07-15T19:00:00.000Z" }; }
 };
+const paymentService = {
+  async handleWebhook(body, signature) {
+    calls.push({ kind: "payment-webhook", body, signature });
+    if (signature === "bad") throw Object.assign(new Error("The payment webhook could not be verified."), { statusCode: 400, code: "invalid-payment-webhook" });
+    return { accepted: true, duplicate: false, ignored: false };
+  }
+};
 let unexpectedError;
 let rateLimitedScope = "";
 let limiterFailure = null;
@@ -126,7 +133,8 @@ const rateLimiter = {
     return input.scope === rateLimitedScope ? { allowed: false, retryAfterSeconds: 99999 } : { allowed: true };
   }
 };
-const router = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService, rateLimiter }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService, paymentService, rateLimiter };
+const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
   origin: "http://127.0.0.1:4173",
@@ -136,6 +144,18 @@ const authHeaders = {
 
 const unrelated = response();
 assert(await router.handle(request("GET", "/api/health"), unrelated, new URL("http://127.0.0.1:4173/api/health")) === false && unrelated.statusCode === null, "Marketplace router intercepted an existing pilot API route.");
+
+const exactWebhookBody = Buffer.from('{"amount":12000, "preserve":"spacing"}');
+const signedWebhook = await dispatch(router, "POST", "/api/marketplace/payments/webhook", { body: exactWebhookBody, headers: { "stripe-signature": "t=1,v1=signed" } });
+const paymentWebhookCall = calls.find((call) => call.kind === "payment-webhook");
+assert(signedWebhook.response.statusCode === 200 && signedWebhook.body.accepted === true && Buffer.compare(paymentWebhookCall.body, exactWebhookBody) === 0 && paymentWebhookCall.signature === "t=1,v1=signed", "Payment webhook routing changed the signed raw bytes or required an account session.");
+const rejectedWebhook = await dispatch(router, "POST", "/api/marketplace/payments/webhook", { body: Buffer.from("{}"), headers: { "stripe-signature": "bad" } });
+assert(rejectedWebhook.response.statusCode === 400 && rejectedWebhook.body.code === "invalid-payment-webhook" && !rejectedWebhook.response.body.includes("secret"), "Invalid Stripe signatures did not fail closed with a bounded response.");
+const wrongWebhookMethod = await dispatch(router, "GET", "/api/marketplace/payments/webhook");
+assert(wrongWebhookMethod.response.statusCode === 405 && wrongWebhookMethod.response.headers.Allow === "POST", "Payment webhook accepted a non-POST method.");
+const noPaymentRouter = createMarketplaceHttpRouter({ ...dependencies, paymentService: null }, { clientKey: () => trustedClientKey });
+const absentWebhookResponse = response();
+assert(await noPaymentRouter.handle(request("POST", "/api/marketplace/payments/webhook", { body: Buffer.from("{}") }), absentWebhookResponse, new URL("http://127.0.0.1:4173/api/marketplace/payments/webhook")) === false && absentWebhookResponse.statusCode === null, "Disabled payments exposed a webhook route.");
 
 const directory = await dispatch(router, "GET", "/api/marketplace/cleaners?outwardPostcode=SW1A&verifiedOnly=true&limit=10");
 assert(directory.handled && directory.response.statusCode === 200 && directory.body.cleaners.length === 1 && calls.at(-1).filters.outwardPostcode === "SW1A" && calls.at(-1).filters.verifiedOnly === true && calls.at(-1).filters.limit === "10", "Public cleaner discovery did not parse its bounded service filters.");

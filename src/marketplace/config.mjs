@@ -3,6 +3,7 @@ const providerRequirements = Object.freeze({
   apple: ["APPLE_CLIENT_ID", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY"],
   facebook: ["FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET", "FACEBOOK_GRAPH_API_VERSION"]
 });
+const paymentRequirements = Object.freeze(["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
 
 function present(env, key) {
   return typeof env[key] === "string" && env[key].trim().length > 0;
@@ -11,6 +12,13 @@ function present(env, key) {
 function providerState(env, keys) {
   const supplied = keys.filter((key) => present(env, key));
   return { enabled: supplied.length === keys.length, partial: supplied.length > 0 && supplied.length < keys.length, missing: keys.filter((key) => !present(env, key)) };
+}
+
+function booleanSetting(env, key) {
+  const value = String(env[key] || "").trim().toLowerCase();
+  if (!value || value === "false") return false;
+  if (value === "true") return true;
+  return null;
 }
 
 export function marketplaceEnvironment(env = process.env) {
@@ -22,6 +30,9 @@ export function marketplaceEnvironment(env = process.env) {
   const appOrigin = present(env, "APP_ORIGIN") ? env.APP_ORIGIN.trim() : "";
   const objectStorageConfigured = ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_REGION", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"].every((key) => present(env, key));
   const encryptionConfigured = present(env, "DATA_ENCRYPTION_KEY") && env.DATA_ENCRYPTION_KEY.trim().length >= 32;
+  const suppliedPaymentKeys = paymentRequirements.filter((key) => present(env, key));
+  const paymentsRequested = booleanSetting(env, "PAYMENTS_ENABLED") === true;
+  const stripeConfigured = suppliedPaymentKeys.length === paymentRequirements.length;
   return {
     production: env.NODE_ENV === "production",
     databaseConfigured,
@@ -31,6 +42,12 @@ export function marketplaceEnvironment(env = process.env) {
     appOrigin,
     objectStorageConfigured,
     encryptionConfigured,
+    payments: {
+      requested: paymentsRequested,
+      stripeConfigured,
+      partial: suppliedPaymentKeys.length > 0 && !stripeConfigured,
+      missing: paymentRequirements.filter((key) => !present(env, key))
+    },
     providers,
     capabilities: {
       emailPassword: databaseConfigured && sessionConfigured && authTokenConfigured && emailConfigured && Boolean(appOrigin),
@@ -49,6 +66,11 @@ export function validateMarketplaceEnvironment(env = process.env) {
   for (const [provider, status] of Object.entries(state.providers)) {
     if (status.partial) errors.push(`${provider} sign-in is partially configured; missing ${status.missing.join(", ")}.`);
   }
+  if (booleanSetting(env, "PAYMENTS_ENABLED") === null) errors.push("PAYMENTS_ENABLED must be true or false.");
+  if (state.payments.partial) errors.push(`Stripe payments are partially configured; missing ${state.payments.missing.join(", ")}.`);
+  if (state.payments.requested && !state.payments.stripeConfigured) errors.push(`PAYMENTS_ENABLED requires ${state.payments.missing.join(", ")}.`);
+  if (present(env, "STRIPE_SECRET_KEY") && !/^sk_test_[A-Za-z0-9_]{16,200}$/.test(env.STRIPE_SECRET_KEY.trim())) errors.push("STRIPE_SECRET_KEY must be a Stripe test secret key; live keys are prohibited by this adapter.");
+  if (present(env, "STRIPE_WEBHOOK_SECRET") && !/^whsec_[A-Za-z0-9_]{16,200}$/.test(env.STRIPE_WEBHOOK_SECRET.trim())) errors.push("STRIPE_WEBHOOK_SECRET must be a valid Stripe webhook signing secret.");
   if (present(env, "DATABASE_URL") && !/^postgres(?:ql)?:\/\//i.test(env.DATABASE_URL.trim())) errors.push("DATABASE_URL must use PostgreSQL.");
   if (present(env, "SESSION_SECRET") && !state.sessionConfigured) errors.push("SESSION_SECRET must contain at least 32 characters.");
   if (present(env, "AUTH_TOKEN_SECRET") && !state.authTokenConfigured) errors.push("AUTH_TOKEN_SECRET must contain at least 32 characters.");

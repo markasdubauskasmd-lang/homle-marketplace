@@ -41,7 +41,7 @@ assert(canUpdateCleaningTask(cleaner, { ...booking, status: "cleaning-in-progres
 assert(canReviewCompletedBooking(landlord, { ...booking, status: "completed" }) && !canReviewCompletedBooking(landlord, booking) && !canReviewCompletedBooking(unrelatedCleaner, { ...booking, status: "completed" }), "Review eligibility was not limited to the completed booking's landlord.");
 
 const emptyEnvironment = marketplaceEnvironment({});
-assert(!emptyEnvironment.databaseConfigured && !emptyEnvironment.capabilities.google && !emptyEnvironment.capabilities.emailPassword, "Unconfigured authentication appeared enabled.");
+assert(!emptyEnvironment.databaseConfigured && !emptyEnvironment.capabilities.google && !emptyEnvironment.capabilities.emailPassword && !emptyEnvironment.payments.requested && !emptyEnvironment.payments.stripeConfigured, "Unconfigured authentication or payments appeared enabled.");
 const partialGoogle = validateMarketplaceEnvironment({ GOOGLE_CLIENT_ID: "client-only" });
 assert(!partialGoogle.ok && partialGoogle.errors.some((error) => error.includes("GOOGLE_CLIENT_SECRET")), "Partial Google OAuth configuration did not fail closed.");
 const partialFacebook = validateMarketplaceEnvironment({ FACEBOOK_APP_ID: "app", FACEBOOK_APP_SECRET: "secret" });
@@ -49,6 +49,13 @@ assert(!partialFacebook.ok && partialFacebook.errors.some((error) => error.inclu
 const invalidFacebookVersion = validateMarketplaceEnvironment({ FACEBOOK_APP_ID: "app", FACEBOOK_APP_SECRET: "secret", FACEBOOK_GRAPH_API_VERSION: "latest" });
 assert(!invalidFacebookVersion.ok && invalidFacebookVersion.errors.some((error) => error.includes("vN.N")), "Facebook configuration accepted a floating Graph API version.");
 assert(publicAuthenticationCapabilities({ GOOGLE_CLIENT_ID: "client", GOOGLE_CLIENT_SECRET: "secret" }).google === false, "OAuth client credentials enabled a provider without the database, session and exact-origin boundary.");
+const partialStripe = validateMarketplaceEnvironment({ STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}` });
+assert(!partialStripe.ok && partialStripe.errors.some((error) => error.includes("STRIPE_WEBHOOK_SECRET")), "Partial Stripe configuration did not fail closed.");
+const liveStripe = validateMarketplaceEnvironment({ PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_live_${"a".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` });
+assert(!liveStripe.ok && liveStripe.errors.some((error) => error.includes("live keys are prohibited")), "The reviewed test-only payment adapter accepted a live key.");
+assert(!validateMarketplaceEnvironment({ PAYMENTS_ENABLED: "sometimes" }).ok, "An ambiguous payment feature switch was accepted.");
+const stagedStripe = marketplaceEnvironment({ PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` });
+assert(stagedStripe.payments.requested && stagedStripe.payments.stripeConfigured && !JSON.stringify(stagedStripe).includes("sk_test_"), "Test payment readiness was not represented safely or exposed its secret.");
 const weakSession = validateMarketplaceEnvironment({ SESSION_SECRET: "too-short" });
 assert(!weakSession.ok && weakSession.errors.some((error) => error.includes("32 characters")), "A weak session secret passed validation.");
 const reusedSecret = validateMarketplaceEnvironment({ SESSION_SECRET: "x".repeat(32), AUTH_TOKEN_SECRET: "x".repeat(32) });

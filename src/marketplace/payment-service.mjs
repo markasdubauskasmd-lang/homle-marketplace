@@ -155,7 +155,9 @@ export function createPaymentService(repository, provider, options = {}) {
     if (prepared.providerCommandId) return Object.freeze({ commandId: prepared.commandId, paymentId: prepared.paymentId, kind, status: prepared.status });
     const request = {
       idempotencyKey: `tideway_payment_command_${prepared.commandId}`,
+      commandId: prepared.commandId,
       paymentId: prepared.paymentId,
+      bookingId: prepared.bookingId,
       providerPaymentId: reference(prepared.providerPaymentId, "provider payment id"),
       amountPence: positiveInteger(prepared.amountPence, "Payment command amount"),
       currency: currency(prepared.currency)
@@ -175,7 +177,9 @@ export function createPaymentService(repository, provider, options = {}) {
     async handleWebhook(rawBody, signature) {
       const bytes = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(typeof rawBody === "string" ? rawBody : "");
       if (!bytes.length || bytes.length > 1024 * 1024 || typeof signature !== "string" || !signature.trim() || signature.length > 2048) throw Object.assign(new Error("The payment webhook could not be verified."), { statusCode: 400, code: "invalid-payment-webhook" });
-      const event = normalizedEvent(await provider.verifyWebhook(bytes, signature), createHash("sha256").update(bytes).digest("hex"));
+      const verified = await provider.verifyWebhook(bytes, signature);
+      if (verified?.ignored === true) return Object.freeze({ accepted: true, duplicate: false, ignored: true });
+      const event = normalizedEvent(verified, createHash("sha256").update(bytes).digest("hex"));
       return repository.reconcileEvent(event);
     }
   });

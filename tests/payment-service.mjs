@@ -28,7 +28,7 @@ const repository = {
   async beginCommand(actor, input) {
     calls.push({ kind: "begin-command", actor, input });
     const amountPence = input.kind === "refund" ? input.amountPence : input.kind === "transfer" ? 7_200 : 12_000;
-    return { commandId: input.commandId, paymentId: input.paymentId, kind: input.kind, status: "created", amountPence, currency: "gbp", providerPaymentId: "pi_test_private", providerCommandId: null, destinationAccountId: input.kind === "transfer" ? "acct_cleaner_private" : null };
+    return { commandId: input.commandId, paymentId: input.paymentId, bookingId, kind: input.kind, status: "created", amountPence, currency: "gbp", providerPaymentId: "pi_test_private", providerCommandId: null, destinationAccountId: input.kind === "transfer" ? "acct_cleaner_private" : null };
   },
   async recordCommand(actor, selectedCommandId, result) {
     calls.push({ kind: "record-command", actor, selectedCommandId, result });
@@ -86,6 +86,7 @@ const refunded = await service.refund(administrator, { paymentId, amountPence: 2
 const transferred = await service.transfer(administrator, { paymentId, destinationAccountId: "acct_browser_attack", idempotencyKey: "transfer_retry_key_12345678901234" });
 const cancelled = await service.cancel(landlord, { paymentId, idempotencyKey: "cancel_retry_key_1234567890123456" });
 assert(captured.kind === "capture" && refunded.kind === "refund" && transferred.kind === "transfer" && cancelled.kind === "cancel", "Payment commands were not recorded through their exact command types.");
+assert(calls.find((call) => call.kind === "provider-capture").input.bookingId === bookingId && calls.find((call) => call.kind === "provider-capture").input.commandId === commandIds[0], "Payment command lost its server-owned booking or command reference.");
 assert(calls.find((call) => call.kind === "provider-refund").input.amountPence === 2_000, "The repository-approved refund amount was not sent to the provider.");
 assert(calls.find((call) => call.kind === "provider-transfer").input.amountPence === 7_200 && calls.find((call) => call.kind === "provider-transfer").input.destinationAccountId === "acct_cleaner_private" && !JSON.stringify(calls.find((call) => call.kind === "provider-transfer")).includes("acct_browser_attack"), "Cleaner payout economics or destination were trusted from the browser.");
 await assert.rejects(service.capture(landlord, { paymentId, idempotencyKey: "capture_retry_key_123456789012345" }), (error) => error.code === "payment-role-required");
@@ -95,6 +96,11 @@ const webhook = await service.handleWebhook(Buffer.from('{"id":"evt_test_private
 assert(webhook.accepted === true && calls.find((call) => call.kind === "reconcile").event.providerEventId === "evt_test_private" && calls.find((call) => call.kind === "reconcile").event.payloadHash.length === 64, "Verified provider webhook did not reconcile through the allowlisted event projection.");
 await assert.rejects(service.handleWebhook(Buffer.alloc(0), "signature"), (error) => error.code === "invalid-payment-webhook");
 await assert.rejects(service.handleWebhook(Buffer.alloc(1024 * 1024 + 1), "signature"), (error) => error.code === "invalid-payment-webhook");
+
+const reconcilesBeforeIgnored = calls.filter((call) => call.kind === "reconcile").length;
+const ignoredService = createPaymentService(repository, { ...provider, async verifyWebhook() { return { ignored: true, eventId: "evt_unrelated_signed" }; } }, { createId: () => paymentId });
+assert.equal((await ignoredService.handleWebhook(Buffer.from("{}"), "signed")).ignored, true);
+assert.equal(calls.filter((call) => call.kind === "reconcile").length, reconcilesBeforeIgnored, "A signed unrelated Stripe event entered payment reconciliation.");
 
 const mismatchedProvider = { ...provider, async createAuthorization(input) { return { id: "pi_bad_amount", status: "authorized", amountPence: input.amountPence - 1, currency: input.currency }; } };
 const mismatchService = createPaymentService(repository, mismatchedProvider, { createId: () => paymentId });

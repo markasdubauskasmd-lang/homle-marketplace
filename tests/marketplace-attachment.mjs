@@ -35,6 +35,7 @@ const disabled = await createMarketplaceAttachment({
 assert.equal(disabled.enabled, false);
 assert.equal(disabled.ready, false);
 assert.equal(disabled.router, null);
+assert.equal(disabled.paymentsReady, false);
 assert.equal(adapterLoaded, false);
 assert.ok(Object.values(disabled.authenticationCapabilities).filter((value) => value === true).length === 0);
 
@@ -131,12 +132,40 @@ assert.equal(attachment.authenticationCapabilities.passwordReset, true);
 assert.equal(attachment.authenticationCapabilities.emailVerification, true);
 assert.equal(attachment.authenticationCapabilities.google, true, "A configured and attached Google callback router was not advertised truthfully.");
 assert.equal(attachment.authenticationCapabilities.facebook, true, "A configured and attached Facebook callback plus mailbox-verification router was not advertised truthfully.");
+assert.equal(attachment.paymentsReady, false, "Payments appeared attached without the explicit payment switch.");
 await attachment.close();
 await attachment.close();
 assert.equal(realtimeClosed, 1);
 assert.equal(smtpClosed, 1);
 assert.equal(storageClosed, 1);
 assert.equal(ended, 1);
+
+let paymentAdapterVerified = 0;
+let paymentProviderConfiguration;
+const paymentEnvironment = Object.freeze({ ...completeEnvironment, PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` });
+const paymentAttachment = await createMarketplaceAttachment({
+  env: paymentEnvironment,
+  adapters,
+  async createPool() { return { async end() {} }; },
+  async probeDatabase() {},
+  async createEmailDelivery() { return { async verify() {}, async send() {}, async close() {} }; },
+  async createObjectStorage() { return { async verify() {}, async createUploadUrl() {}, async headObject() {}, async inspectAndSanitizeImage() {}, async createReadUrl() {}, async deleteObject() {}, async close() {} }; },
+  createClientKeyResolver() { return trustedClientKey; },
+  createRateLimiter() { return sharedRateLimiter; },
+  async createPaymentProvider(configuration) {
+    paymentProviderConfiguration = configuration;
+    return { name: "stripe", async verify() { paymentAdapterVerified += 1; return { ready: true, testMode: true }; } };
+  },
+  createRuntime(selectedPool, options) {
+    assert.equal(options.paymentProvider.name, "stripe");
+    return { router, authenticationHttpReady: true, googleOidcReady: true, facebookLoginReady: true, paymentReady: true, realtimeSignalSource: { async close() {} } };
+  }
+});
+assert.equal(paymentAttachment.paymentsReady, true);
+assert.equal(paymentAdapterVerified, 1);
+assert.equal(paymentProviderConfiguration.secretKey, paymentEnvironment.STRIPE_SECRET_KEY);
+assert.equal(paymentProviderConfiguration.webhookSecret, paymentEnvironment.STRIPE_WEBHOOK_SECRET);
+await paymentAttachment.close();
 
 let unsafeReleased = 0;
 await assert.rejects(probeMarketplaceDatabase({

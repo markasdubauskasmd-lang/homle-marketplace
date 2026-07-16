@@ -19,7 +19,7 @@ node tools/check-dependency-lock.mjs
 pnpm install --frozen-lockfile --ignore-scripts
 ```
 
-The manifest pins `pg` 8.22.0 exactly and the gate locks the entire transitive graph by SHA-256 plus registry integrity values. Do not use an unlocked install or commit `node_modules`.
+The manifest pins `pg` 8.22.0 and the reviewed Stripe Node SDK 22.1.1 exactly; the gate locks the entire dependency graph by SHA-256 plus registry integrity values. Do not use an unlocked install or commit `node_modules`.
 
 For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the computer's private IPv4 address, and open `http://<computer-ip>:4174/` on the phone. The main control desk remains on `http://127.0.0.1:4173/admin`; both its HTML shell and data APIs require an admin key through the Wi-Fi address. This is a local-network preview only—do not expose port 4174 through a router or public tunnel.
 
@@ -49,7 +49,7 @@ The [capability-gated account interface](docs/ACCOUNT_UI.md) prepares responsive
 
 Phase 3 has started with [account-backed cleaning requests](docs/ACCOUNT_CLEANING_REQUESTS.md): an authenticated Landlord can prepare a future, bounded request only for their own saved property, using supported services and a required room-by-room checklist. Tideway fingerprints the canonical scope and writes the property check, request, ordered tasks and initial status history in one transaction. Routes remain detached pending PostgreSQL staging; no live pilot request was changed.
 
-The [marketplace payment boundary](docs/PAYMENTS.md) now adds a detached provider-neutral workflow and locked migration 022 for the frozen booking total, later capture/cancellation, bounded refunds and server-owned Cleaner transfers. Raw retry keys are hashed, direct payment-table access is revoked, client secrets/raw webhook payloads are not stored and only signature-verified allowlisted events may reconcile state. This is not Stripe activation: no SDK adapter, webhook route, Connect onboarding, payment UI or provider account exists, and no payment action can be reached from the current site.
+The [marketplace payment boundary](docs/PAYMENTS.md) now adds a detached provider-neutral workflow, locked migration 022 and an exact-version Stripe test adapter for the frozen booking total, manual capture/cancellation, bounded refunds and source-backed Cleaner transfers. The raw signed-webhook endpoint exists only when the complete marketplace and explicit payment gates attach; unrelated signed events are ignored and raw payloads are never stored. This is not Stripe activation: the flags remain false, no Stripe account or keys were used, no customer payment UI or Connect onboarding exists, and no payment action can be reached from the current site.
 
 The [frozen Cleaner invitation and acceptance transaction](docs/BOOKING_INVITATIONS.md) now keeps all price, Cleaner pay, costs and margin inputs on the trusted server; rechecks profile, services and exact availability in PostgreSQL; freezes the room scope and terms; preserves declined attempts for replacement matching; and uses the database exclusion constraint as the final concurrent double-booking guard. Invitation creation stays safely unavailable until every private `BOOKING_*` assumption is explicitly approved and configured. No invitation is delivered from the live pilot.
 

@@ -5130,7 +5130,8 @@ async function handleHttpRequest(request, response) {
 
   try {
     if (!enforceRateLimit(request, response, rateLimitPolicyFor(request, requestUrl.pathname))) return;
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "")) ensureSameOrigin(request);
+    const signedPaymentWebhook = request.method === "POST" && requestUrl.pathname === "/api/marketplace/payments/webhook";
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "") && !signedPaymentWebhook) ensureSameOrigin(request);
     if (request.method === "GET" && requestUrl.pathname === "/api/health") {
       return json(response, 200, {
         ok: true,
@@ -5141,7 +5142,8 @@ async function handleHttpRequest(request, response) {
         marketplace: {
           enabled: marketplaceAttachment.enabled,
           ready: marketplaceAttachment.ready,
-          authenticationReady: marketplaceAttachment.authenticationHttpReady
+          authenticationReady: marketplaceAttachment.authenticationHttpReady,
+          paymentsReady: marketplaceAttachment.paymentsReady === true
         }
       });
     }

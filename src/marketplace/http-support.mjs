@@ -1,6 +1,7 @@
 import { AccountHttpError } from "./account-security.mjs";
 
 export const maximumBodyBytes = 64 * 1024;
+export const maximumWebhookBodyBytes = 1024 * 1024;
 
 export function sendJson(response, statusCode, body, headers = {}) {
   response.writeHead(statusCode, {
@@ -32,11 +33,25 @@ export async function readJsonObject(request) {
   return value;
 }
 
+export async function readRawBody(request, maximumBytes = maximumWebhookBodyBytes) {
+  const declaredLength = Number(request?.headers?.["content-length"]);
+  if (Number.isFinite(declaredLength) && (declaredLength < 0 || declaredLength > maximumBytes)) throw Object.assign(new Error("The request body is too large."), { statusCode: 413, code: "request-too-large" });
+  const chunks = [];
+  let byteLength = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    byteLength += buffer.length;
+    if (byteLength > maximumBytes) throw Object.assign(new Error("The request body is too large."), { statusCode: 413, code: "request-too-large" });
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks, byteLength);
+}
+
 export function errorResponse(error) {
   if (error instanceof AccountHttpError) return { statusCode: error.statusCode, code: error.code, message: error.message };
   if (error instanceof SyntaxError) return { statusCode: 400, code: error.code || "invalid-request", message: error.message };
   if (error instanceof TypeError || error instanceof RangeError) return { statusCode: 422, code: "validation-failed", message: error.message };
-  if ([403, 404, 409, 413, 429, 503].includes(error?.statusCode)) return { statusCode: error.statusCode, code: error.code || ({ 403: "forbidden", 404: "not-found", 409: "conflict", 413: "request-too-large", 429: "rate-limited", 503: "temporarily-unavailable" }[error.statusCode]), message: error.message };
+  if ([400, 403, 404, 409, 413, 429, 503].includes(error?.statusCode)) return { statusCode: error.statusCode, code: error.code || ({ 400: "invalid-request", 403: "forbidden", 404: "not-found", 409: "conflict", 413: "request-too-large", 429: "rate-limited", 503: "temporarily-unavailable" }[error.statusCode]), message: error.message };
   return { statusCode: 500, code: "internal-error", message: "Something went wrong. Please try again." };
 }
 
