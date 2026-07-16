@@ -91,6 +91,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.open_booking_dispute(uuid,uuid,uuid,te
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_dispute(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_admin_booking_disputes(text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.review_booking_dispute(uuid,text,text,text) TO tideway_app;
+REVOKE ALL ON FUNCTION tideway_private.provision_bootstrap_administrator(citext,uuid,text,text) FROM tideway_app;
 
 -- Booking transitions are only writable through the audited, actor-aware functions above.
 REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, task_updates, job_pauses, unexpected_task_decisions, booking_progress_events, job_photos, job_photo_uploads, cleaner_locations, conversations, messages, notifications, audit_logs FROM tideway_app;

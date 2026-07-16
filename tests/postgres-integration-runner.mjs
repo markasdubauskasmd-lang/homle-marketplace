@@ -9,7 +9,7 @@ import { postgresIntegrationConfirmation, runConcurrentPsql, runPostgresMarketpl
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const integrationDirectory = path.join(projectRoot, "db", "integration");
 const requiredFiles = [
-  "assert-integration-target.sql", "marketplace-integration-setup.sql", "marketplace-rls-behaviour.sql",
+  "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "marketplace-rls-behaviour.sql",
   "accept-booking-a.sql", "accept-booking-b.sql", "marketplace-post-concurrency.sql",
   "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql",
   "marketplace-payment-gate.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
@@ -18,6 +18,10 @@ const sources = new Map();
 for (const file of requiredFiles) sources.set(file, await readFile(path.join(integrationDirectory, file), "utf8"));
 
 assert.match(sources.get("assert-integration-target.sql"), /_tideway_test\$/);
+assert.match(sources.get("administrator-bootstrap-app-denied.sql"), /Runtime role provisioned an Administrator/);
+assert.match(sources.get("administrator-bootstrap-owner.sql"), /Exact bootstrap retry was not idempotent/);
+assert.match(sources.get("administrator-bootstrap-owner.sql"), /Unverified account received Administrator authority/);
+assert.match(sources.get("administrator-bootstrap-owner.sql"), /Administrator bootstrap integration fixtures were not removed/);
 assert.match(sources.get("marketplace-integration-setup.sql"), /integration-landlord@invalid\.example/);
 assert.match(sources.get("marketplace-integration-setup.sql"), /invite_cleaner[\s\S]*invite_cleaner/);
 assert.match(sources.get("marketplace-integration-setup.sql"), /cleaner_service_areas[\s\S]*SW1A/);
@@ -70,9 +74,9 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
-  "deployment-verification.sql", "assert-integration-target.sql", "marketplace-integration-setup.sql",
+  "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql",
   "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-gate.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);

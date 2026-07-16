@@ -135,6 +135,15 @@ BEGIN
   selected_function := to_regprocedure('tideway_private.require_current_payment_before_job_start()');
   IF selected_function IS NULL OR NOT EXISTS (SELECT 1 FROM pg_proc procedure WHERE procedure.oid=selected_function AND procedure.prosecdef AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%') THEN RAISE EXCEPTION 'Job-start payment trigger function is missing or unsafe'; END IF;
   IF has_function_privilege('tideway_app', 'tideway_private.require_current_payment_before_job_start()', 'EXECUTE') THEN RAISE EXCEPTION 'App role can execute the internal job-start payment trigger directly'; END IF;
+  selected_function := to_regprocedure('tideway_private.provision_bootstrap_administrator(citext,uuid,text,text)');
+  IF selected_function IS NULL OR NOT EXISTS (
+    SELECT 1 FROM pg_proc procedure WHERE procedure.oid=selected_function AND procedure.prosecdef
+      AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+  ) THEN RAISE EXCEPTION 'Migration-owner Administrator bootstrap function is missing or unsafe'; END IF;
+  IF has_function_privilege('tideway_app', selected_function, 'EXECUTE') OR has_function_privilege('tideway_worker', selected_function, 'EXECUTE') THEN
+    RAISE EXCEPTION 'A restricted role can execute migration-owner Administrator bootstrap';
+  END IF;
+  IF to_regclass('public.audit_logs_administrator_bootstrap_request_idx') IS NULL THEN RAISE EXCEPTION 'Administrator bootstrap retry index is missing'; END IF;
 
   FOREACH selected_name IN ARRAY app_functions || worker_functions LOOP
     selected_function := to_regprocedure(selected_name);

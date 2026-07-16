@@ -10,6 +10,8 @@ export const postgresIntegrationConfirmation = "RUN TIDEWAY DISPOSABLE DATABASE 
 
 const scripts = Object.freeze({
   target: "assert-integration-target.sql",
+  administratorBootstrapDenied: "administrator-bootstrap-app-denied.sql",
+  administratorBootstrapOwner: "administrator-bootstrap-owner.sql",
   setup: "marketplace-integration-setup.sql",
   rls: "marketplace-rls-behaviour.sql",
   acceptA: "accept-booking-a.sql",
@@ -104,6 +106,8 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
 
   runPostgresDeploymentVerification({ connectionUrl: options.ownerUrl ?? process.env.DATABASE_INTEGRATION_OWNER_URL, psqlCommand: command, spawn: execute, baseEnvironment: options.baseEnvironment || process.env });
   runPsqlSync({ label: "Integration target guard", file: scripts.target, environment: ownerEnvironment, command, execute });
+  runPsqlSync({ label: "Restricted Administrator bootstrap denial", file: scripts.administratorBootstrapDenied, environment: appEnvironment, command, execute });
+  runPsqlSync({ label: "Migration-owner Administrator bootstrap", file: scripts.administratorBootstrapOwner, environment: ownerEnvironment, command, execute });
 
   try {
     runPsqlSync({ label: "Integration fixture setup", file: scripts.setup, environment: ownerEnvironment, command, execute });
@@ -131,7 +135,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {
@@ -147,7 +151,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
 if (process.argv[1] && path.resolve(process.argv[1]) === toolPath) {
   try {
     const result = await runPostgresMarketplaceIntegration();
-    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; RLS, privacy, social-provider step-up/removal, audited disputes, current-payment journey gating and concurrent overlap protection verified and fixtures removed.`);
+    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, RLS, privacy, social-provider step-up/removal, audited disputes, current-payment journey gating and concurrent overlap protection verified and fixtures removed.`);
   } catch (error) {
     console.error(error.message);
     if (error.integrationOutput) console.error(error.integrationOutput.trim());

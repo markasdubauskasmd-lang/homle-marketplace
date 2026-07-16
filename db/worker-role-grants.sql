@@ -2,6 +2,8 @@
 -- The worker password belongs in the deployment secret manager, never in this file.
 BEGIN;
 
+REVOKE ALL ON FUNCTION tideway_private.provision_bootstrap_administrator(citext,uuid,text,text) FROM tideway_worker;
+
 DO $$
 DECLARE
   worker_role record;
