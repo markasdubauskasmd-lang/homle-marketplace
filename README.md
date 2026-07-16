@@ -21,6 +21,8 @@ pnpm install --frozen-lockfile --ignore-scripts
 
 The manifest pins `pg` 8.22.0 and the reviewed Stripe Node SDK 22.1.1 exactly; the gate locks the entire dependency graph by SHA-256 plus registry integrity values. Do not use an unlocked install or commit `node_modules`.
 
+Before any production process starts, configure the reviewed HTTPS proxy, off-source private data directory and protected Administrator boundary, then run `pnpm run preflight:production`. The server repeats this gate before listening. A safe public-site deployment can keep both marketplace and payments false without inventing database credentials; authenticated marketplace promotion remains a separate managed-staging step. See [Production deployment gate](docs/PRODUCTION_DEPLOYMENT.md).
+
 For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the computer's private IPv4 address, and open `http://<computer-ip>:4174/` on the phone. The main control desk remains on `http://127.0.0.1:4173/admin`; both its HTML shell and data APIs require an admin key through the Wi-Fi address. This is a local-network preview only—do not expose port 4174 through a router or public tunnel.
 
 ## Marketplace design preview

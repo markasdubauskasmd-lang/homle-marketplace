@@ -66,10 +66,14 @@ const reusedSecret = validateMarketplaceEnvironment({ SESSION_SECRET: "x".repeat
 assert(!reusedSecret.ok && reusedSecret.errors.some((error) => error.includes("different from SESSION_SECRET")), "Authentication tokens reused the session-secret trust boundary.");
 const reusedEncryptionSecret = validateMarketplaceEnvironment({ SESSION_SECRET: "x".repeat(32), AUTH_TOKEN_SECRET: "y".repeat(32), DATA_ENCRYPTION_KEY: "x".repeat(32) });
 assert(!reusedEncryptionSecret.ok && reusedEncryptionSecret.errors.some((error) => error.includes("DATA_ENCRYPTION_KEY must be different")), "Property encryption reused an authentication trust boundary.");
-const incompleteProduction = validateMarketplaceEnvironment({ NODE_ENV: "production", APP_ORIGIN: "http://example.com" });
+const pilotProduction = validateMarketplaceEnvironment({ NODE_ENV: "production", MARKETPLACE_ENABLED: "false", PAYMENTS_ENABLED: "false", APP_ORIGIN: "https://tideway.example.com" });
+assert(pilotProduction.ok, "A production public-site deployment could not stay safely detached from unfinished marketplace infrastructure.");
+const incompleteProduction = validateMarketplaceEnvironment({ NODE_ENV: "production", MARKETPLACE_ENABLED: "true", APP_ORIGIN: "http://example.com" });
 assert(!incompleteProduction.ok && incompleteProduction.errors.some((error) => error.includes("DATABASE_URL")) && incompleteProduction.errors.some((error) => error.includes("AUTH_TOKEN_SECRET")) && incompleteProduction.errors.some((error) => error.includes("HTTPS")), "Production marketplace configuration passed without its database, token-secret, encryption or HTTPS boundary.");
+assert(!validateMarketplaceEnvironment({ MARKETPLACE_ENABLED: "false", PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_PUBLISHABLE_KEY: `pk_test_${"c".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` }).ok, "Payments could be requested while the marketplace remained detached.");
 const validProduction = {
   NODE_ENV: "production",
+  MARKETPLACE_ENABLED: "true",
   APP_ORIGIN: "https://tideway.example.com",
   DATABASE_URL: "postgresql://tideway:secret@db.example.com/tideway",
   SESSION_SECRET: "s".repeat(32),

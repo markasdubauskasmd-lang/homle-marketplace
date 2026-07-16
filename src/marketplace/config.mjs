@@ -32,9 +32,11 @@ export function marketplaceEnvironment(env = process.env) {
   const encryptionConfigured = present(env, "DATA_ENCRYPTION_KEY") && env.DATA_ENCRYPTION_KEY.trim().length >= 32;
   const suppliedPaymentKeys = paymentRequirements.filter((key) => present(env, key));
   const paymentsRequested = booleanSetting(env, "PAYMENTS_ENABLED") === true;
+  const marketplaceRequested = booleanSetting(env, "MARKETPLACE_ENABLED") === true;
   const stripeConfigured = suppliedPaymentKeys.length === paymentRequirements.length;
   return {
     production: env.NODE_ENV === "production",
+    marketplace: { requested: marketplaceRequested },
     databaseConfigured,
     sessionConfigured,
     authTokenConfigured,
@@ -66,7 +68,9 @@ export function validateMarketplaceEnvironment(env = process.env) {
   for (const [provider, status] of Object.entries(state.providers)) {
     if (status.partial) errors.push(`${provider} sign-in is partially configured; missing ${status.missing.join(", ")}.`);
   }
+  if (booleanSetting(env, "MARKETPLACE_ENABLED") === null) errors.push("MARKETPLACE_ENABLED must be true or false.");
   if (booleanSetting(env, "PAYMENTS_ENABLED") === null) errors.push("PAYMENTS_ENABLED must be true or false.");
+  if (state.payments.requested && !state.marketplace.requested) errors.push("PAYMENTS_ENABLED requires MARKETPLACE_ENABLED=true.");
   if (state.payments.partial) errors.push(`Stripe payments are partially configured; missing ${state.payments.missing.join(", ")}.`);
   if (state.payments.requested && !state.payments.stripeConfigured) errors.push(`PAYMENTS_ENABLED requires ${state.payments.missing.join(", ")}.`);
   if (present(env, "STRIPE_SECRET_KEY") && !/^sk_test_[A-Za-z0-9_]{16,200}$/.test(env.STRIPE_SECRET_KEY.trim())) errors.push("STRIPE_SECRET_KEY must be a Stripe test secret key; live keys are prohibited by this adapter.");
@@ -105,11 +109,13 @@ export function validateMarketplaceEnvironment(env = process.env) {
   if (present(env, "OBJECT_STORAGE_FORCE_PATH_STYLE") && !["true", "false"].includes(env.OBJECT_STORAGE_FORCE_PATH_STYLE.trim().toLowerCase())) errors.push("OBJECT_STORAGE_FORCE_PATH_STYLE must be true or false.");
   if (present(env, "DATA_ENCRYPTION_KEY") && !state.encryptionConfigured) errors.push("DATA_ENCRYPTION_KEY must contain at least 32 characters.");
   if (state.production) {
-    if (!state.databaseConfigured) errors.push("DATABASE_URL is required in production.");
-    if (!state.sessionConfigured) errors.push("A 32-character SESSION_SECRET is required in production.");
-    if (!state.authTokenConfigured) errors.push("A separate 32-character AUTH_TOKEN_SECRET is required in production.");
     if (!state.appOrigin) errors.push("APP_ORIGIN is required in production.");
-    if (!state.encryptionConfigured) errors.push("A 32-character DATA_ENCRYPTION_KEY is required in production.");
+    if (state.marketplace.requested) {
+      if (!state.databaseConfigured) errors.push("DATABASE_URL is required when the production marketplace is enabled.");
+      if (!state.sessionConfigured) errors.push("A 32-character SESSION_SECRET is required when the production marketplace is enabled.");
+      if (!state.authTokenConfigured) errors.push("A separate 32-character AUTH_TOKEN_SECRET is required when the production marketplace is enabled.");
+      if (!state.encryptionConfigured) errors.push("A 32-character DATA_ENCRYPTION_KEY is required when the production marketplace is enabled.");
+    }
   }
   return { ok: errors.length === 0, errors, state };
 }

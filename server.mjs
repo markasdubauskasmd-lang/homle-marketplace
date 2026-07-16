@@ -21,9 +21,14 @@ import { createMarketplaceAttachment } from "./src/marketplace/attachment.mjs";
 import { createTrustedClientAddressResolver } from "./src/marketplace/trusted-client-key.mjs";
 import { createTrackingTestStore } from "./tracking-test-store.mjs";
 import { assessPrivateDataDirectory } from "./data-directory-safety.mjs";
+import { validateProductionDeployment } from "./deployment-readiness.mjs";
 import "./public/scope-time-breakdown.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+if (process.env.NODE_ENV === "production") {
+  const deployment = validateProductionDeployment(process.env, { projectRoot: root });
+  if (!deployment.ok) throw new Error(`Production deployment preflight failed: ${deployment.errors.join(" ")}`);
+}
 const scopeTimeWorksheet = globalThis.TidewayScopeTimeBreakdown;
 const publicDir = path.join(root, "public");
 const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(root, "data");
