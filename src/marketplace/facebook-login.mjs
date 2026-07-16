@@ -81,7 +81,7 @@ function verifiedFlow(value, secret, nowSeconds) {
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new TypeError("The Facebook sign-in attempt is missing or expired.");
   const payload = safeJson(decodeBase64url(parts[0], "Facebook sign-in cookie", 3072), "Facebook sign-in cookie");
   if (payload.v !== 1 || !Number.isInteger(payload.iat) || !Number.isInteger(payload.exp) || payload.iat > nowSeconds + maximumClockSkewSeconds || payload.exp < nowSeconds || payload.exp - payload.iat !== flowLifetimeSeconds) throw new TypeError("The Facebook sign-in attempt is missing or expired.");
-  if (!["sign-in", "link"].includes(payload.purpose)) throw new TypeError("The Facebook sign-in attempt is missing or expired.");
+  if (!["sign-in", "link", "step-up"].includes(payload.purpose)) throw new TypeError("The Facebook sign-in attempt is missing or expired.");
   if (typeof payload.state !== "string" || payload.state.length < 32 || payload.state.length > 128 || !/^[A-Za-z0-9_-]+$/.test(payload.state)) throw new TypeError("The Facebook sign-in attempt is missing or expired.");
   return payload;
 }
@@ -182,7 +182,7 @@ export function createFacebookLoginProvider(options = {}) {
     clearCookie: expiredFlowCookie(secure, cookieName),
     begin(options = {}) {
       const purpose = options.purpose ?? "sign-in";
-      if (!["sign-in", "link"].includes(purpose)) throw new TypeError("Facebook sign-in purpose is invalid.");
+      if (!["sign-in", "link", "step-up"].includes(purpose)) throw new TypeError("Facebook sign-in purpose is invalid.");
       const nowSeconds = Math.floor(clock() / 1000);
       const state = base64url(entropy(32));
       const payload = { v: 1, purpose, state, iat: nowSeconds, exp: nowSeconds + flowLifetimeSeconds };

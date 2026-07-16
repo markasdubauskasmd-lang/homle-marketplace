@@ -66,7 +66,15 @@ const identityService = {
   async socialSignIn(provider, claims) { calls.push({ kind: "social-sign-in", provider, claims }); return { user_id: currentContext.actor.userId, email: claims.email, email_verified_at: "2026-07-15T12:00:00.000Z", display_name: claims.displayName, selected_role: null, roles: [] }; },
   async completeOnboarding(actor, role) { calls.push({ kind: "onboarding", actor, role }); return { user_id: actor.userId, selected_role: role, roles: [role] }; },
   async connectedProviders(actor) { calls.push({ kind: "connected-providers", actor }); return connectedProviders; },
-  async connectProvider(actor, provider, claims) { calls.push({ kind: "connect-provider", actor, provider, claims }); connectedProviders.push({ provider, connectedAt: "2026-07-16T12:00:00.000Z", lastUsedAt: null }); return { provider }; }
+  async connectProvider(actor, provider, claims) { calls.push({ kind: "connect-provider", actor, provider, claims }); connectedProviders.push({ provider, connectedAt: "2026-07-16T12:00:00.000Z", lastUsedAt: null }); return { provider }; },
+  async verifyProviderStepUp(actor, provider, claims) { calls.push({ kind: "provider-step-up", actor, provider, claims }); return claims.subject === `${provider}-subject`; },
+  async disconnectProvider(actor, provider) {
+    calls.push({ kind: "disconnect-provider", actor, provider });
+    const index = connectedProviders.findIndex((item) => item.provider === provider);
+    if (index < 0) return { disconnected: false, reason: "provider-not-connected", revokedSessions: 0 };
+    connectedProviders.splice(index, 1);
+    return { disconnected: true, reason: null, revokedSessions: 2 };
+  }
 };
 const connectedProviders = [{ provider: "password", connectedAt: "2026-07-15T12:00:00.000Z", lastUsedAt: null }];
 const accountSessionService = {
@@ -114,12 +122,27 @@ const facebookIdentityService = {
 };
 const providerLinkState = {
   clearCookie: "__Host-tideway_provider_link=; Max-Age=0; HttpOnly; Secure",
+  clearStepUpFlowCookie: "__Host-tideway_provider_step_up_flow=; Max-Age=0; HttpOnly; Secure",
+  clearRecentStepUpCookie: "__Host-tideway_provider_step_up_recent=; Max-Age=0; HttpOnly; SameSite=Strict; Secure",
   has(cookie) { return String(cookie || "").includes("__Host-tideway_provider_link="); },
+  hasStepUpFlow(cookie) { return String(cookie || "").includes("__Host-tideway_provider_step_up_flow="); },
   begin(context, provider) { calls.push({ kind: "provider-link-begin", context, provider }); return `__Host-tideway_provider_link=${provider}-signed; HttpOnly; Secure`; },
   verify(cookie, context, provider) {
     calls.push({ kind: "provider-link-verify", cookie, context, provider });
     if (!String(cookie).includes(`__Host-tideway_provider_link=${provider}-signed`)) throw new TypeError("The provider connection attempt is missing or expired.");
     return { provider, userId: context.actor.userId, sessionId: context.sessionId };
+  },
+  beginStepUp(context, provider) { calls.push({ kind: "provider-step-up-begin", context, provider }); return `__Host-tideway_provider_step_up_flow=${provider}-signed; HttpOnly; Secure`; },
+  verifyStepUp(cookie, context, provider) {
+    calls.push({ kind: "provider-step-up-verify", cookie, context, provider });
+    if (!String(cookie).includes(`__Host-tideway_provider_step_up_flow=${provider}-signed`)) throw new TypeError("The provider security check is missing or expired.");
+    return { provider, userId: context.actor.userId, sessionId: context.sessionId };
+  },
+  completeStepUp(context, provider) { calls.push({ kind: "provider-step-up-complete", context, provider }); return `__Host-tideway_provider_step_up_recent=${provider}-signed; HttpOnly; SameSite=Strict; Secure`; },
+  verifyRecentStepUp(cookie, context) {
+    const match = String(cookie || "").match(/__Host-tideway_provider_step_up_recent=(google|facebook)-signed/);
+    if (!match) throw new TypeError("The recent provider security check is missing or expired.");
+    return { provider: match[1], userId: context.actor.userId, sessionId: context.sessionId };
   }
 };
 const router = createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, providerLinkState, accountSessionService, emailDelivery, rateLimiter, googleOidcProvider, facebookLoginProvider }, {
@@ -169,12 +192,12 @@ assert(failedFacebookCallback.response.statusCode === 303 && failedFacebookCallb
 facebookCompletionError = null;
 
 const providerList = await dispatch(router, "GET", "/api/marketplace/auth/provider-links", undefined, privateHeaders);
-assert(providerList.response.statusCode === 200 && providerList.body.connected.length === 1 && providerList.body.connected[0].provider === "password" && providerList.body.available.google === true && providerList.body.available.facebook === true && providerList.body.available.apple === false, "Authenticated settings did not return the narrow connected/available provider projection.");
+assert(providerList.response.statusCode === 200 && providerList.body.connected.length === 1 && providerList.body.connected[0].provider === "password" && providerList.body.available.google === true && providerList.body.available.facebook === true && providerList.body.available.apple === false && providerList.body.recentStepUp === null, "Authenticated settings did not return the narrow connected/available provider projection.");
 const failedLinkStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/google/start", { password: "wrong" }, privateHeaders);
 assert(failedLinkStart.response.statusCode === 401 && failedLinkStart.body.code === "step-up-failed" && !failedLinkStart.response.headers["Set-Cookie"], "Provider connection began without current-password step-up.");
 signInResult = { authenticated: true, account: { userId: currentContext.actor.userId, email: "owner@example.com", emailVerifiedAt: "2026-07-15T12:00:00.000Z", displayName: "Property Owner", selectedRole: null, roles: [] } };
 const googleLinkStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/google/start", { password: "correct" }, privateHeaders);
-assert(googleLinkStart.response.statusCode === 200 && googleLinkStart.body.provider === "google" && googleLinkStart.body.location.startsWith("https://accounts.google.com/") && googleLinkStart.response.headers["Set-Cookie"].length === 2 && calls.some((call) => call.kind === "google-start" && call.purpose === "link") && calls.some((call) => call.kind === "provider-link-begin" && call.provider === "google"), "Password step-up did not create both signed Google and session-bound connection states.");
+assert(googleLinkStart.response.statusCode === 200 && googleLinkStart.body.provider === "google" && googleLinkStart.body.location.startsWith("https://accounts.google.com/") && googleLinkStart.response.headers["Set-Cookie"].length === 3 && calls.some((call) => call.kind === "google-start" && call.purpose === "link") && calls.some((call) => call.kind === "provider-link-begin" && call.provider === "google"), "Password step-up did not create both signed Google and session-bound connection states or consume stale social step-up.");
 const googleLinkCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=link&state=opaque", undefined, { cookie: "__Host-tideway_session=opaque; tideway_google_flow=signed; __Host-tideway_provider_link=google-signed" });
 assert(googleLinkCallback.response.statusCode === 303 && googleLinkCallback.response.headers.Location === "/settings#provider=google-connected" && googleLinkCallback.response.headers["Set-Cookie"].length === 2 && calls.some((call) => call.kind === "connect-provider" && call.provider === "google") && !googleLinkCallback.response.headers.Location.includes("link"), "Google provider callback did not connect only to the authenticated session or clear both flow cookies.");
 const socialSignInsBeforeMissingLinkState = calls.filter((call) => call.kind === "social-sign-in").length;
@@ -187,6 +210,28 @@ assert(facebookLinkStart.response.statusCode === 200 && facebookLinkStart.body.l
 const facebookIdentityCallsBeforeLink = calls.filter((call) => call.kind === "facebook-identity-begin").length;
 const facebookLinkCallback = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=link&state=opaque", undefined, { cookie: "__Host-tideway_session=opaque; tideway_facebook_flow=signed; __Host-tideway_provider_link=facebook-signed" });
 assert(facebookLinkCallback.response.headers.Location === "/settings#provider=facebook-connected" && calls.some((call) => call.kind === "connect-provider" && call.provider === "facebook") && calls.filter((call) => call.kind === "facebook-identity-begin").length === facebookIdentityCallsBeforeLink, "Authenticated Facebook connection incorrectly entered the untrusted pre-login mailbox-linking flow.");
+
+connectedProviders.splice(0, connectedProviders.length, { provider: "google", connectedAt: "2026-07-16T12:00:00.000Z", lastUsedAt: null });
+const lastMethodRemoval = await dispatch(router, "DELETE", "/api/marketplace/auth/provider-links/google", {}, privateHeaders);
+assert(lastMethodRemoval.response.statusCode === 409 && lastMethodRemoval.body.code === "last-sign-in-method" && !calls.some((call) => call.kind === "disconnect-provider"), "A social-only account could remove its final sign-in method.");
+const socialConnectWithoutStepUp = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/facebook/start", {}, privateHeaders);
+assert(socialConnectWithoutStepUp.response.statusCode === 401 && socialConnectWithoutStepUp.body.code === "provider-step-up-required", "A social-only account connected another provider without recent exact-provider verification.");
+const googleStepUpStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/google/step-up/start", {}, privateHeaders);
+assert(googleStepUpStart.response.statusCode === 200 && googleStepUpStart.response.headers["Set-Cookie"].length === 2 && calls.some((call) => call.kind === "google-start" && call.purpose === "step-up") && calls.some((call) => call.kind === "provider-step-up-begin" && call.provider === "google"), "Social-only step-up did not bind the existing provider to the authenticated user and session.");
+const googleStepUpCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=step-up&state=opaque", undefined, { cookie: "__Host-tideway_session=opaque; tideway_google_flow=signed; __Host-tideway_provider_step_up_flow=google-signed" });
+assert(googleStepUpCallback.response.statusCode === 303 && googleStepUpCallback.response.headers.Location === "/settings#provider=google-verified" && googleStepUpCallback.response.headers["Set-Cookie"].length === 3 && calls.some((call) => call.kind === "provider-step-up" && call.provider === "google") && calls.some((call) => call.kind === "provider-step-up-complete"), "A matching social provider did not produce a short-lived authenticated step-up or failed to clear its flow state.");
+const recentGoogleHeaders = { ...privateHeaders, cookie: `${privateHeaders.cookie}; __Host-tideway_provider_step_up_recent=google-signed` };
+const socialFacebookLinkStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/facebook/start", {}, recentGoogleHeaders);
+assert(socialFacebookLinkStart.response.statusCode === 200 && socialFacebookLinkStart.response.headers["Set-Cookie"].length === 3 && calls.some((call) => call.kind === "facebook-start" && call.purpose === "link"), "A recently verified social-only account could not start a single-use second-provider connection.");
+const socialFacebookLinkCallback = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=social-link&state=opaque", undefined, { cookie: "__Host-tideway_session=opaque; tideway_facebook_flow=signed; __Host-tideway_provider_link=facebook-signed" });
+assert(socialFacebookLinkCallback.response.headers.Location === "/settings#provider=facebook-connected" && connectedProviders.some((item) => item.provider === "facebook"), "Social-only second-provider connection did not complete against the authenticated account.");
+const secondGoogleStepUpStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/google/step-up/start", {}, privateHeaders);
+const secondGoogleStepUpCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=step-up-2&state=opaque", undefined, { cookie: "__Host-tideway_session=opaque; tideway_google_flow=signed; __Host-tideway_provider_step_up_flow=google-signed" });
+assert(secondGoogleStepUpStart.response.statusCode === 200 && secondGoogleStepUpCallback.response.headers.Location === "/settings#provider=google-verified", "A second deliberate provider step-up could not be established for removal.");
+const removeVerifiedMethod = await dispatch(router, "DELETE", "/api/marketplace/auth/provider-links/google", {}, recentGoogleHeaders);
+assert(removeVerifiedMethod.response.statusCode === 401 && removeVerifiedMethod.body.code === "provider-step-up-required", "A social-only account could remove the same method used for step-up instead of proving the remaining method works.");
+const removeFacebook = await dispatch(router, "DELETE", "/api/marketplace/auth/provider-links/facebook", {}, recentGoogleHeaders);
+assert(removeFacebook.response.statusCode === 200 && removeFacebook.body.disconnected && removeFacebook.body.revokedSessions === 2 && removeFacebook.response.headers["Set-Cookie"].length === 2 && calls.some((call) => call.kind === "disconnect-provider" && call.provider === "facebook") && calls.some((call) => call.kind === "logout-all"), "Lockout-safe provider removal did not require the remaining provider, revoke every session and clear browser security state.");
 signInResult = { authenticated: false, reason: "invalid-credentials" };
 
 const signup = await dispatch(router, "POST", "/api/marketplace/auth/signup", { email: "new@example.com", displayName: "New User", password: "long password" }, publicHeaders);
@@ -237,4 +282,4 @@ emailDelivery.send = async () => { throw new Error("private SMTP detail"); };
 const deliveryFailure = await dispatch(router, "POST", "/api/marketplace/auth/password-reset/request", { email: "owner@example.com" }, publicHeaders);
 assert(deliveryFailure.response.statusCode === 500 && deliveryFailure.body.error === "Something went wrong. Please try again." && !deliveryFailure.response.body.includes("SMTP") && unexpectedError?.message === "private SMTP detail", "Delivery failure leaked private provider details or bypassed private monitoring.");
 
-console.log("Authentication HTTP tests passed: generic credential lifecycle, social sign-in, password-step-up/session-bound Google/Facebook connection, exact logout, onboarding rotation, trusted limiting and sanitized failures.");
+console.log("Authentication HTTP tests passed: generic credential lifecycle, social sign-in, password or exact-provider step-up, lockout-safe connection/removal, session revocation, onboarding, limiting and sanitized failures.");

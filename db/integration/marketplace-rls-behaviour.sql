@@ -23,6 +23,9 @@ BEGIN
     RAISE EXCEPTION 'Runtime role unexpectedly has direct booking mutation permission';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  IF tideway_private.verify_my_social_identity('google','integration-google-subject') IS TRUE THEN
+    RAISE EXCEPTION 'Unrelated account verified another user provider subject';
+  END IF;
 END
 $outsider$;
 
@@ -83,10 +86,27 @@ $shared_rate_limit$;
 SELECT set_config('app.user_id', '10000000-0000-4000-8000-000000000001', true);
 SELECT set_config('app.user_roles', 'landlord', true);
 DO $landlord$
+DECLARE disconnected_record record;
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Landlord cannot read both own bookings'; END IF;
   IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Landlord cannot read both own properties'; END IF;
   IF (SELECT count(*) FROM cleaning_requests WHERE id::text LIKE '30000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Landlord cannot read both own requests'; END IF;
+  IF tideway_private.verify_my_social_identity('google','integration-google-subject') IS NOT TRUE
+     OR tideway_private.verify_my_social_identity('google','different-subject') IS TRUE THEN
+    RAISE EXCEPTION 'Provider step-up did not require the exact connected subject';
+  END IF;
+  SELECT * INTO disconnected_record FROM tideway_private.disconnect_my_social_identity('facebook');
+  IF disconnected_record.disconnected IS NOT TRUE OR disconnected_record.reason IS NOT NULL OR disconnected_record.revoked_sessions <> 2 THEN
+    RAISE EXCEPTION 'Provider removal did not revoke both sessions atomically';
+  END IF;
+  IF EXISTS (SELECT 1 FROM tideway_private.list_my_authentication_identities() identity WHERE identity.provider='facebook')
+     OR NOT EXISTS (SELECT 1 FROM tideway_private.list_my_authentication_identities() identity WHERE identity.provider='google') THEN
+    RAISE EXCEPTION 'Provider removal changed the wrong identity';
+  END IF;
+  SELECT * INTO disconnected_record FROM tideway_private.disconnect_my_social_identity('google');
+  IF disconnected_record.disconnected IS TRUE OR disconnected_record.reason <> 'last-sign-in-method' OR disconnected_record.revoked_sessions <> 0 THEN
+    RAISE EXCEPTION 'Final sign-in method removal did not fail closed';
+  END IF;
 END
 $landlord$;
 

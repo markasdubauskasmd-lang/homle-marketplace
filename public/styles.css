@@ -267,7 +267,10 @@ textarea { resize: vertical; }
 .settings-provider-mark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 50%; color: #fff; background: var(--green); font-weight: 900; }
 .settings-provider-list strong, .settings-provider-list small { display: block; }
 .settings-provider-list small { margin-top: 3px; color: var(--muted); }
+.settings-remove-provider { grid-column: 2; justify-self: start; min-height: 40px; padding: 6px 0; color: #8a2f28; }
 .settings-connect { display: grid; gap: 12px; padding-top: 22px; border-top: 1px solid var(--line); }
+.settings-step-up { display: grid; gap: 8px; padding: 14px; border: 1px solid #badbd4; border-radius: 13px; background: #eff8f5; }
+.settings-step-up p { margin: 0; color: var(--muted); }
 .settings-provider-actions, .settings-dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .settings-dialog { width: min(520px, calc(100% - 28px)); padding: 0; border: 0; border-radius: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.24); }
 .settings-dialog::backdrop { background: rgba(4, 34, 30, .68); }

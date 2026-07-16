@@ -65,7 +65,7 @@ export function selectedOnboardingRole(role) {
 }
 
 export function createIdentityService(repository) {
-  if (!repository || ["resolveSocialIdentity", "completeRoleOnboarding", "listConnectedIdentities", "connectSocialIdentity"].some((method) => typeof repository[method] !== "function")) throw new TypeError("An authentication repository is required.");
+  if (!repository || ["resolveSocialIdentity", "completeRoleOnboarding", "listConnectedIdentities", "connectSocialIdentity", "verifyConnectedSocialIdentity", "disconnectSocialIdentity"].some((method) => typeof repository[method] !== "function")) throw new TypeError("An authentication repository is required.");
   return {
     socialSignIn(provider, verifiedClaims) {
       return repository.resolveSocialIdentity(provider, normalizedVerifiedSocialClaims(provider, verifiedClaims));
@@ -86,8 +86,25 @@ export function createIdentityService(repository) {
     connectProvider(actor, provider, claims) {
       if (!actor?.userId) throw new TypeError("An authenticated account is required.");
       return repository.connectSocialIdentity(actor, provider, normalizedProviderConnectionClaims(provider, claims));
+    },
+    verifyProviderStepUp(actor, provider, claims) {
+      if (!actor?.userId) throw new TypeError("An authenticated account is required.");
+      const normalized = normalizedProviderConnectionClaims(provider, claims);
+      return repository.verifyConnectedSocialIdentity(actor, provider, normalized.subject);
+    },
+    async disconnectProvider(actor, provider) {
+      if (!actor?.userId) throw new TypeError("An authenticated account is required.");
+      if (!connectableSocialProviders.includes(provider)) throw new TypeError("A connectable social provider is required.");
+      const result = await repository.disconnectSocialIdentity(actor, provider);
+      return {
+        disconnected: result?.disconnected === true,
+        reason: result?.reason || null,
+        revokedSessions: Number(result?.revoked_sessions ?? result?.revokedSessions) || 0
+      };
     }
   };
 }
 
-export { selectableOnboardingRoles, supportedSocialProviders };
+const connectableSocialProviders = Object.freeze(["google", "facebook"]);
+
+export { connectableSocialProviders, selectableOnboardingRoles, supportedSocialProviders };

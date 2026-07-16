@@ -55,7 +55,7 @@ Not yet enabled: real PostgreSQL, SMTP and private-bucket evidence, final monito
 - Add email/password signup using memory-hard password hashing, email verification and single-use password-reset tokens.
 - Add Google OIDC with authorization code plus PKCE; add Facebook authorization-code validation plus Tideway-owned mailbox verification; keep Apple behind its own later provider capability.
 - In one transaction, create the first account from a verified provider identity or link it to the existing verified-email account. Reject ambiguous/unverified merges.
-- Add re-authenticated provider connection/removal in settings.
+- Re-authenticated provider connection/removal in settings is implemented: password accounts use persistent-lockout-aware password proof; social-only accounts prove an exact existing subject, removal preserves a different method and all sessions are revoked.
 - Add `/login`, `/signup`, `/onboarding` and `/settings` using the existing Tideway design tokens.
 - Add role middleware and role-specific onboarding. Admin role is never self-selectable.
 

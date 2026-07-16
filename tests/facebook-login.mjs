@@ -67,6 +67,10 @@ const link = provider.begin({ purpose: "link" });
 const linkLocation = new URL(link.location);
 const linkClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=link&state=${encodeURIComponent(linkLocation.searchParams.get("state"))}`), link.setCookie.split(";", 1)[0]);
 assert.equal(linkClaims.flowPurpose, "link");
+const stepUp = provider.begin({ purpose: "step-up" });
+const stepUpLocation = new URL(stepUp.location);
+const stepUpClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=step-up-code&state=${encodeURIComponent(stepUpLocation.searchParams.get("state"))}`), stepUp.setCookie.split(";", 1)[0]);
+assert.equal(stepUpClaims.flowPurpose, "step-up");
 assert.throws(() => provider.begin({ purpose: "unexpected" }), /purpose/i);
 
 const proxied = start();

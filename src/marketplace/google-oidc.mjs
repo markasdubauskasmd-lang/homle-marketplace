@@ -66,7 +66,7 @@ function verifiedFlow(value, secret, nowSeconds) {
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new TypeError("The Google sign-in attempt is missing or expired.");
   const payload = safeJson(decodeBase64url(parts[0], "Google sign-in cookie", 3072), "Google sign-in cookie");
   if (payload.v !== 1 || !Number.isInteger(payload.iat) || !Number.isInteger(payload.exp) || payload.iat > nowSeconds + maximumClockSkewSeconds || payload.exp < nowSeconds || payload.exp - payload.iat !== flowLifetimeSeconds) throw new TypeError("The Google sign-in attempt is missing or expired.");
-  if (!["sign-in", "link"].includes(payload.purpose)) throw new TypeError("The Google sign-in attempt is missing or expired.");
+  if (!["sign-in", "link", "step-up"].includes(payload.purpose)) throw new TypeError("The Google sign-in attempt is missing or expired.");
   for (const key of ["state", "nonce", "verifier"]) if (typeof payload[key] !== "string" || payload[key].length < 32 || payload[key].length > 128 || !/^[A-Za-z0-9_-]+$/.test(payload[key])) throw new TypeError("The Google sign-in attempt is missing or expired.");
   return payload;
 }
@@ -197,7 +197,7 @@ export function createGoogleOidcProvider(options = {}) {
     clearCookie: expiredFlowCookie(secure, cookieName),
     begin(options = {}) {
       const purpose = options.purpose ?? "sign-in";
-      if (!["sign-in", "link"].includes(purpose)) throw new TypeError("Google sign-in purpose is invalid.");
+      if (!["sign-in", "link", "step-up"].includes(purpose)) throw new TypeError("Google sign-in purpose is invalid.");
       const nowSeconds = Math.floor(clock() / 1000);
       const state = base64url(entropy(32));
       const nonce = base64url(entropy(32));

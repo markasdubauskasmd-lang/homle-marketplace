@@ -43,6 +43,15 @@ const repository = {
     const key = `${provider}:${claims.subject}`;
     identities.set(key, { user_id: actor.userId, ...claims });
     return { provider, connected_at: "2026-07-16T10:00:00.000Z", last_used_at: null, already_connected: false };
+  },
+  async verifyConnectedSocialIdentity(actor, provider, subject) {
+    return identities.get(`${provider}:${subject}`)?.user_id === actor.userId;
+  },
+  async disconnectSocialIdentity(actor, provider) {
+    const entry = [...identities.entries()].find(([key, identity]) => key.startsWith(`${provider}:`) && identity.user_id === actor.userId);
+    if (!entry) return { disconnected: false, reason: "provider-not-connected", revoked_sessions: 0 };
+    identities.delete(entry[0]);
+    return { disconnected: true, reason: null, revoked_sessions: 3 };
   }
 };
 const service = createIdentityService(repository);
@@ -81,6 +90,10 @@ assert(passwordAccountStepUpRequired && !identities.has("facebook:facebook-for-p
 const connectedFromSettings = await service.connectProvider({ userId: "verified-password-account", roles: ["landlord"] }, "facebook", { ...googleClaims, subject: "facebook-after-step-up", emailVerified: false });
 const listedConnections = await service.connectedProviders({ userId: "verified-password-account", roles: ["landlord"] });
 assert(connectedFromSettings.provider === "facebook" && listedConnections.some((item) => item.provider === "password") && listedConnections.some((item) => item.provider === "facebook") && identities.get("facebook:facebook-after-step-up")?.emailVerified === false, "Authenticated settings did not connect and safely list the additional provider.");
+assert(await service.verifyProviderStepUp({ userId: "verified-password-account", roles: ["landlord"] }, "facebook", { ...googleClaims, subject: "facebook-after-step-up", emailVerified: false }), "A matching connected provider could not perform recent-provider step-up.");
+assert(!(await service.verifyProviderStepUp({ userId: "verified-password-account", roles: ["landlord"] }, "facebook", { ...googleClaims, subject: "different-facebook-subject", emailVerified: false })), "Provider step-up trusted email or session state instead of the exact connected subject.");
+const disconnectedFromSettings = await service.disconnectProvider({ userId: "verified-password-account", roles: ["landlord"] }, "facebook");
+assert(disconnectedFromSettings.disconnected && disconnectedFromSettings.revokedSessions === 3 && !identities.has("facebook:facebook-after-step-up"), "Lockout-safe provider removal did not preserve the database result and session revocation count.");
 
 const cleanerOnboarding = await service.completeOnboarding({ userId: firstGoogleLogin.user_id, roles: [] }, "cleaner");
 const repeatedCleanerOnboarding = await service.completeOnboarding({ userId: firstGoogleLogin.user_id, roles: ["cleaner"] }, "cleaner");
@@ -91,6 +104,7 @@ assert(roleSwitchRejected, "A self-service role change bypassed the reviewed acc
 
 const migrationSql = await readFile(new URL("../db/migrations/004_social_identity_and_onboarding.sql", import.meta.url), "utf8");
 const connectionMigration = await readFile(new URL("../db/migrations/027_authenticated_provider_connections.sql", import.meta.url), "utf8");
+const providerSecurityMigration = await readFile(new URL("../db/migrations/032_social_provider_step_up_and_removal.sql", import.meta.url), "utf8");
 const runtimeGrantsSql = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const unverifiedMergeGuard = migrationSql.indexOf("IF resolved_email_verified_at IS NULL");
 const socialIdentityInsert = migrationSql.indexOf("INSERT INTO authentication_identities (", unverifiedMergeGuard);
@@ -99,5 +113,7 @@ assert(migrationSql.includes("complete_role_onboarding") && migrationSql.include
 assert(runtimeGrantsSql.includes("resolve_social_identity(authentication_provider, text, citext, boolean, text, text, jsonb)") && runtimeGrantsSql.includes("complete_role_onboarding(user_role)"), "The restricted runtime role cannot execute the social identity or onboarding functions.");
 assert(connectionMigration.includes("list_my_authentication_identities") && connectionMigration.includes("connect_social_identity") && connectionMigration.includes("tideway_private.current_user_id()") && (connectionMigration.match(/pg_advisory_xact_lock/g) || []).length === 2 && connectionMigration.includes("provider-identity-already-connected") && connectionMigration.includes("account-provider-already-connected") && connectionMigration.includes("authentication-provider-connected") && connectionMigration.trimEnd().endsWith("COMMIT;"), "Authenticated provider connection lacks actor binding, collision locks, audit history or atomic migration boundaries.");
 assert(runtimeGrantsSql.includes("connect_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)") && runtimeGrantsSql.includes("REVOKE SELECT, INSERT, UPDATE, DELETE ON authentication_identities FROM tideway_app"), "Provider connection bypasses the function-only runtime boundary.");
+assert(providerSecurityMigration.includes("verify_my_social_identity") && providerSecurityMigration.includes("provider_subject = asserted_subject") && providerSecurityMigration.includes("disconnect_my_social_identity") && providerSecurityMigration.includes("identity_count <= 1") && providerSecurityMigration.includes("identity.provider IN ('google','facebook')") && providerSecurityMigration.includes("password_credentials credential") && providerSecurityMigration.includes("UPDATE sessions SET revoked_at") && providerSecurityMigration.includes("authentication-provider-disconnected") && providerSecurityMigration.trimEnd().endsWith("COMMIT;"), "Social-only step-up or provider removal lacks exact-subject verification, usable-last-method protection, atomic session revocation, audit history or migration boundaries.");
+assert(runtimeGrantsSql.includes("verify_my_social_identity(authentication_provider,text)") && runtimeGrantsSql.includes("disconnect_my_social_identity(authentication_provider)"), "The runtime role cannot use the function-only provider security boundary.");
 
-console.log("Authentication service tests passed: safe social sign-in, takeover-resistant password-account step-up, authenticated provider connection/listing, collision-locked migration and role onboarding.");
+console.log("Authentication service tests passed: safe social sign-in, password or exact-subject social step-up, lockout-safe provider removal, collision-locked connection and role onboarding.");

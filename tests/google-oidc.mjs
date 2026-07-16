@@ -99,6 +99,11 @@ const linkLocation = new URL(linkAttempt.location);
 activeNonce = linkLocation.searchParams.get("nonce");
 const linkClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=link-code&state=${encodeURIComponent(linkLocation.searchParams.get("state"))}`), linkAttempt.setCookie.split(";", 1)[0]);
 assert(linkClaims.flowPurpose === "link", "A provider-connection flow lost its signed purpose and could fall back to pre-authenticated sign-in.");
+const stepUpAttempt = provider.begin({ purpose: "step-up" });
+const stepUpLocation = new URL(stepUpAttempt.location);
+activeNonce = stepUpLocation.searchParams.get("nonce");
+const stepUpClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=step-up-code&state=${encodeURIComponent(stepUpLocation.searchParams.get("state"))}`), stepUpAttempt.setCookie.split(";", 1)[0]);
+assert(stepUpClaims.flowPurpose === "step-up", "A provider step-up flow lost its signed purpose and could become sign-in or connection.");
 let invalidPurposeRejected = false;
 try { provider.begin({ purpose: "unexpected" }); } catch (error) { invalidPurposeRejected = /purpose/i.test(error.message); }
 assert(invalidPurposeRejected, "Google accepted an unknown flow purpose.");
@@ -109,7 +114,7 @@ assert(proxiedClaims.subject === "google-subject-123" && lastTokenBody.get("redi
 
 const second = start();
 await provider.complete(new URL(`${provider.callbackUrl}?code=second-code&state=${encodeURIComponent(second.state)}`), second.cookie);
-assert(tokenRequests === 4 && keyRequests === 1, "Google signing keys were not bounded and cached or the authorization code was not exchanged exactly once per callback.");
+assert(tokenRequests === 5 && keyRequests === 1, "Google signing keys were not bounded and cached or the authorization code was not exchanged exactly once per callback.");
 
 const mismatched = start();
 assert(await rejects(() => provider.complete(new URL(`${provider.callbackUrl}?code=code&state=${encodeURIComponent(`${mismatched.state}x`)}`), mismatched.cookie), "mismatched"), "Google callback accepted a state that did not match the signed HTTP-only flow cookie.");

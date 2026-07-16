@@ -44,6 +44,8 @@ DECLARE
     'tideway_private.consume_pending_social_identity(bytea)',
     'tideway_private.list_my_authentication_identities()',
     'tideway_private.connect_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
+    'tideway_private.verify_my_social_identity(authentication_provider,text)',
+    'tideway_private.disconnect_my_social_identity(authentication_provider)',
     'tideway_private.begin_booking_payment_authorization(uuid,uuid,text,bytea)',
     'tideway_private.record_booking_payment_authorization(uuid,text,text)',
     'tideway_private.begin_booking_payment_command(uuid,uuid,text,integer,bytea)',
@@ -228,8 +230,8 @@ SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
-  'appFunctionChecks', 21,
-  'workerFunctionChecks', 12
+  'appFunctionChecks', 30,
+  'workerFunctionChecks', 13
 ) AS tideway_deployment_verification;
 
 ROLLBACK;

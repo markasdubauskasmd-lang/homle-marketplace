@@ -13,6 +13,18 @@ assert.deepEqual(state.verify(requestCookie, context, "google"), { provider: "go
 assert.equal(state.has(`other=value; ${requestCookie}`), true);
 assert.ok(state.clearCookie.includes("Max-Age=0") && state.clearCookie.includes("Secure"));
 
+const stepUpFlow = state.beginStepUp(context, "google");
+const stepUpFlowRequest = stepUpFlow.split(";", 1)[0];
+assert.ok(stepUpFlow.startsWith("__Host-tideway_provider_step_up_flow=") && stepUpFlow.includes("SameSite=Lax") && state.hasStepUpFlow(stepUpFlowRequest));
+assert.deepEqual(state.verifyStepUp(stepUpFlowRequest, context, "google"), { provider: "google", userId: context.actor.userId, sessionId: context.sessionId });
+const recentStepUp = state.completeStepUp(context, "google");
+const recentStepUpRequest = recentStepUp.split(";", 1)[0];
+assert.ok(recentStepUp.startsWith("__Host-tideway_provider_step_up_recent=") && recentStepUp.includes("SameSite=Strict"));
+assert.deepEqual(state.verifyRecentStepUp(recentStepUpRequest, context), { provider: "google", userId: context.actor.userId, sessionId: context.sessionId });
+assert.ok(state.clearStepUpFlowCookie.includes("Max-Age=0") && state.clearRecentStepUpCookie.includes("SameSite=Strict"));
+await assert.rejects(async () => state.verifyStepUp(stepUpFlowRequest, context, "facebook"), /security check/i);
+await assert.rejects(async () => state.verifyRecentStepUp(recentStepUpRequest, { ...context, sessionId: "33333333-3333-4333-8333-333333333333" }), /security check/i);
+
 await assert.rejects(async () => state.verify(`${requestCookie}x`, context, "google"), /missing or expired/i);
 await assert.rejects(async () => state.verify(requestCookie, { ...context, sessionId: "33333333-3333-4333-8333-333333333333" }, "google"), /missing or expired/i);
 await assert.rejects(async () => state.verify(requestCookie, context, "facebook"), /missing or expired/i);
@@ -24,4 +36,4 @@ assert.ok(local.begin(context, "facebook").startsWith("tideway_provider_link=") 
 assert.throws(() => state.begin(context, "apple"), /supported provider/i);
 assert.throws(() => createProviderLinkState({ secret: "short", appOrigin: "https://tidewaycleaning.co.uk" }), /32-character/i);
 
-console.log("Provider-link state tests passed: authenticated user/session/provider binding, signed expiry, tamper rejection and host-only production cookie cleanup.");
+console.log("Provider-link state tests passed: link and recent-provider step-up cookies are purpose-separated, user/session/provider-bound, expiring, tamper-resistant and host-only in production.");

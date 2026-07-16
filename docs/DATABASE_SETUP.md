@@ -31,7 +31,7 @@ Before any migration-owner connection is used, verify that the complete ordered 
 node tools/check-database-assets.mjs
 ```
 
-This dependency-free check requires all 31 consecutively numbered migrations, rejects missing or unlocked SQL files, verifies the SHA-256 of every migration and role-grant script, and requires each file to retain its explicit `BEGIN;`/`COMMIT;` boundary. An intentional SQL change must be reviewed and receive an explicit matching lock update in the same commit. This is a source-integrity gate only; it does not replace executing the migrations and security/concurrency tests against a real PostgreSQL database.
+This dependency-free check requires all 32 consecutively numbered migrations, rejects missing or unlocked SQL files, verifies the SHA-256 of every migration and role-grant script, and requires each file to retain its explicit `BEGIN;`/`COMMIT;` boundary. An intentional SQL change must be reviewed and receive an explicit matching lock update in the same commit. This is a source-integrity gate only; it does not replace executing the migrations and security/concurrency tests against a real PostgreSQL database.
 
 Create the database and restricted runtime role using administrator tooling, then run these files as the migration owner in this order:
 
@@ -67,6 +67,7 @@ psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/028_invitatio
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/029_consent_bound_automatic_dispatch.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/030_private_request_room_scans.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/031_fix_invitation_service_area_lookup.sql
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/032_social_provider_step_up_and_removal.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/runtime-role-grants.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/worker-role-grants.sql
 ```
@@ -95,7 +96,7 @@ This is a deployed-structure and effective-grant check, not a substitute for the
 
 ## Run the marketplace integration suite
 
-Use a separate, disposable database whose name ends exactly in `_tideway_test`. Apply the locked migrations and both role-grant files first. The suite refuses any other database name, requires separate migration-owner and `tideway_app` credentials, runs the deployment verifier again, and uses only reserved `invalid.example` accounts and fixed test UUIDs. It proves unrelated-account denial, Landlord ownership, assigned-Cleaner access timing, direct booking-mutation denial and a real two-transaction overlap race in which exactly one acceptance succeeds. Its reserved fixtures are removed on success and cleanup is attempted after every test failure.
+Use a separate, disposable database whose name ends exactly in `_tideway_test`. Apply the locked migrations and both role-grant files first. The suite refuses any other database name, requires separate migration-owner and `tideway_app` credentials, runs the deployment verifier again, and uses only reserved `invalid.example` accounts and fixed test UUIDs. It proves unrelated-account denial, exact-subject social-provider step-up, disabled-provider exclusion from the usable-method count, last-sign-in-method protection, atomic session revocation, Landlord ownership, assigned-Cleaner access timing, direct booking-mutation denial and a real two-transaction overlap race in which exactly one acceptance succeeds. Its reserved fixtures are removed on success and cleanup is attempted after every test failure.
 
 PowerShell:
 

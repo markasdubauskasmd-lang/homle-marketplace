@@ -1,5 +1,6 @@
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const socialProviders = Object.freeze(["google", "apple", "facebook"]);
+const connectableProviders = Object.freeze(["google", "facebook"]);
 
 function normalizedEmail(email) {
   if (typeof email !== "string") throw new TypeError("An email address is required.");
@@ -21,6 +22,11 @@ function uuid(value, label) {
 
 function socialProvider(value) {
   if (!socialProviders.includes(value)) throw new TypeError("A supported social provider is required.");
+  return value;
+}
+
+function connectableProvider(value) {
+  if (!connectableProviders.includes(value)) throw new TypeError("A connectable social provider is required.");
   return value;
 }
 
@@ -150,7 +156,7 @@ export function createAuthenticationRepository(database) {
     },
 
     async connectSocialIdentity(actor, providerValue, claims) {
-      const provider = socialProvider(providerValue);
+      const provider = connectableProvider(providerValue);
       if (!claims || typeof claims.emailVerified !== "boolean") throw new TypeError("Provider connection claims are required.");
       const subject = boundedProviderText(claims.subject, "Provider subject", 255);
       const email = claims.email == null || claims.email === "" ? null : normalizedEmail(claims.email);
@@ -162,6 +168,29 @@ export function createAuthenticationRepository(database) {
         const result = await client.query(
           "SELECT * FROM tideway_private.connect_social_identity($1::authentication_provider,$2::text,$3::citext,$4::boolean,$5::text,$6::text,$7::jsonb)",
           [provider, subject, email, claims.emailVerified, displayName, avatarUrl, profile]
+        );
+        return result.rows[0] || null;
+      });
+    },
+
+    async verifyConnectedSocialIdentity(actor, providerValue, subjectValue) {
+      const provider = connectableProvider(providerValue);
+      const subject = boundedProviderText(subjectValue, "Provider subject", 255);
+      return database.withAccountTransaction(actor, async (client) => {
+        const result = await client.query(
+          "SELECT tideway_private.verify_my_social_identity($1::authentication_provider,$2::text) AS verified",
+          [provider, subject]
+        );
+        return result.rows[0]?.verified === true;
+      });
+    },
+
+    async disconnectSocialIdentity(actor, providerValue) {
+      const provider = connectableProvider(providerValue);
+      return database.withAccountTransaction(actor, async (client) => {
+        const result = await client.query(
+          "SELECT * FROM tideway_private.disconnect_my_social_identity($1::authentication_provider)",
+          [provider]
         );
         return result.rows[0] || null;
       });

@@ -62,7 +62,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const providerLink = dependencies?.providerLinkState || null;
   if (!security || typeof security.protect !== "function" || typeof security.requireOrigin !== "function") throw new TypeError("Authentication HTTP routes require account security.");
   if (!credentials || ["register", "requestEmailVerification", "verifyEmail", "signIn", "requestPasswordReset", "resetPassword"].some((method) => typeof credentials[method] !== "function")) throw new TypeError("Authentication HTTP routes require the credential service.");
-  if (!identity || ["completeOnboarding", "connectedProviders", "connectProvider"].some((method) => typeof identity[method] !== "function") || (google && typeof identity.socialSignIn !== "function")) throw new TypeError("Authentication HTTP routes require the identity service.");
+  if (!identity || ["completeOnboarding", "connectedProviders", "connectProvider", "verifyProviderStepUp", "disconnectProvider"].some((method) => typeof identity[method] !== "function") || (google && typeof identity.socialSignIn !== "function")) throw new TypeError("Authentication HTTP routes require the identity service.");
   if (facebook && (!facebookIdentity || typeof facebookIdentity.begin !== "function" || typeof facebookIdentity.verify !== "function")) throw new TypeError("Facebook authentication routes require the pending identity service.");
   if (!sessions || ["establish", "rotate", "logout", "logoutAll"].some((method) => typeof sessions[method] !== "function")) throw new TypeError("Authentication HTTP routes require the session service.");
   if (!emailDelivery || typeof emailDelivery.send !== "function") throw new TypeError("Authentication HTTP routes require a trusted email-delivery adapter.");
@@ -75,7 +75,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const limit = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
   if (google && (google.name !== "google" || typeof google.begin !== "function" || typeof google.complete !== "function" || typeof google.clearCookie !== "string")) throw new TypeError("Google authentication routes require a complete OIDC provider.");
   if (facebook && (facebook.name !== "facebook" || typeof facebook.begin !== "function" || typeof facebook.complete !== "function" || typeof facebook.clearCookie !== "string")) throw new TypeError("Facebook authentication routes require a complete provider verifier.");
-  if (!providerLink || ["begin", "verify", "has"].some((method) => typeof providerLink[method] !== "function") || typeof providerLink.clearCookie !== "string") throw new TypeError("Authentication HTTP routes require provider connection state.");
+  if (!providerLink || ["begin", "verify", "has", "beginStepUp", "verifyStepUp", "completeStepUp", "verifyRecentStepUp", "hasStepUpFlow"].some((method) => typeof providerLink[method] !== "function") || ["clearCookie", "clearStepUpFlowCookie", "clearRecentStepUpCookie"].some((field) => typeof providerLink[field] !== "string")) throw new TypeError("Authentication HTTP routes require provider connection state.");
 
   async function privateDelivery(delivery) {
     if (!delivery) return;
@@ -102,6 +102,17 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
     sendRedirect(response, 303, `/settings#provider=${provider}-connected`, [adapter.clearCookie, providerLink.clearCookie]);
   }
 
+  async function completeProviderStepUp(request, response, provider, claims, adapter) {
+    const context = await security.authenticate(request);
+    providerLink.verifyStepUp(header(request, "cookie"), context, provider);
+    if (await identity.verifyProviderStepUp(context.actor, provider, claims) !== true) throw new TypeError("The provider security check did not match this account.");
+    sendRedirect(response, 303, `/settings#provider=${provider}-verified`, [adapter.clearCookie, providerLink.clearStepUpFlowCookie, providerLink.completeStepUp(context, provider)]);
+  }
+
+  function recentStepUp(request, context) {
+    try { return providerLink.verifyRecentStepUp(header(request, "cookie"), context); } catch { return null; }
+  }
+
   return {
     async handle(request, response, suppliedUrl) {
       const url = suppliedUrl instanceof URL ? suppliedUrl : new URL(request.url || "/", "http://localhost");
@@ -112,7 +123,26 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);
           const connected = await identity.connectedProviders(context.actor);
-          sendJson(response, 200, { ok: true, connected, available: { google: Boolean(google), facebook: Boolean(facebook), apple: false } });
+          const verified = recentStepUp(request, context);
+          sendJson(response, 200, { ok: true, connected, available: { google: Boolean(google), facebook: Boolean(facebook), apple: false }, recentStepUp: verified ? { provider: verified.provider } : null });
+          return true;
+        }
+        const stepUpStartMatch = url.pathname.match(new RegExp(`^${prefix}provider-links/(google|facebook)/step-up/start$`));
+        if (stepUpStartMatch) {
+          const selectedProvider = stepUpStartMatch[1];
+          const adapter = providerAdapter(selectedProvider);
+          if (!adapter) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true });
+          await limit(request, "login");
+          await limit(request, `${selectedProvider}-start`);
+          const connected = await identity.connectedProviders(context.actor);
+          if (!connected.some((item) => item.provider === selectedProvider)) {
+            sendJson(response, 409, { ok: false, code: "provider-not-connected", error: "That sign-in method is not connected to this account." });
+            return true;
+          }
+          const attempt = adapter.begin({ purpose: "step-up" });
+          sendJson(response, 200, { ok: true, provider: selectedProvider, location: attempt.location }, { "Set-Cookie": [attempt.setCookie, providerLink.beginStepUp(context, selectedProvider)] });
           return true;
         }
         const linkStartMatch = url.pathname.match(new RegExp(`^${prefix}provider-links/(google|facebook)/start$`));
@@ -124,20 +154,70 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true });
           await limit(request, "login");
           await limit(request, `${selectedProvider}-start`);
-          const passwordStepUp = await credentials.signIn(context.account.email, (await readJsonObject(request)).password);
-          const sameAccount = passwordStepUp.authenticated === true && passwordStepUp.account?.userId === context.actor.userId;
-          if (!sameAccount) {
-            const locked = passwordStepUp.reason === "temporarily-locked";
-            sendJson(response, locked ? 429 : 401, { ok: false, code: locked ? "temporarily-locked" : "step-up-failed", error: locked ? "Sign in is temporarily locked. Try again later." : "Your current password is required before connecting another sign-in method." });
-            return true;
-          }
           const connected = await identity.connectedProviders(context.actor);
           if (connected.some((item) => item.provider === selectedProvider)) {
             sendJson(response, 409, { ok: false, code: "provider-already-connected", error: `${selectedProvider === "google" ? "Google" : "Facebook"} is already connected to this account.` });
             return true;
           }
+          const hasPassword = connected.some((item) => item.provider === "password");
+          if (hasPassword) {
+            const passwordStepUp = await credentials.signIn(context.account.email, (await readJsonObject(request)).password);
+            const sameAccount = passwordStepUp.authenticated === true && passwordStepUp.account?.userId === context.actor.userId;
+            if (!sameAccount) {
+              const locked = passwordStepUp.reason === "temporarily-locked";
+              sendJson(response, locked ? 429 : 401, { ok: false, code: locked ? "temporarily-locked" : "step-up-failed", error: locked ? "Sign in is temporarily locked. Try again later." : "Your current password is required before connecting another sign-in method." });
+              return true;
+            }
+          } else {
+            const verified = recentStepUp(request, context);
+            if (!verified || !connected.some((item) => item.provider === verified.provider)) {
+              sendJson(response, 401, { ok: false, code: "provider-step-up-required", error: "Verify one of your current sign-in methods before connecting another." });
+              return true;
+            }
+          }
           const attempt = adapter.begin({ purpose: "link" });
-          sendJson(response, 200, { ok: true, provider: selectedProvider, location: attempt.location }, { "Set-Cookie": [attempt.setCookie, providerLink.begin(context, selectedProvider)] });
+          sendJson(response, 200, { ok: true, provider: selectedProvider, location: attempt.location }, { "Set-Cookie": [attempt.setCookie, providerLink.begin(context, selectedProvider), providerLink.clearRecentStepUpCookie] });
+          return true;
+        }
+        const disconnectMatch = url.pathname.match(new RegExp(`^${prefix}provider-links/(google|facebook)$`));
+        if (disconnectMatch) {
+          const selectedProvider = disconnectMatch[1];
+          if (request.method !== "DELETE") return methodNotAllowed(response, ["DELETE"]), true;
+          const context = await security.protect(request, { mutation: true });
+          await limit(request, "login");
+          const connected = await identity.connectedProviders(context.actor);
+          if (!connected.some((item) => item.provider === selectedProvider)) {
+            sendJson(response, 409, { ok: false, code: "provider-not-connected", error: "That sign-in method is not connected to this account." });
+            return true;
+          }
+          if (connected.length <= 1) {
+            sendJson(response, 409, { ok: false, code: "last-sign-in-method", error: "Connect another sign-in method before removing this one." });
+            return true;
+          }
+          const hasPassword = connected.some((item) => item.provider === "password");
+          if (hasPassword) {
+            const passwordStepUp = await credentials.signIn(context.account.email, (await readJsonObject(request)).password);
+            const sameAccount = passwordStepUp.authenticated === true && passwordStepUp.account?.userId === context.actor.userId;
+            if (!sameAccount) {
+              const locked = passwordStepUp.reason === "temporarily-locked";
+              sendJson(response, locked ? 429 : 401, { ok: false, code: locked ? "temporarily-locked" : "step-up-failed", error: locked ? "Sign in is temporarily locked. Try again later." : "Your current password is required before removing a sign-in method." });
+              return true;
+            }
+          } else {
+            const verified = recentStepUp(request, context);
+            if (!verified || verified.provider === selectedProvider || !connected.some((item) => item.provider === verified.provider)) {
+              sendJson(response, 401, { ok: false, code: "provider-step-up-required", error: "Verify the sign-in method you will keep before removing this one." });
+              return true;
+            }
+          }
+          const result = await identity.disconnectProvider(context.actor, selectedProvider);
+          if (!result.disconnected) {
+            const last = result.reason === "last-sign-in-method";
+            sendJson(response, 409, { ok: false, code: last ? "last-sign-in-method" : "provider-not-connected", error: last ? "Connect another sign-in method before removing this one." : "That sign-in method is not connected to this account." });
+            return true;
+          }
+          const logout = await sessions.logoutAll(context);
+          sendJson(response, 200, { ok: true, disconnected: true, provider: selectedProvider, revokedSessions: result.revokedSessions }, { "Set-Cookie": [logout.setCookie, providerLink.clearRecentStepUpCookie] });
           return true;
         }
         if (url.pathname === `${prefix}google/start`) {
@@ -154,6 +234,10 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           try {
             await limit(request, "google-callback");
             const claims = await google.complete(url, header(request, "cookie"));
+            if ((claims.flowPurpose ?? "sign-in") === "step-up") {
+              await completeProviderStepUp(request, response, "google", claims, google);
+              return true;
+            }
             if ((claims.flowPurpose ?? "sign-in") === "link") {
               await completeProviderConnection(request, response, "google", claims, google);
               return true;
@@ -168,8 +252,10 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
             const rateLimited = error?.statusCode === 429;
             if (!rateLimited && !(error instanceof TypeError)) onUnexpectedError(error);
             const linking = providerLink.has(header(request, "cookie"));
-            const fragment = new URLSearchParams({ [linking ? "provider" : "social"]: rateLimited ? "rate-limited" : "google-failed" });
-            sendRedirect(response, 303, `${linking ? "/settings" : "/login"}#${fragment}`, [google.clearCookie, ...(linking ? [providerLink.clearCookie] : [])]);
+            const steppingUp = providerLink.hasStepUpFlow(header(request, "cookie"));
+            const accountFlow = linking || steppingUp;
+            const fragment = new URLSearchParams({ [accountFlow ? "provider" : "social"]: rateLimited ? "rate-limited" : "google-failed" });
+            sendRedirect(response, 303, `${accountFlow ? "/settings" : "/login"}#${fragment}`, [google.clearCookie, ...(linking ? [providerLink.clearCookie] : []), ...(steppingUp ? [providerLink.clearStepUpFlowCookie] : [])]);
           }
           return true;
         }
@@ -187,6 +273,10 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           try {
             await limit(request, "facebook-callback");
             const claims = await facebook.complete(url, header(request, "cookie"));
+            if ((claims.flowPurpose ?? "sign-in") === "step-up") {
+              await completeProviderStepUp(request, response, "facebook", claims, facebook);
+              return true;
+            }
             if ((claims.flowPurpose ?? "sign-in") === "link") {
               await completeProviderConnection(request, response, "facebook", claims, facebook);
               return true;
@@ -208,8 +298,10 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
             const rateLimited = error?.statusCode === 429;
             if (!rateLimited && !(error instanceof TypeError)) onUnexpectedError(error);
             const linking = providerLink.has(header(request, "cookie"));
-            const fragment = new URLSearchParams({ [linking ? "provider" : "social"]: rateLimited ? "rate-limited" : "facebook-failed" });
-            sendRedirect(response, 303, `${linking ? "/settings" : "/login"}#${fragment}`, [facebook.clearCookie, ...(linking ? [providerLink.clearCookie] : [])]);
+            const steppingUp = providerLink.hasStepUpFlow(header(request, "cookie"));
+            const accountFlow = linking || steppingUp;
+            const fragment = new URLSearchParams({ [accountFlow ? "provider" : "social"]: rateLimited ? "rate-limited" : "facebook-failed" });
+            sendRedirect(response, 303, `${accountFlow ? "/settings" : "/login"}#${fragment}`, [facebook.clearCookie, ...(linking ? [providerLink.clearCookie] : []), ...(steppingUp ? [providerLink.clearStepUpFlowCookie] : [])]);
           }
           return true;
         }

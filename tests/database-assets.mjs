@@ -29,8 +29,15 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 31);
+  assert.equal(repositoryResult.migrations.length, 32);
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
+  const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
+  const appBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("app_functions constant"), deploymentVerifier.indexOf("worker_functions constant"));
+  const workerBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("worker_functions constant"), deploymentVerifier.indexOf("BEGIN", deploymentVerifier.indexOf("worker_functions constant")));
+  const advertisedAppChecks = Number(deploymentVerifier.match(/'appFunctionChecks',\s*(\d+)/)?.[1]);
+  const advertisedWorkerChecks = Number(deploymentVerifier.match(/'workerFunctionChecks',\s*(\d+)/)?.[1]);
+  assert.equal(advertisedAppChecks, [...appBlock.matchAll(/'tideway_private\./g)].length, "deployment report must count every exact app function it verifies");
+  assert.equal(advertisedWorkerChecks, [...workerBlock.matchAll(/'tideway_private\./g)].length, "deployment report must count every exact worker function it verifies");
 
   await freshFixture();
   const tamperedPath = path.join(fixtureDatabaseDirectory, "migrations", "004_social_identity_and_onboarding.sql");

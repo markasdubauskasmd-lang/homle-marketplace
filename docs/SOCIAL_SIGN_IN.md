@@ -17,7 +17,7 @@ An existing verified password account can connect Google or Facebook without rel
 5. The callback requires the original live Tideway session, verifies both state cookies and connects the provider subject through a collision-locked database function. It cannot change role, profile, email or bookings.
 6. The database rejects a provider subject already owned by another account and rejects replacing an account's existing provider subject. Only provider name and email-verification status enter the audit record.
 
-Connection controls remain hidden when the provider is unavailable, already connected, the marketplace attachment is off or the account has no password identity. Social-only accounts still need a future recent-provider step-up flow. Provider removal also remains unavailable until Tideway can prove it will not lock out the last usable sign-in method.
+Connection controls remain hidden when the provider is unavailable, already connected or the marketplace attachment is off. Password accounts re-enter their current Tideway password. Social-only accounts reauthenticate with one existing provider; Tideway compares the exact App-bound provider subject with its function-only account record before issuing a user/session/provider-bound ten-minute approval. Starting a second-provider connection clears that approval from the browser. Removal refuses the final identity and, for a social-only account, requires recent proof through the different provider that will remain. Every successful removal revokes all sessions and requires a fresh sign-in.
 
 ## Google security model
 
@@ -72,7 +72,7 @@ Before Facebook can become public:
 - create the Meta app under the approved legal business account and register the exact HTTPS callback `/api/marketplace/auth/facebook/callback`;
 - store `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` and an explicitly selected supported `FACEBOOK_GRAPH_API_VERSION` in deployment secrets;
 - complete Meta app review where required, the data-deletion callback, production privacy disclosures and provider-disconnection handling;
-- retain the authenticated current-password connection proof and add recent-provider step-up for social-only accounts plus lockout-safe provider removal;
+- retain the authenticated password/social step-up and lockout-safe removal proof under the real Meta app, HTTPS session and two-account staging run;
 - pass the locked migration, RLS, concurrency, SMTP-delivery and full mobile-browser staging suites under the final domain.
 - rerun `tools/domain-readiness.mjs` with `TIDEWAY_EXPECT_SOCIAL_PROVIDERS=google,facebook` (or `facebook` if Google is intentionally closed) and retain the passing, secret-free result.
 
