@@ -86,7 +86,7 @@ function requestScanPreview(booking, pending = false) {
       for (const photo of photos) {
         const item = element("li");
         const copy = element("div");
-        copy.append(element("strong", "", photo.roomName), element("span", "", photo.note));
+        copy.append(element("strong", "", photo.roomName), element("span", "", photo.note || "See the confirmed room checklist for cleaning instructions."));
         const view = element("button", "button button-outline", "View private photo");
         view.type = "button";
         view.addEventListener("click", async () => {

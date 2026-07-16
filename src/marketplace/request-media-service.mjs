@@ -78,14 +78,16 @@ export function createRequestMediaService(repository, options = {}) {
       if (!mimeTypes.has(mimeType)) throw new TypeError("Choose a supported JPEG, PNG, WebP or HEIC image.");
       const checksumSha256 = text(input.checksumSha256, 64, "Photo checksum", 64).toLowerCase();
       if (!checksumPattern.test(checksumSha256)) throw new TypeError("Photo checksum must be a lowercase SHA-256 value.");
+      const roomName = text(input.roomName, 120, "Room name", 1);
+      const note = text(input.note, 1000, "Photo note") || `See the confirmed ${roomName} checklist for cleaning instructions.`;
       const uploadId = uuid(createId(), "generated upload id");
       const issuedAt = now();
       if (!(issuedAt instanceof Date) || !Number.isFinite(issuedAt.getTime())) throw unavailable();
       const record = await repository.createUploadIntent(actor, {
         uploadId,
         cleaningRequestId: requestId,
-        roomName: text(input.roomName, 120, "Room name", 1),
-        note: text(input.note, 1000, "Photo note", 1),
+        roomName,
+        note,
         quarantineStorageKey: `quarantine/request-photos/${requestId}/${uploadId}`,
         finalStorageKey: `request-photos/${requestId}/${uploadId}.jpg`,
         mimeType,

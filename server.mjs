@@ -1214,7 +1214,7 @@ function briefScopeSignals(brief) {
 
 function decodeBriefPhoto(input, index) {
   const area = text(input?.area, 80);
-  const note = text(input?.note, 500);
+  const note = text(input?.note, 500) || `See the confirmed ${area || "room"} checklist for cleaning instructions.`;
   const dataUrl = typeof input?.dataUrl === "string" ? input.dataUrl : "";
   const match = dataUrl.match(/^data:((?:image\/(?:jpeg|png|webp))|(?:video\/(?:mp4|webm|quicktime)));base64,([A-Za-z0-9+/=]+)$/);
   if (!match) throw Object.assign(new Error(`Visual ${index + 1} must be a JPEG, PNG, WebP, MP4, MOV or WebM file.`), { statusCode: 422 });
@@ -4790,7 +4790,6 @@ async function handleJobBrief(request, response) {
   if (photoInputs.length > maxBriefPhotos) errors.push(`Add no more than ${maxBriefPhotos} room visuals.`);
   if (photoInputs.filter((photo) => String(photo?.dataUrl || "").startsWith("data:video/")).length > maxBriefVideos) errors.push(`Add no more than ${maxBriefVideos} short room videos.`);
   if (photoInputs.some((photo) => !briefRoomAreas.has(text(photo?.area, 80)))) errors.push("Choose a valid room for every room visual.");
-  if (photoInputs.some((photo) => text(photo?.note, 500).length < 3)) errors.push("Add a short room note explaining what every photo or video shows.");
   const photographedAreas = [...new Set(photoInputs.map((photo) => text(photo?.area, 80)).filter((area) => briefRoomAreas.has(area)))];
   const handoff = cleanerHandoffPreview({ tasks: checklist, photographedAreas, roomOptions: briefRoomOptions });
   if (checklist.length && handoff.workCount === 0) errors.push("Add at least one cleaning task; exclusions alone are not a cleanable scope.");

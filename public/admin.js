@@ -1387,7 +1387,7 @@ async function loadBriefPhotos(brief, target, button) {
       const area = document.createElement("strong");
       area.textContent = photo.area;
       const note = document.createElement("span");
-      note.textContent = photo.note || "No room note recorded";
+      note.textContent = photo.note || "Use the confirmed room checklist for cleaning instructions.";
       caption.append(area, note);
       const reviewLabel = document.createElement("label");
       reviewLabel.className = "checkbox visual-review-check";

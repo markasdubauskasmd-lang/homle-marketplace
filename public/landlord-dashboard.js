@@ -260,7 +260,7 @@ function renderScanPhotos(requestId, scan, list, count) {
   for (const photo of photos) {
     const item = element("li", "landlord-scan-photo");
     const copy = element("div");
-    copy.append(element("strong", "", photo.roomName), element("span", "", photo.note), element("small", "", `${humanFileSize(photo.byteSize)} · metadata removed · private JPEG`));
+    copy.append(element("strong", "", photo.roomName), element("span", "", photo.note || "See the confirmed room checklist for cleaning instructions."), element("small", "", `${humanFileSize(photo.byteSize)} · metadata removed · private JPEG`));
     const view = element("button", "button button-outline", "View privately");
     view.type = "button";
     view.addEventListener("click", async () => {
@@ -297,7 +297,7 @@ function requestScanPanel(request) {
   const summary = element("summary", "", request.status === "draft" ? "Add room photos and submit" : "View reviewed room scan");
   details.append(summary);
   const panel = element("div", "landlord-request-scan-body");
-  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? "Choose the checklist room, add a clear note and take a current photo. Homle strips metadata and keeps the sanitized image private." : "This is the reviewed room-scan handoff attached to the request.");
+  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? "Choose the checklist room and take a current photo. Add a photo note only when the checklist needs extra visual context. Homle strips metadata and keeps the sanitized image private." : "This is the reviewed room-scan handoff attached to the request.");
   const feedback = element("div", "landlord-form-feedback");
   feedback.hidden = true;
   feedback.tabIndex = -1;
@@ -331,12 +331,11 @@ function requestScanPanel(request) {
     room.firstElementChild.value = "";
     for (const name of roomNames(request)) { const option = element("option", "", name); option.value = name; room.append(option); }
     roomLabel.append(room);
-    const noteLabel = element("label", "", "What this photo shows");
+    const noteLabel = element("label", "", "Photo note (optional)");
     const note = element("textarea");
     note.name = "note";
     note.rows = 3;
     note.maxLength = 1000;
-    note.required = true;
     note.placeholder = "For example: Grease around the hob and splashback";
     noteLabel.append(note);
     const pickerActions = element("div", "landlord-scan-picker-actions");

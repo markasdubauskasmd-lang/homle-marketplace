@@ -4,7 +4,7 @@ import { cleanerTaskGuidance, unclearCleanerTasks } from "./task-quality.js?v=20
 const labels = {
   connectedRequest: "Request reference and email are complete",
   roomPhotos: "One to ten room photos or short videos are added",
-  photoDetails: "Every visual has a room label and specific note",
+  photoDetails: "Every visual has a room label",
   instructions: "Spoken or typed instructions are present",
   conciseTasks: "Concise cleaner tasks reflect the latest notes",
   roomCoverage: "Every shown room has a room-labelled cleaning task",
@@ -73,7 +73,7 @@ export function briefReadiness({ requestId = "", email = "", requestAuthorised =
   const checks = {
     connectedRequest: /^REQ-[A-Z0-9]{8}$/i.test(String(requestId || "").trim()) && (requestAuthorised === true || hasEmail(email)),
     roomPhotos: safePhotos.length > 0 && safePhotos.length <= maxBriefPhotos,
-    photoDetails: safePhotos.length > 0 && safePhotos.every((photo) => Boolean(normaliseBriefRoom(photo?.area)) && String(photo?.note || "").trim().length >= 3),
+    photoDetails: safePhotos.length > 0 && safePhotos.every((photo) => Boolean(normaliseBriefRoom(photo?.area))),
     instructions: String(transcript || "").trim().length > 0,
     conciseTasks: handoff.workCount > 0 && unclearTasks.length === 0 && checklistCurrent === true,
     roomCoverage: safePhotos.length > 0 && photographedAreas.length > 0 && uncoveredAreas.length === 0,

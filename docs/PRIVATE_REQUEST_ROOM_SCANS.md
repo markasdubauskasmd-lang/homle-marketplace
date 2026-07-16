@@ -5,7 +5,7 @@
 The authenticated Landlord journey now treats the room scan as the submission boundary:
 
 1. The Landlord creates a future private cleaning-request draft from an editable room-labelled checklist. Speech recognition can prepare the concise bullets, but the browser never submits them without review.
-2. A draft card offers separate rear-camera and existing-photo controls. Each image must name a room already present in the checklist and include a short scope note.
+2. A draft card offers separate rear-camera and existing-photo controls. Each image must name a room already present in the checklist. A photo note is optional because the reviewed room checklist already carries the cleaning instructions; when omitted, the server stores neutral checklist context rather than guessing what the image contains.
 3. The browser accepts one JPEG, PNG, WebP or HEIC image up to 15 MB, calculates its SHA-256 digest and requests a ten-minute upload intent.
 4. The original goes directly to a server-selected quarantine key through an exact signed `PUT`. Tideway cookies, referrer data and redirects are excluded.
 5. The server checks the stored type, byte count and checksum, decodes one bounded still image, applies orientation, flattens alpha, strips metadata and re-encodes a private JPEG. Only verified output metadata enters PostgreSQL; quarantine is then removed.

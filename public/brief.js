@@ -480,7 +480,7 @@ function renderPhotos() {
     select.addEventListener("change", () => { photo.area = select.value; clearChecklistChangeReview(); renderChecklist(); });
     label.append(select);
     const noteLabel = document.createElement("label");
-    noteLabel.append(document.createTextNode("What this photo shows"));
+    noteLabel.append(document.createTextNode("Photo note (optional)"));
     const note = document.createElement("textarea");
     note.rows = 3;
     note.maxLength = 500;
@@ -680,7 +680,6 @@ form.addEventListener("submit", async (event) => {
   if (!form.checkValidity()) { form.reportValidity(); showError("Complete the request details and required confirmation."); return; }
   if (!photos.length) { showError("Add at least one property photo."); return; }
   if (photos.some((photo) => !photo.area)) { showError("Choose the correct room for every photo."); return; }
-  if (photos.some((photo) => photo.note.trim().length < 3)) { showError("Add a short room note explaining what every photo shows."); return; }
   if (!tasks.length) { showError("Create and review at least one cleaner task."); return; }
   const handoff = cleanerHandoffPreview({ tasks, photographedAreas: photos.map((photo) => photo.area), roomOptions });
   if (!handoff.workCount) { showError("Add at least one cleaning task; leave-alone boundaries alone cannot be quoted."); return; }

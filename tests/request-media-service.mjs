@@ -39,6 +39,8 @@ const service = createRequestMediaService(repository, { objectStorage: storage, 
 const intent = await service.createUploadIntent(landlord, requestId, { roomName: "Kitchen", note: "Grease around the hob", mimeType: "image/jpeg", byteSize: 1234, checksumSha256: checksum });
 assert(intent.uploadId === uploadId && intent.method === "PUT" && intent.requiredHeaders["X-Amz-Checksum-Sha256"] === checksumBase64 && !Object.hasOwn(intent, "storageKey"), "Request media exposed a storage key or lost its exact signed upload contract.");
 assert(calls.find((call) => call.kind === "create").input.quarantineStorageKey === `quarantine/request-photos/${requestId}/${uploadId}`, "The server did not own the request-photo quarantine key.");
+await service.createUploadIntent(landlord, requestId, { roomName: "Bathroom", mimeType: "image/jpeg", byteSize: 1234, checksumSha256: checksum });
+assert(calls.filter((call) => call.kind === "create").at(-1).input.note === "See the confirmed Bathroom checklist for cleaning instructions.", "A room photo without duplicate manual notes did not receive safe checklist context.");
 const completed = await service.completeUpload(landlord, requestId, uploadId);
 assert(completed.photos.length === 1 && calls.find((call) => call.kind === "sanitize").input.stripMetadata === true && calls.some((call) => call.kind === "delete"), "Room photo completion bypassed sanitation, metadata removal or quarantine cleanup.");
 const sharedScan = await service.getScan(cleaner, requestId);
@@ -77,4 +79,4 @@ const [migration, grants, workerGrants] = await Promise.all([
 for (const required of ["cleaning_request_photo_uploads", "quarantine/request-photos", "request-photos/%s/%s.jpg", "request-photo-room-not-found", "request-photo-limit", "get_cleaning_request_scan", "get_cleaning_request_photo_object", "expire_due_request_photo_uploads", "FOR UPDATE SKIP LOCKED", "sanitized_at"]) assert(migration.includes(required), `Private request-room-scan migration omitted ${required}.`);
 assert(grants.includes("REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaning_request_photos, cleaning_request_photo_uploads") && workerGrants.includes("expire_due_request_photo_uploads"), "Runtime or worker grants permit room-photo key access or bypass expiry.");
 
-console.log("Request media tests passed: owner-only room capture, exact signed upload, sanitation, reviewed-room binding, participant-safe reads, function-only storage keys and expiry.");
+console.log("Request media tests passed: owner-only room capture, optional photo notes with safe checklist context, exact signed upload, sanitation, reviewed-room binding, participant-safe reads, function-only storage keys and expiry.");

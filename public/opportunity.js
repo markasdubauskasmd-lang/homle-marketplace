@@ -52,7 +52,7 @@ async function loadRoomPhotos(roomPhotos) {
     const area = document.createElement("strong");
     area.textContent = photo.area;
     const note = document.createElement("span");
-    note.textContent = photo.note;
+    note.textContent = photo.note || "See the confirmed room checklist for cleaning instructions.";
     caption.append(area, note);
     figure.append(caption);
     grid.append(figure);
