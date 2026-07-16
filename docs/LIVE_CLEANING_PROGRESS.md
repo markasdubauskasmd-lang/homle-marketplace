@@ -6,7 +6,7 @@ This Phase 4 checkpoint prepares the transactional active-job checklist shared b
 
 - The assigned Cleaner may start only after recorded arrival and inside the bounded visit window. Start is idempotent and changes the booking from `cleaner-arrived` to `cleaning-in-progress`.
 - The Cleaner can pause with a required reason and resume with an optional note. One open pause per booking is enforced by a partial unique index; elapsed time subtracts every pause interval.
-- Each checklist task can move through Not started, In progress, Completed, Skipped or Issue reported. Skipped and issue states require a note.
+- Each eligible unresolved checklist task can be completed with one large tap. Not started, In progress, Completed, Skipped and Issue reported remain available under a compact detailed control; skipped and issue states require a note. This reduces normal cleaning to one tap per task without removing correction or evidence paths.
 - Every task change records previous/new state, timestamp and responsible user. A durable monotonically increasing progress event is committed in the same transaction for later WebSocket delivery/reconnect.
 - The Landlord sees overall resolved percentage, completed-task count, room completion, elapsed time excluding pauses, task notes, issues, photo metadata and the latest 50 durable events.
 - Only participant-safe photo metadata is projected. Private object keys are never returned; the authenticated before/after/issue upload and read contracts now exist in `docs/PRIVATE_JOB_MEDIA.md` and remain detached until an approved private-storage adapter passes staging checks.

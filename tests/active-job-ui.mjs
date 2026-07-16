@@ -19,6 +19,7 @@ import {
   mergeBookingMessages,
   progressSummary,
   taskCanBeDecided,
+  taskCanBeQuickCompleted,
   taskCanBeUpdated
 } from "../public/active-job-model.js";
 
@@ -40,6 +41,7 @@ assert(activeJobAction("cleaner", {}, { status: "cleaning-in-progress", totalTas
 assert(activeJobAction("cleaner", {}, { status: "cleaning-in-progress", totalTasks: 3, resolvedTasks: 3 }).kind === "finish-cleaning", "A resolved checklist did not offer Finish cleaning.");
 assert(activeJobAction("landlord", { status: "cleaner-en-route" }, {}).enabled === false, "A Landlord received a Cleaner lifecycle mutation.");
 assert(taskCanBeUpdated("cleaner", "cleaning-in-progress") && !taskCanBeUpdated("landlord", "cleaning-in-progress"), "Cleaning task ownership is not role-safe.");
+assert(taskCanBeQuickCompleted("cleaner", "cleaning-in-progress", { status: "not-started", unexpected: false }) && !taskCanBeQuickCompleted("cleaner", "cleaning-in-progress", { status: "completed", unexpected: false }) && !taskCanBeQuickCompleted("cleaner", "cleaning-in-progress", { status: "not-started", unexpected: true, landlordApprovalStatus: "pending" }) && taskCanBeQuickCompleted("cleaner", "cleaning-in-progress", { status: "not-started", unexpected: true, landlordApprovalStatus: "approved" }), "One-tap completion is not limited to eligible unresolved Cleaner tasks.");
 assert(taskCanBeDecided("landlord", { unexpected: true, landlordApprovalStatus: "pending" }) && !taskCanBeDecided("cleaner", { unexpected: true, landlordApprovalStatus: "pending" }), "Unexpected-task decisions are not Landlord-only.");
 assert(activeJobMessagingOpen("confirmed") && activeJobMessagingOpen("completed") && !activeJobMessagingOpen("cancelled"), "Booking chat did not follow the server-owned messaging lifecycle.");
 assert(bookingDisputeView("confirmed").canOpen && bookingDisputeView("disputed", { status: "open" }).visible && !bookingDisputeView("cancelled").visible, "Booking-case visibility did not follow the participant lifecycle.");
@@ -87,6 +89,7 @@ const [html, script, styles, server, config, packageFile] = await Promise.all([
 
 for (const copy of ["Start journey", "I have arrived", "Start cleaning", "Finish cleaning", "Private live journey", "Live room checklist", "Booking participants only", "Private booking chat", "No personal contact details", "Send privately", "Private cleaning evidence", "Take a job photo", "Choose existing photo", "Before cleaning", "After cleaning", "Issue or damage", "Verified booking review", "Confirm job complete", "Submit verified review", "Publish response", "Only one review is allowed", "Private help and safety", "Open a Tideway case", "Open private case", "Administrator resolution"]) assert(html.includes(copy), `The active-job interface omitted ${copy}.`);
 assert(html.includes("data-task-list") && html.includes("data-pause-dialog") && html.includes("data-task-dialog") && html.includes("role=\"progressbar\"") && html.includes("role=\"log\"") && html.includes("maxlength=\"2000\"") && html.includes('capture="environment"') && html.includes("data-photo-viewer-image"), "The active-job interface omitted task, pause, unexpected-work, accessible progress, bounded chat, rear-camera capture or private photo viewing controls.");
+assert(script.includes('complete.textContent = "Mark task complete"') && script.includes("function taskControls(task)") && script.includes("More options or add note") && script.includes('saveTaskUpdate(task, "completed"') && script.includes('complete.dataset.pendingLabel = "Saving task…"') && script.includes("complete.setAttribute(\"aria-label\"") && styles.includes(".active-task-complete"), "The Cleaner cannot complete an eligible checklist task in one accessible mobile tap with a loading state while retaining detailed status/note controls.");
 assert(!/sample cleaner|preview state|stylised map preview/i.test(html), "The authenticated screen could be mistaken for the design preview.");
 for (const source of ["/tracking", "/cleaning-progress", "/property", "/events", "/messages", "/photos/intents", "/complete", "/access", "/journey/start", "/journey/location", "/journey/arrive", "/cleaning-progress/start", "/cleaning-progress/pause", "/cleaning-progress/finish", "/decision", "/completion", "/reviews", "/reviews/response", "/dispute"]) assert(script.includes(source), `The active-job controller omitted the secured ${source} interface.`);
 assert(script.includes("navigator.geolocation.getCurrentPosition") && script.includes("navigator.geolocation.watchPosition") && script.includes("navigator.geolocation.clearWatch"), "Foreground location consent, updates or automatic browser cleanup are missing.");

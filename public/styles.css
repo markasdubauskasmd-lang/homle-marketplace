@@ -1892,6 +1892,11 @@ textarea { resize: vertical; }
 .active-task > div:first-child em { margin-top: 4px; color: var(--muted); font-size: .67rem; text-transform: capitalize; }
 .active-task > p { margin: 9px 0 0; padding: 9px 11px; border-radius: 8px; background: #edf3f0; color: #465d57; font-size: .75rem; }
 .active-task-approval { display: block; margin-top: 8px; color: #7a4a09; font-weight: 800; text-transform: capitalize; }
+.active-task-controls { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.active-task-complete { justify-self: start; min-height: 52px; }
+.active-task-more { border: 1px solid var(--line); border-radius: 11px; background: #fff; }
+.active-task-more > summary { padding: 12px 13px; color: var(--green-dark); font-size: .72rem; font-weight: 850; cursor: pointer; }
+.active-task-more .active-task-editor { margin: 0; padding: 2px 12px 12px; border-top: 0; }
 .active-task-editor { display: grid; grid-template-columns: minmax(150px, .55fr) 1fr auto; gap: 10px; align-items: end; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .active-task-editor label { color: var(--muted); font-size: .65rem; font-weight: 800; }
 .active-task-editor select, .active-task-editor textarea { margin-top: 4px; min-height: 46px; }
@@ -2077,6 +2082,7 @@ textarea { resize: vertical; }
   .active-journey-facts div:last-child { border-bottom: 0; }
   .active-task-editor { grid-template-columns: 1fr; }
   .active-task-editor .button { grid-column: 1; width: 100%; }
+  .active-task-complete { width: 100%; }
   .active-task-decisions { display: grid; }
   .active-task-decisions .button, .active-job-actions > .button { width: 100%; }
   .active-photo-list { grid-template-columns: 1fr; }

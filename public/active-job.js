@@ -20,6 +20,7 @@ import {
   progressSummary,
   safeDateTime,
   taskCanBeDecided,
+  taskCanBeQuickCompleted,
   taskCanBeUpdated
 } from "./active-job-model.js";
 
@@ -227,20 +228,48 @@ function taskEditor(task) {
   const button = document.createElement("button");
   button.className = "button button-outline";
   button.type = "submit";
-  button.textContent = "Save task update";
+  button.textContent = "Save detailed update";
+  button.dataset.pendingLabel = "Saving update…";
   form.append(field("Task status", select), field("Cleaner note", note), button);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const status = select.value;
     if ((status === "skipped" || status === "issue-reported") && !note.value.trim()) return showFeedback("Add a short note before skipping a task or reporting an issue.", "error");
-    await runMutation(button, async () => {
-      const result = await mutate(`/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks/${task.taskId}`, "PUT", { status, note: note.value });
-      state.progress = result.progress;
-      render();
-      showFeedback("Task update saved for both booking participants.", "success");
-    });
+    await saveTaskUpdate(task, status, note.value, button, "Task update saved for both booking participants.");
   });
   return form;
+}
+
+async function saveTaskUpdate(task, status, note, button, successMessage) {
+  await runMutation(button, async () => {
+    const result = await mutate(`/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks/${task.taskId}`, "PUT", { status, note });
+    state.progress = result.progress;
+    render();
+    showFeedback(successMessage, "success");
+  });
+}
+
+function taskControls(task) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "active-task-controls";
+  if (taskCanBeQuickCompleted(state.role, currentStatus(), task)) {
+    const complete = document.createElement("button");
+    complete.className = "button active-task-complete";
+    complete.type = "button";
+    complete.textContent = "Mark task complete";
+    complete.setAttribute("aria-label", `Mark ${task.roomName || "room"}: ${task.description || "cleaning task"} complete`);
+    complete.dataset.pendingLabel = "Saving task…";
+    complete.addEventListener("click", () => saveTaskUpdate(task, "completed", task.latestNote || "", complete, `${task.roomName || "Room"} task marked complete.`));
+    wrapper.append(complete);
+  }
+  const more = document.createElement("details");
+  more.className = "active-task-more";
+  const summary = document.createElement("summary");
+  summary.textContent = task.status === "completed" ? "Change status or add note" : "More options or add note";
+  summary.setAttribute("aria-label", `More options for ${task.roomName || "room"}: ${task.description || "cleaning task"}`);
+  more.append(summary, taskEditor(task));
+  wrapper.append(more);
+  return wrapper;
 }
 
 function decisionButtons(task) {
@@ -298,7 +327,8 @@ function renderTasks() {
       approval.textContent = `Landlord decision: ${task.landlordApprovalStatus}`;
       article.append(approval);
     }
-    if (taskCanBeUpdated(state.role, currentStatus())) article.append(taskEditor(task));
+    const updateAllowed = taskCanBeUpdated(state.role, currentStatus()) && (task.unexpected !== true || task.landlordApprovalStatus === "approved");
+    if (updateAllowed) article.append(taskControls(task));
     if (taskCanBeDecided(state.role, task)) article.append(decisionButtons(task));
     list.append(article);
   }
@@ -688,8 +718,10 @@ function startLocationWatch() {
 async function runMutation(button, operation) {
   if (state.mutationInFlight) return;
   state.mutationInFlight = true;
+  const originalLabel = button.textContent;
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
+  if (button.dataset.pendingLabel) button.textContent = button.dataset.pendingLabel;
   showFeedback("");
   try { await operation(); }
   catch (error) {
@@ -699,6 +731,7 @@ async function runMutation(button, operation) {
     state.mutationInFlight = false;
     button.disabled = false;
     button.removeAttribute("aria-busy");
+    button.textContent = originalLabel;
     if (!workspace.hidden) renderActions();
   }
 }

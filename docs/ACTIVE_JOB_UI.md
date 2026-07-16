@@ -20,8 +20,9 @@ The Cleaner receives large, one-hand controls appropriate to the current server 
 2. While the page stays open, foreground `watchPosition` updates the current point at a bounded interval. Reloading the page requires a deliberate **Resume location sharing** action; sharing never restarts silently.
 3. **I have arrived** records arrival and clears the browser watch. The database also deletes the current point and stops sharing.
 4. **Start cleaning** opens the real room checklist.
-5. The Cleaner can change task status, add a note, report an issue, pause/resume and propose an unexpected task for Landlord approval.
-6. **Finish cleaning** stays disabled until every server-projected task is resolved. The server remains authoritative.
+5. Every eligible unresolved checklist item leads with one large **Mark task complete** action. Skip, issue, in-progress, correction and optional notes remain under **More options or add note** rather than appearing on every task. Pending/declined unexpected work cannot be completed; approved unexpected work receives the same one-tap control.
+6. The Cleaner can pause/resume and propose an unexpected task for Landlord approval.
+7. **Finish cleaning** stays disabled until every server-projected task is resolved. The server remains authoritative.
 
 Both participants can use the private booking chat from this screen. Messages arrive through the durable booking event stream, older messages use stable cursor pagination and a browser retry reuses the same idempotency key if the server response is lost. Tideway blocks phone numbers, email addresses, links and outside-messaging handles so participants can coordinate without exposing personal contact details.
 
@@ -61,7 +62,7 @@ The current solution is the most defensible web baseline. Reliable locked-screen
 
 ## Verification
 
-`tests/active-job-ui.mjs` covers route parsing, selected-role behavior, lifecycle action selection, unresolved-task finish blocking, Landlord-only unexpected-task decisions, completion/review UI states, bounded review scores/text, final Cleaner response, private booking-case categories/details/confirmation, foreground geolocation cleanup, durable live snapshots, private-chat lifecycle, chronological deduplication, retry UUIDs, stable pagination, photo MIME/size/lifecycle checks, deterministic local SHA-256, exact signed-header upload behavior, credential/referrer isolation, camera and exact storage-origin policies, preview cleanup, CSRF/session use, no unsafe HTML rendering, no external map dependency, canonical server routing and mobile/reduced-motion styles. Journey, progress, media, message, review, dispute and real-time service suites continue to prove the server-side authorization and privacy boundaries.
+`tests/active-job-ui.mjs` covers route parsing, selected-role behavior, lifecycle action selection, eligible one-tap task completion, unexpected-task approval gating, detailed task fallbacks, loading/accessibility states, unresolved-task finish blocking, Landlord-only unexpected-task decisions, completion/review UI states, bounded review scores/text, final Cleaner response, private booking-case categories/details/confirmation, foreground geolocation cleanup, durable live snapshots, private-chat lifecycle, chronological deduplication, retry UUIDs, stable pagination, photo MIME/size/lifecycle checks, deterministic local SHA-256, exact signed-header upload behavior, credential/referrer isolation, camera and exact storage-origin policies, preview cleanup, CSRF/session use, no unsafe HTML rendering, no external map dependency, canonical server routing and mobile/reduced-motion styles. Journey, progress, media, message, review, dispute and real-time service suites continue to prove the server-side authorization and privacy boundaries.
 
 ## Private booking cases
 

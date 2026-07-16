@@ -72,6 +72,11 @@ export function taskCanBeUpdated(role, status) {
   return role === "cleaner" && status === "cleaning-in-progress";
 }
 
+export function taskCanBeQuickCompleted(role, status, task) {
+  if (!taskCanBeUpdated(role, status) || task?.status === "completed") return false;
+  return task?.unexpected !== true || task.landlordApprovalStatus === "approved";
+}
+
 export function activeJobMessagingOpen(status) {
   return messagingStatuses.has(status);
 }
