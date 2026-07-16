@@ -82,6 +82,8 @@ The intended product is an Uber-style cleaning marketplace: *request → room sc
 
 Cleaner publication also no longer requires an email-based applicant to paste an externally hosted image URL. Verified social-login photos remain server-owned when present; otherwise the public initials fallback is used. Completion now measures nine real profile decisions, reducing first-supply friction without inventing identity or verification evidence.
 
+The Cleaner dashboard now reads authoritative profile readiness alongside bookings and availability. Its one next action follows the actual supply gate: answer urgent work, complete/publish the profile, add exact availability, then configure payouts. This prevents a new Cleaner being sent into schedule or payment setup while still invisible to matching.
+
 **The app is ~40% of the business.** The rest is cleaner supply, trust/insurance, and moving money — those are founder tasks and set the real timeline (see §8).
 
 ---

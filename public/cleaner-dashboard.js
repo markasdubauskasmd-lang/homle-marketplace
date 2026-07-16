@@ -13,6 +13,7 @@ let loading = false;
 let responding = false;
 let payoutStatus = null;
 let availabilityWindows = [];
+let cleanerProfile = null;
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 
@@ -163,10 +164,10 @@ function renderBookings() {
   document.querySelector("[data-cleaner-active-count]").textContent = String(buckets.active.length);
   document.querySelector("[data-cleaner-upcoming-count]").textContent = String(buckets.upcoming.length);
   document.querySelector("[data-cleaner-history-count]").textContent = String(buckets.history.length);
-  renderNextAction(buckets, payoutStatus, availabilityWindows);
+  renderNextAction(buckets, cleanerProfile, payoutStatus, availabilityWindows);
 }
 
-function renderNextAction(buckets, payout, availability) {
+function renderNextAction(buckets, profile, payout, availability) {
   const title = document.querySelector("[data-cleaner-next-title]");
   const copy = document.querySelector("[data-cleaner-next-copy]");
   const link = document.querySelector("[data-cleaner-next-link]");
@@ -188,7 +189,21 @@ function renderNextAction(buckets, payout, availability) {
     link.textContent = active ? "Open active job" : "View job checklist";
     return;
   }
-  if (!availability.length) {
+  if (!profile || profile.profileCompletionPercent < 100) {
+    title.textContent = "Complete your Cleaner profile";
+    copy.textContent = `${profile?.profileCompletionPercent || 0}% complete. Add only the real services, prices and working area Landlords need.`;
+    link.href = "/cleaner/profile";
+    link.textContent = "Continue profile";
+    return;
+  }
+  if (!profile.isPublic) {
+    title.textContent = "Publish your completed profile";
+    copy.textContent = "Review the public details once, then make the profile available for matching.";
+    link.href = "/cleaner/profile";
+    link.textContent = "Review and publish";
+    return;
+  }
+  if (!availability.some((window) => window.status === "available")) {
     title.textContent = "Add when you can clean";
     copy.textContent = "One exact future time lets Tideway match suitable requests to you.";
     link.href = "/cleaner/availability";
@@ -202,10 +217,10 @@ function renderNextAction(buckets, payout, availability) {
     link.textContent = payout.status === "action-required" ? "Continue payout setup" : "Set up payouts";
     return;
   }
-  title.textContent = "Keep your profile ready";
-  copy.textContent = "Confirm your services and availability so suitable requests can reach you.";
-  link.href = "/cleaner/profile";
-  link.textContent = "Open profile";
+  title.textContent = "You are ready for matching";
+  copy.textContent = "Your public profile and future availability are ready. New suitable requests will appear here.";
+  link.href = "/cleaner/availability";
+  link.textContent = "Review availability";
 }
 
 async function loadOptionalPayoutStatus() {
@@ -272,13 +287,15 @@ async function loadDashboard() {
   loading = true;
   showGate("Checking secure Cleaner access…", "Requests and jobs open only inside the assigned Cleaner account.");
   try {
-    const [accountResult, bookingResult, payoutResult, availabilityResult] = await Promise.all([requestJson("/api/marketplace/account"), requestJson("/api/marketplace/bookings?limit=50"), loadOptionalPayoutStatus(), requestJson("/api/marketplace/cleaner/availability")]);
+    const [accountResult, bookingResult, profileResult, payoutResult, availabilityResult] = await Promise.all([requestJson("/api/marketplace/account"), requestJson("/api/marketplace/bookings?limit=50"), requestJson("/api/marketplace/cleaner/profile"), loadOptionalPayoutStatus(), requestJson("/api/marketplace/cleaner/availability")]);
     const account = accountResult.account;
     if (account?.selectedRole !== "cleaner" || !account?.roles?.includes("cleaner")) return showGate("This is not a Cleaner account.", "Use the Cleaner workspace selected during onboarding.", { kind: "authentication", allowSignIn: true });
     bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
+    cleanerProfile = profileResult.profile && typeof profileResult.profile === "object" ? profileResult.profile : null;
     payoutStatus = payoutResult;
     availabilityWindows = Array.isArray(availabilityResult.availability) ? availabilityResult.availability : [];
     document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
+    document.querySelector("[data-cleaner-profile-link]").textContent = cleanerProfile?.profileCompletionPercent === 100 ? "Edit profile" : "Complete your profile";
     document.querySelector("[data-cleaner-name]").textContent = account.displayName || "Cleaner";
     renderBookings();
     showFeedback("");
