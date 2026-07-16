@@ -440,6 +440,9 @@ try {
   const contactValidationAsset = await fetch(`${base}/contact-validation.js?v=smoke-test`);
   const contactValidationAssetText = await contactValidationAsset.text();
   assert(contactValidationAsset.ok && contactValidationAssetText.includes("isUkPostcode") && contactValidationAssetText.includes("isPhone") && contactValidationAssetText.includes("isEmail"), "The shared browser/server contact validation rules were not publicly available to the guided forms.");
+  const accessSafetyAsset = await fetch(`${base}/access-detail-safety.js?v=smoke-test`);
+  const accessSafetyAssetText = await accessSafetyAsset.text();
+  assert(accessSafetyAsset.ok && accessSafetyAssetText.includes("containsSensitiveAccessDetails") && accessSafetyAssetText.includes("only after a booking is accepted") && homeText.includes("General access approach") && homeText.includes("exact access instructions privately only after a booking is accepted"), "The public request did not explain and enforce the pre-booking access-secret boundary.");
   const travelCoverageAsset = await fetch(`${base}/travel-coverage.js?v=smoke-test`);
   const travelCoverageAssetText = await travelCoverageAsset.text();
   assert(travelCoverageAsset.ok && travelCoverageAssetText.includes("parseCleanerTravelAreas") && travelCoverageAssetText.includes("cleanerTravelCoverage"), "The shared browser/server cleaner travel parser was not publicly available to the application form.");

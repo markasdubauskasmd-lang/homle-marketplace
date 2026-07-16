@@ -10,6 +10,7 @@ import { briefRoomOptions, maxBriefPhotos, maxBriefVideos } from "./public/brief
 import { cleanerHandoffPreview } from "./public/cleaner-handoff-preview.js";
 import { detectPriceSensitiveScope, normalisePriceSensitiveScopeSignals } from "./public/scope-signals.js";
 import { isEmail, isPhone, isUkPostcode } from "./public/contact-validation.js";
+import { accessDetailsSafetyMessage, containsSensitiveAccessDetails } from "./public/access-detail-safety.js";
 import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mjs";
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverage.mjs";
 import { businessDateToday, businessEpochFromWallClock, businessWallClockMs, earliestBookableWallClockMs } from "./business-clock.mjs";
@@ -4899,6 +4900,7 @@ async function handleCleaningRequest(request, response) {
   if (record.email && !isEmail(record.email)) errors.push("Enter a valid email address.");
   if (record.phone && !isPhone(record.phone)) errors.push("Enter a valid phone number.");
   if (record.postcode && !isUkPostcode(record.postcode)) errors.push("Enter a valid UK postcode.");
+  if (record.accessNotes && containsSensitiveAccessDetails(record.accessNotes)) errors.push(accessDetailsSafetyMessage);
   if (record.preferredDate && (!/^\d{4}-\d{2}-\d{2}$/.test(record.preferredDate) || record.preferredDate < localDateToday())) errors.push("Preferred date must be today or later.");
   if (record.preferredTimeWindow && !Object.hasOwn(preferredArrivalWindows, record.preferredTimeWindow)) errors.push("Choose a supported preferred arrival window.");
   if (!requestFrequencies.has(record.frequency)) errors.push("Choose a supported cleaning frequency.");

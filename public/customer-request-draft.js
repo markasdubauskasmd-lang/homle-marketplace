@@ -1,3 +1,5 @@
+import { containsSensitiveAccessDetails } from "./access-detail-safety.js";
+
 const customerRequestDraftKey = "tidewayCustomerRequestDraftV1";
 const customerRequestDraftVersion = 1;
 const submissionKeyPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -22,7 +24,9 @@ export const customerRequestDraftFields = Object.freeze({
 });
 
 function cleanFields(fields = {}) {
-  return Object.fromEntries(Object.entries(customerRequestDraftFields).map(([name, limit]) => [name, String(fields?.[name] || "").slice(0, limit)]));
+  const cleaned = Object.fromEntries(Object.entries(customerRequestDraftFields).map(([name, limit]) => [name, String(fields?.[name] || "").slice(0, limit)]));
+  if (containsSensitiveAccessDetails(cleaned.accessNotes)) cleaned.accessNotes = "";
+  return cleaned;
 }
 
 function hasContent(fields) {

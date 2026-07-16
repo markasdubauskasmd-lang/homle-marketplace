@@ -45,6 +45,11 @@ assert.equal(invalidRetry.currentStep, 3, "Restored steps must stay inside the t
 assert.equal(invalidRetry.retry, undefined, "Invalid retry keys must not survive draft validation.");
 clearCustomerRequestDraft(storage);
 assert.equal(values.size, 0);
+saveCustomerRequestDraft(storage, { fields: { postcode: "SW1A 1AA", accessNotes: "Door code is 4821" }, currentStep: 2 }, now);
+const sensitiveDraftText = [...values.values()][0];
+assert(!sensitiveDraftText.includes("4821"), "An access code entered before booking acceptance was stored in the recovery draft.");
+assert.equal(readCustomerRequestDraft(storage, now)?.fields.accessNotes, "", "A sensitive access detail survived recovery-draft normalization.");
+clearCustomerRequestDraft(storage);
 saveCustomerRequestDraft(storage, {}, now);
 assert.equal(values.size, 0, "An untouched request must not create a draft.");
 saveCustomerRequestDraft(storage, { fields: { frequency: "One-off", preferredTimeWindow: "Flexible" } }, now);
@@ -58,8 +63,9 @@ const [html, app, privacy] = await Promise.all([
   readFile(path.join(root, "public", "app.js"), "utf8"),
   readFile(path.join(root, "public", "privacy.html"), "utf8")
 ]);
-assert(html.includes("data-customer-draft-status") && html.includes("Privacy consent is never restored"));
+assert(html.includes("data-customer-draft-status") && html.includes("Access codes and privacy consent are never stored"));
 assert(app.includes("readCustomerRequestDraft") && app.includes("clearCustomerRequestDraft(window.sessionStorage)"));
+assert(app.includes("containsSensitiveAccessDetails") && app.includes("accessDetailsSafetyMessage"));
 assert(app.includes("customerDraftControls.get(form) || cleanerDraftControls.get(form)") && app.includes("draftControls?.rememberSubmission(pending.key)"));
 assert(app.includes('["customer", "cleaner"].includes(form.dataset.guidedKind)') && app.includes("AbortController"));
 assert(!app.includes('form.elements.namedItem("consent").checked = true'));

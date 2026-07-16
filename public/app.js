@@ -2,6 +2,7 @@ import { saveBriefHandoff } from "./brief-handoff.js";
 import { newSubmissionKey } from "./submission-key.js";
 import { parseCleanerTravelAreas } from "./travel-coverage.js";
 import { isPhone, isUkPostcode } from "./contact-validation.js";
+import { accessDetailsSafetyMessage, containsSensitiveAccessDetails } from "./access-detail-safety.js";
 import { cleanerApplicationPreview } from "./cleaner-application-preview.js";
 import { cleanerApplicationDraftFields, cleanerApplicationDraftFingerprint, cleanerApplicationDraftServices, clearCleanerApplicationDraft, readCleanerApplicationDraft, saveCleanerApplicationDraft } from "./cleaner-application-draft.js";
 import { clearCustomerRequestDraft, customerRequestDraftFields, customerRequestDraftFingerprint, readCustomerRequestDraft, saveCustomerRequestDraft } from "./customer-request-draft.js";
@@ -68,7 +69,8 @@ const guidedForms = new WeakMap();
 function validateStructuredContactFields(form, scope = form) {
   const checks = [
     { input: scope.querySelector('input[name="postcode"]'), valid: isUkPostcode, message: "Enter a valid UK postcode, for example SW1A 1AA." },
-    { input: scope.querySelector('input[name="phone"]'), valid: isPhone, message: "Enter a valid phone number with 10 to 15 digits." }
+    { input: scope.querySelector('input[name="phone"]'), valid: isPhone, message: "Enter a valid phone number with 10 to 15 digits." },
+    { input: scope.querySelector('input[name="accessNotes"]'), valid: (value) => !containsSensitiveAccessDetails(value), message: accessDetailsSafetyMessage }
   ];
   for (const check of checks) {
     if (!check.input) continue;
@@ -396,13 +398,13 @@ function enhanceCustomerRequestDraft(form) {
     discard.hidden = !customerDraftHasContent(form);
     if (!online) {
       title.textContent = "You are offline — your request is protected";
-      copy.textContent = "Reconnect before submitting. Entries remain in this tab; privacy consent is never restored.";
+      copy.textContent = "Reconnect before submitting. Safe entries remain in this tab; access codes and privacy consent are never stored in the recovery draft.";
     } else if (restored) {
       title.textContent = "Your request entries were recovered";
-      copy.textContent = "Review every field and confirm privacy consent again before creating the request.";
+      copy.textContent = "Review every field and confirm privacy consent again before creating the request. Access codes are never recovered.";
     } else {
       title.textContent = "Private reload protection is on";
-      copy.textContent = "Your request entries stay in this tab for up to 30 minutes. Privacy consent is never restored.";
+      copy.textContent = "Safe request entries stay in this tab for up to 30 minutes. Access codes and privacy consent are never stored in the recovery draft.";
     }
   }
 
@@ -477,7 +479,7 @@ function enhanceCustomerRequestDraft(form) {
 
 document.querySelectorAll('form[data-guided-kind="customer"]').forEach(enhanceCustomerRequestDraft);
 
-document.querySelectorAll('input[name="postcode"], input[name="phone"]').forEach((input) => {
+document.querySelectorAll('input[name="postcode"], input[name="phone"], input[name="accessNotes"]').forEach((input) => {
   input.addEventListener("input", () => input.setCustomValidity(""));
 });
 

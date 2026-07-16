@@ -9,7 +9,7 @@
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260715-60">
-  <script src="/app.js?v=20260715-53" type="module"></script>
+  <script src="/app.js?v=20260716-54" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -139,7 +139,7 @@
           </div>
           <form data-api-form data-guided-form data-guided-kind="customer" action="/api/cleaning-requests" method="post" novalidate>
             <div class="application-draft-status" data-customer-draft-status role="status">
-              <div><strong data-customer-draft-title>Private reload protection is on</strong><span data-customer-draft-copy>Your request entries stay in this tab for up to 30 minutes. Privacy consent is never restored.</span></div>
+              <div><strong data-customer-draft-title>Private reload protection is on</strong><span data-customer-draft-copy>Safe request entries stay in this tab for up to 30 minutes. Access codes and privacy consent are never stored in the recovery draft.</span></div>
               <button class="text-button" type="button" data-customer-draft-discard hidden>Discard saved request</button>
             </div>
             <div class="error-summary" role="alert" tabindex="-1" hidden></div>
@@ -179,7 +179,7 @@
                 <label>Known hazards <select name="hazards" required><option value="">Choose one</option><option>None known</option><option>Pets present</option><option>Stairs or limited access</option><option>Building works or heavy soiling</option><option>Other — explain below</option></select></label>
                 <label>Frequency <select name="frequency"><option>One-off</option><option>Weekly</option><option>Several times a week</option><option>Fortnightly</option><option>As properties turn over</option><option>Not sure yet</option></select></label>
               </div>
-              <label>Keys and access arrangements <input name="accessNotes" required placeholder="For example: meet site manager, collect keys, concierge access"></label>
+              <label>General access approach <input name="accessNotes" required aria-describedby="access-notes-help" placeholder="For example: meet site manager, collect keys from office, concierge access"><small id="access-notes-help">Do not enter a door, gate, alarm or key-safe code, password or hidden-key location. Tideway collects exact access instructions privately only after a booking is accepted.</small></label>
               <div class="field-row">
                 <label>Preferred date <input name="preferredDate" type="date" required aria-describedby="preferred-date-help"><small id="preferred-date-help">Choose the first date you could accept. Tideway will confirm the exact visit before booking.</small></label>
                 <label>Preferred arrival window <select name="preferredTimeWindow"><option>Flexible</option><option>Morning (8am–12pm)</option><option>Afternoon (12pm–5pm)</option><option>Evening (5pm–8pm)</option></select></label>
