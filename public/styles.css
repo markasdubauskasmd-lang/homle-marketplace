@@ -1475,7 +1475,8 @@ textarea { resize: vertical; }
 .directory-state-mark { display: grid; width: 40px; height: 40px; place-items: center; color: #fff; border-radius: 50%; background: var(--green); font-family: Georgia, serif; font-weight: 900; }
 .directory-state strong { display: block; color: var(--green-dark); font-size: 1.06rem; }
 .directory-state p { max-width: 650px; margin: 5px 0 0; color: var(--muted); }
-.directory-state .button { margin-top: 15px; }
+.directory-state-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
+.directory-state-actions .button { margin: 0; }
 .directory-state[data-kind="unavailable"] { border-color: #e6bf80; background: #fff9ea; }
 .directory-state[data-kind="unavailable"] .directory-state-mark { background: #9b5a0e; }
 .directory-state[data-kind="error"] { border-color: #e1aaa5; background: #fff5f3; }

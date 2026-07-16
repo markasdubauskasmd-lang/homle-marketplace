@@ -6,6 +6,7 @@ const stateCopy = document.querySelector("[data-state-copy]");
 const resultsTitle = document.querySelector("[data-results-title]");
 const resultsCount = document.querySelector("[data-results-count]");
 const retry = document.querySelector("[data-retry]");
+const stateAction = document.querySelector("[data-state-action]");
 const filterError = document.querySelector("[data-filter-error]");
 const serviceLabels = new Map([
   ["regular-domestic", "Regular domestic"],
@@ -25,13 +26,15 @@ function element(name, className, text) {
   return node;
 }
 
-function showState(kind, title, copy, retryable = false) {
+function showState(kind, title, copy, retryable = false, actionLabel = "") {
   state.dataset.kind = kind;
   state.hidden = false;
   results.hidden = true;
   stateTitle.textContent = title;
   stateCopy.textContent = copy;
   retry.hidden = !retryable;
+  stateAction.textContent = actionLabel;
+  stateAction.hidden = !actionLabel;
   resultsCount.hidden = true;
 }
 
@@ -160,7 +163,7 @@ async function loadDirectory() {
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       if (response.status === 404 || response.status === 503) {
-        showState("unavailable", "Cleaner accounts are not open yet.", "The working private pilot is still available. Secure public profiles will appear here only after the marketplace database and account system are ready.", true);
+        showState("unavailable", "Cleaner accounts are not open yet.", "The guided cleaning request is still available. Tell Homle about the property now and public profiles will appear here after the secure marketplace is connected.", true, "Request a clean instead");
         resultsTitle.textContent = "Marketplace not connected";
         return;
       }
@@ -172,7 +175,7 @@ async function loadDirectory() {
     resultsCount.textContent = `${cleaners.length} ${cleaners.length === 1 ? "profile" : "profiles"}`;
     resultsCount.hidden = false;
     if (!cleaners.length) {
-      showState("empty", "No public profiles match these filters.", "Try a nearby outward postcode, another service, a wider price range or different availability.");
+      showState("empty", "No public profiles match these filters.", "Try different filters, or send Homle the property details so the request can be reviewed.", false, "Request guided matching");
       resultsCount.hidden = false;
       return;
     }
@@ -180,7 +183,7 @@ async function loadDirectory() {
     results.hidden = false;
   } catch (error) {
     if (error.name === "AbortError") return;
-    showState("error", "Cleaner search is temporarily unavailable.", "No booking was created. Check the connection and try again.", true);
+    showState("error", "Cleaner search is temporarily unavailable.", "No booking was created. Try the search again or continue with Homle's guided cleaning request.", true, "Request a clean instead");
     resultsTitle.textContent = "Search interrupted";
   }
 }
