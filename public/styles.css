@@ -1770,8 +1770,10 @@ textarea { resize: vertical; }
 .booking-payment-form .button[aria-busy="true"], .booking-payment-prepare[aria-busy="true"] { cursor: progress; opacity: .7; }
 .booking-payment-boundary { margin: 0; color: #6b5a46; font-size: .76rem; }
 .booking-payment-boundary strong { display: block; color: var(--green-dark); }
-.booking-payment-trust { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 26px; background: var(--line); border-top: 1px solid var(--line); }
-.booking-payment-trust div { padding: 18px; background: #fbfdfc; }
+.booking-payment-trust { margin-top: 26px; border-top: 1px solid var(--line); background: #fbfdfc; }
+.booking-payment-trust > summary { padding: 17px clamp(20px, 5vw, 34px); color: var(--green-dark); font-weight: 850; cursor: pointer; }
+.booking-payment-trust-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+.booking-payment-trust-grid div { padding: 18px; background: #fbfdfc; }
 .booking-payment-trust strong { display: block; color: var(--green-dark); font-size: .78rem; }
 .booking-payment-trust span { display: block; margin-top: 4px; color: var(--muted); font-size: .7rem; }
 
@@ -1785,7 +1787,7 @@ textarea { resize: vertical; }
   .booking-payment-status { width: 100%; }
   .booking-payment-prepare { width: calc(100% - 40px); }
   .booking-payment-form { padding: 16px 13px; }
-  .booking-payment-trust { grid-template-columns: 1fr; }
+  .booking-payment-trust-grid { grid-template-columns: 1fr; }
 }
 
 /* Authenticated active booking */

@@ -37,7 +37,8 @@
     { "order": 33, "file": "033_audited_booking_disputes.sql", "sha256": "c684ff2fd632e4fb564d902955bb0cb8f6b75b45d517293bb15cd38bf629d192" },
     { "order": 34, "file": "034_bootstrap_administrator_provisioning.sql", "sha256": "abed4b702e9e09b3661edcc9f65866dc6243d5d3beea1792284bfabf80d88bcc" },
     { "order": 35, "file": "035_account_privacy_request_intake.sql", "sha256": "cb08c26c9fe0f836f1c427c11b71d90bd7f9f978cf2480940d6807cd730f155f" },
-    { "order": 36, "file": "036_cleaner_payout_onboarding.sql", "sha256": "b5a55dc549974b2da62530bd293713c6b0afc8014afdf77f1d46730473b3b96f" }
+    { "order": 36, "file": "036_cleaner_payout_onboarding.sql", "sha256": "b5a55dc549974b2da62530bd293713c6b0afc8014afdf77f1d46730473b3b96f" },
+    { "order": 37, "file": "037_pre_authorization_booking_total.sql", "sha256": "4d5c173fda9675afdcff638767d2a9b53d3a38907d6c785b82f30f8126e8ce1b" }
   ],
   "grantFiles": [
     { "file": "runtime-role-grants.sql", "sha256": "3faf65bdf58f2dbf915c62ee7d2cb7484675da5cfa4b16cb6b97a77d5756b933" },

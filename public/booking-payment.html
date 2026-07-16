@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Secure booking payment | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-59">
-  <script src="/booking-payment.js?v=20260716-1" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-65">
+  <script src="/booking-payment.js?v=20260716-2" type="module"></script>
 </head>
 <body class="booking-payment-page">
   <a class="skip-link" href="#payment-main">Skip to booking payment</a>
@@ -31,7 +31,7 @@
       </div>
 
       <div class="booking-payment-message" data-payment-message role="status" aria-live="polite"><strong data-payment-message-title></strong><p data-payment-message-copy></p></div>
-      <button class="button booking-payment-prepare" type="button" data-payment-prepare hidden>Prepare secure payment</button>
+      <button class="button booking-payment-prepare" type="button" data-payment-prepare hidden>Enter secure payment details</button>
 
       <form class="booking-payment-form" data-payment-form hidden novalidate>
         <div class="booking-payment-element" data-payment-element aria-label="Secure payment details"></div>
@@ -40,7 +40,7 @@
         <p class="booking-payment-boundary"><strong>This places a temporary authorization only.</strong> Tideway's reviewed workflow permits capture only after the cleaning is completed. This source checkout accepts test keys only and stays unavailable unless the protected test runtime is ready.</p>
       </form>
 
-      <div class="booking-payment-trust"><div><strong>Server-frozen amount</strong><span>The browser cannot change the accepted booking total.</span></div><div><strong>No card storage</strong><span>Sensitive payment fields are sent directly to Stripe.</span></div><div><strong>Signed status</strong><span>Tideway trusts the verified server webhook, not this browser.</span></div></div>
+      <details class="booking-payment-trust"><summary>Why this payment is protected</summary><div class="booking-payment-trust-grid"><div><strong>Server-frozen amount</strong><span>The browser cannot change the accepted booking total.</span></div><div><strong>No card storage</strong><span>Sensitive payment fields are sent directly to Stripe.</span></div><div><strong>Signed status</strong><span>Tideway trusts the verified server webhook, not this browser.</span></div></div></details>
     </section>
   </main>
   <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Tideway.</span><a href="/privacy">Privacy notice</a></div></footer>

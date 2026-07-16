@@ -31,7 +31,7 @@ Before any migration-owner connection is used, verify that the complete ordered 
 node tools/check-database-assets.mjs
 ```
 
-This dependency-free check requires all 36 consecutively numbered migrations, rejects missing or unlocked SQL files, verifies the SHA-256 of every migration and role-grant script, and requires each file to retain its explicit `BEGIN;`/`COMMIT;` boundary. An intentional SQL change must be reviewed and receive an explicit matching lock update in the same commit. This is a source-integrity gate only; it does not replace executing the migrations and security/concurrency tests against a real PostgreSQL database.
+This dependency-free check requires all 37 consecutively numbered migrations, rejects missing or unlocked SQL files, verifies the SHA-256 of every migration and role-grant script, and requires each file to retain its explicit `BEGIN;`/`COMMIT;` boundary. An intentional SQL change must be reviewed and receive an explicit matching lock update in the same commit. This is a source-integrity gate only; it does not replace executing the migrations and security/concurrency tests against a real PostgreSQL database.
 
 Create the database and restricted runtime role using administrator tooling, then run these files as the migration owner in this order:
 
@@ -71,6 +71,8 @@ psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/032_social_pr
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/033_audited_booking_disputes.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/034_bootstrap_administrator_provisioning.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/035_account_privacy_request_intake.sql
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/036_cleaner_payout_onboarding.sql
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/037_pre_authorization_booking_total.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/runtime-role-grants.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/worker-role-grants.sql
 ```

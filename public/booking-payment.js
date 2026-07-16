@@ -65,15 +65,17 @@ function retryKey() {
 
 function renderPayment(payment) {
   const view = paymentPresentation(payment);
+  const formattedAmount = payment ? formatPaymentAmount(payment.amountPence) : "Amount unavailable";
   state.hidden = true;
   card.hidden = false;
-  document.querySelector("[data-payment-amount]").textContent = payment ? formatPaymentAmount(payment.amountPence) : "Confirmed amount pending";
+  document.querySelector("[data-payment-amount]").textContent = formattedAmount;
   document.querySelector("[data-payment-reference]").textContent = `Booking ${bookingId.toUpperCase()}`;
   document.querySelector("[data-payment-status]").textContent = payment ? String(payment.status).replaceAll("-", " ") : "not started";
   document.querySelector("[data-payment-message-title]").textContent = view.title;
   document.querySelector("[data-payment-message-copy]").textContent = view.copy;
   prepare.hidden = !["prepare", "continue", "retry"].includes(view.action);
-  prepare.textContent = view.action === "retry" ? "Try payment details again" : view.action === "continue" ? "Continue secure payment" : "Prepare secure payment";
+  prepare.textContent = view.action === "retry" ? "Try payment details again" : "Enter secure payment details";
+  submit.textContent = formattedAmount === "Amount unavailable" ? "Authorize booking total" : `Authorize ${formattedAmount}`;
   form.hidden = true;
   showFeedback("");
 }

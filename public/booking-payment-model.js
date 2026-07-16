@@ -13,6 +13,7 @@ export function formatPaymentAmount(amountPence) {
 export function paymentPresentation(payment) {
   if (!payment) return { action: "prepare", title: "Secure payment has not started", copy: "Prepare the reviewed booking total when you are ready to enter test payment details." };
   const presentations = {
+    "not-started": { action: "prepare", title: "Your agreed total is ready", copy: "Check the exact total above, then enter payment details securely when you are ready." },
     creating: { action: "continue", title: "Preparing secure payment", copy: "Continue to the protected payment form." },
     "requires-customer-action": { action: "continue", title: "Payment details needed", copy: "Complete the protected test payment form to authorize the booking total." },
     "authorization-failed": { action: "retry", title: "Payment was not authorized", copy: "Review the message and try the protected payment form again." },

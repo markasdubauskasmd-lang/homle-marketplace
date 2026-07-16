@@ -57,8 +57,9 @@ function currency(value) {
 
 function publicPayment(record, clientSecret = null) {
   if (!record) throw new TypeError("A payment record is required.");
+  const notStarted = record.paymentId == null && record.status === "not-started";
   return Object.freeze({
-    paymentId: uuid(record.paymentId, "payment id"),
+    paymentId: notStarted ? null : uuid(record.paymentId, "payment id"),
     bookingId: uuid(record.bookingId, "booking id"),
     status: String(record.status || ""),
     amountPence: positiveInteger(record.amountPence, "Payment amount"),

@@ -146,14 +146,16 @@ const privacyRequestService = {
   async list(actor) { calls.push({ kind: "privacy-list", actor }); return [{ requestId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", requestType: "export", status: "requested", createdAt: "2026-07-16T14:30:00.000Z", verifiedAt: null, completedAt: null }]; },
   async request(actor, input) { calls.push({ kind: "privacy-request", actor, input }); return { requestId: input.requestId, requestType: input.requestType, status: "requested", createdAt: "2026-07-16T14:30:00.000Z", verifiedAt: null, completedAt: null, created: true }; }
 };
+let paymentStarted = false;
 const paymentService = {
   getClientConfiguration(actor) { calls.push({ kind: "payment-config", actor }); return { publishableKey: `pk_test_${"p".repeat(32)}`, testMode: true }; },
   async getForBooking(actor, bookingId) {
     calls.push({ kind: "payment-get", actor, bookingId });
-    return { paymentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId, status: "authorized", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: false, clientSecret: null };
+    return { paymentId: paymentStarted ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" : null, bookingId, status: paymentStarted ? "authorized" : "not-started", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: false, clientSecret: null };
   },
   async beginAuthorization(actor, input) {
     calls.push({ kind: "payment-authorize", actor, input });
+    paymentStarted = true;
     return { paymentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId: input.bookingId, status: "requires-customer-action", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: true, clientSecret: "pi_test_client_secret" };
   },
   async handleWebhook(body, signature) {
@@ -215,6 +217,8 @@ const unauthenticatedPaymentConfiguration = await dispatch(router, "GET", "/api/
 assert(unauthenticatedPaymentConfiguration.response.statusCode === 401, "Payment client configuration was exposed without an authenticated Landlord session.");
 const unauthenticatedPayment = await dispatch(router, "GET", bookingPaymentUrl);
 assert(unauthenticatedPayment.response.statusCode === 401, "Payment status was visible without an authenticated account.");
+const unstartedPayment = await dispatch(router, "GET", bookingPaymentUrl, { headers: { cookie: authHeaders.cookie } });
+assert(unstartedPayment.response.statusCode === 200 && unstartedPayment.body.payment.paymentId === null && unstartedPayment.body.payment.status === "not-started" && unstartedPayment.body.payment.amountPence === 12_000 && calls.at(-1).kind === "payment-get", "The authenticated booking owner could not see the exact frozen total before payment creation.");
 const missingPaymentCsrf = await dispatch(router, "POST", bookingPaymentUrl, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { idempotencyKey: "authorize_booking_payment_123456789012" } });
 assert(missingPaymentCsrf.response.statusCode === 403 && !calls.some((call) => call.kind === "payment-authorize"), "Payment authorization accepted a missing CSRF token or reached the provider boundary.");
 const authorizedPayment = await dispatch(router, "POST", bookingPaymentUrl, { headers: authHeaders, body: { idempotencyKey: "authorize_booking_payment_123456789012" } });
