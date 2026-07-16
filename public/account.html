@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Tideway account access</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260715-47">
-  <script src="/auth-entry.js?v=20260716-5" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-64">
+  <script src="/auth-entry.js?v=20260716-6" type="module"></script>
 </head>
 <body class="account-page">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -35,12 +35,15 @@
           <div class="account-feedback" data-account-feedback role="status" aria-live="polite" hidden></div>
 
           <div class="account-social" data-social-actions hidden>
-            <p>Continue securely. If this verified social account is new, Tideway creates its account automatically.</p>
-            <a class="button button-outline" data-social-provider="google" href="/api/marketplace/auth/google/start" hidden>Continue with Google</a>
-            <a class="button button-outline" data-social-provider="facebook" href="/api/marketplace/auth/facebook/start" hidden>Continue with Facebook</a>
+            <p data-social-copy>Choose the quickest secure option. A new verified social identity creates its account automatically.</p>
+            <a class="button account-provider-button" data-social-provider="google" href="/api/marketplace/auth/google/start" hidden>Continue with Google</a>
+            <a class="button account-provider-button account-provider-facebook" data-social-provider="facebook" href="/api/marketplace/auth/facebook/start" hidden>Continue with Facebook</a>
           </div>
 
-          <form class="account-form" data-account-form="login" hidden novalidate>
+          <div class="account-choice-divider" data-account-choice-divider hidden><span>or</span></div>
+          <button class="account-email-toggle" type="button" data-email-toggle aria-expanded="false" hidden>Continue with email</button>
+
+          <form id="account-email-login" class="account-form" data-account-form="login" hidden novalidate>
             <fieldset data-account-controls disabled>
               <legend>Sign in securely</legend>
               <label>Email address<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
@@ -50,7 +53,7 @@
             </fieldset>
           </form>
 
-          <form class="account-form" data-account-form="signup" hidden novalidate>
+          <form id="account-email-signup" class="account-form" data-account-form="signup" hidden novalidate>
             <fieldset data-account-controls disabled>
               <legend>Create your account</legend>
               <label>Full name<input name="displayName" autocomplete="name" maxlength="120" required></label>
@@ -107,11 +110,11 @@
 
           <form class="account-form" data-account-form="onboarding" hidden novalidate>
             <fieldset data-account-controls disabled>
-              <legend>How will you use Tideway?</legend>
-              <p>Choose once so Tideway can open the correct private workspace. Administrator access cannot be selected here.</p>
-              <label class="account-role"><input name="role" type="radio" value="landlord" required><span><strong>Landlord or property manager</strong><small>Add properties, scan rooms and book cleaners.</small></span></label>
-              <label class="account-role"><input name="role" type="radio" value="cleaner" required><span><strong>Cleaner</strong><small>Build a professional profile and choose suitable work.</small></span></label>
-              <button class="button" type="submit">Continue</button>
+              <legend data-onboarding-legend>How will you use Tideway?</legend>
+              <p data-onboarding-copy>Choose once so Tideway can open the correct private workspace. Administrator access cannot be selected here.</p>
+              <label class="account-role" data-onboarding-choice="landlord"><input name="role" type="radio" value="landlord" required><span><strong>Landlord or property manager</strong><small>Add properties, scan rooms and book cleaners.</small></span></label>
+              <label class="account-role" data-onboarding-choice="cleaner"><input name="role" type="radio" value="cleaner" required><span><strong>Cleaner</strong><small>Build a professional profile and choose suitable work.</small></span></label>
+              <button class="button" type="submit" data-onboarding-submit>Continue</button>
             </fieldset>
           </form>
         </section>

@@ -19,6 +19,8 @@ const feedback = document.querySelector("[data-account-feedback]");
 const forms = [...document.querySelectorAll("[data-account-form]")];
 const socialActions = document.querySelector("[data-social-actions]");
 const socialLinks = [...document.querySelectorAll("[data-social-provider]")];
+const emailToggle = document.querySelector("[data-email-toggle]");
+const accountChoiceDivider = document.querySelector("[data-account-choice-divider]");
 const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
 const privateToken = fragment.get("token") || "";
 const socialResult = fragment.get("social") || "";
@@ -30,6 +32,8 @@ try {
   else accountIntent = readAccountIntent(sessionStorage);
 } catch { accountIntent = ""; }
 const bookingIntent = accountIntent === "book";
+let emailFormRevealed = false;
+let activeProviders = Object.freeze({});
 
 if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
 document.title = `${selectedMode.title} — Tideway`;
@@ -57,17 +61,27 @@ function showFeedback(message, kind = "info") {
 }
 
 function activateForm(providers) {
+  activeProviders = Object.freeze({ ...providers });
   const activeName = selectedMode.form === "reset" && !privateToken ? "reset-request" : selectedMode.form === "verify" && !privateToken ? "verification-request" : selectedMode.form;
   const socialPage = selectedMode.form === "login" || selectedMode.form === "signup";
   const socialReady = socialPage && socialLinks.some((link) => providers[link.dataset.socialProvider] === true);
+  const emailReady = providers.emailPassword === true;
+  const providerFirst = socialReady && emailReady && socialPage;
   for (const link of socialLinks) link.hidden = !socialPage || providers[link.dataset.socialProvider] !== true;
   if (bookingIntent) {
     for (const link of socialLinks) link.href = `${link.pathname}?intent=book`;
   }
-  if (socialActions) socialActions.hidden = !socialReady;
+  if (socialActions) socialActions.hidden = !socialReady || emailFormRevealed;
+  if (emailToggle) {
+    emailToggle.hidden = !providerFirst || emailFormRevealed;
+    emailToggle.setAttribute("aria-controls", `account-email-${selectedMode.form}`);
+    emailToggle.setAttribute("aria-expanded", String(emailFormRevealed));
+  }
+  if (accountChoiceDivider) accountChoiceDivider.hidden = !providerFirst || emailFormRevealed;
   for (const form of forms) {
     const capabilityReady = selectedMode.form === "onboarding" || (selectedMode.form === "facebook-verify" ? providers.facebook === true : providers.emailPassword === true);
-    const active = form.dataset.accountForm === activeName && capabilityReady;
+    const emailEntryDeferred = providerFirst && form.dataset.accountForm === activeName && !emailFormRevealed;
+    const active = form.dataset.accountForm === activeName && capabilityReady && !emailEntryDeferred;
     form.hidden = !active;
     form.querySelectorAll("[data-account-controls]").forEach((fieldset) => { fieldset.disabled = !active; });
   }
@@ -82,9 +96,16 @@ function activateForm(providers) {
     lead.textContent = "Use Google, Facebook or your verified email account, then continue to your private Landlord workspace.";
   } else if (bookingIntent && selectedMode.form === "onboarding") {
     title.textContent = "Confirm your booking workspace";
-    lead.textContent = "Choose Landlord or Property Manager to add the property, scan rooms and request the clean.";
+    lead.textContent = "Continue as a Landlord or Property Manager to add the property, scan rooms and request the clean.";
   }
   if ((selectedMode.form === "verify" || selectedMode.form === "facebook-verify") && !privateToken) showFeedback("This verification link is incomplete or has already been removed.", "error");
+}
+
+function revealEmailForm() {
+  emailFormRevealed = true;
+  activateForm(activeProviders);
+  const form = forms.find((item) => item.dataset.accountForm === selectedMode.form);
+  form?.querySelector("input")?.focus();
 }
 
 function formBody(form) {
@@ -244,10 +265,19 @@ async function submitAccountForm(event) {
 }
 
 for (const form of forms) form.addEventListener("submit", submitAccountForm);
+emailToggle?.addEventListener("click", revealEmailForm);
 
 if (bookingIntent && selectedMode.form === "onboarding") {
   const landlordChoice = document.querySelector('input[name="role"][value="landlord"]');
   if (landlordChoice) landlordChoice.checked = true;
+  const cleanerChoice = document.querySelector('[data-onboarding-choice="cleaner"]');
+  if (cleanerChoice) cleanerChoice.hidden = true;
+  const legend = document.querySelector("[data-onboarding-legend]");
+  const copy = document.querySelector("[data-onboarding-copy]");
+  const submit = document.querySelector("[data-onboarding-submit]");
+  if (legend) legend.textContent = "Continue as a property owner";
+  if (copy) copy.textContent = "You chose Book a clean. Confirm this Landlord workspace once, then add the property and room scan.";
+  if (submit) submit.textContent = "Continue to property details";
 }
 
 try {
@@ -262,7 +292,7 @@ try {
     if (socialResult === "google" && socialCsrfToken) {
       if (storeCsrf(socialCsrfToken)) {
         const opened = location.pathname !== "/onboarding" && await openSignedInWorkspace();
-        if (!opened) showFeedback(location.pathname === "/onboarding" ? "Google sign-in succeeded. Choose how you will use Tideway." : "Google sign-in succeeded. Your secure Tideway session is ready.", "success");
+        if (!opened) showFeedback(location.pathname === "/onboarding" ? (bookingIntent ? "Google sign-in succeeded. Confirm the booking workspace below." : "Google sign-in succeeded. Choose how you will use Tideway.") : "Google sign-in succeeded. Your secure Tideway session is ready.", "success");
       } else {
         await post("/api/marketplace/auth/logout", {}, socialCsrfToken);
         showFeedback("Secure browser storage is unavailable, so Tideway closed the Google session. Try a standard browser window.", "error");
@@ -272,13 +302,13 @@ try {
     } else if (socialResult === "facebook" && socialCsrfToken) {
       if (storeCsrf(socialCsrfToken)) {
         const opened = location.pathname !== "/onboarding" && await openSignedInWorkspace();
-        if (!opened) showFeedback(location.pathname === "/onboarding" ? "Facebook sign-in succeeded. Choose how you will use Tideway." : "Facebook sign-in succeeded. Your secure Tideway session is ready.", "success");
+        if (!opened) showFeedback(location.pathname === "/onboarding" ? (bookingIntent ? "Facebook sign-in succeeded. Confirm the booking workspace below." : "Facebook sign-in succeeded. Choose how you will use Tideway.") : "Facebook sign-in succeeded. Your secure Tideway session is ready.", "success");
       } else {
         await post("/api/marketplace/auth/logout", {}, socialCsrfToken);
         showFeedback("Secure browser storage is unavailable, so Tideway closed the Facebook session. Try a standard browser window.", "error");
       }
     } else if (socialResult === "facebook-verified") {
-      showFeedback("Your email is verified and Facebook sign-in is complete. Choose how you will use Tideway.", "success");
+      showFeedback(bookingIntent ? "Your email is verified and Facebook sign-in is complete. Confirm the booking workspace below." : "Your email is verified and Facebook sign-in is complete. Choose how you will use Tideway.", "success");
     } else if (socialResult === "facebook-verification-sent") {
       showFeedback("Facebook identity was confirmed. Check the private email link to finish creating or connecting your Tideway account.", "success");
     } else if (socialResult === "facebook-email-unavailable") {

@@ -25,7 +25,7 @@ The working concierge-pilot forms are preserved only on `/request` and `/join`. 
 
 `Book a clean` → Google/Facebook/email account → Landlord onboarding → the Landlord dashboard's single next action.
 
-The account-first action remains visible in the hero and navigation. Provider sign-in retains the booking intent and avoids asking for contact information again. Legacy pilot forms are now separated from the homepage and remain dedicated fallbacks only.
+The account-first action remains visible in the hero and navigation. When at least one social provider and email are available, the account page leads with Google/Facebook and keeps the three-field email fallback one tap away instead of showing every method at once. Provider sign-in retains the booking intent and avoids asking for contact information again. A booking-intent account sees one preselected Landlord/Property Manager confirmation rather than an irrelevant Cleaner choice, then continues directly to property details. Legacy pilot forms are now separated from the homepage and remain dedicated fallbacks only.
 
 ### Landlord or property owner
 
@@ -53,4 +53,4 @@ The authenticated profile editor now opens the first incomplete section and show
 
 ## Verification
 
-Static journey tests assert the lightweight homepage boundary, its direct role actions, absence of the legacy forms and form-processing script, dedicated fallback intake routes, single-next-action dashboards, the guided four-step Cleaner profile editor, exact section completion, optional-field disclosures, removal of the duplicate service decision, automatic speech summary, safe text rendering, CSRF/session protection, role-specific booking information and mobile layouts. Full project checks cover database privileges, account security, scan consent, booking overlap, tracking, progress, messages, payments, reviews and disputes.
+Static journey tests assert the lightweight homepage boundary, its direct role actions, absence of the legacy forms and form-processing script, dedicated fallback intake routes, provider-first account entry, the one-decision booking-role confirmation, single-next-action dashboards, the guided four-step Cleaner profile editor, exact section completion, optional-field disclosures, removal of the duplicate service decision, automatic speech summary, safe text rendering, CSRF/session protection, role-specific booking information and mobile layouts. Full project checks cover database privileges, account security, scan consent, booking overlap, tracking, progress, messages, payments, reviews and disputes.

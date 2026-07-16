@@ -208,9 +208,16 @@ textarea { resize: vertical; }
 .account-feedback { margin-bottom: 16px; padding: 13px 15px; border: 1px solid #9bcdbf; border-radius: 11px; background: var(--mint-pale); color: #164a42; font-weight: 700; }
 .account-feedback[data-kind="error"] { color: #7b1e17; border-color: #e1aaa5; background: #fff0ee; }
 .account-feedback[data-kind="success"] { color: #0c554b; border-color: #87c9b9; background: #ecfaf5; }
-.account-social { display: grid; gap: 10px; margin-bottom: 22px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.account-social { display: grid; gap: 10px; }
 .account-social p { margin: 0 0 2px; color: var(--muted); font-size: .9rem; font-weight: 800; }
 .account-social .button { width: 100%; }
+.account-provider-button { min-height: 52px; color: #173d37; border: 1px solid #a8c6be; background: #fff; box-shadow: 0 6px 18px rgba(16,36,33,.06); }
+.account-provider-button:hover { color: #fff; border-color: var(--green); background: var(--green); }
+.account-provider-facebook { border-color: #aebfdf; }
+.account-choice-divider { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; margin: 18px 0; color: var(--muted); font-size: .82rem; font-weight: 800; text-transform: uppercase; }
+.account-choice-divider::before, .account-choice-divider::after { height: 1px; background: var(--line); content: ""; }
+.account-email-toggle { width: 100%; min-height: 48px; padding: 11px 18px; color: var(--green-dark); border: 1px solid var(--green); border-radius: 10px; background: transparent; font: inherit; font-weight: 900; cursor: pointer; }
+.account-email-toggle:hover { color: #fff; background: var(--green); }
 .account-form fieldset { display: grid; gap: 16px; margin: 0; padding: 0; border: 0; }
 .account-form legend { margin-bottom: 18px; color: var(--green-dark); font-family: Georgia, 'Times New Roman', serif; font-size: 1.75rem; font-weight: 800; }
 .account-form small { color: var(--muted); line-height: 1.45; }
