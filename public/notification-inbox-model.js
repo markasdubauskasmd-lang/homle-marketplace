@@ -38,3 +38,9 @@ export function notificationWorkspacePath(account) {
   if (account?.selectedRole === "landlord" && account?.roles?.includes("landlord")) return "/landlord/dashboard";
   return "/login";
 }
+
+export function notificationUnreadBadge(value) {
+  const count = Number(value);
+  if (!Number.isSafeInteger(count) || count <= 0) return Object.freeze({ count: 0, visible: false, label: "" });
+  return Object.freeze({ count, visible: true, label: count > 99 ? "99+" : String(count) });
+}

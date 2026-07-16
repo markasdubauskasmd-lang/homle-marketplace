@@ -6,6 +6,8 @@ Homle now has a source-complete notification boundary for authenticated marketpl
 
 The mobile-first `/notifications` page is linked from both the Landlord and Cleaner workspaces. It shows concise booking updates, unread state and one valid booking action per item. It includes signed-out, loading, empty, pagination, offline, retry and success states. Unknown future event types fall back to neutral booking copy rather than exposing raw event data.
 
+Both role dashboards show a compact unread count beside **Updates**. It requests only the count from the account-bound inbox, caps the visual label at `99+`, retries after a browser back/forward restore or a later visible-tab return, and uses no constant polling. An unavailable or signed-out inbox leaves the navigation usable without inventing a count or blocking the dashboard.
+
 The browser renders only with DOM `textContent`, validates every booking identifier before creating a link and uses the current role only to select the return workspace. Opening an unread update sends a navigation-safe, CSRF-protected read mutation. **Mark all read** supplies the timestamp captured before the inbox load, then reloads the authoritative page so an update arriving concurrently remains visible and unread.
 
 The web runtime exposes three authenticated routes:

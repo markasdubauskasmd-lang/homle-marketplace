@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { notificationBookingPath, notificationPresentation, notificationWorkspacePath } from "../public/notification-inbox-model.js";
+import { notificationBookingPath, notificationPresentation, notificationUnreadBadge, notificationWorkspacePath } from "../public/notification-inbox-model.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -11,10 +11,13 @@ assert(notificationBookingPath(bookingId) === `/bookings/${bookingId}` && notifi
 assert(notificationWorkspacePath({ selectedRole: "landlord", roles: ["landlord"] }) === "/landlord/dashboard", "Landlords do not return to their workspace.");
 assert(notificationWorkspacePath({ selectedRole: "cleaner", roles: ["cleaner"] }) === "/cleaner/dashboard", "Cleaners do not return to their workspace.");
 assert(notificationWorkspacePath({ selectedRole: "cleaner", roles: ["landlord"] }) === "/login", "A role mismatch does not fail closed.");
+assert(notificationUnreadBadge(3).visible && notificationUnreadBadge(3).label === "3" && notificationUnreadBadge(100).label === "99+", "Unread counts are not presented compactly.");
+assert(!notificationUnreadBadge(0).visible && !notificationUnreadBadge(-1).visible && !notificationUnreadBadge("not-a-count").visible, "Invalid or empty unread counts create a badge.");
 
-const [page, script, model, styles, server, cleanerDashboard, landlordDashboard, packageFile] = await Promise.all([
+const [page, script, badgeScript, model, styles, server, cleanerDashboard, landlordDashboard, packageFile] = await Promise.all([
   readFile(new URL("../public/notifications.html", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/notification-badge.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notification-inbox-model.js", import.meta.url), "utf8"),
   readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8"),
@@ -31,6 +34,9 @@ assert(script.includes("replaceChildren") && script.includes("textContent") && !
 assert(script.includes("inboxCutoff") && script.includes("cutoffCreatedAt"), "Mark-all-read is not protected by a race-safe cutoff.");
 assert(model.includes("No price changes automatically") && model.includes("private message") && !model.includes("address"), "Public update copy leaks details or misstates price changes.");
 assert(server.includes('"/notifications": "notifications.html"') && cleanerDashboard.includes('href="/notifications"') && landlordDashboard.includes('href="/notifications"'), "The private inbox is not reachable from both workspaces.");
+assert(cleanerDashboard.includes("data-notification-link") && cleanerDashboard.includes("data-notification-count") && cleanerDashboard.includes("notification-badge.js") && landlordDashboard.includes("data-notification-link") && landlordDashboard.includes("data-notification-count") && landlordDashboard.includes("notification-badge.js"), "Unread updates are not visible from both role dashboards.");
+assert(badgeScript.includes('/api/marketplace/notifications?limit=1') && badgeScript.includes('credentials: "same-origin"') && badgeScript.includes('cache: "no-store"') && badgeScript.includes("event.persisted") && badgeScript.includes('document.visibilityState === "visible"'), "The dashboard badge is not private, bounded or refreshed after returning to the page.");
+assert(badgeScript.includes("textContent") && !badgeScript.includes("innerHTML") && !badgeScript.includes("setInterval"), "The dashboard badge uses unsafe rendering or constant polling.");
 assert(styles.includes(".cleaner-dashboard-page .directory-nav a:first-child") && styles.includes(".landlord-dashboard-page .directory-nav a:first-child") && styles.includes(".notifications-page .directory-nav a"), "Mobile navigation can hide the Updates or workspace return action.");
 assert(packageFile.includes("tests/notification-inbox-ui.mjs"), "Notification inbox verification is not part of the project gate.");
 
