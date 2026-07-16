@@ -1,4 +1,4 @@
-import { createCleanerProfileService, normalizedCleanerProfile, normalizedCleanerSearch, publicCleanerProjection } from "../src/marketplace/cleaner-profile.mjs";
+import { createCleanerProfileService, editableCleanerProjection, normalizedCleanerProfile, normalizedCleanerSearch, publicCleanerProjection } from "../src/marketplace/cleaner-profile.mjs";
 import { createCleanerProfileRepository } from "../src/marketplace/cleaner-repository.mjs";
 import { readFile } from "node:fs/promises";
 
@@ -8,6 +8,11 @@ function assert(condition, message) {
 
 function throws(operation, message) {
   try { operation(); } catch (error) { return String(error.message).includes(message); }
+  return false;
+}
+
+async function rejects(operation, message) {
+  try { await operation(); } catch (error) { return String(error.message).includes(message); }
   return false;
 }
 
@@ -66,16 +71,19 @@ const publicRows = [{
   acceptance_rate: 92
 }];
 const fakeServiceRepository = {
+  async getOwnProfile(actor) { serviceCalls.push({ kind: "get-own", actor }); return { ...publicRows[0], cleaner_id: actor.userId, user_id: actor.userId, is_public: true, service_areas: [{ outwardPostcode: "SW1A", latitude: 51.501, longitude: -0.142 }] }; },
   async saveOwnProfile(actor, profile) { serviceCalls.push({ kind: "save", actor, profile }); return { profileCompletionPercent: profile.profileCompletionPercent }; },
   async searchPublicProfiles(filters) { serviceCalls.push({ kind: "search", filters }); return publicRows; }
 };
 const service = createCleanerProfileService(fakeServiceRepository);
 const cleanerActor = { userId: "11111111-1111-4111-8111-111111111111", roles: ["cleaner"] };
+const ownProfile = await service.getOwnProfile(cleanerActor);
 await service.saveOwnProfile(cleanerActor, completeInput);
-assert(throws(() => service.saveOwnProfile({ userId: "landlord", roles: ["landlord"] }, completeInput), "Cleaner account"), "A landlord could enter cleaner profile editing.");
+assert(await rejects(() => service.saveOwnProfile({ userId: "landlord", roles: ["landlord"] }, completeInput), "Cleaner account"), "A landlord could enter cleaner profile editing.");
 const searchResults = await service.searchPublicProfiles({ outwardPostcode: "sw1a", serviceCode: "regular-domestic", startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T12:00:00.000Z", minimumRating: 4, maximumPricePence: 3000, verifiedOnly: true, latitude: 51.5, longitude: -0.12, maximumDistanceKm: 10, limit: 10 });
 const serialisedPublicResult = JSON.stringify(searchResults);
-assert(serviceCalls[0].actor.userId === cleanerActor.userId && !Object.hasOwn(serviceCalls[0].profile, "userId") && serviceCalls[1].filters.outwardPostcode === "SW1A" && searchResults[0].distanceKm === 3.25 && searchResults[0].verified, "Cleaner ownership or search filter canonicalization failed.");
+assert(ownProfile.cleanerId === cleanerActor.userId && ownProfile.isPublic === true && ownProfile.serviceAreas[0].outwardPostcode === "SW1A" && serviceCalls[1].actor.userId === cleanerActor.userId && !Object.hasOwn(serviceCalls[1].profile, "userId") && serviceCalls[2].filters.outwardPostcode === "SW1A" && searchResults[0].distanceKm === 3.25 && searchResults[0].verified, "Cleaner ownership, editable projection or search filter canonicalization failed.");
+assert(!JSON.stringify(ownProfile).includes("private@example.com") && await rejects(() => service.getOwnProfile({ userId: "landlord", roles: ["landlord"] }), "Cleaner account"), "The owner profile read leaked private account fields or accepted another role.");
 assert(!serialisedPublicResult.includes("private@example.com") && !serialisedPublicResult.includes("07123456789") && !serialisedPublicResult.includes("Private address") && !serialisedPublicResult.includes("acceptance_rate"), "Public cleaner projection exposed private contact, address or internal acceptance data.");
 assert(throws(() => normalizedCleanerSearch({ startAt: "2026-07-20T09:00:00Z" }), "start and end") && throws(() => normalizedCleanerSearch({ maximumDistanceKm: 10 }), "requires search coordinates"), "Cleaner search accepted incomplete availability or distance filters.");
 
@@ -89,12 +97,15 @@ const database = {
   }
 };
 const repository = createCleanerProfileRepository(database);
+await repository.getOwnProfile(cleanerActor);
 await repository.saveOwnProfile(cleanerActor, completeProfile);
 await repository.searchPublicProfiles(normalizedCleanerSearch({ outwardPostcode: "SW1A", limit: 20 }));
-assert(databaseCalls[0].text.includes("WHERE user_id=$1::uuid") && databaseCalls[0].values[0] === cleanerActor.userId && databaseCalls.slice(0, 5).every((call) => call.boundary === "user") && databaseCalls.at(-1).boundary === "public" && databaseCalls.at(-1).text.includes("search_cleaner_directory") && databaseCalls.every((call) => call.text.includes("$1")), "Cleaner repository accepted a target profile id, left the RLS boundary or used non-parameterized queries.");
+assert(databaseCalls[0].text.includes("WHERE profile.user_id=$1::uuid") && databaseCalls[0].text.includes("cleaner_service_areas") && databaseCalls[0].values[0] === cleanerActor.userId && databaseCalls.slice(0, 6).every((call) => call.boundary === "user") && databaseCalls.at(-1).boundary === "public" && databaseCalls.at(-1).text.includes("search_cleaner_directory") && databaseCalls.every((call) => call.text.includes("$1")), "Cleaner repository accepted a target profile id, omitted owner detail, left the RLS boundary or used non-parameterized queries.");
 
 const projection = publicCleanerProjection(publicRows[0]);
 assert(Object.keys(projection).every((key) => !["email", "phone", "homeAddress", "acceptanceRate", "latitude", "longitude"].includes(key)), "Cleaner public projection contains a forbidden field name.");
+const editableProjection = editableCleanerProjection({ ...publicRows[0], user_id: cleanerActor.userId, service_areas: [{ outwardPostcode: "SW1A", latitude: 51.5, longitude: -0.1 }] });
+assert(editableProjection.serviceAreas.length === 1 && !Object.hasOwn(editableProjection, "email") && !Object.hasOwn(editableProjection, "phone"), "Editable Cleaner projection omitted owner data or exposed account contact details.");
 
 const rlsSql = await readFile(new URL("../db/migrations/002_marketplace_row_level_security.sql", import.meta.url), "utf8");
 const directorySql = await readFile(new URL("../db/migrations/006_cleaner_directory.sql", import.meta.url), "utf8");

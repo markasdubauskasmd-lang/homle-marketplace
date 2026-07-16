@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Find a Tideway Cleaner by service area, availability, service and price. Only completed public profiles appear.">
+  <meta name="theme-color" content="#0e665b">
+  <title>Find a Cleaner | Tideway</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260716-56">
+  <script src="/cleaners.js?v=20260716-1" type="module"></script>
+</head>
+<body class="cleaner-directory-page">
+  <a class="skip-link" href="#directory-main">Skip to Cleaner search</a>
+  <header class="site-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a>
+      <nav class="directory-nav" aria-label="Cleaner directory navigation"><a href="/request">Request a clean</a><a href="/login">Sign in</a></nav>
+    </div>
+  </header>
+
+  <main id="directory-main" class="directory-main">
+    <section class="shell directory-hero" aria-labelledby="directory-title">
+      <div><p class="eyebrow">Cleaner marketplace</p><h1 id="directory-title">Find the right Cleaner for the job.</h1><p>Search completed public profiles. Tideway rechecks the property, checklist, price and availability before a booking can be confirmed.</p></div>
+      <div class="directory-privacy-note"><strong>Private by design</strong><span>Personal contact details, home addresses and exact service-area coordinates are never shown here.</span></div>
+    </section>
+
+    <section class="shell directory-layout" aria-label="Cleaner search">
+      <form class="directory-filters" data-directory-form novalidate>
+        <div class="directory-filter-heading"><div><p class="eyebrow">Your clean</p><h2>Search filters</h2></div><button type="reset" class="text-button">Clear</button></div>
+        <label>Outward postcode<input name="outwardPostcode" autocomplete="postal-code" inputmode="text" maxlength="4" placeholder="For example SW2"><small>Use the first part of the UK postcode. Exact addresses stay private.</small></label>
+        <label>Service<select name="serviceCode"><option value="">All services</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select></label>
+        <div class="field-row">
+          <label>Minimum rating<select name="minimumRating"><option value="">Any rating</option><option value="4">4+ stars</option><option value="4.5">4.5+ stars</option></select></label>
+          <label>Maximum price (£)<input name="maximumPrice" type="number" inputmode="decimal" min="1" max="10000" step="0.01" placeholder="No maximum"></label>
+        </div>
+        <fieldset class="directory-availability-fields">
+          <legend>Availability <span>optional</span></legend>
+          <label>Date<input name="date" type="date"></label>
+          <div class="field-row"><label>From<input name="startTime" type="time"></label><label>Until<input name="endTime" type="time"></label></div>
+        </fieldset>
+        <label class="checkbox"><input name="verifiedOnly" type="checkbox"><span>Show only profiles with a recorded verification badge</span></label>
+        <div class="directory-filter-error" data-filter-error role="alert" hidden></div>
+        <button class="button" type="submit">Search Cleaners</button>
+      </form>
+
+      <div class="directory-results">
+        <div class="directory-results-heading"><div><p class="eyebrow">Available profiles</p><h2 data-results-title>Checking the marketplace…</h2></div><span data-results-count hidden></span></div>
+        <section class="directory-state" data-directory-state role="status" aria-live="polite">
+          <span class="directory-state-mark" aria-hidden="true">i</span>
+          <div><strong data-state-title>Checking marketplace readiness…</strong><p data-state-copy>Cleaner results will appear only when the secure account marketplace is connected.</p><button class="button button-outline" type="button" data-retry hidden>Try again</button></div>
+        </section>
+        <div class="cleaner-directory-grid" data-cleaner-results hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Tideway.</span><div><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div></div></footer>
+</body>
+</html>

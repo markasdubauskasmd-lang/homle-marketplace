@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#0e665b">
+  <title>Your Cleaner profile | Tideway</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260716-57">
+  <script src="/cleaner-profile.js?v=20260716-1" type="module"></script>
+</head>
+<body class="cleaner-editor-page">
+  <a class="skip-link" href="#profile-main">Skip to profile editor</a>
+  <header class="site-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a>
+      <nav class="directory-nav" aria-label="Cleaner account navigation"><a href="/cleaners">Public profiles</a><a href="/login">Account access</a></nav>
+    </div>
+  </header>
+
+  <main id="profile-main" class="cleaner-editor-main shell">
+    <section class="cleaner-editor-heading" aria-labelledby="profile-title">
+      <div><p class="eyebrow">Cleaner workspace</p><h1 id="profile-title">Build a profile landlords can trust.</h1><p>Set your real services, area, availability and prices. Nothing becomes public until all required sections are complete and you choose to publish.</p></div>
+      <div class="profile-completion-card"><span>Profile completion</span><strong data-completion-value>0%</strong><progress data-completion-progress max="100" value="0">0%</progress><small data-completion-copy>Sign in to load your profile.</small></div>
+    </section>
+
+    <section class="cleaner-editor-state" data-editor-state role="status" aria-live="polite">
+      <span aria-hidden="true">i</span><div><strong data-editor-state-title>Checking secure profile access…</strong><p data-editor-state-copy>The form opens only for an authenticated Cleaner account.</p><div class="cleaner-editor-state-actions"><a class="button" href="/login" data-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-editor-retry hidden>Try again</button></div></div>
+    </section>
+
+    <form class="cleaner-editor-form" data-cleaner-profile-form hidden novalidate>
+      <fieldset data-profile-controls disabled>
+        <section class="cleaner-editor-section">
+          <div class="cleaner-editor-section-copy"><p class="eyebrow">1 · Introduction</p><h2>Present yourself professionally</h2><p>Use accurate details only. Tideway does not create badges or claims from this form.</p></div>
+          <div class="cleaner-editor-fields">
+            <label>Profile photo URL<input name="profilePhotoUrl" type="url" inputmode="url" maxlength="2048" placeholder="https://…"><small>For now, use an HTTPS image URL. Private photo upload will be added with production storage.</small></label>
+            <label>Short biography<textarea name="biography" rows="6" maxlength="1200" placeholder="Describe how you work, the properties you clean and how you communicate."></textarea><small>At least 40 characters are needed for a complete profile.</small></label>
+            <div class="field-row"><label>Years of experience<input name="yearsExperience" type="number" inputmode="numeric" min="0" max="80" step="1"></label><label>Availability<select name="currentAvailabilityStatus"><option value="unavailable">Unavailable</option><option value="limited">Limited</option><option value="available">Available</option></select></label></div>
+            <label>Languages spoken<input name="languages" maxlength="1200" placeholder="English, Spanish"><small>Separate entries with commas.</small></label>
+            <div class="cleaner-preference-row"><label class="checkbox"><input name="residentialPreference" type="checkbox"><span>Residential cleaning</span></label><label class="checkbox"><input name="commercialPreference" type="checkbox"><span>Commercial cleaning</span></label></div>
+          </div>
+        </section>
+
+        <section class="cleaner-editor-section">
+          <div class="cleaner-editor-section-copy"><p class="eyebrow">2 · Services and prices</p><h2>Make the offer clear</h2><p>Landlords can compare only services you explicitly select. These are your profile prices, not a confirmed booking price.</p></div>
+          <div class="cleaner-editor-fields">
+            <label>General hourly rate (£)<input name="hourlyRate" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" placeholder="For example 24.00"></label>
+            <div class="cleaner-service-editor" data-service-editor>
+              <div class="cleaner-service-row" data-service-code="regular-domestic"><label class="checkbox"><input data-service-enabled type="checkbox"><span>Regular domestic</span></label><select data-service-pricing aria-label="Regular domestic pricing"><option value="hourly">Hourly</option><option value="fixed">Fixed</option><option value="quote">Quote after scan</option></select><input data-service-price type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" aria-label="Regular domestic price in pounds" placeholder="£">
+              </div>
+              <div class="cleaner-service-row" data-service-code="rental-turnovers"><label class="checkbox"><input data-service-enabled type="checkbox"><span>Rental turnover</span></label><select data-service-pricing aria-label="Rental turnover pricing"><option value="hourly">Hourly</option><option value="fixed">Fixed</option><option value="quote">Quote after scan</option></select><input data-service-price type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" aria-label="Rental turnover price in pounds" placeholder="£"></div>
+              <div class="cleaner-service-row" data-service-code="end-of-tenancy"><label class="checkbox"><input data-service-enabled type="checkbox"><span>End of tenancy</span></label><select data-service-pricing aria-label="End of tenancy pricing"><option value="hourly">Hourly</option><option value="fixed">Fixed</option><option value="quote">Quote after scan</option></select><input data-service-price type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" aria-label="End of tenancy price in pounds" placeholder="£"></div>
+              <div class="cleaner-service-row" data-service-code="workplaces"><label class="checkbox"><input data-service-enabled type="checkbox"><span>Workplace</span></label><select data-service-pricing aria-label="Workplace pricing"><option value="hourly">Hourly</option><option value="fixed">Fixed</option><option value="quote">Quote after scan</option></select><input data-service-price type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" aria-label="Workplace price in pounds" placeholder="£"></div>
+              <div class="cleaner-service-row" data-service-code="communal-areas"><label class="checkbox"><input data-service-enabled type="checkbox"><span>Communal areas</span></label><select data-service-pricing aria-label="Communal areas pricing"><option value="hourly">Hourly</option><option value="fixed">Fixed</option><option value="quote">Quote after scan</option></select><input data-service-price type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" aria-label="Communal areas price in pounds" placeholder="£"></div>
+              <div class="cleaner-service-row" data-service-code="deep-cleans"><label class="checkbox"><input data-service-enabled type="checkbox"><span>Deep clean</span></label><select data-service-pricing aria-label="Deep clean pricing"><option value="hourly">Hourly</option><option value="fixed">Fixed</option><option value="quote">Quote after scan</option></select><input data-service-price type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" aria-label="Deep clean price in pounds" placeholder="£"></div>
+            </div>
+            <label>Optional fixed-price menu<textarea name="fixedPriceOptions" rows="4" placeholder="Studio turnover: 65.00&#10;Two-bedroom turnover: 95.00"></textarea><small>Use one “Service name: price” entry per line.</small></label>
+          </div>
+        </section>
+
+        <section class="cleaner-editor-section">
+          <div class="cleaner-editor-section-copy"><p class="eyebrow">3 · Area and supplies</p><h2>Set practical boundaries</h2><p>Public search uses outward postcodes. Exact location coordinates, personal address and contact details are not displayed.</p></div>
+          <div class="cleaner-editor-fields">
+            <div class="field-row"><label>Travel radius (km)<input name="travelRadiusKm" type="number" inputmode="decimal" min="0.1" max="500" step="0.1"></label><label>Outward postcodes<input name="serviceAreas" maxlength="500" placeholder="SW2, SW4, SE24"><small>Separate areas with commas.</small></label></div>
+            <label>Equipment supplied<input name="equipmentSupplied" maxlength="3000" placeholder="Vacuum cleaner, mop, cloths"><small>Separate entries with commas.</small></label>
+            <label>Cleaning products supplied<input name="productsSupplied" maxlength="3000" placeholder="General cleaning products, limescale remover"><small>Separate entries with commas. Do not make safety claims you cannot support.</small></label>
+          </div>
+        </section>
+
+        <section class="cleaner-publish-section">
+          <div><p class="eyebrow">Visibility</p><h2>Review before publishing</h2><p data-publish-help>Complete all ten profile sections before the public option becomes available.</p></div>
+          <label class="cleaner-publish-control"><input name="isPublic" type="checkbox" disabled><span><strong>Show my completed profile in Cleaner search</strong><small>This exposes only the public profile fields above—not email, phone, home address or exact coordinates.</small></span></label>
+        </section>
+
+        <div class="cleaner-editor-feedback" data-editor-feedback role="status" aria-live="polite" hidden></div>
+        <div class="cleaner-editor-save"><button class="button" type="submit" data-save-profile>Save profile</button><span data-save-state>No changes saved in this session.</span></div>
+      </fieldset>
+    </form>
+  </main>
+
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Tideway.</span><a href="/privacy">Privacy notice</a></div></footer>
+</body>
+</html>

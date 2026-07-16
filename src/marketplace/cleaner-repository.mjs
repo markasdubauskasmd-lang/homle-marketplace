@@ -1,6 +1,30 @@
 export function createCleanerProfileRepository(database) {
   if (!database || typeof database.withUserTransaction !== "function" || typeof database.withAuthenticationTransaction !== "function") throw new TypeError("The marketplace database boundary is required.");
   return {
+    getOwnProfile(actor) {
+      return database.withUserTransaction(actor, async (client) => {
+        const result = await client.query(
+          `SELECT profile.user_id AS cleaner_id, profile.public_slug, profile.profile_photo_url, profile.biography,
+             profile.hourly_rate_pence, profile.fixed_price_options, profile.travel_radius_km, profile.years_experience,
+             profile.languages, profile.equipment_supplied, profile.products_supplied, profile.residential_preference,
+             profile.commercial_preference, profile.profile_completion_percent, profile.current_availability_status,
+             profile.is_public, COALESCE(services.records, '[]'::jsonb) AS services,
+             COALESCE(areas.records, '[]'::jsonb) AS service_areas
+           FROM cleaner_profiles profile
+           LEFT JOIN LATERAL (
+             SELECT jsonb_agg(jsonb_build_object('serviceCode', service.service_code, 'pricingModel', service.pricing_model, 'pricePence', service.price_pence) ORDER BY service.service_code) AS records
+             FROM cleaner_services service WHERE service.cleaner_user_id = profile.user_id
+           ) services ON true
+           LEFT JOIN LATERAL (
+             SELECT jsonb_agg(jsonb_build_object('outwardPostcode', area.outward_postcode, 'latitude', area.latitude, 'longitude', area.longitude) ORDER BY area.outward_postcode) AS records
+             FROM cleaner_service_areas area WHERE area.cleaner_user_id = profile.user_id
+           ) areas ON true
+           WHERE profile.user_id=$1::uuid`,
+          [actor.userId]
+        );
+        return result.rows[0] || null;
+      });
+    },
     saveOwnProfile(actor, profile) {
       return database.withUserTransaction(actor, async (client) => {
         const updated = await client.query(

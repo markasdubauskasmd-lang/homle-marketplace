@@ -54,6 +54,7 @@ const security = createAccountSecurity({ async findSession(hash) { return hash.e
 const calls = [];
 const cleanerProfileService = {
   async searchPublicProfiles(filters) { calls.push({ kind: "search", filters }); return [{ cleanerId: "public-cleaner", displayName: "Public Cleaner" }]; },
+  async getOwnProfile(actor) { calls.push({ kind: "cleaner-get", actor }); return { cleanerId: actor.userId, biography: "Careful cleaner", profileCompletionPercent: 60, isPublic: false, services: [], serviceAreas: [] }; },
   async saveOwnProfile(actor, input) { calls.push({ kind: "cleaner-save", actor, input }); return { profileCompletionPercent: 100 }; }
 };
 const propertyService = {
@@ -215,8 +216,9 @@ const progressTaskId = "77777777-7777-4777-8777-777777777777";
 const taskDecision = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks/${progressTaskId}/decision`, { headers: authHeaders, body: { decision: "approved", priceUnchangedConfirmed: true } });
 assert(landlordProgress.response.statusCode === 200 && landlordProgress.body.progress.overallPercentage === 50 && taskDecision.response.statusCode === 200 && calls.at(-1).kind === "progress-decision" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Landlord progress read or unexpected-task decision lost participant/role authorization.");
 sessions.landlord = { ...sessions.landlord, user_id: "22222222-2222-4222-8222-222222222222", selected_role: "cleaner", roles: ["cleaner"] };
+const ownCleanerProfile = await dispatch(router, "GET", "/api/marketplace/cleaner/profile", { headers: { cookie: authHeaders.cookie } });
 const cleanerProfile = await dispatch(router, "PUT", "/api/marketplace/cleaner/profile", { headers: authHeaders, body: { biography: "Careful cleaner" } });
-assert(cleanerProfile.response.statusCode === 200 && calls.at(-1).kind === "cleaner-save" && calls.at(-1).actor.roles.includes("cleaner"), "The authenticated Cleaner could not update their own profile through the role-protected route.");
+assert(ownCleanerProfile.response.statusCode === 200 && ownCleanerProfile.body.profile.cleanerId === sessions.landlord.user_id && calls.at(-2).kind === "cleaner-get" && cleanerProfile.response.statusCode === 200 && calls.at(-1).kind === "cleaner-save" && calls.at(-1).actor.roles.includes("cleaner"), "The authenticated Cleaner could not read and update their own profile through the role-protected route.");
 const bookingResponse = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/response`, { headers: authHeaders, body: { decision: "accept" } });
 assert(bookingResponse.response.statusCode === 200 && bookingResponse.body.booking.status === "confirmed" && calls.at(-1).kind === "booking-response" && calls.at(-1).actor.userId === cleanerId, "Cleaner invitation response was not actor-bound or did not return the confirmed state.");
 const cleanerReviewResponse = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/reviews/response`, { headers: authHeaders, body: { response: "Thank you." } });

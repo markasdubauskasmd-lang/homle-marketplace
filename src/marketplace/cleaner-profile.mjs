@@ -159,6 +159,29 @@ export function publicCleanerProjection(record = {}) {
   };
 }
 
+export function editableCleanerProjection(record = {}) {
+  return {
+    cleanerId: record.cleaner_id || record.user_id,
+    publicSlug: record.public_slug,
+    profilePhotoUrl: record.profile_photo_url || null,
+    biography: record.biography || "",
+    hourlyRatePence: record.hourly_rate_pence == null ? null : Number(record.hourly_rate_pence),
+    fixedPriceOptions: jsonArray(record.fixed_price_options),
+    travelRadiusKm: record.travel_radius_km == null ? null : Number(record.travel_radius_km),
+    yearsExperience: record.years_experience == null ? null : Number(record.years_experience),
+    languages: Array.isArray(record.languages) ? record.languages : [],
+    equipmentSupplied: Array.isArray(record.equipment_supplied) ? record.equipment_supplied : [],
+    productsSupplied: Array.isArray(record.products_supplied) ? record.products_supplied : [],
+    residentialPreference: record.residential_preference === true,
+    commercialPreference: record.commercial_preference === true,
+    profileCompletionPercent: Number(record.profile_completion_percent) || 0,
+    currentAvailabilityStatus: record.current_availability_status || "unavailable",
+    isPublic: record.is_public === true,
+    services: jsonArray(record.services),
+    serviceAreas: jsonArray(record.service_areas)
+  };
+}
+
 export function normalizedCleanerSearch(filters = {}) {
   const outwardPostcode = filters.outwardPostcode == null || filters.outwardPostcode === "" ? null : boundedText(filters.outwardPostcode, 4, "Outward postcode", 2).toUpperCase().replace(/\s/g, "");
   if (outwardPostcode && !outwardPostcodePattern.test(outwardPostcode)) throw new TypeError("Search location must use a UK outward postcode.");
@@ -189,11 +212,19 @@ export function normalizedCleanerSearch(filters = {}) {
 }
 
 export function createCleanerProfileService(repository) {
-  if (!repository || typeof repository.saveOwnProfile !== "function" || typeof repository.searchPublicProfiles !== "function") throw new TypeError("A cleaner profile repository is required.");
+  if (!repository || typeof repository.getOwnProfile !== "function" || typeof repository.saveOwnProfile !== "function" || typeof repository.searchPublicProfiles !== "function") throw new TypeError("A cleaner profile repository is required.");
   return {
-    saveOwnProfile(actor, input) {
+    async getOwnProfile(actor) {
+      if (!actor?.userId || !actor.roles?.includes("cleaner")) throw new TypeError("A Cleaner account is required to view this profile.");
+      const record = await repository.getOwnProfile(actor);
+      if (!record) throw Object.assign(new Error("Cleaner profile was not found."), { statusCode: 404 });
+      return editableCleanerProjection(record);
+    },
+    async saveOwnProfile(actor, input) {
       if (!actor?.userId || !actor.roles?.includes("cleaner")) throw new TypeError("A Cleaner account is required to edit this profile.");
-      return repository.saveOwnProfile(actor, normalizedCleanerProfile(input));
+      const profile = normalizedCleanerProfile(input);
+      const saved = await repository.saveOwnProfile(actor, profile);
+      return { cleanerId: saved.user_id || actor.userId, publicSlug: saved.public_slug || null, ...profile };
     },
     async searchPublicProfiles(filters) {
       const rows = await repository.searchPublicProfiles(normalizedCleanerSearch(filters));

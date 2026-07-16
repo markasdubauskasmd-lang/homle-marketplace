@@ -61,7 +61,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
-  if (!cleaners || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
+  if (!cleaners || typeof cleaners.getOwnProfile !== "function" || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
   if (!cleaningRequests || typeof cleaningRequests.createOwnRequest !== "function" || typeof cleaningRequests.listOwnRequests !== "function") throw new TypeError("Marketplace HTTP routes require the cleaning-request service.");
   if (!bookings || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
   if (!matching || typeof matching.recommendForRequest !== "function") throw new TypeError("Marketplace HTTP routes require the request matching service.");
@@ -101,9 +101,10 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           return true;
         }
         if (pathname === "/api/marketplace/cleaner/profile") {
-          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
-          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
-          const profile = await cleaners.saveOwnProfile(context.actor, await readJsonObject(request));
+          if (request.method !== "GET" && request.method !== "PUT") return methodNotAllowed(response, ["GET", "PUT"]), true;
+          const mutation = request.method === "PUT";
+          const context = await security.protect(request, { mutation, roles: ["cleaner"] });
+          const profile = mutation ? await cleaners.saveOwnProfile(context.actor, await readJsonObject(request)) : await cleaners.getOwnProfile(context.actor);
           sendJson(response, 200, { ok: true, profile });
           return true;
         }

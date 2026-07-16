@@ -297,6 +297,11 @@ try {
   const marketplaceHealthBody = await marketplaceHealth.json();
   const disabledMarketplaceRoute = await fetch(`${base}/api/marketplace/cleaners`);
   assert(marketplaceHealth.ok && marketplaceHealthBody.marketplace?.enabled === false && marketplaceHealthBody.marketplace?.ready === false && marketplaceHealthBody.marketplace?.authenticationReady === false && disabledMarketplaceRoute.status === 404, "The default-off marketplace attachment exposed a partial route or misreported readiness.");
+  const cleanerDirectoryPage = await fetch(`${base}/cleaners`);
+  const cleanerEditorPage = await fetch(`${base}/cleaner/profile`);
+  const cleanerDirectoryText = await cleanerDirectoryPage.text();
+  const cleanerEditorText = await cleanerEditorPage.text();
+  assert(cleanerDirectoryPage.ok && cleanerEditorPage.ok && homeText.includes('href="/cleaners">Find a Cleaner</a>') && cleanerDirectoryText.includes("Find the right Cleaner for the job") && cleanerDirectoryText.includes("data-directory-state") && cleanerEditorText.includes("Build a profile landlords can trust") && cleanerEditorText.includes("data-cleaner-profile-form hidden") && cleanerEditorText.includes("data-profile-controls disabled"), "The real Cleaner directory/editor routes, homepage entry point or fail-closed private controls are not served by the pilot runtime.");
   const authProviders = await fetch(`${base}/api/auth/providers`);
   const authProvidersBody = await authProviders.json();
   const serialisedAuthProviders = JSON.stringify(authProvidersBody);
