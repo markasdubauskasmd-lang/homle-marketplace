@@ -15,6 +15,7 @@ const scripts = Object.freeze({
   acceptA: "accept-booking-a.sql",
   acceptB: "accept-booking-b.sql",
   postConcurrency: "marketplace-post-concurrency.sql",
+  paymentGate: "marketplace-payment-gate.sql",
   verify: "marketplace-integration-verify.sql",
   cleanup: "marketplace-integration-cleanup.sql"
 });
@@ -122,10 +123,11 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     }
 
     runPsqlSync({ label: "Post-concurrency RLS test", file: scripts.postConcurrency, environment: appEnvironment, command, execute });
+    runPsqlSync({ label: "Job-start payment gate test", file: scripts.paymentGate, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, rls: true, concurrentOverlap: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, rls: true, concurrentOverlap: true, paymentJourneyGate: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {
@@ -141,7 +143,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
 if (process.argv[1] && path.resolve(process.argv[1]) === toolPath) {
   try {
     const result = await runPostgresMarketplaceIntegration();
-    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; RLS, privacy and concurrent overlap protection verified and fixtures removed.`);
+    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; RLS, privacy, current-payment journey gating and concurrent overlap protection verified and fixtures removed.`);
   } catch (error) {
     console.error(error.message);
     if (error.integrationOutput) console.error(error.integrationOutput.trim());

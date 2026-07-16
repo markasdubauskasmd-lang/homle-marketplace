@@ -16,7 +16,8 @@ Create the controller at `http://127.0.0.1:4173/tracking-test`. A trusted localh
 
 ## Journey boundary
 
-- `POST /api/marketplace/bookings/:bookingId/journey/start` requires the assigned Cleaner, a confirmed booking, exact-origin/CSRF protection, explicit `consentGranted: true` and a valid current browser location.
+- `POST /api/marketplace/bookings/:bookingId/journey/start` requires the assigned Cleaner, a confirmed booking, exact-origin/CSRF protection, explicit `consentGranted: true`, a valid current browser location and a current verified authorization for the exact frozen booking total.
+- The participant-safe journey preflight returns only a payment-ready boolean and runs before any ETA request. Migration 025 also places the authoritative trigger on booking status: missing, stale, wrong-amount, wrong-terms or non-authorized payments block every first transition to `cleaner-en-route`, `cleaner-arrived` or `cleaning-in-progress`, including direct-arrival and UI-bypass attempts.
 - Starting changes the booking to `cleaner-en-route`, records consent/journey timestamps and status history, stores only the latest point, and queues an idempotent Landlord notification.
 - `PUT /api/marketplace/bookings/:bookingId/journey/location` accepts current position only from that assigned Cleaner while the journey is active and consent remains recorded.
 - `GET /api/marketplace/bookings/:bookingId/tracking` is restricted to the two booking participants or an Administrator. It returns the Cleaner’s public identity, booking status, sharing state and a non-expired current point—never pay, contact details, home/service coordinates, route history or property access instructions.
@@ -27,7 +28,7 @@ Create the controller at `http://127.0.0.1:4173/tracking-test`. A trusted localh
 
 The database holds one upserted location row per booking, never a trail. Each point expires after five minutes and is withheld once stale. A separately credentialed worker purges expired rows in concurrency-safe batches. Nearby is a one-time server calculation within 500 metres when property coordinates exist; it stores only the notification timestamp, not a proximity history.
 
-Browser-submitted ETAs are discarded. A trusted optional server adapter may calculate ETA from current and destination coordinates; provider failure, missing coordinates or no provider returns `etaAvailable: false` without blocking location or arrival. Provider credentials stay server-side, while any browser map token must be origin-restricted.
+Browser-submitted ETAs are discarded. A trusted optional server adapter may calculate ETA from current and destination coordinates only after payment readiness passes; an unpaid booking never sends property/current coordinates to that provider. Provider failure, missing coordinates or no provider returns `etaAvailable: false` without blocking an already-authorized journey or arrival. Provider credentials stay server-side, while any browser map token must be origin-restricted.
 
 The API exposes `live`, `stale`, `stopped`, `arrived` and `not-started` states so the interface can show honest retry/permission guidance. Invalid coordinates, missing consent, wrong roles, unrelated accounts, wrong booking states and unsafe time windows fail server-side.
 
@@ -37,13 +38,13 @@ The reliable web mode requires the Cleaner to keep the active journey page visib
 
 ## Deployment checks
 
-Apply migration 012 after migration 011. Schedule both worker functions at least once per minute:
+Apply migrations through 025 in locked order. Schedule both worker functions at least once per minute:
 
 ```sql
 SELECT * FROM tideway_private.expire_due_cleaner_invitations(100);
 SELECT * FROM tideway_private.purge_expired_cleaner_locations(500);
 ```
 
-Before enabling the browser experience, test explicit permission grant/denial, stale/offline recovery, unrelated-user denial, ETA-provider failure, nearby idempotency, concurrent updates, arrival deletion, cancellation deletion and expired-row purge in staging PostgreSQL over HTTPS.
+Before enabling the browser experience, run the prepared disposable PostgreSQL harness and test missing/stale/current payment authorization, exact amount/terms matching, explicit permission grant/denial, stale/offline recovery, unrelated-user denial, ETA-provider failure, nearby idempotency, concurrent updates, arrival deletion, cancellation deletion and expired-row purge over HTTPS.
 
 No map service was selected, paid or contacted. The optional localhost lab can request location only after the tester's explicit browser consent and holds only the latest point temporarily in process memory; the operational booking location runtime remains detached.

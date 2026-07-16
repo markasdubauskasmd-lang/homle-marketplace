@@ -27,7 +27,7 @@ function tracking(overrides = {}) {
 }
 const calls = [];
 const fakeRepository = {
-  async getJourneyContext(actor, suppliedBookingId) { calls.push({ kind: "context", actor, suppliedBookingId }); return { scheduled_start_at: "2026-07-20T09:00:00.000Z", destination_latitude: "51.500000", destination_longitude: "-0.140000" }; },
+  async getJourneyContext(actor, suppliedBookingId) { calls.push({ kind: "context", actor, suppliedBookingId }); return { scheduled_start_at: "2026-07-20T09:00:00.000Z", destination_latitude: "51.500000", destination_longitude: "-0.140000", payment_authorized: true }; },
   async startJourney(actor, suppliedBookingId, update) { calls.push({ kind: "start", actor, suppliedBookingId, update }); return tracking({ location: { ...tracking().location, latitude: update.latitude, longitude: update.longitude, accuracyMetres: update.accuracyMetres, estimatedArrivalAt: update.estimatedArrivalAt } }); },
   async updateLocation(actor, suppliedBookingId, update) { calls.push({ kind: "update", actor, suppliedBookingId, update }); return tracking({ location: { ...tracking().location, latitude: update.latitude, longitude: update.longitude, estimatedArrivalAt: update.estimatedArrivalAt } }); },
   async markArrived(actor, suppliedBookingId) { calls.push({ kind: "arrive", actor, suppliedBookingId }); return tracking({ status: "cleaner-arrived", arrivedAt: now.toISOString(), locationSharingStoppedAt: now.toISOString(), sharingState: "arrived", location: null }); },
@@ -38,6 +38,9 @@ const service = createJourneyService(fakeRepository, { etaProvider, clock: () =>
 const started = await service.startJourney(cleaner, bookingId, { consentGranted: true, latitude: 51.5010004, longitude: -0.1420004, accuracyMetres: 8.456, estimatedArrivalAt: "2099-01-01T00:00:00.000Z" });
 assert(calls[0].kind === "context" && calls[1].kind === "eta" && calls[2].kind === "start" && calls[2].update.consentGranted === true && calls[2].update.latitude === 51.501 && calls[2].update.accuracyMetres === 8.46 && calls[2].update.estimatedArrivalAt === "2026-07-20T08:50:00.000Z" && started.etaAvailable, "Journey start did not require consent, normalize location or use only the trusted server ETA adapter.");
 assert(!JSON.stringify(calls[2].update).includes("2099-01-01"), "A browser-supplied ETA entered trusted journey state.");
+const unpaidCalls = [];
+const unpaidService = createJourneyService({ ...fakeRepository, async getJourneyContext() { unpaidCalls.push("context"); return { payment_authorized: false }; }, async startJourney() { unpaidCalls.push("start"); return tracking(); } }, { etaProvider: { async estimateArrival() { unpaidCalls.push("eta"); return now; } } });
+assert(await rejects(() => unpaidService.startJourney(cleaner, bookingId, { consentGranted: true, latitude: 51.5, longitude: -0.1 }), "authorize the current booking total") && unpaidCalls.join(",") === "context", "An unpaid journey reached ETA infrastructure or its start mutation.");
 const updated = await service.updateLocation(cleaner, bookingId, { latitude: 51.502, longitude: -0.141 });
 const arrived = await service.markArrived(cleaner, bookingId);
 const landlordView = await service.getTracking(landlord, bookingId);
@@ -52,21 +55,27 @@ assert(noEta.etaAvailable === false && noEta.location.estimatedArrivalAt === nul
 
 const databaseCalls = [];
 let failure = null;
-const database = { async withUserTransaction(actor, operation) { return operation({ async query(text, values) { databaseCalls.push({ actor, text, values }); if (failure) throw failure; if (text.startsWith("SELECT booking.scheduled_start_at")) return { rows: [{ scheduled_start_at: "2026-07-20T09:00:00.000Z", destination_latitude: "51.5", destination_longitude: "-0.1" }] }; return { rows: [{ snapshot: tracking() }] }; } }); } };
+const database = { async withUserTransaction(actor, operation) { return operation({ async query(text, values) { databaseCalls.push({ actor, text, values }); if (failure) throw failure; if (text.startsWith("SELECT booking.scheduled_start_at")) return { rows: [{ scheduled_start_at: "2026-07-20T09:00:00.000Z", destination_latitude: "51.5", destination_longitude: "-0.1", payment_authorized: true }] }; return { rows: [{ snapshot: tracking() }] }; } }); } };
 const repository = createJourneyRepository(database);
 await repository.getJourneyContext(cleaner, bookingId);
 await repository.startJourney(cleaner, bookingId, { consentGranted: true, latitude: 51.5, longitude: -0.1, accuracyMetres: 10, estimatedArrivalAt: null });
 await repository.updateLocation(cleaner, bookingId, { latitude: 51.51, longitude: -0.11, accuracyMetres: null, estimatedArrivalAt: null });
 await repository.markArrived(cleaner, bookingId);
 await repository.getTracking(landlord, bookingId);
-assert(databaseCalls[0].text.includes("booking.cleaner_user_id=$2::uuid") && databaseCalls[1].text.includes("start_cleaner_journey") && databaseCalls[1].values.length === 6 && databaseCalls[2].text.includes("update_cleaner_location") && databaseCalls[3].text.includes("mark_cleaner_arrived") && databaseCalls[4].text.includes("get_booking_tracking"), "Journey repository bypassed actor-bound context and restricted parameterized transition functions.");
+assert(databaseCalls[0].text.includes("booking.cleaner_user_id=$2::uuid") && databaseCalls[0].text.includes("tideway_private.current_booking_payment_authorized(booking.id)") && databaseCalls[1].text.includes("start_cleaner_journey") && databaseCalls[1].values.length === 6 && databaseCalls[2].text.includes("update_cleaner_location") && databaseCalls[3].text.includes("mark_cleaner_arrived") && databaseCalls[4].text.includes("get_booking_tracking"), "Journey repository bypassed the current-payment preflight, actor-bound context or restricted parameterized transition functions.");
 failure = new Error("location-sharing-inactive");
 assert(await rejects(() => repository.updateLocation(cleaner, bookingId, { latitude: 51.5, longitude: -0.1, accuracyMetres: null, estimatedArrivalAt: null }), "Start the journey"), "Inactive location sharing did not map to an actionable conflict.");
+failure = new Error("payment-authorization-required");
+assert(await rejects(() => repository.startJourney(cleaner, bookingId, { consentGranted: true, latitude: 51.5, longitude: -0.1, accuracyMetres: null, estimatedArrivalAt: null }), "authorize the current booking total"), "Missing or stale payment authorization did not map to an actionable journey conflict.");
+failure = null;
 
 const migration = await readFile(new URL("../db/migrations/012_live_journey_tracking.sql", import.meta.url), "utf8");
+const paymentGateMigration = await readFile(new URL("../db/migrations/025_job_start_payment_gate.sql", import.meta.url), "utf8");
 const runtimeGrants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const workerGrants = await readFile(new URL("../db/worker-role-grants.sql", import.meta.url), "utf8");
 for (const required of ["consent_granted IS NOT TRUE", "booking.cleaner_user_id = actor_id", "booking.landlord_user_id = actor_id", "status = 'cleaner-en-route'", "ON CONFLICT (booking_id) DO UPDATE", "now() + interval '5 minutes'", "cleaner_is_near_booking", "cleaner-nearby", "mark_cleaner_arrived", "DELETE FROM cleaner_locations", "bookings_stop_location_after_status", "purge_expired_cleaner_locations", "FOR UPDATE SKIP LOCKED"]) assert(migration.includes(required), `Live journey migration omitted ${required}.`);
 assert(runtimeGrants.includes("start_cleaner_journey") && runtimeGrants.includes("get_booking_tracking") && runtimeGrants.includes("REVOKE INSERT, UPDATE, DELETE ON bookings") && runtimeGrants.includes("cleaner_locations") && workerGrants.includes("purge_expired_cleaner_locations(integer)"), "Journey/location mutations bypass restricted functions or expired current locations lack a separate worker purge.");
+for (const required of ["current_booking_payment_authorized", "booking.cleaner_user_id=actor_id", "booking.landlord_user_id=actor_id", "BEFORE UPDATE OF status ON bookings", "OLD.status IN ('confirmed','cleaner-en-route','cleaner-arrived')", "NEW.status IN ('cleaner-en-route','cleaner-arrived','cleaning-in-progress')", "payment.status='authorized'", "payment.amount_pence=booking_record.customer_price_pence", "payment.terms_fingerprint=booking_record.terms_fingerprint", "payment.authorized_at BETWEEN now()-interval '5 days' AND now()+interval '5 minutes'", "payment-authorization-required"]) assert(paymentGateMigration.includes(required), `Job-start payment gate omitted ${required}.`);
+assert(runtimeGrants.includes("current_booking_payment_authorized(uuid)"), "The restricted runtime cannot perform the participant-safe payment readiness preflight.");
 
-console.log("Journey tests passed: explicit consent, Cleaner-only start/update/arrival, trusted optional ETA, participant-safe current tracking, nearby event, automatic stop and expiring current-only location privacy.");
+console.log("Journey tests passed: current-payment gate, explicit consent, Cleaner-only start/update/arrival, trusted optional ETA, participant-safe current tracking, nearby event, automatic stop and expiring current-only location privacy.");

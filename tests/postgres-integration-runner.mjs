@@ -11,7 +11,7 @@ const integrationDirectory = path.join(projectRoot, "db", "integration");
 const requiredFiles = [
   "assert-integration-target.sql", "marketplace-integration-setup.sql", "marketplace-rls-behaviour.sql",
   "accept-booking-a.sql", "accept-booking-b.sql", "marketplace-post-concurrency.sql",
-  "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
+  "marketplace-payment-gate.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
 ];
 const sources = new Map();
 for (const file of requiredFiles) sources.set(file, await readFile(path.join(integrationDirectory, file), "utf8"));
@@ -22,6 +22,9 @@ assert.match(sources.get("marketplace-integration-setup.sql"), /invite_cleaner[\
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account can read bookings/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /insufficient_privilege/);
 assert.match(sources.get("marketplace-post-concurrency.sql"), /Cleaner property access did not follow the accepted booking/);
+assert.match(sources.get("marketplace-payment-gate.sql"), /Journey started without a payment authorization/);
+assert.match(sources.get("marketplace-payment-gate.sql"), /Stale payment authorization unlocked the journey transition/);
+assert.match(sources.get("marketplace-payment-gate.sql"), /Current payment authorization did not unlock journey start/);
 assert.match(sources.get("marketplace-integration-verify.sql"), /pending-cleaner-acceptance/);
 assert.match(sources.get("marketplace-integration-verify.sql"), /Confirmation history is not exactly once/);
 for (const file of ["accept-booking-a.sql", "accept-booking-b.sql"]) {
@@ -55,10 +58,10 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, rls: true, concurrentOverlap: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, rls: true, concurrentOverlap: true, paymentJourneyGate: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "marketplace-integration-setup.sql",
-  "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-integration-verify.sql",
+  "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);
 for (const call of calls) {

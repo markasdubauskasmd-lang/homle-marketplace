@@ -56,10 +56,10 @@ export function createJourneyService(repository, options = {}) {
   const etaProvider = options.etaProvider || null;
   const clock = options.clock || (() => new Date());
 
-  async function estimatedArrival(actor, bookingId, origin) {
+  async function estimatedArrival(actor, bookingId, origin, suppliedContext = undefined) {
     if (!etaProvider || typeof etaProvider.estimateArrival !== "function") return null;
     try {
-      const context = await repository.getJourneyContext(actor, bookingId);
+      const context = suppliedContext === undefined ? await repository.getJourneyContext(actor, bookingId) : suppliedContext;
       if (context?.destination_latitude == null || context?.destination_longitude == null) return null;
       const result = await etaProvider.estimateArrival({
         origin,
@@ -81,7 +81,9 @@ export function createJourneyService(repository, options = {}) {
       if (input.consentGranted !== true) throw new TypeError("Explicit location-sharing consent is required before starting the journey.");
       const selectedBookingId = uuid(bookingId, "booking id");
       const current = location(input);
-      const eta = await estimatedArrival(actor, selectedBookingId, current);
+      const context = await repository.getJourneyContext(actor, selectedBookingId);
+      if (context && context.payment_authorized !== true) throw Object.assign(new Error("The Landlord must authorize the current booking total before this journey can start."), { statusCode: 409, code: "payment-authorization-required" });
+      const eta = await estimatedArrival(actor, selectedBookingId, current, context);
       return snapshot(await repository.startJourney(actor, selectedBookingId, { ...current, consentGranted: true, estimatedArrivalAt: eta }));
     },
     async updateLocation(actor, bookingId, input = {}) {

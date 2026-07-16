@@ -9,7 +9,7 @@ const sql = await readFile(path.join(projectRoot, "db", "integration", "deployme
 for (const required of [
   "BEGIN TRANSACTION READ ONLY", "server_version_num", "pgcrypto", "citext", "btree_gist", "rolbypassrls", "rolcanlogin",
   "relrowsecurity", "bookings_no_cleaner_overlap", "UNIQUE (booking_id)", "bookings_one_live_attempt_per_request_idx",
-  "sessions_expiry_purge_idx", "has_function_privilege", "has_table_privilege", "tideway_app", "tideway_worker",
+  "sessions_expiry_purge_idx", "bookings_require_current_payment_before_job_start", "current_booking_payment_authorized(uuid)", "require_current_payment_before_job_start()", "has_function_privilege", "has_table_privilege", "tideway_app", "tideway_worker",
   "purge_expired_sessions(integer)", "worker role has direct public-table privileges", "ROLLBACK"
 ]) assert.ok(sql.toLowerCase().includes(required.toLowerCase()), `Deployment verifier omitted ${required}.`);
 assert.equal((sql.match(/'users','user_roles'/g) || []).length, 1, "The verifier lost its authoritative RLS table inventory.");

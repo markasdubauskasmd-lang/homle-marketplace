@@ -38,7 +38,8 @@ DECLARE
     'tideway_private.begin_booking_payment_command(uuid,uuid,text,integer,bytea)',
     'tideway_private.record_booking_payment_command(uuid,text,text)',
     'tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamp with time zone,character)',
-    'tideway_private.read_booking_payment(uuid)'
+    'tideway_private.read_booking_payment(uuid)',
+    'tideway_private.current_booking_payment_authorized(uuid)'
   ];
   worker_functions constant text[] := ARRAY[
     'tideway_private.expire_due_cleaner_invitations(integer)',
@@ -102,6 +103,10 @@ BEGIN
   IF to_regclass('public.bookings_one_live_attempt_per_request_idx') IS NULL THEN RAISE EXCEPTION 'One-live-invitation index is missing'; END IF;
   IF to_regclass('public.payment_one_live_capture_idx') IS NULL OR to_regclass('public.payment_one_live_transfer_idx') IS NULL THEN RAISE EXCEPTION 'Payment command uniqueness indexes are missing'; END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.booking_payments'::regclass AND contype='u' AND pg_get_constraintdef(oid)='UNIQUE (booking_id)') THEN RAISE EXCEPTION 'One-payment-per-booking constraint is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.bookings'::regclass AND tgname='bookings_require_current_payment_before_job_start' AND NOT tgisinternal) THEN RAISE EXCEPTION 'Job-start payment-authorization trigger is missing'; END IF;
+  selected_function := to_regprocedure('tideway_private.require_current_payment_before_job_start()');
+  IF selected_function IS NULL OR NOT EXISTS (SELECT 1 FROM pg_proc procedure WHERE procedure.oid=selected_function AND procedure.prosecdef AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%') THEN RAISE EXCEPTION 'Job-start payment trigger function is missing or unsafe'; END IF;
+  IF has_function_privilege('tideway_app', 'tideway_private.require_current_payment_before_job_start()', 'EXECUTE') THEN RAISE EXCEPTION 'App role can execute the internal job-start payment trigger directly'; END IF;
 
   FOREACH selected_name IN ARRAY app_functions || worker_functions LOOP
     selected_function := to_regprocedure(selected_name);

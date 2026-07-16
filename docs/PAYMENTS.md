@@ -24,6 +24,7 @@ The remaining implementation should use Stripe Connect separate charges and tran
 - `GET /api/marketplace/bookings/:bookingId/payment` returns only the owner-scoped payment reference, booking reference, status, GBP amount and aggregate captured/refunded amounts. It never returns Stripe object IDs, retry-key hashes, payout destinations or a client secret. Both participant routes are absent when the payment service is detached.
 - `GET /api/marketplace/payments/config` returns only the test publishable key and `testMode: true` to an authenticated Landlord. Secret and live keys are rejected by configuration. `/booking-payment` first authenticates the role and reads the booking state; only a deliberate prepare/continue action can obtain the short-lived client secret, capability and dynamically load Stripe.js.
 - The payment page never persists or logs the client secret, never handles full card data and uses `redirect: "if_required"` without a return URL that could expose secret query parameters. Its route-specific CSP allows only the minimum Stripe script, frame and network origins; the rest of Tideway keeps the stricter default policy.
+- Migration 025 requires a current `authorized` payment, matching the booking's Landlord, Cleaner, exact price, GBP currency and frozen terms, before any first transition to en route, arrived or cleaning in progress. Authorizations older than five days fail closed. The Cleaner preflight exposes only readiness and occurs before optional ETA coordinates leave Tideway; the database trigger remains authoritative against direct-arrival or UI bypasses.
 
 ## Authorization timing
 
@@ -35,8 +36,8 @@ Manual card authorizations expire. Stripe documents common online authorization 
 2. Create the approved Stripe test platform and connected Cleaner account; store test keys and the webhook secret in the hosting secret manager.
 3. Register the exact webhook route and prove the adapter readiness probe against those test accounts. Stripe requires the unmodified request body for signature verification: <https://docs.stripe.com/webhooks/signature>.
 4. Run the mobile Payment Element UI against the approved Stripe test platform on HTTPS, including success, decline, retry, reload, 3-D Secure where applicable, slow connection and webhook-delay cases. Preserve the rule that client secrets may be returned only to the booking Landlord over their authenticated mutation and must never be logged or persisted.
-5. Connect authorization readiness to booking/journey gates; schedule hold-expiry monitoring; reconcile signed events; alert on processing failures, disputes, transfer failures and reversals.
-6. Run migrations 022-024 and the full RLS/concurrency harness against PostgreSQL 16, then complete a provider test-mode authorization -> completion -> capture -> Cleaner transfer -> partial/full refund cycle.
+5. Schedule hold-expiry monitoring; reconcile signed events; alert on processing failures, disputes, transfer failures and reversals.
+6. Run migrations 022-025 and the full RLS/concurrency harness against PostgreSQL 16, then complete a provider test-mode authorization -> completion -> capture -> Cleaner transfer -> partial/full refund cycle.
 7. Keep live mode disabled until the founder explicitly approves it after legal, insurance, public-domain, Cleaner-supply, pricing, privacy and payment-account launch evidence all pass. This source adapter must be separately reviewed before any future live-mode implementation because it intentionally rejects live keys.
 
 The source checkpoint advances E4 but does not satisfy its definition of done. A genuine test-mode provider cycle and real PostgreSQL evidence are still missing.
