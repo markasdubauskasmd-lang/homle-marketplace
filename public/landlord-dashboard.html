@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#0e665b">
+  <title>Landlord workspace | Tideway</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260716-58">
+  <script src="/landlord-dashboard.js?v=20260716-1" type="module"></script>
+</head>
+<body class="landlord-dashboard-page">
+  <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
+  <header class="site-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a>
+      <nav class="directory-nav" aria-label="Landlord workspace navigation"><a href="/cleaners">Find a Cleaner</a><a href="/login">Account access</a></nav>
+    </div>
+  </header>
+
+  <main id="landlord-main" class="landlord-dashboard-main shell">
+    <section class="landlord-dashboard-state" data-landlord-state role="status" aria-live="polite">
+      <span aria-hidden="true">i</span><div><strong data-landlord-state-title>Checking secure Landlord access…</strong><p data-landlord-state-copy>Your properties and drafts open only inside an authenticated Landlord session.</p><div><a class="button" href="/login" data-landlord-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-landlord-retry hidden>Try again</button></div></div>
+    </section>
+
+    <div data-landlord-workspace hidden>
+      <section class="landlord-dashboard-heading">
+        <div><p class="eyebrow">Landlord workspace</p><h1>Welcome, <span data-landlord-name>Landlord</span>.</h1><p>Save real properties, prepare a room-by-room scope and keep requests private until the photo-and-speech handoff is complete.</p></div>
+        <dl class="landlord-dashboard-stats"><div><dt>Properties</dt><dd data-property-count>0</dd></div><div><dt>Request drafts</dt><dd data-draft-count>0</dd></div><div><dt>Active bookings</dt><dd>0</dd><small>No booking is implied</small></div></dl>
+      </section>
+
+      <section class="landlord-scan-boundary" aria-labelledby="scan-boundary-title">
+        <span aria-hidden="true">01</span><div><p class="eyebrow">Room scan remains the core input</p><h2 id="scan-boundary-title">Photograph, speak, then review.</h2><p>Account photo/video storage is intentionally closed until Tideway's private production bucket passes security staging. For a real pilot request today, use the working private scan route. The account form below saves drafts only and cannot start matching.</p></div><a class="button" href="/request">Start working room scan</a>
+      </section>
+
+      <nav class="landlord-workspace-tabs" aria-label="Landlord workspace sections"><button type="button" class="current" data-landlord-tab="properties" aria-selected="true">Properties</button><button type="button" data-landlord-tab="requests" aria-selected="false">Request drafts</button></nav>
+
+      <section data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title">
+        <div class="landlord-panel-heading"><div><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your properties</h2></div><button class="button button-outline" type="button" data-toggle-property-form>Add property</button></div>
+        <div class="landlord-empty-card" data-property-empty><strong>No account properties yet.</strong><p>Add a property to prepare a private request draft. Nothing is published to Cleaner search.</p></div>
+        <div class="landlord-property-grid" data-property-list hidden></div>
+
+        <form class="landlord-record-form" data-property-form hidden novalidate>
+          <fieldset data-property-controls>
+            <div class="landlord-form-title"><div><p class="eyebrow">New private property</p><h3>Add the cleaning location</h3></div><button class="text-button" type="button" data-close-property-form>Close</button></div>
+            <div class="field-row"><label>Property name<input name="name" maxlength="160" required placeholder="For example: Riverside flat"></label><label>Property type<select name="propertyType" required><option value="">Choose one</option><option value="flat">Flat</option><option value="house">House</option><option value="studio">Studio</option><option value="office">Office</option><option value="retail">Retail</option><option value="clinic">Clinic</option><option value="communal">Communal area</option><option value="other">Other</option></select></label></div>
+            <label>Address line 1<input name="addressLine1" autocomplete="address-line1" maxlength="240" required></label>
+            <div class="field-row"><label>Address line 2 <span>(optional)</span><input name="addressLine2" autocomplete="address-line2" maxlength="240"></label><label>Town or locality<input name="locality" autocomplete="address-level2" maxlength="120" required></label></div>
+            <label>UK postcode<input name="postcode" autocomplete="postal-code" maxlength="12" required></label>
+            <div class="field-row"><label>Bedrooms<input name="bedrooms" type="number" inputmode="decimal" min="0" max="200" step="0.5"></label><label>Bathrooms<input name="bathrooms" type="number" inputmode="decimal" min="0" max="200" step="0.5"></label></div>
+            <label>Approximate size (m²) <span>(optional)</span><input name="approximateSizeSqM" type="number" inputmode="numeric" min="1" max="1000000" step="1"></label>
+            <label>Access instructions <span>(kept protected)</span><textarea name="accessInstructions" rows="3" maxlength="3000" placeholder="Do not include access codes until needed. These details are encrypted and shared with the selected Cleaner only after acceptance."></textarea></label>
+            <label>Parking instructions <span>(optional)</span><textarea name="parkingInstructions" rows="2" maxlength="1200"></textarea></label>
+            <label>Cleaning preferences <span>(optional)</span><textarea name="cleaningPreferences" rows="3" maxlength="3000"></textarea></label>
+            <label>Reusable room checklist <span>(optional)</span><textarea name="savedChecklist" rows="5" placeholder="Kitchen: Wipe worktops&#10;Bathroom: Remove limescale"></textarea><small>One room-labelled task per line. A request still requires a fresh room-scan review.</small></label>
+            <label>Special notes <span>(optional)</span><textarea name="specialNotes" rows="3" maxlength="3000"></textarea></label>
+            <div class="landlord-form-feedback" data-property-feedback role="status" aria-live="polite" hidden></div>
+            <button class="button" type="submit" data-save-property>Save property privately</button>
+          </fieldset>
+        </form>
+      </section>
+
+      <section data-landlord-panel="requests" class="landlord-workspace-panel" aria-labelledby="requests-title" hidden>
+        <div class="landlord-panel-heading"><div><p class="eyebrow">Not sent for matching</p><h2 id="requests-title">Cleaning request drafts</h2></div><span class="landlord-private-pill">Private drafts only</span></div>
+
+        <form class="landlord-record-form landlord-request-form" data-request-form novalidate>
+          <fieldset data-request-controls>
+            <div class="landlord-form-title"><div><p class="eyebrow">Prepare scope</p><h3>Save a cleaning request draft</h3></div><span>Matching stays off</span></div>
+            <label>Property<select name="propertyId" required data-property-select><option value="">Add a property first</option></select></label>
+            <div class="field-row"><label>Date<input name="requestedDate" type="date" required></label><label>Start time<input name="requestedTime" type="time" required></label></div>
+            <label>Estimated duration<select name="durationMinutes" required><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="300">5 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></label>
+            <label>Primary cleaning type<select name="cleaningType" required><option value="">Choose one</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select></label>
+            <fieldset class="service-options landlord-required-services"><legend>Required services</legend><label class="checkbox"><input type="checkbox" name="requiredServices" value="regular-domestic"><span>Regular domestic</span></label><label class="checkbox"><input type="checkbox" name="requiredServices" value="rental-turnovers"><span>Rental turnover</span></label><label class="checkbox"><input type="checkbox" name="requiredServices" value="end-of-tenancy"><span>End of tenancy</span></label><label class="checkbox"><input type="checkbox" name="requiredServices" value="workplaces"><span>Workplace</span></label><label class="checkbox"><input type="checkbox" name="requiredServices" value="communal-areas"><span>Communal areas</span></label><label class="checkbox"><input type="checkbox" name="requiredServices" value="deep-cleans"><span>Deep clean</span></label></fieldset>
+            <div class="field-row"><label>Frequency<select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select></label><label>Budget (£) <span>(optional)</span><input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01"></label></div>
+            <label>Special instructions <span>(optional)</span><textarea name="specialInstructions" rows="3" maxlength="5000"></textarea></label>
+
+            <section class="landlord-speech-scope" aria-labelledby="speech-scope-title">
+              <div class="landlord-speech-heading"><div><p class="eyebrow">Speech to concise bullets</p><h3 id="speech-scope-title">Walk through each room naturally.</h3></div><button class="button button-outline" type="button" data-speech-toggle>Start speaking</button></div>
+              <p data-speech-status role="status">Checking speech support…</p>
+              <label>Spoken or typed walkthrough<textarea name="transcript" rows="5" maxlength="5000" placeholder="This is the kitchen. Wipe the worktops and mop the floor. Moving into the bathroom…"></textarea></label>
+              <button class="button button-outline" type="button" data-summarise-speech>Summarise into room tasks</button>
+            </section>
+
+            <div class="landlord-checklist-heading"><label for="request-tasks">Reviewed room checklist</label><button class="text-button" type="button" data-use-saved-checklist>Use property's saved checklist</button></div>
+            <textarea id="request-tasks" name="tasks" rows="8" required placeholder="Kitchen: Wipe the worktops&#10;Bathroom: Remove limescale from the shower screen"></textarea>
+            <label class="checkbox landlord-review-confirmation"><input name="scopeReviewed" type="checkbox" required><span>I reviewed every concise room task and confirm this draft reflects the work I want quoted. I understand photographs/video are not attached to this account draft yet.</span></label>
+            <div class="landlord-form-feedback" data-request-feedback role="status" aria-live="polite" hidden></div>
+            <button class="button" type="submit" data-save-request>Save private draft</button>
+            <small class="landlord-draft-boundary">This action sets <strong>Draft</strong>. It cannot invite a Cleaner, confirm a booking or take payment.</small>
+          </fieldset>
+        </form>
+
+        <div class="landlord-empty-card" data-request-empty><strong>No account request drafts yet.</strong><p>Drafts appear here after you save a property and review a room checklist.</p></div>
+        <div class="landlord-request-list" data-request-list hidden></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Tideway.</span><a href="/privacy">Privacy notice</a></div></footer>
+</body>
+</html>

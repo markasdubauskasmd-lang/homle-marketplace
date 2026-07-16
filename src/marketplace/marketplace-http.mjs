@@ -81,6 +81,12 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
       const pathname = url.pathname;
       if (!pathname.startsWith(apiPrefix)) return false;
       try {
+        if (pathname === "/api/marketplace/account") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          sendJson(response, 200, { ok: true, account: { displayName: context.account.displayName, email: context.account.email, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
+          return true;
+        }
         if (pathname === "/api/marketplace/cleaners") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           await limitPublicRead(request, "marketplace-public:cleaner-directory");

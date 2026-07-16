@@ -1,6 +1,6 @@
 # Landlord property privacy boundary
 
-This Phase 2 checkpoint adds the service and repository boundary for a landlord profile and multiple saved properties. It is intentionally not exposed as a public page yet: the account-backed PostgreSQL runtime and authenticated property routes must be composed and tested against a real staging database first.
+This Phase 2 boundary adds the service, repository and private account interface for a landlord profile and multiple saved properties. `/landlord/dashboard` is served as a fail-closed shell and becomes usable only for an authenticated Landlord after the account-backed PostgreSQL runtime attaches successfully.
 
 ## Implemented
 
@@ -14,13 +14,15 @@ This Phase 2 checkpoint adds the service and repository boundary for a landlord 
 - Landlords and administrators retain access to the property they are authorised to manage. An assigned cleaner receives exact address, access, parking and special notes only from confirmation through `awaiting-review`.
 - Pending, declined, cancelled, completed and disputed bookings do not expose those protected fields to the cleaner. Property and photo RLS policies use the same active-booking window.
 - The booking-property repository requires the actor to be the landlord, assigned cleaner or administrator even before service-level projection.
+- The mobile Landlord workspace lists only the signed-in owner's properties, uses CSRF-protected mutations and renders private values through text-only DOM operations.
+- Speech can be converted into an editable concise room-by-room checklist. A cleaning request saved from the workspace is always a private `draft`; the browser cannot submit it for matching, invitation or booking.
 
-## Still required before enabling property pages
+## Still required before production activation
 
 1. Run every migration against an empty PostgreSQL 16 staging database using separate migration-owner and restricted runtime roles.
 2. Add database integration tests proving landlord ownership, unrelated-user denial and active-booking cleaner expiry under actual RLS.
-3. Attach the prepared `/api/marketplace/properties` controllers after real session/RLS staging tests.
-4. Add mobile-first property forms using existing Tideway components, including explicit photo consent, validation, retry and delete confirmation states.
+3. Attach the prepared account and property controllers only after real session/RLS staging tests.
+4. Add property editing/deletion with confirmation and retry states to the existing mobile workspace.
 5. Provision and test the internal private object-storage boundary: signed checksum/encryption headers, MIME/size verification, bounded decoding, EXIF-stripping JPEG output, explicit malware/threat controls and approved retention/deletion. Store object keys, never public URLs.
 6. Decide and document whether exact address, parking notes and special notes require column-level encryption in addition to RLS and service projection before production data is imported.
 

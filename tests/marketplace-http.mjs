@@ -165,6 +165,8 @@ trustedClientKey = "198.51.100.20";
 
 const noSession = await dispatch(router, "GET", "/api/marketplace/properties");
 assert(noSession.response.statusCode === 401 && noSession.body.code === "authentication-required" && noSession.response.headers["Cache-Control"] === "no-store", "Private property listing accepted a missing session or allowed caching.");
+const privateAccount = await dispatch(router, "GET", "/api/marketplace/account", { headers: { cookie: authHeaders.cookie } });
+assert(privateAccount.response.statusCode === 200 && privateAccount.body.account.displayName === "Landlord Example" && privateAccount.body.account.email === "landlord@example.com" && privateAccount.body.account.selectedRole === "landlord" && privateAccount.body.account.roles.join(",") === "landlord" && !JSON.stringify(privateAccount.body).includes(sessions.landlord.session_id) && !JSON.stringify(privateAccount.body).includes("csrf"), "The private self-account route omitted role context or exposed session material.");
 const landlordCleanerEdit = await dispatch(router, "PUT", "/api/marketplace/cleaner/profile", { headers: authHeaders, body: { biography: "Attempt" } });
 assert(landlordCleanerEdit.response.statusCode === 403 && landlordCleanerEdit.body.code === "role-rejected", "A landlord entered the Cleaner-only profile route.");
 const wrongOrigin = await dispatch(router, "POST", "/api/marketplace/properties", { headers: { ...authHeaders, origin: "https://attacker.example" }, body: { name: "Attempt" } });

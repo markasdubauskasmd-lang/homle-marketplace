@@ -5089,6 +5089,7 @@ async function serveFile(requestPath, response) {
     "/onboarding": "account.html",
     "/cleaners": "cleaners.html",
     "/cleaner/profile": "cleaner-profile.html",
+    "/landlord/dashboard": "landlord-dashboard.html",
     "/marketplace-preview": "marketplace-preview.html",
     "/tracking-test": "tracking-test.html",
     "/brief": "brief.html",

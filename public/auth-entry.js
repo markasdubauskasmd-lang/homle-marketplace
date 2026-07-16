@@ -90,6 +90,22 @@ function clearStoredCsrf() {
   try { sessionStorage.removeItem("tideway_csrf"); } catch {}
 }
 
+function workspacePath(account) {
+  if (account?.selectedRole === "cleaner" && account?.roles?.includes("cleaner")) return "/cleaner/profile";
+  if (account?.selectedRole === "landlord" && account?.roles?.includes("landlord")) return "/landlord/dashboard";
+  return "";
+}
+
+async function openSignedInWorkspace() {
+  const response = await fetch("/api/marketplace/account", { credentials: "same-origin", headers: { Accept: "application/json" }, cache: "no-store" });
+  if (!response.ok) return false;
+  const result = await response.json();
+  const destination = workspacePath(result.account);
+  if (!destination) return false;
+  location.assign(destination);
+  return true;
+}
+
 async function submitAccountForm(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -111,6 +127,11 @@ async function submitAccountForm(event) {
       }
       if (!result.account?.roles?.length) {
         location.assign("/onboarding");
+        return;
+      }
+      const destination = workspacePath(result.account);
+      if (destination) {
+        location.assign(destination);
         return;
       }
       showFeedback("Signed in securely. Your marketplace dashboard is being prepared.", "success");
@@ -160,6 +181,11 @@ async function submitAccountForm(event) {
         await post("/api/marketplace/auth/logout", {}, result.csrfToken);
         throw new Error("Secure browser storage is unavailable, so Tideway closed the rotated session. Sign in again in a standard browser window.");
       }
+      const destination = workspacePath(result.account);
+      if (destination) {
+        location.assign(destination);
+        return;
+      }
       showFeedback(`${result.account.selectedRole === "cleaner" ? "Cleaner" : "Landlord"} workspace selected securely. Your dashboard is being prepared.`, "success");
       form.querySelector("fieldset").disabled = true;
     }
@@ -183,7 +209,8 @@ try {
     activateForm(providers);
     if (socialResult === "google" && socialCsrfToken) {
       if (storeCsrf(socialCsrfToken)) {
-        showFeedback(location.pathname === "/onboarding" ? "Google sign-in succeeded. Choose how you will use Tideway." : "Google sign-in succeeded. Your secure Tideway session is ready.", "success");
+        const opened = location.pathname !== "/onboarding" && await openSignedInWorkspace();
+        if (!opened) showFeedback(location.pathname === "/onboarding" ? "Google sign-in succeeded. Choose how you will use Tideway." : "Google sign-in succeeded. Your secure Tideway session is ready.", "success");
       } else {
         await post("/api/marketplace/auth/logout", {}, socialCsrfToken);
         showFeedback("Secure browser storage is unavailable, so Tideway closed the Google session. Try a standard browser window.", "error");
@@ -192,7 +219,8 @@ try {
       showFeedback("Google sign-in could not be completed. No Tideway session was created; please try again.", "error");
     } else if (socialResult === "facebook" && socialCsrfToken) {
       if (storeCsrf(socialCsrfToken)) {
-        showFeedback(location.pathname === "/onboarding" ? "Facebook sign-in succeeded. Choose how you will use Tideway." : "Facebook sign-in succeeded. Your secure Tideway session is ready.", "success");
+        const opened = location.pathname !== "/onboarding" && await openSignedInWorkspace();
+        if (!opened) showFeedback(location.pathname === "/onboarding" ? "Facebook sign-in succeeded. Choose how you will use Tideway." : "Facebook sign-in succeeded. Your secure Tideway session is ready.", "success");
       } else {
         await post("/api/marketplace/auth/logout", {}, socialCsrfToken);
         showFeedback("Secure browser storage is unavailable, so Tideway closed the Facebook session. Try a standard browser window.", "error");

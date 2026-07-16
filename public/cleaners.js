@@ -48,7 +48,7 @@ function rateText(cleaner) {
 function safePhoto(url, name) {
   try {
     const parsed = new URL(url);
-    if (parsed.protocol !== "https:") throw new Error();
+    if (parsed.protocol !== "https:" || parsed.origin !== location.origin) throw new Error();
     const image = element("img", "directory-cleaner-photo");
     image.src = parsed.toString();
     image.alt = `${name} profile`;
