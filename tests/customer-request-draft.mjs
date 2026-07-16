@@ -45,10 +45,11 @@ assert.equal(invalidRetry.currentStep, 3, "Restored steps must stay inside the t
 assert.equal(invalidRetry.retry, undefined, "Invalid retry keys must not survive draft validation.");
 clearCustomerRequestDraft(storage);
 assert.equal(values.size, 0);
-saveCustomerRequestDraft(storage, { fields: { postcode: "SW1A 1AA", accessNotes: "Door code is 4821" }, currentStep: 2 }, now);
+saveCustomerRequestDraft(storage, { fields: { postcode: "SW1A 1AA", accessNotes: "Meet the site manager", details: "Please clean the oven. Door code is 4821" }, currentStep: 2 }, now);
 const sensitiveDraftText = [...values.values()][0];
 assert(!sensitiveDraftText.includes("4821"), "An access code entered before booking acceptance was stored in the recovery draft.");
-assert.equal(readCustomerRequestDraft(storage, now)?.fields.accessNotes, "", "A sensitive access detail survived recovery-draft normalization.");
+assert.equal(readCustomerRequestDraft(storage, now)?.fields.accessNotes, "Meet the site manager", "A safe general access approach was removed from the recovery draft.");
+assert.equal(readCustomerRequestDraft(storage, now)?.fields.details, "", "A sensitive access detail outside the dedicated access field survived recovery-draft normalization.");
 clearCustomerRequestDraft(storage);
 saveCustomerRequestDraft(storage, {}, now);
 assert.equal(values.size, 0, "An untouched request must not create a draft.");

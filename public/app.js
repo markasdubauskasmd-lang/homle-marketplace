@@ -69,8 +69,7 @@ const guidedForms = new WeakMap();
 function validateStructuredContactFields(form, scope = form) {
   const checks = [
     { input: scope.querySelector('input[name="postcode"]'), valid: isUkPostcode, message: "Enter a valid UK postcode, for example SW1A 1AA." },
-    { input: scope.querySelector('input[name="phone"]'), valid: isPhone, message: "Enter a valid phone number with 10 to 15 digits." },
-    { input: scope.querySelector('input[name="accessNotes"]'), valid: (value) => !containsSensitiveAccessDetails(value), message: accessDetailsSafetyMessage }
+    { input: scope.querySelector('input[name="phone"]'), valid: isPhone, message: "Enter a valid phone number with 10 to 15 digits." }
   ];
   for (const check of checks) {
     if (!check.input) continue;
@@ -80,6 +79,16 @@ function validateStructuredContactFields(form, scope = form) {
       showError(form, check.message);
       check.input.reportValidity();
       check.input.focus();
+      return false;
+    }
+  }
+  for (const input of scope.querySelectorAll("[data-access-detail-safe]")) {
+    input.setCustomValidity("");
+    if (input.value.trim() && containsSensitiveAccessDetails(input.value)) {
+      input.setCustomValidity(accessDetailsSafetyMessage);
+      showError(form, accessDetailsSafetyMessage);
+      input.reportValidity();
+      input.focus();
       return false;
     }
   }
@@ -479,7 +488,7 @@ function enhanceCustomerRequestDraft(form) {
 
 document.querySelectorAll('form[data-guided-kind="customer"]').forEach(enhanceCustomerRequestDraft);
 
-document.querySelectorAll('input[name="postcode"], input[name="phone"], input[name="accessNotes"]').forEach((input) => {
+document.querySelectorAll('input[name="postcode"], input[name="phone"], [data-access-detail-safe]').forEach((input) => {
   input.addEventListener("input", () => input.setCustomValidity(""));
 });
 

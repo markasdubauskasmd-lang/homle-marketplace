@@ -163,7 +163,7 @@
                 <label>Property type <select name="propertyType" required><option value="">Choose one</option><option>Flat or house</option><option>Office or workplace</option><option>Communal area</option><option>Short-let property</option><option>Other commercial space</option></select></label>
                 <label>Service <select name="service" required><option value="">Choose one</option><option>Rental turnover clean</option><option>End-of-tenancy clean</option><option>Regular workplace clean</option><option>Communal area clean</option><option>One-off deep clean</option><option>Not sure yet</option></select></label>
               </div>
-              <label>Site size or rooms <input name="siteSize" required placeholder="For example: 2 bedrooms and 1 bathroom, or 1,500 sq ft office"></label>
+              <label>Site size or rooms <input name="siteSize" required data-access-detail-safe placeholder="For example: 2 bedrooms and 1 bathroom, or 1,500 sq ft office"></label>
               <div class="guided-form-actions">
                 <button class="button" type="button" data-guided-next>Continue to timing</button>
               </div>
@@ -179,12 +179,12 @@
                 <label>Known hazards <select name="hazards" required><option value="">Choose one</option><option>None known</option><option>Pets present</option><option>Stairs or limited access</option><option>Building works or heavy soiling</option><option>Other — explain below</option></select></label>
                 <label>Frequency <select name="frequency"><option>One-off</option><option>Weekly</option><option>Several times a week</option><option>Fortnightly</option><option>As properties turn over</option><option>Not sure yet</option></select></label>
               </div>
-              <label>General access approach <input name="accessNotes" required aria-describedby="access-notes-help" placeholder="For example: meet site manager, collect keys from office, concierge access"><small id="access-notes-help">Do not enter a door, gate, alarm or key-safe code, password or hidden-key location. Tideway collects exact access instructions privately only after a booking is accepted.</small></label>
+              <label>General access approach <input name="accessNotes" required data-access-detail-safe aria-describedby="access-notes-help" placeholder="For example: meet site manager, collect keys from office, concierge access"><small id="access-notes-help">Do not enter a door, gate, alarm or key-safe code, password or hidden-key location in any request field. Tideway collects exact access instructions privately only after a booking is accepted.</small></label>
               <div class="field-row">
                 <label>Preferred date <input name="preferredDate" type="date" required aria-describedby="preferred-date-help"><small id="preferred-date-help">Choose the first date you could accept. Tideway will confirm the exact visit before booking.</small></label>
                 <label>Preferred arrival window <select name="preferredTimeWindow"><option>Flexible</option><option>Morning (8am–12pm)</option><option>Afternoon (12pm–5pm)</option><option>Evening (5pm–8pm)</option></select></label>
               </div>
-              <label>Job details <span>(optional)</span><textarea name="details" rows="4" placeholder="Deadline, special tasks or anything else we should know"></textarea></label>
+              <label>Job details <span>(optional)</span><textarea name="details" rows="4" data-access-detail-safe aria-describedby="job-details-safety" placeholder="Deadline, special tasks or anything else we should know"></textarea><small id="job-details-safety">Describe cleaning needs only. Do not include entry codes, passwords or hidden-key locations.</small></label>
               <div class="guided-form-actions">
                 <button class="button button-outline" type="button" data-guided-back>Back</button>
                 <button class="button" type="button" data-guided-next>Continue to contact</button>

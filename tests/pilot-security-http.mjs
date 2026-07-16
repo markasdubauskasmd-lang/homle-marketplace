@@ -66,10 +66,10 @@ try {
   const sensitiveAccessRequest = await sameOriginFetch("/api/cleaning-requests", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ contactName: "Access Safety Test", email: "access-safety@invalid.example", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms", accessNotes: "Door code is 4821", hazards: "None known", frequency: "One-off", preferredDate: "2099-01-01", preferredTimeWindow: "Flexible", consent: true })
+    body: JSON.stringify({ contactName: "Access Safety Test", email: "access-safety@invalid.example", phone: "07123456789", postcode: "SW1A 1AA", customerType: "Landlord", propertyType: "Flat or house", service: "Rental turnover clean", siteSize: "2 bedrooms", accessNotes: "Meet the site manager", hazards: "None known", frequency: "One-off", preferredDate: "2099-01-01", preferredTimeWindow: "Flexible", details: "Please clean the oven. Door code is 4821", consent: true })
   });
   const sensitiveAccessBody = await sensitiveAccessRequest.json();
-  assert(sensitiveAccessRequest.status === 422 && sensitiveAccessBody.errors?.some((error) => error.includes("only after a booking is accepted")), "An early request accepted a door code or returned an unhelpful lifecycle error.");
+  assert(sensitiveAccessRequest.status === 422 && sensitiveAccessBody.errors?.some((error) => error.includes("only after a booking is accepted")), "An early request accepted a door code outside the dedicated access field or returned an unhelpful lifecycle error.");
   assert(await readFile(path.join(testDataDir, "cleaning-requests.ndjson"), "utf8").catch(() => "") === "", "A rejected access-code request wrote private lead data.");
 
   const cleaningRequest = await sameOriginFetch("/api/cleaning-requests", {

@@ -4900,7 +4900,7 @@ async function handleCleaningRequest(request, response) {
   if (record.email && !isEmail(record.email)) errors.push("Enter a valid email address.");
   if (record.phone && !isPhone(record.phone)) errors.push("Enter a valid phone number.");
   if (record.postcode && !isUkPostcode(record.postcode)) errors.push("Enter a valid UK postcode.");
-  if (record.accessNotes && containsSensitiveAccessDetails(record.accessNotes)) errors.push(accessDetailsSafetyMessage);
+  if ([record.siteSize, record.accessNotes, record.details].some((value) => value && containsSensitiveAccessDetails(value))) errors.push(accessDetailsSafetyMessage);
   if (record.preferredDate && (!/^\d{4}-\d{2}-\d{2}$/.test(record.preferredDate) || record.preferredDate < localDateToday())) errors.push("Preferred date must be today or later.");
   if (record.preferredTimeWindow && !Object.hasOwn(preferredArrivalWindows, record.preferredTimeWindow)) errors.push("Choose a supported preferred arrival window.");
   if (!requestFrequencies.has(record.frequency)) errors.push("Choose a supported cleaning frequency.");
