@@ -185,7 +185,7 @@ async function loadWorkspace() {
     const account = accountResult.account;
     if (account?.selectedRole !== "landlord" || !account?.roles?.includes("landlord")) return showState("This is not a Landlord account.", "Use the workspace selected during onboarding or sign in with a Landlord/Property Manager account.", { kind: "authentication", allowSignIn: true });
     properties = Array.isArray(propertyResult.properties) ? propertyResult.properties : [];
-    requests = Array.isArray(requestResult.requests) ? requestResult.requests : [];
+    requests = Array.isArray(requestResult.cleaningRequests) ? requestResult.cleaningRequests : [];
     bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
     document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
     renderProperties();
@@ -259,7 +259,8 @@ async function createRequestDraft(event) {
   setPending(requestSave, true, "Saving draft…");
   try {
     const result = await requestJson("/api/marketplace/cleaning-requests", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
-    requests.unshift(result.request);
+    if (!result.cleaningRequest?.requestId) throw new Error("The saved cleaning-request draft could not be verified.");
+    requests.unshift(result.cleaningRequest);
     renderRequests();
     requestForm.reset();
     initialiseRequestDefaults();

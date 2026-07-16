@@ -28,6 +28,7 @@ DECLARE
     'tideway_private.search_cleaner_directory(text,text,timestamp with time zone,timestamp with time zone,numeric,integer,boolean,numeric,numeric,numeric,integer,integer)',
     'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.list_my_booking_summaries(integer)',
+    'tideway_private.configure_automatic_dispatch(uuid,boolean,smallint)',
     'tideway_private.start_cleaner_journey(uuid,boolean,numeric,numeric,numeric,timestamp with time zone)',
     'tideway_private.submit_booking_review(uuid,uuid,smallint,smallint,smallint,smallint,smallint,text)',
     'tideway_private.consume_rate_limit(text,bytea)',
@@ -52,7 +53,11 @@ DECLARE
     'tideway_private.complete_email_notification(uuid,uuid,text,text)',
     'tideway_private.purge_expired_sessions(integer)',
     'tideway_private.purge_expired_rate_limits(integer)',
-    'tideway_private.purge_expired_pending_social_identities(integer)'
+    'tideway_private.purge_expired_pending_social_identities(integer)',
+    'tideway_private.claim_due_automatic_dispatch(uuid,integer,integer)',
+    'tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)',
+    'tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
+    'tideway_private.release_automatic_dispatch_lease(uuid,uuid,text,timestamp with time zone)'
   ];
 BEGIN
   IF current_setting('server_version_num')::integer < 160000 THEN
@@ -104,6 +109,9 @@ BEGIN
     RAISE EXCEPTION 'One-review-per-booking unique constraint is missing';
   END IF;
   IF to_regclass('public.bookings_one_live_attempt_per_request_idx') IS NULL THEN RAISE EXCEPTION 'One-live-invitation index is missing'; END IF;
+  IF to_regclass('public.cleaning_requests_automatic_dispatch_due_idx') IS NULL THEN RAISE EXCEPTION 'Automatic-dispatch due index is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.cleaning_requests'::regclass AND conname='cleaning_requests_dispatch_authorization_check' AND contype='c') THEN RAISE EXCEPTION 'Automatic-dispatch consent constraint is missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.cleaning_requests'::regclass AND conname='cleaning_requests_dispatch_lease_check' AND contype='c') THEN RAISE EXCEPTION 'Automatic-dispatch lease constraint is missing'; END IF;
   IF to_regclass('public.payment_one_live_capture_idx') IS NULL OR to_regclass('public.payment_one_live_transfer_idx') IS NULL THEN RAISE EXCEPTION 'Payment command uniqueness indexes are missing'; END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.booking_payments'::regclass AND contype='u' AND pg_get_constraintdef(oid)='UNIQUE (booking_id)') THEN RAISE EXCEPTION 'One-payment-per-booking constraint is missing'; END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid='public.bookings'::regclass AND tgname='bookings_require_current_payment_before_job_start' AND NOT tgisinternal) THEN RAISE EXCEPTION 'Job-start payment-authorization trigger is missing'; END IF;
@@ -156,6 +164,11 @@ BEGIN
   IF has_table_privilege('tideway_app', 'public.sessions', 'DELETE') OR has_function_privilege('tideway_app', 'tideway_private.purge_expired_sessions(integer)', 'EXECUTE') THEN
     RAISE EXCEPTION 'App role can physically purge sessions';
   END IF;
+  IF NOT has_table_privilege('tideway_app', 'public.cleaning_requests', 'INSERT')
+     OR has_table_privilege('tideway_app', 'public.cleaning_requests', 'UPDATE')
+     OR has_table_privilege('tideway_app', 'public.cleaning_requests', 'DELETE') THEN
+    RAISE EXCEPTION 'App role can bypass function-only cleaning-request lifecycle or cannot create an owner-bound request';
+  END IF;
   IF has_table_privilege('tideway_app', 'tideway_private.request_rate_limits', 'SELECT')
      OR has_table_privilege('tideway_app', 'tideway_private.request_rate_limits', 'INSERT')
      OR has_table_privilege('tideway_app', 'tideway_private.request_rate_limits', 'UPDATE')
@@ -204,8 +217,8 @@ SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
-  'appFunctionChecks', 16,
-  'workerFunctionChecks', 8
+  'appFunctionChecks', 21,
+  'workerFunctionChecks', 12
 ) AS tideway_deployment_verification;
 
 ROLLBACK;

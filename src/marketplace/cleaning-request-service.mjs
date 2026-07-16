@@ -129,12 +129,38 @@ function projection(record) {
     tasks: recordTasks(record.tasks).map((task) => ({ roomName: task.roomName ?? task.room_name, description: task.description, sortOrder: Number(task.sortOrder ?? task.sort_order) || 0 })),
     scopeFingerprint: record.scope_fingerprint,
     submittedAt: record.submitted_at ? new Date(record.submitted_at).toISOString() : null,
-    createdAt: record.created_at ? new Date(record.created_at).toISOString() : null
+    createdAt: record.created_at ? new Date(record.created_at).toISOString() : null,
+    automaticDispatch: {
+      enabled: Boolean(record.automatic_dispatch_authorized_at) && !record.automatic_dispatch_revoked_at,
+      attemptLimit: record.automatic_dispatch_attempt_limit == null ? null : Number(record.automatic_dispatch_attempt_limit),
+      attemptCount: Number(record.automatic_dispatch_attempt_count) || 0,
+      authorizedAt: record.automatic_dispatch_authorized_at ? new Date(record.automatic_dispatch_authorized_at).toISOString() : null,
+      revokedAt: record.automatic_dispatch_revoked_at ? new Date(record.automatic_dispatch_revoked_at).toISOString() : null,
+      nextAttemptAt: record.automatic_dispatch_next_attempt_at ? new Date(record.automatic_dispatch_next_attempt_at).toISOString() : null,
+      lastResult: record.automatic_dispatch_last_result || null
+    }
   };
 }
 
+function dispatchProjection(record) {
+  if (!record || !uuidPattern.test(record.cleaningRequestId || "")) throw new Error("Automatic-matching status is unavailable.");
+  const attemptLimit = record.attemptLimit == null ? null : Number(record.attemptLimit);
+  const attemptCount = Number(record.attemptCount) || 0;
+  if ((attemptLimit != null && (!Number.isInteger(attemptLimit) || attemptLimit < 1 || attemptLimit > 5)) || !Number.isInteger(attemptCount) || attemptCount < 0) throw new Error("Automatic-matching status is unavailable.");
+  return Object.freeze({
+    cleaningRequestId: record.cleaningRequestId.toLowerCase(),
+    enabled: record.enabled === true,
+    attemptLimit,
+    attemptCount,
+    authorizedAt: record.authorizedAt ? new Date(record.authorizedAt).toISOString() : null,
+    revokedAt: record.revokedAt ? new Date(record.revokedAt).toISOString() : null,
+    nextAttemptAt: record.nextAttemptAt ? new Date(record.nextAttemptAt).toISOString() : null,
+    lastResult: record.lastResult || null
+  });
+}
+
 export function createCleaningRequestService(repository, options = {}) {
-  if (!repository || typeof repository.createOwnRequest !== "function" || typeof repository.listOwnRequests !== "function") throw new TypeError("A complete cleaning-request repository is required.");
+  if (!repository || typeof repository.createOwnRequest !== "function" || typeof repository.listOwnRequests !== "function" || typeof repository.configureAutomaticDispatch !== "function") throw new TypeError("A complete cleaning-request repository is required.");
   return {
     async createOwnRequest(actor, input) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to create a cleaning request.");
@@ -143,6 +169,13 @@ export function createCleaningRequestService(repository, options = {}) {
     async listOwnRequests(actor) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to list cleaning requests.");
       return (await repository.listOwnRequests(actor)).map(projection);
+    },
+    async configureAutomaticDispatch(actor, cleaningRequestId, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to authorize automatic matching.");
+      if (typeof input.enabled !== "boolean") throw new TypeError("Choose whether automatic matching is enabled.");
+      const attemptLimit = input.enabled ? Number(input.attemptLimit ?? 3) : 3;
+      if (!Number.isInteger(attemptLimit) || attemptLimit < 1 || attemptLimit > 5) throw new TypeError("Automatic matching may invite between 1 and 5 Cleaners.");
+      return dispatchProjection(await repository.configureAutomaticDispatch(actor, uuid(cleaningRequestId, "cleaning request id"), { enabled: input.enabled, attemptLimit }));
     }
   };
 }

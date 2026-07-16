@@ -68,6 +68,12 @@ function row(record) {
     scope_fingerprint: record.scopeFingerprint,
     submitted_at: record.submittedAt,
     created_at: now.toISOString(),
+    automatic_dispatch_authorized_at: null,
+    automatic_dispatch_revoked_at: null,
+    automatic_dispatch_attempt_limit: null,
+    automatic_dispatch_attempt_count: 0,
+    automatic_dispatch_next_attempt_at: null,
+    automatic_dispatch_last_result: null,
     tasks: record.tasks
   };
 }
@@ -76,14 +82,18 @@ const calls = [];
 let stored;
 const fakeRepository = {
   async createOwnRequest(actor, record) { calls.push({ kind: "create", actor, record }); stored = row(record); return stored; },
-  async listOwnRequests(actor) { calls.push({ kind: "list", actor }); return [stored]; }
+  async listOwnRequests(actor) { calls.push({ kind: "list", actor }); return [stored]; },
+  async configureAutomaticDispatch(actor, suppliedRequestId, choice) { calls.push({ kind: "dispatch", actor, suppliedRequestId, choice }); return { cleaningRequestId: suppliedRequestId, enabled: choice.enabled, attemptLimit: choice.attemptLimit, attemptCount: 0, authorizedAt: choice.enabled ? now.toISOString() : null, lastResult: choice.enabled ? "authorized" : null }; }
 };
 const service = createCleaningRequestService(fakeRepository, { clock: () => new Date(now) });
 const landlord = { userId: landlordId, roles: ["landlord"] };
 const created = await service.createOwnRequest(landlord, { ...input, landlordUserId: "22222222-2222-4222-8222-222222222222" });
 const listed = await service.listOwnRequests(landlord);
-assert(calls[0].actor.userId === landlordId && !Object.hasOwn(calls[0].record, "landlordUserId") && created.requestId === requestId && created.tasks.length === 2 && listed[0].scopeFingerprint === canonical.scopeFingerprint && !Object.hasOwn(created, "landlordUserId"), "Cleaning-request service trusted a submitted owner, lost frozen scope or leaked its owner field.");
+const dispatch = await service.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 3 });
+assert(calls[0].actor.userId === landlordId && !Object.hasOwn(calls[0].record, "landlordUserId") && created.requestId === requestId && created.tasks.length === 2 && listed[0].scopeFingerprint === canonical.scopeFingerprint && listed[0].automaticDispatch.enabled === false && !Object.hasOwn(created, "landlordUserId"), "Cleaning-request service trusted a submitted owner, lost frozen scope or leaked its owner field.");
+assert(dispatch.enabled && dispatch.attemptLimit === 3 && calls.at(-1).kind === "dispatch" && calls.at(-1).actor.userId === landlordId, "Explicit Landlord automatic-matching consent was not owner-bound or safely projected.");
 assert(await rejects(() => service.createOwnRequest({ userId: "cleaner", roles: ["cleaner"] }, input), "Landlord account"), "A Cleaner could create a Landlord cleaning request.");
+assert(await rejects(() => service.configureAutomaticDispatch({ userId: "cleaner", roles: ["cleaner"] }, requestId, { enabled: true }), "Landlord account") && await rejects(() => service.configureAutomaticDispatch(landlord, requestId, { enabled: "yes" }), "Choose whether") && await rejects(() => service.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 6 }), "between 1 and 5"), "Automatic matching accepted the wrong role, implicit consent or an unbounded attempt limit.");
 
 const databaseCalls = [];
 let propertyOwned = true;
@@ -94,6 +104,7 @@ const database = {
       if (text.startsWith("SELECT id FROM properties")) return { rows: propertyOwned ? [{ id: propertyId }] : [] };
       if (text.startsWith("INSERT INTO cleaning_requests")) return { rows: [row(canonical)] };
       if (text.startsWith("SELECT request.*")) return { rows: [row(canonical)] };
+      if (text.startsWith("SELECT tideway_private.configure_automatic_dispatch")) return { rows: [{ dispatch: { cleaningRequestId: requestId, enabled: true, attemptLimit: 3, attemptCount: 0, authorizedAt: now.toISOString(), lastResult: "authorized" } }] };
       return { rows: [] };
     } });
   }
@@ -101,7 +112,8 @@ const database = {
 const repository = createCleaningRequestRepository(database);
 await repository.createOwnRequest(landlord, canonical);
 await repository.listOwnRequests(landlord);
-assert(databaseCalls[0].text.includes("id=$1::uuid AND landlord_user_id=$2::uuid") && databaseCalls[0].values[1] === landlordId && databaseCalls[1].values[1] === landlordId && databaseCalls[2].text.includes("unnest($2::text[], $3::text[], $4::integer[])") && databaseCalls[3].text.includes("cleaning_request_status_history") && databaseCalls[3].values[2] === landlordId && databaseCalls[4].text.includes("request.landlord_user_id=$1::uuid"), "Cleaning-request repository did not enforce property ownership, parameterized tasks, owner identity and status audit inside one actor transaction.");
+await repository.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 3 });
+assert(databaseCalls[0].text.includes("id=$1::uuid AND landlord_user_id=$2::uuid") && databaseCalls[0].values[1] === landlordId && databaseCalls[1].values[1] === landlordId && databaseCalls[2].text.includes("unnest($2::text[], $3::text[], $4::integer[])") && databaseCalls[3].text.includes("cleaning_request_status_history") && databaseCalls[3].values[2] === landlordId && databaseCalls[4].text.includes("request.landlord_user_id=$1::uuid") && databaseCalls[5].text.includes("configure_automatic_dispatch($1::uuid,$2::boolean,$3::smallint)"), "Cleaning-request repository did not enforce property ownership, parameterized tasks, owner identity, status audit and function-only dispatch consent inside actor transactions.");
 propertyOwned = false;
 assert(await rejects(() => repository.createOwnRequest(landlord, canonical), "Property was not found"), "A Landlord could create a request against another account's property.");
 

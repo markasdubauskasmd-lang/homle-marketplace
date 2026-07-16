@@ -6,6 +6,7 @@ const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPatter
 const bookingResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/response$`);
 const requestInvitationPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitations$`);
 const requestMatchesPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/matches$`);
+const requestAutomaticDispatchPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/automatic-dispatch$`);
 const bookingTrackingPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/tracking$`);
 const journeyStartPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/start$`);
 const journeyLocationPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/location$`);
@@ -64,7 +65,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || typeof cleaners.getOwnProfile !== "function" || typeof cleaners.saveOwnProfile !== "function" || typeof cleaners.searchPublicProfiles !== "function") throw new TypeError("Marketplace HTTP routes require the cleaner profile service.");
-  if (!cleaningRequests || typeof cleaningRequests.createOwnRequest !== "function" || typeof cleaningRequests.listOwnRequests !== "function") throw new TypeError("Marketplace HTTP routes require the cleaning-request service.");
+  if (!cleaningRequests || typeof cleaningRequests.createOwnRequest !== "function" || typeof cleaningRequests.listOwnRequests !== "function" || typeof cleaningRequests.configureAutomaticDispatch !== "function") throw new TypeError("Marketplace HTTP routes require the cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
   if (!matching || typeof matching.recommendForRequest !== "function") throw new TypeError("Marketplace HTTP routes require the request matching service.");
   if (!journeys || !["startJourney", "updateLocation", "markArrived", "getTracking"].every((method) => typeof journeys[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking journey service.");
@@ -231,6 +232,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const body = await readJsonObject(request);
           const booking = await bookings.inviteCleaner(context.actor, { cleaningRequestId: selectedInvitationRequest[1], cleanerId: body.cleanerId });
           sendJson(response, 201, { ok: true, booking });
+          return true;
+        }
+        const selectedAutomaticDispatchRequest = pathname.match(requestAutomaticDispatchPath);
+        if (selectedAutomaticDispatchRequest) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const automaticDispatch = await cleaningRequests.configureAutomaticDispatch(context.actor, selectedAutomaticDispatchRequest[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, automaticDispatch });
           return true;
         }
         const selectedMatchRequest = pathname.match(requestMatchesPath);

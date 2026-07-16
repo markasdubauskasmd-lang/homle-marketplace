@@ -23,10 +23,26 @@ export function createCleaningRequestRepository(database) {
     listOwnRequests(actor) {
       return database.withUserTransaction(actor, async (client) => {
         const result = await client.query(
-          "SELECT request.*, COALESCE(jsonb_agg(jsonb_build_object('roomName', task.room_name, 'description', task.description, 'sortOrder', task.sort_order) ORDER BY task.sort_order) FILTER (WHERE task.id IS NOT NULL), '[]'::jsonb) AS tasks FROM cleaning_requests request LEFT JOIN cleaning_request_tasks task ON task.cleaning_request_id=request.id WHERE request.landlord_user_id=$1::uuid GROUP BY request.id ORDER BY request.created_at DESC LIMIT 100",
+          "SELECT request.*, (SELECT count(*)::integer FROM bookings attempt WHERE attempt.cleaning_request_id=request.id) AS automatic_dispatch_attempt_count, COALESCE(jsonb_agg(jsonb_build_object('roomName', task.room_name, 'description', task.description, 'sortOrder', task.sort_order) ORDER BY task.sort_order) FILTER (WHERE task.id IS NOT NULL), '[]'::jsonb) AS tasks FROM cleaning_requests request LEFT JOIN cleaning_request_tasks task ON task.cleaning_request_id=request.id WHERE request.landlord_user_id=$1::uuid GROUP BY request.id ORDER BY request.created_at DESC LIMIT 100",
           [actor.userId]
         );
         return result.rows;
+      });
+    },
+    configureAutomaticDispatch(actor, requestId, choice) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.configure_automatic_dispatch($1::uuid,$2::boolean,$3::smallint) AS dispatch", [requestId, choice.enabled, choice.attemptLimit]);
+          return result.rows[0]?.dispatch;
+        } catch (error) {
+          const mapped = {
+            "request-not-found": [404, "request-not-found", "The cleaning request was not found."],
+            "request-not-dispatch-configurable": [409, "request-not-dispatch-configurable", "Automatic matching can only be changed for an open future request."],
+            "invalid-automatic-dispatch-choice": [400, "invalid-automatic-dispatch-choice", "Choose a valid automatic-matching option."]
+          }[error?.message];
+          if (!mapped) throw error;
+          throw Object.assign(new Error(mapped[2]), { statusCode: mapped[0], code: mapped[1], cause: error });
+        }
       });
     }
   };

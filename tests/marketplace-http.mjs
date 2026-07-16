@@ -66,7 +66,8 @@ const propertyService = {
 };
 const cleaningRequestService = {
   async createOwnRequest(actor, input) { calls.push({ kind: "request-create", actor, input }); return { requestId: "66666666-6666-4666-8666-666666666666", propertyId: input.propertyId, status: "searching-for-cleaner" }; },
-  async listOwnRequests(actor) { calls.push({ kind: "request-list", actor }); return []; }
+  async listOwnRequests(actor) { calls.push({ kind: "request-list", actor }); return []; },
+  async configureAutomaticDispatch(actor, cleaningRequestId, input) { calls.push({ kind: "request-dispatch", actor, cleaningRequestId, input }); return { cleaningRequestId, enabled: input.enabled, attemptLimit: input.attemptLimit, attemptCount: 0 }; }
 };
 const bookingWorkflowService = {
   async listParticipantBookings(actor, input) { calls.push({ kind: "booking-list", actor, input }); return [{ bookingId: "55555555-5555-4555-8555-555555555555", participantRole: "landlord", pricePence: 12000, pricePerspective: "customer-total" }]; },
@@ -242,6 +243,8 @@ assert(updated.response.statusCode === 200 && calls.at(-1).input.id === property
 const requestCreated = await dispatch(router, "POST", "/api/marketplace/cleaning-requests", { headers: authHeaders, body: { propertyId, landlordUserId: "33333333-3333-4333-8333-333333333333" } });
 const requestList = await dispatch(router, "GET", "/api/marketplace/cleaning-requests", { headers: { cookie: authHeaders.cookie } });
 assert(requestCreated.response.statusCode === 201 && requestCreated.body.cleaningRequest.status === "searching-for-cleaner" && calls.at(-2).kind === "request-create" && calls.at(-2).actor.userId === sessions.landlord.user_id && requestList.response.statusCode === 200 && calls.at(-1).kind === "request-list", "Account cleaning-request routes did not bind Landlord creation/listing to the authenticated actor.");
+const dispatchAuthorized = await dispatch(router, "POST", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/automatic-dispatch", { headers: authHeaders, body: { enabled: true, attemptLimit: 3 } });
+assert(dispatchAuthorized.response.statusCode === 200 && dispatchAuthorized.body.automaticDispatch.enabled === true && calls.at(-1).kind === "request-dispatch" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Automatic matching was not protected by Landlord role, CSRF and explicit request-level consent.");
 const cleanerId = "22222222-2222-4222-8222-222222222222";
 const matches = await dispatch(router, "GET", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/matches", { headers: { cookie: authHeaders.cookie } });
 assert(matches.response.statusCode === 200 && matches.body.candidates[0].cleanerId === cleanerId && calls.at(-1).kind === "request-matches" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Request-specific matching did not bind the authenticated Landlord or return the safe recommendation projection.");

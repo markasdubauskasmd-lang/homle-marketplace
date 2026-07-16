@@ -51,6 +51,35 @@ function publicCandidate(record, quote, rank) {
   };
 }
 
+export function rankRequestCandidates(records, pricingPolicy, now) {
+  if (!Array.isArray(records)) throw new TypeError("Matching candidates must be an array.");
+  if (!pricingPolicy || typeof pricingPolicy.quote !== "function") throw Object.assign(new Error("Cleaner matching is unavailable until the private pricing policy is configured."), { statusCode: 503, code: "pricing-not-configured" });
+  if (!(now instanceof Date) || Number.isNaN(now.getTime())) throw new TypeError("Matching clock must return a valid Date.");
+  const priced = [];
+  for (const record of records) {
+    try {
+      const quote = pricingPolicy.quote(record, now);
+      const budget = record.budget_pence == null ? null : Number(record.budget_pence);
+      if (budget != null && quote.customerPricePence > budget) continue;
+      priced.push({ record, quote });
+    } catch (error) {
+      if (error?.statusCode === 409) continue;
+      throw error;
+    }
+  }
+  const lowestPrice = priced.length ? Math.min(...priced.map(({ quote }) => quote.customerPricePence)) : null;
+  return priced.map(({ record, quote }, sourceIndex) => {
+    const priceScore = Math.min(25, 25 * lowestPrice / quote.customerPricePence);
+    return { record, quote, priceScore, sourceIndex, overallScore: Number(record.base_match_score) + priceScore };
+  }).sort((left, right) =>
+    right.overallScore - left.overallScore ||
+    left.quote.customerPricePence - right.quote.customerPricePence ||
+    (left.record.distance_km == null ? Number.MAX_SAFE_INTEGER : Number(left.record.distance_km)) - (right.record.distance_km == null ? Number.MAX_SAFE_INTEGER : Number(right.record.distance_km)) ||
+    left.sourceIndex - right.sourceIndex ||
+    String(left.record.public_slug).localeCompare(String(right.record.public_slug))
+  );
+}
+
 export function createMatchingService(repository, options = {}) {
   if (!repository || typeof repository.recommendForRequest !== "function") throw new TypeError("A request matching repository is required.");
   const pricingPolicy = options.pricingPolicy || null;
@@ -58,34 +87,10 @@ export function createMatchingService(repository, options = {}) {
   return Object.freeze({
     async recommendForRequest(actor, cleaningRequestId) {
       if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.some((role) => role === "landlord" || role === "administrator")) throw new TypeError("A Landlord account is required to match a cleaning request.");
-      if (!pricingPolicy || typeof pricingPolicy.quote !== "function") throw Object.assign(new Error("Cleaner matching is unavailable until the private pricing policy is configured."), { statusCode: 503, code: "pricing-not-configured" });
       const requestId = uuid(cleaningRequestId, "cleaning request id");
       const records = await repository.recommendForRequest(actor, requestId, 25);
       const now = clock();
-      if (!(now instanceof Date) || Number.isNaN(now.getTime())) throw new TypeError("Matching clock must return a valid Date.");
-      const priced = [];
-      for (const record of records) {
-        try {
-          const quote = pricingPolicy.quote(record, now);
-          const budget = record.budget_pence == null ? null : Number(record.budget_pence);
-          if (budget != null && quote.customerPricePence > budget) continue;
-          priced.push({ record, quote });
-        } catch (error) {
-          if (error?.statusCode === 409) continue;
-          throw error;
-        }
-      }
-      const lowestPrice = priced.length ? Math.min(...priced.map(({ quote }) => quote.customerPricePence)) : null;
-      const ranked = priced.map(({ record, quote }, sourceIndex) => {
-        const priceScore = Math.min(25, 25 * lowestPrice / quote.customerPricePence);
-        return { record, quote, priceScore, sourceIndex, overallScore: Number(record.base_match_score) + priceScore };
-      }).sort((left, right) =>
-        right.overallScore - left.overallScore ||
-        left.quote.customerPricePence - right.quote.customerPricePence ||
-        (left.record.distance_km == null ? Number.MAX_SAFE_INTEGER : Number(left.record.distance_km)) - (right.record.distance_km == null ? Number.MAX_SAFE_INTEGER : Number(right.record.distance_km)) ||
-        left.sourceIndex - right.sourceIndex ||
-        String(left.record.public_slug).localeCompare(String(right.record.public_slug))
-      );
+      const ranked = rankRequestCandidates(records, pricingPolicy, now);
       return {
         cleaningRequestId: requestId,
         generatedAt: now.toISOString(),

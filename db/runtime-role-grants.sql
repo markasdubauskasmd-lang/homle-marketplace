@@ -41,6 +41,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.invite_cleaner(uuid, uuid, uuid, times
 GRANT EXECUTE ON FUNCTION tideway_private.respond_to_cleaner_invitation(uuid, text, text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_my_booking_summaries(integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.recommend_cleaners_for_request(uuid, integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.configure_automatic_dispatch(uuid,boolean,smallint) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_tracking(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.start_cleaner_journey(uuid, boolean, numeric, numeric, numeric, timestamptz) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.update_cleaner_location(uuid, numeric, numeric, numeric, timestamptz) TO tideway_app;
@@ -93,5 +94,7 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON authentication_identities FROM tideway_
 REVOKE ALL ON TABLE tideway_private.cleaner_payout_accounts, tideway_private.payment_provider_events FROM tideway_app;
 -- Sessions may be created/revoked through actor-bound application transactions, but only the restricted worker may physically purge expired rows.
 REVOKE DELETE ON sessions FROM tideway_app;
+-- Submitted requests may be created directly under owner RLS, but dispatch consent and lifecycle changes are function-only.
+REVOKE UPDATE, DELETE ON cleaning_requests FROM tideway_app;
 
 COMMIT;

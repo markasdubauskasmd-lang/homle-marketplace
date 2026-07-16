@@ -29,10 +29,11 @@
     { "order": 25, "file": "025_job_start_payment_gate.sql", "sha256": "b822d32b5b33bdf7d748f79aac50da01c49bc862f910b194e49004257a366b11" },
     { "order": 26, "file": "026_participant_booking_summaries.sql", "sha256": "dbd5fc671cda5e6cd45916b8bf805c2dfeefa4f305c6d4c2b2daff1b7d848cba" },
     { "order": 27, "file": "027_authenticated_provider_connections.sql", "sha256": "7f13f53332f47caac565db441268426dd21909655894c74f43f3e64e8ab7be5a" },
-    { "order": 28, "file": "028_invitation_eligibility_hardening.sql", "sha256": "00617ae111444a7898ea8643ff990166f7b2a3d4f1a42585a4b3a791c57e11bc" }
+    { "order": 28, "file": "028_invitation_eligibility_hardening.sql", "sha256": "00617ae111444a7898ea8643ff990166f7b2a3d4f1a42585a4b3a791c57e11bc" },
+    { "order": 29, "file": "029_consent_bound_automatic_dispatch.sql", "sha256": "9d8038d9d3f4ee61c412405280b6100fe16fe581e3fb893e445a14f30e194e5f" }
   ],
   "grantFiles": [
-    { "file": "runtime-role-grants.sql", "sha256": "0a6da4d761aacae2eefb9b045e2174efb1c47d5b966f8ad939da710f5412bb36" },
-    { "file": "worker-role-grants.sql", "sha256": "e703ff741e1ac30a03f09da60d0a259fe577d37505e8d0f112450d3a85878ae7" }
+    { "file": "runtime-role-grants.sql", "sha256": "6eb9079bf86040cacafc83aa3aadb7ff8ff62c39a873dabf4397d2113756beb5" },
+    { "file": "worker-role-grants.sql", "sha256": "f212332a8d69041a96dd47aba8692cec51ae04a66a5a91ef40b6dd07ece1c8c6" }
   ]
 }

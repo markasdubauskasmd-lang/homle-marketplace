@@ -16,13 +16,14 @@ This Phase 3 checkpoint prepares the transaction that turns a saved Landlord pro
 - Property check, request row, task rows and initial status-history row execute inside one actor-bound transaction.
 - Responses are whitelisted and do not return owner IDs, property access instructions, coordinates or persistence internals.
 - `GET /api/marketplace/cleaning-requests` lists at most the authenticated Landlord's latest 100 requests.
+- Creating or submitting a request never implies automatic matching consent. A submitted future request requires a separate authenticated Landlord action with a total one-to-five attempt limit; see [consent-bound automatic dispatch](AUTOMATIC_DISPATCH.md).
 
 ## Migration safety
 
 Migration `008_account_cleaning_requests.sql` maps earlier draft status labels, backfills fingerprints for any pre-existing rows before adding `NOT NULL`, backfills submitted times and adds owner/admin RLS for request history. New requests use `draft`, `searching-for-cleaner`, `cleaner-invited`, `pending-cleaner-acceptance`, `matched` and `cancelled`.
 
-## Next transaction
+## Later transactions
 
-The next Phase 3 checkpoint must create a frozen, margin-checked cleaner invitation, recheck service/availability at acceptance, rely on PostgreSQL's exclusion constraint for the final concurrent overlap decision, preserve decline/replacement history, copy request tasks into booking tasks and create booking status history before any realtime notification.
+Frozen margin-checked invitation, final eligibility/availability/coverage rechecks, concurrent overlap protection, decline/replacement history and consent-bound automatic matching are now implemented behind the detached marketplace. They still require real PostgreSQL staging and genuine two-account evidence before activation.
 
 No live customer request was imported, modified or submitted for this checkpoint.
