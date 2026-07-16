@@ -38,6 +38,8 @@ Dashboard → **Do this next** → review invitation, open active clean, prepare
 
 The urgent action appears before counts and lists. Invitation cards retain the exact time, area, checklist size and Cleaner pay, plus private room-scan preview when the Landlord consented. Accept remains an explicit confirmed decision; active work opens directly into the large-action job lifecycle and short checklist.
 
+The separate concierge fallback at `/join` now collects only contact details, matchable work areas, services, experience and one first availability window. Biography, languages and equipment planning are enforced as the next private-tracker step instead of competing with the initial Apply action. Optional usual availability and notes stay inside one disclosure.
+
 ## Remaining limitations
 
 - A real mobile visual pass is still required because the desktop browser-control runtime could not connect during this audit.

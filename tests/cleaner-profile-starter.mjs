@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import {
   cleanerEquipmentPlanLabel,
   cleanerProfileStarterCaptured,
-  normalizeCleanerProfileStarter,
-  normalizeOptionalCleanerProfileStarter
+  normalizeCleanerProfileStarter
 } from "../cleaner-profile-starter.mjs";
 
 const valid = normalizeCleanerProfileStarter({
@@ -23,8 +22,4 @@ assert.throws(() => normalizeCleanerProfileStarter({ ...valid, languages: Array.
 assert.throws(() => normalizeCleanerProfileStarter({ ...valid, languages: ["x".repeat(41)] }), /1 to 40/);
 assert.throws(() => normalizeCleanerProfileStarter({ ...valid, equipmentPlan: "I own everything" }), /supported equipment/);
 assert.equal(cleanerProfileStarterCaptured({}), false);
-assert.deepEqual(normalizeOptionalCleanerProfileStarter({}), { professionalBio: "", languages: [], equipmentPlan: "" });
-assert.deepEqual(normalizeOptionalCleanerProfileStarter(valid), valid);
-assert.throws(() => normalizeOptionalCleanerProfileStarter({ professionalBio: valid.professionalBio }), /at least one language/);
-
 console.log("cleaner profile starter tests passed");

@@ -16,7 +16,7 @@ import { decisionWasInTime, offerDeadline, offerIsOpen } from "./offer-expiry.mj
 import { cleanerTravelCoverage, parseCleanerTravelAreas } from "./travel-coverage.mjs";
 import { businessDateToday, businessEpochFromWallClock, businessWallClockMs, earliestBookableWallClockMs } from "./business-clock.mjs";
 import { requestDateAttentionAction, scanAttentionAction } from "./lead-attention.mjs";
-import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeCleanerProfileStarter, normalizeOptionalCleanerProfileStarter } from "./cleaner-profile-starter.mjs";
+import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeCleanerProfileStarter } from "./cleaner-profile-starter.mjs";
 import { buildRoomScanFollowupDraft } from "./request-followup-draft.mjs";
 import { validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
 import { createMarketplaceAttachment } from "./src/marketplace/attachment.mjs";
@@ -4945,14 +4945,6 @@ async function handleCleanerApplication(request, response) {
 
   if (text(input.website, 120)) return json(response, 201, { ok: true, reference: "received" });
 
-  const profileErrors = [];
-  let profileStarter = { professionalBio: "", languages: [], equipmentPlan: "" };
-  try {
-    profileStarter = normalizeOptionalCleanerProfileStarter(input);
-  } catch (error) {
-    profileErrors.push(error.message);
-  }
-
   const record = {
     id: `CLN-${randomUUID().slice(0, 8).toUpperCase()}`,
     cleanerStatusToken: randomBytes(24).toString("base64url"),
@@ -4972,15 +4964,15 @@ async function handleCleanerApplication(request, response) {
     services: Array.isArray(input.services)
       ? input.services.map((service) => text(service, 80)).filter((service) => Object.values(cleanerServiceFields).includes(service))
       : Object.entries(cleanerServiceFields).filter(([field]) => input[field] === true).map(([, service]) => service),
-    professionalBio: profileStarter.professionalBio,
-    languages: profileStarter.languages,
-    equipmentPlan: profileStarter.equipmentPlan,
+    professionalBio: "",
+    languages: [],
+    equipmentPlan: "",
     rightToWork: input.rightToWork === true,
     consent: input.consent === true,
     notes: text(input.notes, 1000)
   };
 
-  const errors = [...profileErrors];
+  const errors = [];
   required(record.fullName, "Full name", errors);
   required(record.email, "Email", errors);
   required(record.phone, "Phone", errors);

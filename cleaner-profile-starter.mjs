@@ -45,12 +45,6 @@ export function normalizeCleanerProfileStarter(input = {}) {
   return { professionalBio, languages, equipmentPlan };
 }
 
-export function normalizeOptionalCleanerProfileStarter(input = {}) {
-  const supplied = [input.professionalBio, input.languages, input.equipmentPlan].some((value) => Array.isArray(value) ? value.some((item) => String(item || "").trim()) : String(value || "").trim());
-  if (!supplied) return { professionalBio: "", languages: [], equipmentPlan: "" };
-  return normalizeCleanerProfileStarter(input);
-}
-
 export function cleanerProfileStarterCaptured(record = {}) {
   try {
     normalizeCleanerProfileStarter(record);

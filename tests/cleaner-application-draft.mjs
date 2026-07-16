@@ -11,7 +11,7 @@ const now = Date.UTC(2026, 6, 15, 20, 0, 0);
 const retryKey = "31cbeef4-d217-4c08-a2c4-60fd03c5f0c8";
 
 const saved = saveCleanerApplicationDraft(storage, {
-  fields: { fullName: "Test Applicant", email: "applicant@example.com", postcode: "SW1A 1AA", professionalBio: "Careful cleaner with a consistent room-by-room process.", website: "must-not-save" },
+  fields: { fullName: "Test Applicant", email: "applicant@example.com", postcode: "SW1A 1AA", notes: "Prefers rental turnovers.", website: "must-not-save", professionalBio: "must-not-save" },
   services: { serviceTurnovers: true, consent: true, rightToWork: true },
   currentStep: 3,
   submissionKey: retryKey
@@ -22,7 +22,7 @@ assert.equal(saved.services.serviceTurnovers, true);
 assert.equal(saved.retry.key, retryKey);
 assert.equal(saved.retry.fingerprint, cleanerApplicationDraftFingerprint(saved.fields, saved.services));
 const storedText = [...values.values()][0];
-assert(!storedText.includes("website") && !storedText.includes("rightToWork") && !storedText.includes("consent"), "Honeypot, eligibility and consent fields must never enter the recovery draft.");
+assert(!storedText.includes("website") && !storedText.includes("rightToWork") && !storedText.includes("consent") && !storedText.includes("professionalBio"), "Honeypot, removed profile, eligibility and consent fields must never enter the recovery draft.");
 const restored = readCleanerApplicationDraft(storage, now + 10_000);
 assert.equal(restored.fields.email, "applicant@example.com");
 assert.equal(restored.retry.key, retryKey, "An ambiguous application retry must reuse its original key after reload.");

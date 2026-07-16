@@ -1,63 +1,46 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { cleanerApplicationPreview, equipmentLabels, serviceLabels } from "../public/cleaner-application-preview.js";
-import { equipmentPlans } from "../cleaner-profile-starter.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const [html, app, styles] = await Promise.all([
+const [html, app, styles, draft] = await Promise.all([
   readFile(path.join(root, "public", "index.html"), "utf8"),
   readFile(path.join(root, "public", "app.js"), "utf8"),
-  readFile(path.join(root, "public", "styles.css"), "utf8")
+  readFile(path.join(root, "public", "styles.css"), "utf8"),
+  readFile(path.join(root, "public", "cleaner-application-draft.js"), "utf8")
 ]);
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const blank = cleanerApplicationPreview({
-  email: "must-not-appear@example.com",
-  phone: "07123456789",
-  postcode: "SW1A 1AA",
-  rating: 5,
-  verified: true,
-  price: 10
-});
-assert(blank.name === "Your name" && blank.initials === "YOU" && blank.completion.completed === 0 && blank.completion.total === 8, "A blank application preview did not remain truthful and incomplete.");
-assert(!["email", "phone", "postcode", "rating", "verified", "price"].some((key) => Object.hasOwn(blank, key)), "The preview projection leaked private contact/location data or invented marketplace claims.");
-assert(!JSON.stringify(blank).includes("must-not-appear@example.com") && !JSON.stringify(blank).includes("07123456789") && !JSON.stringify(blank).includes("SW1A 1AA"), "Injected private application data reached the presentation model.");
+const cleanerForm = html.slice(html.indexOf('id="cleaner-application"'), html.indexOf("</article>", html.indexOf('id="cleaner-application"')));
+const stages = cleanerForm.match(/data-guided-step=/g) || [];
+const requiredNames = [
+  "fullName",
+  "postcode",
+  "email",
+  "phone",
+  "travelAreas",
+  "experience",
+  "firstAvailableDate",
+  "firstAvailableStartTime",
+  "firstAvailableEndTime",
+  "rightToWork",
+  "consent"
+];
 
-const complete = cleanerApplicationPreview({
-  fullName: "  Alex   Morgan  ",
-  travelAreas: "SW1A, SW4",
-  experience: "3–5 years",
-  professionalBio: "I prepare rental homes carefully and confirm every agreed task before I begin.",
-  languages: "English, Polish, english",
-  equipmentPlan: "confirm-per-opportunity",
-  firstAvailableDate: "2099-07-20",
-  firstAvailableStartTime: "08:00",
-  firstAvailableEndTime: "15:00",
-  serviceTurnovers: true,
-  serviceDeepCleans: true
-});
-assert(complete.name === "Alex   Morgan" && complete.initials === "AM", "Name normalization or initials are not stable.");
-assert(JSON.stringify(complete.services) === JSON.stringify(["Rental turnovers", "Deep cleans"]), "Selected services were not projected in a stable allowlisted order.");
-assert(JSON.stringify(complete.languages) === JSON.stringify(["English", "Polish"]), "Languages were not trimmed and deduplicated safely.");
-assert(complete.equipment === equipmentPlans["confirm-per-opportunity"] && complete.firstAvailability.includes("applicant supplied, unconfirmed"), "Equipment or first-availability copy implied unsupported confirmation.");
-assert(complete.completion.completed === 8 && complete.completion.percent === 100 && complete.completion.missing.length === 0, "A complete presentation did not reach application-preview readiness.");
-
-const incomplete = cleanerApplicationPreview({ ...complete, equipmentPlan: "verified-and-supplied", travelAreas: "London" });
-assert(incomplete.equipment === "Not added yet" && incomplete.completion.missing.includes("equipment plan") && incomplete.completion.missing.includes("matchable work areas"), "Unsupported equipment or vague travel coverage was presented as ready.");
-
-assert(JSON.stringify(equipmentLabels) === JSON.stringify(equipmentPlans), "The browser preview equipment labels drifted from server normalization.");
-for (const [name, label] of Object.entries(serviceLabels)) {
-  assert(html.includes(`name="${name}"`) && html.includes(label), `The ${name} preview mapping drifted from the Cleaner form.`);
+assert(stages.length === 3, "The Cleaner application no longer has three short guided stages.");
+for (const name of requiredNames) {
+  assert(new RegExp(`name="${name}"[^>]*required`).test(cleanerForm), `The minimum ${name} application evidence is no longer required.`);
 }
-assert(html.includes("Private application preview") && html.includes("Unverified · not published") && html.includes("This is not a public profile, approval, verification, job offer or availability confirmation."), "The application preview is missing its truthful private-state boundary.");
-assert(html.includes("Optional now: start your professional profile") && html.includes("finish them through your private tracker after applying") && !/<(?:textarea|input|select)[^>]+name="(?:professionalBio|languages|equipmentPlan)"[^>]+required/i.test(html), "The first Cleaner contact still blocks on professional-profile fields or omits the private follow-up explanation.");
-assert(!/<(?:input|select|textarea)[^>]*data-cleaner-preview/i.test(html), "The presentation preview added a form control that could alter the submission contract.");
-assert(app.includes("readCleanerPreviewInput") && app.includes("cleanerApplicationPreview(readCleanerPreviewInput(form))") && app.includes("serviceList.replaceChildren") && app.includes("chip.textContent = label") && !app.includes("preview.innerHTML"), "The live preview is not rendered through the privacy-safe text-only projection.");
-assert(!/value\("(?:email|phone|postcode)"\)/.test(app.slice(app.indexOf("function readCleanerPreviewInput"), app.indexOf("function enhanceCleanerApplicationPreview"))), "The live preview reader includes private contact or home-postcode fields.");
-assert(styles.includes(".cleaner-application-preview") && styles.includes(".cleaner-application-preview-details") && styles.includes(".cleaner-application-preview-readiness") && styles.includes("grid-template-columns: 1fr;"), "The application preview is missing responsive mobile treatment.");
+assert(cleanerForm.includes("Cleaning work you want") && cleanerForm.includes("choose at least one") && cleanerForm.includes("data-service-group"), "The minimum service preference is not collected or explained.");
+assert(cleanerForm.includes("Your professional profile comes later through your private tracker") && cleanerForm.includes("Your profile comes next") && cleanerForm.includes("Nothing is published automatically"), "The shortened application does not explain the private profile follow-up.");
+assert(cleanerForm.includes('class="application-optional-fields"') && cleanerForm.includes("Add usual availability or a note") && cleanerForm.includes('name="availability"') && cleanerForm.includes('name="notes"'), "Nonessential availability detail and notes are not in one optional disclosure.");
+assert(cleanerForm.includes("Apply and open my tracker"), "The application does not name its single continuation clearly.");
+assert(!/(?:name="(?:professionalBio|languages|equipmentPlan)"|data-cleaner-application-preview|Private application preview|data-cleaner-preview)/.test(cleanerForm), "The initial Cleaner application still asks for or renders professional-profile work.");
+assert(!app.includes("cleaner-application-preview") && !app.includes("readCleanerPreviewInput") && !app.includes("enhanceCleanerApplicationPreview"), "The application still downloads and runs the removed profile-preview controller.");
+assert(!/(?:professionalBio|languages|equipmentPlan)/.test(draft), "The recovery draft still retains removed profile fields.");
+assert(styles.includes(".application-optional-fields") && styles.includes(".application-next-step") && !styles.includes(".cleaner-application-preview") && !styles.includes(".profile-starter-panel"), "The streamlined application styling is missing or dead preview styling remains shipped.");
 
-console.log("Cleaner application preview tests passed: truthful applicant projection, private-field isolation, allowlisted claims, live text-only rendering and mobile layout.");
+console.log("Cleaner application journey tests passed: minimum first contact, optional-detail disclosure, private profile follow-up and removed preview overhead.");

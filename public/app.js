@@ -3,7 +3,6 @@ import { newSubmissionKey } from "./submission-key.js";
 import { parseCleanerTravelAreas } from "./travel-coverage.js";
 import { isPhone, isUkPostcode } from "./contact-validation.js";
 import { accessDetailsSafetyMessage, containsSensitiveAccessDetails } from "./access-detail-safety.js";
-import { cleanerApplicationPreview } from "./cleaner-application-preview.js";
 import { cleanerApplicationDraftFields, cleanerApplicationDraftFingerprint, cleanerApplicationDraftServices, clearCleanerApplicationDraft, readCleanerApplicationDraft, saveCleanerApplicationDraft } from "./cleaner-application-draft.js";
 import { clearCustomerRequestDraft, customerRequestDraftFields, customerRequestDraftFingerprint, readCustomerRequestDraft, saveCustomerRequestDraft } from "./customer-request-draft.js";
 
@@ -192,64 +191,6 @@ function enhanceGuidedForm(form) {
 }
 
 document.querySelectorAll("[data-guided-form]").forEach(enhanceGuidedForm);
-
-function readCleanerPreviewInput(form) {
-  const value = (name) => form.elements.namedItem(name)?.value || "";
-  const checked = (name) => form.elements.namedItem(name)?.checked === true;
-  return {
-    fullName: value("fullName"),
-    travelAreas: value("travelAreas"),
-    experience: value("experience"),
-    professionalBio: value("professionalBio"),
-    languages: value("languages"),
-    equipmentPlan: value("equipmentPlan"),
-    firstAvailableDate: value("firstAvailableDate"),
-    firstAvailableStartTime: value("firstAvailableStartTime"),
-    firstAvailableEndTime: value("firstAvailableEndTime"),
-    serviceTurnovers: checked("serviceTurnovers"),
-    serviceEndOfTenancy: checked("serviceEndOfTenancy"),
-    serviceWorkplaces: checked("serviceWorkplaces"),
-    serviceCommunal: checked("serviceCommunal"),
-    serviceDeepCleans: checked("serviceDeepCleans")
-  };
-}
-
-function enhanceCleanerApplicationPreview(form) {
-  const preview = form.querySelector("[data-cleaner-application-preview]");
-  if (!preview) return;
-  const serviceList = preview.querySelector("[data-cleaner-preview-services]");
-
-  function render() {
-    const model = cleanerApplicationPreview(readCleanerPreviewInput(form));
-    preview.querySelector("[data-cleaner-preview-initials]").textContent = model.initials;
-    preview.querySelector("[data-cleaner-preview-name]").textContent = model.name;
-    preview.querySelector("[data-cleaner-preview-bio]").textContent = model.bio;
-    preview.querySelector("[data-cleaner-preview-experience]").textContent = model.experience;
-    preview.querySelector("[data-cleaner-preview-languages]").textContent = model.languages.length ? model.languages.join(", ") : "Not added yet";
-    preview.querySelector("[data-cleaner-preview-equipment]").textContent = model.equipment;
-    preview.querySelector("[data-cleaner-preview-travel]").textContent = model.travelAreas;
-    preview.querySelector("[data-cleaner-preview-availability]").textContent = model.firstAvailability;
-    preview.querySelector("[data-cleaner-preview-completion]").textContent = `${model.completion.completed} of ${model.completion.total} preview details ready`;
-    const progress = preview.querySelector("[data-cleaner-preview-progress]");
-    progress.value = model.completion.completed;
-    progress.max = model.completion.total;
-    progress.setAttribute("aria-valuetext", `${model.completion.percent}% complete`);
-    preview.querySelector("[data-cleaner-preview-missing]").textContent = model.completion.missing.length
-      ? `Preview still needs: ${model.completion.missing.join(", ")}.`
-      : "All preview details are ready for application review.";
-    serviceList.replaceChildren(...(model.services.length ? model.services : ["Choose at least one service"]).map((label) => {
-      const chip = document.createElement("span");
-      chip.textContent = label;
-      return chip;
-    }));
-  }
-
-  form.addEventListener("input", render);
-  form.addEventListener("change", render);
-  render();
-}
-
-document.querySelectorAll('form[data-guided-kind="cleaner"]').forEach(enhanceCleanerApplicationPreview);
 
 function cleanerDraftInput(form) {
   return {
