@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#0e665b">
+  <title>Updates | Homle</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260716-69">
+  <script src="/notifications.js?v=20260716-1" type="module"></script>
+</head>
+<body class="booking-dashboard-page notifications-page">
+  <a class="skip-link" href="#notifications-main">Skip to updates</a>
+  <header class="site-header"><div class="shell nav-wrap"><a class="brand" href="/" aria-label="Homle home"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><nav class="directory-nav" aria-label="Account navigation"><a href="/login" data-workspace-link>Workspace</a><a href="/settings">Settings</a></nav></div></header>
+  <main id="notifications-main" class="notifications-main shell">
+    <section class="booking-dashboard-gate" data-notification-gate role="status" aria-live="polite">
+      <span aria-hidden="true">i</span><div><strong data-notification-gate-title>Checking your private updates…</strong><p data-notification-gate-copy>Only updates for your signed-in account can appear here.</p><div><a class="button" href="/login" data-notification-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-notification-retry hidden>Try again</button></div></div>
+    </section>
+    <div data-notification-content hidden>
+      <section class="notifications-heading"><div><p class="eyebrow">Your account</p><h1>Updates</h1><p>Booking requests, arrival, cleaning progress and messages — in one place.</p></div><button class="button button-outline" type="button" data-mark-all-read disabled>Mark all read</button></section>
+      <div class="notifications-summary" aria-live="polite"><strong data-unread-count>0 unread</strong><span>Private to your Homle account</span></div>
+      <div class="notification-list" data-notification-list></div>
+      <section class="booking-dashboard-empty notification-empty" data-notification-empty hidden><strong>You are all caught up.</strong><p>New booking and cleaning updates will appear here automatically.</p><a class="button" href="/login" data-empty-workspace-link>Return to workspace</a></section>
+      <div class="booking-dashboard-feedback notification-feedback" data-notification-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
+      <button class="button button-outline notification-load-more" type="button" data-load-more hidden>Load earlier updates</button>
+    </div>
+  </main>
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle.</span><a href="/privacy">Privacy notice</a></div></footer>
+</body>
+</html>

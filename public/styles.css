@@ -2294,3 +2294,36 @@ textarea { resize: vertical; }
   .booking-summary-actions { display: grid; }
   .booking-summary-actions .button, .booking-summary-card > .button { width: 100%; }
 }
+
+/* Private account update inbox */
+.notifications-main { min-height: calc(100vh - 160px); padding-block: clamp(32px, 6vw, 72px) 96px; }
+.notifications-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 24px; }
+.notifications-heading h1 { margin: 5px 0 8px; color: var(--green-dark); font-size: clamp(2.55rem, 7vw, 5rem); }
+.notifications-heading p:last-child { max-width: 680px; margin: 0; color: var(--muted); }
+.notifications-summary { display: flex; justify-content: space-between; gap: 16px; padding: 14px 18px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.82); color: var(--muted); }
+.notifications-summary strong { color: var(--green-dark); }
+.notification-list { display: grid; gap: 12px; margin-top: 16px; }
+.notification-card { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: #fff; box-shadow: 0 9px 28px rgba(16,36,33,.05); }
+.notification-card-unread { border-color: #79c5b2; background: linear-gradient(145deg, #eaf9f4, #fff); }
+.notification-marker { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 50%; background: #edf2ef; color: var(--muted); font-weight: 900; }
+.notification-card-unread .notification-marker { background: var(--green); color: #fff; font-size: 1.35rem; }
+.notification-card h2 { margin: 0 0 4px; color: var(--green-dark); font-size: 1.08rem; }
+.notification-card p { margin: 0 0 7px; color: var(--muted); }
+.notification-card time { color: #567068; font-size: .8rem; font-weight: 750; }
+.notification-action { min-width: 135px; text-align: center; white-space: nowrap; }
+.notification-empty { margin-top: 16px; }
+.notification-empty .button { margin-top: 10px; }
+.notification-feedback { margin-top: 16px; }
+.notification-load-more { display: block; margin: 20px auto 0; }
+@media (max-width: 680px) {
+  .notifications-main { padding-block: 27px 90px; }
+  .cleaner-dashboard-page .directory-nav a, .landlord-dashboard-page .directory-nav a { display: none; }
+  .cleaner-dashboard-page .directory-nav a:first-child, .cleaner-dashboard-page .directory-nav a:last-child, .landlord-dashboard-page .directory-nav a:first-child, .landlord-dashboard-page .directory-nav a:last-child { display: block; }
+  .notifications-page .directory-nav a { display: block; }
+  .notifications-heading { display: grid; align-items: stretch; }
+  .notifications-heading .button { width: 100%; }
+  .notifications-summary { align-items: start; flex-direction: column; }
+  .notification-card { grid-template-columns: 34px minmax(0, 1fr); padding: 17px 14px; border-radius: 17px; }
+  .notification-action { grid-column: 1 / -1; width: 100%; }
+  .notification-load-more { width: 100%; }
+}

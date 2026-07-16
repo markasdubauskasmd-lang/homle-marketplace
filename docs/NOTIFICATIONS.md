@@ -1,8 +1,12 @@
 # Account notifications and email outbox
 
-Tideway now has a source-complete notification boundary for authenticated marketplace accounts. The separate worker process can schedule it, but `WORKER_EMAIL_ENABLED` remains false because there is no approved transactional-email account or managed staging evidence.
+Homle now has a source-complete notification boundary for authenticated marketplace accounts. Stable internal database and environment identifiers still use `tideway`. The separate worker process can schedule email, but `WORKER_EMAIL_ENABLED` remains false because there is no approved transactional-email account or managed staging evidence.
 
 ## In-app inbox
+
+The mobile-first `/notifications` page is linked from both the Landlord and Cleaner workspaces. It shows concise booking updates, unread state and one valid booking action per item. It includes signed-out, loading, empty, pagination, offline, retry and success states. Unknown future event types fall back to neutral booking copy rather than exposing raw event data.
+
+The browser renders only with DOM `textContent`, validates every booking identifier before creating a link and uses the current role only to select the return workspace. Opening an unread update sends a navigation-safe, CSRF-protected read mutation. **Mark all read** supplies the timestamp captured before the inbox load, then reloads the authoritative page so an update arriving concurrently remains visible and unread.
 
 The web runtime exposes three authenticated routes:
 
@@ -49,7 +53,8 @@ Run:
 
 ```powershell
 node tests/notification-service.mjs
+node tests/notification-inbox-ui.mjs
 node tests/marketplace-http.mjs
 ```
 
-The tests cover actor binding, cursor validation, read cutoffs, foreign/missing isolation, double payload redaction, worker leases, stable provider idempotency, transient retry, permanent failure, bounded error evidence, narrow grants and runtime composition.
+The tests cover actor binding, cursor validation, read cutoffs, foreign/missing isolation, double payload redaction, safe route construction and rendering, role return, mobile states, worker leases, stable provider idempotency, transient retry, permanent failure, bounded error evidence, narrow grants and runtime composition.
