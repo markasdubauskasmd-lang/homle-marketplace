@@ -45,6 +45,17 @@ export function bookingSummaryPrimaryAction(booking, role) {
   return Object.freeze({ kind: "none", label: "No action required" });
 }
 
+export function landlordBookingNextAction(bookings) {
+  const buckets = bookingSummaryBuckets(bookings, "landlord");
+  const live = buckets.active.find((booking) => booking.activeJobAvailable === true);
+  if (live) return Object.freeze({ kind: "active-job", booking: live, active: true });
+  const payment = buckets.upcoming.find((booking) => booking.paymentStepAvailable === true);
+  if (payment) return Object.freeze({ kind: "payment", booking: payment, active: false });
+  const confirmed = buckets.upcoming.find((booking) => booking.activeJobAvailable === true);
+  if (confirmed) return Object.freeze({ kind: "active-job", booking: confirmed, active: false });
+  return Object.freeze({ kind: "none", booking: null, active: false });
+}
+
 export function bookingSummaryPriceLabel(role) {
   return role === "cleaner" ? "Your agreed pay" : "Your booking total";
 }

@@ -84,6 +84,8 @@ Cleaner publication also no longer requires an email-based applicant to paste an
 
 The Cleaner dashboard now reads authoritative profile readiness alongside bookings and availability. Its one next action follows the actual supply gate: answer urgent work, complete/publish the profile, add exact availability, then configure payouts. This prevents a new Cleaner being sent into schedule or payment setup while still invisible to matching.
 
+The Landlord dashboard now evaluates the complete booking/request lifecycle before choosing its single next action. Live work takes priority, then a confirmed booking requiring authorization, then confirmed work and the active matching request before any new draft. An earlier waiting invitation can no longer hide a later payable booking or push the Landlord toward a duplicate request.
+
 **The app is ~40% of the business.** The rest is cleaner supply, trust/insurance, and moving money — those are founder tasks and set the real timeline (see §8).
 
 ---

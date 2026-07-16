@@ -1,7 +1,7 @@
 import { checklistFromTranscript } from "./checklist.js";
 import { isUkPostcode } from "./contact-validation.js";
 import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-5";
-import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js";
+import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260716-1";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -532,23 +532,24 @@ function renderBookings() {
 }
 
 function renderNextAction() {
-  const buckets = bookingSummaryBuckets(bookings, "landlord");
-  const booking = buckets.active[0] || buckets.upcoming[0];
+  const bookingAction = landlordBookingNextAction(bookings);
+  const booking = bookingAction.booking;
   nextLink.hidden = true;
   nextButton.hidden = true;
-  if (booking?.paymentStepAvailable) {
+  delete nextButton.dataset.nextRequestId;
+  if (bookingAction.kind === "active-job") {
+    nextTitle.textContent = bookingAction.active ? "Open your live clean" : "View your confirmed clean";
+    nextCopy.textContent = `${booking.propertyName || "Your property"} · ${formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)}`;
+    nextLink.href = `/bookings/${booking.bookingId}`;
+    nextLink.textContent = bookingAction.active ? "Open live progress" : "View booking";
+    nextLink.hidden = false;
+    return;
+  }
+  if (bookingAction.kind === "payment") {
     nextTitle.textContent = "Secure your confirmed booking";
     nextCopy.textContent = `${booking.propertyName || "Your property"} is ready for its booking-total authorization.`;
     nextLink.href = `/booking-payment?bookingId=${encodeURIComponent(booking.bookingId)}`;
     nextLink.textContent = "Authorize booking";
-    nextLink.hidden = false;
-    return;
-  }
-  if (booking?.activeJobAvailable) {
-    nextTitle.textContent = buckets.active.length ? "Open your live clean" : "View your confirmed clean";
-    nextCopy.textContent = `${booking.propertyName || "Your property"} · ${formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)}`;
-    nextLink.href = `/bookings/${booking.bookingId}`;
-    nextLink.textContent = buckets.active.length ? "Open live progress" : "View booking";
     nextLink.hidden = false;
     return;
   }
@@ -557,6 +558,17 @@ function renderNextAction() {
     nextCopy.textContent = "Only the name and address are needed now. Extra property details can wait.";
     nextButton.textContent = "Add property";
     nextButton.dataset.nextAction = "property";
+    nextButton.hidden = false;
+    return;
+  }
+  const activeRequest = requests.find((request) => ["searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "matched"].includes(request.status));
+  if (activeRequest) {
+    const waitingForCleaner = ["cleaner-invited", "pending-cleaner-acceptance"].includes(activeRequest.status);
+    nextTitle.textContent = waitingForCleaner ? "A Cleaner is reviewing your request" : activeRequest.status === "matched" ? "Your Cleaner is matched" : "Tideway is looking for your Cleaner";
+    nextCopy.textContent = `${requestStatusLabel(activeRequest.status)} · Review the submitted rooms, tasks and current status in one place.`;
+    nextButton.textContent = "View request status";
+    nextButton.dataset.nextAction = "submitted";
+    nextButton.dataset.nextRequestId = activeRequest.requestId;
     nextButton.hidden = false;
     return;
   }
@@ -793,6 +805,10 @@ nextButton.addEventListener("click", () => {
     return;
   }
   selectWorkspaceTab("requests");
+  if (action === "submitted") {
+    openRequestScan(nextButton.dataset.nextRequestId);
+    return;
+  }
   if (action === "draft") {
     requestList.scrollIntoView({ behavior: "smooth", block: "start" });
     requestList.querySelector("details")?.setAttribute("open", "");
