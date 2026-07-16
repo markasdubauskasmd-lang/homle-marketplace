@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Active cleaning job | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-62">
-  <script src="/active-job.js?v=20260716-3" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-63">
+  <script src="/active-job.js?v=20260716-4" type="module"></script>
 </head>
 <body class="active-job-page">
   <a class="skip-link" href="#active-job-main">Skip to active job</a>
@@ -66,6 +66,46 @@
             <div class="active-photo-list" data-photo-list></div>
             <div class="active-photo-empty" data-photo-empty><strong>No job photos yet.</strong><p>The Cleaner can add evidence after arrival. Photos are never public profile content.</p></div>
             <div class="active-photo-feedback" data-photo-feedback role="status" aria-live="polite" hidden></div>
+          </section>
+
+          <section class="active-review-card" data-review-card hidden aria-labelledby="review-title">
+            <div class="active-card-heading"><div><p class="eyebrow">Verified booking review</p><h2 id="review-title" data-review-title>Review this clean</h2></div><span class="active-private-pill" data-review-state>Completed booking only</span></div>
+            <p class="active-review-copy" data-review-copy></p>
+            <div class="active-review-confirm" data-review-confirm hidden>
+              <p>Confirm only after checking the room checklist, Cleaner notes, issues and private after photos. This records the booking as completed.</p>
+              <button class="button" type="button" data-review-complete>Confirm job complete</button>
+            </div>
+            <form class="active-review-form" data-review-form hidden>
+              <fieldset class="active-review-stars"><legend>Overall rating <span>(required)</span></legend><div>
+                <label><input type="radio" name="rating" value="1" required><span>1</span><small>Poor</small></label>
+                <label><input type="radio" name="rating" value="2"><span>2</span><small>Fair</small></label>
+                <label><input type="radio" name="rating" value="3"><span>3</span><small>Good</small></label>
+                <label><input type="radio" name="rating" value="4"><span>4</span><small>Great</small></label>
+                <label><input type="radio" name="rating" value="5"><span>5</span><small>Excellent</small></label>
+              </div></fieldset>
+              <details class="active-review-details"><summary>Add detailed scores <span>(optional)</span></summary><div class="active-review-score-grid">
+                <label>Quality<select name="qualityRating"><option value="">Not scored</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
+                <label>Punctuality<select name="punctualityRating"><option value="">Not scored</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
+                <label>Communication<select name="communicationRating"><option value="">Not scored</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
+                <label>Professionalism<select name="professionalismRating"><option value="">Not scored</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></label>
+              </div></details>
+              <label>Written review <span>(optional, public after approval)</span><textarea name="writtenReview" rows="4" maxlength="3000" placeholder="What went well? Keep personal contact details out of your review."></textarea></label>
+              <p class="active-review-boundary">Only one review is allowed for this completed booking. Tideway moderates written content before it becomes public.</p>
+              <button class="button" type="submit" data-review-submit>Submit verified review</button>
+            </form>
+            <div class="active-review-summary" data-review-summary hidden>
+              <div class="active-review-overall"><strong data-review-stars></strong><span data-review-overall></span></div>
+              <dl class="active-review-scores" data-review-scores></dl>
+              <blockquote data-review-text hidden></blockquote>
+              <p class="active-review-moderation" data-review-moderation hidden></p>
+              <div class="active-review-response" data-review-response hidden><strong>Cleaner response</strong><p></p></div>
+            </div>
+            <form class="active-review-response-form" data-review-response-form hidden>
+              <label>Your one public response<textarea name="response" rows="3" minlength="1" maxlength="2000" placeholder="Thank the customer or respond professionally without sharing contact details." required></textarea></label>
+              <p class="active-review-boundary">Your response is final and appears publicly with the approved review.</p>
+              <button class="button" type="submit" data-review-response-submit>Publish response</button>
+            </form>
+            <div class="active-review-feedback" data-review-feedback role="status" aria-live="polite" hidden></div>
           </section>
 
           <section class="active-message-card" aria-labelledby="messages-title">

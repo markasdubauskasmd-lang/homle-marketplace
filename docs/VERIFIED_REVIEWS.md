@@ -1,5 +1,7 @@
 # Verified booking reviews
 
+The authenticated participant page now connects this complete workflow to `/bookings/:bookingId` and its tracking/progress aliases. The Landlord first confirms finished work after reviewing the live checklist and private evidence, then receives the one-per-completed-booking rating form. The Cleaner sees an approved review only and may submit one final professional response. No browser control can approve moderation, edit a submitted review or change a Cleaner aggregate directly.
+
 Tideway now has a source-complete review lifecycle for account-backed marketplace bookings. It remains detached from the local pilot until PostgreSQL migrations, authenticated UI and Administrator moderation are proven in staging.
 
 ## Lifecycle

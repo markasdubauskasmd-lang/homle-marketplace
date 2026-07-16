@@ -74,6 +74,47 @@ export function activeJobMessagingOpen(status) {
   return messagingStatuses.has(status);
 }
 
+export function bookingReviewView(role, status, review = null) {
+  if (!['landlord', 'cleaner'].includes(role) || !['awaiting-review', 'completed'].includes(status)) return Object.freeze({ visible: false, mode: 'hidden' });
+  if (role === 'landlord' && status === 'awaiting-review') return Object.freeze({ visible: true, mode: 'confirm-completion', title: 'Confirm the finished clean', copy: 'Check the completed tasks, notes and private photos before marking this booking complete.' });
+  if (role === 'landlord' && !review) return Object.freeze({ visible: true, mode: 'submit-review', title: 'Rate this completed clean', copy: 'Your rating is tied to this completed booking. Only an approved review affects the Cleaner’s public rating.' });
+  if (role === 'landlord') return Object.freeze({ visible: true, mode: 'submitted', title: 'Review submitted', copy: review.moderationStatus === 'approved' ? 'This verified review is approved and contributes to the Cleaner’s public rating.' : review.moderationStatus === 'rejected' ? 'This review is not public. Tideway’s moderation note is shown below.' : 'This review is awaiting moderation and is not public yet.' });
+  if (status === 'awaiting-review') return Object.freeze({ visible: true, mode: 'waiting-for-completion', title: 'Waiting for Landlord confirmation', copy: 'Your completed checklist and evidence are ready for the Landlord to review.' });
+  if (!review) return Object.freeze({ visible: true, mode: 'review-unavailable', title: 'Review not available yet', copy: 'A Landlord review appears here only after it has been approved. No private moderation details are shown.' });
+  if (!review.cleanerResponse) return Object.freeze({ visible: true, mode: 'respond', title: 'Your approved review', copy: 'You may add one professional public response. It cannot be edited after submission.' });
+  return Object.freeze({ visible: true, mode: 'responded', title: 'Your approved review', copy: 'Your one professional response has been published with this review.' });
+}
+
+function reviewScore(value, label, required = false) {
+  if (!required && (value == null || value === '')) return null;
+  const score = Number(value);
+  if (!Number.isInteger(score) || score < 1 || score > 5) throw new TypeError(`${label} must be from 1 to 5.`);
+  return score;
+}
+
+function reviewText(value, maximum, label) {
+  const normalized = typeof value === 'string' ? value.replace(/\r\n?/g, '\n').trim() : '';
+  if (normalized.length > maximum || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(normalized)) throw new TypeError(`${label} is invalid.`);
+  return normalized;
+}
+
+export function bookingReviewPayload(input = {}) {
+  return Object.freeze({
+    rating: reviewScore(input.rating, 'Overall rating', true),
+    qualityRating: reviewScore(input.qualityRating, 'Quality rating'),
+    punctualityRating: reviewScore(input.punctualityRating, 'Punctuality rating'),
+    communicationRating: reviewScore(input.communicationRating, 'Communication rating'),
+    professionalismRating: reviewScore(input.professionalismRating, 'Professionalism rating'),
+    writtenReview: reviewText(input.writtenReview, 3000, 'Written review')
+  });
+}
+
+export function cleanerReviewResponse(value) {
+  const response = reviewText(value, 2000, 'Cleaner response');
+  if (!response) throw new TypeError('Add a professional response before submitting.');
+  return response;
+}
+
 export function mergeBookingMessages(current, incoming, maximum = 500) {
   const records = new Map();
   for (const value of [...(Array.isArray(current) ? current : []), ...(Array.isArray(incoming) ? incoming : [])]) {

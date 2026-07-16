@@ -6,6 +6,9 @@ import {
   activeJobStage,
   activeJobStages,
   activeJobStatusLabels,
+  bookingReviewPayload,
+  bookingReviewView,
+  cleanerReviewResponse,
   createClientMessageId,
   elapsedLabel,
   jobPhotoFileCheck,
@@ -45,7 +48,12 @@ const photoUpload = document.querySelector("[data-photo-upload]");
 const photoCancel = document.querySelector("[data-photo-cancel]");
 const photoViewer = document.querySelector("[data-photo-viewer]");
 const photoViewerImage = document.querySelector("[data-photo-viewer-image]");
-const state = { account: null, role: "", tracking: null, progress: null, property: null, messages: [], messageCursor: null, messagesHasMore: false, messageRetry: null, messageLoading: false, messageSending: false, photoFile: null, photoPreviewUrl: "", photoRetry: null, photoUploadInFlight: false, photoViewInFlight: false, eventSource: null, watchId: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false };
+const reviewComplete = document.querySelector("[data-review-complete]");
+const reviewForm = document.querySelector("[data-review-form]");
+const reviewSubmit = document.querySelector("[data-review-submit]");
+const reviewResponseForm = document.querySelector("[data-review-response-form]");
+const reviewResponseSubmit = document.querySelector("[data-review-response-submit]");
+const state = { account: null, role: "", status: "", tracking: null, progress: null, property: null, review: null, reviewLoading: false, reviewMutationInFlight: false, messages: [], messageCursor: null, messagesHasMore: false, messageRetry: null, messageLoading: false, messageSending: false, photoFile: null, photoPreviewUrl: "", photoRetry: null, photoUploadInFlight: false, photoViewInFlight: false, eventSource: null, watchId: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false };
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 document.querySelector("[data-booking-reference]").textContent = bookingId ? bookingId.slice(0, 8).toUpperCase() : "Invalid";
@@ -82,6 +90,13 @@ function showLocationFeedback(message, kind = "info") {
 
 function showMessageFeedback(message, kind = "info") {
   const feedback = document.querySelector("[data-message-feedback]");
+  feedback.hidden = !message;
+  feedback.dataset.kind = kind;
+  feedback.textContent = message;
+}
+
+function showReviewFeedback(message, kind = "info") {
+  const feedback = document.querySelector("[data-review-feedback]");
   feedback.hidden = !message;
   feedback.dataset.kind = kind;
   feedback.textContent = message;
@@ -135,7 +150,7 @@ function messagePagePath(cursor = null) {
 }
 
 function currentStatus() {
-  const values = [state.tracking?.status, state.progress?.status].filter(Boolean);
+  const values = [state.status, state.tracking?.status, state.progress?.status].filter(Boolean);
   return values.sort((left, right) => activeJobStage(right) - activeJobStage(left))[0] || "confirmed";
 }
 
@@ -332,6 +347,69 @@ function renderPhotos() {
   document.querySelector("[data-photo-count]").textContent = String(photos.length);
 }
 
+function reviewScoreItem(label, value) {
+  if (!Number.isInteger(Number(value))) return null;
+  const wrapper = document.createElement("div");
+  const term = document.createElement("dt");
+  const detail = document.createElement("dd");
+  term.textContent = `${label} `;
+  detail.textContent = `${value}/5`;
+  wrapper.append(term, detail);
+  return wrapper;
+}
+
+function renderReviewSummary(review) {
+  const summary = document.querySelector("[data-review-summary]");
+  summary.hidden = !review;
+  if (!review) return;
+  const stars = document.querySelector("[data-review-stars]");
+  stars.textContent = `${"★".repeat(review.rating)}${"☆".repeat(5 - review.rating)}`;
+  stars.setAttribute("aria-label", `${review.rating} out of 5 stars`);
+  document.querySelector("[data-review-overall]").textContent = `${review.rating}/5 overall`;
+  const scores = document.querySelector("[data-review-scores]");
+  scores.replaceChildren(...[
+    reviewScoreItem("Quality", review.qualityRating),
+    reviewScoreItem("Punctuality", review.punctualityRating),
+    reviewScoreItem("Communication", review.communicationRating),
+    reviewScoreItem("Professionalism", review.professionalismRating)
+  ].filter(Boolean));
+  scores.hidden = scores.childElementCount === 0;
+  const written = document.querySelector("[data-review-text]");
+  written.hidden = !review.writtenReview;
+  written.textContent = review.writtenReview || "";
+  const moderation = document.querySelector("[data-review-moderation]");
+  moderation.hidden = !(state.role === "landlord" && review.moderationNote);
+  moderation.textContent = review.moderationNote ? `Tideway moderation note: ${review.moderationNote}` : "";
+  const response = document.querySelector("[data-review-response]");
+  response.hidden = !review.cleanerResponse;
+  response.querySelector("p").textContent = review.cleanerResponse || "";
+}
+
+function renderReview() {
+  const card = document.querySelector("[data-review-card]");
+  const view = bookingReviewView(state.role, currentStatus(), state.review);
+  card.hidden = !view.visible;
+  if (!view.visible) return;
+  document.querySelector("[data-review-title]").textContent = view.title;
+  document.querySelector("[data-review-copy]").textContent = view.copy;
+  const stateLabel = document.querySelector("[data-review-state]");
+  stateLabel.textContent = view.mode === "confirm-completion" ? "Landlord confirmation needed"
+    : view.mode === "submit-review" ? "Ready to rate"
+      : state.review?.moderationStatus === "approved" ? "Approved verified review"
+        : state.review?.moderationStatus === "rejected" ? "Not public"
+          : state.review ? "Moderation pending" : "Private booking status";
+  document.querySelector("[data-review-confirm]").hidden = view.mode !== "confirm-completion";
+  reviewForm.hidden = view.mode !== "submit-review";
+  reviewResponseForm.hidden = view.mode !== "respond";
+  reviewComplete.disabled = state.reviewMutationInFlight;
+  reviewSubmit.disabled = state.reviewMutationInFlight;
+  reviewResponseSubmit.disabled = state.reviewMutationInFlight;
+  for (const button of [reviewComplete, reviewSubmit, reviewResponseSubmit]) {
+    if (state.reviewMutationInFlight) button.setAttribute("aria-busy", "true"); else button.removeAttribute("aria-busy");
+  }
+  renderReviewSummary(state.review);
+}
+
 function privatePhotoUrl(value) {
   let url;
   try { url = new URL(value); } catch { throw new Error("The short-lived private photo link is invalid."); }
@@ -448,6 +526,7 @@ function render() {
   renderJourney();
   renderProgress();
   renderPhotos();
+  renderReview();
   renderProperty();
   renderMessages();
   renderActions();
@@ -466,6 +545,18 @@ function closeLiveStream() {
   state.eventSource = null;
 }
 
+async function loadReview({ quiet = false } = {}) {
+  if (!["awaiting-review", "completed"].includes(currentStatus()) || state.reviewLoading) return;
+  state.reviewLoading = true;
+  try {
+    const result = await requestJson(`/api/marketplace/bookings/${bookingId}/reviews`);
+    state.review = result.review || null;
+    if (!workspace.hidden) renderReview();
+  } catch (error) {
+    if (!quiet) showReviewFeedback(error.message || "The verified review could not be loaded. Try again.", "error");
+  } finally { state.reviewLoading = false; }
+}
+
 function openLiveStream() {
   closeLiveStream();
   if (!bookingId || typeof EventSource !== "function") return setConnection("offline", "Live connection unavailable", "Use Try again to refresh the booking safely.");
@@ -476,10 +567,12 @@ function openLiveStream() {
     try {
       const snapshot = JSON.parse(event.data);
       if (snapshot.bookingId !== bookingId) throw new Error("Booking mismatch");
+      if (snapshot.status) state.status = snapshot.status;
       if (snapshot.tracking) state.tracking = snapshot.tracking;
       if (snapshot.progress) state.progress = snapshot.progress;
       if (snapshot.messages) applyMessagePage(snapshot.messages, { preserveCursor: true });
       render();
+      if (["awaiting-review", "completed"].includes(currentStatus())) void loadReview({ quiet: true });
       if (["completed", "cancelled", "disputed"].includes(snapshot.status)) {
         closeLiveStream();
         setConnection("closed", "Booking updates finished", "This booking is now closed.");
@@ -553,6 +646,67 @@ async function runMutation(button, operation) {
     button.removeAttribute("aria-busy");
     if (!workspace.hidden) renderActions();
   }
+}
+
+async function runReviewMutation(button, operation) {
+  if (state.reviewMutationInFlight) return;
+  state.reviewMutationInFlight = true;
+  showReviewFeedback("");
+  renderReview();
+  try { await operation(); }
+  catch (error) {
+    showReviewFeedback(error.message || "The review could not be updated. No unverified change was shown.", "error");
+    if (error.statusCode === 401) showGate("Sign in again", "Your account session expired before the review change was saved.", { kind: "authentication", allowSignIn: true });
+  } finally {
+    state.reviewMutationInFlight = false;
+    if (!workspace.hidden) renderReview();
+  }
+}
+
+function handleCompletionConfirmation() {
+  if (!globalThis.confirm("Confirm that this cleaning visit is complete? Check the task list, notes, issues and after photos first.")) return;
+  void runReviewMutation(reviewComplete, async () => {
+    const result = await mutate(`/api/marketplace/bookings/${bookingId}/completion`);
+    if (result.booking?.bookingId !== bookingId || result.booking?.status !== "completed") throw new Error("The completed booking response could not be verified.");
+    state.status = "completed";
+    state.review = null;
+    showReviewFeedback("Booking completed. You can now leave one verified review.", "success");
+    render();
+  });
+}
+
+function handleReviewSubmission(event) {
+  event.preventDefault();
+  if (!reviewForm.reportValidity()) return;
+  let payload;
+  try { payload = bookingReviewPayload(Object.fromEntries(new FormData(reviewForm).entries())); }
+  catch (error) { return showReviewFeedback(error.message, "error"); }
+  if (!globalThis.confirm(`Submit this ${payload.rating}-star verified review? It cannot be replaced after submission.`)) return;
+  void runReviewMutation(reviewSubmit, async () => {
+    const result = await mutate(`/api/marketplace/bookings/${bookingId}/reviews`, "POST", payload);
+    if (result.review?.bookingId !== bookingId) throw new Error("The submitted review response could not be verified.");
+    state.review = result.review;
+    reviewForm.reset();
+    showReviewFeedback("Verified review submitted for Tideway moderation.", "success");
+    renderReview();
+  });
+}
+
+function handleReviewResponse(event) {
+  event.preventDefault();
+  if (!reviewResponseForm.reportValidity()) return;
+  let response;
+  try { response = cleanerReviewResponse(new FormData(reviewResponseForm).get("response")); }
+  catch (error) { return showReviewFeedback(error.message, "error"); }
+  if (!globalThis.confirm("Publish this professional response? It cannot be edited after submission.")) return;
+  void runReviewMutation(reviewResponseSubmit, async () => {
+    const result = await mutate(`/api/marketplace/bookings/${bookingId}/reviews/response`, "POST", { response });
+    if (result.review?.bookingId !== bookingId || !result.review?.cleanerResponse) throw new Error("The Cleaner response could not be verified.");
+    state.review = result.review;
+    reviewResponseForm.reset();
+    showReviewFeedback("Your professional response is now attached to the approved review.", "success");
+    renderReview();
+  });
 }
 
 async function handlePrimaryAction() {
@@ -847,8 +1001,10 @@ async function load() {
     ]);
     state.tracking = trackingResult.tracking;
     state.progress = progressResult.progress;
+    state.status = [state.tracking?.status, state.progress?.status].filter(Boolean).sort((left, right) => activeJobStage(right) - activeJobStage(left))[0] || "confirmed";
     state.property = propertyResult.property;
     applyMessagePage(messageResult);
+    if (["awaiting-review", "completed"].includes(currentStatus())) await loadReview();
     showFeedback("");
     render();
     openLiveStream();
@@ -863,6 +1019,9 @@ async function load() {
 primaryAction.addEventListener("click", handlePrimaryAction);
 pauseAction.addEventListener("click", openPauseDialog);
 addTaskAction.addEventListener("click", () => { taskForm.reset(); taskDialog.showModal(); });
+reviewComplete.addEventListener("click", handleCompletionConfirmation);
+reviewForm.addEventListener("submit", handleReviewSubmission);
+reviewResponseForm.addEventListener("submit", handleReviewResponse);
 retry.addEventListener("click", load);
 window.addEventListener("online", () => { updateNetworkState(); if (!state.eventSource && !workspace.hidden) openLiveStream(); });
 window.addEventListener("offline", updateNetworkState);

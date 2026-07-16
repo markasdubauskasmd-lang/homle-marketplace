@@ -1722,8 +1722,8 @@ textarea { resize: vertical; }
 .active-job-stages .current span { color: #fff; border-color: var(--orange); background: var(--green-dark); box-shadow: 0 0 0 5px rgba(216,111,36,.14); }
 .active-job-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 24px; align-items: start; }
 .active-job-primary { display: grid; gap: 22px; }
-.active-journey-card, .active-progress-card, .active-photo-card, .active-message-card, .active-property-card, .active-job-actions { border: 1px solid var(--line); border-radius: 22px; background: #fff; box-shadow: 0 14px 42px rgba(16,36,33,.07); }
-.active-journey-card, .active-progress-card, .active-photo-card, .active-message-card, .active-property-card { padding: clamp(20px, 4vw, 30px); }
+.active-journey-card, .active-progress-card, .active-photo-card, .active-review-card, .active-message-card, .active-property-card, .active-job-actions { border: 1px solid var(--line); border-radius: 22px; background: #fff; box-shadow: 0 14px 42px rgba(16,36,33,.07); }
+.active-journey-card, .active-progress-card, .active-photo-card, .active-review-card, .active-message-card, .active-property-card { padding: clamp(20px, 4vw, 30px); }
 .active-card-heading { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
 .active-card-heading h2 { margin: 4px 0 0; font-size: clamp(1.5rem, 4vw, 2.25rem); }
 .active-private-pill { flex: 0 0 auto; padding: .45rem .65rem; color: var(--green-dark); border: 1px solid #b7d8ce; border-radius: 999px; background: #eff9f5; font-size: .64rem; font-weight: 850; }
@@ -1793,6 +1793,49 @@ textarea { resize: vertical; }
 .active-photo-empty p { margin: 4px 0 0; color: var(--muted); font-size: .74rem; }
 .active-photo-feedback, .active-photo-upload-state { margin-top: 13px; padding: 11px 13px; color: var(--green-dark); border: 1px solid #b7d8ce; border-radius: 10px; background: #eff9f5; font-weight: 700; }
 .active-photo-feedback[data-kind="error"], .active-photo-upload-state[data-kind="error"] { color: #7a221b; border-color: #dfa9a2; background: #fff2f0; }
+.active-review-copy { margin: 10px 0 0; color: var(--muted); }
+.active-review-confirm { display: grid; gap: 14px; margin-top: 20px; padding: 18px; border: 1px solid #b7d8ce; border-radius: 14px; background: #eff9f5; }
+.active-review-confirm p { margin: 0; color: #36534b; }
+.active-review-confirm .button { justify-self: start; min-height: 52px; }
+.active-review-form, .active-review-response-form { display: grid; gap: 18px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
+.active-review-form > label, .active-review-response-form label, .active-review-score-grid label { color: var(--green-dark); font-weight: 850; }
+.active-review-form label > span { color: var(--muted); font-weight: 500; }
+.active-review-form textarea, .active-review-response-form textarea { min-height: 104px; margin-top: 7px; resize: vertical; }
+.active-review-stars { min-width: 0; margin: 0; padding: 0; border: 0; }
+.active-review-stars legend { color: var(--green-dark); font-weight: 850; }
+.active-review-stars legend span { color: var(--muted); font-weight: 500; }
+.active-review-stars > div { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 9px; }
+.active-review-stars label { position: relative; display: grid; min-height: 72px; place-items: center; padding: 9px 4px; cursor: pointer; border: 1px solid #bfd2cc; border-radius: 12px; background: #fbfdfc; color: var(--green-dark); text-align: center; }
+.active-review-stars input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.active-review-stars label:has(input:checked) { color: #fff; border-color: var(--green-dark); background: var(--green-dark); box-shadow: 0 0 0 4px rgba(216,111,36,.16); }
+.active-review-stars label:has(input:focus-visible) { outline: 3px solid var(--orange); outline-offset: 2px; }
+.active-review-stars span { display: block; font-size: 1.28rem; font-weight: 900; }
+.active-review-stars small { font-size: .58rem; }
+.active-review-details { border: 1px solid var(--line); border-radius: 12px; }
+.active-review-details summary { padding: 14px; cursor: pointer; color: var(--green-dark); font-weight: 850; }
+.active-review-details summary span { color: var(--muted); font-weight: 500; }
+.active-review-score-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 0 14px 14px; }
+.active-review-score-grid label { font-size: .72rem; }
+.active-review-score-grid select { width: 100%; min-height: 46px; margin-top: 5px; }
+.active-review-boundary { margin: 0; color: var(--muted); font-size: .7rem; }
+.active-review-form > .button, .active-review-response-form > .button { justify-self: start; min-height: 52px; }
+.active-review-summary { display: grid; gap: 14px; margin-top: 20px; padding: 18px; border: 1px solid #c9d9d4; border-radius: 14px; background: #fbfdfc; }
+.active-review-overall { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.active-review-overall strong { color: #b75b18; font-size: 1.35rem; letter-spacing: .08em; }
+.active-review-overall span { color: var(--green-dark); font-weight: 900; }
+.active-review-scores { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.active-review-scores div { padding: 7px 9px; border-radius: 999px; background: #eaf4f0; font-size: .68rem; }
+.active-review-scores dt, .active-review-scores dd { display: inline; margin: 0; }
+.active-review-scores dt { color: var(--muted); }
+.active-review-scores dd { color: var(--green-dark); font-weight: 900; }
+.active-review-summary blockquote { margin: 0; padding: 13px 15px; border-left: 4px solid var(--orange); background: #fff; white-space: pre-wrap; overflow-wrap: anywhere; }
+.active-review-moderation { margin: 0; padding: 11px 13px; color: #71430b; border: 1px solid #e6c280; border-radius: 10px; background: #fff8e4; }
+.active-review-response { padding-top: 13px; border-top: 1px solid var(--line); }
+.active-review-response strong { color: var(--green-dark); }
+.active-review-response p { margin: 5px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.active-review-feedback { margin-top: 13px; padding: 11px 13px; color: var(--green-dark); border: 1px solid #b7d8ce; border-radius: 10px; background: #eff9f5; font-weight: 700; }
+.active-review-feedback[data-kind="error"] { color: #7a221b; border-color: #dfa9a2; background: #fff2f0; }
+.active-review-card button[aria-busy="true"] { cursor: progress; opacity: .65; }
 .active-message-boundary { margin: 10px 0 0; color: var(--muted); font-size: .74rem; }
 .active-message-older { display: flex; min-height: 42px; margin: 18px auto 0; }
 .active-message-list { display: grid; gap: 10px; max-height: 420px; margin-top: 18px; padding: 4px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
@@ -1883,7 +1926,7 @@ textarea { resize: vertical; }
   .active-job-stages small { max-width: 48px; font-size: .55rem; }
   .active-job-stages span { width: 29px; height: 29px; }
   .active-job-stages li::before { top: 14px; }
-  .active-journey-card, .active-progress-card, .active-photo-card, .active-message-card, .active-property-card, .active-job-actions { border-radius: 18px; }
+  .active-journey-card, .active-progress-card, .active-photo-card, .active-review-card, .active-message-card, .active-property-card, .active-job-actions { border-radius: 18px; }
   .active-card-heading { display: grid; }
   .active-private-pill { justify-self: start; }
   .active-location-surface { min-height: 250px; }
@@ -1897,6 +1940,9 @@ textarea { resize: vertical; }
   .active-photo-list { grid-template-columns: 1fr; }
   .active-photo { grid-template-columns: 1fr; }
   .active-photo .button { width: 100%; }
+  .active-review-stars > div, .active-review-score-grid { grid-template-columns: 1fr; }
+  .active-review-stars > div { grid-template-columns: repeat(5, minmax(48px, 1fr)); overflow-x: auto; padding: 3px; }
+  .active-review-confirm .button, .active-review-form > .button, .active-review-response-form > .button { width: 100%; }
   .active-message { max-width: 92%; }
   .active-message-list { max-height: 55vh; margin-inline: -4px; }
   .active-message-form > div { align-items: stretch; }
