@@ -8,6 +8,7 @@ import { checklistChangeReview } from "./checklist-change-review.js";
 import { clearBriefDraft, readBriefDraft, saveBriefDraft } from "./brief-draft.js";
 
 const cameraInput = document.querySelector("#brief-camera");
+const videoCameraInput = document.querySelector("#brief-video-camera");
 const photoInput = document.querySelector("#brief-photos");
 const photoPreview = document.querySelector("#photo-preview");
 const photoCount = document.querySelector("#photo-count");
@@ -44,6 +45,7 @@ const draftTitle = draftStatus.querySelector("[data-draft-title]");
 const draftCopy = draftStatus.querySelector("[data-draft-copy]");
 const discardDraft = draftStatus.querySelector("[data-discard-draft]");
 const photos = [];
+const controlDisabledBeforeSubmission = new WeakMap();
 let submitting = false;
 let submissionComplete = false;
 let pendingSubmission = null;
@@ -71,11 +73,15 @@ function currentCaptureRoom() {
 
 function renderCaptureRoomControl() {
   const room = currentCaptureRoom();
-  const disabled = !room;
+  const interactionLocked = submitting || submissionComplete;
+  const disabled = !room || interactionLocked;
+  captureRoomSelect.disabled = interactionLocked;
   cameraInput.disabled = disabled;
+  videoCameraInput.disabled = disabled;
   photoInput.disabled = disabled;
   voiceButton.disabled = disabled || !SpeechRecognition;
   cameraInput.closest(".photo-picker").classList.toggle("is-disabled", disabled);
+  videoCameraInput.closest(".photo-picker").classList.toggle("is-disabled", disabled);
   photoInput.closest(".photo-picker").classList.toggle("is-disabled", disabled);
   captureRoomStatus.textContent = room
     ? `Photos, videos and speech will be labelled ${room}. Change the room as you walk.`
@@ -87,6 +93,19 @@ function renderCaptureRoomControl() {
   else if (!listening) voiceStatus.textContent = room
     ? `Ready to listen in ${room}. Tap Start speaking and describe what needs cleaning.`
     : "Choose the current room to unlock speech.";
+}
+
+function setScanInteractionLocked(locked) {
+  form.setAttribute("aria-busy", locked ? "true" : "false");
+  for (const control of form.querySelectorAll("input, select, textarea, button")) {
+    if (locked) {
+      if (!controlDisabledBeforeSubmission.has(control)) controlDisabledBeforeSubmission.set(control, control.disabled);
+      control.disabled = true;
+    } else if (controlDisabledBeforeSubmission.has(control)) {
+      control.disabled = controlDisabledBeforeSubmission.get(control);
+      controlDisabledBeforeSubmission.delete(control);
+    }
+  }
 }
 
 function appendCurrentRoomMarker() {
@@ -282,7 +301,7 @@ function renderReadiness() {
     scanReadinessList.append(item);
   });
   const referenceMismatch = draftReferenceMismatch();
-  saveButton.disabled = submitting || submissionComplete || !browserOnline || referenceMismatch;
+  saveButton.disabled = submitting || submissionComplete || listening || !browserOnline || referenceMismatch;
   saveButton.setAttribute("aria-busy", submitting ? "true" : "false");
   if (submitting) saveButton.textContent = "Preparing private room scan...";
   else if (submissionComplete) saveButton.textContent = "Room scan submitted";
@@ -569,6 +588,12 @@ cameraInput.addEventListener("change", async () => {
   await addSelectedVisuals(selected);
 });
 
+videoCameraInput.addEventListener("change", async () => {
+  const selected = Array.from(videoCameraInput.files || []);
+  videoCameraInput.value = "";
+  await addSelectedVisuals(selected);
+});
+
 photoInput.addEventListener("change", async () => {
   const selected = Array.from(photoInput.files || []);
   photoInput.value = "";
@@ -625,10 +650,17 @@ if (SpeechRecognition) {
   recognition.lang = "en-GB";
   recognition.continuous = true;
   recognition.interimResults = true;
-  recognition.onstart = () => { listening = true; voiceErrorMessage = ""; voiceButton.textContent = "Stop speaking"; voiceStatus.textContent = currentCaptureRoom() ? `Listening in ${currentCaptureRoom()}… describe the work or what you see.` : "Listening… name each room, then describe the work or what you see."; };
+  recognition.onstart = () => {
+    listening = true;
+    voiceErrorMessage = "";
+    voiceButton.textContent = "Stop speaking";
+    voiceStatus.textContent = currentCaptureRoom() ? `Listening in ${currentCaptureRoom()}… describe the work or what you see.` : "Listening… name each room, then describe the work or what you see.";
+    renderReadiness();
+  };
   recognition.onend = () => {
     listening = false;
     voiceButton.textContent = "Start speaking";
+    renderReadiness();
     if (voiceErrorMessage) { voiceStatus.textContent = voiceErrorMessage; return; }
     const tasks = generateChecklist({ scroll: false, showEmptyError: false });
     voiceStatus.textContent = pendingChecklistChange
@@ -682,6 +714,11 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   errorBox.hidden = true;
   successBox.hidden = true;
+  if (listening) {
+    recognition?.stop();
+    showError("Speech capture was still running. Review the final transcript and concise checklist, then submit again.");
+    return;
+  }
   const tasks = checklistTasks();
   if (!browserOnline) { showError("You are offline. Your text is protected in this tab; reconnect and try again."); return; }
   if (draftReferenceMismatch()) { showError(`These notes belong to ${activeDraftReference}. Restore that request reference or discard the saved text before continuing.`); return; }
@@ -695,6 +732,8 @@ form.addEventListener("submit", async (event) => {
   if (!handoff.workCount) { showError("Add at least one cleaning task; leave-alone boundaries alone cannot be quoted."); return; }
   if (handoff.missingWorkAreas.length) { showError(`Add at least one cleaning task for: ${handoff.missingWorkAreas.join(", ")}. Use the room notes, then summarise again.`); return; }
   submitting = true;
+  setScanInteractionLocked(true);
+  renderCaptureRoomControl();
   renderReadiness();
   saveButton.textContent = "Preparing private room scan…";
   try {
@@ -746,6 +785,9 @@ form.addEventListener("submit", async (event) => {
     showError(error.message);
   } finally {
     submitting = false;
+    if (!submissionComplete) setScanInteractionLocked(false);
+    else form.setAttribute("aria-busy", "false");
+    renderCaptureRoomControl();
     renderReadiness();
   }
 });

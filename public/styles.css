@@ -803,6 +803,7 @@ textarea { resize: vertical; }
 .capture-room-control { display: grid; grid-template-columns: minmax(240px, 360px) 1fr; gap: 16px; align-items: end; margin-bottom: 14px; padding: 14px; border: 1px solid #b7d9d0; border-radius: 12px; background: var(--mint-pale); }
 .capture-room-control p { margin: 0 0 11px; color: var(--muted); font-size: .86rem; line-height: 1.45; }
 .photo-picker-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.capture-limit-note { margin: 10px 0 0; color: var(--muted); font-size: .8rem; }
 .capture-voice-action { min-height: 51px; }
 .capture-voice-feedback { display: grid; gap: 6px; margin-top: 12px; }
 .capture-voice-feedback .voice-status, .capture-voice-feedback .speech-room-context { margin: 0; }
