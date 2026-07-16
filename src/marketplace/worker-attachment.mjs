@@ -93,6 +93,7 @@ export async function createMarketplaceWorkerAttachment(options = {}) {
 
   const adapters = options.adapters || await (options.loadAdapters || loadMarketplaceDeploymentAdapters)(env);
   if (typeof adapters?.onUnexpectedError !== "function") throw new TypeError("Marketplace workers require private operational error monitoring.");
+  if (typeof adapters?.close !== "function") throw new TypeError("Marketplace worker monitoring must provide deterministic shutdown.");
   const createPool = options.createPool || createDefaultWorkerPool;
   const pool = await createPool(env);
   let emailDelivery;
@@ -123,6 +124,7 @@ export async function createMarketplaceWorkerAttachment(options = {}) {
     try { await emailDelivery?.close?.(); } catch {}
     try { await objectStorage?.close?.(); } catch {}
     try { await pool?.end?.(); } catch {}
+    try { await adapters.close(); } catch {}
     throw error;
   }
 
@@ -144,6 +146,7 @@ export async function createMarketplaceWorkerAttachment(options = {}) {
       try { await emailDelivery?.close?.(); } catch (error) { failures.push(error); }
       try { await objectStorage?.close?.(); } catch (error) { failures.push(error); }
       try { await pool?.end?.(); } catch (error) { failures.push(error); }
+      try { await adapters.close(); } catch (error) { failures.push(error); }
       if (failures.length) throw new AggregateError(failures, "Marketplace worker resources did not close cleanly.");
     }
   });

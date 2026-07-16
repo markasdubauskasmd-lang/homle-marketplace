@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { assessPrivateDataDirectory } from "./data-directory-safety.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
 import { createTrustedClientAddressResolver } from "./src/marketplace/trusted-client-key.mjs";
+import { builtInMonitoringAdapter, validateMonitoringWebhookEnvironment } from "./src/marketplace/monitoring-webhook.mjs";
 
 function exact(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -38,6 +39,7 @@ function safeAdminKey(value) {
 function deploymentModule(value) {
   const supplied = exact(value);
   if (!supplied) return false;
+  if (supplied === builtInMonitoringAdapter) return true;
   if (supplied.startsWith("file:")) {
     try { return new URL(supplied).protocol === "file:"; } catch { return false; }
   }
@@ -78,7 +80,8 @@ export function validateProductionDeployment(env = process.env, options = {}) {
   if (marketplace.marketplace.requested) {
     if (!marketplace.emailConfigured) errors.push("The enabled marketplace requires SMTP_URL and EMAIL_FROM.");
     if (!marketplace.objectStorageConfigured) errors.push("The enabled marketplace requires complete private object-storage configuration.");
-    if (!deploymentModule(env.MARKETPLACE_ADAPTER_MODULE)) errors.push("The enabled marketplace requires an absolute deployment monitoring adapter module.");
+    if (!deploymentModule(env.MARKETPLACE_ADAPTER_MODULE)) errors.push(`The enabled marketplace requires ${builtInMonitoringAdapter} or an absolute deployment monitoring adapter module.`);
+    if (exact(env.MARKETPLACE_ADAPTER_MODULE) === builtInMonitoringAdapter) errors.push(...validateMonitoringWebhookEnvironment(env).errors);
   }
 
   return Object.freeze({

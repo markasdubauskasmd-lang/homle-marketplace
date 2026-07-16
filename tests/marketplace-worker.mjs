@@ -96,7 +96,7 @@ assert.throws(() => workerPoolEnvironment({ WORKER_DATABASE_URL: "postgresql://t
 const fakeSupervisor = { start() { return {}; }, snapshot() { return { jobs: [] }; }, async close() {} };
 const attached = await createMarketplaceWorkerAttachment({
   env: { MARKETPLACE_WORKER_ENABLED: "true", WORKER_DATABASE_URL: "postgresql://tideway_worker@127.0.0.1/test" },
-  adapters: { onUnexpectedError() {} },
+  adapters: { onUnexpectedError() {}, async close() {} },
   createPool: async () => ({ async end() { poolClosed += 1; } }),
   probeDatabase: async () => ({ databaseRole: "tideway_worker" }),
   createRuntime: () => fakeSupervisor
@@ -105,7 +105,7 @@ assert.deepEqual(attached.capabilities, { email: false, media: false, dispatch: 
 await attached.close();
 await attached.close();
 assert.equal(poolClosed, 1, "Worker attachment did not close its pool exactly once.");
-await assert.rejects(() => createMarketplaceWorkerAttachment({ env: { MARKETPLACE_WORKER_ENABLED: "true", WORKER_AUTOMATIC_DISPATCH_ENABLED: "true" }, adapters: { onUnexpectedError() {} } }), /marketplace runtime/);
+await assert.rejects(() => createMarketplaceWorkerAttachment({ env: { MARKETPLACE_WORKER_ENABLED: "true", WORKER_AUTOMATIC_DISPATCH_ENABLED: "true" }, adapters: { onUnexpectedError() {}, async close() {} } }), /marketplace runtime/);
 
 const probePool = { async query(text, values) {
   assert.ok(text.includes("no_public_table_access") && text.includes("to_regprocedure") && values[0].length === requiredWorkerFunctions.length);

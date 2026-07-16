@@ -23,7 +23,8 @@ const completeEnvironment = Object.freeze({
 });
 
 const adapters = Object.freeze({
-  onUnexpectedError() {}
+  onUnexpectedError() {},
+  async close() {}
 });
 
 let adapterLoaded = false;
@@ -42,6 +43,14 @@ assert.ok(Object.values(disabled.authenticationCapabilities).filter((value) => v
 await assert.rejects(createMarketplaceAttachment({ env: { MARKETPLACE_ENABLED: "sometimes" } }), /must be true or false/);
 await assert.rejects(createMarketplaceAttachment({ env: { MARKETPLACE_ENABLED: "true" }, adapters }), /requires database, session, token, encryption and exact-origin/);
 await assert.rejects(loadMarketplaceDeploymentAdapters({ MARKETPLACE_ADAPTER_MODULE: "relative-adapter.mjs" }), /absolute file path/);
+const builtInAdapters = await loadMarketplaceDeploymentAdapters({
+  MARKETPLACE_ADAPTER_MODULE: "homle:monitoring-webhook",
+  MONITORING_WEBHOOK_URL: "https://monitoring.invalid.example/events",
+  MONITORING_WEBHOOK_TOKEN: "private-monitoring-token-with-32-characters"
+});
+assert.equal(typeof builtInAdapters.onUnexpectedError, "function");
+assert.equal(typeof builtInAdapters.close, "function");
+await builtInAdapters.close();
 
 let invalidProxyLoadedAdapters = false;
 await assert.rejects(createMarketplaceAttachment({

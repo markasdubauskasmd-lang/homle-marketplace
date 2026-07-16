@@ -110,6 +110,29 @@ try {
   }, { projectRoot });
   assert.equal(marketplace.ok, true, marketplace.errors.join("\n"));
   assert.equal(marketplace.mode, "marketplace");
+  const builtInMonitoringEnvironment = {
+    ...safePilot,
+    MARKETPLACE_ENABLED: "true",
+    DATABASE_URL: "postgresql://tideway_app:private@db.example.com/tideway",
+    SESSION_SECRET: "session-secret-with-at-least-32-characters",
+    AUTH_TOKEN_SECRET: "different-auth-secret-with-at-least-32-chars",
+    DATA_ENCRYPTION_KEY: "another-distinct-encryption-secret-32-chars",
+    SMTP_URL: "smtps://smtp.example.com",
+    EMAIL_FROM: "Homle <test@example.com>",
+    OBJECT_STORAGE_ENDPOINT: "https://storage.example.com",
+    OBJECT_STORAGE_BUCKET: "homle-private-staging",
+    OBJECT_STORAGE_REGION: "eu-west-2",
+    OBJECT_STORAGE_ACCESS_KEY_ID: "private-access-key",
+    OBJECT_STORAGE_SECRET_ACCESS_KEY: "private-storage-secret",
+    MARKETPLACE_ADAPTER_MODULE: "homle:monitoring-webhook",
+    MONITORING_WEBHOOK_URL: "https://monitoring.example.com/homle/events",
+    MONITORING_WEBHOOK_TOKEN: "private-monitoring-token-with-32-characters"
+  };
+  const builtInMonitoring = validateProductionDeployment(builtInMonitoringEnvironment, { projectRoot });
+  assert.equal(builtInMonitoring.ok, true, builtInMonitoring.errors.join("\n"));
+  const missingBuiltInMonitoring = validateProductionDeployment({ ...builtInMonitoringEnvironment, MONITORING_WEBHOOK_URL: "", MONITORING_WEBHOOK_TOKEN: "" }, { projectRoot });
+  assert.equal(missingBuiltInMonitoring.ok, false);
+  assert(missingBuiltInMonitoring.errors.some((error) => error.includes("MONITORING_WEBHOOK_URL")));
 
   const child = spawn(process.execPath, ["server.mjs"], {
     cwd: projectRoot,

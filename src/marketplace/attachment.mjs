@@ -4,6 +4,7 @@ import { marketplaceEnvironment, publicAuthenticationCapabilities, validateMarke
 import { postgresPoolOptions } from "./database.mjs";
 import { createPostgresRateLimiter } from "./postgres-rate-limiter.mjs";
 import { createMarketplaceRuntime } from "./runtime.mjs";
+import { builtInMonitoringAdapter } from "./monitoring-webhook.mjs";
 import { createS3ObjectStorage } from "./s3-object-storage.mjs";
 import { createSmtpEmailDelivery } from "./smtp-email-delivery.mjs";
 import { createStripePaymentProvider } from "./stripe-payment-provider.mjs";
@@ -19,6 +20,7 @@ function enabledState(env) {
 function deploymentModuleSpecifier(value) {
   const supplied = String(value || "").trim();
   if (!supplied) throw new TypeError("MARKETPLACE_ADAPTER_MODULE is required when the marketplace is enabled.");
+  if (supplied === builtInMonitoringAdapter) return new URL("./monitoring-webhook.mjs", import.meta.url).href;
   if (supplied.startsWith("file:")) return new URL(supplied).href;
   if (!path.isAbsolute(supplied)) throw new TypeError("MARKETPLACE_ADAPTER_MODULE must be an absolute file path or file URL.");
   return pathToFileURL(supplied).href;
@@ -87,6 +89,7 @@ export async function probeMarketplaceDatabase(pool) {
 
 function requireAdapters(adapters) {
   if (typeof adapters?.onUnexpectedError !== "function") throw new TypeError("Marketplace enablement requires private operational error monitoring.");
+  if (typeof adapters?.close !== "function") throw new TypeError("Marketplace monitoring must provide deterministic shutdown.");
 }
 
 function unavailableAttachment(env, reason = "disabled") {
@@ -161,6 +164,7 @@ export async function createMarketplaceAttachment(options = {}) {
     try { await emailDelivery?.close?.(); } catch {}
     try { await objectStorage?.close?.(); } catch {}
     try { await pool?.end?.(); } catch {}
+    try { await adapters.close(); } catch {}
     throw error;
   }
 
@@ -189,6 +193,7 @@ export async function createMarketplaceAttachment(options = {}) {
       try { await emailDelivery.close(); } catch (error) { failures.push(error); }
       try { await objectStorage.close(); } catch (error) { failures.push(error); }
       try { await pool.end?.(); } catch (error) { failures.push(error); }
+      try { await adapters.close(); } catch (error) { failures.push(error); }
       if (failures.length) throw new AggregateError(failures, "Marketplace resources did not close cleanly.");
     }
   });
