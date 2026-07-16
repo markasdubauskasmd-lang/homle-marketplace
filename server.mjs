@@ -4900,7 +4900,6 @@ async function handleCleaningRequest(request, response) {
   const errors = [];
   required(record.contactName, "Contact name", errors);
   required(record.email, "Email", errors);
-  required(record.phone, "Phone", errors);
   required(record.postcode, "Postcode", errors);
   required(record.customerType, "Customer type", errors);
   required(record.propertyType, "Property type", errors);

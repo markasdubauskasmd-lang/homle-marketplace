@@ -193,14 +193,15 @@
                 <h3 id="request-step-3-title">Where should we send the next step?</h3>
                 <p>After this, you will scan the rooms and review the cleaner checklist.</p>
               </div>
-              <div class="field-row">
-                <label>Contact name <input name="contactName" autocomplete="name" required></label>
-                <label>Organisation <span>(optional)</span><input name="organisation" autocomplete="organization"></label>
-              </div>
-              <div class="field-row">
-                <label>Email <input name="email" type="email" autocomplete="email" inputmode="email" required></label>
-                <label>Phone <input name="phone" type="tel" autocomplete="tel" inputmode="tel" required></label>
-              </div>
+              <label>Contact name <input name="contactName" autocomplete="name" required></label>
+              <label>Email <input name="email" type="email" autocomplete="email" inputmode="email" required><small>We use this for your private scan and request updates.</small></label>
+              <details class="application-optional-fields">
+                <summary>Add phone or organisation <span>Optional</span></summary>
+                <div class="field-row">
+                  <label>Phone <span>(optional)</span><input name="phone" type="tel" autocomplete="tel" inputmode="tel"></label>
+                  <label>Organisation <span>(optional)</span><input name="organisation" autocomplete="organization"></label>
+                </div>
+              </details>
               <label class="checkbox"><input name="consent" type="checkbox" required><span>I agree that Homle may use these details to respond to my request. See the <a href="/privacy">privacy notice</a>.</span></label>
               <div class="guided-form-actions">
                 <button class="button button-outline" type="button" data-guided-back>Back</button>

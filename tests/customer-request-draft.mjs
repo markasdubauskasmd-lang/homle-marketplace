@@ -75,6 +75,7 @@ const [html, app, privacy] = await Promise.all([
 assert(html.includes("data-customer-draft-status") && html.includes("Access codes and privacy consent are never stored"));
 assert(html.includes("<option>Regular home clean</option>"), "The working customer request omitted ordinary household cleaning.");
 assert(html.includes('type="hidden" name="customerType" value="Cleaning customer"') && html.includes('type="hidden" name="accessNotes" value="Confirm privately after booking"') && !html.includes("I am a <select") && !html.includes("General access approach"), "The public request still asks for premature customer classification or access arrangements.");
+assert(html.includes("Add phone or organisation") && !/name="phone"[^>]*required/.test(html.match(/data-guided-kind="customer"[\s\S]*?<\/form>/)?.[0] || "") && html.includes("We use this for your private scan and request updates."), "The customer request still requires secondary contact details or does not explain its required email.");
 assert(app.includes("readCustomerRequestDraft") && app.includes("clearCustomerRequestDraft(window.sessionStorage)"));
 assert(app.includes("containsSensitiveAccessDetails") && app.includes("accessDetailsSafetyMessage"));
 assert(app.includes("pilotServiceSuggestionState({ propertyType: propertyType.value") && app.includes("if (event.isTrusted) customerSelected = true") && app.includes('new Event("input"') && html.includes("data-service-suggestion"), "The public request does not suggest a safe service or preserve a restored/manual choice.");
