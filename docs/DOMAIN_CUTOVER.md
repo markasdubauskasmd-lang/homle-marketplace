@@ -6,7 +6,7 @@ The founder plans to purchase the Tideway domain on 17 July 2026. Buying a name 
 
 - Exact domain name and registrar.
 - Registrar account owner, MFA enabled state, auto-renew decision and recovery method. Keep recovery codes outside the repository.
-- Canonical public origin: choose either the apex domain or `www` and redirect the other permanently.
+- Canonical public origin: use the apex `https://homle.co.uk`; the production app redirects safe `www` reads to it permanently.
 - Approved hosting target and DNS records.
 - Where the ownership, DNS and HTTPS verification evidence is stored.
 - Verification date and named person responsible for future renewal/certificate checks.
@@ -18,7 +18,7 @@ Do not put registrar credentials, transfer codes, DNS API tokens, private keys o
 1. Deploy the reviewed source checkpoint to the approved host without enabling payments or the account marketplace. The prepared host-neutral container may be used only after its Linux build, native dependency load, resolved digest and image vulnerability scan are recorded as described in `PRODUCTION_DEPLOYMENT.md`.
 2. Point only the purchased hostname to that host. The final hostname must not resolve to loopback, private or reserved addresses.
 3. Issue a publicly trusted certificate for the exact canonical hostname. Redirect plain HTTP permanently to the same HTTPS origin; do not redirect through Polsia or another unrelated hostname.
-4. Configure the HTTPS proxy/CDN to preserve the request host safely and add `Strict-Transport-Security: max-age=31536000; includeSubDomains` only after HTTPS works on every intended subdomain. The Node application already supplies CSP, framing, MIME, referrer and device-permission policies.
+4. Configure the HTTPS proxy/CDN to preserve the request host safely and add `Strict-Transport-Security: max-age=31536000; includeSubDomains` only after HTTPS works on every intended subdomain. The Node application already supplies CSP, framing, MIME, referrer and device-permission policies. In production it also returns a path-and-query-preserving 308 for `GET`/`HEAD` requests whose host is exactly `www.` plus the configured `APP_ORIGIN` hostname; it never redirects mutations.
 5. Set `APP_ORIGIN` to the exact canonical HTTPS origin with no path or trailing data. Keep `MARKETPLACE_ENABLED=false` until PostgreSQL, the locked driver and every deployment adapter pass staging.
 6. Run `pnpm run preflight:production`. The server repeats this check before listening and refuses a public process without the protected Administrator key, private off-source data directory, exact HTTPS origin and reviewed trusted-proxy boundary. See `PRODUCTION_DEPLOYMENT.md`.
 7. Verify the homepage, `/api/health` and `/api/auth/providers` from outside the hosting network. Anonymous access must not create a session cookie, health responses must be non-cacheable, and no authentication provider may be advertised before its real route is attached. The private `/admin` shell must return a JSON 401 to an anonymous request, and the local tracking lab must return JSON 404 responses throughout production.

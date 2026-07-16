@@ -8,7 +8,7 @@ The public brand and canonical domain are **Homle** and `https://homle.co.uk`. T
 - SHA-256 `ACCAE642DF16D00FC38BA0C242846D4220EC383B5BCC3B6B4E9984B661191DD1`
 - 10 entries: the public HTML, eight same-origin images and a capture manifest
 
-This snapshot covers the public files only. Before hPanel removes the existing website, verify whether that website also owns email, databases or other private configuration and use Hostinger's account backup for those resources.
+This snapshot covers the former public files only. It is not a backup of Hostinger email, databases, environment variables or application configuration; use Hostinger's account backup for those resources before any destructive change.
 
 ## Verified live state — 16 July 2026
 
@@ -18,7 +18,7 @@ The private `/brief` route correctly allows same-origin camera and microphone ac
 
 ## Correct Hostinger deployment surface
 
-Do not copy this project into `public_html` with the ordinary File Manager. Homle has a persistent Node server and protected API routes. Hostinger's supported flow is **Websites → Add Website → Deploy Web App → Upload website files**, using a Node.js-capable Business or Cloud plan. Hostinger currently requires an existing domain website to be removed before it can be re-added as a Node.js web app, so the backup check is a real rollback boundary.
+Do not copy this project into `public_html` with the ordinary File Manager. Homle has a persistent Node server and protected API routes. The existing Hostinger Node app must be updated through its **Deploy Web App** release flow, using a Node.js-capable Business or Cloud plan. Removing and re-adding the live site is unnecessary for a normal application update and risks unrelated resources.
 
 Authoritative Hostinger references:
 
@@ -51,14 +51,14 @@ The full marketplace must pass the production preflight before it listens. It st
 
 Uploading only `public/` would make the site look live while registration, bookings, private photos, tracking and payments fail. Uploading the complete ZIP without the environment gate would make the server refuse startup, which is intentional.
 
-## First deployment sequence
+## Deployment and update sequence
 
-1. Confirm the Hostinger plan offers **Deploy Web App** and preserve an hPanel backup of the existing website resources.
-2. Add the domain as a Node.js web app and upload the prepared ZIP.
+1. Confirm the existing Hostinger Node app is running and preserve an hPanel backup of its current release and configuration.
+2. Open the existing app's redeploy/upload-new-release action and upload the prepared ZIP; do not create a static `public_html` copy.
 3. Select Node.js 24, type `Other`, entry `server.mjs`, and no static output directory.
 4. Configure the reviewed production environment in hPanel; never upload a local `.env` into the application files.
 5. Keep marketplace and payments disabled for the first infrastructure probe.
-6. Verify `/api/health`, anonymous Administrator denial, closed local tracking lab and security headers.
+6. Verify `/api/health`, anonymous Administrator denial, closed local tracking lab, security headers and the `www` 308 to the canonical apex while preserving a test path and query.
 7. Attach managed staging services and complete the two-account, two-phone test before enabling accounts or payments.
 8. Run the external domain verifier, then remove every synthetic staging record before real intake.
 

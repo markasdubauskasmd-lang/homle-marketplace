@@ -44,6 +44,7 @@ const host = process.env.HOST || "127.0.0.1";
 const port = Number(process.env.PORT || 4173);
 const lanPort = Number(process.env.LAN_PORT || 0);
 const lanHost = process.env.LAN_HOST || "0.0.0.0";
+const canonicalPublicOrigin = process.env.NODE_ENV === "production" ? new URL(process.env.APP_ORIGIN).origin : "";
 if (lanPort && (!Number.isInteger(lanPort) || lanPort < 1 || lanPort > 65535 || lanPort === port)) throw new Error("LAN_PORT must be a valid port different from PORT.");
 const maxBodyBytes = 64 * 1024;
 const maxBriefBodyBytes = 28 * 1024 * 1024;
@@ -189,6 +190,13 @@ function setSecurityHeaders(response, requestPath = "") {
       : requestPath === "/tracking-test"
       ? "camera=(), microphone=(), geolocation=(self)"
       : "camera=(), microphone=(), geolocation=()");
+}
+
+function canonicalPublicLocation(request, requestUrl) {
+  if (!canonicalPublicOrigin || !["GET", "HEAD"].includes(request.method || "")) return "";
+  const canonicalUrl = new URL(canonicalPublicOrigin);
+  if (requestUrl.hostname.toLowerCase() !== `www.${canonicalUrl.hostname.toLowerCase()}`) return "";
+  return `${canonicalUrl.origin}${requestUrl.pathname}${requestUrl.search}`;
 }
 
 function json(response, statusCode, body) {
@@ -5170,6 +5178,11 @@ async function handleHttpRequest(request, response) {
   setSecurityHeaders(response, requestUrl.pathname);
 
   try {
+    const canonicalLocation = canonicalPublicLocation(request, requestUrl);
+    if (canonicalLocation) {
+      response.writeHead(308, { "Location": canonicalLocation, "Cache-Control": "public, max-age=300" });
+      return response.end();
+    }
     const localTrackingPath = ["/tracking-test", "/tracking-test.html", "/tracking-test.js"].includes(requestUrl.pathname) || requestUrl.pathname.startsWith("/api/tracking-test/");
     if (!localDemoEnabled && localTrackingPath) return json(response, 404, { ok: false, error: "Not found." });
     if (!enforceRateLimit(request, response, rateLimitPolicyFor(request, requestUrl.pathname))) return;

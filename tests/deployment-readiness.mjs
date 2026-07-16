@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,6 +48,18 @@ async function waitForStart(child) {
     child.stdout.on("data", onOutput);
     child.stderr.on("data", (chunk) => { output += chunk; });
     child.once("exit", onExit);
+  });
+}
+
+async function directRequest(pathname, headers = {}, method = "GET") {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest({ hostname: "127.0.0.1", port, path: pathname, method, headers }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => resolve({ status: response.statusCode, headers: response.headers, body: Buffer.concat(chunks).toString("utf8") }));
+    });
+    request.on("error", reject);
+    request.end();
   });
 }
 
@@ -118,6 +131,20 @@ try {
   assert.equal(health.marketplace.enabled, false);
   assert.equal(health.localDemosEnabled, false);
   assert.equal(response.headers.get("cache-control"), "no-store");
+  const canonicalRedirect = await directRequest("/request?source=www", { "Host": "www.tideway.example.com", "X-Forwarded-For": "198.51.100.10" });
+  assert.equal(canonicalRedirect.status, 308);
+  assert.equal(canonicalRedirect.headers.location, "https://tideway.example.com/request?source=www");
+  assert.equal(canonicalRedirect.headers["cache-control"], "public, max-age=300");
+  const canonicalHead = await directRequest("/brief", { "Host": "www.tideway.example.com", "X-Forwarded-For": "198.51.100.10" }, "HEAD");
+  assert.equal(canonicalHead.status, 308);
+  assert.equal(canonicalHead.headers.location, "https://tideway.example.com/brief");
+  assert.equal(canonicalHead.body, "");
+  const nonCanonicalMutation = await directRequest("/api/cleaning-requests", { "Host": "www.tideway.example.com", "X-Forwarded-For": "198.51.100.10" }, "POST");
+  assert.equal(nonCanonicalMutation.status, 403);
+  assert.notEqual(nonCanonicalMutation.headers.location, "https://tideway.example.com/api/cleaning-requests");
+  const canonicalApi = await directRequest("/api/health", { "Host": "tideway.example.com", "X-Forwarded-For": "198.51.100.10" });
+  assert.equal(canonicalApi.status, 200);
+  assert.equal(JSON.parse(canonicalApi.body).ok, true);
   const providersResponse = await fetch(`http://127.0.0.1:${port}/api/auth/providers`, { headers: { "X-Forwarded-For": "198.51.100.10" } });
   const providers = await providersResponse.json();
   assert.equal(providersResponse.status, 200);
@@ -133,7 +160,7 @@ try {
   child.kill("SIGTERM");
   await exited;
 
-  console.log("Production deployment readiness tests passed: detached public-site start, public HTTPS origin, private data location, protected admin, trusted proxy, disabled local preview and marketplace-specific gates.");
+  console.log("Production deployment readiness tests passed: detached public-site start, canonical www redirect, mutation isolation, public HTTPS origin, private data location, protected admin, trusted proxy, disabled local preview and marketplace-specific gates.");
 } finally {
   if (serverProcess?.exitCode === null && serverProcess?.signalCode === null) {
     const exited = new Promise((resolve) => serverProcess.once("exit", resolve));
