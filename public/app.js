@@ -5,6 +5,7 @@ import { isPhone, isUkPostcode } from "./contact-validation.js";
 import { accessDetailsSafetyMessage, containsSensitiveAccessDetails } from "./access-detail-safety.js";
 import { cleanerApplicationDraftFields, cleanerApplicationDraftFingerprint, cleanerApplicationDraftServices, clearCleanerApplicationDraft, readCleanerApplicationDraft, saveCleanerApplicationDraft } from "./cleaner-application-draft.js";
 import { clearCustomerRequestDraft, customerRequestDraftFields, customerRequestDraftFingerprint, readCustomerRequestDraft, saveCustomerRequestDraft } from "./customer-request-draft.js";
+import { pilotServiceSuggestionState } from "./pilot-request-model.js";
 
 const pendingSubmissions = new WeakMap();
 const cleanerDraftControls = new WeakMap();
@@ -428,6 +429,43 @@ function enhanceCustomerRequestDraft(form) {
 }
 
 document.querySelectorAll('form[data-guided-kind="customer"]').forEach(enhanceCustomerRequestDraft);
+
+function enhanceCustomerServiceSuggestion(form) {
+  const propertyType = form.elements.namedItem("propertyType");
+  const service = form.elements.namedItem("service");
+  const hint = form.querySelector("[data-service-suggestion]");
+  if (!propertyType || !service || !hint) return;
+  let customerSelected = Boolean(service.value);
+
+  function renderHint(suggested = false) {
+    hint.textContent = suggested
+      ? "Suggested from the property type. You can change it."
+      : service.value
+        ? "Your chosen service will be checked against the room scan."
+        : "Choose the closest service; the room scan confirms the exact tasks.";
+  }
+
+  function suggest() {
+    if (customerSelected) return renderHint(false);
+    const next = pilotServiceSuggestionState({ propertyType: propertyType.value, currentService: service.value, customerSelected });
+    service.value = next.service;
+    renderHint(next.suggested);
+    service.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  service.addEventListener("change", (event) => {
+    if (event.isTrusted) customerSelected = true;
+    renderHint(false);
+  });
+  propertyType.addEventListener("change", suggest);
+  form.addEventListener("reset", () => setTimeout(() => {
+    customerSelected = false;
+    renderHint(false);
+  }, 0));
+  renderHint(false);
+}
+
+document.querySelectorAll('form[data-guided-kind="customer"]').forEach(enhanceCustomerServiceSuggestion);
 
 document.querySelectorAll('input[name="postcode"], input[name="phone"], [data-access-detail-safe]').forEach((input) => {
   input.addEventListener("input", () => input.setCustomValidity(""));

@@ -3,12 +3,22 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { clearCustomerRequestDraft, customerRequestDraftFingerprint, customerRequestDraftLifetimeMs, readCustomerRequestDraft, saveCustomerRequestDraft } from "../public/customer-request-draft.js";
+import { pilotServiceSuggestionState, suggestedPilotService } from "../public/pilot-request-model.js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const values = new Map();
 const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: (key) => values.delete(key) };
 const now = Date.UTC(2026, 6, 15, 22, 0, 0);
 const retryKey = "7daeb084-bf0b-4f7b-b21d-2ad14d96d81b";
+
+assert.equal(suggestedPilotService("Flat or house"), "Regular home clean");
+assert.equal(suggestedPilotService("Office or workplace"), "Regular workplace clean");
+assert.equal(suggestedPilotService("Communal area"), "Communal area clean");
+assert.equal(suggestedPilotService("Short-let property"), "Rental turnover clean");
+assert.equal(suggestedPilotService("Other commercial space"), "Regular workplace clean");
+assert.equal(suggestedPilotService("Unknown property"), "", "An unsupported property type received a guessed cleaning service.");
+assert.deepEqual(pilotServiceSuggestionState({ propertyType: "Short-let property" }), { service: "Rental turnover clean", suggested: true });
+assert.deepEqual(pilotServiceSuggestionState({ propertyType: "Office or workplace", currentService: "One-off deep clean", customerSelected: true }), { service: "One-off deep clean", suggested: false }, "A manual or restored choice was overwritten by the property suggestion.");
 
 const saved = saveCustomerRequestDraft(storage, {
   fields: {
@@ -69,6 +79,7 @@ assert(html.includes("data-customer-draft-status") && html.includes("Access code
 assert(html.includes("<option>Regular home clean</option>"), "The working customer request omitted ordinary household cleaning.");
 assert(app.includes("readCustomerRequestDraft") && app.includes("clearCustomerRequestDraft(window.sessionStorage)"));
 assert(app.includes("containsSensitiveAccessDetails") && app.includes("accessDetailsSafetyMessage"));
+assert(app.includes("pilotServiceSuggestionState({ propertyType: propertyType.value") && app.includes("if (event.isTrusted) customerSelected = true") && app.includes('new Event("input"') && html.includes("data-service-suggestion"), "The public request does not suggest a safe service or preserve a restored/manual choice.");
 assert(app.includes("customerDraftControls.get(form) || cleanerDraftControls.get(form)") && app.includes("draftControls?.rememberSubmission(pending.key)"));
 assert(app.includes('["customer", "cleaner"].includes(form.dataset.guidedKind)') && app.includes("AbortController"));
 assert(!app.includes('form.elements.namedItem("consent").checked = true'));
