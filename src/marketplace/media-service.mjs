@@ -53,6 +53,26 @@ function absoluteSignedUrl(value) {
   return url.toString();
 }
 
+function verifiedUploadHeaders(value, record) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw unavailable();
+  const expected = {
+    "content-type": record.mimeType,
+    "x-amz-checksum-sha256": Buffer.from(record.checksumSha256, "hex").toString("base64"),
+    "x-amz-meta-tideway-sha256": record.checksumSha256,
+    "x-amz-server-side-encryption": "AES256"
+  };
+  const entries = Object.entries(value);
+  if (entries.length !== Object.keys(expected).length) throw unavailable();
+  const normalized = Object.fromEntries(entries.map(([key, supplied]) => [String(key).toLowerCase(), String(supplied)]));
+  if (Object.entries(expected).some(([key, expectedValue]) => normalized[key] !== expectedValue)) throw unavailable();
+  return Object.freeze({
+    "Content-Type": expected["content-type"],
+    "X-Amz-Checksum-Sha256": expected["x-amz-checksum-sha256"],
+    "X-Amz-Meta-Tideway-Sha256": expected["x-amz-meta-tideway-sha256"],
+    "X-Amz-Server-Side-Encryption": expected["x-amz-server-side-encryption"]
+  });
+}
+
 function verifiedOutput(value) {
   if (!value || value.safe !== true || value.outputMimeType !== "image/jpeg") throw Object.assign(new Error("The image failed the private media safety inspection."), { statusCode: 409, code: "unsafe-job-photo" });
   const checksumSha256 = String(value.outputChecksumSha256 || "").toLowerCase();
@@ -121,7 +141,7 @@ export function createMediaService(repository, options = {}) {
         uploadUrl: absoluteSignedUrl(signed?.url),
         method: "PUT",
         expiresAt: record.expiresAt,
-        requiredHeaders: Object.freeze({ "Content-Type": record.mimeType, "Content-Length": String(record.byteSize), "X-Content-SHA256": record.checksumSha256 })
+        requiredHeaders: verifiedUploadHeaders(signed?.requiredHeaders, record)
       });
     },
 

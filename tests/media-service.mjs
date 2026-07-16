@@ -13,6 +13,7 @@ const cleaner = { userId: "22222222-2222-4222-8222-222222222222", roles: ["clean
 const landlord = { userId: "11111111-1111-4111-8111-111111111111", roles: ["landlord"] };
 const checksum = "a".repeat(64);
 const processedChecksum = "b".repeat(64);
+const checksumBase64 = Buffer.from(checksum, "hex").toString("base64");
 const calls = [];
 
 function record(overrides = {}) {
@@ -44,7 +45,7 @@ const fakeRepository = {
   async getPhotoObject(actor, suppliedBookingId, suppliedPhotoId) { calls.push({ kind: "object", actor, suppliedBookingId, suppliedPhotoId }); return { storageKey: `job-photos/${bookingId}/${photoId}.jpg`, mimeType: "image/jpeg", byteSize: 987, checksumSha256: processedChecksum, photoType: "before", note: "Kitchen before cleaning" }; }
 };
 const storage = {
-  async createUploadUrl(input) { calls.push({ kind: "upload-url", input }); return { url: "https://storage.example/private-write-signature" }; },
+  async createUploadUrl(input) { calls.push({ kind: "upload-url", input }); return { url: "https://storage.example/private-write-signature", requiredHeaders: { "Content-Type": input.mimeType, "X-Amz-Checksum-Sha256": checksumBase64, "X-Amz-Meta-Tideway-Sha256": input.checksumSha256, "X-Amz-Server-Side-Encryption": "AES256" } }; },
   async headObject(input) { calls.push({ kind: "head", input }); return { mimeType: "image/jpeg", byteSize: 1234, checksumSha256: checksum }; },
   async inspectAndSanitizeImage(input) { calls.push({ kind: "sanitize", input }); return { safe: true, outputMimeType: "image/jpeg", outputByteSize: 987, outputChecksumSha256: processedChecksum, width: 1200, height: 900 }; },
   async createReadUrl(input) { calls.push({ kind: "read-url", input }); return { url: "https://storage.example/private-read-signature" }; },
@@ -53,7 +54,7 @@ const storage = {
 const service = createMediaService(fakeRepository, { objectStorage: storage, now: () => new Date("2026-07-15T16:00:00.000Z"), createId: () => uploadId });
 
 const intent = await service.createUploadIntent(cleaner, bookingId, { taskId, photoType: "before", mimeType: "image/jpeg", byteSize: 1234, checksumSha256: checksum, note: "Kitchen before cleaning" });
-assert(intent.uploadId === uploadId && intent.method === "PUT" && intent.uploadUrl.startsWith("https://storage.example/") && intent.requiredHeaders["X-Content-SHA256"] === checksum, "The media service did not create a bounded signed upload contract.");
+assert(intent.uploadId === uploadId && intent.method === "PUT" && intent.uploadUrl.startsWith("https://storage.example/") && intent.requiredHeaders["X-Amz-Checksum-Sha256"] === checksumBase64 && intent.requiredHeaders["X-Amz-Meta-Tideway-Sha256"] === checksum && !Object.hasOwn(intent.requiredHeaders, "Content-Length"), "The media service did not create a browser-compatible bounded signed upload contract.");
 assert(!Object.hasOwn(intent, "storageKey") && !Object.hasOwn(intent, "quarantineStorageKey") && !Object.hasOwn(intent, "finalStorageKey"), "The upload response exposed a separately reusable object-storage key.");
 assert(calls.find((call) => call.kind === "create").input.quarantineStorageKey === `quarantine/job-photos/${bookingId}/${uploadId}`, "The server did not own the quarantine object key.");
 
@@ -66,6 +67,8 @@ const access = await service.getPhotoAccess(landlord, bookingId, photoId);
 assert(access.url.startsWith("https://storage.example/") && access.expiresAt === "2026-07-15T16:05:00.000Z" && !Object.hasOwn(access, "storageKey") && !Object.hasOwn(access, "checksumSha256"), "Participant read access leaked storage internals or was not short-lived.");
 assert(await rejects(() => service.createUploadIntent(landlord, bookingId, { photoType: "before", mimeType: "image/jpeg", byteSize: 1, checksumSha256: checksum }), "Cleaner"), "A Landlord created a Cleaner job-photo upload.");
 assert(await rejects(() => createMediaService(fakeRepository).createUploadIntent(cleaner, bookingId, { photoType: "before", mimeType: "image/jpeg", byteSize: 1, checksumSha256: checksum }), "temporarily unavailable"), "Media upload did not fail closed without private storage.");
+const malformedHeaderStorage = { ...storage, async createUploadUrl() { return { url: "https://storage.example/private-write-signature", requiredHeaders: { "Content-Type": "image/jpeg", "X-Unreviewed-Header": "unsafe" } }; } };
+assert(await rejects(() => createMediaService(fakeRepository, { objectStorage: malformedHeaderStorage, now: () => new Date("2026-07-15T16:00:00.000Z"), createId: () => uploadId }).createUploadIntent(cleaner, bookingId, { taskId, photoType: "before", mimeType: "image/jpeg", byteSize: 1234, checksumSha256: checksum }), "temporarily unavailable"), "Media upload exposed an incomplete or unreviewed signed-header contract.");
 
 const mismatchedCalls = [];
 const deletesBeforeMismatch = calls.filter((call) => call.kind === "delete").length;

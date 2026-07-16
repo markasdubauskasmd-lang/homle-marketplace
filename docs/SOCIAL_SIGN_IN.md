@@ -34,7 +34,7 @@ Do not add credentials to source control or `.env.example`.
    ```
 
 5. Store `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the hosting secret manager.
-6. Complete PostgreSQL 16 migrations/RLS/concurrency tests, verify the internal SMTP adapter against the approved provider, prove shared rate limiting, and attach private storage/monitoring before enabling `MARKETPLACE_ENABLED=true`.
+6. Complete PostgreSQL 16 migrations/RLS/concurrency tests, verify internal SMTP and private S3/Sharp boundaries against approved providers, prove shared limiting, and attach monitoring before enabling `MARKETPLACE_ENABLED=true`.
 7. Verify `/api/auth/providers` reports Google true only after full attachment, then test new-account creation, repeat login, role onboarding, password-account collision/step-up, logout and mobile browser behavior under the final domain.
 
 ## Facebook implementation gate

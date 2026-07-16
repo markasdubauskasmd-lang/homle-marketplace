@@ -21,7 +21,7 @@ This Phase 2 checkpoint adds the service and repository boundary for a landlord 
 2. Add database integration tests proving landlord ownership, unrelated-user denial and active-booking cleaner expiry under actual RLS.
 3. Attach the prepared `/api/marketplace/properties` controllers after real session/RLS staging tests.
 4. Add mobile-first property forms using existing Tideway components, including explicit photo consent, validation, retry and delete confirmation states.
-5. Add private object storage upload mediation, MIME/signature inspection, image decoding, malware controls, EXIF removal and an approved retention/deletion policy. Store object keys, never public URLs.
+5. Provision and test the internal private object-storage boundary: signed checksum/encryption headers, MIME/size verification, bounded decoding, EXIF-stripping JPEG output, explicit malware/threat controls and approved retention/deletion. Store object keys, never public URLs.
 6. Decide and document whether exact address, parking notes and special notes require column-level encryption in addition to RLS and service projection before production data is imported.
 
 No invented properties, addresses, access instructions or photographs have been added to the live data directory.

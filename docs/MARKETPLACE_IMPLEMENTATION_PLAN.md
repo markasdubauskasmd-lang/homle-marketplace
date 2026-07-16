@@ -48,7 +48,7 @@ Implemented checkpoint:
 - Bounded, concurrency-safe expired-session deletion through the separately credentialed worker role; web runtime `DELETE` authority on sessions is revoked and the orchestration loop reports when capped batches may remain.
 - Setup details in `docs/DATABASE_SETUP.md`, the mandatory provider-verification boundary in `docs/AUTHENTICATION_SECURITY.md`, and isolated regression tests using fake PostgreSQL-compatible repositories.
 
-Not yet enabled: real PostgreSQL execution, approved SMTP credentials/provider evidence, private object storage, final monitoring, HTTPS deployment or genuine accounts. The server attachment, exact database driver, internal strict-TLS SMTP adapter and Google OIDC callback are prepared behind an explicit runtime-composition gate. Provider capability flags remain off. The social resolver must never receive browser-supplied claims directly, and internal email-delivery material must never be returned by a public API.
+Not yet enabled: real PostgreSQL, SMTP and private-bucket evidence, final monitoring, HTTPS deployment or genuine accounts. The server attachment, exact runtime dependencies, strict-TLS SMTP, S3/Sharp private-media boundary and Google OIDC callback are prepared behind an explicit gate. Provider capability flags remain off.
 
 - Add a PostgreSQL connection/repository layer and transaction helper that always sets the RLS user context.
 - Add opaque secure sessions, `HttpOnly; Secure; SameSite=Lax` cookies, CSRF tokens, rotation, logout-all-sessions and session expiry.
@@ -92,7 +92,7 @@ Implemented account HTTP composition checkpoint:
 - Trusted session issuance/rotation returns an HttpOnly cookie plus CSRF token while passing only token hashes to persistence; exact logout, logout-all and same-account privilege rotation are covered.
 - Contract tests in `tests/marketplace-http.mjs` and `tests/account-session-service.mjs`, with the staged enablement procedure in `docs/MARKETPLACE_HTTP_RUNTIME.md`.
 
-Not yet enabled: server attachment of the prepared account routes, login/session mutation routes, account pages beyond honest closed entry states, real PostgreSQL execution/driver, geocoding, an authenticated marketplace account, object storage, or genuine public cleaner supply.
+Not yet enabled: account pages beyond honest closed entry states, real PostgreSQL/private-bucket execution, geocoding, an authenticated marketplace account or genuine public cleaner supply. The route, driver and object-storage source boundaries are attached only behind the false capability gate.
 
 - Add cleaner profile, services, service areas, availability and completion calculator APIs/pages.
 - Attach the prepared account routes after real PostgreSQL/session staging tests; add authenticated mobile pages and validated private object-storage photos.
@@ -221,7 +221,7 @@ Tests: message isolation, idempotent notifications, completed-only unique review
 
 ## Phase 6 — production hardening and deployment
 
-- Private S3-compatible object storage, upload signatures or server streams, content-type/size verification, image re-encoding/malware scanning and retention workers.
+- Provision the implemented S3-compatible private boundary; prove signed-header CORS, content-type/size/checksum verification, Sharp re-encoding, the explicit malware/threat decision and retention workers.
 - Shared rate limiting, structured security logs, error monitoring, database backups/PITR, secret rotation and audit retention.
 - Container/reverse-proxy deployment with HTTPS, trusted proxy rules, health/readiness checks and zero-downtime migrations.
 - CI for syntax/lint, unit, database migration, integration, authorization, WebSocket and mobile browser tests.
@@ -237,7 +237,7 @@ Required before production account use:
 - Public deployment: `APP_ORIGIN` using verified HTTPS.
 - Email verification/reset/notifications: `SMTP_URL`, `EMAIL_FROM`.
 - OAuth as enabled: Google client ID/secret; Apple client/team/key/private key; Facebook app ID/secret.
-- Private object storage: endpoint, bucket and server access credentials.
+- Private object storage: exact endpoint, bucket, region, server access credentials and optional path-style flag.
 - Map provider in tracking phase: `MAP_PROVIDER` and an origin-restricted public token. No provider is selected or enabled without founder approval and cost/privacy review.
 
 No OAuth, map, email, database or storage secret belongs in client-side JavaScript, Git, the admin form or customer records.

@@ -5,9 +5,14 @@ import { fileURLToPath } from "node:url";
 
 const expectedDriverVersion = "8.22.0";
 const expectedMailerVersion = "9.0.3";
-const expectedLockSha256 = "fbecbb80b2ede2df048ae08406bf063d39c2d5ef790a1a2316deffb25b85ffc7";
+const expectedS3Version = "3.1084.0";
+const expectedSharpVersion = "0.35.3";
+const expectedLockSha256 = "c394540ad85206c017df7d266ac43a033ad0254c7dc608ff65b28939f5f88db9";
 const expectedDriverIntegrity = "sha512-8wih1vVIBMxoUM2oB4soJsD9tDnDpLv4OXBJ+EJzFsvycD+lfyIreC2gGHq78f8jbLLt+bvlPTFdFZfJkOuzAA==";
 const expectedMailerIntegrity = "sha512-n+YP+NKwR5zRWa60k3GiQ6Q3B4KXCoAw40dAKeCtYn020iNN74aWK2liXIC3ZEATeGql7we3tE3t8QwhY0eskw==";
+const expectedS3ClientIntegrity = "sha512-W8KZlbU3vL4N0rZnXqryH5Ft3fkBnGypaorZmFxBoZRMGkwtvRBGiSnNXu1/1a/j/qZNwwt6LLNBWQQysB/pRg==";
+const expectedS3PresignerIntegrity = "sha512-2IwtgX/5/G7rKxc9cp1eGdrpJrZ0sl88bKavjCWGSkMPxFmtbSnms+guAhSltZHjJbT34rfudRwW30aKtLOqbA==";
+const expectedSharpIntegrity = "sha512-ej0zVHuZGHCiABXcNxeYhpRnPNPAcvbG8RMdBAhDAxLKkCRVSpK3Iyu7qbqw3JMzoj0REeM6f3tJLtVwl0023Q==";
 
 function sha256(value) {
   if (/\r(?!\n)/.test(value)) throw new TypeError("The dependency lockfile contains unsupported line endings.");
@@ -29,17 +34,21 @@ export function validateDependencyAssets(packageJsonText, lockText) {
   const dependencyNames = Object.keys(manifest.dependencies || {}).sort();
   if (manifest.private !== true) throw new TypeError("The application package must remain private.");
   if (manifest.packageManager !== "pnpm@11.7.0") throw new TypeError("The reviewed pnpm 11.7.0 package manager must remain pinned.");
-  if (manifest.engines?.node !== ">=20") throw new TypeError("The reviewed dependency boundary requires Node.js 20 or newer.");
-  if (dependencyNames.join(",") !== "nodemailer,pg") throw new TypeError("Only the reviewed PostgreSQL and SMTP runtime dependencies are allowed in the production manifest.");
+  if (manifest.engines?.node !== ">=20.9.0") throw new TypeError("The reviewed dependency boundary requires Node.js 20.9 or newer.");
+  if (dependencyNames.join(",") !== "@aws-sdk/client-s3,@aws-sdk/s3-request-presigner,nodemailer,pg,sharp") throw new TypeError("Only the reviewed database, SMTP and private-media runtime dependencies are allowed in the production manifest.");
   if (manifest.dependencies.pg !== expectedDriverVersion) throw new TypeError(`pg must be pinned exactly to ${expectedDriverVersion}.`);
   if (manifest.dependencies.nodemailer !== expectedMailerVersion) throw new TypeError(`nodemailer must be pinned exactly to ${expectedMailerVersion}.`);
+  if (manifest.dependencies["@aws-sdk/client-s3"] !== expectedS3Version || manifest.dependencies["@aws-sdk/s3-request-presigner"] !== expectedS3Version) throw new TypeError(`AWS S3 packages must be pinned exactly to the matched ${expectedS3Version} release.`);
+  if (manifest.dependencies.sharp !== expectedSharpVersion) throw new TypeError(`sharp must be pinned exactly to ${expectedSharpVersion}.`);
   if (typeof lockText !== "string" || !lockText) throw new TypeError("pnpm-lock.yaml is required.");
   if (!lockText.startsWith("lockfileVersion: '9.0'\n") && !lockText.startsWith("lockfileVersion: '9.0'\r\n")) throw new TypeError("The reviewed pnpm lockfile format is required.");
   if (!lockText.includes(`specifier: ${expectedDriverVersion}`) || !lockText.includes(`version: ${expectedDriverVersion}`) || !lockText.includes(`pg@${expectedDriverVersion}:`) || !lockText.includes(`resolution: {integrity: ${expectedDriverIntegrity}}`)) throw new TypeError("The lockfile does not contain the reviewed pg package and integrity evidence.");
-  if (!lockText.includes(`nodemailer@${expectedMailerVersion}:`) || !lockText.includes(`resolution: {integrity: ${expectedMailerIntegrity}}`) || !new RegExp(`snapshots:\\r?\\n\\r?\\n  nodemailer@${expectedMailerVersion.replaceAll(".", "\\.")}: \\{\\}`).test(lockText)) throw new TypeError("The lockfile does not contain the reviewed zero-transitive-dependency Nodemailer package and integrity evidence.");
+  if (!lockText.includes(`nodemailer@${expectedMailerVersion}:`) || !lockText.includes(`resolution: {integrity: ${expectedMailerIntegrity}}`) || !new RegExp(`^  nodemailer@${expectedMailerVersion.replaceAll(".", "\\.")}: \\{\\}$`, "m").test(lockText)) throw new TypeError("The lockfile does not contain the reviewed zero-transitive-dependency Nodemailer package and integrity evidence.");
+  if (!lockText.includes(`'@aws-sdk/client-s3@${expectedS3Version}':`) || !lockText.includes(`resolution: {integrity: ${expectedS3ClientIntegrity}}`) || !lockText.includes(`'@aws-sdk/s3-request-presigner@${expectedS3Version}':`) || !lockText.includes(`resolution: {integrity: ${expectedS3PresignerIntegrity}}`)) throw new TypeError("The lockfile does not contain the matched reviewed AWS S3 packages and integrity evidence.");
+  if (!lockText.includes(`sharp@${expectedSharpVersion}:`) || !lockText.includes(`resolution: {integrity: ${expectedSharpIntegrity}}`) || !lockText.includes("engines: {node: '>=20.9.0'}")) throw new TypeError("The lockfile does not contain the reviewed Sharp package, engine and integrity evidence.");
   const actualHash = sha256(lockText);
   if (actualHash !== expectedLockSha256) throw new TypeError(`The dependency lockfile differs from the reviewed graph (SHA-256 ${actualHash}).`);
-  return Object.freeze({ dependencies: Object.freeze({ nodemailer: expectedMailerVersion, pg: expectedDriverVersion }), lockSha256: actualHash });
+  return Object.freeze({ dependencies: Object.freeze({ awsS3: expectedS3Version, nodemailer: expectedMailerVersion, pg: expectedDriverVersion, sharp: expectedSharpVersion }), lockSha256: actualHash });
 }
 
 export async function checkDependencyAssets(baseDirectory = new URL("../", import.meta.url)) {
@@ -52,7 +61,7 @@ export async function checkDependencyAssets(baseDirectory = new URL("../", impor
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
   const result = await checkDependencyAssets();
-  console.log(`Dependency assets verified: nodemailer ${result.dependencies.nodemailer}, pg ${result.dependencies.pg}, lock SHA-256 ${result.lockSha256}.`);
+  console.log(`Dependency assets verified: AWS S3 ${result.dependencies.awsS3}, nodemailer ${result.dependencies.nodemailer}, pg ${result.dependencies.pg}, sharp ${result.dependencies.sharp}, lock SHA-256 ${result.lockSha256}.`);
 }
 
-export const dependencyLockEvidence = Object.freeze({ expectedDriverVersion, expectedMailerVersion, expectedLockSha256, expectedDriverIntegrity, expectedMailerIntegrity });
+export const dependencyLockEvidence = Object.freeze({ expectedDriverVersion, expectedMailerVersion, expectedS3Version, expectedSharpVersion, expectedLockSha256, expectedDriverIntegrity, expectedMailerIntegrity, expectedS3ClientIntegrity, expectedS3PresignerIntegrity, expectedSharpIntegrity });

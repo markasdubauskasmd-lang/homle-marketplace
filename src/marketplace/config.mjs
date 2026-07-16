@@ -20,7 +20,7 @@ export function marketplaceEnvironment(env = process.env) {
   const authTokenConfigured = present(env, "AUTH_TOKEN_SECRET") && env.AUTH_TOKEN_SECRET.trim().length >= 32;
   const emailConfigured = present(env, "SMTP_URL") && present(env, "EMAIL_FROM");
   const appOrigin = present(env, "APP_ORIGIN") ? env.APP_ORIGIN.trim() : "";
-  const objectStorageConfigured = ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"].every((key) => present(env, key));
+  const objectStorageConfigured = ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_REGION", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"].every((key) => present(env, key));
   const encryptionConfigured = present(env, "DATA_ENCRYPTION_KEY") && env.DATA_ENCRYPTION_KEY.trim().length >= 32;
   return {
     production: env.NODE_ENV === "production",
@@ -63,7 +63,7 @@ export function validateMarketplaceEnvironment(env = process.env) {
       errors.push("APP_ORIGIN must be a valid absolute origin.");
     }
   }
-  const objectStorageKeys = ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"];
+  const objectStorageKeys = ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_REGION", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"];
   const suppliedObjectStorage = objectStorageKeys.filter((key) => present(env, key));
   if (suppliedObjectStorage.length > 0 && suppliedObjectStorage.length < objectStorageKeys.length) errors.push(`Object storage is partially configured; missing ${objectStorageKeys.filter((key) => !present(env, key)).join(", ")}.`);
   if (present(env, "DATA_ENCRYPTION_KEY") && !state.encryptionConfigured) errors.push("DATA_ENCRYPTION_KEY must contain at least 32 characters.");
