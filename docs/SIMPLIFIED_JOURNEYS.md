@@ -23,6 +23,8 @@ The public homepage is now a separate lightweight page rather than the old intak
 
 The working concierge-pilot forms are preserved only on `/request` and `/join`. This keeps the safe fallback available without making a new customer scroll through or download its form-processing experience on the main conversion path. The homepage loads a small menu/year script and does not load customer-request drafts, Cleaner-application drafts, validation or submission code.
 
+The homepage now fails safely into that working `/request` journey while the managed marketplace is detached. Its no-script links never send a visitor into disabled registration, sign-in stays hidden and **Find a Cleaner** uses guided matching. One public, non-cacheable `/api/health` read upgrades those links to `/signup?intent=book`, `/cleaners` and sign-in only when marketplace attachment, runtime readiness and account authentication are all true. A failed or malformed health read leaves the working guided request in place. This lets the first honest public deployment collect fulfilment-gated requests without pretending that Google/Facebook accounts are already live, while preserving the one-click account journey for the later verified activation.
+
 ## Simplified journeys
 
 ### Customer

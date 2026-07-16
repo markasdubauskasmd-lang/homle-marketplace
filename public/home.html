@@ -9,7 +9,7 @@
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260716-62">
-  <script src="/home.js?v=20260716-1" type="module"></script>
+  <script src="/home.js?v=20260716-2" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -22,10 +22,10 @@
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav">Menu</button>
       <nav id="main-nav" class="main-nav" aria-label="Primary navigation">
         <a href="#how-it-works">How it works</a>
-        <a href="/cleaners">Find a cleaner</a>
-        <a href="/login">Sign in</a>
+        <a href="/request" data-cleaner-entry>Find a cleaner</a>
+        <a href="/login" data-account-entry hidden>Sign in</a>
         <a class="button button-small button-outline" href="/join">Work as a cleaner</a>
-        <a class="button button-small" href="/signup?intent=book">Book a clean</a>
+        <a class="button button-small" href="/request" data-book-entry>Request a clean</a>
       </nav>
     </div>
   </header>
@@ -38,10 +38,10 @@
           <h1>Show us the rooms. Tell us what matters. Book the clean.</h1>
           <p class="hero-lead">Photograph each room and speak naturally. Homle turns your walkthrough into a concise checklist a cleaner can follow.</p>
           <div class="hero-actions">
-            <a class="button" href="/signup?intent=book">Book a clean</a>
+            <a class="button" href="/request" data-book-entry>Request a clean</a>
             <a class="button button-outline" href="/join">Work as a cleaner</a>
           </div>
-          <p class="pilot-note">Creating a request does not confirm a cleaner or take payment. You review the scope and quote first.</p>
+          <p class="pilot-note" data-entry-status aria-live="polite">Homle is accepting guided pilot requests. Coverage, Cleaner availability and price are confirmed before any booking.</p>
         </div>
         <aside class="match-card" aria-label="The Homle cleaning journey">
           <div class="match-topline"><span>Your next clean</span><span class="status-pill">Clearly scoped</span></div>
@@ -65,7 +65,7 @@
       <div class="shell">
         <div class="section-heading"><p class="eyebrow">Four guided steps</p><h2>From property to completed clean</h2></div>
         <ol class="steps">
-          <li><span>1</span><div><h3>Book</h3><p>Sign in and choose your property, date and type of clean.</p></div></li>
+          <li><span>1</span><div><h3>Book</h3><p data-book-step-copy>Tell Homle what needs cleaning and when you need it.</p></div></li>
           <li><span>2</span><div><h3>Scan and speak</h3><p>Photograph each room and describe the work in your own words.</p></div></li>
           <li><span>3</span><div><h3>Review</h3><p>Approve the concise room checklist and the quote before booking.</p></div></li>
           <li><span>4</span><div><h3>Follow</h3><p>See arrival, task progress, photos and completion in one place.</p></div></li>
@@ -103,14 +103,14 @@
     </section>
 
     <section class="final-cta">
-      <div class="shell"><div><p class="eyebrow light">Ready when you are</p><h2>Start with one clearly scoped clean.</h2></div><a class="button button-light" href="/signup?intent=book">Book a clean</a></div>
+      <div class="shell"><div><p class="eyebrow light">Ready when you are</p><h2>Start with one clearly scoped clean.</h2></div><a class="button button-light" href="/request" data-book-entry>Request a clean</a></div>
     </section>
   </main>
 
   <footer class="site-footer">
     <div class="shell footer-grid">
       <div><a class="brand footer-brand" href="/"><img src="/logo.svg" alt="" width="36" height="36"><span>Homle</span></a><p>Cleaning work, matched and managed clearly.</p></div>
-      <div><strong>Start</strong><a href="/signup?intent=book">Book a clean</a><a href="/join">Work as a cleaner</a><a href="/login">Sign in</a></div>
+      <div><strong>Start</strong><a href="/request" data-book-entry>Request a clean</a><a href="/join">Work as a cleaner</a><a href="/login" data-account-entry hidden>Sign in</a></div>
       <div><strong>Information</strong><a href="/privacy">Privacy</a><a href="/terms">Pilot terms</a></div>
     </div>
     <div class="shell footer-bottom"><span>© <span data-year></span> Homle. Private pilot preparation.</span><span>No booking is confirmed until Homle confirms it directly.</span></div>
