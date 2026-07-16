@@ -92,26 +92,28 @@ const waits = [];
 let unexpectedError;
 let googleCompletionError = null;
 let googlePurpose = "sign-in";
+let googleIntent = "";
 const googleOidcProvider = {
   name: "google",
   clearCookie: "tideway_google_flow=; Max-Age=0; HttpOnly; Secure",
-  begin(options = {}) { googlePurpose = options.purpose || "sign-in"; calls.push({ kind: "google-start", purpose: googlePurpose }); return { location: "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&redirect_uri=https%3A%2F%2Ftideway.example.com%2Fapi%2Fmarketplace%2Fauth%2Fgoogle%2Fcallback&state=opaque", setCookie: "tideway_google_flow=signed; HttpOnly; Secure" }; },
+  begin(options = {}) { googlePurpose = options.purpose || "sign-in"; googleIntent = options.intent || ""; calls.push({ kind: "google-start", purpose: googlePurpose, intent: googleIntent }); return { location: "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&redirect_uri=https%3A%2F%2Ftideway.example.com%2Fapi%2Fmarketplace%2Fauth%2Fgoogle%2Fcallback&state=opaque", setCookie: "tideway_google_flow=signed; HttpOnly; Secure" }; },
   async complete(url, cookie) {
     calls.push({ kind: "google-complete", url: url.toString(), cookie });
     if (googleCompletionError) throw googleCompletionError;
-    return { subject: "google-subject", email: "owner@example.com", emailVerified: true, displayName: "Property Owner", avatarUrl: "", locale: "en-GB", flowPurpose: googlePurpose };
+    return { subject: "google-subject", email: "owner@example.com", emailVerified: true, displayName: "Property Owner", avatarUrl: "", locale: "en-GB", flowPurpose: googlePurpose, flowIntent: googleIntent };
   }
 };
 let facebookCompletionError = null;
 let facebookPurpose = "sign-in";
+let facebookIntent = "";
 const facebookLoginProvider = {
   name: "facebook",
   clearCookie: "tideway_facebook_flow=; Max-Age=0; HttpOnly; Secure",
-  begin(options = {}) { facebookPurpose = options.purpose || "sign-in"; calls.push({ kind: "facebook-start", purpose: facebookPurpose }); return { location: "https://www.facebook.com/v99.0/dialog/oauth?response_type=code&redirect_uri=https%3A%2F%2Ftideway.example.com%2Fapi%2Fmarketplace%2Fauth%2Ffacebook%2Fcallback&state=opaque", setCookie: "tideway_facebook_flow=signed; HttpOnly; Secure" }; },
+  begin(options = {}) { facebookPurpose = options.purpose || "sign-in"; facebookIntent = options.intent || ""; calls.push({ kind: "facebook-start", purpose: facebookPurpose, intent: facebookIntent }); return { location: "https://www.facebook.com/v99.0/dialog/oauth?response_type=code&redirect_uri=https%3A%2F%2Ftideway.example.com%2Fapi%2Fmarketplace%2Fauth%2Ffacebook%2Fcallback&state=opaque", setCookie: "tideway_facebook_flow=signed; HttpOnly; Secure" }; },
   async complete(url, cookie) {
     calls.push({ kind: "facebook-complete", url: url.toString(), cookie });
     if (facebookCompletionError) throw facebookCompletionError;
-    return { subject: "facebook-subject", email: "owner@example.com", emailVerified: false, displayName: "Property Owner", avatarUrl: "", locale: "", flowPurpose: facebookPurpose };
+    return { subject: "facebook-subject", email: "owner@example.com", emailVerified: false, displayName: "Property Owner", avatarUrl: "", locale: "", flowPurpose: facebookPurpose, flowIntent: facebookIntent };
   }
 };
 let facebookBeginResult = { authenticated: false, verificationRequired: true, emailDelivery: { kind: "facebook-email-verification", recipient: "owner@example.com", token: "facebook-verification-private", expiresAt: "2026-07-16T13:00:00.000Z" } };
@@ -163,26 +165,30 @@ assert(wrongMethod.response.statusCode === 405 && wrongMethod.response.headers.A
 const wrongOrigin = await dispatch(router, "POST", "/api/marketplace/auth/login", { email: "owner@example.com", password: "secret" }, { ...publicHeaders, origin: "https://attacker.example" });
 assert(wrongOrigin.response.statusCode === 403 && wrongOrigin.body.code === "origin-rejected", "Unauthenticated login accepted a cross-origin request.");
 
-const googleStart = await dispatch(router, "GET", "/api/marketplace/auth/google/start", undefined, { "user-agent": "Example Browser" });
-assert(googleStart.response.statusCode === 302 && googleStart.response.headers.Location.startsWith("https://accounts.google.com/") && googleStart.response.headers["Set-Cookie"][0].includes("HttpOnly") && googleStart.response.headers["Cache-Control"] === "no-store" && calls.some((call) => call.kind === "google-start"), "Google sign-in did not start through a non-cacheable server redirect and secure flow cookie.");
+const invalidGoogleIntent = await dispatch(router, "GET", "/api/marketplace/auth/google/start?intent=https%3A%2F%2Fattacker.example", undefined, { "user-agent": "Example Browser" });
+assert(invalidGoogleIntent.response.statusCode === 400 && invalidGoogleIntent.body.code === "invalid-account-intent", "Google sign-in accepted an arbitrary account destination.");
+const googleStart = await dispatch(router, "GET", "/api/marketplace/auth/google/start?intent=book", undefined, { "user-agent": "Example Browser" });
+assert(googleStart.response.statusCode === 302 && googleStart.response.headers.Location.startsWith("https://accounts.google.com/") && googleStart.response.headers["Set-Cookie"][0].includes("HttpOnly") && googleStart.response.headers["Cache-Control"] === "no-store" && calls.some((call) => call.kind === "google-start" && call.intent === "book"), "Google account-first booking did not start through a non-cacheable server redirect and secure signed flow cookie.");
 const googleCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=private-code&state=opaque", undefined, { cookie: "tideway_google_flow=signed", "user-agent": "Example Browser" });
-assert(googleCallback.response.statusCode === 303 && googleCallback.response.headers.Location.startsWith("/onboarding#social=google&csrfToken=") && !googleCallback.response.headers.Location.includes("private-code") && googleCallback.response.headers["Set-Cookie"].length === 2 && googleCallback.response.headers["Set-Cookie"][0].includes("Max-Age=0") && googleCallback.response.headers["Set-Cookie"][1].includes("HttpOnly") && calls.some((call) => call.kind === "social-sign-in" && call.provider === "google") && calls.some((call) => call.kind === "establish"), "Verified Google callback did not clear flow state, create/reuse the Tideway identity, establish an opaque session and continue to role onboarding.");
+assert(googleCallback.response.statusCode === 303 && googleCallback.response.headers.Location.startsWith("/onboarding#social=google&csrfToken=") && googleCallback.response.headers.Location.endsWith("&intent=book") && !googleCallback.response.headers.Location.includes("private-code") && googleCallback.response.headers["Set-Cookie"].length === 2 && googleCallback.response.headers["Set-Cookie"][0].includes("Max-Age=0") && googleCallback.response.headers["Set-Cookie"][1].includes("HttpOnly") && calls.some((call) => call.kind === "social-sign-in" && call.provider === "google") && calls.some((call) => call.kind === "establish"), "Verified Google callback did not clear flow state, create/reuse the Tideway identity, preserve booking intent, establish an opaque session and continue to Landlord role onboarding.");
 googleCompletionError = new TypeError("private provider rejection");
 const failedGoogleCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=bad&state=opaque", undefined, { cookie: "tideway_google_flow=signed" });
 assert(failedGoogleCallback.response.statusCode === 303 && failedGoogleCallback.response.headers.Location === "/login#social=google-failed" && failedGoogleCallback.response.headers["Set-Cookie"][0].includes("Max-Age=0") && !failedGoogleCallback.response.headers.Location.includes("private provider rejection"), "Rejected Google callback leaked provider details or retained its one-time flow cookie.");
 googleCompletionError = null;
 
-const facebookStart = await dispatch(router, "GET", "/api/marketplace/auth/facebook/start", undefined, { "user-agent": "Example Browser" });
-assert(facebookStart.response.statusCode === 302 && facebookStart.response.headers.Location.startsWith("https://www.facebook.com/") && facebookStart.response.headers["Set-Cookie"][0].includes("HttpOnly") && calls.some((call) => call.kind === "facebook-start"), "Facebook sign-in did not start through a non-cacheable server redirect and secure flow cookie.");
+const duplicateFacebookIntent = await dispatch(router, "GET", "/api/marketplace/auth/facebook/start?intent=book&intent=book", undefined, { "user-agent": "Example Browser" });
+assert(duplicateFacebookIntent.response.statusCode === 400 && duplicateFacebookIntent.body.code === "invalid-account-intent", "Facebook sign-in accepted an ambiguous duplicated account action.");
+const facebookStart = await dispatch(router, "GET", "/api/marketplace/auth/facebook/start?intent=book", undefined, { "user-agent": "Example Browser" });
+assert(facebookStart.response.statusCode === 302 && facebookStart.response.headers.Location.startsWith("https://www.facebook.com/") && facebookStart.response.headers["Set-Cookie"][0].includes("HttpOnly") && calls.some((call) => call.kind === "facebook-start" && call.intent === "book"), "Facebook account-first booking did not start through a non-cacheable server redirect and secure signed flow cookie.");
 const facebookPending = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=private-code&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed", "user-agent": "Example Browser" });
-assert(facebookPending.response.statusCode === 303 && facebookPending.response.headers.Location === "/login#social=facebook-verification-sent" && facebookPending.response.headers["Set-Cookie"][0].includes("Max-Age=0") && deliveries.at(-1).kind === "facebook-email-verification" && deliveries.at(-1).link.startsWith(`${origin}/verify-facebook#token=`) && !facebookPending.response.body.includes("owner@example.com"), "First Facebook callback did not require a private Tideway mailbox-verification link.");
+assert(facebookPending.response.statusCode === 303 && facebookPending.response.headers.Location === "/login#social=facebook-verification-sent" && facebookPending.response.headers["Set-Cookie"][0].includes("Max-Age=0") && deliveries.at(-1).kind === "facebook-email-verification" && deliveries.at(-1).link.startsWith(`${origin}/verify-facebook#token=`) && deliveries.at(-1).link.endsWith("&intent=book") && !facebookPending.response.body.includes("owner@example.com"), "First Facebook callback did not require a private Tideway mailbox-verification link or preserve its signed booking action.");
 const invalidFacebookVerification = await dispatch(router, "POST", "/api/marketplace/auth/facebook/verification/confirm", { token: "bad" }, publicHeaders);
 facebookVerifyResult = { verified: true, account: { userId: currentContext.actor.userId, email: "owner@example.com", emailVerifiedAt: "2026-07-16T12:05:00.000Z", displayName: "Property Owner", selectedRole: null, roles: [] } };
 const validFacebookVerification = await dispatch(router, "POST", "/api/marketplace/auth/facebook/verification/confirm", { token: "good" }, publicHeaders);
 assert(invalidFacebookVerification.response.statusCode === 400 && validFacebookVerification.response.statusCode === 200 && validFacebookVerification.body.csrfToken === "new-csrf-private" && validFacebookVerification.response.headers["Set-Cookie"].includes("HttpOnly"), "Facebook mailbox verification accepted an invalid token or failed to establish Tideway's opaque session.");
 facebookBeginResult = { authenticated: true, account: facebookVerifyResult.account };
 const facebookRepeat = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=repeat&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed", "user-agent": "Example Browser" });
-assert(facebookRepeat.response.statusCode === 303 && facebookRepeat.response.headers.Location.startsWith("/onboarding#social=facebook&csrfToken=") && facebookRepeat.response.headers["Set-Cookie"].length === 2, "A previously verified Facebook subject was forced through mailbox verification again or did not receive a Tideway session.");
+assert(facebookRepeat.response.statusCode === 303 && facebookRepeat.response.headers.Location.startsWith("/onboarding#social=facebook&csrfToken=") && facebookRepeat.response.headers.Location.endsWith("&intent=book") && facebookRepeat.response.headers["Set-Cookie"].length === 2, "A previously verified Facebook subject was forced through mailbox verification again, lost booking intent or did not receive a Tideway session.");
 facebookBeginResult = { authenticated: false, verificationRequired: false, reason: "facebook-email-unavailable", emailDelivery: null };
 const facebookNoEmail = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=no-email&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed" });
 assert(facebookNoEmail.response.headers.Location === "/login#social=facebook-email-unavailable", "Facebook missing-email handling created an account or lost its safe fallback.");

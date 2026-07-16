@@ -8,7 +8,7 @@
   <title>Tideway account access</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260715-47">
-  <script src="/auth-entry.js?v=20260716-3" type="module"></script>
+  <script src="/auth-entry.js?v=20260716-4" type="module"></script>
 </head>
 <body class="account-page">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -35,7 +35,7 @@
           <div class="account-feedback" data-account-feedback role="status" aria-live="polite" hidden></div>
 
           <div class="account-social" data-social-actions hidden>
-            <p>Continue with a social account</p>
+            <p>Continue securely. If this verified social account is new, Tideway creates its account automatically.</p>
             <a class="button button-outline" data-social-provider="google" href="/api/marketplace/auth/google/start" hidden>Continue with Google</a>
             <a class="button button-outline" data-social-provider="facebook" href="/api/marketplace/auth/facebook/start" hidden>Continue with Facebook</a>
           </div>
@@ -117,7 +117,7 @@
         </section>
 
         <div class="account-actions" data-pilot-actions>
-          <a class="button" href="/request">Request a clean</a>
+          <a class="button" href="/signup?intent=book">Create an account to book</a>
           <a class="button button-outline" href="/join">Join as a cleaner</a>
         </div>
         <noscript><p class="account-noscript">Account access is not enabled. JavaScript is not required to use the working request or cleaner application routes above.</p></noscript>

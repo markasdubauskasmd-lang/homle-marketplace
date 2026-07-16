@@ -19,11 +19,18 @@ function header(request, name) {
   return Array.isArray(supplied) ? supplied[0] : String(supplied || "");
 }
 
-function deliveryLink(origin, delivery) {
+function signInIntent(url) {
+  const values = url.searchParams.getAll("intent");
+  if (!values.length) return "";
+  if (values.length !== 1 || values[0] !== "book") throw Object.assign(new Error("Choose a supported account action."), { statusCode: 400, code: "invalid-account-intent" });
+  return "book";
+}
+
+function deliveryLink(origin, delivery, intent = "") {
   const path = delivery.kind === "email-verification" ? "/verify-email" : delivery.kind === "facebook-email-verification" ? "/verify-facebook" : delivery.kind === "password-reset" ? "/reset-password" : "";
   if (!path) throw new TypeError("A supported authentication delivery is required.");
   const link = new URL(path, origin);
-  link.hash = new URLSearchParams({ token: delivery.token }).toString();
+  link.hash = new URLSearchParams({ token: delivery.token, ...(intent === "book" ? { intent } : {}) }).toString();
   return link.toString();
 }
 
@@ -77,9 +84,9 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   if (facebook && (facebook.name !== "facebook" || typeof facebook.begin !== "function" || typeof facebook.complete !== "function" || typeof facebook.clearCookie !== "string")) throw new TypeError("Facebook authentication routes require a complete provider verifier.");
   if (!providerLink || ["begin", "verify", "has", "beginStepUp", "verifyStepUp", "completeStepUp", "verifyRecentStepUp", "hasStepUpFlow"].some((method) => typeof providerLink[method] !== "function") || ["clearCookie", "clearStepUpFlowCookie", "clearRecentStepUpCookie"].some((field) => typeof providerLink[field] !== "string")) throw new TypeError("Authentication HTTP routes require provider connection state.");
 
-  async function privateDelivery(delivery) {
+  async function privateDelivery(delivery, intent = "") {
     if (!delivery) return;
-    await emailDelivery.send({ kind: delivery.kind, recipient: delivery.recipient, link: deliveryLink(appOrigin, delivery), expiresAt: delivery.expiresAt });
+    await emailDelivery.send({ kind: delivery.kind, recipient: delivery.recipient, link: deliveryLink(appOrigin, delivery, intent), expiresAt: delivery.expiresAt });
   }
 
   async function publicTiming(startedAt) {
@@ -224,7 +231,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           if (!google) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           await limit(request, "google-start");
-          const attempt = google.begin();
+          const attempt = google.begin({ intent: signInIntent(url) });
           sendRedirect(response, 302, attempt.location, [attempt.setCookie]);
           return true;
         }
@@ -246,7 +253,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
             const account = await identity.socialSignIn("google", claims);
             const session = await sessions.establish(account, metadata(request));
             const destination = session.account.roles.length ? "/login" : "/onboarding";
-            const fragment = new URLSearchParams({ social: "google", csrfToken: session.csrfToken });
+            const fragment = new URLSearchParams({ social: "google", csrfToken: session.csrfToken, ...(claims.flowIntent === "book" ? { intent: "book" } : {}) });
             sendRedirect(response, 303, `${destination}#${fragment}`, [google.clearCookie, session.setCookie]);
           } catch (error) {
             const rateLimited = error?.statusCode === 429;
@@ -263,7 +270,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           if (!facebook) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           await limit(request, "facebook-start");
-          const attempt = facebook.begin();
+          const attempt = facebook.begin({ intent: signInIntent(url) });
           sendRedirect(response, 302, attempt.location, [attempt.setCookie]);
           return true;
         }
@@ -286,10 +293,10 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
             if (result.authenticated) {
               const session = await sessions.establish(result.account, metadata(request));
               const destination = session.account.roles.length ? "/login" : "/onboarding";
-              const fragment = new URLSearchParams({ social: "facebook", csrfToken: session.csrfToken });
+              const fragment = new URLSearchParams({ social: "facebook", csrfToken: session.csrfToken, ...(claims.flowIntent === "book" ? { intent: "book" } : {}) });
               sendRedirect(response, 303, `${destination}#${fragment}`, [facebook.clearCookie, session.setCookie]);
             } else if (result.verificationRequired) {
-              await privateDelivery(result.emailDelivery);
+              await privateDelivery(result.emailDelivery, claims.flowIntent);
               sendRedirect(response, 303, "/login#social=facebook-verification-sent", [facebook.clearCookie]);
             } else {
               sendRedirect(response, 303, "/login#social=facebook-email-unavailable", [facebook.clearCookie]);

@@ -82,6 +82,7 @@ function verifiedFlow(value, secret, nowSeconds) {
   const payload = safeJson(decodeBase64url(parts[0], "Facebook sign-in cookie", 3072), "Facebook sign-in cookie");
   if (payload.v !== 1 || !Number.isInteger(payload.iat) || !Number.isInteger(payload.exp) || payload.iat > nowSeconds + maximumClockSkewSeconds || payload.exp < nowSeconds || payload.exp - payload.iat !== flowLifetimeSeconds) throw new TypeError("The Facebook sign-in attempt is missing or expired.");
   if (!["sign-in", "link", "step-up"].includes(payload.purpose)) throw new TypeError("The Facebook sign-in attempt is missing or expired.");
+  if (![undefined, "", "book"].includes(payload.intent)) throw new TypeError("The Facebook sign-in attempt is missing or expired.");
   if (typeof payload.state !== "string" || payload.state.length < 32 || payload.state.length > 128 || !/^[A-Za-z0-9_-]+$/.test(payload.state)) throw new TypeError("The Facebook sign-in attempt is missing or expired.");
   return payload;
 }
@@ -183,9 +184,11 @@ export function createFacebookLoginProvider(options = {}) {
     begin(options = {}) {
       const purpose = options.purpose ?? "sign-in";
       if (!["sign-in", "link", "step-up"].includes(purpose)) throw new TypeError("Facebook sign-in purpose is invalid.");
+      const intent = options.intent ?? "";
+      if (!["", "book"].includes(intent) || (purpose !== "sign-in" && intent)) throw new TypeError("Facebook sign-in intent is invalid.");
       const nowSeconds = Math.floor(clock() / 1000);
       const state = base64url(entropy(32));
-      const payload = { v: 1, purpose, state, iat: nowSeconds, exp: nowSeconds + flowLifetimeSeconds };
+      const payload = { v: 1, purpose, intent, state, iat: nowSeconds, exp: nowSeconds + flowLifetimeSeconds };
       const url = new URL(authorizationEndpoint);
       url.search = new URLSearchParams({ client_id: appId, redirect_uri: callbackUrl, response_type: "code", scope: "email", state }).toString();
       return { location: url.toString(), setCookie: flowCookie(signedFlow(payload, stateSecret), secure, cookieName) };
@@ -208,7 +211,7 @@ export function createFacebookLoginProvider(options = {}) {
       profileUrl.searchParams.set("fields", "id,name,email,picture.type(large)");
       profileUrl.searchParams.set("appsecret_proof", createHmac("sha256", appSecret).update(accessToken, "utf8").digest("hex"));
       const profile = await requestJson(profileUrl, { method: "GET", headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}` }, redirect: "error" }, "Facebook profile request");
-      return { ...profileClaims(profile, debug, appId, Math.floor(clock() / 1000)), flowPurpose: flow.purpose };
+      return { ...profileClaims(profile, debug, appId, Math.floor(clock() / 1000)), flowPurpose: flow.purpose, flowIntent: flow.intent || "" };
     }
   });
 }

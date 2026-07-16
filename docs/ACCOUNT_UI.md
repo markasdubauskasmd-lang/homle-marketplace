@@ -12,6 +12,10 @@ Tideway now has mobile-first account form markup and browser logic for `/login`,
 
 ## Prepared journeys
 
+- Every public **Book a clean** action opens `/signup?intent=book`. When Google or Facebook is configured, its start link carries only the fixed `book` intent; email/password remains the fallback.
+- The server signs the booking intent into the short-lived provider flow instead of accepting a general return URL. Arbitrary and duplicated intents are rejected, so this journey cannot become an open redirect.
+- A successful social sign-in automatically creates or safely reuses the verified Tideway account. New accounts continue to role onboarding with Landlord preselected, then open `/landlord/dashboard`. The user still confirms the role; an existing Cleaner-only account receives a clear message and is never silently changed.
+- The browser remembers only the allowlisted booking action in session storage for 30 minutes, removes it after reaching the Landlord workspace and never stores a provider token or arbitrary destination.
 - Login stores only the separate CSRF token in session storage; the opaque session remains in an HttpOnly cookie.
 - A successful Google callback places only the Tideway CSRF value in a fragment, removes that fragment before any request, stores the value in the same tab and continues a role-pending account to onboarding. Google codes and tokens are never placed in browser storage.
 - A first Facebook callback never trusts the provider email: it sends a private Tideway verification link. `/verify-facebook` removes the token before its first request, consumes it once, establishes only Tideway's opaque session and continues a new role-pending account to onboarding. A previously verified Facebook subject follows the normal social-session path.

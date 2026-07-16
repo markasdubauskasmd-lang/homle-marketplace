@@ -90,7 +90,7 @@ assert(first.location.searchParams.get("code_challenge_method") === "S256" && fi
 assert(first.attempt.setCookie.startsWith("__Host-tideway_google_flow=") && first.attempt.setCookie.includes("Path=/") && first.attempt.setCookie.includes("HttpOnly") && first.attempt.setCookie.includes("SameSite=Lax") && first.attempt.setCookie.includes("Secure") && first.attempt.setCookie.includes("Max-Age=600") && !first.attempt.setCookie.includes(clientSecret), "Google flow material was not kept in a host-only short-lived secure HTTP-only cookie.");
 
 const firstClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=one-time-code&state=${encodeURIComponent(first.state)}`), first.cookie);
-assert(firstClaims.subject === "google-subject-123" && firstClaims.email === "owner@example.com" && firstClaims.emailVerified === true && firstClaims.displayName === "Property Owner" && firstClaims.avatarUrl.startsWith("https://") && firstClaims.locale === "en-GB" && firstClaims.flowPurpose === "sign-in", "A valid Google identity token did not produce the bounded verified account claims and signed flow purpose.");
+assert(firstClaims.subject === "google-subject-123" && firstClaims.email === "owner@example.com" && firstClaims.emailVerified === true && firstClaims.displayName === "Property Owner" && firstClaims.avatarUrl.startsWith("https://") && firstClaims.locale === "en-GB" && firstClaims.flowPurpose === "sign-in" && firstClaims.flowIntent === "", "A valid Google identity token did not produce the bounded verified account claims and signed flow purpose/intent.");
 assert(lastTokenBody.get("code") === "one-time-code" && lastTokenBody.get("client_id") === clientId && lastTokenBody.get("client_secret") === clientSecret && lastTokenBody.get("grant_type") === "authorization_code" && lastTokenBody.get("redirect_uri") === provider.callbackUrl && lastTokenBody.get("code_verifier")?.length === 43 && !lastTokenBody.has("refresh_token"), "The Google code exchange lost its exact callback, client authentication or PKCE verifier, or requested persistent provider access unnecessarily.");
 assert(provider.clearCookie.includes("Max-Age=0") && provider.clearCookie.includes("Secure"), "The Google flow cookie cannot be expired after callback handling.");
 
@@ -104,9 +104,16 @@ const stepUpLocation = new URL(stepUpAttempt.location);
 activeNonce = stepUpLocation.searchParams.get("nonce");
 const stepUpClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=step-up-code&state=${encodeURIComponent(stepUpLocation.searchParams.get("state"))}`), stepUpAttempt.setCookie.split(";", 1)[0]);
 assert(stepUpClaims.flowPurpose === "step-up", "A provider step-up flow lost its signed purpose and could become sign-in or connection.");
+const bookingAttempt = provider.begin({ intent: "book" });
+const bookingLocation = new URL(bookingAttempt.location);
+activeNonce = bookingLocation.searchParams.get("nonce");
+const bookingClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=booking-code&state=${encodeURIComponent(bookingLocation.searchParams.get("state"))}`), bookingAttempt.setCookie.split(";", 1)[0]);
+assert(bookingClaims.flowPurpose === "sign-in" && bookingClaims.flowIntent === "book", "The account-first booking action was not retained in Google's signed server flow.");
 let invalidPurposeRejected = false;
 try { provider.begin({ purpose: "unexpected" }); } catch (error) { invalidPurposeRejected = /purpose/i.test(error.message); }
 assert(invalidPurposeRejected, "Google accepted an unknown flow purpose.");
+assert(await rejects(() => Promise.resolve(provider.begin({ intent: "https://attacker.example" })), "intent"), "Google accepted an arbitrary account intent that could become an open redirect.");
+assert(await rejects(() => Promise.resolve(provider.begin({ purpose: "link", intent: "book" })), "intent"), "Google allowed a booking intent to contaminate an authenticated provider-link flow.");
 
 const proxied = start();
 const proxiedClaims = await provider.complete(new URL(`http://127.0.0.1:4173/api/marketplace/auth/google/callback?code=proxied-code&state=${encodeURIComponent(proxied.state)}`), proxied.cookie);
@@ -114,7 +121,7 @@ assert(proxiedClaims.subject === "google-subject-123" && lastTokenBody.get("redi
 
 const second = start();
 await provider.complete(new URL(`${provider.callbackUrl}?code=second-code&state=${encodeURIComponent(second.state)}`), second.cookie);
-assert(tokenRequests === 5 && keyRequests === 1, "Google signing keys were not bounded and cached or the authorization code was not exchanged exactly once per callback.");
+assert(tokenRequests === 6 && keyRequests === 1, "Google signing keys were not bounded and cached or the authorization code was not exchanged exactly once per callback.");
 
 const mismatched = start();
 assert(await rejects(() => provider.complete(new URL(`${provider.callbackUrl}?code=code&state=${encodeURIComponent(`${mismatched.state}x`)}`), mismatched.cookie), "mismatched"), "Google callback accepted a state that did not match the signed HTTP-only flow cookie.");
@@ -142,4 +149,4 @@ const accountScript = await readFile(new URL("../public/auth-entry.js", import.m
 assert(accountPage.includes('data-social-actions hidden') && accountPage.includes('data-social-provider="google"') && accountPage.includes('data-social-provider="facebook"') && /data-social-provider="google"[^>]+hidden/.test(accountPage) && /data-social-provider="facebook"[^>]+hidden/.test(accountPage), "The account page exposed a provider before capability discovery or omitted its gated controls.");
 assert(accountScript.includes("providers[link.dataset.socialProvider] === true") && accountScript.indexOf("history.replaceState") < accountScript.indexOf('fetch("/api/auth/providers"') && accountScript.includes('fragment.get("csrfToken")') && accountScript.includes("storeCsrf(socialCsrfToken)"), "The account browser flow did not require an explicit provider capability or remove callback fragments before network activity.");
 
-console.log("Google OIDC tests passed: exact callback, signed sign-in/link purpose, short-lived state, nonce, PKCE, server-only code exchange, RS256/JWKS verification, issuer/audience/expiry/email checks, bounded key cache and cookie cleanup.");
+console.log("Google OIDC tests passed: exact callback, signed account-first booking intent and sign-in/link purpose, short-lived state, nonce, PKCE, server-only code exchange, RS256/JWKS verification, issuer/audience/expiry/email checks, bounded key cache and cookie cleanup.");

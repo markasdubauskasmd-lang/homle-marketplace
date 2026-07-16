@@ -59,7 +59,7 @@ assert.equal(first.state.length, 43);
 assert(first.attempt.setCookie.startsWith("__Host-tideway_facebook_flow=") && first.attempt.setCookie.includes("HttpOnly") && first.attempt.setCookie.includes("SameSite=Lax") && first.attempt.setCookie.includes("Secure") && first.attempt.setCookie.includes("Max-Age=600") && !first.attempt.setCookie.includes(appSecret));
 
 const claims = await provider.complete(new URL(`${provider.callbackUrl}?code=private-code&state=${encodeURIComponent(first.state)}`), first.cookie);
-assert.deepEqual(claims, { subject: "facebook-subject-123", email: "owner@example.com", emailVerified: false, displayName: "Property Owner", avatarUrl: "https://images.example.com/owner.jpg", locale: "", flowPurpose: "sign-in" });
+assert.deepEqual(claims, { subject: "facebook-subject-123", email: "owner@example.com", emailVerified: false, displayName: "Property Owner", avatarUrl: "https://images.example.com/owner.jpg", locale: "", flowPurpose: "sign-in", flowIntent: "" });
 assert.equal(requests.length, 3);
 assert(provider.clearCookie.includes("Max-Age=0") && provider.clearCookie.includes("Secure"));
 
@@ -71,7 +71,14 @@ const stepUp = provider.begin({ purpose: "step-up" });
 const stepUpLocation = new URL(stepUp.location);
 const stepUpClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=step-up-code&state=${encodeURIComponent(stepUpLocation.searchParams.get("state"))}`), stepUp.setCookie.split(";", 1)[0]);
 assert.equal(stepUpClaims.flowPurpose, "step-up");
+const booking = provider.begin({ intent: "book" });
+const bookingLocation = new URL(booking.location);
+const bookingClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=booking-code&state=${encodeURIComponent(bookingLocation.searchParams.get("state"))}`), booking.setCookie.split(";", 1)[0]);
+assert.equal(bookingClaims.flowPurpose, "sign-in");
+assert.equal(bookingClaims.flowIntent, "book");
 assert.throws(() => provider.begin({ purpose: "unexpected" }), /purpose/i);
+assert.throws(() => provider.begin({ intent: "https://attacker.example" }), /intent/i);
+assert.throws(() => provider.begin({ purpose: "link", intent: "book" }), /intent/i);
 
 const proxied = start();
 await provider.complete(new URL(`http://127.0.0.1:4173/api/marketplace/auth/facebook/callback?code=proxied&state=${encodeURIComponent(proxied.state)}`), proxied.cookie);
@@ -119,4 +126,4 @@ await assert.rejects(
   (error) => error instanceof TypeError && error.message.includes("temporarily unavailable") && !error.message.includes(accessToken)
 );
 
-console.log("Facebook Login tests passed: version-pinned authorization, signed sign-in/link purpose, bounded server exchange, app-bound token inspection, app-secret proof, subject matching, unverified-email boundary and cookie cleanup.");
+console.log("Facebook Login tests passed: version-pinned authorization, signed account-first booking intent and sign-in/link purpose, bounded server exchange, app-bound token inspection, app-secret proof, subject matching, unverified-email boundary and cookie cleanup.");

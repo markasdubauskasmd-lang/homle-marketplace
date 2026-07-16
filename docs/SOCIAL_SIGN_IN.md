@@ -6,6 +6,12 @@ Google OpenID Connect is implemented in source and connected to the detached mar
 
 Facebook Login is now implemented in detached source but remains disabled on the local pilot. Tideway validates the provider identity and App ID, but deliberately treats Facebook's `email` field as unverified. A first-time Facebook subject receives a separate Tideway mailbox-verification link before an account or identity is created. Existing password accounts are never auto-linked by this pre-authenticated flow; they use the authenticated `/settings` connection journey described below.
 
+## Account-first booking journey
+
+Every public **Book a clean** action opens `/signup?intent=book`. If a configured Google or Facebook control is selected, Tideway puts only the allowlisted `book` value into the provider's signed, ten-minute flow state. The callback automatically creates or safely reuses the verified Tideway account, retains the booking action and continues a role-pending user to Landlord onboarding. Once the user confirms Landlord, the browser opens the private Landlord dashboard. Email/password remains the fallback.
+
+This is deliberately not a general `next` URL. The server rejects unknown or repeated intent values, connection/step-up flows cannot carry booking intent, and the browser retains only the allowlisted action for 30 minutes. Existing Cleaner-only accounts are not silently upgraded; they are told to use a Landlord account. Google/Facebook buttons still remain hidden until their full activation gates below pass.
+
 ## Authenticated connection from Settings
 
 An existing verified password account can connect Google or Facebook without relying on an email match:

@@ -1,3 +1,5 @@
+import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent } from "./account-intent.js";
+
 const modes = Object.freeze({
   "/login": { form: "login", title: "Sign in to Tideway", lead: "Use your verified account to open the correct private workspace." },
   "/signup": { form: "signup", title: "Create a Tideway account", lead: "Start as a Cleaner or Landlord/Property Manager after verifying your email." },
@@ -21,6 +23,13 @@ const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
 const privateToken = fragment.get("token") || "";
 const socialResult = fragment.get("social") || "";
 const socialCsrfToken = fragment.get("csrfToken") || "";
+const fragmentIntent = normalizeAccountIntent(fragment.get("intent"));
+let accountIntent = accountIntentFromSearch(location.search) || fragmentIntent;
+try {
+  if (accountIntent) saveAccountIntent(sessionStorage, accountIntent);
+  else accountIntent = readAccountIntent(sessionStorage);
+} catch { accountIntent = ""; }
+const bookingIntent = accountIntent === "book";
 
 if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
 document.title = `${selectedMode.title} — Tideway`;
@@ -29,6 +38,15 @@ if (lead) lead.textContent = location.pathname === "/login"
   ? "Existing pilot requests use their protected private tracker links while account sign-in is being prepared."
   : "Cleaner and landlord onboarding is being built behind Tideway's secure database boundary.";
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
+
+if (bookingIntent && ["login", "signup"].includes(selectedMode.form)) {
+  document.title = `${selectedMode.form === "signup" ? "Create an account" : "Sign in"} to book a clean — Tideway`;
+}
+
+function clearCompletedIntent() {
+  try { clearAccountIntent(sessionStorage); } catch {}
+  accountIntent = "";
+}
 
 function showFeedback(message, kind = "info") {
   if (!feedback) return;
@@ -43,6 +61,9 @@ function activateForm(providers) {
   const socialPage = selectedMode.form === "login" || selectedMode.form === "signup";
   const socialReady = socialPage && socialLinks.some((link) => providers[link.dataset.socialProvider] === true);
   for (const link of socialLinks) link.hidden = !socialPage || providers[link.dataset.socialProvider] !== true;
+  if (bookingIntent) {
+    for (const link of socialLinks) link.href = `${link.pathname}?intent=book`;
+  }
   if (socialActions) socialActions.hidden = !socialReady;
   for (const form of forms) {
     const capabilityReady = selectedMode.form === "onboarding" || (selectedMode.form === "facebook-verify" ? providers.facebook === true : providers.emailPassword === true);
@@ -53,6 +74,16 @@ function activateForm(providers) {
   runtime.hidden = false;
   title.textContent = selectedMode.title;
   lead.textContent = selectedMode.lead;
+  if (bookingIntent && selectedMode.form === "signup") {
+    title.textContent = "Create an account to book a clean";
+    lead.textContent = "Continue with Google or Facebook for the quickest setup. Tideway automatically creates your account when the verified provider is new, then asks you to confirm the Landlord workspace.";
+  } else if (bookingIntent && selectedMode.form === "login") {
+    title.textContent = "Sign in to book a clean";
+    lead.textContent = "Use Google, Facebook or your verified email account, then continue to your private Landlord workspace.";
+  } else if (bookingIntent && selectedMode.form === "onboarding") {
+    title.textContent = "Confirm your booking workspace";
+    lead.textContent = "Choose Landlord or Property Manager to add the property, scan rooms and request the clean.";
+  }
   if ((selectedMode.form === "verify" || selectedMode.form === "facebook-verify") && !privateToken) showFeedback("This verification link is incomplete or has already been removed.", "error");
 }
 
@@ -91,6 +122,7 @@ function clearStoredCsrf() {
 }
 
 function workspacePath(account) {
+  if (accountIntent === "book") return account?.roles?.includes("landlord") ? "/landlord/dashboard" : "";
   if (account?.selectedRole === "cleaner" && account?.roles?.includes("cleaner")) return "/cleaner/dashboard";
   if (account?.selectedRole === "landlord" && account?.roles?.includes("landlord")) return "/landlord/dashboard";
   return "";
@@ -100,8 +132,13 @@ async function openSignedInWorkspace() {
   const response = await fetch("/api/marketplace/account", { credentials: "same-origin", headers: { Accept: "application/json" }, cache: "no-store" });
   if (!response.ok) return false;
   const result = await response.json();
+  if (accountIntent === "book" && result.account?.roles?.length && !result.account.roles.includes("landlord")) {
+    showFeedback("This account currently has only a Cleaner workspace. Use a Landlord account to book a clean; Tideway has not changed your role.", "error");
+    return true;
+  }
   const destination = workspacePath(result.account);
   if (!destination) return false;
+  clearCompletedIntent();
   location.assign(destination);
   return true;
 }
@@ -126,11 +163,16 @@ async function submitAccountForm(event) {
         throw new Error("Secure browser storage is unavailable, so Tideway closed the new session. Try a standard browser window.");
       }
       if (!result.account?.roles?.length) {
-        location.assign("/onboarding");
+        location.assign(bookingIntent ? "/onboarding?intent=book" : "/onboarding");
+        return;
+      }
+      if (bookingIntent && !result.account.roles.includes("landlord")) {
+        showFeedback("This account currently has only a Cleaner workspace. Use a Landlord account to book a clean; Tideway has not changed your role.", "error");
         return;
       }
       const destination = workspacePath(result.account);
       if (destination) {
+        clearCompletedIntent();
         location.assign(destination);
         return;
       }
@@ -153,7 +195,7 @@ async function submitAccountForm(event) {
         throw new Error("Secure browser storage is unavailable, so Tideway closed the new session. Try a standard browser window.");
       }
       if (!result.account?.roles?.length) {
-        location.assign("/onboarding#social=facebook-verified");
+        location.assign(`${bookingIntent ? "/onboarding?intent=book" : "/onboarding"}#social=facebook-verified${bookingIntent ? "&intent=book" : ""}`);
         return;
       }
       showFeedback("Facebook sign-in verified. Your secure Tideway session is ready.", "success");
@@ -183,6 +225,7 @@ async function submitAccountForm(event) {
       }
       const destination = workspacePath(result.account);
       if (destination) {
+        clearCompletedIntent();
         location.assign(destination);
         return;
       }
@@ -197,6 +240,11 @@ async function submitAccountForm(event) {
 }
 
 for (const form of forms) form.addEventListener("submit", submitAccountForm);
+
+if (bookingIntent && selectedMode.form === "onboarding") {
+  const landlordChoice = document.querySelector('input[name="role"][value="landlord"]');
+  if (landlordChoice) landlordChoice.checked = true;
+}
 
 try {
   const response = await fetch("/api/auth/providers", { headers: { Accept: "application/json" }, cache: "no-store" });
