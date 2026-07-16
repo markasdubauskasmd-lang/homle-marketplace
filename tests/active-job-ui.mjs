@@ -7,6 +7,10 @@ import {
   activeJobStage,
   createClientMessageId,
   elapsedLabel,
+  jobPhotoFileCheck,
+  jobPhotoMimeType,
+  jobPhotoSha256,
+  jobPhotoUploadAllowed,
   mergeBookingMessages,
   progressSummary,
   taskCanBeDecided,
@@ -39,28 +43,37 @@ const mergedMessages = mergeBookingMessages([messageB], [messageA, messageB, { m
 assert(mergedMessages.length === 2 && mergedMessages[0].messageId === messageA.messageId && !Object.hasOwn(mergedMessages[0], "senderUserId"), "Live chat merging lost chronological deduplication or retained a private account identifier.");
 const fallbackId = createClientMessageId({ getRandomValues(bytes) { bytes.fill(7); return bytes; } });
 assert(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(fallbackId), "The browser message retry key was not a secure UUID shape.");
+const photoFile = new Blob([new Uint8Array([1, 2, 3, 4])], { type: "image/jpeg" });
+assert(jobPhotoFileCheck(photoFile).ok && jobPhotoMimeType({ name: "evidence.heif", type: "" }) === "image/heic", "Supported mobile job-photo formats were not normalized safely.");
+assert(!jobPhotoFileCheck(new Blob([], { type: "image/jpeg" })).ok && !jobPhotoFileCheck({ size: 1, type: "image/gif", arrayBuffer() {} }).ok, "Empty or unsupported job-photo input passed browser validation.");
+assert(jobPhotoUploadAllowed("cleaner", "cleaner-arrived", "before") && jobPhotoUploadAllowed("cleaner", "awaiting-review", "after") && !jobPhotoUploadAllowed("cleaner", "awaiting-review", "before") && !jobPhotoUploadAllowed("landlord", "cleaning-in-progress", "after"), "Photo controls did not follow the Cleaner-only server lifecycle.");
+const photoHash = await jobPhotoSha256(photoFile);
+assert(/^[0-9a-f]{64}$/.test(photoHash) && photoHash === await jobPhotoSha256(photoFile), "Browser photo hashing was not deterministic SHA-256 evidence.");
 assert(progressSummary({ totalTasks: 4, completedTasks: 2, resolvedTasks: 3, overallPercentage: 75 }).unresolved === 1, "Progress summary lost unresolved work.");
 assert(elapsedLabel(7_500) === "2h 5m", "Elapsed cleaning time was formatted incorrectly.");
 
-const [html, script, styles, server, packageFile] = await Promise.all([
+const [html, script, styles, server, config, packageFile] = await Promise.all([
   readFile(new URL("../public/active-job.html", import.meta.url), "utf8"),
   readFile(new URL("../public/active-job.js", import.meta.url), "utf8"),
   readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+  readFile(new URL("../src/marketplace/config.mjs", import.meta.url), "utf8"),
   readFile(new URL("../package.json", import.meta.url), "utf8")
 ]);
 
-for (const copy of ["Start journey", "I have arrived", "Start cleaning", "Finish cleaning", "Private live journey", "Live room checklist", "Booking participants only", "Private booking chat", "No personal contact details", "Send privately"]) assert(html.includes(copy), `The active-job interface omitted ${copy}.`);
-assert(html.includes("data-task-list") && html.includes("data-pause-dialog") && html.includes("data-task-dialog") && html.includes("role=\"progressbar\"") && html.includes("role=\"log\"") && html.includes("maxlength=\"2000\""), "The active-job interface omitted task, pause, unexpected-work, accessible progress or bounded chat controls.");
+for (const copy of ["Start journey", "I have arrived", "Start cleaning", "Finish cleaning", "Private live journey", "Live room checklist", "Booking participants only", "Private booking chat", "No personal contact details", "Send privately", "Private cleaning evidence", "Take a job photo", "Choose existing photo", "Before cleaning", "After cleaning", "Issue or damage"]) assert(html.includes(copy), `The active-job interface omitted ${copy}.`);
+assert(html.includes("data-task-list") && html.includes("data-pause-dialog") && html.includes("data-task-dialog") && html.includes("role=\"progressbar\"") && html.includes("role=\"log\"") && html.includes("maxlength=\"2000\"") && html.includes('capture="environment"') && html.includes("data-photo-viewer-image"), "The active-job interface omitted task, pause, unexpected-work, accessible progress, bounded chat, rear-camera capture or private photo viewing controls.");
 assert(!/sample cleaner|preview state|stylised map preview/i.test(html), "The authenticated screen could be mistaken for the design preview.");
-for (const source of ["/tracking", "/cleaning-progress", "/property", "/events", "/messages", "/journey/start", "/journey/location", "/journey/arrive", "/cleaning-progress/start", "/cleaning-progress/pause", "/cleaning-progress/finish", "/decision"]) assert(script.includes(source), `The active-job controller omitted the secured ${source} interface.`);
+for (const source of ["/tracking", "/cleaning-progress", "/property", "/events", "/messages", "/photos/intents", "/complete", "/access", "/journey/start", "/journey/location", "/journey/arrive", "/cleaning-progress/start", "/cleaning-progress/pause", "/cleaning-progress/finish", "/decision"]) assert(script.includes(source), `The active-job controller omitted the secured ${source} interface.`);
 assert(script.includes("navigator.geolocation.getCurrentPosition") && script.includes("navigator.geolocation.watchPosition") && script.includes("navigator.geolocation.clearWatch"), "Foreground location consent, updates or automatic browser cleanup are missing.");
 assert(script.includes("new EventSource") && script.includes('addEventListener("booking-snapshot"') && script.includes("pagehide"), "Durable live events or page cleanup are missing.");
 assert(script.includes("clientMessageId") && script.includes("state.messageRetry") && script.includes("applyMessagePage(snapshot.messages") && script.includes("Load earlier messages"), "Private chat lost retry-safe sends, live delivery or stable history pagination.");
+assert(script.includes("jobPhotoSha256") && script.includes("requiredHeaders") && script.includes('headers["X-Amz-Meta-Tideway-Sha256"] !== expected.checksumSha256') && script.includes('headers["X-Amz-Server-Side-Encryption"] !== "AES256"') && script.includes('credentials: "omit"') && script.includes('redirect: "error"') && script.includes('referrerPolicy: "no-referrer"') && script.includes("URL.revokeObjectURL") && script.includes("state.photoRetry"), "Private photo capture lost local checksum verification, exact signed headers, credential/referrer isolation, preview cleanup or retry state.");
 assert(script.includes('"X-CSRF-Token"') && script.includes("credentials: \"same-origin\"") && !script.includes("innerHTML"), "Active-job mutations lost CSRF/session protection or introduced unsafe HTML rendering.");
 assert(!/(google|mapbox|openstreetmap|leaflet)/i.test(`${html}\n${script}`), "The private current location could leak to an unapproved external map provider.");
-assert(server.includes('activeJobPage') && server.includes('geolocation=(self)') && server.includes('activeJobRoute ? "active-job.html"'), "Canonical booking routes or their scoped geolocation policy are missing.");
-assert(styles.includes(".active-primary-action") && styles.includes(".active-message-list") && styles.includes("@media (max-width: 680px)") && styles.includes("prefers-reduced-motion"), "The active-job experience omitted one-hand mobile chat or reduced-motion styling.");
+assert(server.includes('activeJobPage') && server.includes('camera=(self), microphone=(), geolocation=(self)') && server.includes("activeJobStorage") && server.includes("objectStorageOrigins") && server.includes("OBJECT_STORAGE_FORCE_PATH_STYLE") && server.includes('activeJobRoute ? "active-job.html"'), "Canonical booking routes or their narrowly scoped camera/geolocation/private-storage policy are missing.");
+assert(config.includes("OBJECT_STORAGE_ENDPOINT must be an exact HTTPS origin") && server.includes("connect-src 'self'${activeJobStorage}") && server.includes("img-src 'self' data: blob:${activeJobStorage}"), "The active-job storage allowlist could accept an unvalidated or wildcard origin.");
+assert(styles.includes(".active-primary-action") && styles.includes(".active-message-list") && styles.includes(".active-photo-list") && styles.includes(".active-photo-viewer") && styles.includes("@media (max-width: 680px)") && styles.includes("prefers-reduced-motion"), "The active-job experience omitted one-hand mobile chat/photo evidence or reduced-motion styling.");
 assert(packageFile.includes("tests/active-job-ui.mjs"), "The active-job checks are not included in the project gate.");
 
-console.log("Active-job UI tests passed: canonical participant route, role-safe journey/task actions, explicit foreground location, durable live snapshots, private retry-safe chat, mobile controls and privacy-first map boundary.");
+console.log("Active-job UI tests passed: canonical participant route, role-safe journey/task actions, explicit foreground location, durable live snapshots, private retry-safe chat, secure before/after evidence, mobile controls and privacy-first map boundary.");

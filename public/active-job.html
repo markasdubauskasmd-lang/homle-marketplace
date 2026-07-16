@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Active cleaning job | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-61">
-  <script src="/active-job.js?v=20260716-2" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-62">
+  <script src="/active-job.js?v=20260716-3" type="module"></script>
 </head>
 <body class="active-job-page">
   <a class="skip-link" href="#active-job-main">Skip to active job</a>
@@ -60,6 +60,14 @@
             <div class="active-empty-tasks" data-task-empty hidden><strong>No checklist is available.</strong><p>The reviewed room checklist must be present before the Cleaner can finish the job.</p></div>
           </section>
 
+          <section class="active-photo-card" aria-labelledby="photos-title">
+            <div class="active-card-heading"><div><p class="eyebrow">Private cleaning evidence</p><h2 id="photos-title">Before, after and issue photos</h2></div><span class="active-private-pill">Five-minute private viewing</span></div>
+            <p class="active-photo-boundary">Only this booking's Cleaner, Landlord and authorised Tideway administrators can request a short-lived view. Tideway removes image metadata before a photo becomes visible.</p>
+            <div class="active-photo-list" data-photo-list></div>
+            <div class="active-photo-empty" data-photo-empty><strong>No job photos yet.</strong><p>The Cleaner can add evidence after arrival. Photos are never public profile content.</p></div>
+            <div class="active-photo-feedback" data-photo-feedback role="status" aria-live="polite" hidden></div>
+          </section>
+
           <section class="active-message-card" aria-labelledby="messages-title">
             <div class="active-card-heading"><div><p class="eyebrow">Private booking chat</p><h2 id="messages-title">Cleaner and Landlord messages</h2></div><span class="active-private-pill">No personal contact details</span></div>
             <p class="active-message-boundary">Keep visit coordination inside Tideway. Phone numbers, email addresses, links and outside-messaging handles are blocked.</p>
@@ -88,7 +96,7 @@
           <button class="button button-outline" type="button" data-pause-action hidden>Pause cleaning</button>
           <button class="button button-outline" type="button" data-add-task-action hidden>Add unexpected task</button>
           <div class="active-action-feedback" data-action-feedback role="status" aria-live="polite" hidden></div>
-          <section class="active-job-evidence"><strong>Before and after evidence</strong><p><span data-photo-count>0</span> private job photos recorded. Photo contents open only through an authorised, short-lived link.</p></section>
+          <section class="active-job-evidence"><strong>Before and after evidence</strong><p><span data-photo-count>0</span> private job photos recorded. Photo contents open only through an authorised, short-lived link.</p><div class="active-photo-controls" data-photo-controls hidden><button class="button" type="button" data-photo-camera>Take a job photo</button><button class="button button-outline" type="button" data-photo-library>Choose existing photo</button><input type="file" accept="image/*" capture="environment" data-photo-camera-input hidden><input type="file" accept="image/jpeg,image/png,image/webp,image/heic,.heic,.heif" data-photo-library-input hidden></div></section>
           <section class="active-connection-card"><span data-connection-dot></span><div><strong data-connection-title>Connecting securely</strong><small data-connection-copy>Opening durable booking updates.</small></div></section>
         </aside>
       </div>
@@ -98,6 +106,10 @@
   <dialog class="active-job-dialog" data-pause-dialog><form method="dialog" data-pause-form><h2 data-pause-title>Pause cleaning</h2><p data-pause-copy>Give the Landlord a short reason for the pause.</p><label>Reason<textarea name="note" rows="4" maxlength="1000" required></textarea></label><div><button class="button button-outline" value="cancel" type="button" data-dialog-cancel>Cancel</button><button class="button" value="confirm" type="submit">Save pause</button></div></form></dialog>
 
   <dialog class="active-job-dialog" data-task-dialog><form method="dialog" data-task-form><h2>Add an unexpected task</h2><p>The Landlord must approve this at the frozen booking price before it can be treated as agreed work.</p><label>Room<input name="roomName" maxlength="120" required></label><label>Task<textarea name="description" rows="3" maxlength="1000" required></textarea></label><label>Estimated additional minutes<input name="estimatedAdditionalMinutes" type="number" inputmode="numeric" min="1" max="480" required></label><label>Note <span>(optional)</span><textarea name="note" rows="2" maxlength="2000"></textarea></label><div><button class="button button-outline" value="cancel" type="button" data-dialog-cancel>Cancel</button><button class="button" value="confirm" type="submit">Ask Landlord to approve</button></div></form></dialog>
+
+  <dialog class="active-job-dialog active-photo-dialog" data-photo-dialog><form method="dialog" data-photo-form><h2>Add private job evidence</h2><p>The original photo stays private while Tideway verifies its size and checksum, removes metadata and creates a clean JPEG.</p><div class="active-photo-preview"><img data-photo-preview alt="Selected job photo preview"><div><strong data-photo-file-name>Selected photo</strong><small data-photo-file-size></small></div></div><label>Evidence type<select name="photoType" data-photo-type required><option value="before">Before cleaning</option><option value="after">After cleaning</option><option value="issue">Issue or damage</option></select></label><label>Checklist task <span>(optional)</span><select name="taskId" data-photo-task><option value="">Whole visit / general evidence</option></select></label><label>Private note <span>(required for an issue)</span><textarea name="note" rows="3" maxlength="1000" placeholder="Name the room and what this photo shows"></textarea></label><div class="active-photo-upload-state" data-photo-upload-state role="status" aria-live="polite" hidden></div><div><button class="button button-outline" value="cancel" type="button" data-photo-cancel>Cancel</button><button class="button" value="confirm" type="submit" data-photo-upload>Upload securely</button></div></form></dialog>
+
+  <dialog class="active-job-dialog active-photo-viewer" data-photo-viewer><div><div class="active-card-heading"><div><p class="eyebrow" data-photo-viewer-type>Private job photo</p><h2 data-photo-viewer-title>Booking evidence</h2></div><button class="button button-outline" type="button" data-photo-viewer-close>Close</button></div><img data-photo-viewer-image alt="" referrerpolicy="no-referrer"><p data-photo-viewer-note></p><small>This private link expires after five minutes and is not stored in the page after you close it.</small></div></dialog>
 
   <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Tideway.</span><a href="/privacy">Privacy notice</a></div></footer>
 </body>

@@ -48,6 +48,14 @@ const resolveClientAddress = createTrustedClientAddressResolver(process.env);
 const adminRequireKey = process.env.ADMIN_REQUIRE_KEY === "true";
 const marketplaceConfig = validateMarketplaceEnvironment(process.env);
 if (!marketplaceConfig.ok) throw new Error(`Invalid marketplace environment: ${marketplaceConfig.errors.join(" ")}`);
+const objectStorageOrigins = (() => {
+  if (!marketplaceConfig.state.objectStorageConfigured) return [];
+  const endpoint = new URL(process.env.OBJECT_STORAGE_ENDPOINT);
+  const origins = [endpoint.origin];
+  const pathStyle = String(process.env.OBJECT_STORAGE_FORCE_PATH_STYLE || "false").trim().toLowerCase() === "true";
+  if (!pathStyle && endpoint.hostname !== "localhost" && isIP(endpoint.hostname) === 0) origins.push(`${endpoint.protocol}//${process.env.OBJECT_STORAGE_BUCKET.trim()}.${endpoint.host}`);
+  return [...new Set(origins)];
+})();
 const marketplaceAttachment = await createMarketplaceAttachment({ env: process.env });
 let dataIntegrityState = {
   healthy: true,
@@ -160,9 +168,12 @@ const mimeTypes = {
 function setSecurityHeaders(response, requestPath = "") {
   const paymentPage = requestPath === "/booking-payment";
   const activeJobPage = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
+  const activeJobStorage = activeJobPage && objectStorageOrigins.length ? ` ${objectStorageOrigins.join(" ")}` : "";
   response.setHeader("Content-Security-Policy", paymentPage
     ? "default-src 'self'; img-src 'self' data: blob: https://*.stripe.com; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://r.stripe.com https://m.stripe.network; frame-src https://js.stripe.com https://hooks.stripe.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
-    : "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+    : activeJobPage
+      ? `default-src 'self'; img-src 'self' data: blob:${activeJobStorage}; style-src 'self'; script-src 'self'; connect-src 'self'${activeJobStorage}; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
+      : "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
   response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Frame-Options", "DENY");
@@ -170,7 +181,9 @@ function setSecurityHeaders(response, requestPath = "") {
     ? "camera=(), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\" \"https://hooks.stripe.com\")"
     : requestPath === "/brief"
     ? "camera=(self), microphone=(self), geolocation=()"
-    : requestPath === "/tracking-test" || activeJobPage
+    : activeJobPage
+      ? "camera=(self), microphone=(), geolocation=(self)"
+      : requestPath === "/tracking-test"
       ? "camera=(), microphone=(), geolocation=(self)"
       : "camera=(), microphone=(), geolocation=()");
 }

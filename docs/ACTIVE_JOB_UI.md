@@ -25,6 +25,8 @@ The Cleaner receives large, one-hand controls appropriate to the current server 
 
 Both participants can use the private booking chat from this screen. Messages arrive through the durable booking event stream, older messages use stable cursor pagination and a browser retry reuses the same idempotency key if the server response is lost. Tideway blocks phone numbers, email addresses, links and outside-messaging handles so participants can coordinate without exposing personal contact details.
 
+After arrival, the Cleaner can deliberately take one new rear-camera photo or choose one existing JPEG, PNG, WebP or HEIC image. The browser rejects unsupported, empty or oversized input, calculates SHA-256 locally, requests one ten-minute signed upload, sends the file directly to the exact configured private-storage origin without Tideway cookies or a referrer and asks the server to verify and sanitize it. Before evidence closes after cleaning finishes; after/issue evidence remains available while awaiting review. Both participants receive live photo metadata and can request a five-minute private view. The signed URL is cleared from the page when its viewer closes.
+
 All mutations use the opaque session plus the tab-bound CSRF token. Hiding a button is never the authorization boundary; the existing role-checked services, PostgreSQL functions, RLS and booking status rules remain responsible for every accepted change.
 
 ## Landlord experience
@@ -52,10 +54,9 @@ The current solution is the most defensible web baseline. Reliable locked-screen
 
 - Run migration 026 in staging and verify that Cleaner and Landlord dashboards list only their own role-safe booking summaries before opening this screen.
 - Connect the real PostgreSQL runtime and create two genuine test accounts under the final HTTPS domain.
-- Complete the private before/after photo interaction in the active-job UI; the secured upload/access services and photo metadata already exist.
 - Decide whether to approve a map/ETA provider after privacy, cost and deployment review.
 - Perform the final two-device mobile-browser test over HTTPS, including denied permission, lost connection, reload/resume, arrival shutdown and an unrelated-account denial.
 
 ## Verification
 
-`tests/active-job-ui.mjs` covers route parsing, selected-role behavior, lifecycle action selection, unresolved-task finish blocking, Landlord-only unexpected-task decisions, foreground geolocation cleanup, durable live snapshots, private-chat lifecycle, chronological deduplication, retry UUIDs, stable pagination, CSRF/session use, no unsafe HTML rendering, no external map dependency, canonical server routing, scoped geolocation policy and mobile/reduced-motion styles. Journey, progress, message and real-time service suites continue to prove the server-side authorization and privacy boundaries.
+`tests/active-job-ui.mjs` covers route parsing, selected-role behavior, lifecycle action selection, unresolved-task finish blocking, Landlord-only unexpected-task decisions, foreground geolocation cleanup, durable live snapshots, private-chat lifecycle, chronological deduplication, retry UUIDs, stable pagination, photo MIME/size/lifecycle checks, deterministic local SHA-256, exact signed-header upload behavior, credential/referrer isolation, camera and exact storage-origin policies, preview cleanup, CSRF/session use, no unsafe HTML rendering, no external map dependency, canonical server routing and mobile/reduced-motion styles. Journey, progress, media, message and real-time service suites continue to prove the server-side authorization and privacy boundaries.

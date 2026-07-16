@@ -1,5 +1,9 @@
 # Private job-photo boundary
 
+The authenticated active-job routes now connect this boundary to a mobile Cleaner capture flow and participant gallery. The Cleaner has separate **Take a job photo** and **Choose existing photo** actions, assigns before/after/issue type plus an optional checklist task, and sees explicit verifying, uploading, sanitizing and retry states. Both participants open a photo only through a five-minute signed view that is removed from the page on close.
+
+The active-job Content Security Policy permits only the validated configured storage origin and, when virtual-host S3 addressing is selected, the exact validated bucket hostname. Camera permission is enabled only on canonical participant booking pages; the rest of Tideway remains camera-denied. Direct object uploads omit Tideway credentials and referrers and reject redirects.
+
 Tideway now has an internal S3-compatible account-marketplace boundary for before, after and issue photos without exposing credentials, reusable keys or permanent URLs. It remains detached from the local NDJSON pilot until PostgreSQL and a real private bucket pass staging.
 
 ## Upload lifecycle

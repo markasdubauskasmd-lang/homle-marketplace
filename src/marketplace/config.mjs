@@ -92,6 +92,17 @@ export function validateMarketplaceEnvironment(env = process.env) {
   const objectStorageKeys = ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_REGION", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"];
   const suppliedObjectStorage = objectStorageKeys.filter((key) => present(env, key));
   if (suppliedObjectStorage.length > 0 && suppliedObjectStorage.length < objectStorageKeys.length) errors.push(`Object storage is partially configured; missing ${objectStorageKeys.filter((key) => !present(env, key)).join(", ")}.`);
+  if (present(env, "OBJECT_STORAGE_ENDPOINT")) {
+    try {
+      const endpoint = new URL(env.OBJECT_STORAGE_ENDPOINT.trim());
+      const local = env.NODE_ENV !== "production" && (endpoint.hostname === "localhost" || endpoint.hostname === "127.0.0.1");
+      if (endpoint.origin !== env.OBJECT_STORAGE_ENDPOINT.trim().replace(/\/$/, "") || endpoint.username || endpoint.password || endpoint.pathname !== "/" || endpoint.search || endpoint.hash || (!local && endpoint.protocol !== "https:")) throw new Error();
+    } catch {
+      errors.push("OBJECT_STORAGE_ENDPOINT must be an exact HTTPS origin, or a localhost origin for development.");
+    }
+  }
+  if (present(env, "OBJECT_STORAGE_BUCKET") && (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(env.OBJECT_STORAGE_BUCKET.trim()) || env.OBJECT_STORAGE_BUCKET.includes("..") || /^\d+\.\d+\.\d+\.\d+$/.test(env.OBJECT_STORAGE_BUCKET.trim()))) errors.push("OBJECT_STORAGE_BUCKET must be a valid DNS-compatible private bucket name.");
+  if (present(env, "OBJECT_STORAGE_FORCE_PATH_STYLE") && !["true", "false"].includes(env.OBJECT_STORAGE_FORCE_PATH_STYLE.trim().toLowerCase())) errors.push("OBJECT_STORAGE_FORCE_PATH_STYLE must be true or false.");
   if (present(env, "DATA_ENCRYPTION_KEY") && !state.encryptionConfigured) errors.push("DATA_ENCRYPTION_KEY must contain at least 32 characters.");
   if (state.production) {
     if (!state.databaseConfigured) errors.push("DATABASE_URL is required in production.");

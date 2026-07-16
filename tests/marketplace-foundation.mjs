@@ -48,6 +48,8 @@ const partialFacebook = validateMarketplaceEnvironment({ FACEBOOK_APP_ID: "app",
 assert(!partialFacebook.ok && partialFacebook.errors.some((error) => error.includes("FACEBOOK_GRAPH_API_VERSION")), "Facebook configuration passed without an explicit Graph API version.");
 const invalidFacebookVersion = validateMarketplaceEnvironment({ FACEBOOK_APP_ID: "app", FACEBOOK_APP_SECRET: "secret", FACEBOOK_GRAPH_API_VERSION: "latest" });
 assert(!invalidFacebookVersion.ok && invalidFacebookVersion.errors.some((error) => error.includes("vN.N")), "Facebook configuration accepted a floating Graph API version.");
+const invalidStorageOrigin = validateMarketplaceEnvironment({ OBJECT_STORAGE_ENDPOINT: "https://objects.example.com/private/path" });
+assert(!invalidStorageOrigin.ok && invalidStorageOrigin.errors.some((error) => error.includes("exact HTTPS origin")), "Private object storage accepted a path-bearing origin that cannot be safely allowlisted for active-job media.");
 assert(publicAuthenticationCapabilities({ GOOGLE_CLIENT_ID: "client", GOOGLE_CLIENT_SECRET: "secret" }).google === false, "OAuth client credentials enabled a provider without the database, session and exact-origin boundary.");
 const partialStripe = validateMarketplaceEnvironment({ STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}` });
 assert(!partialStripe.ok && partialStripe.errors.some((error) => error.includes("STRIPE_WEBHOOK_SECRET")), "Partial Stripe configuration did not fail closed.");

@@ -1,5 +1,7 @@
 const bookingIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const messagingStatuses = new Set(["pending-cleaner-acceptance", "confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "disputed"]);
+const jobPhotoMimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]);
+const jobPhotoStatuses = new Set(["cleaner-arrived", "cleaning-in-progress", "awaiting-review"]);
 
 export const activeJobStages = Object.freeze([
   "confirmed",
@@ -90,6 +92,35 @@ export function createClientMessageId(cryptography = globalThis.crypto) {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0"));
   return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+}
+
+export function jobPhotoMimeType(file) {
+  const supplied = String(file?.type || "").trim().toLowerCase();
+  if (jobPhotoMimeTypes.has(supplied)) return supplied;
+  if (supplied === "image/heif" || (!supplied && /\.(?:heic|heif)$/i.test(String(file?.name || "")))) return "image/heic";
+  return "";
+}
+
+export function jobPhotoFileCheck(file) {
+  if (!file || typeof file.arrayBuffer !== "function") return Object.freeze({ ok: false, error: "Choose one job photo." });
+  const byteSize = Number(file.size);
+  if (!Number.isInteger(byteSize) || byteSize < 1 || byteSize > 15_000_000) return Object.freeze({ ok: false, error: "Choose a photo smaller than 15 MB." });
+  const mimeType = jobPhotoMimeType(file);
+  if (!mimeType) return Object.freeze({ ok: false, error: "Choose a JPEG, PNG, WebP or HEIC photo." });
+  return Object.freeze({ ok: true, byteSize, mimeType });
+}
+
+export function jobPhotoUploadAllowed(role, status, photoType = "after") {
+  if (role !== "cleaner" || !jobPhotoStatuses.has(status) || !["before", "after", "issue"].includes(photoType)) return false;
+  return !(photoType === "before" && status === "awaiting-review");
+}
+
+export async function jobPhotoSha256(file, cryptography = globalThis.crypto) {
+  const checked = jobPhotoFileCheck(file);
+  if (!checked.ok) throw new TypeError(checked.error);
+  if (typeof cryptography?.subtle?.digest !== "function") throw new Error("Secure photo verification requires HTTPS in this browser.");
+  const digest = await cryptography.subtle.digest("SHA-256", await file.arrayBuffer());
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
 export function progressSummary(progress = {}) {

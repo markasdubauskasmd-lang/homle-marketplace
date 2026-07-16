@@ -8,6 +8,9 @@ import {
   activeJobStatusLabels,
   createClientMessageId,
   elapsedLabel,
+  jobPhotoFileCheck,
+  jobPhotoSha256,
+  jobPhotoUploadAllowed,
   mergeBookingMessages,
   progressSummary,
   safeDateTime,
@@ -31,7 +34,18 @@ const messageForm = document.querySelector("[data-message-form]");
 const messageInput = document.querySelector("[data-message-input]");
 const messageSend = document.querySelector("[data-message-send]");
 const messageOlder = document.querySelector("[data-message-older]");
-const state = { account: null, role: "", tracking: null, progress: null, property: null, messages: [], messageCursor: null, messagesHasMore: false, messageRetry: null, messageLoading: false, messageSending: false, eventSource: null, watchId: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false };
+const photoControls = document.querySelector("[data-photo-controls]");
+const photoCameraInput = document.querySelector("[data-photo-camera-input]");
+const photoLibraryInput = document.querySelector("[data-photo-library-input]");
+const photoDialog = document.querySelector("[data-photo-dialog]");
+const photoForm = document.querySelector("[data-photo-form]");
+const photoType = document.querySelector("[data-photo-type]");
+const photoTask = document.querySelector("[data-photo-task]");
+const photoUpload = document.querySelector("[data-photo-upload]");
+const photoCancel = document.querySelector("[data-photo-cancel]");
+const photoViewer = document.querySelector("[data-photo-viewer]");
+const photoViewerImage = document.querySelector("[data-photo-viewer-image]");
+const state = { account: null, role: "", tracking: null, progress: null, property: null, messages: [], messageCursor: null, messagesHasMore: false, messageRetry: null, messageLoading: false, messageSending: false, photoFile: null, photoPreviewUrl: "", photoRetry: null, photoUploadInFlight: false, photoViewInFlight: false, eventSource: null, watchId: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false };
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 document.querySelector("[data-booking-reference]").textContent = bookingId ? bookingId.slice(0, 8).toUpperCase() : "Invalid";
@@ -68,6 +82,20 @@ function showLocationFeedback(message, kind = "info") {
 
 function showMessageFeedback(message, kind = "info") {
   const feedback = document.querySelector("[data-message-feedback]");
+  feedback.hidden = !message;
+  feedback.dataset.kind = kind;
+  feedback.textContent = message;
+}
+
+function showPhotoFeedback(message, kind = "info") {
+  const feedback = document.querySelector("[data-photo-feedback]");
+  feedback.hidden = !message;
+  feedback.dataset.kind = kind;
+  feedback.textContent = message;
+}
+
+function showPhotoUploadState(message, kind = "info") {
+  const feedback = document.querySelector("[data-photo-upload-state]");
   feedback.hidden = !message;
   feedback.dataset.kind = kind;
   feedback.textContent = message;
@@ -264,6 +292,87 @@ function renderProgress() {
   renderTasks();
 }
 
+function photoTypeLabel(value) {
+  if (value === "before") return "Before cleaning";
+  if (value === "after") return "After cleaning";
+  return "Issue or damage";
+}
+
+function renderPhotos() {
+  const list = document.querySelector("[data-photo-list]");
+  const photos = Array.isArray(state.progress?.photos) ? state.progress.photos : [];
+  const tasks = new Map((state.progress?.tasks || []).map((task) => [task.taskId, `${task.roomName}: ${task.description}`]));
+  list.replaceChildren();
+  for (const photo of photos) {
+    const article = document.createElement("article");
+    article.className = `active-photo active-photo-${photo.photoType || "evidence"}`;
+    const copy = document.createElement("div");
+    const type = document.createElement("span");
+    type.textContent = photoTypeLabel(photo.photoType);
+    const title = document.createElement("strong");
+    title.textContent = photo.taskId && tasks.has(photo.taskId) ? tasks.get(photo.taskId) : "Whole visit evidence";
+    const time = document.createElement("time");
+    time.dateTime = photo.createdAt || "";
+    time.textContent = safeDateTime(photo.createdAt);
+    copy.append(type, title, time);
+    if (photo.note) {
+      const note = document.createElement("p");
+      note.textContent = photo.note;
+      copy.append(note);
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button button-outline";
+    button.textContent = "Open private photo";
+    button.addEventListener("click", () => openPrivatePhoto(photo, button));
+    article.append(copy, button);
+    list.append(article);
+  }
+  document.querySelector("[data-photo-empty]").hidden = photos.length > 0;
+  document.querySelector("[data-photo-count]").textContent = String(photos.length);
+}
+
+function privatePhotoUrl(value) {
+  let url;
+  try { url = new URL(value); } catch { throw new Error("The short-lived private photo link is invalid."); }
+  const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if ((!local && url.protocol !== "https:") || url.username || url.password) throw new Error("The short-lived private photo link is invalid.");
+  return url.toString();
+}
+
+async function openPrivatePhoto(photo, button) {
+  if (state.photoViewInFlight) return;
+  state.photoViewInFlight = true;
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  showPhotoFeedback("Requesting a short-lived private view…");
+  try {
+    const result = await requestJson(`/api/marketplace/bookings/${bookingId}/cleaning-progress/photos/${photo.photoId}/access`);
+    if (result.photo?.photoId !== photo.photoId) throw new Error("The private photo response could not be verified.");
+    const expiresAt = Date.parse(result.photo.expiresAt || "");
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() || expiresAt > Date.now() + 6 * 60_000) throw new Error("The private photo viewing window could not be verified.");
+    photoViewerImage.src = privatePhotoUrl(result.photo.url);
+    photoViewerImage.alt = `${photoTypeLabel(result.photo.photoType)}${result.photo.note ? `: ${result.photo.note}` : ""}`;
+    document.querySelector("[data-photo-viewer-type]").textContent = photoTypeLabel(result.photo.photoType);
+    document.querySelector("[data-photo-viewer-title]").textContent = photo.taskId ? "Checklist evidence" : "Whole visit evidence";
+    document.querySelector("[data-photo-viewer-note]").textContent = result.photo.note || "No private note was added.";
+    photoViewer.showModal();
+    showPhotoFeedback("");
+  } catch (error) {
+    showPhotoFeedback(error.message || "The private photo could not be opened. Try again.", "error");
+  } finally {
+    state.photoViewInFlight = false;
+    button.disabled = false;
+    button.removeAttribute("aria-busy");
+  }
+}
+
+function closePhotoViewer() {
+  photoViewer.close();
+  photoViewerImage.removeAttribute("src");
+  photoViewerImage.alt = "";
+}
+
 function renderProperty() {
   const card = document.querySelector("[data-property-card]");
   if (!state.property) return void (card.hidden = true);
@@ -322,6 +431,8 @@ function renderActions() {
   pauseAction.hidden = state.role !== "cleaner" || !cleaning;
   pauseAction.textContent = state.progress?.isPaused ? "Resume cleaning" : "Pause cleaning";
   addTaskAction.hidden = state.role !== "cleaner" || !cleaning;
+  photoControls.hidden = !["before", "after", "issue"].some((kind) => jobPhotoUploadAllowed(state.role, currentStatus(), kind));
+  for (const button of photoControls.querySelectorAll("button")) button.disabled = state.photoUploadInFlight;
 }
 
 function render() {
@@ -336,6 +447,7 @@ function render() {
   renderStages(status);
   renderJourney();
   renderProgress();
+  renderPhotos();
   renderProperty();
   renderMessages();
   renderActions();
@@ -518,6 +630,137 @@ taskForm.addEventListener("submit", (event) => {
   });
 });
 
+function clearPhotoSelection({ close = false } = {}) {
+  if (state.photoPreviewUrl) URL.revokeObjectURL(state.photoPreviewUrl);
+  state.photoPreviewUrl = "";
+  state.photoFile = null;
+  state.photoRetry = null;
+  photoCameraInput.value = "";
+  photoLibraryInput.value = "";
+  document.querySelector("[data-photo-preview]").removeAttribute("src");
+  if (close && photoDialog.open) photoDialog.close();
+}
+
+function populatePhotoTasks() {
+  const selected = photoTask.value;
+  const general = document.createElement("option");
+  general.value = "";
+  general.textContent = "Whole visit / general evidence";
+  const options = [general];
+  for (const task of state.progress?.tasks || []) {
+    const option = document.createElement("option");
+    option.value = task.taskId;
+    option.textContent = `${task.roomName}: ${task.description}`;
+    options.push(option);
+  }
+  photoTask.replaceChildren(...options);
+  if ([...photoTask.options].some((option) => option.value === selected)) photoTask.value = selected;
+}
+
+function selectPhoto(file) {
+  const checked = jobPhotoFileCheck(file);
+  if (!checked.ok) return showPhotoFeedback(checked.error, "error");
+  clearPhotoSelection();
+  state.photoFile = file;
+  state.photoPreviewUrl = URL.createObjectURL(file);
+  const preview = document.querySelector("[data-photo-preview]");
+  preview.src = state.photoPreviewUrl;
+  document.querySelector("[data-photo-file-name]").textContent = file.name || "Camera photo";
+  document.querySelector("[data-photo-file-size]").textContent = `${(checked.byteSize / 1_000_000).toFixed(1)} MB · ${checked.mimeType.replace("image/", "").toUpperCase()}`;
+  populatePhotoTasks();
+  const status = currentStatus();
+  for (const option of photoType.options) option.disabled = !jobPhotoUploadAllowed(state.role, status, option.value);
+  photoType.value = jobPhotoUploadAllowed(state.role, status, status === "cleaner-arrived" ? "before" : "after") ? (status === "cleaner-arrived" ? "before" : "after") : "issue";
+  photoForm.querySelector('textarea[name="note"]').value = "";
+  showPhotoUploadState("");
+  showPhotoFeedback("");
+  photoDialog.showModal();
+}
+
+function checksumBase64(hex) {
+  const bytes = String(hex || "").match(/[0-9a-f]{2}/gi);
+  if (!bytes || bytes.length !== 32) throw new Error("The private upload checksum could not be verified.");
+  return btoa(String.fromCharCode(...bytes.map((value) => Number.parseInt(value, 16))));
+}
+
+function verifiedUploadContract(upload, expected) {
+  if (!upload || upload.method !== "PUT" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(upload.uploadId || "")) throw new Error("The private upload instruction could not be verified.");
+  const url = privatePhotoUrl(upload.uploadUrl);
+  const expectedHeaders = ["Content-Type", "X-Amz-Checksum-Sha256", "X-Amz-Meta-Tideway-Sha256", "X-Amz-Server-Side-Encryption"];
+  const headers = upload.requiredHeaders;
+  if (!headers || typeof headers !== "object" || Array.isArray(headers) || Object.keys(headers).length !== expectedHeaders.length || expectedHeaders.some((name) => typeof headers[name] !== "string" || !headers[name])) throw new Error("The private upload instruction could not be verified.");
+  if (headers["Content-Type"] !== expected.mimeType || headers["X-Amz-Meta-Tideway-Sha256"] !== expected.checksumSha256 || headers["X-Amz-Checksum-Sha256"] !== checksumBase64(expected.checksumSha256) || headers["X-Amz-Server-Side-Encryption"] !== "AES256") throw new Error("The private upload instruction did not match the selected photo.");
+  if (!Number.isFinite(Date.parse(upload.expiresAt || "")) || Date.parse(upload.expiresAt) <= Date.now()) throw new Error("The private upload instruction has expired. Try again.");
+  return { uploadId: upload.uploadId.toLowerCase(), url, headers: Object.fromEntries(expectedHeaders.map((name) => [name, headers[name]])) };
+}
+
+async function uploadSelectedPhoto() {
+  if (state.photoUploadInFlight || !state.photoFile || !photoForm.reportValidity()) return;
+  const data = new FormData(photoForm);
+  const selectedType = String(data.get("photoType") || "");
+  const note = String(data.get("note") || "").trim();
+  const taskId = String(data.get("taskId") || "");
+  if (!jobPhotoUploadAllowed(state.role, currentStatus(), selectedType)) return showPhotoUploadState("This evidence type is not available at the current booking stage.", "error");
+  if (selectedType === "issue" && !note) return showPhotoUploadState("Add a private note explaining the issue or damage.", "error");
+  const checked = jobPhotoFileCheck(state.photoFile);
+  if (!checked.ok) return showPhotoUploadState(checked.error, "error");
+  const retryKey = `${selectedType}\0${taskId}\0${note}`;
+  if (!state.photoRetry || state.photoRetry.file !== state.photoFile || state.photoRetry.retryKey !== retryKey) state.photoRetry = { file: state.photoFile, retryKey, checksumSha256: "", intent: null, uploaded: false };
+  const retry = state.photoRetry;
+  state.photoUploadInFlight = true;
+  photoUpload.disabled = true;
+  photoCancel.disabled = true;
+  photoUpload.setAttribute("aria-busy", "true");
+  try {
+    if (!retry.checksumSha256) {
+      showPhotoUploadState("Verifying the selected photo on this device…");
+      retry.checksumSha256 = await jobPhotoSha256(retry.file);
+    }
+    if (!retry.intent) {
+      showPhotoUploadState("Creating a private ten-minute upload…");
+      const result = await mutate(`/api/marketplace/bookings/${bookingId}/cleaning-progress/photos/intents`, "POST", { photoType: selectedType, taskId: taskId || null, note: note || null, mimeType: checked.mimeType, byteSize: checked.byteSize, checksumSha256: retry.checksumSha256 });
+      retry.intent = verifiedUploadContract(result.upload, { mimeType: checked.mimeType, checksumSha256: retry.checksumSha256 });
+    }
+    if (!retry.uploaded) {
+      showPhotoUploadState("Uploading directly to Tideway's private quarantine storage. Keep this page open…");
+      const response = await fetch(retry.intent.url, { method: "PUT", mode: "cors", credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer", headers: retry.intent.headers, body: retry.file, signal: AbortSignal.timeout(120_000) });
+      if (!response.ok) throw new Error("The private photo upload was not accepted. Check the connection and try again.");
+      retry.uploaded = true;
+    }
+    showPhotoUploadState("Removing metadata and verifying the stored photo…");
+    const result = await mutate(`/api/marketplace/bookings/${bookingId}/cleaning-progress/photos/${retry.intent.uploadId}/complete`);
+    state.progress = result.progress;
+    clearPhotoSelection({ close: true });
+    render();
+    showPhotoFeedback("Private job photo added for both booking participants.", "success");
+  } catch (error) {
+    if (error.statusCode === 401) {
+      clearPhotoSelection({ close: true });
+      showGate("Sign in again", "Your account session expired during the private photo upload. The unfinished storage object will expire automatically.", { kind: "authentication", allowSignIn: true });
+      return;
+    }
+    showPhotoUploadState(error.message || "The photo could not be added. Your selection is still here to retry.", "error");
+  } finally {
+    state.photoUploadInFlight = false;
+    photoUpload.disabled = false;
+    photoCancel.disabled = false;
+    photoUpload.removeAttribute("aria-busy");
+    if (!photoDialog.open) showPhotoUploadState("");
+    renderActions();
+  }
+}
+
+for (const input of [photoCameraInput, photoLibraryInput]) input.addEventListener("change", () => { if (input.files?.length) selectPhoto(input.files[0]); });
+document.querySelector("[data-photo-camera]").addEventListener("click", () => { photoCameraInput.value = ""; photoCameraInput.click(); });
+document.querySelector("[data-photo-library]").addEventListener("click", () => { photoLibraryInput.value = ""; photoLibraryInput.click(); });
+photoForm.addEventListener("submit", (event) => { event.preventDefault(); uploadSelectedPhoto(); });
+photoForm.addEventListener("input", () => { if (!state.photoUploadInFlight) state.photoRetry = null; });
+photoCancel.addEventListener("click", () => { if (!state.photoUploadInFlight) clearPhotoSelection({ close: true }); });
+photoDialog.addEventListener("cancel", (event) => { event.preventDefault(); if (!state.photoUploadInFlight) clearPhotoSelection({ close: true }); });
+document.querySelector("[data-photo-viewer-close]").addEventListener("click", closePhotoViewer);
+photoViewer.addEventListener("close", () => { photoViewerImage.removeAttribute("src"); photoViewerImage.alt = ""; });
+photoViewerImage.addEventListener("error", () => { if (photoViewerImage.hasAttribute("src")) showPhotoFeedback("The short-lived photo could not be displayed. Close it and try again.", "error"); });
+
 async function loadEarlierMessages() {
   if (state.messageLoading || !state.messagesHasMore || !state.messageCursor) return;
   state.messageLoading = true;
@@ -623,6 +866,6 @@ addTaskAction.addEventListener("click", () => { taskForm.reset(); taskDialog.sho
 retry.addEventListener("click", load);
 window.addEventListener("online", () => { updateNetworkState(); if (!state.eventSource && !workspace.hidden) openLiveStream(); });
 window.addEventListener("offline", updateNetworkState);
-window.addEventListener("pagehide", () => { stopLocationSharing(); closeLiveStream(); });
+window.addEventListener("pagehide", () => { stopLocationSharing(); closeLiveStream(); clearPhotoSelection(); photoViewerImage.removeAttribute("src"); });
 updateNetworkState();
 load();
