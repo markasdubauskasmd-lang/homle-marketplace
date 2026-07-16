@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { commaList, fixedPriceOptionsFromText, fixedPriceOptionsToText, moneyToPence, outwardPostcodes, penceToMoney, preservedServiceAreas, profileCompletion } from "../public/cleaner-profile-model.js";
+import { commaList, fixedPriceOptionsFromText, fixedPriceOptionsToText, moneyToPence, outwardPostcodes, penceToMoney, preservedServiceAreas, profileCompletion, profileCompletionDetails } from "../public/cleaner-profile-model.js";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -35,6 +35,8 @@ const complete = {
   commercialPreference: false
 };
 assert(profileCompletion(complete) === 100 && profileCompletion({ ...complete, profilePhotoUrl: "http://unsafe.example/photo.jpg" }) === 90, "Client completion does not mirror the ten server profile requirements or accepted an insecure photo URL.");
+const incompleteDetails = profileCompletionDetails({ ...complete, profilePhotoUrl: "", services: [], hourlyRatePence: null });
+assert(incompleteDetails.percent === 70 && incompleteDetails.completed === 7 && incompleteDetails.total === 10 && incompleteDetails.sections.find((section) => section.key === "introduction")?.missing.join(",") === "profile photo" && incompleteDetails.sections.find((section) => section.key === "services")?.missing.join(",") === "service,price" && incompleteDetails.sections.find((section) => section.key === "boundaries")?.complete === true, "Guided profile completion did not identify the exact next section and missing details.");
 
 const [page, script, styles, server] = await Promise.all([
   readFile(new URL("../public/cleaner-profile.html", import.meta.url), "utf8"),
@@ -48,6 +50,8 @@ assert(script.includes('fetch("/api/marketplace/cleaner/profile"') && script.inc
 assert(script.includes('response.status === 401') && script.includes('response.status === 403') && script.includes('response.status === 404 || response.status === 503') && script.includes('beforeunload') && !script.includes('innerHTML'), "The editor lacks honest account/runtime states, unsaved-change protection or safe rendering.");
 assert((page.match(/data-service-code=/g) || []).length === 6 && page.includes('name="profilePhotoUrl"') && page.includes('name="biography"') && page.includes('name="serviceAreas"') && page.includes('name="equipmentSupplied"') && page.includes('name="productsSupplied"'), "The editor omits a supported service or required complete-profile field.");
 assert(script.includes('preservedServiceAreas') && script.includes('if (publicControl.checked) publicControl.checked = false') && script.includes('Complete every required section before publishing'), "Profile editing can erase retained area coordinates or publish an incomplete profile.");
-assert(styles.includes('.cleaner-editor-page') && styles.includes('.cleaner-editor-save') && page.includes('aria-live="polite"') && page.includes('Skip to profile editor'), "The profile editor lacks responsive one-handed saving or accessible feedback.");
+assert((page.match(/data-profile-step-target=/g) || []).length === 4 && (page.match(/data-profile-section=/g) || []).length === 4 && page.includes('data-profile-next-action') && page.includes('data-profile-continue="services"') && page.includes('data-profile-continue="boundaries"') && page.includes('data-profile-continue="review"') && page.includes('Save progress'), "The profile editor does not expose one guided next action, four bounded sections or progress saving.");
+assert(script.includes('profileCompletionDetails') && script.includes('function selectProfileSection') && script.includes('profileNextAction.dataset.profileTarget') && script.includes('selectProfileSection(completion.sections.find') && script.includes('aria-current') && !script.includes('innerHTML'), "The profile editor does not open the first incomplete section or safely update guided navigation.");
+assert(styles.includes('.cleaner-editor-page') && styles.includes('.cleaner-editor-save') && styles.includes('.cleaner-profile-next') && styles.includes('.cleaner-profile-steps') && styles.includes('.cleaner-profile-continue') && styles.includes('grid-template-columns: 1fr 1fr;') && page.includes('aria-live="polite"') && page.includes('Skip to profile editor'), "The profile editor lacks responsive one-handed navigation, saving or accessible feedback.");
 
-console.log("Cleaner profile UI tests passed: exact money/list models, coordinate preservation, complete-field editing, fail-closed auth, CSRF saving, publish gating and mobile accessibility.");
+console.log("Cleaner profile UI tests passed: guided next action, exact completion sections, safe editing, publishing gate and mobile accessibility.");

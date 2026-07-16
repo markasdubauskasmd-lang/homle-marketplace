@@ -67,19 +67,46 @@ export function preservedServiceAreas(codes, existingAreas = []) {
   });
 }
 
-export function profileCompletion(profile) {
+export function profileCompletionDetails(profile) {
   const photoValid = (() => { try { return new URL(profile.profilePhotoUrl).protocol === "https:"; } catch { return false; } })();
-  const checks = [
-    photoValid,
-    String(profile.biography || "").trim().length >= 40,
-    Array.isArray(profile.services) && profile.services.length > 0,
-    profile.hourlyRatePence != null || (Array.isArray(profile.fixedPriceOptions) && profile.fixedPriceOptions.length > 0) || profile.services?.some((service) => service.pricePence != null),
-    profile.travelRadiusKm != null,
-    Array.isArray(profile.serviceAreas) && profile.serviceAreas.length > 0,
-    profile.yearsExperience != null,
-    Array.isArray(profile.languages) && profile.languages.length > 0,
-    (profile.equipmentSupplied?.length || 0) + (profile.productsSupplied?.length || 0) > 0,
-    profile.residentialPreference === true || profile.commercialPreference === true
+  const groups = [
+    {
+      key: "introduction",
+      label: "Introduction",
+      checks: [
+        [photoValid, "profile photo"],
+        [String(profile.biography || "").trim().length >= 40, "biography"],
+        [profile.yearsExperience != null, "experience"],
+        [Array.isArray(profile.languages) && profile.languages.length > 0, "languages"],
+        [profile.residentialPreference === true || profile.commercialPreference === true, "work preference"]
+      ]
+    },
+    {
+      key: "services",
+      label: "Services and prices",
+      checks: [
+        [Array.isArray(profile.services) && profile.services.length > 0, "service"],
+        [profile.hourlyRatePence != null || (Array.isArray(profile.fixedPriceOptions) && profile.fixedPriceOptions.length > 0) || profile.services?.some((service) => service.pricePence != null), "price"]
+      ]
+    },
+    {
+      key: "boundaries",
+      label: "Area and supplies",
+      checks: [
+        [profile.travelRadiusKm != null, "travel radius"],
+        [Array.isArray(profile.serviceAreas) && profile.serviceAreas.length > 0, "service area"],
+        [(profile.equipmentSupplied?.length || 0) + (profile.productsSupplied?.length || 0) > 0, "equipment or products"]
+      ]
+    }
   ];
-  return checks.filter(Boolean).length * 10;
+  const sections = groups.map((group) => {
+    const missing = group.checks.filter(([complete]) => !complete).map(([, label]) => label);
+    return Object.freeze({ key: group.key, label: group.label, completed: group.checks.length - missing.length, total: group.checks.length, complete: missing.length === 0, missing: Object.freeze(missing) });
+  });
+  const completed = sections.reduce((total, section) => total + section.completed, 0);
+  return Object.freeze({ percent: completed * 10, completed, total: 10, sections: Object.freeze(sections) });
+}
+
+export function profileCompletion(profile) {
+  return profileCompletionDetails(profile).percent;
 }

@@ -39,7 +39,7 @@ The [private account room-scan boundary](docs/PRIVATE_REQUEST_ROOM_SCANS.md) con
 
 The [account privacy request boundary](docs/ACCOUNT_PRIVACY_REQUESTS.md) lets an authenticated customer request a data export or account deletion from `/settings`. Intake is CSRF-protected, owner-bound, idempotent and audited; it never automatically deletes records, cancels bookings or changes money.
 
-The [simplified role journeys](docs/SIMPLIFIED_JOURNEYS.md) keep one state-aware next action at the top of Landlord and Cleaner dashboards, collapse optional setup fields and automatically turn stopped Landlord speech into concise room tasks without removing the required scope, consent or payment confirmations.
+The [simplified role journeys](docs/SIMPLIFIED_JOURNEYS.md) keep one state-aware next action at the top of Landlord and Cleaner dashboards, collapse optional setup fields, guide a Cleaner through only the next incomplete profile section and automatically turn stopped Landlord speech into concise room tasks without removing the required scope, consent or payment confirmations.
 
 The public `/` route is intentionally lightweight and account-first. The longer concierge-pilot request and Cleaner application forms remain available only on `/request` and `/join` as controlled fallbacks.
 

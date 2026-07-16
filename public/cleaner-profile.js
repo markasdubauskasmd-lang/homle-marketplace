@@ -1,4 +1,4 @@
-import { commaList, fixedPriceOptionsFromText, fixedPriceOptionsToText, moneyToPence, outwardPostcodes, penceToMoney, preservedServiceAreas, profileCompletion } from "./cleaner-profile-model.js";
+import { commaList, fixedPriceOptionsFromText, fixedPriceOptionsToText, moneyToPence, outwardPostcodes, penceToMoney, preservedServiceAreas, profileCompletion, profileCompletionDetails } from "./cleaner-profile-model.js";
 
 const form = document.querySelector("[data-cleaner-profile-form]");
 const controls = document.querySelector("[data-profile-controls]");
@@ -16,6 +16,14 @@ const completionCopy = document.querySelector("[data-completion-copy]");
 const publicControl = form.elements.isPublic;
 const publishHelp = document.querySelector("[data-publish-help]");
 const serviceRows = [...document.querySelectorAll("[data-service-code]")];
+const profileSections = [...document.querySelectorAll("[data-profile-section]")];
+const profileStepButtons = [...document.querySelectorAll("[data-profile-step-target]")];
+const profileNext = document.querySelector("[data-profile-next]");
+const profileNextMark = profileNext.querySelector(":scope > span");
+const profileNextTitle = document.querySelector("[data-profile-next-title]");
+const profileNextCopy = document.querySelector("[data-profile-next-copy]");
+const profileNextAction = document.querySelector("[data-profile-next-action]");
+const profileSectionOrder = ["introduction", "services", "boundaries", "review"];
 let currentProfile = null;
 let dirty = false;
 let loading = false;
@@ -101,11 +109,43 @@ function updateServiceRow(row) {
   row.classList.toggle("is-enabled", enabled);
 }
 
+function selectProfileSection(key, { focus = true } = {}) {
+  const selected = profileSectionOrder.includes(key) ? key : "introduction";
+  for (const section of profileSections) section.hidden = section.dataset.profileSection !== selected;
+  for (const button of profileStepButtons) {
+    const current = button.dataset.profileStepTarget === selected;
+    button.classList.toggle("current", current);
+    if (current) button.setAttribute("aria-current", "step");
+    else button.removeAttribute("aria-current");
+  }
+  const section = profileSections.find((item) => item.dataset.profileSection === selected);
+  if (focus && section) {
+    section.focus({ preventScroll: true });
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
 function updateCompletion() {
-  const percent = profileCompletion(draftProfile(false));
+  const details = profileCompletionDetails(draftProfile(false));
+  const { percent } = details;
   completionValue.textContent = `${percent}%`;
   completionProgress.value = percent;
   completionProgress.textContent = `${percent}%`;
+  for (const section of details.sections) {
+    const status = document.querySelector(`[data-profile-step-status="${section.key}"]`);
+    status.textContent = section.complete ? "Complete" : `${section.completed} of ${section.total}`;
+    status.closest("button")?.classList.toggle("complete", section.complete);
+  }
+  const reviewStatus = document.querySelector('[data-profile-step-status="review"]');
+  reviewStatus.textContent = percent === 100 ? "Ready" : `${details.completed} of ${details.total}`;
+  reviewStatus.closest("button")?.classList.toggle("complete", percent === 100);
+  const nextSection = details.sections.find((section) => !section.complete) || { key: "review", label: "Review and publish", missing: [] };
+  const nextIndex = profileSectionOrder.indexOf(nextSection.key);
+  profileNextMark.textContent = String(nextIndex + 1);
+  profileNextTitle.textContent = nextSection.key === "review" ? "Review your completed profile" : `Complete ${nextSection.label.toLowerCase()}`;
+  profileNextCopy.textContent = nextSection.key === "review" ? "All required details are complete. Review visibility and save your choice." : `Still needed: ${nextSection.missing.join(", ")}.`;
+  profileNextAction.dataset.profileTarget = nextSection.key;
+  profileNextAction.textContent = nextSection.key === "review" ? "Review profile" : `Open ${nextSection.label.toLowerCase()}`;
   if (percent === 100) {
     publicControl.disabled = false;
     completionCopy.textContent = publicControl.checked ? "Complete and visible in public search." : "Complete. You can choose to publish when ready.";
@@ -116,7 +156,7 @@ function updateCompletion() {
     completionCopy.textContent = `${10 - percent / 10} required ${percent === 90 ? "section remains" : "sections remain"}.`;
     publishHelp.textContent = "Complete all ten profile sections before the public option becomes available.";
   }
-  return percent;
+  return details;
 }
 
 function setField(name, value) {
@@ -146,7 +186,8 @@ function populate(profile) {
     updateServiceRow(row);
   }
   publicControl.checked = profile.isPublic === true;
-  updateCompletion();
+  const completion = updateCompletion();
+  selectProfileSection(completion.sections.find((section) => !section.complete)?.key || "review", { focus: false });
   dirty = false;
   saveState.textContent = "Profile loaded securely.";
 }
@@ -214,7 +255,7 @@ async function saveProfile(event) {
   } finally {
     saveButton.disabled = false;
     saveButton.removeAttribute("aria-busy");
-    saveButton.textContent = "Save profile";
+    saveButton.textContent = "Save progress";
   }
 }
 
@@ -223,6 +264,9 @@ for (const row of serviceRows) {
   row.querySelector("[data-service-pricing]").addEventListener("change", () => updateServiceRow(row));
   updateServiceRow(row);
 }
+for (const button of profileStepButtons) button.addEventListener("click", () => selectProfileSection(button.dataset.profileStepTarget));
+for (const button of document.querySelectorAll("[data-profile-continue]")) button.addEventListener("click", () => selectProfileSection(button.dataset.profileContinue));
+profileNextAction.addEventListener("click", () => selectProfileSection(profileNextAction.dataset.profileTarget));
 form.addEventListener("input", () => { dirty = true; saveState.textContent = "Unsaved changes."; updateCompletion(); });
 form.addEventListener("change", () => { dirty = true; saveState.textContent = "Unsaved changes."; updateCompletion(); });
 form.addEventListener("submit", saveProfile);

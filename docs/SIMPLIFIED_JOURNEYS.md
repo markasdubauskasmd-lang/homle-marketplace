@@ -10,6 +10,7 @@ Decision rule: **Can the user complete this action with fewer screens, fewer dec
 - Speech capture stopped with another instruction to press a separate summary button.
 - Draft scans were present lower on the page, but the user had to find the correct request card.
 - The Cleaner dashboard contained the right information, but the urgent request or live job competed with headings, statistics and multiple lists.
+- The Cleaner profile editor exposed introduction, services, pricing, travel boundaries and publication checks in one long form, even when only one section needed attention.
 - The public page has a clear account-first booking action, but the older pilot request/application forms remain visually long further down the page. They should not become the authenticated marketplace journey.
 
 ## Public conversion path
@@ -40,6 +41,8 @@ The urgent action appears before counts and lists. Invitation cards retain the e
 
 The separate concierge fallback at `/join` now collects only contact details, matchable work areas, services, experience and one first availability window. Biography, languages and equipment planning are enforced as the next private-tracker step instead of competing with the initial Apply action. Optional usual availability and notes stay inside one disclosure.
 
+The authenticated profile editor now opens the first incomplete section and shows one clear next action. Introduction, services and pricing, work boundaries, and final review are four short steps rather than one long page. Each step shows its own completion state, progress can be saved at any time, and publication remains deliberately unavailable until the same ten server-backed profile requirements are complete.
+
 ## Remaining limitations
 
 - A real mobile visual pass is still required because the desktop browser-control runtime could not connect during this audit.
@@ -50,4 +53,4 @@ The separate concierge fallback at `/join` now collects only contact details, ma
 
 ## Verification
 
-Static journey tests assert the lightweight homepage boundary, its direct role actions, absence of the legacy forms and form-processing script, dedicated fallback intake routes, single-next-action dashboards, optional-field disclosures, removal of the duplicate service decision, automatic speech summary, safe text rendering, CSRF/session protection, role-specific booking information and mobile layouts. Full project checks cover database privileges, account security, scan consent, booking overlap, tracking, progress, messages, payments, reviews and disputes.
+Static journey tests assert the lightweight homepage boundary, its direct role actions, absence of the legacy forms and form-processing script, dedicated fallback intake routes, single-next-action dashboards, the guided four-step Cleaner profile editor, exact section completion, optional-field disclosures, removal of the duplicate service decision, automatic speech summary, safe text rendering, CSRF/session protection, role-specific booking information and mobile layouts. Full project checks cover database privileges, account security, scan consent, booking overlap, tracking, progress, messages, payments, reviews and disputes.
