@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createDisputeRepository } from "../src/marketplace/dispute-repository.mjs";
 import { createDisputeService } from "../src/marketplace/dispute-service.mjs";
+import { caseResponsePolicyVersion } from "../src/marketplace/case-response-policy.mjs";
 
 const bookingId = "55555555-5555-4555-8555-555555555555";
 const disputeId = "66666666-6666-4666-8666-666666666666";
@@ -24,7 +25,8 @@ assert.equal((await service.getForBooking(landlord, bookingId)).disputeId, dispu
 const queue = await service.listForAdministrator(admin, { status: "OPEN", limit: "25", offset: "0" });
 assert.equal(queue.disputes[0].openedByRole, "landlord");
 assert.equal(calls.at(-1).input.status, "open");
-const resolved = await service.review(admin, disputeId, { status: "resolved", resolutionNote: "  The evidence was reviewed and a cancellation was recorded.  ", resolutionOutcome: "CANCELLED" });
+const resolutionAssurance = { policyVersion: caseResponsePolicyVersion, evidenceReviewed: true, sensitiveDataMinimised: true, noExternalActionConfirmed: true };
+const resolved = await service.review(admin, disputeId, { status: "resolved", resolutionNote: "  The evidence was reviewed and a cancellation was recorded.  ", resolutionOutcome: "CANCELLED", ...resolutionAssurance });
 assert.equal(resolved.resolutionOutcome, "cancelled");
 assert.equal(calls.at(-1).input.resolutionNote, "The evidence was reviewed and a cancellation was recorded.");
 
@@ -36,8 +38,13 @@ for (const input of [
 ]) await assert.rejects(service.open(landlord, bookingId, input), /valid|category|description|invalid/i);
 await assert.rejects(service.open(admin, bookingId, { requestId, category: "damage", description: base.description }), /authorised booking account/i);
 await assert.rejects(service.listForAdministrator(landlord), /Administrator/i);
-await assert.rejects(service.review(admin, disputeId, { status: "resolved", resolutionNote: "Too short", resolutionOutcome: "cancelled" }), /Resolution note/i);
-await assert.rejects(service.review(admin, disputeId, { status: "resolved", resolutionNote: "A complete and valid final case explanation.", resolutionOutcome: "refund" }), /outcome/i);
+await assert.rejects(service.review(admin, disputeId, { status: "resolved", resolutionNote: "Too short", resolutionOutcome: "cancelled", ...resolutionAssurance }), /Resolution note/i);
+await assert.rejects(service.review(admin, disputeId, { status: "resolved", resolutionNote: "A complete and valid final case explanation.", resolutionOutcome: "refund", ...resolutionAssurance }), /outcome/i);
+for (const missing of ["policyVersion", "evidenceReviewed", "sensitiveDataMinimised", "noExternalActionConfirmed"]) {
+  const input = { status: "resolved", resolutionNote: "A complete evidence-based final case explanation.", resolutionOutcome: "completed", ...resolutionAssurance };
+  delete input[missing];
+  await assert.rejects(service.review(admin, disputeId, input), /standard|evidence|data|minimisation|payment|external/i);
+}
 
 const databaseCalls = [];
 const database = { async withUserTransaction(actor, operation) { return operation({ async query(text, values) { databaseCalls.push({ actor, text, values }); return { rows: [{ result: base }] }; } }); } };
@@ -48,4 +55,4 @@ await realRepository.listForAdministrator(admin, { status: "open", limit: 50, of
 await realRepository.review(admin, disputeId, { status: "reviewing", resolutionNote: null, resolutionOutcome: null });
 assert.deepEqual(databaseCalls.map((call) => call.text.match(/tideway_private\.([a-z_]+)/)?.[1]), ["open_booking_dispute", "get_booking_dispute", "list_admin_booking_disputes", "review_booking_dispute"]);
 
-console.log("Booking-case service tests passed: participant-only opening, bounded categories/details, retry identity, administrator queue/resolution and narrow function-only persistence.");
+console.log("Booking-case service tests passed: participant-only opening, bounded categories/details, retry identity, server-enforced resolution assurances, administrator queue/resolution and narrow function-only persistence.");

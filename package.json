@@ -14,7 +14,7 @@
     "test:worker": "node tests/marketplace-worker.mjs",
     "check:active-job": "node --check public/active-job-model.js && node --check public/active-job.js && node --check tests/active-job-ui.mjs",
     "test:active-job": "node tests/active-job-ui.mjs",
-    "check:disputes": "node --check src/marketplace/dispute-repository.mjs && node --check src/marketplace/dispute-service.mjs && node --check tests/dispute-service.mjs",
+    "check:disputes": "node --check src/marketplace/case-response-policy.mjs && node --check src/marketplace/dispute-repository.mjs && node --check src/marketplace/dispute-service.mjs && node --check tests/dispute-service.mjs",
     "test:disputes": "node tests/dispute-service.mjs",
     "check:admin-cases": "node --check public/admin-cases-model.js && node --check public/admin-cases.js && node --check tests/admin-cases-ui.mjs",
     "test:admin-cases": "node tests/admin-cases-ui.mjs",

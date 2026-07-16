@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { caseResolutionAssurance } from "./case-response-policy.mjs";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const categories = new Set(["quality", "damage", "access", "safety", "conduct", "payment", "other"]);
@@ -103,6 +104,7 @@ export function createDisputeService(repository, options = {}) {
       if (!["reviewing", "resolved"].includes(status)) throw new TypeError("Choose review started or resolved.");
       const resolutionOutcome = input.resolutionOutcome == null || input.resolutionOutcome === "" ? null : String(input.resolutionOutcome).trim().toLowerCase();
       if (status === "resolved" && !["completed", "cancelled"].includes(resolutionOutcome)) throw new TypeError("Choose the final booking outcome.");
+      if (status === "resolved") caseResolutionAssurance(input);
       return dispute(await repository.review(actor, uuid(disputeId, "case id"), {
         status,
         resolutionNote: status === "resolved" ? text(input.resolutionNote, 20, 5000, "Resolution note") : null,

@@ -1,4 +1,4 @@
-import { adminCaseFilter, adminCaseQueue, adminCaseResolutionPayload, adminCaseReviewPayload, caseCategoryLabel, caseStatusLabel, shortBookingReference } from "./admin-cases-model.js";
+import { adminCaseFilter, adminCaseQueue, adminCaseResolutionPayload, adminCaseReviewPayload, caseCategoryLabel, casePolicyForCategory, caseStatusLabel, shortBookingReference } from "./admin-cases-model.js";
 
 const pageSize = 50;
 const gate = document.querySelector("[data-admin-cases-gate]");
@@ -102,7 +102,13 @@ function openResolution(record) {
   selectedDisputeId = record.disputeId;
   dialogForm.reset();
   showFeedback(dialogFeedback, "");
+  const policy = casePolicyForCategory(record.category);
   document.querySelector("[data-admin-case-dialog-copy]").textContent = `Resolve ${shortBookingReference(record.bookingId)} only after reviewing the available evidence. This decision changes the recorded booking outcome, not money.`;
+  document.querySelector("[data-admin-case-priority]").textContent = policy.priority;
+  document.querySelector("[data-admin-case-policy-title]").textContent = `${caseCategoryLabel(record.category)} review`;
+  document.querySelector("[data-admin-case-policy-summary]").textContent = policy.summary;
+  document.querySelector("[data-admin-case-policy-evidence]").replaceChildren(...policy.evidence.map((item) => element("li", "", item)));
+  document.querySelector("[data-admin-case-policy-boundary]").textContent = policy.boundary;
   dialog.showModal();
   dialogForm.elements.resolutionOutcome.focus();
 }
@@ -212,7 +218,15 @@ dialogForm.addEventListener("submit", async (event) => {
   if (updating) return;
   try {
     const data = new FormData(dialogForm);
-    const payload = adminCaseResolutionPayload({ resolutionOutcome: data.get("resolutionOutcome"), resolutionNote: data.get("resolutionNote"), confirmed: data.get("confirmed") === "on" });
+    const payload = adminCaseResolutionPayload({
+      resolutionOutcome: data.get("resolutionOutcome"),
+      resolutionNote: data.get("resolutionNote"),
+      confirmed: data.get("confirmed") === "on",
+      policyVersion: data.get("policyVersion"),
+      evidenceReviewed: data.get("evidenceReviewed") === "on",
+      sensitiveDataMinimised: data.get("sensitiveDataMinimised") === "on",
+      noExternalActionConfirmed: data.get("noExternalActionConfirmed") === "on"
+    });
     dialogSubmit.disabled = dialogCancel.disabled = true;
     dialogSubmit.textContent = "Recording…";
     await updateCase(selectedDisputeId, payload, null);

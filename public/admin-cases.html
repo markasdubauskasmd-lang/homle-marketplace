@@ -6,8 +6,8 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Booking cases | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-65">
-  <script type="module" src="/admin-cases.js?v=20260716-1"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-66">
+  <script type="module" src="/admin-cases.js?v=20260716-2"></script>
 </head>
 <body class="booking-dashboard-page admin-cases-page">
   <a class="skip-link" href="#admin-cases-main">Skip to booking cases</a>
@@ -38,6 +38,11 @@
         <div><p class="eyebrow">Marketplace trust and safety</p><h1>Booking cases</h1><p>Review problems raised by a booking participant, record a clear decision and preserve the audit trail. This screen never refunds, charges or pays anyone.</p></div>
         <button class="button button-outline" type="button" data-admin-cases-refresh>Refresh queue</button>
       </div>
+
+      <aside class="admin-case-policy-banner" aria-labelledby="admin-case-policy-heading">
+        <div><p class="eyebrow">Review safeguard v1</p><h2 id="admin-case-policy-heading">Evidence first. Minimum private data. No automatic remedy.</h2></div>
+        <p>Each case includes category-specific review guidance. A final decision is blocked until the Administrator confirms the evidence, privacy and no-payment boundaries. Response targets, refunds, re-cleans, compensation and external escalation still require separately approved operating policy.</p>
+      </aside>
 
       <dl class="booking-dashboard-stats" aria-label="Current page summary">
         <div><dt>Cases loaded</dt><dd data-admin-cases-count>0</dd></div>
@@ -74,6 +79,13 @@
   <dialog class="settings-dialog admin-case-dialog" data-admin-case-dialog>
     <form method="dialog" data-admin-case-form>
       <div><p class="eyebrow">Audited decision</p><h2>Resolve booking case</h2><p data-admin-case-dialog-copy>Select the commercial booking outcome and record the evidence-based reason.</p></div>
+      <section class="admin-case-policy" aria-labelledby="admin-case-dialog-policy-heading">
+        <div><span class="admin-case-priority" data-admin-case-priority></span><h3 id="admin-case-dialog-policy-heading" data-admin-case-policy-title>Case review guidance</h3></div>
+        <p data-admin-case-policy-summary></p>
+        <strong>Review only the relevant evidence</strong>
+        <ul data-admin-case-policy-evidence></ul>
+        <p class="admin-case-policy-boundary" data-admin-case-policy-boundary></p>
+      </section>
       <label>Booking outcome
         <select name="resolutionOutcome" required>
           <option value="">Choose an outcome</option>
@@ -86,6 +98,10 @@
         <small>20–5,000 characters. Do not paste passwords, payment credentials or unnecessary personal information.</small>
       </label>
       <label class="checkbox admin-case-confirmation"><input type="checkbox" name="confirmed" required><span>I understand this changes the booking’s recorded outcome. It does not issue a refund, capture payment, pay a Cleaner or contact either participant.</span></label>
+      <label class="checkbox admin-case-confirmation"><input type="checkbox" name="evidenceReviewed" required><span>I reviewed the relevant booking evidence and named the sources used in the resolution note.</span></label>
+      <label class="checkbox admin-case-confirmation"><input type="checkbox" name="sensitiveDataMinimised" required><span>I kept unnecessary personal information, property access details and payment data out of the resolution note.</span></label>
+      <label class="checkbox admin-case-confirmation"><input type="checkbox" name="noExternalActionConfirmed" required><span>I understand this screen performs no refund, payment, contact, suspension, insurance or emergency action.</span></label>
+      <input type="hidden" name="policyVersion" value="tideway-case-response-v1">
       <div class="account-feedback" data-admin-case-dialog-feedback role="alert" hidden></div>
       <div class="settings-dialog-actions">
         <button class="button" type="submit" data-admin-case-submit>Record resolution</button>

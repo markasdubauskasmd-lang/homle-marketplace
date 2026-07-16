@@ -28,11 +28,13 @@ Both routes require an authenticated booking participant; the mutation also requ
 - `GET /api/marketplace/admin/disputes` returns a bounded, status-filtered queue without participant contact data or property access details.
 - `PATCH /api/marketplace/admin/disputes/:disputeId` can mark a case `reviewing` or resolve it.
 - Resolution requires 20–5,000 characters of explanation and an exact `completed` or `cancelled` booking outcome.
+- The category-specific `tideway-case-response-v1` safeguard identifies the smallest useful evidence set and the category's explicit no-action boundary. The server rejects a final resolution unless the Administrator submits the exact current version and confirms evidence review, sensitive-data minimisation and that no payment or external action is being performed.
+- The resolution dialog requires the note to identify the evidence sources used. Safety guidance explicitly says Tideway is not an emergency service; payment guidance explicitly says the case action cannot capture, cancel, refund or transfer money.
 - A final decision writes the case, booking status, history, participant notifications and audit event in one transaction.
 - Retrying the exact final resolution is idempotent; attempting to change a final decision is rejected.
 - A completed visit keeps its original `completed_at` evidence even if a later case outcome cancels the commercial booking.
 
-The source-complete operations screen is not a claim that trust-and-safety operations are ready. Operational policy, response targets, evidence-handling guidance, refund/re-clean decisions, escalation ownership, an approved Administrator account and the real two-account HTTPS staging trial still require approval and evidence before real intake. The visual browser-automation connection was unavailable at this checkpoint, so responsive markup/style assertions and HTTP tests passed but a human visual pass remains required in staging.
+The source-complete operations screen is not a claim that trust-and-safety operations are ready. The evidence/minimisation safeguard and category routing are documented in `CASE_RESPONSE_PLAYBOOK.md`, but response targets, retention decisions, refund/re-clean/compensation authority, escalation ownership, an approved Administrator account and the real two-account HTTPS staging trial still require approval and evidence before real intake. The visual browser-automation connection was unavailable at this checkpoint, so responsive markup/style assertions and HTTP tests passed but a human visual pass remains required in staging.
 
 ## Database boundary and proof
 
