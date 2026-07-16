@@ -8,7 +8,7 @@
   <title>Landlord workspace | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260716-66">
-  <script src="/landlord-dashboard.js?v=20260716-8" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260716-9" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
@@ -107,7 +107,7 @@
             <label data-property-select-label>Property<select name="propertyId" required data-property-select><option value="">Add a property first</option></select></label>
             <div class="field-row"><label>Date<input name="requestedDate" type="date" required></label><label>Start time<input name="requestedTime" type="time" required></label></div>
             <label>Estimated duration<select name="durationMinutes" required><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="300">5 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></label>
-            <label>Primary cleaning type<select name="cleaningType" required><option value="">Choose one</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select></label>
+            <label>Primary cleaning type<select name="cleaningType" required><option value="">Choose one</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select><small data-cleaning-type-hint>Choose a property to receive a sensible default.</small></label>
             <details class="dashboard-optional-fields"><summary>Add budget or recurring preference <span>Optional</span></summary><div><div class="field-row"><label>Frequency<select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select></label><label>Budget (£) <span>(optional)</span><input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01"></label></div><label>Special instructions <span>(optional)</span><textarea name="specialInstructions" rows="3" maxlength="5000"></textarea></label></div></details>
 
             <section class="landlord-speech-scope" aria-labelledby="speech-scope-title">

@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, tasksToLines } from "../public/landlord-dashboard-model.js";
+import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "../public/landlord-dashboard-model.js";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -19,6 +19,7 @@ assert(Date.parse(window.requestedEndAt) - Date.parse(window.requestedStartAt) =
 assert(moneyToPence("125.50") === 12550 && moneyToPence("") === null && throws(() => moneyToPence("12.999"), "two decimal"), "Draft budget did not convert to exact integer pence or reject ambiguous decimals.");
 assert(requestStatusLabel("draft").includes("scan not submitted") && requestStatusLabel("invented") === "Status unavailable", "Request status copy can imply unsupported progress.");
 assert(landlordStartFromSearch("?start=booking") === "booking" && landlordStartFromSearch("?start=booking&start=booking") === "" && landlordStartFromSearch("?start=https%3A%2F%2Fattacker.example") === "", "The account-to-booking handoff accepted an ambiguous or arbitrary dashboard action.");
+assert(suggestedCleaningType("flat") === "regular-domestic" && suggestedCleaningType("office") === "workplaces" && suggestedCleaningType("communal") === "communal-areas" && suggestedCleaningType("other") === "", "Safe property-based cleaning-type suggestions are incomplete or guess for an unsupported property type.");
 
 const [page, script, model, styles, server, authEntry] = await Promise.all([
   readFile(new URL("../public/landlord-dashboard.html", import.meta.url), "utf8"),
@@ -45,6 +46,7 @@ assert(script.includes("function showRequestCompletion(submission") && script.in
 assert(page.includes("Tideway updates the Cleaner bullets when you stop") && page.includes("Type instead or edit what was heard") && page.includes("Review the concise bullets") && page.includes("data-task-preview") && script.includes("function renderTaskPreview()") && script.includes("speechFallback.open = true") && script.includes("function invalidateScopeReview(message)") && script.includes("confirmation.checked = false") && script.includes('requestForm.elements.transcript.addEventListener("input"') && script.includes('requestForm.elements.tasks.addEventListener("input"') && script.includes("summariseSpeech({ automatic: true })") && script.includes("Concise room tasks were updated automatically"), "The speech-to-checklist handoff does not lead with one speech action, expose accessible fallbacks and grouped review, or safely invalidate stale approval.");
 assert(page.includes("data-landlord-next") && page.includes("Add property details later") && page.includes("Add budget or recurring preference") && script.includes("function renderNextAction()") && script.includes('nextButton.dataset.nextAction = "property"') && script.includes('nextButton.dataset.nextAction = "draft"'), "The Landlord dashboard does not lead with one state-aware action or keep optional fields out of the main path.");
 assert(page.includes("Private property label") && page.includes("never the street address") && !/name="name"[^>]*required/.test(page) && page.includes("data-sole-property") && script.includes("propertySelectLabel.hidden = hasSoleProperty") && script.includes("propertySelect.value = properties[0].propertyId"), "Property setup still requires an invented label, risks deriving it from the exact address, or asks a Landlord to choose their only property.");
+assert(page.includes("data-cleaning-type-hint") && script.includes("function applySuggestedCleaningType()") && script.includes('cleaningTypeSelect.dataset.selectionSource = "user"') && script.includes("suggestedCleaningType(property?.propertyType)"), "The request form does not suggest an obvious cleaning category or can overwrite an explicit Landlord choice.");
 assert(styles.includes(".landlord-dashboard-page") && styles.includes(".landlord-speech-scope") && styles.includes(".landlord-request-scan-body") && styles.includes("@media (max-width: 720px)") && page.includes('aria-live="polite"'), "The Landlord room-scan workspace lacks mobile or accessible feedback styling.");
 assert(!/(Jane|Sarah|Maria|John|five-star|fully insured|background checked|DBS checked)/i.test(`${page}\n${script}\n${model}`), "The real Landlord workspace contains an invented person or unsupported trust claim.");
 

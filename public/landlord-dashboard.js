@@ -1,6 +1,6 @@
 import { checklistFromTranscript } from "./checklist.js";
 import { isUkPostcode } from "./contact-validation.js";
-import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-4";
+import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-5";
 import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js";
 
 const state = document.querySelector("[data-landlord-state]");
@@ -32,6 +32,8 @@ const speechButton = document.querySelector("[data-speech-toggle]");
 const speechStatus = document.querySelector("[data-speech-status]");
 const speechFallback = document.querySelector("[data-speech-fallback]");
 const taskPreview = document.querySelector("[data-task-preview]");
+const cleaningTypeSelect = requestForm.elements.cleaningType;
+const cleaningTypeHint = document.querySelector("[data-cleaning-type-hint]");
 const nextTitle = document.querySelector("[data-landlord-next-title]");
 const nextCopy = document.querySelector("[data-landlord-next-copy]");
 const nextLink = document.querySelector("[data-landlord-next-link]");
@@ -198,11 +200,32 @@ function renderProperties() {
     propertySelect.value = properties[0].propertyId;
     solePropertyName.textContent = properties[0].name || "Saved property";
   } else solePropertyName.textContent = "";
+  applySuggestedCleaningType();
   propertyEmpty.hidden = properties.length > 0;
   propertyList.hidden = properties.length === 0;
   requestForm.querySelector("[data-request-controls]").disabled = properties.length === 0;
   document.querySelector("[data-property-count]").textContent = String(properties.length);
   renderNextAction();
+}
+
+function applySuggestedCleaningType() {
+  const property = properties.find((item) => item.propertyId === propertySelect.value);
+  const suggestion = suggestedCleaningType(property?.propertyType);
+  const source = cleaningTypeSelect.dataset.selectionSource;
+  if (!property || !suggestion) {
+    if (source === "suggested") cleaningTypeSelect.value = "";
+    if (source !== "user") delete cleaningTypeSelect.dataset.selectionSource;
+    cleaningTypeHint.textContent = property ? "Choose the cleaning type for this property." : "Choose a property to receive a sensible default.";
+    return;
+  }
+  if (source === "user" || (cleaningTypeSelect.value && source !== "suggested")) {
+    cleaningTypeSelect.dataset.selectionSource = "user";
+    cleaningTypeHint.textContent = "Selected by you. Change it if the requested clean is different.";
+    return;
+  }
+  cleaningTypeSelect.value = suggestion;
+  cleaningTypeSelect.dataset.selectionSource = "suggested";
+  cleaningTypeHint.textContent = `Suggested from the saved ${String(property.propertyType).replace(/-/g, " ")} type. Change it if needed.`;
 }
 
 function propertyFact(label, value) {
@@ -650,6 +673,7 @@ async function createRequestDraft(event) {
     requests.unshift(result.cleaningRequest);
     renderRequests();
     requestForm.reset();
+    delete cleaningTypeSelect.dataset.selectionSource;
     initialiseRequestDefaults();
     renderTaskPreview();
     showFeedback(requestFeedback, `Private draft ${result.cleaningRequest.requestId} saved. It was not sent for matching.`, "success");
@@ -672,6 +696,7 @@ function initialiseRequestDefaults() {
   requestForm.elements.durationMinutes.value = "120";
   requestForm.elements.frequency.value = "one-time";
   if (properties.length === 1) propertySelect.value = properties[0].propertyId;
+  applySuggestedCleaningType();
 }
 
 function useSavedChecklist() {
@@ -750,6 +775,11 @@ document.querySelector("[data-toggle-property-form]").addEventListener("click", 
 document.querySelector("[data-close-property-form]").addEventListener("click", () => { if (!dirty || window.confirm("Close the property form and keep unsaved entries on this page?")) propertyForm.hidden = true; });
 document.querySelector("[data-use-saved-checklist]").addEventListener("click", useSavedChecklist);
 document.querySelector("[data-summarise-speech]").addEventListener("click", summariseSpeech);
+propertySelect.addEventListener("change", applySuggestedCleaningType);
+cleaningTypeSelect.addEventListener("change", () => {
+  cleaningTypeSelect.dataset.selectionSource = "user";
+  cleaningTypeHint.textContent = "Selected by you. Change it if the requested clean is different.";
+});
 speechButton.addEventListener("click", () => { if (!recognition) return; if (listening) recognition.stop(); else { try { recognition.start(); } catch { speechStatus.textContent = "Speech is already starting. Try again in a moment."; } } });
 requestForm.elements.transcript.addEventListener("input", () => { invalidateScopeReview("The walkthrough changed. Summarise again or manually reconcile every room task before confirming."); });
 requestForm.elements.tasks.addEventListener("input", () => { renderTaskPreview(); invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });

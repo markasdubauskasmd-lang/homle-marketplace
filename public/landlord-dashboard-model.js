@@ -27,6 +27,19 @@ export function landlordStartFromSearch(search = "") {
   return values.length === 1 && values[0] === "booking" ? "booking" : "";
 }
 
+export function suggestedCleaningType(propertyType) {
+  const suggestions = {
+    house: "regular-domestic",
+    flat: "regular-domestic",
+    studio: "regular-domestic",
+    office: "workplaces",
+    retail: "workplaces",
+    clinic: "workplaces",
+    communal: "communal-areas"
+  };
+  return suggestions[String(propertyType || "").trim().toLowerCase()] || "";
+}
+
 export function requestedWindow(date, startTime, durationMinutes, now = new Date()) {
   const start = new Date(`${date}T${startTime}`);
   const duration = Number(durationMinutes);
