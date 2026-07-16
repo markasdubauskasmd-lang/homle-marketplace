@@ -31,11 +31,11 @@ Authoritative Hostinger references:
 
 ## Prepared release
 
-- `../Homle-Hostinger-Node-release-9dc11f4f.zip`
-- evidence manifest `../Homle-Hostinger-Node-release-9dc11f4f.manifest.json`
-- source commit `9dc11f4f`
-- SHA-256 `760374262E1CF834D2DB9373A70E020AB7CC060E4142673A34C82F713F347779`
-- 181 ZIP entries / 176 files, 545,677 bytes; no `.env`, customer data, tests, documentation, Git history, local tracking lab or local secrets
+- `../Homle-Hostinger-Node-release-90aff9a3.zip`
+- evidence manifest `../Homle-Hostinger-Node-release-90aff9a3.manifest.json`
+- source commit `90aff9a3`
+- SHA-256 `37707FF1D6BC0567B7DBC0AE29BD85D6B6DF0C90CAF471484114226ABAB9CC7B`
+- 182 ZIP entries / 177 files, 548,316 bytes; no `.env`, customer data, tests, documentation, Git history, local tracking lab or local secrets
 - Node type: `Other`
 - entry file: `server.mjs`
 - supported runtime: Node.js 24
@@ -68,6 +68,8 @@ Uploading only `public/` would make the site look live while registration, booki
 8. Run the external domain verifier, then remove every synthetic staging record before real intake.
 
 For account activation, select the first real provider with `TIDEWAY_EXPECT_SOCIAL_PROVIDERS` and run `pnpm run preflight:authentication` against the reviewed Hostinger environment before changing the marketplace flag. Google uses `https://homle.co.uk/api/marketplace/auth/google/callback`; Facebook uses `https://homle.co.uk/api/marketplace/auth/facebook/callback`. The preflight reports incomplete database, SMTP, storage, monitoring, email fallback or provider configuration without printing any secret. It deliberately cannot replace the subsequent managed-service probes and two-account HTTPS test.
+
+The release now includes its deployment-owned monitoring module. Managed staging may set `MARKETPLACE_ADAPTER_MODULE=homle:monitoring-webhook`, `MONITORING_WEBHOOK_URL` to an approved private HTTPS collector with no query/fragment, and `MONITORING_WEBHOOK_TOKEN` to a separate 32-512 character secret in Hostinger's secret store. This does not send a startup event and does nothing while `MARKETPLACE_ENABLED=false`. Before account activation, deliberately exercise one synthetic staging failure, confirm the collector receives only the documented privacy-minimal event and prove an operator alert. See `docs/MONITORING.md`.
 
 ## Current control boundary
 

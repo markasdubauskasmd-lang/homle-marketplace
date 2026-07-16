@@ -68,7 +68,7 @@ The preflight performs no DNS change, deployment, database connection, email, st
 
 ## Marketplace promotion
 
-Do not change `MARKETPLACE_ENABLED` until managed PostgreSQL, SMTP, private object storage, monitoring adapter, proxy identity, migrations/grants and two-account HTTPS tests pass. Marketplace mode additionally requires its separate database/session/token/encryption credentials, SMTP sender, private-storage settings and an absolute deployment monitoring adapter. Startup connects to and verifies each dependency before it exposes an account route.
+Do not change `MARKETPLACE_ENABLED` until managed PostgreSQL, SMTP, private object storage, monitoring, proxy identity, migrations/grants and two-account HTTPS tests pass. Marketplace mode additionally requires its separate database/session/token/encryption credentials, SMTP sender and private-storage settings. Use the shipped `homle:monitoring-webhook` module with an approved private HTTPS collector and secret, or a reviewed absolute custom adapter implementing the same monitoring/shutdown contract. Startup connects to and verifies each dependency before it exposes an account route.
 
 Keep `PAYMENTS_ENABLED=false` until the founder approves the legal/payment model and an approved Stripe test platform completes the documented authorization, completion, capture, transfer, cancellation and refund rehearsal. Configuration now rejects payments when the marketplace is detached.
 

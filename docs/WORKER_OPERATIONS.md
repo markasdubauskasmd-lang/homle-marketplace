@@ -28,7 +28,7 @@ Optional media cleanup runs each minute, email delivery every 15 seconds and aut
 
 ## Startup and shutdown
 
-Production secrets belong in the deployment secret manager. Configure `WORKER_DATABASE_URL` with the restricted worker credential, `MARKETPLACE_ADAPTER_MODULE` with the deployment-owned monitoring adapter, and only the capability-specific provider settings that have passed staging. Then run:
+Production secrets belong in the deployment secret manager. Configure `WORKER_DATABASE_URL` with the restricted worker credential, set `MARKETPLACE_ADAPTER_MODULE=homle:monitoring-webhook` with the approved private monitoring endpoint/token (or use a reviewed absolute custom adapter), and add only the capability-specific provider settings that have passed staging. Then run:
 
 ```text
 pnpm run start:worker
