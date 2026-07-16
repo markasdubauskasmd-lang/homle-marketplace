@@ -19,6 +19,8 @@ The remaining implementation should use Stripe Connect separate charges and tran
 - Stripe Node 22.1.1 is exact-locked and the adapter pins API `2026-03-25.dahlia`, rejects live secret keys and live/wrong-version webhook events, uses manual PaymentIntent capture and transfers only from a captured source charge to the server-owned connected-account destination.
 - Webhook verification receives the original bytes unchanged. The public endpoint has a 1 MiB limit, accepts POST only, has no session dependency, is absent while payments are detached and projects only bounded allowlisted fields into reconciliation. Signed events without Tideway metadata are acknowledged and ignored.
 - `PAYMENTS_ENABLED` defaults to false. Credentials alone do not attach payments; the complete marketplace database, SMTP, private storage, exact HTTPS origin, monitoring and payment-provider readiness probes must also pass.
+- `POST /api/marketplace/bookings/:bookingId/payment` starts or safely resumes authorization only for the authenticated booking Landlord. It requires exact-origin and CSRF checks plus a strong retry key; the amount and booking terms come only from PostgreSQL. A customer-action client secret can appear only in this authenticated mutation response and is never stored.
+- `GET /api/marketplace/bookings/:bookingId/payment` returns only the owner-scoped payment reference, booking reference, status, GBP amount and aggregate captured/refunded amounts. It never returns Stripe object IDs, retry-key hashes, payout destinations or a client secret. Both participant routes are absent when the payment service is detached.
 
 ## Authorization timing
 
@@ -29,9 +31,9 @@ Manual card authorizations expire. Stripe documents common online authorization 
 1. Founder approves Stripe Connect as the provider, the legal merchant/worker model, payment timing, cancellation/refund terms and the handling of chargebacks, re-cleans and failed transfers.
 2. Create the approved Stripe test platform and connected Cleaner account; store test keys and the webhook secret in the hosting secret manager.
 3. Register the exact webhook route and prove the adapter readiness probe against those test accounts. Stripe requires the unmodified request body for signature verification: <https://docs.stripe.com/webhooks/signature>.
-4. Add participant-authorized authorization/status routes and mobile Payment Element UI. Client secrets may be returned only to the booking Landlord over their authenticated session and must never be logged or persisted.
+4. Add the mobile Payment Element UI to the prepared participant authorization/status routes. Preserve the rule that client secrets may be returned only to the booking Landlord over their authenticated mutation and must never be logged or persisted.
 5. Connect authorization readiness to booking/journey gates; schedule hold-expiry monitoring; reconcile signed events; alert on processing failures, disputes, transfer failures and reversals.
-6. Run migration 022 and the full RLS/concurrency harness against PostgreSQL 16, then complete a provider test-mode authorization -> completion -> capture -> Cleaner transfer -> partial/full refund cycle.
+6. Run migrations 022-023 and the full RLS/concurrency harness against PostgreSQL 16, then complete a provider test-mode authorization -> completion -> capture -> Cleaner transfer -> partial/full refund cycle.
 7. Keep live mode disabled until the founder explicitly approves it after legal, insurance, public-domain, Cleaner-supply, pricing, privacy and payment-account launch evidence all pass. This source adapter must be separately reviewed before any future live-mode implementation because it intentionally rejects live keys.
 
 The source checkpoint advances E4 but does not satisfy its definition of done. A genuine test-mode provider cycle and real PostgreSQL evidence are still missing.

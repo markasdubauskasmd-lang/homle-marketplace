@@ -16,6 +16,9 @@ This checkpoint composes the existing PostgreSQL, session security, cleaner prof
 | `GET /api/marketplace/bookings/:bookingId/property` | Participant/admin | Session plus participant repository check, service authorization and protected-field projection |
 | `GET /api/marketplace/cleaning-requests` | Landlord | Session and Landlord role; owner-only RLS listing |
 | `POST /api/marketplace/cleaning-requests` | Landlord | Session, exact origin, CSRF, Landlord role, owned property and frozen room-task scope |
+| `GET /api/marketplace/bookings/:bookingId/payment` | Booking Landlord/admin | Session, role plus owner-bound security-definer status projection; no provider IDs, retry material, payout destination or client secret |
+| `POST /api/marketplace/bookings/:bookingId/payment` | Booking Landlord | Session, exact origin, CSRF, Landlord role, strong retry key and server-frozen booking amount; route absent while payments are detached |
+| `POST /api/marketplace/payments/webhook` | Stripe-signed event only | Exact raw bytes, 1 MiB limit, test-mode signature/version validation and allowlisted reconciliation; route absent while payments are detached |
 
 Prepared authentication routes use `POST` only: `/api/marketplace/auth/signup`, verification resend/confirmation, login, password-reset request/confirmation, logout, logout-all, and `/api/marketplace/onboarding`. They are attached to the runtime chain only when internally verified SMTP delivery, shared rate limiting and a server-derived client key are configured together.
 

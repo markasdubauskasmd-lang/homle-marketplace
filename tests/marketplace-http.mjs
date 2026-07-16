@@ -116,6 +116,14 @@ const reviewService = {
   async moderateReview(actor, reviewId, input) { calls.push({ kind: "review-moderate", actor, reviewId, input }); return { reviewId, bookingId: "55555555-5555-4555-8555-555555555555", cleanerId: "22222222-2222-4222-8222-222222222222", rating: 5, moderationStatus: input.decision, createdAt: "2026-07-15T19:00:00.000Z" }; }
 };
 const paymentService = {
+  async getForBooking(actor, bookingId) {
+    calls.push({ kind: "payment-get", actor, bookingId });
+    return { paymentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId, status: "authorized", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: false, clientSecret: null };
+  },
+  async beginAuthorization(actor, input) {
+    calls.push({ kind: "payment-authorize", actor, input });
+    return { paymentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId: input.bookingId, status: "requires-customer-action", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: true, clientSecret: "pi_test_client_secret" };
+  },
   async handleWebhook(body, signature) {
     calls.push({ kind: "payment-webhook", body, signature });
     if (signature === "bad") throw Object.assign(new Error("The payment webhook could not be verified."), { statusCode: 400, code: "invalid-payment-webhook" });
@@ -156,6 +164,19 @@ assert(wrongWebhookMethod.response.statusCode === 405 && wrongWebhookMethod.resp
 const noPaymentRouter = createMarketplaceHttpRouter({ ...dependencies, paymentService: null }, { clientKey: () => trustedClientKey });
 const absentWebhookResponse = response();
 assert(await noPaymentRouter.handle(request("POST", "/api/marketplace/payments/webhook", { body: Buffer.from("{}") }), absentWebhookResponse, new URL("http://127.0.0.1:4173/api/marketplace/payments/webhook")) === false && absentWebhookResponse.statusCode === null, "Disabled payments exposed a webhook route.");
+
+const bookingPaymentUrl = "/api/marketplace/bookings/55555555-5555-4555-8555-555555555555/payment";
+const unauthenticatedPayment = await dispatch(router, "GET", bookingPaymentUrl);
+assert(unauthenticatedPayment.response.statusCode === 401, "Payment status was visible without an authenticated account.");
+const missingPaymentCsrf = await dispatch(router, "POST", bookingPaymentUrl, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { idempotencyKey: "authorize_booking_payment_123456789012" } });
+assert(missingPaymentCsrf.response.statusCode === 403 && !calls.some((call) => call.kind === "payment-authorize"), "Payment authorization accepted a missing CSRF token or reached the provider boundary.");
+const authorizedPayment = await dispatch(router, "POST", bookingPaymentUrl, { headers: authHeaders, body: { idempotencyKey: "authorize_booking_payment_123456789012" } });
+const authorizationCall = calls.find((call) => call.kind === "payment-authorize");
+assert(authorizedPayment.response.statusCode === 201 && authorizedPayment.body.payment.requiresCustomerAction === true && authorizedPayment.body.payment.clientSecret === "pi_test_client_secret" && authorizationCall.actor.userId === sessions.landlord.user_id && authorizationCall.input.bookingId === "55555555-5555-4555-8555-555555555555" && authorizationCall.input.idempotencyKey === "authorize_booking_payment_123456789012", "Authenticated Landlord payment authorization lost its booking, retry key or customer-action secret.");
+const paymentStatus = await dispatch(router, "GET", bookingPaymentUrl, { headers: { cookie: authHeaders.cookie } });
+assert(paymentStatus.response.statusCode === 200 && paymentStatus.body.payment.status === "authorized" && !JSON.stringify(paymentStatus.body).includes("pi_test_client_secret") && calls.at(-1).kind === "payment-get", "Landlord payment status exposed customer-action material or missed its owner-bound service.");
+const absentBookingPaymentResponse = response();
+assert(await noPaymentRouter.handle(request("GET", bookingPaymentUrl), absentBookingPaymentResponse, new URL(`http://127.0.0.1:4173${bookingPaymentUrl}`)) === false && absentBookingPaymentResponse.statusCode === null, "Disabled payments exposed a participant payment route.");
 
 const directory = await dispatch(router, "GET", "/api/marketplace/cleaners?outwardPostcode=SW1A&verifiedOnly=true&limit=10");
 assert(directory.handled && directory.response.statusCode === 200 && directory.body.cleaners.length === 1 && calls.at(-1).filters.outwardPostcode === "SW1A" && calls.at(-1).filters.verifiedOnly === true && calls.at(-1).filters.limit === "10", "Public cleaner discovery did not parse its bounded service filters.");

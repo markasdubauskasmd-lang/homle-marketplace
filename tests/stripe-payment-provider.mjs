@@ -12,7 +12,7 @@ let nextEvent;
 const client = {
   accounts: { async retrieve() { calls.push({ kind: "account" }); return { id: "acct_test_platform", charges_enabled: true }; } },
   paymentIntents: {
-    async create(input, options) { calls.push({ kind: "intent-create", input, options }); return { id: "pi_test_authorization", status: "requires_capture", amount: input.amount, currency: input.currency, client_secret: "pi_test_client_secret" }; },
+    async create(input, options) { calls.push({ kind: "intent-create", input, options }); return { id: "pi_test_authorization", status: "requires_payment_method", amount: input.amount, currency: input.currency, client_secret: "pi_test_client_secret" }; },
     async retrieve(id, options) {
       calls.push({ kind: "intent-retrieve", id, options });
       return options?.expand ? { id, status: "succeeded", currency: "gbp", amount_received: 12_000, latest_charge: { id: "ch_test_captured" } } : { id, status: "requires_action", amount: 12_000, currency: "gbp", client_secret: "pi_test_client_secret" };
@@ -34,7 +34,7 @@ const provider = await createStripePaymentProvider({ secretKey, webhookSecret },
 assert.deepEqual(await provider.verify(), { ready: true, testMode: true });
 const shared = { paymentId, bookingId, amountPence: 12_000, currency: "gbp" };
 const authorization = await provider.createAuthorization({ ...shared, idempotencyKey: `tideway_payment_${paymentId}`, transferGroup: `tideway_booking_${bookingId}` });
-assert.equal(authorization.status, "authorized");
+assert.equal(authorization.status, "requires-customer-action");
 const authorizationCall = calls.find((call) => call.kind === "intent-create");
 assert.deepEqual(authorizationCall.input, {
   amount: 12_000,

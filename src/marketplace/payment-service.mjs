@@ -107,7 +107,7 @@ function normalizedEvent(value, payloadHash) {
 }
 
 export function createPaymentService(repository, provider, options = {}) {
-  const requiredRepository = ["beginAuthorization", "recordAuthorization", "beginCommand", "recordCommand", "reconcileEvent"];
+  const requiredRepository = ["getByBooking", "beginAuthorization", "recordAuthorization", "beginCommand", "recordCommand", "reconcileEvent"];
   const requiredProvider = ["createAuthorization", "retrieveAuthorization", "capture", "cancel", "refund", "transfer", "verifyWebhook"];
   if (!repository || requiredRepository.some((method) => typeof repository[method] !== "function")) throw new TypeError("A complete payment repository is required.");
   if (!provider || provider.name !== "stripe" || requiredProvider.some((method) => typeof provider[method] !== "function")) throw new TypeError("A complete Stripe payment adapter is required.");
@@ -169,6 +169,11 @@ export function createPaymentService(repository, provider, options = {}) {
   }
 
   return Object.freeze({
+    async getForBooking(actor, bookingId) {
+      requireRole(actor, "landlord", "administrator");
+      const record = await repository.getByBooking(actor, uuid(bookingId, "booking id"));
+      return record ? publicPayment(record) : null;
+    },
     beginAuthorization,
     capture(actor, input) { return runCommand(actor, "capture", input); },
     cancel(actor, input) { return runCommand(actor, "cancel", input); },

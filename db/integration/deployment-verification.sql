@@ -37,7 +37,8 @@ DECLARE
     'tideway_private.record_booking_payment_authorization(uuid,text,text)',
     'tideway_private.begin_booking_payment_command(uuid,uuid,text,integer,bytea)',
     'tideway_private.record_booking_payment_command(uuid,text,text)',
-    'tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamp with time zone,character)'
+    'tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamp with time zone,character)',
+    'tideway_private.read_booking_payment(uuid)'
   ];
   worker_functions constant text[] := ARRAY[
     'tideway_private.expire_due_cleaner_invitations(integer)',
@@ -185,7 +186,7 @@ SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
-  'appFunctionChecks', 15,
+  'appFunctionChecks', 16,
   'workerFunctionChecks', 8
 ) AS tideway_deployment_verification;
 

@@ -17,6 +17,10 @@ const calls = [];
 let idIndex = 0;
 
 const repository = {
+  async getByBooking(actor, selectedBookingId) {
+    calls.push({ kind: "get-payment", actor, selectedBookingId });
+    return { paymentId, bookingId: selectedBookingId, status: "authorized", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, providerPaymentId: "pi_test_private" };
+  },
   async beginAuthorization(actor, input) {
     calls.push({ kind: "begin-authorization", actor, input });
     return { paymentId: input.paymentId, bookingId: input.bookingId, status: "creating", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, providerPaymentId: null };
@@ -71,6 +75,9 @@ const provider = {
 };
 
 const service = createPaymentService(repository, provider, { createId: () => idIndex++ === 0 ? paymentId : commandIds[idIndex - 2] });
+const paymentStatus = await service.getForBooking(landlord, bookingId);
+assert(paymentStatus.paymentId === paymentId && paymentStatus.bookingId === bookingId && paymentStatus.status === "authorized" && !Object.hasOwn(paymentStatus, "providerPaymentId") && !JSON.stringify(paymentStatus).includes("pi_test_private"), "Landlord payment status lost its booking scope or exposed the provider reference.");
+await assert.rejects(service.getForBooking(cleaner, bookingId), (error) => error.code === "payment-role-required");
 const authorization = await service.beginAuthorization(landlord, { bookingId, idempotencyKey: "authorization_retry_key_1234567890", amountPence: 1 });
 assert.deepEqual(authorization, { paymentId, bookingId, status: "requires-customer-action", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: true, clientSecret: "pi_secret_private" });
 const preparedAuthorization = calls.find((call) => call.kind === "begin-authorization");

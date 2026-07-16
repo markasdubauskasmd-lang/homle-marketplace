@@ -31,11 +31,12 @@ function metadata(input) {
 function authorizationResult(intent) {
   const statuses = {
     requires_action: "requires-customer-action",
+    requires_confirmation: "requires-customer-action",
+    requires_payment_method: "requires-customer-action",
     processing: "processing",
     requires_capture: "authorized",
     succeeded: "authorized",
-    canceled: "failed",
-    requires_payment_method: "failed"
+    canceled: "failed"
   };
   const status = statuses[intent?.status];
   if (!status || !Number.isInteger(intent.amount) || intent.currency !== "gbp") throw new TypeError("Stripe returned an unsupported PaymentIntent state.");

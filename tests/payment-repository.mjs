@@ -23,6 +23,10 @@ const bookingId = "33333333-3333-4333-8333-333333333333";
 const commandId = "44444444-4444-4444-8444-444444444444";
 const hash = Buffer.alloc(32, 7);
 
+rows.push({ id: paymentId, booking_id: bookingId, status: "authorized", amount_pence: 12000, currency: "gbp", amount_captured_pence: 0, amount_refunded_pence: 0 });
+const readable = await repository.getByBooking(actor, bookingId);
+assert(readable.paymentId === paymentId && readable.bookingId === bookingId && readable.providerPaymentId === null && calls.at(-1).text.includes("read_booking_payment"), "Landlord payment status did not use the narrow actor-bound projection.");
+
 rows.push({ id: paymentId, booking_id: bookingId, status: "creating", amount_pence: 12000, currency: "gbp", amount_captured_pence: 0, amount_refunded_pence: 0, provider_payment_id: null });
 const begun = await repository.beginAuthorization(actor, { paymentId, bookingId, provider: "stripe", idempotencyKeyHash: hash });
 assert(begun.paymentId === paymentId && begun.amountPence === 12000 && calls.at(-1).text.includes("begin_booking_payment_authorization") && calls.at(-1).values[3] === hash, "Payment authorization did not use the actor-bound function and hashed retry key.");
@@ -47,6 +51,7 @@ failure = Object.assign(new Error("payment-not-refundable"), { code: "P0001" });
 await assert.rejects(repository.beginCommand(actor, { commandId, paymentId, kind: "refund", amountPence: 500, idempotencyKeyHash: hash }), (error) => error.code === "payment-not-refundable" && error.statusCode === 409);
 
 const migration = await readFile(new URL("../db/migrations/022_marketplace_payment_ledger.sql", import.meta.url), "utf8");
+const paymentStatusMigration = await readFile(new URL("../db/migrations/023_landlord_payment_status.sql", import.meta.url), "utf8");
 const grants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const runtime = await readFile(new URL("../src/marketplace/runtime.mjs", import.meta.url), "utf8");
 const attachment = await readFile(new URL("../src/marketplace/attachment.mjs", import.meta.url), "utf8");
@@ -60,7 +65,9 @@ for (const required of [
 ]) assert(migration.includes(required), `Payment migration omitted ${required}.`);
 assert(!migration.includes("client_secret") && !migration.includes("card_number") && !migration.includes("raw_payload"), "Payment migration attempted to persist client secrets, card details or raw provider payloads.");
 for (const required of ["begin_booking_payment_authorization", "reconcile_payment_provider_event", "REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_payments", "REVOKE ALL ON TABLE tideway_private.cleaner_payout_accounts"]) assert(grants.includes(required), `Runtime payment grants omitted ${required}.`);
+for (const required of ["read_booking_payment", "booking.landlord_user_id = actor_id", "payment.amount_captured_pence", "REVOKE ALL ON FUNCTION"]) assert(paymentStatusMigration.includes(required), `Landlord payment-status migration omitted ${required}.`);
+assert(!paymentStatusMigration.includes("provider_payment_id") && !paymentStatusMigration.includes("idempotency_key_hash") && grants.includes("read_booking_payment(uuid)"), "Landlord payment status exposed private provider/idempotency material or lacked its narrow grant.");
 assert(runtime.includes("createPaymentRepository(database)") && runtime.includes("options.paymentProvider ? createPaymentService") && runtime.includes("paymentReady: paymentService !== null"), "Marketplace runtime did not keep payment composition explicitly detached behind a provider adapter.");
-assert(attachment.includes("payment_ledger_ready") && attachment.includes("begin_booking_payment_authorization(uuid,uuid,text,bytea)"), "Marketplace startup could attach against a database missing the locked payment ledger.");
+assert(attachment.includes("payment_ledger_ready") && attachment.includes("payment_access_ready") && attachment.includes("begin_booking_payment_authorization(uuid,uuid,text,bytea)") && attachment.includes("read_booking_payment(uuid)"), "Marketplace startup could attach against a database missing the locked payment ledger or Landlord status projection.");
 
 console.log("Payment repository tests passed: frozen booking money, function-only mutations, server-owned payout terms, idempotent event ledger, safe error mapping and least-privilege grants.");

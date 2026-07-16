@@ -28,6 +28,7 @@ const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern
 const bookingCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/completion$`);
 const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews$`);
 const bookingReviewResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews/response$`);
+const bookingPaymentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/payment$`);
 const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
 const apiPrefix = "/api/marketplace/";
 
@@ -73,6 +74,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!realtime || typeof realtime.openStream !== "function") throw new TypeError("Marketplace HTTP routes require the booking real-time service.");
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
+  if (payments && !["handleWebhook", "beginAuthorization", "getForBooking"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
   const limitPublicRead = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
 
@@ -89,6 +91,18 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
           const result = await payments.handleWebhook(await readRawBody(request), signature);
           sendJson(response, 200, { ok: true, accepted: result?.accepted === true, duplicate: result?.duplicate === true, ignored: result?.ignored === true });
+          return true;
+        }
+        const selectedBookingPayment = pathname.match(bookingPaymentPath);
+        if (selectedBookingPayment) {
+          if (!payments) return false;
+          if (request.method !== "GET" && request.method !== "POST") return methodNotAllowed(response, ["GET", "POST"]), true;
+          const mutation = request.method === "POST";
+          const context = await security.protect(request, { mutation, roles: mutation ? ["landlord"] : ["landlord", "administrator"] });
+          const payment = mutation
+            ? await payments.beginAuthorization(context.actor, { bookingId: selectedBookingPayment[1], idempotencyKey: (await readJsonObject(request)).idempotencyKey })
+            : await payments.getForBooking(context.actor, selectedBookingPayment[1]);
+          sendJson(response, mutation ? 201 : 200, { ok: true, payment });
           return true;
         }
         if (pathname === "/api/marketplace/account") {
