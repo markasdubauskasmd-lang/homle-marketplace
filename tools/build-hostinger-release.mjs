@@ -65,7 +65,8 @@ function localModuleSpecifiers(source) {
 }
 
 function resolveLocalModule(importer, specifier, trackedFiles) {
-  const base = normalizedRelativePath(path.posix.normalize(path.posix.join(path.posix.dirname(importer), specifier)));
+  const fileSpecifier = specifier.split(/[?#]/, 1)[0];
+  const base = normalizedRelativePath(path.posix.normalize(path.posix.join(path.posix.dirname(importer), fileSpecifier)));
   const candidates = [base, `${base}.mjs`, `${base}.js`, `${base}/index.mjs`, `${base}/index.js`];
   return candidates.find((candidate) => trackedFiles.has(candidate)) || null;
 }
