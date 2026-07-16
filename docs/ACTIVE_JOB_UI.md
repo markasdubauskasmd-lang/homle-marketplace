@@ -48,7 +48,7 @@ The current solution is the most defensible web baseline. Reliable locked-screen
 
 ## Remaining product work
 
-- Add participant booking-list queries and link active/upcoming jobs from both real dashboards. Until then, the canonical screen requires an authorised booking reference.
+- Run migration 026 in staging and verify that Cleaner and Landlord dashboards list only their own role-safe booking summaries before opening this screen.
 - Connect the real PostgreSQL runtime and create two genuine test accounts under the final HTTPS domain.
 - Complete the private before/after photo interaction in the active-job UI; the secured upload/access services and photo metadata already exist.
 - Add booking messaging to this screen or link the existing participant-only message service.

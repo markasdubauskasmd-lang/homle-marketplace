@@ -33,7 +33,6 @@ function bookingProjection(record, actor) {
     scheduledStartAt: new Date(record.scheduled_start_at).toISOString(),
     scheduledEndAt: new Date(record.scheduled_end_at).toISOString(),
     responseDeadline: new Date(record.cleaner_response_deadline).toISOString(),
-    customerPricePence: Number(record.customer_price_pence),
     scopeFingerprint: record.scope_fingerprint,
     termsFingerprint: record.terms_fingerprint,
     scope: typeof record.scope_snapshot === "string" ? JSON.parse(record.scope_snapshot) : record.scope_snapshot,
@@ -41,8 +40,66 @@ function bookingProjection(record, actor) {
     confirmedAt: record.confirmed_at ? new Date(record.confirmed_at).toISOString() : null,
     expiredAt: record.expired_at ? new Date(record.expired_at).toISOString() : null
   };
-  if (actor?.roles?.includes("cleaner")) base.cleanerPayPence = Number(record.cleaner_pay_pence);
+  const exactLandlord = record.landlord_user_id ? record.landlord_user_id === actor?.userId : actor?.roles?.includes("landlord") && !actor?.roles?.includes("cleaner");
+  const exactCleaner = record.cleaner_user_id ? record.cleaner_user_id === actor?.userId : actor?.roles?.includes("cleaner") && !actor?.roles?.includes("landlord");
+  if (exactLandlord || actor?.roles?.includes("administrator")) base.customerPricePence = Number(record.customer_price_pence);
+  if (exactCleaner || actor?.roles?.includes("administrator")) base.cleanerPayPence = Number(record.cleaner_pay_pence);
   return base;
+}
+
+const bookingStatuses = new Set(["draft", "searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "cancelled", "disputed"]);
+
+function optionalIso(value, label) {
+  if (value == null || value === "") return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error(`Booking ${label} is unavailable.`);
+  return date.toISOString();
+}
+
+function summaryText(value, maximum, fallback = "") {
+  const normalized = typeof value === "string" ? value.trim().replace(/[\u0000-\u001f\u007f]/g, "") : "";
+  return normalized && normalized.length <= maximum ? normalized : fallback;
+}
+
+function participantBookingProjection(record, actor) {
+  if (!record || typeof record !== "object") throw new Error("A booking summary is unavailable.");
+  const bookingId = uuid(record.bookingId ?? record.booking_id, "booking id");
+  const participantRole = record.participantRole ?? record.participant_role;
+  if (participantRole !== "cleaner" && participantRole !== "landlord") throw new Error("Booking participant role is unavailable.");
+  if (!actor?.roles?.includes(participantRole)) throw new Error("Booking participant role did not match the authenticated account.");
+  const status = String(record.status || "");
+  if (!bookingStatuses.has(status)) throw new Error("Booking status is unavailable.");
+  const pricePence = Number(record.pricePence ?? record.price_pence);
+  const pricePerspective = record.pricePerspective ?? record.price_perspective;
+  const expectedPerspective = participantRole === "cleaner" ? "cleaner-pay" : "customer-total";
+  if (!Number.isInteger(pricePence) || pricePence < 1 || pricePence > 10_000_000 || pricePerspective !== expectedPerspective) throw new Error("Participant booking price is unavailable.");
+  const taskCount = Number(record.taskCount ?? record.task_count);
+  if (!Number.isInteger(taskCount) || taskCount < 0 || taskCount > 10_000) throw new Error("Booking task count is unavailable.");
+  const scheduledStartAt = optionalIso(record.scheduledStartAt ?? record.scheduled_start_at, "start time");
+  const scheduledEndAt = optionalIso(record.scheduledEndAt ?? record.scheduled_end_at, "end time");
+  if (!scheduledStartAt || !scheduledEndAt || Date.parse(scheduledEndAt) <= Date.parse(scheduledStartAt)) throw new Error("Booking schedule is unavailable.");
+  const propertyArea = summaryText(record.propertyArea ?? record.property_area, 4);
+  if (propertyArea && !/^[A-Z]{1,2}[0-9][A-Z0-9]?$/.test(propertyArea)) throw new Error("Booking area is unavailable.");
+  return Object.freeze({
+    bookingId,
+    participantRole,
+    status,
+    scheduledStartAt,
+    scheduledEndAt,
+    responseDeadline: optionalIso(record.responseDeadline ?? record.response_deadline, "response deadline"),
+    pricePence,
+    pricePerspective,
+    propertyName: summaryText(record.propertyName ?? record.property_name, 160, "Cleaning property"),
+    propertyArea,
+    cleaningType: summaryText(record.cleaningType ?? record.cleaning_type, 100, "Cleaning"),
+    taskCount,
+    counterpartyName: summaryText(record.counterpartyName ?? record.counterparty_name, 160, participantRole === "cleaner" ? "Landlord" : "Assigned Cleaner"),
+    canRespond: participantRole === "cleaner" && status === "pending-cleaner-acceptance" && (record.canRespond === true || record.can_respond === true),
+    activeJobAvailable: ["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "disputed"].includes(status) && (record.activeJobAvailable === true || record.active_job_available === true),
+    paymentStepAvailable: participantRole === "landlord" && status === "confirmed" && (record.paymentStepAvailable === true || record.payment_step_available === true),
+    respondedAt: optionalIso(record.respondedAt ?? record.responded_at, "response time"),
+    confirmedAt: optionalIso(record.confirmedAt ?? record.confirmed_at, "confirmation time")
+  });
 }
 
 export function createBookingPricingPolicy(configuration = {}) {
@@ -122,10 +179,18 @@ export function bookingPricingPolicyFromEnvironment(env = process.env) {
 }
 
 export function createBookingWorkflowService(repository, options = {}) {
-  if (!repository || typeof repository.getInvitationCandidate !== "function" || typeof repository.inviteCleaner !== "function" || typeof repository.respondToInvitation !== "function") throw new TypeError("A complete booking workflow repository is required.");
+  if (!repository || typeof repository.listParticipantBookings !== "function" || typeof repository.getInvitationCandidate !== "function" || typeof repository.inviteCleaner !== "function" || typeof repository.respondToInvitation !== "function") throw new TypeError("A complete booking workflow repository is required.");
   const pricingPolicy = options.pricingPolicy || null;
   const clock = options.clock || (() => new Date());
   return Object.freeze({
+    async listParticipantBookings(actor, input = {}) {
+      if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.some((role) => role === "cleaner" || role === "landlord")) throw new TypeError("A Cleaner or Landlord account is required to view bookings.");
+      const maximumResults = input.limit == null || input.limit === "" ? 50 : integer(input.limit, 1, 100, "Booking result limit");
+      const value = await repository.listParticipantBookings(actor, maximumResults);
+      const records = Array.isArray(value) ? value : typeof value === "string" ? JSON.parse(value) : null;
+      if (!Array.isArray(records) || records.length > maximumResults) throw new Error("Booking summaries are unavailable.");
+      return records.map((record) => participantBookingProjection(record, actor));
+    },
     async inviteCleaner(actor, input = {}) {
       if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.some((role) => role === "landlord" || role === "administrator")) throw new TypeError("A Landlord account is required to invite a cleaner.");
       if (!pricingPolicy || typeof pricingPolicy.quote !== "function") throw Object.assign(new Error("Booking invitations are unavailable until the private pricing policy is configured."), { statusCode: 503, code: "pricing-not-configured" });

@@ -27,7 +27,14 @@
     <div data-landlord-workspace hidden>
       <section class="landlord-dashboard-heading">
         <div><p class="eyebrow">Landlord workspace</p><h1>Welcome, <span data-landlord-name>Landlord</span>.</h1><p>Save real properties, prepare a room-by-room scope and keep requests private until the photo-and-speech handoff is complete.</p></div>
-        <dl class="landlord-dashboard-stats"><div><dt>Properties</dt><dd data-property-count>0</dd></div><div><dt>Request drafts</dt><dd data-draft-count>0</dd></div><div><dt>Active bookings</dt><dd>0</dd><small>No booking is implied</small></div></dl>
+        <dl class="landlord-dashboard-stats"><div><dt>Properties</dt><dd data-property-count>0</dd></div><div><dt>Request drafts</dt><dd data-draft-count>0</dd></div><div><dt>Active bookings</dt><dd data-landlord-active-count>0</dd><small>Confirmed records only</small></div></dl>
+      </section>
+
+      <section class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
+        <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p><h2 id="landlord-bookings-title">Active and upcoming bookings</h2></div><span class="booking-private-pill">Private to your account</span></div>
+        <div class="booking-dashboard-list" data-landlord-booking-list></div>
+        <div class="booking-dashboard-empty" data-landlord-booking-empty><strong>No confirmed marketplace bookings yet.</strong><p>Private request drafts below do not become bookings until a Cleaner accepts the frozen time, scope and price.</p></div>
+        <details class="booking-history-section" data-landlord-history-section hidden><summary>Completed and closed bookings <span data-landlord-history-count>0</span></summary><div class="booking-dashboard-list" data-landlord-history-list></div></details>
       </section>
 
       <section class="landlord-scan-boundary" aria-labelledby="scan-boundary-title">

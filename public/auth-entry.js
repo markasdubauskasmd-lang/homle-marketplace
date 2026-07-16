@@ -91,7 +91,7 @@ function clearStoredCsrf() {
 }
 
 function workspacePath(account) {
-  if (account?.selectedRole === "cleaner" && account?.roles?.includes("cleaner")) return "/cleaner/profile";
+  if (account?.selectedRole === "cleaner" && account?.roles?.includes("cleaner")) return "/cleaner/dashboard";
   if (account?.selectedRole === "landlord" && account?.roles?.includes("landlord")) return "/landlord/dashboard";
   return "";
 }

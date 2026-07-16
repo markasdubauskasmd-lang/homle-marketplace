@@ -1,6 +1,7 @@
 import { checklistFromTranscript } from "./checklist.js";
 import { isUkPostcode } from "./contact-validation.js";
 import { moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, tasksToLines } from "./landlord-dashboard-model.js";
+import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -23,6 +24,7 @@ const speechButton = document.querySelector("[data-speech-toggle]");
 const speechStatus = document.querySelector("[data-speech-status]");
 let properties = [];
 let requests = [];
+let bookings = [];
 let recognition = null;
 let listening = false;
 let dirty = false;
@@ -127,23 +129,68 @@ function renderRequests() {
   document.querySelector("[data-draft-count]").textContent = String(draftCount);
 }
 
+function renderBookingCard(booking) {
+  const card = element("article", "booking-summary-card");
+  const heading = element("div", "booking-summary-heading");
+  const title = element("div");
+  title.append(element("span", "booking-status-pill", bookingSummaryStatusLabels[booking.status] || "Booking"), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Saved property"} · ${booking.counterpartyName || "Assigned Cleaner"}`));
+  heading.append(title, element("strong", "booking-summary-price", formatBookingMoney(booking.pricePence)));
+  const facts = element("dl", "booking-summary-facts");
+  for (const [label, value] of [["When", formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)], ["Area", booking.propertyArea || "Saved property area"], [bookingSummaryPriceLabel("landlord"), formatBookingMoney(booking.pricePence)], ["Checklist", `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`]]) {
+    const wrapper = element("div");
+    wrapper.append(element("dt", "", label), element("dd", "", value));
+    facts.append(wrapper);
+  }
+  const actions = element("div", "booking-summary-actions");
+  if (booking.activeJobAvailable) {
+    const link = element("a", "button", ["awaiting-review", "completed"].includes(booking.status) ? "View job record" : "Open live booking");
+    link.href = `/bookings/${booking.bookingId}`;
+    actions.append(link);
+  }
+  if (booking.paymentStepAvailable) {
+    const payment = element("a", "button button-outline", "Authorize booking total");
+    payment.href = `/booking-payment?bookingId=${encodeURIComponent(booking.bookingId)}`;
+    actions.append(payment);
+  }
+  card.append(heading, facts);
+  if (actions.childElementCount) card.append(actions);
+  return card;
+}
+
+function renderBookings() {
+  const buckets = bookingSummaryBuckets(bookings, "landlord");
+  const current = [...buckets.active, ...buckets.upcoming];
+  const list = document.querySelector("[data-landlord-booking-list]");
+  list.replaceChildren(...current.map(renderBookingCard));
+  list.hidden = current.length === 0;
+  document.querySelector("[data-landlord-booking-empty]").hidden = current.length > 0;
+  const historyList = document.querySelector("[data-landlord-history-list]");
+  historyList.replaceChildren(...buckets.history.map(renderBookingCard));
+  document.querySelector("[data-landlord-history-count]").textContent = String(buckets.history.length);
+  document.querySelector("[data-landlord-history-section]").hidden = buckets.history.length === 0;
+  document.querySelector("[data-landlord-active-count]").textContent = String(current.length);
+}
+
 async function loadWorkspace() {
   if (loading) return;
   loading = true;
   showState("Checking secure Landlord access…", "Your properties and drafts open only inside an authenticated Landlord session.");
   try {
-    const [accountResult, propertyResult, requestResult] = await Promise.all([
+    const [accountResult, propertyResult, requestResult, bookingResult] = await Promise.all([
       requestJson("/api/marketplace/account"),
       requestJson("/api/marketplace/properties"),
-      requestJson("/api/marketplace/cleaning-requests")
+      requestJson("/api/marketplace/cleaning-requests"),
+      requestJson("/api/marketplace/bookings?limit=50")
     ]);
     const account = accountResult.account;
     if (account?.selectedRole !== "landlord" || !account?.roles?.includes("landlord")) return showState("This is not a Landlord account.", "Use the workspace selected during onboarding or sign in with a Landlord/Property Manager account.", { kind: "authentication", allowSignIn: true });
     properties = Array.isArray(propertyResult.properties) ? propertyResult.properties : [];
     requests = Array.isArray(requestResult.requests) ? requestResult.requests : [];
+    bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
     document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
     renderProperties();
     renderRequests();
+    renderBookings();
     state.hidden = true;
     workspace.hidden = false;
   } catch (error) {

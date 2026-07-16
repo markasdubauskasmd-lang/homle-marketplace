@@ -11,7 +11,9 @@ function mappedDatabaseError(error) {
     "booking-scope-changed": [409, "scope-changed", "The cleaning scope changed after this invitation was created."],
     "cleaner-schedule-conflict": [409, "schedule-conflict", "Another confirmed job now overlaps this booking."],
     "invalid-booking-economics": [409, "invalid-booking-economics", "The private booking terms do not satisfy the approved budget and margin rules."],
-    "invalid-response-window": [409, "invalid-response-window", "The cleaner response window is no longer valid."]
+    "invalid-response-window": [409, "invalid-response-window", "The cleaner response window is no longer valid."],
+    "booking-participant-required": [403, "booking-participant-required", "A Cleaner or Landlord account is required to view booking summaries."],
+    "invalid-booking-summary-limit": [400, "invalid-booking-summary-limit", "The booking summary limit is outside the supported range."]
   };
   const selected = messages[error?.message] || (error?.code === "23P01" ? messages["cleaner-schedule-conflict"] : null);
   if (!selected) return error;
@@ -21,6 +23,14 @@ function mappedDatabaseError(error) {
 export function createBookingRepository(database) {
   if (!database || typeof database.withUserTransaction !== "function") throw new TypeError("The marketplace database boundary is required.");
   return Object.freeze({
+    listParticipantBookings(actor, maximumResults) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.list_my_booking_summaries($1::integer) AS bookings", [maximumResults]);
+          return result.rows[0]?.bookings ?? [];
+        } catch (error) { throw mappedDatabaseError(error); }
+      });
+    },
     getInvitationCandidate(actor, requestId, cleanerId) {
       return database.withUserTransaction(actor, async (client) => {
         const result = await client.query(

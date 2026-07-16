@@ -5,10 +5,12 @@
 ## Implemented
 
 - A private self-account route returns only the signed-in user's display name, email, selected role and roles. It never returns session tokens, database identifiers or provider identities.
-- Successful email, Google and Facebook sign-in hand off an established Cleaner to `/cleaner/profile` and an established Landlord to `/landlord/dashboard`; accounts that have not selected a role continue to `/onboarding`.
+- Successful email, Google and Facebook sign-in hand off an established Cleaner to `/cleaner/dashboard` and an established Landlord to `/landlord/dashboard`; accounts that have not selected a role continue to `/onboarding`.
 - Landlords can list and create their own validated properties through the existing owner-authorised APIs. Protected entry instructions remain encrypted at rest by the marketplace service.
 - Landlords can turn speech into a concise room-by-room checklist, edit every item and create a future cleaning-request draft for one of their properties.
 - The browser always sends `submit: false`. Saving cannot search for, invite, assign or book a Cleaner and cannot take a payment.
+- The workspace lists the signed-in Landlord's active, upcoming and historical booking summaries. Confirmed jobs link to the participant-only active-job screen, while eligible confirmed bookings link to their exact payment-authorization step.
+- The summary endpoint returns the Landlord's customer total but never Cleaner pay, precise location, access instructions or unrelated bookings.
 - The page starts hidden and fails closed when authentication, the Landlord role, or the PostgreSQL marketplace attachment is unavailable. All account and property data is rendered with text-only DOM APIs.
 
 ## Scan-first boundary

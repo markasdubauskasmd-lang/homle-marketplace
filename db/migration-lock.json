@@ -26,10 +26,11 @@
     { "order": 22, "file": "022_marketplace_payment_ledger.sql", "sha256": "28e195cad1090a1dcfe5772ab3169295ecc7f93486f9117732f7ffdab18cb444" },
     { "order": 23, "file": "023_landlord_payment_status.sql", "sha256": "38c9c9fd5bd2b1fddf57878db19aa155223947a17eefbdbad456fd2d641110b8" },
     { "order": 24, "file": "024_resumable_booking_payment_authorization.sql", "sha256": "de744662798314d6728c043e880d64857bea2ba2a83e30b595f0db5663dafb5f" },
-    { "order": 25, "file": "025_job_start_payment_gate.sql", "sha256": "b822d32b5b33bdf7d748f79aac50da01c49bc862f910b194e49004257a366b11" }
+    { "order": 25, "file": "025_job_start_payment_gate.sql", "sha256": "b822d32b5b33bdf7d748f79aac50da01c49bc862f910b194e49004257a366b11" },
+    { "order": 26, "file": "026_participant_booking_summaries.sql", "sha256": "dbd5fc671cda5e6cd45916b8bf805c2dfeefa4f305c6d4c2b2daff1b7d848cba" }
   ],
   "grantFiles": [
-    { "file": "runtime-role-grants.sql", "sha256": "cdc1ebecb352c25cdcdae290e2c23df443b64dd28b0764a9e0cb9fd983f71d04" },
+    { "file": "runtime-role-grants.sql", "sha256": "832d5754c196f822e7192ab24df41b7fc39b807d3156af1f8f8df4bb90546c5f" },
     { "file": "worker-role-grants.sql", "sha256": "e703ff741e1ac30a03f09da60d0a259fe577d37505e8d0f112450d3a85878ae7" }
   ]
 }

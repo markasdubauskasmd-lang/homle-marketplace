@@ -69,6 +69,7 @@ const cleaningRequestService = {
   async listOwnRequests(actor) { calls.push({ kind: "request-list", actor }); return []; }
 };
 const bookingWorkflowService = {
+  async listParticipantBookings(actor, input) { calls.push({ kind: "booking-list", actor, input }); return [{ bookingId: "55555555-5555-4555-8555-555555555555", participantRole: "landlord", pricePence: 12000, pricePerspective: "customer-total" }]; },
   async inviteCleaner(actor, input) { calls.push({ kind: "booking-invite", actor, input }); return { bookingId: "55555555-5555-4555-8555-555555555555", status: "pending-cleaner-acceptance" }; },
   async respondToInvitation(actor, bookingId, input) { calls.push({ kind: "booking-response", actor, bookingId, input }); return { bookingId, status: input.decision === "accept" ? "confirmed" : "cancelled" }; }
 };
@@ -213,6 +214,10 @@ const noSession = await dispatch(router, "GET", "/api/marketplace/properties");
 assert(noSession.response.statusCode === 401 && noSession.body.code === "authentication-required" && noSession.response.headers["Cache-Control"] === "no-store", "Private property listing accepted a missing session or allowed caching.");
 const privateAccount = await dispatch(router, "GET", "/api/marketplace/account", { headers: { cookie: authHeaders.cookie } });
 assert(privateAccount.response.statusCode === 200 && privateAccount.body.account.displayName === "Landlord Example" && privateAccount.body.account.email === "landlord@example.com" && privateAccount.body.account.selectedRole === "landlord" && privateAccount.body.account.roles.join(",") === "landlord" && !JSON.stringify(privateAccount.body).includes(sessions.landlord.session_id) && !JSON.stringify(privateAccount.body).includes("csrf"), "The private self-account route omitted role context or exposed session material.");
+const bookingList = await dispatch(router, "GET", "/api/marketplace/bookings?limit=25", { headers: { cookie: authHeaders.cookie } });
+assert(bookingList.response.statusCode === 200 && bookingList.body.bookings[0].pricePerspective === "customer-total" && calls.at(-1).kind === "booking-list" && calls.at(-1).input.limit === "25" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Participant booking summaries lost account authorization, bounded pagination or role-specific price projection.");
+const unauthenticatedBookingList = await dispatch(router, "GET", "/api/marketplace/bookings");
+assert(unauthenticatedBookingList.response.statusCode === 401 && unauthenticatedBookingList.body.code === "authentication-required", "Booking summaries were exposed without an authenticated participant.");
 const landlordCleanerEdit = await dispatch(router, "PUT", "/api/marketplace/cleaner/profile", { headers: authHeaders, body: { biography: "Attempt" } });
 assert(landlordCleanerEdit.response.statusCode === 403 && landlordCleanerEdit.body.code === "role-rejected", "A landlord entered the Cleaner-only profile route.");
 const wrongOrigin = await dispatch(router, "POST", "/api/marketplace/properties", { headers: { ...authHeaders, origin: "https://attacker.example" }, body: { name: "Attempt" } });
