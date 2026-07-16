@@ -131,6 +131,13 @@ try {
   assert.equal(health.marketplace.enabled, false);
   assert.equal(health.localDemosEnabled, false);
   assert.equal(response.headers.get("cache-control"), "no-store");
+  const productionHomepage = await fetch(`http://127.0.0.1:${port}/`, { headers: { "X-Forwarded-For": "198.51.100.10" } });
+  const productionCsp = productionHomepage.headers.get("content-security-policy") || "";
+  assert.equal(productionHomepage.status, 200);
+  for (const directive of ["default-src 'self'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"]) {
+    assert(productionCsp.includes(directive), `Production homepage CSP omitted ${directive}.`);
+  }
+  assert.equal(productionHomepage.headers.get("strict-transport-security"), "max-age=31536000; includeSubDomains");
   const canonicalRedirect = await directRequest("/request?source=www", { "Host": "www.tideway.example.com", "X-Forwarded-For": "198.51.100.10" });
   assert.equal(canonicalRedirect.status, 308);
   assert.equal(canonicalRedirect.headers.location, "https://tideway.example.com/request?source=www");

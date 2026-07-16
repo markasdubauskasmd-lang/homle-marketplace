@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { verifyDomainReadiness } from "../tools/domain-readiness.mjs";
+import { resolvePublicAddresses, verifyDomainReadiness } from "../tools/domain-readiness.mjs";
 
 const securityHeaders = {
   "content-security-policy": "default-src 'self'; img-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
@@ -9,6 +9,26 @@ const securityHeaders = {
   "referrer-policy": "strict-origin-when-cross-origin",
   "permissions-policy": "camera=(), microphone=(), geolocation=()"
 };
+
+const systemDnsFallback = await resolvePublicAddresses("homle.example", {
+  async resolve4() { throw Object.assign(new Error("resolver refused"), { code: "ECONNREFUSED" }); },
+  async resolve6() { throw Object.assign(new Error("resolver refused"), { code: "ECONNREFUSED" }); },
+  async lookup(hostname, options) {
+    assert.equal(hostname, "homle.example");
+    assert.deepEqual(options, { all: true, verbatim: true });
+    return [{ address: "92.113.18.103", family: 4 }, { address: "2a02:4780:3f:1789:0:e14:ae4a:2", family: 6 }];
+  }
+});
+assert.deepEqual(systemDnsFallback, ["92.113.18.103", "2a02:4780:3f:1789:0:e14:ae4a:2"]);
+await assert.rejects(
+  resolvePublicAddresses("private.example", {
+    async resolve4() { throw new Error("resolver refused"); },
+    async resolve6() { return []; },
+    async lookup() { return [{ address: "192.168.1.10", family: 4 }]; }
+  }),
+  /private, local or reserved/i,
+  "System DNS fallback accepted a private address."
+);
 
 function jsonResponse(value) {
   return new Response(JSON.stringify(value), { status: 200, headers: { ...securityHeaders, "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });

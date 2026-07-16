@@ -1,4 +1,4 @@
-import { resolve4, resolve6 } from "node:dns/promises";
+import { lookup, resolve4, resolve6 } from "node:dns/promises";
 import { isIP } from "node:net";
 import tls from "node:tls";
 import { fileURLToPath } from "node:url";
@@ -59,9 +59,18 @@ function isPublicAddress(value) {
   return family === 4 ? publicIpv4(value) : family === 6 ? publicIpv6(value) : false;
 }
 
-export async function resolvePublicAddresses(hostname) {
-  const results = await Promise.allSettled([resolve4(hostname), resolve6(hostname)]);
-  const addresses = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+export async function resolvePublicAddresses(hostname, options = {}) {
+  const query4 = options.resolve4 || resolve4;
+  const query6 = options.resolve6 || resolve6;
+  const systemLookup = options.lookup || lookup;
+  const results = await Promise.allSettled([query4(hostname), query6(hostname)]);
+  let addresses = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+  if (!addresses.length) {
+    try {
+      const fallback = await systemLookup(hostname, { all: true, verbatim: true });
+      addresses = fallback.map((record) => record?.address).filter(Boolean);
+    } catch {}
+  }
   if (!addresses.length) throw new Error("The hostname has no IPv4 or IPv6 address record.");
   if (addresses.some((address) => !isPublicAddress(address))) throw new Error("The hostname resolves to a private, local or reserved address.");
   return Object.freeze([...new Set(addresses)]);
@@ -146,6 +155,7 @@ function securityHeaderErrors(response) {
   const hsts = response.headers.get("strict-transport-security") || "";
   const maxAge = Number(hsts.match(/(?:^|;)\s*max-age=(\d+)/i)?.[1] || 0);
   if (maxAge < 31_536_000) errors.push("Strict-Transport-Security must have max-age of at least one year.");
+  if (csp.trim().toLowerCase() === "upgrade-insecure-requests") errors.push("The hosting edge replaced Homle's application CSP with upgrade-insecure-requests only.");
   if (response.headers.has("x-powered-by")) errors.push("X-Powered-By should not disclose server technology.");
   return errors;
 }
