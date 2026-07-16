@@ -14,9 +14,14 @@ assert(account.bookingPath === "/signup?intent=book" && account.cleanerPath === 
 assert(concierge.bookingPath === "/request" && concierge.cleanerPath === "/request" && concierge.accountAccess === false, "Detached mode does not fail safely into the working request journey.");
 assert(concierge.statusCopy.includes("Coverage") && concierge.statusCopy.includes("price are confirmed before any booking"), "Pilot fallback copy invents availability or a confirmed booking.");
 
-const [page, script, server, packageFile] = await Promise.all([
+const [page, script, accountPage, pilotPage, briefPage, statusPage, directoryPage, server, packageFile] = await Promise.all([
   readFile(new URL("../public/home.html", import.meta.url), "utf8"),
   readFile(new URL("../public/home.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/account.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/index.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/brief.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/request-status.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaners.html", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8"),
   readFile(new URL("../package.json", import.meta.url), "utf8")
 ]);
@@ -26,6 +31,8 @@ assert(page.includes('href="/request" data-book-entry') && page.includes("Homle 
 assert(page.includes("data-account-entry hidden") && page.includes('href="/request" data-cleaner-entry'), "Detached mode exposes unusable account or directory entry.");
 assert(script.includes('fetch("/api/health"') && script.includes('credentials: "omit"') && script.includes('cache: "no-store"') && script.includes('applyEntryMode("concierge")'), "Capability discovery is not public, non-cacheable and fail-closed.");
 assert(script.includes("homeEntryMode(health)") && script.includes("textContent") && !script.includes("innerHTML") && !script.includes("/api/cleaning-requests"), "Homepage upgrade uses unsafe rendering or pulls intake behavior into the lightweight page.");
+assert(accountPage.includes('href="/request">Request a clean</a>') && briefPage.includes('href="/request">Start a cleaning request</a>') && statusPage.includes('href="/request">Start a new cleaning request</a>') && directoryPage.includes('href="/request">Request a clean</a>'), "A detached account, scan, tracker or directory recovery path still enters unavailable registration.");
+assert((pilotPage.match(/href="\/request#request-cleaning"/g) || []).length >= 4 && !pilotPage.includes('href="/signup?intent=book"'), "The guided pilot page reloads or leaves its working request form for disabled registration.");
 assert(server.includes('requestUrl.pathname === "/api/health"') && server.includes("authenticationReady: marketplaceAttachment.authenticationHttpReady"), "Homepage capability mode is not backed by the public health contract.");
 assert(packageFile.includes("tests/home-entry-ui.mjs"), "Capability-aware homepage verification is not part of the project gate.");
 
