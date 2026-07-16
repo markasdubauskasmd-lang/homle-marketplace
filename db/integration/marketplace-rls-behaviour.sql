@@ -36,6 +36,21 @@ BEGIN
     RAISE EXCEPTION 'Runtime role can read pending social identity material';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  BEGIN
+    PERFORM 1 FROM tideway_private.cleaner_payout_accounts;
+    RAISE EXCEPTION 'Runtime role can read private Cleaner payout destinations';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM 1 FROM tideway_private.payment_provider_events;
+    RAISE EXCEPTION 'Runtime role can read private payment provider events';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    PERFORM 1 FROM booking_payments;
+    RAISE EXCEPTION 'Runtime role can read payment provider references directly';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
 
   FOR attempt IN 1..10 LOOP
     SELECT * INTO decision FROM tideway_private.consume_rate_limit('login', decode(repeat('ab', 32), 'hex'));

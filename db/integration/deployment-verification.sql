@@ -13,13 +13,15 @@ DECLARE
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
     'cleaning_requests','cleaning_request_tasks','cleaning_request_photos','cleaning_request_status_history','bookings','booking_status_history',
     'cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events','job_photos','job_photo_uploads',
-    'cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','favourite_cleaners','disputes','privacy_requests','audit_logs'
+    'cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','favourite_cleaners','disputes','privacy_requests','audit_logs',
+    'booking_payments','payment_commands','payment_status_history'
   ];
   protected_write_tables constant text[] := ARRAY[
     'bookings','booking_status_history','cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events',
-    'job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','audit_logs'
+    'job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','audit_logs',
+    'booking_payments','payment_commands','payment_status_history'
   ];
-  protected_read_tables constant text[] := ARRAY['job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews'];
+  protected_read_tables constant text[] := ARRAY['job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','booking_payments','payment_commands','payment_status_history'];
   app_functions constant text[] := ARRAY[
     'tideway_private.lookup_session(bytea)',
     'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
@@ -30,7 +32,12 @@ DECLARE
     'tideway_private.consume_rate_limit(text,bytea)',
     'tideway_private.lookup_existing_social_identity(authentication_provider,text)',
     'tideway_private.begin_pending_social_identity(authentication_provider,text,citext,text,text,jsonb,bytea,timestamp with time zone)',
-    'tideway_private.consume_pending_social_identity(bytea)'
+    'tideway_private.consume_pending_social_identity(bytea)',
+    'tideway_private.begin_booking_payment_authorization(uuid,uuid,text,bytea)',
+    'tideway_private.record_booking_payment_authorization(uuid,text,text)',
+    'tideway_private.begin_booking_payment_command(uuid,uuid,text,integer,bytea)',
+    'tideway_private.record_booking_payment_command(uuid,text,text)',
+    'tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamp with time zone,character)'
   ];
   worker_functions constant text[] := ARRAY[
     'tideway_private.expire_due_cleaner_invitations(integer)',
@@ -92,6 +99,8 @@ BEGIN
     RAISE EXCEPTION 'One-review-per-booking unique constraint is missing';
   END IF;
   IF to_regclass('public.bookings_one_live_attempt_per_request_idx') IS NULL THEN RAISE EXCEPTION 'One-live-invitation index is missing'; END IF;
+  IF to_regclass('public.payment_one_live_capture_idx') IS NULL OR to_regclass('public.payment_one_live_transfer_idx') IS NULL THEN RAISE EXCEPTION 'Payment command uniqueness indexes are missing'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.booking_payments'::regclass AND contype='u' AND pg_get_constraintdef(oid)='UNIQUE (booking_id)') THEN RAISE EXCEPTION 'One-payment-per-booking constraint is missing'; END IF;
 
   FOREACH selected_name IN ARRAY app_functions || worker_functions LOOP
     selected_function := to_regprocedure(selected_name);
@@ -148,6 +157,18 @@ BEGIN
      OR has_table_privilege('tideway_worker', 'tideway_private.pending_social_identities', 'DELETE') THEN
     RAISE EXCEPTION 'Restricted roles have direct access to pending social identity material';
   END IF;
+  IF has_table_privilege('tideway_app', 'tideway_private.cleaner_payout_accounts', 'SELECT')
+     OR has_table_privilege('tideway_app', 'tideway_private.cleaner_payout_accounts', 'INSERT')
+     OR has_table_privilege('tideway_app', 'tideway_private.cleaner_payout_accounts', 'UPDATE')
+     OR has_table_privilege('tideway_app', 'tideway_private.cleaner_payout_accounts', 'DELETE')
+     OR has_table_privilege('tideway_app', 'tideway_private.payment_provider_events', 'SELECT')
+     OR has_table_privilege('tideway_app', 'tideway_private.payment_provider_events', 'INSERT')
+     OR has_table_privilege('tideway_app', 'tideway_private.payment_provider_events', 'UPDATE')
+     OR has_table_privilege('tideway_app', 'tideway_private.payment_provider_events', 'DELETE')
+     OR has_table_privilege('tideway_worker', 'tideway_private.cleaner_payout_accounts', 'SELECT')
+     OR has_table_privilege('tideway_worker', 'tideway_private.payment_provider_events', 'SELECT') THEN
+    RAISE EXCEPTION 'Restricted roles have direct access to private payment provider material';
+  END IF;
   IF EXISTS (
     SELECT 1 FROM pg_class relation
     WHERE relation.relnamespace = 'public'::regnamespace AND relation.relkind IN ('r','p')
@@ -163,9 +184,9 @@ $verification$;
 SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
-  'rlsTableCount', 37,
-  'appFunctionChecks', 7,
-  'workerFunctionChecks', 7
+  'rlsTableCount', 40,
+  'appFunctionChecks', 15,
+  'workerFunctionChecks', 8
 ) AS tideway_deployment_verification;
 
 ROLLBACK;

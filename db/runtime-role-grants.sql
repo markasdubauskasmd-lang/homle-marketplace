@@ -67,6 +67,11 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_public_cleaner_reviews(uuid,timest
 GRANT EXECUTE ON FUNCTION tideway_private.respond_to_booking_review(uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.moderate_booking_review(uuid,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.consume_rate_limit(text,bytea) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.begin_booking_payment_authorization(uuid,uuid,text,bytea) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_booking_payment_authorization(uuid,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.begin_booking_payment_command(uuid,uuid,text,integer,bytea) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_booking_payment_command(uuid,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character) TO tideway_app;
 
 -- Booking transitions are only writable through the audited, actor-aware functions above.
 REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, task_updates, job_pauses, unexpected_task_decisions, booking_progress_events, job_photos, job_photo_uploads, cleaner_locations, conversations, messages, notifications, audit_logs FROM tideway_app;
@@ -76,8 +81,10 @@ REVOKE SELECT ON conversations, messages FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_realtime_events FROM tideway_app;
 REVOKE SELECT ON notifications FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON reviews FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_payments, payment_commands, payment_status_history FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.request_rate_limits FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.pending_social_identities FROM tideway_app;
+REVOKE ALL ON TABLE tideway_private.cleaner_payout_accounts, tideway_private.payment_provider_events FROM tideway_app;
 -- Sessions may be created/revoked through actor-bound application transactions, but only the restricted worker may physically purge expired rows.
 REVOKE DELETE ON sessions FROM tideway_app;
 

@@ -56,13 +56,14 @@ export async function probeMarketplaceDatabase(pool) {
         to_regprocedure('tideway_private.lookup_session(bytea)') IS NOT NULL AS lookup_session_ready,
         to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL AS booking_workflow_ready,
         to_regprocedure('tideway_private.consume_rate_limit(text,bytea)') IS NOT NULL AS rate_limit_ready,
-        to_regprocedure('tideway_private.consume_pending_social_identity(bytea)') IS NOT NULL AS facebook_pending_identity_ready
+        to_regprocedure('tideway_private.consume_pending_social_identity(bytea)') IS NOT NULL AS facebook_pending_identity_ready,
+        to_regprocedure('tideway_private.begin_booking_payment_authorization(uuid,uuid,text,bytea)') IS NOT NULL AS payment_ledger_ready
     `);
     const row = result?.rows?.[0];
     if (!row || row.database_role !== "tideway_app") throw new Error("Marketplace DATABASE_URL must authenticate as tideway_app.");
     if (Number(row.server_version_num) < 160000) throw new Error("Marketplace PostgreSQL 16 or newer is required.");
     if (row.role_is_safe !== true) throw new Error("Marketplace database role must not be superuser or bypass row-level security.");
-    if (row.lookup_session_ready !== true || row.booking_workflow_ready !== true || row.rate_limit_ready !== true || row.facebook_pending_identity_ready !== true) throw new Error("Marketplace database migrations or runtime grants are incomplete.");
+    if (row.lookup_session_ready !== true || row.booking_workflow_ready !== true || row.rate_limit_ready !== true || row.facebook_pending_identity_ready !== true || row.payment_ledger_ready !== true) throw new Error("Marketplace database migrations or runtime grants are incomplete.");
     return Object.freeze({ databaseRole: row.database_role, postgresqlVersionNumber: Number(row.server_version_num) });
   } finally {
     client.release();

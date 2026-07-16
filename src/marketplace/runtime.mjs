@@ -6,6 +6,8 @@ import { createCleanerProfileService } from "./cleaner-profile.mjs";
 import { createCleanerProfileRepository } from "./cleaner-repository.mjs";
 import { createBookingRepository } from "./booking-repository.mjs";
 import { bookingPricingPolicyFromEnvironment, createBookingWorkflowService } from "./booking-workflow.mjs";
+import { createPaymentRepository } from "./payment-repository.mjs";
+import { createPaymentService } from "./payment-service.mjs";
 import { createMatchingRepository } from "./matching-repository.mjs";
 import { createMatchingService } from "./matching-service.mjs";
 import { createCleaningRequestRepository } from "./cleaning-request-repository.mjs";
@@ -89,6 +91,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const bookingRepository = createBookingRepository(database);
   const bookingPricingPolicy = options.bookingPricingPolicy || bookingPricingPolicyFromEnvironment(env);
   const bookingWorkflowService = createBookingWorkflowService(bookingRepository, { pricingPolicy: bookingPricingPolicy });
+  const paymentRepository = createPaymentRepository(database);
+  const paymentService = options.paymentProvider ? createPaymentService(paymentRepository, options.paymentProvider) : null;
   const matchingRepository = createMatchingRepository(database);
   const matchingService = createMatchingService(matchingRepository, { pricingPolicy: bookingPricingPolicy });
   const journeyRepository = createJourneyRepository(database);
@@ -136,6 +140,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
     cleaningRequestService,
     bookingRepository,
     bookingWorkflowService,
+    paymentRepository,
+    paymentService,
+    paymentReady: paymentService !== null,
     matchingRepository,
     matchingService,
     journeyRepository,

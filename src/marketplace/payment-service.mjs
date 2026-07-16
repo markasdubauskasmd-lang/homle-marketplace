@@ -1,0 +1,182 @@
+import { createHash, randomUUID } from "node:crypto";
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const referencePattern = /^[A-Za-z0-9_:-]{3,255}$/;
+const idempotencyPattern = /^[A-Za-z0-9_-]{32,128}$/;
+const commandKinds = new Set(["capture", "cancel", "refund", "transfer"]);
+const eventKinds = new Set([
+  "authorization-requires-action",
+  "authorization-processing",
+  "authorization-succeeded",
+  "authorization-failed",
+  "capture-succeeded",
+  "capture-failed",
+  "cancellation-succeeded",
+  "cancellation-failed",
+  "refund-succeeded",
+  "refund-failed",
+  "transfer-succeeded",
+  "transfer-failed",
+  "transfer-reversed",
+  "dispute-opened",
+  "dispute-closed"
+]);
+
+function uuid(value, label) {
+  if (!uuidPattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
+  return value.toLowerCase();
+}
+
+function reference(value, label) {
+  if (!referencePattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
+  return value;
+}
+
+function positiveInteger(value, label) {
+  if (!Number.isInteger(value) || value < 1 || value > 10_000_000) throw new TypeError(`${label} is outside the supported range.`);
+  return value;
+}
+
+function keyHash(value) {
+  if (!idempotencyPattern.test(value || "")) throw new TypeError("A strong payment idempotency key is required.");
+  return createHash("sha256").update(value).digest();
+}
+
+function actorHas(actor, role) {
+  return uuidPattern.test(actor?.userId || "") && Array.isArray(actor.roles) && actor.roles.includes(role);
+}
+
+function requireRole(actor, ...roles) {
+  if (!roles.some((role) => actorHas(actor, role))) throw Object.assign(new Error("You are not allowed to perform this payment action."), { statusCode: 403, code: "payment-role-required" });
+}
+
+function currency(value) {
+  if (value !== "gbp") throw new TypeError("Only GBP payments are supported in the Tideway pilot.");
+  return value;
+}
+
+function publicPayment(record, clientSecret = null) {
+  if (!record) throw new TypeError("A payment record is required.");
+  return Object.freeze({
+    paymentId: uuid(record.paymentId, "payment id"),
+    bookingId: uuid(record.bookingId, "booking id"),
+    status: String(record.status || ""),
+    amountPence: positiveInteger(record.amountPence, "Payment amount"),
+    currency: currency(record.currency),
+    amountCapturedPence: Number.isInteger(record.amountCapturedPence) ? record.amountCapturedPence : 0,
+    amountRefundedPence: Number.isInteger(record.amountRefundedPence) ? record.amountRefundedPence : 0,
+    requiresCustomerAction: record.status === "requires-customer-action",
+    clientSecret: record.status === "requires-customer-action" && typeof clientSecret === "string" && clientSecret.length <= 512 ? clientSecret : null
+  });
+}
+
+function providerAuthorization(result, expected) {
+  const allowed = new Set(["requires-customer-action", "processing", "authorized", "failed"]);
+  if (!result || !allowed.has(result.status) || result.amountPence !== expected.amountPence || result.currency !== expected.currency) throw new TypeError("The payment provider returned an invalid authorization result.");
+  return Object.freeze({
+    providerPaymentId: reference(result.id, "provider payment id"),
+    status: result.status,
+    clientSecret: typeof result.clientSecret === "string" && result.clientSecret.length <= 512 ? result.clientSecret : null
+  });
+}
+
+function providerCommand(result) {
+  const allowed = new Set(["pending", "succeeded", "failed"]);
+  if (!result || !allowed.has(result.status)) throw new TypeError("The payment provider returned an invalid command result.");
+  return Object.freeze({ providerCommandId: reference(result.id, "provider command id"), status: result.status });
+}
+
+function normalizedEvent(value, payloadHash) {
+  if (!value || !eventKinds.has(value.kind)) throw new TypeError("The payment provider returned an unsupported event.");
+  const occurredAt = new Date(value.occurredAt);
+  if (!Number.isFinite(occurredAt.getTime()) || occurredAt.getTime() > Date.now() + 5 * 60_000) throw new TypeError("The payment provider event time is invalid.");
+  const amountPence = value.amountPence == null ? null : positiveInteger(value.amountPence, "Provider event amount");
+  const result = {
+    provider: "stripe",
+    providerEventId: reference(value.eventId, "provider event id"),
+    kind: value.kind,
+    providerObjectId: reference(value.objectId, "provider object id"),
+    paymentId: value.paymentId == null ? null : uuid(value.paymentId, "payment id"),
+    commandId: value.commandId == null ? null : uuid(value.commandId, "payment command id"),
+    amountPence,
+    currency: value.currency == null ? null : currency(value.currency),
+    occurredAt: occurredAt.toISOString(),
+    payloadHash
+  };
+  return Object.freeze(result);
+}
+
+export function createPaymentService(repository, provider, options = {}) {
+  const requiredRepository = ["beginAuthorization", "recordAuthorization", "beginCommand", "recordCommand", "reconcileEvent"];
+  const requiredProvider = ["createAuthorization", "retrieveAuthorization", "capture", "cancel", "refund", "transfer", "verifyWebhook"];
+  if (!repository || requiredRepository.some((method) => typeof repository[method] !== "function")) throw new TypeError("A complete payment repository is required.");
+  if (!provider || provider.name !== "stripe" || requiredProvider.some((method) => typeof provider[method] !== "function")) throw new TypeError("A complete Stripe payment adapter is required.");
+  const createId = typeof options.createId === "function" ? options.createId : randomUUID;
+
+  async function beginAuthorization(actor, input) {
+    requireRole(actor, "landlord");
+    const bookingId = uuid(input?.bookingId, "booking id");
+    const idempotencyKeyHash = keyHash(input?.idempotencyKey);
+    const paymentId = uuid(createId(), "generated payment id");
+    const prepared = await repository.beginAuthorization(actor, { paymentId, bookingId, provider: "stripe", idempotencyKeyHash });
+    if (prepared.providerPaymentId) {
+      if (!["requires-customer-action", "processing"].includes(prepared.status)) return publicPayment(prepared);
+      const refreshed = providerAuthorization(await provider.retrieveAuthorization({ providerPaymentId: prepared.providerPaymentId }), prepared);
+      if (refreshed.providerPaymentId !== prepared.providerPaymentId) throw new TypeError("The payment provider returned the wrong authorization.");
+      return publicPayment(await repository.recordAuthorization(actor, prepared.paymentId, refreshed), refreshed.clientSecret);
+    }
+    const result = providerAuthorization(await provider.createAuthorization({
+      idempotencyKey: `tideway_payment_${prepared.paymentId}`,
+      paymentId: prepared.paymentId,
+      bookingId: prepared.bookingId,
+      amountPence: prepared.amountPence,
+      currency: prepared.currency,
+      transferGroup: `tideway_booking_${prepared.bookingId}`
+    }), prepared);
+    const recorded = await repository.recordAuthorization(actor, prepared.paymentId, result);
+    return publicPayment(recorded, result.clientSecret);
+  }
+
+  async function runCommand(actor, kind, input) {
+    if (!commandKinds.has(kind)) throw new TypeError("A supported payment command is required.");
+    if (kind === "cancel") requireRole(actor, "landlord", "administrator");
+    else requireRole(actor, "administrator");
+    const paymentId = uuid(input?.paymentId, "payment id");
+    const amountPence = kind === "refund" ? positiveInteger(input?.amountPence, "Refund amount") : null;
+    const idempotencyKeyHash = keyHash(input?.idempotencyKey);
+    const commandId = uuid(createId(), "generated payment command id");
+    const prepared = await repository.beginCommand(actor, {
+      commandId,
+      paymentId,
+      kind,
+      amountPence,
+      idempotencyKeyHash
+    });
+    if (prepared.providerCommandId) return Object.freeze({ commandId: prepared.commandId, paymentId: prepared.paymentId, kind, status: prepared.status });
+    const request = {
+      idempotencyKey: `tideway_payment_command_${prepared.commandId}`,
+      paymentId: prepared.paymentId,
+      providerPaymentId: reference(prepared.providerPaymentId, "provider payment id"),
+      amountPence: positiveInteger(prepared.amountPence, "Payment command amount"),
+      currency: currency(prepared.currency)
+    };
+    if (kind === "transfer") request.destinationAccountId = reference(prepared.destinationAccountId, "Cleaner destination account id");
+    const result = providerCommand(await provider[kind](request));
+    const recorded = await repository.recordCommand(actor, prepared.commandId, result);
+    return Object.freeze({ commandId: recorded.commandId, paymentId: recorded.paymentId, kind: recorded.kind, status: recorded.status });
+  }
+
+  return Object.freeze({
+    beginAuthorization,
+    capture(actor, input) { return runCommand(actor, "capture", input); },
+    cancel(actor, input) { return runCommand(actor, "cancel", input); },
+    refund(actor, input) { return runCommand(actor, "refund", input); },
+    transfer(actor, input) { return runCommand(actor, "transfer", input); },
+    async handleWebhook(rawBody, signature) {
+      const bytes = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(typeof rawBody === "string" ? rawBody : "");
+      if (!bytes.length || bytes.length > 1024 * 1024 || typeof signature !== "string" || !signature.trim() || signature.length > 2048) throw Object.assign(new Error("The payment webhook could not be verified."), { statusCode: 400, code: "invalid-payment-webhook" });
+      const event = normalizedEvent(await provider.verifyWebhook(bytes, signature), createHash("sha256").update(bytes).digest("hex"));
+      return repository.reconcileEvent(event);
+    }
+  });
+}
