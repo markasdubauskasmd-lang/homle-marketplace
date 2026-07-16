@@ -293,6 +293,10 @@ try {
   assert(trackingTestDeleted.ok && trackingTestDeletedViewer.status === 401, "Deleting a tracking test left its viewer token authorized.");
   const invalidTrackingTest = await fetch(`${base}/api/tracking-test/snapshot`, { headers: { "x-tracking-test-token": "invalid" } });
   assert(invalidTrackingTest.status === 401, "An invalid tracking-test token reached a snapshot.");
+  const marketplaceHealth = await fetch(`${base}/api/health`);
+  const marketplaceHealthBody = await marketplaceHealth.json();
+  const disabledMarketplaceRoute = await fetch(`${base}/api/marketplace/cleaners`);
+  assert(marketplaceHealth.ok && marketplaceHealthBody.marketplace?.enabled === false && marketplaceHealthBody.marketplace?.ready === false && marketplaceHealthBody.marketplace?.authenticationReady === false && disabledMarketplaceRoute.status === 404, "The default-off marketplace attachment exposed a partial route or misreported readiness.");
   const authProviders = await fetch(`${base}/api/auth/providers`);
   const authProvidersBody = await authProviders.json();
   const serialisedAuthProviders = JSON.stringify(authProvidersBody);

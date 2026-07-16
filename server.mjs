@@ -16,7 +16,8 @@ import { businessDateToday, businessEpochFromWallClock, businessWallClockMs, ear
 import { requestDateAttentionAction, scanAttentionAction } from "./lead-attention.mjs";
 import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeCleanerProfileStarter, normalizeOptionalCleanerProfileStarter } from "./cleaner-profile-starter.mjs";
 import { buildRoomScanFollowupDraft } from "./request-followup-draft.mjs";
-import { publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
+import { validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
+import { createMarketplaceAttachment } from "./src/marketplace/attachment.mjs";
 import { createTrackingTestStore } from "./tracking-test-store.mjs";
 import { assessPrivateDataDirectory } from "./data-directory-safety.mjs";
 import "./public/scope-time-breakdown.js";
@@ -46,6 +47,7 @@ const trustProxy = process.env.TRUST_PROXY === "true";
 const adminRequireKey = process.env.ADMIN_REQUIRE_KEY === "true";
 const marketplaceConfig = validateMarketplaceEnvironment(process.env);
 if (!marketplaceConfig.ok) throw new Error(`Invalid marketplace environment: ${marketplaceConfig.errors.join(" ")}`);
+const marketplaceAttachment = await createMarketplaceAttachment({ env: process.env });
 let dataIntegrityState = {
   healthy: true,
   checkedAt: "",
@@ -5139,11 +5141,16 @@ async function handleHttpRequest(request, response) {
         service: "tideway-marketplace",
         dataIntegrity: dataIntegrityState.healthy ? "healthy" : "degraded",
         writesAllowed: dataIntegrityState.healthy,
-        integrityCheckedAt: dataIntegrityState.checkedAt
+        integrityCheckedAt: dataIntegrityState.checkedAt,
+        marketplace: {
+          enabled: marketplaceAttachment.enabled,
+          ready: marketplaceAttachment.ready,
+          authenticationReady: marketplaceAttachment.authenticationHttpReady
+        }
       });
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/auth/providers") {
-      return json(response, 200, { ok: true, providers: publicAuthenticationCapabilities(process.env) });
+      return json(response, 200, { ok: true, providers: marketplaceAttachment.authenticationCapabilities });
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/tracking-test/session") {
       return await createTrackingTestSession(request, response);
@@ -5174,6 +5181,9 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "DELETE" && requestUrl.pathname === "/api/tracking-test/session") {
       return deleteTrackingTest(request, response);
+    }
+    if (marketplaceAttachment.router && requestUrl.pathname.startsWith("/api/marketplace/")) {
+      if (await marketplaceAttachment.router.handle(request, response, requestUrl)) return;
     }
     if (!await allowDataMutation(request, response, requestUrl.pathname)) return;
     if (request.method === "POST" && requestUrl.pathname === "/api/cleaning-requests") {
@@ -5339,9 +5349,13 @@ if (lanServer) {
   });
 }
 
-function shutdown() {
+let shutdownStarted = false;
+async function shutdown() {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
   clearInterval(trackingTestExpiryTimer);
   trackingTestStore.close();
+  try { await marketplaceAttachment.close(); } catch (error) { console.error("Marketplace shutdown failed.", error); }
   let remaining = lanServer ? 2 : 1;
   const closed = () => {
     remaining -= 1;
@@ -5351,5 +5365,5 @@ function shutdown() {
   if (lanServer) lanServer.close(closed);
 }
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+process.on("SIGINT", () => { shutdown().catch((error) => { console.error(error); process.exit(1); }); });
+process.on("SIGTERM", () => { shutdown().catch((error) => { console.error(error); process.exit(1); }); });

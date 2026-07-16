@@ -67,8 +67,8 @@ const validProduction = {
 };
 assert(validateMarketplaceEnvironment(validProduction).ok, "A complete production foundation configuration was rejected.");
 assert(publicAuthenticationCapabilities(validProduction).google === false && publicAuthenticationCapabilities(validProduction).emailPassword === false, "Configured credentials were exposed before the HTTP authentication runtime was composed.");
-const publicCapabilities = publicAuthenticationCapabilities(validProduction, true);
-assert(publicCapabilities.google === true && publicCapabilities.emailPassword === true && publicCapabilities.apple === false && !JSON.stringify(publicCapabilities).includes("google-secret") && !JSON.stringify(publicCapabilities).includes("SESSION_SECRET"), "Public authentication capabilities exposed secrets or misreported provider readiness.");
+const publicCapabilities = publicAuthenticationCapabilities(validProduction, { emailPassword: true, passwordReset: true, emailVerification: true });
+assert(publicCapabilities.google === false && publicCapabilities.emailPassword === true && publicCapabilities.passwordReset === true && publicCapabilities.apple === false && !JSON.stringify(publicCapabilities).includes("google-secret") && !JSON.stringify(publicCapabilities).includes("SESSION_SECRET"), "Public authentication capabilities exposed secrets or advertised an unattached provider.");
 
 const sessionSecret = "test-session-secret-with-more-than-32-characters";
 const sessionMaterial = createSessionMaterial(sessionSecret, new Date("2026-07-15T12:00:00.000Z"), 3600);

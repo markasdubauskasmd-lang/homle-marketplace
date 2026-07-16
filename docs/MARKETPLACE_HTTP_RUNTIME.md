@@ -1,6 +1,6 @@
 # Account marketplace HTTP runtime
 
-This checkpoint composes the existing PostgreSQL, session security, cleaner profile and landlord property modules behind an isolated native-Node controller. It follows the existing application architecture; it does not introduce Express, React, a second server or a parallel data model.
+This checkpoint composes the existing PostgreSQL, session security, cleaner profile and landlord property modules behind an isolated native-Node controller. The main server now owns a fail-closed attachment point for that controller, disabled by default. It follows the existing application architecture; it does not introduce Express, React, a second server or a parallel data model.
 
 ## Prepared routes
 
@@ -32,20 +32,22 @@ The controller owns the `/api/marketplace/` namespace and does not intercept any
 5. property repository/service;
 6. marketplace HTTP router.
 
-Composition fails closed unless `DATABASE_URL`, separate 32+ character `SESSION_SECRET` and `AUTH_TOKEN_SECRET`, exact `APP_ORIGIN`, distinct 32+ character `DATA_ENCRYPTION_KEY`, a shared rate-limiter adapter and a trusted server-derived client-key resolver are present. It does not connect eagerly or enable public authentication capability flags. Session issuance stores only token/CSRF hashes and keyed metadata hashes; logout and role-change rotation revoke database sessions before clearing or replacing cookies.
+`src/marketplace/attachment.mjs` returns a zero-resource disabled boundary unless `MARKETPLACE_ENABLED=true`. Enablement then fails closed unless `DATABASE_URL`, separate 32+ character `SESSION_SECRET` and `AUTH_TOKEN_SECRET`, exact `APP_ORIGIN`, distinct 32+ character `DATA_ENCRYPTION_KEY`, email and private-object-storage configuration, a shared persistent rate limiter, trusted server-derived client key, trusted email delivery and complete private storage adapters are present. It loads deployment adapters only from the explicitly configured absolute `MARKETPLACE_ADAPTER_MODULE`, verifies that the database connection is PostgreSQL 16+, authenticated as non-bypass `tideway_app`, and has the critical migrations/functions, then composes the router. Startup failure closes the pool; shutdown closes the realtime listener and pool once.
+
+The main server dispatches `/api/marketplace/*` to this router before the NDJSON pilot and exposes only booleans in `/api/health`. `/api/auth/providers` advertises email/password, reset and verification only when those routes are actually attached. Google, Apple and Facebook remain false even if credentials are present because provider token verification and callback routes do not yet exist. Session issuance stores only token/CSRF hashes and keyed metadata hashes; logout and role-change rotation revoke database sessions before clearing or replacing cookies.
 
 Public signup, verification resend and password-reset request return the same generic response regardless of account existence. Trusted delivery receives a fragment-token HTTPS link; raw delivery material is never placed in the API response. A 500 ms minimum response window and the mandatory shared limiter reduce enumeration/abuse exposure. The replacement-verification migration invalidates older unused links atomically.
 
 ## Enablement procedure
 
-These controllers are not attached to the live pilot server yet. Complete all of the following before attachment:
+The attachment point is present but remains disabled. Complete all of the following before setting `MARKETPLACE_ENABLED=true`:
 
 1. Provision PostgreSQL 16 using separate migration-owner and restricted `tideway_app` roles.
 2. Apply migrations and runtime grants in the documented order, then run real RLS and concurrent-overlap integration tests.
-3. Add and lock a maintained PostgreSQL Node driver through the approved dependency workflow; the current dependency-free pilot has no package installer or database driver.
+3. Add and lock a maintained PostgreSQL Node `pg` driver through the approved dependency workflow. The attachment dynamically imports `pg` only after enablement; the current dependency-free checkout intentionally has no driver, so enablement cannot succeed yet.
 4. Put database/session/token/encryption secrets in the deployment secret manager and use an exact HTTPS `APP_ORIGIN` in production.
-5. Connect a persistent cross-instance limiter and a proxy-aware server-derived client key, prove denial across two application instances, then connect the prepared authentication controller to the approved SMTP adapter and prove generic-response, delivery-failure and session-cookie behavior under HTTPS. Never trust a browser-supplied forwarding header directly.
-6. Attach the composed router before legacy API dispatch and add structured private error monitoring.
+5. Provide an absolute deployment-owned adapter module exporting `createMarketplaceDeploymentAdapters({ env })`. It must return the persistent cross-instance limiter, a proxy-aware server-derived client key, trusted email delivery, private object storage with inspection/re-encoding/deletion, and private error monitoring. Prove limiter denial across two application instances and authentication behavior under HTTPS. Never trust a browser-supplied forwarding header directly.
+6. Confirm `/api/health` changes from `marketplace.ready=false` to true only after the database probe and complete composition succeed; verify a startup failure exposes no partial routes or authentication capabilities.
 7. Add mobile-first pages and browser tests using genuine staging accounts. Keep `/cleaners` closed until at least one real, completed, public Cleaner profile exists.
 
 ## Third-party services still requiring approval/configuration
