@@ -19,11 +19,17 @@ function header(request, name) {
   return Array.isArray(supplied) ? supplied[0] : String(supplied || "");
 }
 
+function accountIntent(value) {
+  if (value === undefined) return "";
+  if (value !== "book") throw Object.assign(new Error("Choose a supported account action."), { statusCode: 400, code: "invalid-account-intent" });
+  return "book";
+}
+
 function signInIntent(url) {
   const values = url.searchParams.getAll("intent");
   if (!values.length) return "";
-  if (values.length !== 1 || values[0] !== "book") throw Object.assign(new Error("Choose a supported account action."), { statusCode: 400, code: "invalid-account-intent" });
-  return "book";
+  if (values.length !== 1) throw Object.assign(new Error("Choose a supported account action."), { statusCode: 400, code: "invalid-account-intent" });
+  return accountIntent(values[0]);
 }
 
 function deliveryLink(origin, delivery, intent = "") {
@@ -316,8 +322,10 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
         security.requireOrigin(request);
         if (url.pathname === `${prefix}signup`) {
           await limit(request, "signup");
-          const result = await credentials.register(await readJsonObject(request));
-          await privateDelivery(result.emailDelivery);
+          const body = await readJsonObject(request);
+          const intent = accountIntent(body.intent);
+          const result = await credentials.register({ email: body.email, displayName: body.displayName, password: body.password });
+          await privateDelivery(result.emailDelivery, intent);
           await publicTiming(startedAt);
           sendJson(response, 202, genericAccepted);
           return true;
@@ -325,8 +333,9 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
         if (url.pathname === `${prefix}verification/resend`) {
           await limit(request, "verification-resend");
           const body = await readJsonObject(request);
+          const intent = accountIntent(body.intent);
           const result = await credentials.requestEmailVerification(body.email);
-          await privateDelivery(result.emailDelivery);
+          await privateDelivery(result.emailDelivery, intent);
           await publicTiming(startedAt);
           sendJson(response, 202, genericAccepted);
           return true;

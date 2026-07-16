@@ -179,12 +179,16 @@ async function submitAccountForm(event) {
       showFeedback("Signed in securely. Your marketplace dashboard is being prepared.", "success");
       form.querySelector("fieldset").disabled = true;
     } else if (kind === "signup") {
-      await post("/api/marketplace/auth/signup", body);
+      await post("/api/marketplace/auth/signup", { ...body, ...(bookingIntent ? { intent: "book" } : {}) });
       showFeedback("If the address can be registered, a private verification link is on its way.", "success");
       form.reset();
     } else if (kind === "verify") {
       if (!privateToken) throw new Error("This verification link is incomplete or expired.");
       await post("/api/marketplace/auth/verification/confirm", { token: privateToken });
+      if (bookingIntent) {
+        location.assign("/login?intent=book#email=verified");
+        return;
+      }
       showFeedback("Email verified. You can now sign in.", "success");
       form.querySelector("fieldset").disabled = true;
     } else if (kind === "facebook-verify") {
@@ -201,7 +205,7 @@ async function submitAccountForm(event) {
       showFeedback("Facebook sign-in verified. Your secure Tideway session is ready.", "success");
       form.querySelector("fieldset").disabled = true;
     } else if (kind === "verification-request") {
-      await post("/api/marketplace/auth/verification/resend", { email: body.email });
+      await post("/api/marketplace/auth/verification/resend", { email: body.email, ...(bookingIntent ? { intent: "book" } : {}) });
       showFeedback("If the account still needs verification, a fresh private link is on its way.", "success");
       form.reset();
     } else if (kind === "reset-request") {
