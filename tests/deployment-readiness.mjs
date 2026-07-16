@@ -116,6 +116,7 @@ try {
   assert.equal(response.status, 200);
   assert.equal(health.ok, true);
   assert.equal(health.marketplace.enabled, false);
+  assert.equal(health.localDemosEnabled, false);
   assert.equal(response.headers.get("cache-control"), "no-store");
   const providersResponse = await fetch(`http://127.0.0.1:${port}/api/auth/providers`, { headers: { "X-Forwarded-For": "198.51.100.10" } });
   const providers = await providersResponse.json();
@@ -124,6 +125,10 @@ try {
   assert.equal(providers.providers.google, false);
   assert.equal(providers.providers.facebook, false);
   assert.equal(providers.providers.apple, false);
+  for (const [method, pathname] of [["GET", "/tracking-test"], ["GET", "/tracking-test.html"], ["GET", "/tracking-test.js"], ["POST", "/api/tracking-test/session"]]) {
+    const localDemo = await fetch(`http://127.0.0.1:${port}${pathname}`, { method, headers: { "X-Forwarded-For": "198.51.100.10" } });
+    assert.equal(localDemo.status, 404, `${method} ${pathname} exposed a local location-test utility in production.`);
+  }
   const exited = new Promise((resolve) => child.once("exit", resolve));
   child.kill("SIGTERM");
   await exited;

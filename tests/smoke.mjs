@@ -246,7 +246,7 @@ try {
   assert(homeText.includes("Private application preview") && homeText.includes("Unverified · not published") && homeText.includes("Contact details and your home postcode are never shown here") && homeText.includes("0 of 8 preview details ready") && homeText.includes("Optional now: start your professional profile") && homeText.includes('data-cleaner-preview-progress'), "Cleaner onboarding omitted its truthful optional private live-profile preview or applicant-only privacy boundary.");
   assert(home.headers.get("content-security-policy")?.includes("frame-ancestors 'none'"), "Security headers were missing.");
   assert(home.headers.get("content-security-policy")?.includes("img-src 'self' data: blob:"), "Secure local photo previews were blocked by the content policy.");
-  assert(homeText.includes('href="/tracking-test"') && homeText.includes("Test real location locally"), "The functional local tracking test is not reachable from the website.");
+  assert(!homeText.includes('href="/tracking-test"') && !homeText.includes("Test real location locally"), "The public homepage exposed a local real-location test link.");
   const trackingTestPage = await fetch(`${base}/tracking-test`);
   const trackingTestPageText = await trackingTestPage.text();
   assert(trackingTestPage.ok && trackingTestPage.headers.get("permissions-policy")?.includes("geolocation=(self)") && trackingTestPageText.includes("Real journey and cleaning test") && trackingTestPageText.includes("Only the latest point") && trackingTestPageText.includes("I consent") && trackingTestPageText.includes("Live cleaning progress"), "The local tracking-test page did not expose its exact permission, consent, current-only storage and live progress boundaries.");

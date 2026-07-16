@@ -44,10 +44,11 @@ The preflight performs no DNS change, deployment, database connection, email, st
 2. Put private pilot data on an encrypted persistent volume or access-restricted host directory. Never use the source checkout or an ephemeral filesystem for real submissions.
 3. Configure the mandatory environment through the platform secret manager and keep both marketplace and payments false.
 4. Run the dependency lock, complete tests and production preflight against the exact release commit.
-5. Start the process and require `/api/health` to return HTTP 200, `ok: true`, healthy integrity, writes allowed and `marketplace.enabled: false` with `Cache-Control: no-store`.
+5. Start the process and require `/api/health` to return HTTP 200, `ok: true`, healthy integrity, writes allowed, `marketplace.enabled: false` and `localDemosEnabled: false` with `Cache-Control: no-store`.
 6. Verify `/api/auth/providers` reports Google, Facebook, Apple and email/password as false.
-7. Connect the approved domain only after external `tools/domain-readiness.mjs` passes. This action still requires founder approval; preparation is not authorization to publish.
-8. Submit only synthetic records during staging, verify the control desk and remove every synthetic record before real intake.
+7. Verify `/tracking-test`, `/tracking-test.html`, `/tracking-test.js` and `/api/tracking-test/session` all return 404. The real-location simulator is a local development lab, not a public feature.
+8. Connect the approved domain only after external `tools/domain-readiness.mjs` passes. This action still requires founder approval; preparation is not authorization to publish.
+9. Submit only synthetic records during staging, verify the control desk and remove every synthetic record before real intake.
 
 ## Marketplace promotion
 

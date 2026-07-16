@@ -92,7 +92,7 @@ export function validateProductionDeployment(env = process.env, options = {}) {
       privateDataDirectory: Boolean(dataDirectory && path.isAbsolute(dataDirectory) && !inside(projectRoot, dataDirectory) && assessPrivateDataDirectory(dataDirectory, { explicitlyConfigured: true }).safeForPrivatePilot),
       protectedAdmin: enabled(env.ADMIN_REQUIRE_KEY) && safeAdminKey(env.ADMIN_KEY),
       trustedProxy: enabled(env.TRUST_PROXY),
-      localPreviewDisabled: !exact(env.LAN_PORT) || exact(env.LAN_PORT) === "0"
+      localNetworkPreviewDisabled: !exact(env.LAN_PORT) || exact(env.LAN_PORT) === "0"
     }),
     errors: Object.freeze([...new Set(errors)])
   });

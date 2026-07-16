@@ -30,7 +30,7 @@ assert(home.includes("Interactive sample only.") && home.includes("No real Clean
 assert(script.includes('new URLSearchParams(window.location.search).get("screen")') && script.includes('name === "tracking" ? "tracking" : "profile"'), "Direct preview links do not select a safe known screen.");
 assert(styles.includes(".marketplace-demo-layout") && styles.includes(".marketplace-demo-card"), "The homepage marketplace preview entry point is missing responsive visual treatment.");
 assert(html.includes('data-preview-task="kitchen"') && html.includes('data-preview-task="bathroom"') && html.includes("Report sample issue") && html.includes("Before and after evidence"), "The live-job preview is missing interactive room work, issue reporting or private evidence placeholders.");
-assert(html.includes('href="/tracking-test"') && home.includes('href="/tracking-test"') && home.includes("Test real location locally"), "The website does not expose the functional localhost tracking test.");
+assert(!html.includes('href="/tracking-test"') && !home.includes('href="/tracking-test"') && !home.includes("Test real location locally"), "A local real-location test link leaked into a public-facing preview surface.");
 assert(script.includes("marketplaceTaskPreview") && script.includes("completedTaskIds") && script.includes("issueTaskIds") && script.includes("Complete every task first"), "The Cleaner and Landlord task views do not share a completion-gated preview model.");
 
 const travelling = marketplaceTaskPreview({ state: "en-route", role: "landlord", completedTaskIds: ["kitchen"] });

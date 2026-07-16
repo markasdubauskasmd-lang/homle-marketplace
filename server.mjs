@@ -46,9 +46,10 @@ const maxProposalHourlyRate = 10000;
 const maxProposalAdditionalCosts = 100000;
 const maxOutcomeHours = 100;
 const maxFinancialRecordAmount = 1000000;
+const localDemoEnabled = process.env.NODE_ENV !== "production";
 let writeQueue = Promise.resolve();
 const rateLimitBuckets = new Map();
-const trackingTestStore = createTrackingTestStore();
+const trackingTestStore = localDemoEnabled ? createTrackingTestStore() : null;
 const resolveClientAddress = createTrustedClientAddressResolver(process.env);
 const adminRequireKey = process.env.ADMIN_REQUIRE_KEY === "true";
 const marketplaceConfig = validateMarketplaceEnvironment(process.env);
@@ -5160,6 +5161,8 @@ async function handleHttpRequest(request, response) {
   setSecurityHeaders(response, requestUrl.pathname);
 
   try {
+    const localTrackingPath = ["/tracking-test", "/tracking-test.html", "/tracking-test.js"].includes(requestUrl.pathname) || requestUrl.pathname.startsWith("/api/tracking-test/");
+    if (!localDemoEnabled && localTrackingPath) return json(response, 404, { ok: false, error: "Not found." });
     if (!enforceRateLimit(request, response, rateLimitPolicyFor(request, requestUrl.pathname))) return;
     const signedPaymentWebhook = request.method === "POST" && requestUrl.pathname === "/api/marketplace/payments/webhook";
     if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "") && !signedPaymentWebhook) ensureSameOrigin(request);
@@ -5175,7 +5178,8 @@ async function handleHttpRequest(request, response) {
           ready: marketplaceAttachment.ready,
           authenticationReady: marketplaceAttachment.authenticationHttpReady,
           paymentsReady: marketplaceAttachment.paymentsReady === true
-        }
+        },
+        localDemosEnabled: localDemoEnabled
       });
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/auth/providers") {
@@ -5367,8 +5371,8 @@ await cleanupStaleTemporaryFiles();
 await refreshDataIntegrity();
 const server = createServer(handleHttpRequest);
 const lanServer = lanPort ? createServer(handleHttpRequest) : null;
-const trackingTestExpiryTimer = setInterval(() => trackingTestStore.activeSessionCount(), 30_000);
-trackingTestExpiryTimer.unref?.();
+const trackingTestExpiryTimer = trackingTestStore ? setInterval(() => trackingTestStore.activeSessionCount(), 30_000) : null;
+trackingTestExpiryTimer?.unref?.();
 server.listen(port, host, () => {
   console.log(`Tideway is running at http://${host}:${port}`);
 });
@@ -5382,8 +5386,8 @@ let shutdownStarted = false;
 async function shutdown() {
   if (shutdownStarted) return;
   shutdownStarted = true;
-  clearInterval(trackingTestExpiryTimer);
-  trackingTestStore.close();
+  if (trackingTestExpiryTimer) clearInterval(trackingTestExpiryTimer);
+  trackingTestStore?.close();
   try { await marketplaceAttachment.close(); } catch (error) { console.error("Marketplace shutdown failed.", error); }
   let remaining = lanServer ? 2 : 1;
   const closed = () => {
