@@ -18,6 +18,10 @@ assert(validateMonitoringWebhookEnvironment({
   MONITORING_WEBHOOK_TOKEN: "short",
   MONITORING_WEBHOOK_TIMEOUT_MS: "50"
 }).errors.length === 3);
+assert.equal(validateMonitoringWebhookEnvironment({
+  MONITORING_WEBHOOK_URL: "https://monitoring.example.com/events?token=private",
+  MONITORING_WEBHOOK_TOKEN: "private-monitoring-token-with-32-characters"
+}).ok, false, "A monitoring endpoint query could carry a secret outside the protected header.");
 
 const requests = [];
 const fallbacks = [];

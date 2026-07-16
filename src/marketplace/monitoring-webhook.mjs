@@ -7,8 +7,8 @@ function exactHttpsEndpoint(value) {
   if (!supplied || supplied.length > 2048) throw new TypeError("MONITORING_WEBHOOK_URL is required for the built-in monitoring adapter.");
   let endpoint;
   try { endpoint = new URL(supplied); } catch { throw new TypeError("MONITORING_WEBHOOK_URL must be a valid HTTPS URL."); }
-  if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.hash || endpoint.origin === "null") {
-    throw new TypeError("MONITORING_WEBHOOK_URL must use HTTPS without credentials or a fragment.");
+  if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.search || endpoint.hash || endpoint.origin === "null") {
+    throw new TypeError("MONITORING_WEBHOOK_URL must use HTTPS without credentials, a query or a fragment.");
   }
   return endpoint.href;
 }
