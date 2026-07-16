@@ -15,6 +15,7 @@ import { businessDateToday, businessEpochFromWallClock, businessTimeZone, busine
 import { requestDateAttentionAction, requestDateAttentionDays, scanAttentionAction, scanAttentionHours } from "../lead-attention.mjs";
 import { newSubmissionKey } from "../public/submission-key.js";
 import "./request-followup-draft.mjs";
+import "./pilot-service.mjs";
 import "./spoken-scope.mjs";
 import "./task-quality.mjs";
 import "./cleaner-handoff-preview.mjs";
@@ -500,6 +501,9 @@ try {
   const unsupportedServiceRequest = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validRequestInput, service: "Any cleaner is fine" }) });
   const unsupportedServiceRequestBody = await unsupportedServiceRequest.json();
   assert(unsupportedServiceRequest.status === 422 && unsupportedServiceRequestBody.errors?.includes("Choose a supported cleaning service."), "An unsupported service label entered the matching workflow.");
+  const uncategorisedServiceRequest = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...validRequestInput, service: "Not sure yet" }) });
+  const uncategorisedServiceRequestBody = await uncategorisedServiceRequest.json();
+  assert(uncategorisedServiceRequest.status === 422 && uncategorisedServiceRequestBody.errors?.includes("Choose a supported cleaning service."), "An uncategorised service entered a workflow that could invite any Cleaner.");
   const malformedSubmissionKey = await fetch(`${base}/api/cleaning-requests`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "predictable-retry" }, body: JSON.stringify(validRequestInput) });
   assert(malformedSubmissionKey.status === 400, "A malformed public submission retry key was accepted.");
   const customerSubmissionKey = "11111111-1111-4111-8111-111111111111";

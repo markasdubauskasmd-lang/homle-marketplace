@@ -25,6 +25,7 @@ import { createTrackingTestStore } from "./tracking-test-store.mjs";
 import { assessPrivateDataDirectory } from "./data-directory-safety.mjs";
 import { validateProductionDeployment } from "./deployment-readiness.mjs";
 import { marketplaceActivationReadiness } from "./marketplace-activation-readiness.mjs";
+import { cleanerOffersRequestedService, cleanerServiceFields, requestServices, requiredCleanerService } from "./pilot-service.mjs";
 import "./public/scope-time-breakdown.js";
 import "./public/proposal-economics.js";
 
@@ -147,26 +148,6 @@ const cleanerScreeningChecks = [
   "engagementTermsChecked",
   "safeguardingDecisionChecked"
 ];
-
-const cleanerServiceFields = {
-  serviceDomestic: "Regular domestic cleaning",
-  serviceTurnovers: "Rental turnovers",
-  serviceEndOfTenancy: "End-of-tenancy",
-  serviceWorkplaces: "Offices and workplaces",
-  serviceCommunal: "Communal areas",
-  serviceDeepCleans: "Deep cleans"
-};
-
-const requestServiceMap = {
-  "Regular home clean": "Regular domestic cleaning",
-  "Rental turnover clean": "Rental turnovers",
-  "End-of-tenancy clean": "End-of-tenancy",
-  "Regular workplace clean": "Offices and workplaces",
-  "Communal area clean": "Communal areas",
-  "One-off deep clean": "Deep cleans"
-};
-
-const requestServices = new Set([...Object.keys(requestServiceMap), "Not sure yet"]);
 
 const requestFrequencies = new Set(["One-off", "Weekly", "Several times a week", "Fortnightly", "As properties turn over", "Not sure yet"]);
 
@@ -2051,12 +2032,11 @@ function applyCleanerProfileUpdate(cleaner, profileUpdates = []) {
 }
 
 function cleanerEligibilityChecks(cleaner, customerRequest, cleanerStatus, screenings) {
-  const requiredService = requestServiceMap[customerRequest?.service] || "";
   return {
     cleanerExists: Boolean(cleaner),
     cleanerApproved: cleanerStatus === "approved",
     cleanerScreened: Boolean(cleaner && latestCleanerScreening(cleaner.id, screenings)?.complete === true),
-    serviceApproved: Boolean(cleaner && (!requiredService || cleaner.services?.includes(requiredService))),
+    serviceApproved: Boolean(cleaner && cleanerOffersRequestedService(cleaner.services, customerRequest?.service)),
     cleanerTravelCovered: Boolean(cleaner && cleanerTravelCoverage(cleaner.travelAreas, customerRequest?.postcode || "").covered)
   };
 }
@@ -2476,7 +2456,7 @@ async function updateAdminProposalStatus(request, response) {
   for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
   let requestStatus = customerRequest.status || "new";
   for (const update of cleanerUpdates) if (update.kind === "request" && update.id === customerRequest.id) requestStatus = update.status;
-  const requiredService = requestServiceMap[customerRequest.service] || "";
+  const requiredService = requiredCleanerService(customerRequest.service);
   if (["ready", "sent", "accepted"].includes(status) && ["lost", "completed"].includes(requestStatus)) {
     return json(response, 409, { ok: false, error: "This cleaning request is closed and its proposal cannot advance." });
   }
@@ -2486,7 +2466,10 @@ async function updateAdminProposalStatus(request, response) {
   if (["ready", "sent"].includes(status) && !latestCleanerScreening(cleaner.id, screenings)?.complete) {
     return json(response, 422, { ok: false, error: "The proposed cleaner's screening checklist must still be complete." });
   }
-  if (["ready", "sent"].includes(status) && requiredService && !cleaner.services?.includes(requiredService)) {
+  if (["ready", "sent"].includes(status) && !requiredService) {
+    return json(response, 422, { ok: false, error: "Choose a specific supported cleaning service before this proposal can advance." });
+  }
+  if (["ready", "sent"].includes(status) && !cleanerOffersRequestedService(cleaner.services, customerRequest.service)) {
     return json(response, 422, { ok: false, error: "The proposed cleaner is not approved for this service." });
   }
   if (["ready", "sent", "accepted"].includes(status) && !cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode).covered) {
@@ -2648,13 +2631,12 @@ async function getQuoteContext(token) {
   for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
   let requestStatus = customerRequest.status || "new";
   for (const update of cleanerUpdates) if (update.kind === "request" && update.id === customerRequest.id) requestStatus = update.status;
-  const requiredService = requestServiceMap[customerRequest.service] || "";
   const readyChecks = {
     requestActive: !["lost", "completed"].includes(requestStatus),
     launchReady: launchReadiness(config).ready,
     cleanerApproved: cleanerStatus === "approved",
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
-    serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
+    serviceApproved: cleanerOffersRequestedService(cleaner.services, customerRequest.service),
     cleanerTravelCovered: cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode).covered,
     availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
     costModelCurrent: proposalCostModelCurrent(proposal, config),
@@ -2862,14 +2844,13 @@ async function getCleanerOpportunityContext(token) {
   for (const update of cleanerUpdates) if (update.kind === "request" && update.id === customerRequest.id) requestStatus = update.status;
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
-  const requiredService = requestServiceMap[customerRequest.service] || "";
   const readyChecks = {
     requestActive: !["lost", "completed"].includes(requestStatus),
     launchReady: launchReadiness(config).ready,
     cleanerApproved: cleanerStatus === "approved",
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
-    serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
+    serviceApproved: cleanerOffersRequestedService(cleaner.services, customerRequest.service),
     cleanerTravelCovered: cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode).covered,
     availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
     costModelCurrent: proposalCostModelCurrent(proposal, config),
@@ -3327,7 +3308,6 @@ async function buildBookingAudit(proposalId) {
   for (const update of cleanerUpdates) if (update.id === cleaner.id) cleanerStatus = update.status;
   let requestStatus = customerRequest.status || "new";
   for (const update of cleanerUpdates) if (update.kind === "request" && update.id === customerRequest.id) requestStatus = update.status;
-  const requiredService = requestServiceMap[customerRequest.service] || "";
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
   const cleanerDecision = cleanerDecisions.find((record) => record.proposalId === proposal.id) || null;
@@ -3344,7 +3324,7 @@ async function buildBookingAudit(proposalId) {
     cleanerApproved: cleanerStatus === "approved",
     cleanerScreened: latestCleanerScreening(cleaner.id, screenings)?.complete === true,
     pilotAreaCovered: pilotPostcodeCoverage(customerRequest.postcode, config.pilotPostcodes).covered,
-    serviceApproved: !requiredService || cleaner.services?.includes(requiredService),
+    serviceApproved: cleanerOffersRequestedService(cleaner.services, customerRequest.service),
     cleanerTravelCovered: cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode).covered,
     frequencyCaptured: requestFrequencies.has(customerRequest.frequency || "One-off"),
     availabilityCovered: Boolean(findCleanerAvailabilitySlot(cleaner.id, proposal, availabilityEvents)),
@@ -4421,8 +4401,9 @@ async function createAdminProposal(request, response) {
   if (!latestCleanerScreening(cleaner.id, screenings)?.complete) return json(response, 422, { ok: false, error: "Only a fully screened cleaner can be proposed." });
   if (!costAssumptionsConfirmed(config)) return json(response, 422, { ok: false, error: "Confirm the labour on-cost, payment, travel, supplies and risk assumptions before preparing proposal economics." });
   if (config.minimumHours > 0 && estimatedHours < config.minimumHours) return json(response, 422, { ok: false, error: `Estimated hours must meet the ${config.minimumHours}-hour minimum.` });
-  const requiredService = requestServiceMap[customerRequest.service] || "";
-  if (requiredService && !cleaner.services?.includes(requiredService)) return json(response, 422, { ok: false, error: "Cleaner is not approved for the requested service." });
+  const requiredService = requiredCleanerService(customerRequest.service);
+  if (!requiredService) return json(response, 422, { ok: false, error: "Choose a specific supported cleaning service before preparing a proposal." });
+  if (!cleanerOffersRequestedService(cleaner.services, customerRequest.service)) return json(response, 422, { ok: false, error: "Cleaner is not approved for the requested service." });
   const travelCoverage = cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode);
   if (!travelCoverage.covered) return json(response, 422, { ok: false, error: `The cleaner's stated travel areas do not explicitly cover ${travelCoverage.outwardCode || "the customer postcode"}. Reconfirm their work areas before preparing a proposal.` });
   if (!findCleanerAvailabilitySlot(cleaner.id, { proposedDate, proposedStartTime, estimatedHours }, availabilityEvents)) return json(response, 422, { ok: false, error: "The proposed visit must fit entirely inside an active, confirmed cleaner availability window." });
@@ -4499,10 +4480,13 @@ async function getAdminMatches(request, response, requestId) {
   if (customerRequest.preferredDate < localDateToday()) {
     return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "requested-date-passed", requiredHours: null }, matches: [] });
   }
+  const requiredService = requiredCleanerService(customerRequest.service);
+  if (!requiredService) {
+    return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "specific-service-required", requiredHours: null }, matches: [] });
+  }
   if (!pilotCoverage.covered) {
     return json(response, 200, { ok: true, request: { id: customerRequest.id, postcode: customerRequest.postcode, service: customerRequest.service, preferredDate: customerRequest.preferredDate || "", preferredTimeWindow: customerRequest.preferredTimeWindow || "Flexible" }, pilotCoverage, matchGate: { ready: false, reason: "outside-pilot-area", requiredHours: null }, matches: [] });
   }
-
   const rawLatestBrief = briefs.filter((brief) => brief.requestId === customerRequest.id).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] || null;
   const latestBrief = rawLatestBrief ? applyBriefStatus(rawLatestBrief, briefUpdates) : null;
   if (latestBrief?.status === "reviewed" && !latestBrief.reviewEvidenceConfirmed) {
@@ -4521,7 +4505,6 @@ async function getAdminMatches(request, response, requestId) {
 
   const latestStatuses = new Map();
   for (const update of updates) latestStatuses.set(update.id, update.status);
-  const requiredService = requestServiceMap[customerRequest.service] || "";
   const nowMs = Date.now();
 
   const candidates = cleaners
@@ -4533,7 +4516,7 @@ async function getAdminMatches(request, response, requestId) {
         .filter(Boolean)
         .sort((left, right) => left.availableDate.localeCompare(right.availableDate) || left.suggestedStartTime.localeCompare(right.suggestedStartTime));
       const services = Array.isArray(cleaner.services) ? cleaner.services : [];
-      const serviceMatch = !requiredService || services.includes(requiredService);
+      const serviceMatch = cleanerOffersRequestedService(services, customerRequest.service);
       const travelCoverage = cleanerTravelCoverage(cleaner.travelAreas, customerRequest.postcode);
       const coverageScore = travelCoverage.exact ? 35 : travelCoverage.area ? 20 : 0;
       const serviceScore = serviceMatch ? 25 : 0;
@@ -4933,7 +4916,7 @@ async function handleCleaningRequest(request, response) {
   if ([record.siteSize, record.accessNotes, record.details].some((value) => value && containsSensitiveAccessDetails(value))) errors.push(accessDetailsSafetyMessage);
   if (record.preferredDate && (!/^\d{4}-\d{2}-\d{2}$/.test(record.preferredDate) || record.preferredDate < localDateToday())) errors.push("Preferred date must be today or later.");
   if (record.preferredTimeWindow && !Object.hasOwn(preferredArrivalWindows, record.preferredTimeWindow)) errors.push("Choose a supported preferred arrival window.");
-  if (record.service && !requestServices.has(record.service)) errors.push("Choose a supported cleaning service.");
+  if (record.service && !requestServices.includes(record.service)) errors.push("Choose a supported cleaning service.");
   if (!requestFrequencies.has(record.frequency)) errors.push("Choose a supported cleaning frequency.");
   if (!record.consent) errors.push("Privacy consent is required.");
   if (errors.length) return json(response, 422, { ok: false, errors });

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -96,6 +96,14 @@ try {
   assert(authorisedScan.status === 201 && authorisedScanBody.reference.startsWith("BRF-"), "A token-authorised room scan was not stored.");
   assert(!("customerStatusToken" in authorisedScanBody), "A successful room scan re-disclosed its private tracker token.");
 
+  const requestFile = path.join(testDataDir, "cleaning-requests.ndjson");
+  const storedRequest = JSON.parse((await readFile(requestFile, "utf8")).trim());
+  await writeFile(requestFile, `${JSON.stringify({ ...storedRequest, service: "Not sure yet" })}\n`, { encoding: "utf8", mode: 0o600 });
+  const uncategorisedMatches = await sameOriginFetch(`/api/admin/matches?requestId=${encodeURIComponent(cleaningRequestBody.reference)}`, { headers: { "x-admin-key": adminKey } });
+  const uncategorisedMatchesBody = await uncategorisedMatches.json();
+  assert(uncategorisedMatches.ok && uncategorisedMatchesBody.matchGate?.reason === "specific-service-required" && uncategorisedMatchesBody.matches?.length === 0, "A legacy uncategorised request reached Cleaner matching.");
+  await writeFile(requestFile, `${JSON.stringify(storedRequest)}\n`, { encoding: "utf8", mode: 0o600 });
+
   for (const pathname of ["/admin", "/admin.html"]) {
     const deniedShell = await fetch(`${base}${pathname}`);
     assert(deniedShell.status === 401, `${pathname} bypassed ADMIN_REQUIRE_KEY on loopback.`);
@@ -118,7 +126,7 @@ try {
   assert(!storageProjection.includes(testDataDir) && !Object.hasOwn(unsafeStorageConfigBody.storageSafety, "path"), "The storage-safety projection exposed the private local data path.");
   assert(unsafeStorageConfigBody.readiness.missing?.operatingRules?.includes("private data folder outside cloud-sync services"), "Unsafe private storage did not block launch readiness.");
 
-  console.log("Pilot HTTP security tests passed.");
+  console.log("Pilot HTTP security tests passed, including fail-closed legacy service matching.");
 } finally {
   if (child.exitCode === null) {
     child.kill();

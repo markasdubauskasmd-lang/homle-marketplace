@@ -623,7 +623,10 @@ async function findMatches(record, results, button) {
     if (!response.ok || !result.ok) throw new Error(result.error || "Matches could not be loaded.");
     results.replaceChildren();
     if (!result.matches.length) {
-      if (result.pilotCoverage && !result.pilotCoverage.covered) {
+      if (result.matchGate?.reason === "specific-service-required") {
+        addText(results, "strong", "A specific cleaning service is required before matching.");
+        addText(results, "span", "Do not invite a Cleaner for an uncategorised legacy request. Confirm the service with the customer and create a corrected request before preparing an offer.");
+      } else if (result.pilotCoverage && !result.pilotCoverage.covered) {
         addText(results, "strong", "Request is outside the configured pilot area.");
         addText(results, "span", `${result.pilotCoverage.outwardCode || "This postcode"} is not included in ${result.pilotCoverage.allowedCodes.join(", ") || "the pilot postcode list"}. Do not promise coverage.`);
       } else if (result.matchGate?.reason === "reviewed-room-scan-required") {
