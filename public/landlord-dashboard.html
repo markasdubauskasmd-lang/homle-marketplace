@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Landlord workspace | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-64">
-  <script src="/landlord-dashboard.js?v=20260716-5" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-65">
+  <script src="/landlord-dashboard.js?v=20260716-6" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
@@ -22,6 +22,25 @@
   <main id="landlord-main" class="landlord-dashboard-main shell">
     <section class="landlord-dashboard-state" data-landlord-state role="status" aria-live="polite">
       <span aria-hidden="true">i</span><div><strong data-landlord-state-title>Checking secure Landlord access…</strong><p data-landlord-state-copy>Your properties and drafts open only inside an authenticated Landlord session.</p><div><a class="button" href="/login" data-landlord-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-landlord-retry hidden>Try again</button></div></div>
+    </section>
+
+    <section class="brief-complete-card landlord-request-complete" data-request-complete hidden aria-labelledby="request-complete-title" tabindex="-1">
+      <div class="completion-mark" aria-hidden="true">✓</div>
+      <p class="eyebrow">Room scan submitted</p>
+      <h1 id="request-complete-title">Thank you. Your cleaning request is ready for matching.</h1>
+      <p class="completion-lead" data-request-complete-lead>Your reviewed room photos and concise Cleaner checklist are attached to this private request.</p>
+      <div class="completion-reference"><span>Cleaning-request reference</span><strong data-request-complete-reference>Recorded</strong></div>
+      <p class="landlord-completion-counts" data-request-complete-counts></p>
+      <section class="completion-next" aria-labelledby="account-next-title">
+        <h2 id="account-next-title">What happens next</h2>
+        <ol>
+          <li><strong>Eligibility is checked</strong><span>Matching uses real services, travel coverage, availability and approved pricing.</span></li>
+          <li><strong>An eligible Cleaner decides</strong><span>A request is not a confirmed booking until a Cleaner accepts the frozen scope, time and price.</span></li>
+          <li><strong>You track the booking</strong><span>Confirmed work unlocks private journey and cleaning-progress updates. No payment was taken here.</span></li>
+        </ol>
+      </section>
+      <p class="landlord-completion-warning" data-request-complete-warning hidden></p>
+      <div class="completion-actions"><a class="button" href="/landlord/dashboard">Track this request</a><button class="button button-outline" type="button" data-request-complete-another>Prepare another clean</button></div>
     </section>
 
     <div data-landlord-workspace hidden>

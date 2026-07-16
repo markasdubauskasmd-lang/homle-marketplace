@@ -17,6 +17,8 @@
 
 The account dashboard now treats the room scan as the required booking handoff. A Landlord speaks or types a walkthrough, turns it into editable room-labelled tasks, saves only those concise tasks, then attaches current room photos through the private sanitation pipeline before deliberate submission. The raw walkthrough stays in the browser. Any later walkthrough, generated checklist, manual checklist or reusable-checklist change clears the review confirmation and requires the Landlord to reconcile the current scope again. Saving a new draft automatically opens its private scan and focuses the room selector.
 
+Successful submission now replaces the workspace with a dedicated authenticated thank-you state. It shows the submitted request reference plus photo/task counts, explains whether bounded automatic invitation was authorised, states that no payment was taken, and offers private tracking or another request. If submission succeeds but the later automatic-dispatch response is uncertain, the page confirms only the durable submission and warns the Landlord to inspect the request before retrying; it does not claim that an invitation did or did not occur.
+
 These controls remain fail-closed while the marketplace attachment is disabled. Real account capture still requires the managed PostgreSQL, private object-storage, image-sanitation, retention, RLS and HTTPS device gates below; the separate `/request` route remains the working local concierge-pilot path meanwhile.
 
 ## Activation requirements

@@ -9,6 +9,11 @@ const stateCopy = document.querySelector("[data-landlord-state-copy]");
 const signIn = document.querySelector("[data-landlord-sign-in]");
 const retry = document.querySelector("[data-landlord-retry]");
 const workspace = document.querySelector("[data-landlord-workspace]");
+const requestComplete = document.querySelector("[data-request-complete]");
+const requestCompleteLead = document.querySelector("[data-request-complete-lead]");
+const requestCompleteReference = document.querySelector("[data-request-complete-reference]");
+const requestCompleteCounts = document.querySelector("[data-request-complete-counts]");
+const requestCompleteWarning = document.querySelector("[data-request-complete-warning]");
 const propertyForm = document.querySelector("[data-property-form]");
 const requestForm = document.querySelector("[data-request-form]");
 const propertyList = document.querySelector("[data-property-list]");
@@ -51,6 +56,7 @@ function showState(title, copy, { kind = "info", allowSignIn = false, allowRetry
   signIn.hidden = !allowSignIn;
   retry.hidden = !allowRetry;
   workspace.hidden = true;
+  requestComplete.hidden = true;
 }
 
 function showFeedback(target, message, kind = "error") {
@@ -65,6 +71,25 @@ function invalidateScopeReview(message) {
   if (!confirmation.checked) return;
   confirmation.checked = false;
   showFeedback(requestFeedback, message, "info");
+}
+
+function showRequestCompletion(submission, { automaticDispatch = false, warning = "" } = {}) {
+  const photos = Number(submission?.photoCount);
+  const tasks = Number(submission?.taskCount);
+  requestCompleteReference.textContent = submission?.cleaningRequestId || "Recorded privately";
+  requestCompleteCounts.textContent = `${Number.isInteger(photos) ? photos : 0} room ${photos === 1 ? "photo" : "photos"} · ${Number.isInteger(tasks) ? tasks : 0} concise Cleaner ${tasks === 1 ? "task" : "tasks"}`;
+  requestCompleteLead.textContent = warning
+    ? "Your reviewed scan is submitted for matching. No booking or payment exists yet."
+    : automaticDispatch
+    ? "Your reviewed scan is submitted and Tideway is authorised to invite an eligible profitable match within your chosen attempt limit."
+    : "Your reviewed scan is submitted for matching. No Cleaner has been invited automatically.";
+  requestCompleteWarning.textContent = warning;
+  requestCompleteWarning.hidden = !warning;
+  state.hidden = true;
+  workspace.hidden = true;
+  requestComplete.hidden = false;
+  history.replaceState(null, "", "/landlord/dashboard");
+  requestComplete.focus();
 }
 
 function selectWorkspaceTab(name) {
@@ -344,17 +369,22 @@ function requestScanPanel(request) {
       if (!csrf) return showFeedback(feedback, "Your secure editing token is missing. Sign in again before submitting.");
       setPending(submit, true, "Submitting reviewed scan…");
       let submitted = false;
+      let submission = null;
       try {
         const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/submit`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ scopeReviewed: true, cleanerPreviewAuthorized: preview.checked }) });
-        submitted = result.submission?.status === "searching-for-cleaner";
+        submission = result.submission;
+        submitted = submission?.status === "searching-for-cleaner";
         if (!submitted) throw new Error("The submitted request could not be verified.");
         const index = requests.findIndex((item) => item.requestId === request.requestId);
-        if (index >= 0) requests[index] = { ...requests[index], status: "searching-for-cleaner", submittedAt: result.submission.submittedAt, cleanerPreviewAuthorized: preview.checked };
+        if (index >= 0) requests[index] = { ...requests[index], status: "searching-for-cleaner", submittedAt: submission.submittedAt, cleanerPreviewAuthorized: preview.checked };
         if (auto.checked) await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/automatic-dispatch`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ enabled: true, attemptLimit: Number(attempts.value) }) });
         renderRequests();
-        showFeedback(requestFeedback, auto.checked ? "Room scan submitted and automatic matching authorized. No booking exists until an eligible Cleaner accepts." : "Room scan submitted for matching. No Cleaner has been invited automatically and no booking or payment exists.", "success");
+        showRequestCompletion(submission, { automaticDispatch: auto.checked });
       } catch (error) {
-        showFeedback(requestFeedback, submitted ? `The room scan was submitted, but automatic matching was not enabled: ${error.message}` : error.message);
+        if (submitted) {
+          renderRequests();
+          showRequestCompletion(submission, { warning: `The room scan is safely submitted, but Tideway could not verify automatic invitation authorisation: ${error.message} Check the request before retrying.` });
+        } else showFeedback(requestFeedback, error.message);
       } finally { setPending(submit, false, "Submit cleaning request"); }
     });
     panel.append(submitForm);
@@ -623,6 +653,13 @@ requestForm.addEventListener("input", () => { dirty = true; });
 propertyForm.addEventListener("submit", createProperty);
 requestForm.addEventListener("submit", createRequestDraft);
 retry.addEventListener("click", loadWorkspace);
+document.querySelector("[data-request-complete-another]").addEventListener("click", () => {
+  requestComplete.hidden = true;
+  workspace.hidden = false;
+  selectWorkspaceTab("requests");
+  requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  propertySelect.focus({ preventScroll: true });
+});
 window.addEventListener("beforeunload", (event) => { if (dirty) event.preventDefault(); });
 document.querySelector("[data-year]").textContent = new Date().getFullYear();
 initialiseRequestDefaults();

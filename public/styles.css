@@ -296,6 +296,9 @@ textarea { resize: vertical; }
 .completion-next strong, .completion-next span { display: block; }
 .completion-next span { margin-top: 7px; color: var(--muted); font-size: .88rem; }
 .completion-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 30px; }
+.landlord-request-complete { margin: 34px auto 70px; }
+.landlord-completion-counts { margin: -12px 0 24px; color: var(--muted); font-weight: 800; }
+.landlord-completion-warning { margin: 22px auto 0; padding: 14px 18px; border: 1px solid #e4bd78; border-radius: 12px; color: #704100; background: #fff8e8; text-align: left; }
 
 .final-cta { padding: 65px 0; color: #fff; background: var(--green); }
 .final-cta .shell { display: flex; justify-content: space-between; gap: 30px; align-items: center; }
