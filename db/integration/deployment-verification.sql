@@ -26,7 +26,8 @@ DECLARE
     'tideway_private.search_cleaner_directory(text,text,timestamp with time zone,timestamp with time zone,numeric,integer,boolean,numeric,numeric,numeric,integer,integer)',
     'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.start_cleaner_journey(uuid,boolean,numeric,numeric,numeric,timestamp with time zone)',
-    'tideway_private.submit_booking_review(uuid,uuid,smallint,smallint,smallint,smallint,smallint,text)'
+    'tideway_private.submit_booking_review(uuid,uuid,smallint,smallint,smallint,smallint,smallint,text)',
+    'tideway_private.consume_rate_limit(text,bytea)'
   ];
   worker_functions constant text[] := ARRAY[
     'tideway_private.expire_due_cleaner_invitations(integer)',
@@ -34,7 +35,8 @@ DECLARE
     'tideway_private.expire_due_job_photo_uploads(integer)',
     'tideway_private.claim_due_email_notifications(uuid,integer,integer)',
     'tideway_private.complete_email_notification(uuid,uuid,text,text)',
-    'tideway_private.purge_expired_sessions(integer)'
+    'tideway_private.purge_expired_sessions(integer)',
+    'tideway_private.purge_expired_rate_limits(integer)'
   ];
 BEGIN
   IF current_setting('server_version_num')::integer < 160000 THEN
@@ -73,6 +75,9 @@ BEGIN
   END LOOP;
 
   IF to_regclass('public.sessions_expiry_purge_idx') IS NULL THEN RAISE EXCEPTION 'Expired-session purge index is missing'; END IF;
+  IF to_regclass('tideway_private.request_rate_limits') IS NULL OR to_regclass('tideway_private.request_rate_limits_updated_idx') IS NULL THEN
+    RAISE EXCEPTION 'Shared rate-limit storage or expiry index is missing';
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.bookings'::regclass AND conname = 'bookings_no_cleaner_overlap' AND contype = 'x') THEN
     RAISE EXCEPTION 'Cleaner overlap exclusion constraint is missing';
   END IF;
@@ -116,6 +121,16 @@ BEGIN
   IF has_table_privilege('tideway_app', 'public.sessions', 'DELETE') OR has_function_privilege('tideway_app', 'tideway_private.purge_expired_sessions(integer)', 'EXECUTE') THEN
     RAISE EXCEPTION 'App role can physically purge sessions';
   END IF;
+  IF has_table_privilege('tideway_app', 'tideway_private.request_rate_limits', 'SELECT')
+     OR has_table_privilege('tideway_app', 'tideway_private.request_rate_limits', 'INSERT')
+     OR has_table_privilege('tideway_app', 'tideway_private.request_rate_limits', 'UPDATE')
+     OR has_table_privilege('tideway_app', 'tideway_private.request_rate_limits', 'DELETE')
+     OR has_table_privilege('tideway_worker', 'tideway_private.request_rate_limits', 'SELECT')
+     OR has_table_privilege('tideway_worker', 'tideway_private.request_rate_limits', 'INSERT')
+     OR has_table_privilege('tideway_worker', 'tideway_private.request_rate_limits', 'UPDATE')
+     OR has_table_privilege('tideway_worker', 'tideway_private.request_rate_limits', 'DELETE') THEN
+    RAISE EXCEPTION 'Restricted roles have direct access to private rate-limit keys';
+  END IF;
   IF EXISTS (
     SELECT 1 FROM pg_class relation
     WHERE relation.relnamespace = 'public'::regnamespace AND relation.relkind IN ('r','p')
@@ -132,8 +147,8 @@ SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 37,
-  'appFunctionChecks', 6,
-  'workerFunctionChecks', 6
+  'appFunctionChecks', 7,
+  'workerFunctionChecks', 7
 ) AS tideway_deployment_verification;
 
 ROLLBACK;

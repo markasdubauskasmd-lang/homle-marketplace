@@ -2,6 +2,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { marketplaceEnvironment, publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./config.mjs";
 import { postgresPoolOptions } from "./database.mjs";
+import { createPostgresRateLimiter } from "./postgres-rate-limiter.mjs";
 import { createMarketplaceRuntime } from "./runtime.mjs";
 
 function enabledState(env) {
@@ -50,13 +51,14 @@ export async function probeMarketplaceDatabase(pool) {
         current_setting('server_version_num')::integer AS server_version_num,
         COALESCE((SELECT NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname = current_user), false) AS role_is_safe,
         to_regprocedure('tideway_private.lookup_session(bytea)') IS NOT NULL AS lookup_session_ready,
-        to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL AS booking_workflow_ready
+        to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL AS booking_workflow_ready,
+        to_regprocedure('tideway_private.consume_rate_limit(text,bytea)') IS NOT NULL AS rate_limit_ready
     `);
     const row = result?.rows?.[0];
     if (!row || row.database_role !== "tideway_app") throw new Error("Marketplace DATABASE_URL must authenticate as tideway_app.");
     if (Number(row.server_version_num) < 160000) throw new Error("Marketplace PostgreSQL 16 or newer is required.");
     if (row.role_is_safe !== true) throw new Error("Marketplace database role must not be superuser or bypass row-level security.");
-    if (row.lookup_session_ready !== true || row.booking_workflow_ready !== true) throw new Error("Marketplace database migrations or runtime grants are incomplete.");
+    if (row.lookup_session_ready !== true || row.booking_workflow_ready !== true || row.rate_limit_ready !== true) throw new Error("Marketplace database migrations or runtime grants are incomplete.");
     return Object.freeze({ databaseRole: row.database_role, postgresqlVersionNumber: Number(row.server_version_num) });
   } finally {
     client.release();
@@ -64,9 +66,8 @@ export async function probeMarketplaceDatabase(pool) {
 }
 
 function requireAdapters(adapters) {
-  if (!adapters?.rateLimiter || typeof adapters.rateLimiter.consume !== "function") throw new TypeError("Marketplace enablement requires a shared persistent rate limiter.");
-  if (typeof adapters.clientKey !== "function") throw new TypeError("Marketplace enablement requires a trusted server-derived client key.");
-  if (!adapters.emailDelivery || typeof adapters.emailDelivery.send !== "function") throw new TypeError("Marketplace enablement requires a trusted email-delivery adapter.");
+  if (typeof adapters?.clientKey !== "function") throw new TypeError("Marketplace enablement requires a trusted server-derived client key.");
+  if (!adapters?.emailDelivery || typeof adapters.emailDelivery.send !== "function") throw new TypeError("Marketplace enablement requires a trusted email-delivery adapter.");
   const storageMethods = ["createUploadUrl", "headObject", "inspectAndSanitizeImage", "createReadUrl", "deleteObject"];
   if (!adapters.objectStorage || !storageMethods.every((method) => typeof adapters.objectStorage[method] === "function")) throw new TypeError("Marketplace enablement requires complete private object storage.");
 }
@@ -104,9 +105,10 @@ export async function createMarketplaceAttachment(options = {}) {
   let runtime;
   try {
     await (options.probeDatabase || probeMarketplaceDatabase)(pool);
+    const rateLimiter = (options.createRateLimiter || createPostgresRateLimiter)(pool, { secret: env.SESSION_SECRET });
     runtime = (options.createRuntime || createMarketplaceRuntime)(pool, {
       env,
-      rateLimiter: adapters.rateLimiter,
+      rateLimiter,
       clientKey: adapters.clientKey,
       emailDelivery: adapters.emailDelivery,
       objectStorage: adapters.objectStorage,

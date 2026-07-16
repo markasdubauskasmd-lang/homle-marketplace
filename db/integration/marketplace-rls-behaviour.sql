@@ -21,6 +21,30 @@ BEGIN
 END
 $outsider$;
 
+DO $shared_rate_limit$
+DECLARE
+  attempt integer;
+  decision record;
+BEGIN
+  BEGIN
+    PERFORM 1 FROM tideway_private.request_rate_limits;
+    RAISE EXCEPTION 'Runtime role can read private rate-limit keys';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  FOR attempt IN 1..10 LOOP
+    SELECT * INTO decision FROM tideway_private.consume_rate_limit('login', decode(repeat('ab', 32), 'hex'));
+    IF decision.allowed IS NOT TRUE OR decision.retry_after_seconds <> 0 THEN
+      RAISE EXCEPTION 'Shared login limiter denied before its reviewed threshold';
+    END IF;
+  END LOOP;
+  SELECT * INTO decision FROM tideway_private.consume_rate_limit('login', decode(repeat('ab', 32), 'hex'));
+  IF decision.allowed IS NOT FALSE OR decision.retry_after_seconds NOT BETWEEN 1 AND 900 THEN
+    RAISE EXCEPTION 'Shared login limiter failed to deny at its reviewed threshold';
+  END IF;
+END
+$shared_rate_limit$;
+
 SELECT set_config('app.user_id', '10000000-0000-4000-8000-000000000001', true);
 SELECT set_config('app.user_roles', 'landlord', true);
 DO $landlord$

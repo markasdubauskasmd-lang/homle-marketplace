@@ -19,7 +19,6 @@ const completeEnvironment = Object.freeze({
 });
 
 const adapters = Object.freeze({
-  rateLimiter: { async consume() { return { allowed: true }; } },
   clientKey() { return "trusted:test"; },
   emailDelivery: { async send() {} },
   objectStorage: {
@@ -54,7 +53,7 @@ const pool = {
     return {
       async query(sql) {
         probeQueries.push(sql);
-        return { rows: [{ database_role: "tideway_app", server_version_num: 160004, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true }] };
+        return { rows: [{ database_role: "tideway_app", server_version_num: 160004, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, rate_limit_ready: true }] };
       },
       release() { released += 1; }
     };
@@ -62,13 +61,21 @@ const pool = {
   async end() { ended += 1; }
 };
 const router = { async handle() { return true; } };
+const sharedRateLimiter = { async consume() { return { allowed: true }; } };
+let limiterCreated = 0;
 const attachment = await createMarketplaceAttachment({
   env: completeEnvironment,
   adapters,
   async createPool() { return pool; },
+  createRateLimiter(selectedPool, options) {
+    limiterCreated += 1;
+    assert.equal(selectedPool, pool);
+    assert.equal(options.secret, completeEnvironment.SESSION_SECRET);
+    return sharedRateLimiter;
+  },
   createRuntime(selectedPool, options) {
     assert.equal(selectedPool, pool);
-    assert.equal(options.rateLimiter, adapters.rateLimiter);
+    assert.equal(options.rateLimiter, sharedRateLimiter);
     assert.equal(options.objectStorage, adapters.objectStorage);
     return {
       router,
@@ -81,6 +88,7 @@ const attachment = await createMarketplaceAttachment({
 assert.equal(attachment.enabled, true);
 assert.equal(attachment.ready, true);
 assert.equal(attachment.router, router);
+assert.equal(limiterCreated, 1);
 assert.equal(released, 1);
 assert.ok(probeQueries[0].includes("current_user") && probeQueries[0].includes("tideway_private.lookup_session"));
 assert.equal(attachment.authenticationCapabilities.emailPassword, true);
@@ -102,6 +110,15 @@ await assert.rejects(probeMarketplaceDatabase({
   }
 }), /authenticate as tideway_app/);
 assert.equal(unsafeReleased, 1);
+
+await assert.rejects(probeMarketplaceDatabase({
+  async connect() {
+    return {
+      async query() { return { rows: [{ database_role: "tideway_app", server_version_num: 160000, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, rate_limit_ready: false }] }; },
+      release() {}
+    };
+  }
+}), /migrations or runtime grants are incomplete/);
 
 let failedPoolEnded = 0;
 await assert.rejects(createMarketplaceAttachment({
