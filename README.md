@@ -12,6 +12,15 @@ npm start
 
 Then open `http://127.0.0.1:4173`.
 
+The local NDJSON pilot remains dependency-free at runtime while `MARKETPLACE_ENABLED=false`. A production/staging marketplace deployment must use the pinned pnpm toolchain and reviewed lockfile:
+
+```text
+node tools/check-dependency-lock.mjs
+pnpm install --frozen-lockfile --ignore-scripts
+```
+
+The manifest pins `pg` 8.22.0 exactly and the gate locks the entire transitive graph by SHA-256 plus registry integrity values. Do not use an unlocked install or commit `node_modules`.
+
 For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the computer's private IPv4 address, and open `http://<computer-ip>:4174/` on the phone. The main control desk remains on `http://127.0.0.1:4173/admin`; both its HTML shell and data APIs require an admin key through the Wi-Fi address. This is a local-network preview only—do not expose port 4174 through a router or public tunnel.
 
 ## Marketplace design preview
@@ -28,7 +37,7 @@ Phase 2 has started with the [cleaner directory privacy boundary](docs/CLEANER_D
 
 The [landlord property privacy boundary](docs/PROPERTY_PRIVACY.md) now adds owner-bound profile/property services, validated saved checklists, AES-256-GCM entry-instruction encryption and booking-scoped exact-address/access projections. Assigned cleaners receive protected visit details only during an active accepted booking, with matching property/photo RLS expiry. Property pages remain disabled until the PostgreSQL account runtime, authenticated routes, private object storage and real RLS integration tests are ready.
 
-The [account marketplace HTTP runtime](docs/MARKETPLACE_HTTP_RUNTIME.md) now composes these modules behind an isolated native-Node controller with session, exact-origin, CSRF and server-side role checks, bounded JSON and safe errors. Its public Cleaner search and private profile/property route contracts are tested but deliberately not attached to the live pilot: a real PostgreSQL driver, staging migrations/RLS evidence, login/session routes and genuine account-backed data are required first.
+The [account marketplace HTTP runtime](docs/MARKETPLACE_HTTP_RUNTIME.md) now composes these modules behind an isolated native-Node controller with session, exact-origin, CSRF and server-side role checks, bounded JSON and safe errors. Its public Cleaner search and private profile/property route contracts are tested but deliberately not attached to the live pilot. The exact `pg` 8.22.0 driver and transitive integrity graph are now locked; a provisioned PostgreSQL 16 database, real migrations/RLS/concurrency evidence, deployment adapters and genuine account-backed data are still required.
 
 The authentication runtime also includes trusted session issuance, exact logout, logout-all and same-account rotation. Raw session and CSRF tokens never cross the repository boundary, optional client metadata is stored only as keyed hashes, and a failed privilege-changing rotation leaves the old session revoked. Expired rows are removed only through a bounded `SKIP LOCKED` maintenance function: the web role cannot delete sessions and the separately credentialed worker has no direct table access. These remain source-level foundations until throttled login/logout handlers and the scheduled worker are composed under HTTPS/PostgreSQL staging.
 

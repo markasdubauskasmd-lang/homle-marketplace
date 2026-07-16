@@ -32,7 +32,7 @@ export async function createDefaultPostgresPool(env = process.env) {
   try {
     postgres = await import("pg");
   } catch (cause) {
-    throw Object.assign(new Error("The marketplace requires a reviewed, version-locked pg driver before enablement."), { cause });
+    throw Object.assign(new Error("The marketplace requires the reviewed pg dependency; install the frozen lockfile before enablement."), { cause });
   }
   const Pool = postgres.Pool || postgres.default?.Pool;
   if (typeof Pool !== "function") throw new TypeError("The installed pg package does not expose a Pool constructor.");

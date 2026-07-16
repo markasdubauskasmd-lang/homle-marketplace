@@ -12,6 +12,17 @@ The existing local NDJSON pilot remains the active data store. The PostgreSQL ma
 - Separate random `SESSION_SECRET`, `AUTH_TOKEN_SECRET` and `DATA_ENCRYPTION_KEY` values stored only in the deployment secret manager.
 - TLS certificate verification in production. Do not add `sslmode=no-verify` or embed credentials in Git.
 
+## Install the reviewed runtime dependency
+
+The production manifest declares only `pg` 8.22.0 and pins pnpm 11.7.0. `pnpm-lock.yaml` contains the exact transitive versions and registry integrity values; `tools/check-dependency-lock.mjs` locks that complete file by normalized SHA-256. Validate before installing, and install without package lifecycle scripts:
+
+```text
+node tools/check-dependency-lock.mjs
+pnpm install --frozen-lockfile --ignore-scripts
+```
+
+The local pilot does not require this installation while `MARKETPLACE_ENABLED=false`; `src/marketplace/attachment.mjs` dynamically imports the driver only after explicit enablement. Never commit or sync `node_modules`. A frozen install and import of `pg.Pool` were verified in an isolated temporary folder on 16 July 2026, leaving no project `node_modules` folder. `pnpm audit --prod --audit-level high` reported no known vulnerability at that checkpoint; rerun the audit and review upstream release notes before every deployment or dependency update.
+
 ## Apply in staging
 
 Before any migration-owner connection is used, verify that the complete ordered SQL set and both least-privilege role scripts still match the reviewed repository lock:
@@ -90,4 +101,4 @@ The application transaction boundary sets `app.user_id` and `app.user_roles` loc
 
 Run `SELECT * FROM tideway_private.expire_due_cleaner_invitations(100);`, `SELECT * FROM tideway_private.purge_expired_cleaner_locations(500);` and `SELECT * FROM tideway_private.expire_due_job_photo_uploads(500);` through the deployment scheduler using only the `tideway_worker` connection, at least once per minute. Run `SELECT * FROM tideway_private.purge_expired_sessions(500);` through the same restricted role at least every 15 minutes; `createSessionPurgeWorker` drains at most five batches by default and reports `moreMayRemain` for an immediate follow-up. The functions use bounded `SKIP LOCKED` batches so concurrent workers do not process the same row. For every expired upload, the worker must also delete both returned quarantine and final object keys through the private storage adapter; a bucket lifecycle rule must be the final cleanup backstop. Monitor failures and continue immediately while a run returns the batch limit. The web role has its direct session-delete grant revoked and must receive no execute grant on maintenance functions.
 
-Before production use, run the migrations and database integration tests against an empty staging database, inspect effective grants, confirm `tideway_app` cannot bypass RLS, and test denial from an unrelated account. The current repository contains a PostgreSQL-compatible pool adapter and fake-pool tests; a real PostgreSQL driver is intentionally not declared until package installation and a staging database are available.
+Before production use, run the migrations and database integration tests against an empty staging database, inspect effective grants, confirm `tideway_app` cannot bypass RLS, and test denial from an unrelated account. The current repository contains a PostgreSQL-compatible pool adapter, exact locked driver dependency and fake-pool tests. Declaring/installing the driver does not prove database behavior: E2 remains open until the guarded integration harness passes against PostgreSQL 16 with separate owner and `tideway_app` credentials.
