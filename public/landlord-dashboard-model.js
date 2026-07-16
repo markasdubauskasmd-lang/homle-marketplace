@@ -19,6 +19,11 @@ export function tasksToLines(tasks) {
   return (Array.isArray(tasks) ? tasks : []).filter((task) => task?.roomName && task?.description).map((task) => `${task.roomName}: ${task.description}`).join("\n");
 }
 
+export function landlordStartFromSearch(search = "") {
+  const values = new URLSearchParams(String(search || "")).getAll("start");
+  return values.length === 1 && values[0] === "booking" ? "booking" : "";
+}
+
 export function requestedWindow(date, startTime, durationMinutes, now = new Date()) {
   const start = new Date(`${date}T${startTime}`);
   const duration = Number(durationMinutes);

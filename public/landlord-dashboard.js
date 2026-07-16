@@ -1,6 +1,6 @@
 import { checklistFromTranscript } from "./checklist.js";
 import { isUkPostcode } from "./contact-validation.js";
-import { moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, tasksToLines } from "./landlord-dashboard-model.js";
+import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-3";
 import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js";
 
 const state = document.querySelector("[data-landlord-state]");
@@ -30,6 +30,7 @@ let listening = false;
 let dirty = false;
 let loading = false;
 const requestScans = new Map();
+const bookingStart = landlordStartFromSearch(location.search) === "booking";
 
 function storedCsrf() {
   try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
@@ -57,6 +58,30 @@ function showFeedback(target, message, kind = "error") {
   target.textContent = message;
   target.hidden = false;
   target.focus?.();
+}
+
+function selectWorkspaceTab(name) {
+  document.querySelectorAll("[data-landlord-tab]").forEach((button) => {
+    const active = button.dataset.landlordTab === name;
+    button.classList.toggle("current", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll("[data-landlord-panel]").forEach((panel) => { panel.hidden = panel.dataset.landlordPanel !== name; });
+}
+
+function continueBookingStart() {
+  if (!bookingStart) return;
+  if (!properties.length) {
+    selectWorkspaceTab("properties");
+    propertyForm.hidden = false;
+    propertyForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    propertyForm.querySelector("input")?.focus({ preventScroll: true });
+    return;
+  }
+  selectWorkspaceTab("requests");
+  if (properties.length === 1) propertySelect.value = properties[0].propertyId;
+  requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 }
 
 async function requestJson(path, options = {}) {
@@ -409,6 +434,7 @@ async function loadWorkspace() {
     renderBookings();
     state.hidden = true;
     workspace.hidden = false;
+    continueBookingStart();
   } catch (error) {
     if (error.statusCode === 401) showState("Sign in as a Landlord to open this workspace.", "Your properties and request drafts are private to your verified account.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 403) showState("This account cannot open the Landlord workspace.", "Use a Landlord/Property Manager account selected during onboarding.", { kind: "authentication", allowSignIn: true });
@@ -448,6 +474,12 @@ async function createProperty(event) {
     propertyForm.reset();
     propertyForm.hidden = true;
     dirty = false;
+    if (bookingStart) {
+      selectWorkspaceTab("requests");
+      propertySelect.value = result.property.propertyId;
+      requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
+      requestForm.elements.requestedDate.focus({ preventScroll: true });
+    }
   } catch (error) { showFeedback(propertyFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this property. Sign in again." : error.message); }
   finally { setPending(propertySave, false, "Save property privately"); }
 }
@@ -551,11 +583,7 @@ function configureSpeech() {
   speechStatus.textContent = "Speech is available. Your browser may use its own speech-to-text service.";
 }
 
-document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addEventListener("click", () => {
-  const name = button.dataset.landlordTab;
-  document.querySelectorAll("[data-landlord-tab]").forEach((item) => { const active = item === button; item.classList.toggle("current", active); item.setAttribute("aria-selected", String(active)); });
-  document.querySelectorAll("[data-landlord-panel]").forEach((panel) => { panel.hidden = panel.dataset.landlordPanel !== name; });
-}));
+document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addEventListener("click", () => { selectWorkspaceTab(button.dataset.landlordTab); }));
 document.querySelector("[data-open-request-tab]").addEventListener("click", () => {
   document.querySelector('[data-landlord-tab="requests"]').click();
   document.querySelector('[data-landlord-panel="requests"]').scrollIntoView({ behavior: "smooth", block: "start" });

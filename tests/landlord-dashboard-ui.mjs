@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, tasksToLines } from "../public/landlord-dashboard-model.js";
+import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, tasksToLines } from "../public/landlord-dashboard-model.js";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -18,6 +18,7 @@ const window = requestedWindow("2026-07-20", "10:00", 180, now);
 assert(Date.parse(window.requestedEndAt) - Date.parse(window.requestedStartAt) === 180 * 60_000 && throws(() => requestedWindow("2026-07-15", "10:00", 180, now), "future"), "The draft request window lost its exact duration or accepted past work.");
 assert(moneyToPence("125.50") === 12550 && moneyToPence("") === null && throws(() => moneyToPence("12.999"), "two decimal"), "Draft budget did not convert to exact integer pence or reject ambiguous decimals.");
 assert(requestStatusLabel("draft").includes("scan not submitted") && requestStatusLabel("invented") === "Status unavailable", "Request status copy can imply unsupported progress.");
+assert(landlordStartFromSearch("?start=booking") === "booking" && landlordStartFromSearch("?start=booking&start=booking") === "" && landlordStartFromSearch("?start=https%3A%2F%2Fattacker.example") === "", "The account-to-booking handoff accepted an ambiguous or arbitrary dashboard action.");
 
 const [page, script, model, styles, server, authEntry] = await Promise.all([
   readFile(new URL("../public/landlord-dashboard.html", import.meta.url), "utf8"),
@@ -36,8 +37,9 @@ assert(page.includes("Room scan is the core booking input") && page.includes("Sp
 assert(script.includes("metadata removed") && script.includes("cleanerPreviewAuthorized") && script.includes("automaticDispatch") && script.includes("attemptLimit") && script.includes("No booking exists until") && server.includes("landlordDashboardPage") && server.includes("privateMediaPage"), "Room-photo privacy, explicit Cleaner preview/dispatch consent, bounded attempts, truthful booking copy or the route-specific media policy is missing.");
 assert(script.includes("textContent") && script.includes("replaceChildren") && !script.includes("innerHTML") && script.includes("beforeunload") && script.includes("window.confirm"), "Private account records can enter unsafe HTML or forms lack unsaved/destructive-change protection.");
 assert(page.includes('name="accessInstructions"') && page.includes("kept protected") && page.includes('name="savedChecklist"') && page.includes('name="requiredServices"') && page.includes('name="budget"'), "The property or request form omits protected access, saved scope, services or budget fields.");
-assert(authEntry.includes('return "/cleaner/dashboard"') && authEntry.includes('return "/landlord/dashboard"') && authEntry.includes("openSignedInWorkspace"), "Email or social sign-in cannot hand an established account into its real role workspace.");
+assert(authEntry.includes('return "/cleaner/dashboard"') && authEntry.includes('"/landlord/dashboard?start=booking"') && authEntry.includes('return "/landlord/dashboard"') && authEntry.includes("openSignedInWorkspace"), "Email or social sign-in cannot hand an established account into its real role workspace or booking continuation.");
+assert(script.includes("landlordStartFromSearch(location.search)") && script.includes("continueBookingStart()") && script.includes('selectWorkspaceTab("properties")') && script.includes('selectWorkspaceTab("requests")') && script.includes("propertyForm.hidden = false") && script.includes("propertySelect.value = result.property.propertyId"), "A new account does not continue directly into property setup or a returning Landlord into the request form.");
 assert(styles.includes(".landlord-dashboard-page") && styles.includes(".landlord-speech-scope") && styles.includes(".landlord-request-scan-body") && styles.includes("@media (max-width: 720px)") && page.includes('aria-live="polite"'), "The Landlord room-scan workspace lacks mobile or accessible feedback styling.");
 assert(!/(Jane|Sarah|Maria|John|five-star|fully insured|background checked|DBS checked)/i.test(`${page}\n${script}\n${model}`), "The real Landlord workspace contains an invented person or unsupported trust claim.");
 
-console.log("Landlord dashboard UI tests passed: owner APIs, role handoff, exact draft scope, speech bullets, scan-first boundary, safe rendering and mobile accessibility.");
+console.log("Landlord dashboard UI tests passed: owner APIs, account-to-booking continuation, exact draft scope, speech bullets, scan-first boundary, safe rendering and mobile accessibility.");
