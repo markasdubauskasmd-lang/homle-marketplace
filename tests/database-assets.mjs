@@ -29,7 +29,7 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 18);
+  assert.equal(repositoryResult.migrations.length, 19);
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
 
   await freshFixture();
@@ -41,16 +41,16 @@ try {
   assert.ok(tampered.errors.some((error) => error.includes("must end with COMMIT")), "transaction-boundary tampering must also be visible");
 
   await freshFixture();
-  await unlink(path.join(fixtureDatabaseDirectory, "migrations", "018_verified_booking_reviews.sql"));
+  await unlink(path.join(fixtureDatabaseDirectory, "migrations", "019_expired_session_purge.sql"));
   const missing = await verifyDatabaseAssets({ databaseDirectory: fixtureDatabaseDirectory });
   assert.equal(missing.ok, false);
-  assert.ok(missing.errors.some((error) => error.includes("Missing locked migrations: 018_verified_booking_reviews.sql")));
+  assert.ok(missing.errors.some((error) => error.includes("Missing locked migrations: 019_expired_session_purge.sql")));
 
   await freshFixture();
-  await writeFile(path.join(fixtureDatabaseDirectory, "migrations", "019_unapproved.sql"), "BEGIN;\nCOMMIT;\n");
+  await writeFile(path.join(fixtureDatabaseDirectory, "migrations", "020_unapproved.sql"), "BEGIN;\nCOMMIT;\n");
   const unexpected = await verifyDatabaseAssets({ databaseDirectory: fixtureDatabaseDirectory });
   assert.equal(unexpected.ok, false);
-  assert.ok(unexpected.errors.some((error) => error.includes("Unexpected unlocked migrations: 019_unapproved.sql")));
+  assert.ok(unexpected.errors.some((error) => error.includes("Unexpected unlocked migrations: 020_unapproved.sql")));
 
   await freshFixture();
   const lockPath = path.join(fixtureDatabaseDirectory, "migration-lock.json");

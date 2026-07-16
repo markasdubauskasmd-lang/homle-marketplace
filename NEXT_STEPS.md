@@ -8,15 +8,15 @@
 
 - **P0-1, P0-2, P0-4 and P0-8 complete** in `719cc24`: room scans require their private tracker token and never return it; browser mutations fail closed without same-origin evidence; `/admin` and `/admin.html` share the same gate; `ADMIN_REQUIRE_KEY=true` closes the localhost exception; isolated HTTP regressions cover each boundary.
 - **P0-3, P0-5 and P0-6 complete** in `5cc8f99`: shipped mojibake is repaired and guarded; cloud-synchronised private data paths produce a startup privacy warning; retention remains launch-gated; private-data backups default off-project, reject common cloud-sync destinations, extract and compare every file, and state truthfully that the zip is unencrypted.
-- **P0-7 complete in launch documentation**: the Polsia and independent-local scorecards are separated, the current inventory is 126 JavaScript modules / 40 test files, and the unsupported £20 referral claim is inventoried.
-- Current full evidence: 108 syntax/encoding/database-asset commands and 35 test commands pass; real lead and scan hashes remain unchanged. The earlier verified source archive remains the tracked `5cc8f99` checkpoint: `../Tideway-independent-source-2026-07-16.zip`, 192 entries, SHA-256 `237D331367EF0B0C85AE5420B8FBDB1E405FEFE4BDDCB8ACB84CFAFDFE18E705`.
+- **P0-7 complete in launch documentation**: the Polsia and independent-local scorecards are separated, the current inventory is 129 JavaScript modules / 41 test files, and the unsupported £20 referral claim is inventoried.
+- Current full evidence: 111 syntax/encoding/database-asset commands and 36 test commands pass; real lead and scan hashes remain unchanged. The earlier verified source archive remains the tracked `5cc8f99` checkpoint: `../Tideway-independent-source-2026-07-16.zip`, 192 entries, SHA-256 `237D331367EF0B0C85AE5420B8FBDB1E405FEFE4BDDCB8ACB84CFAFDFE18E705`.
 - **Founder action still required before real intake:** configure an access-restricted off-OneDrive `DATA_DIR`, stop the server and create/store one private backup on an approved encrypted device or vault, then record the retention decisions. The agent must not move or copy live private records without that explicit location/approval.
 - **Next engineering gate:** record PostgreSQL as the production marketplace runtime while keeping the NDJSON application time-boxed to the Tier 0 concierge pilot. Do not add long-term auth or payments to the NDJSON monolith.
 - **Storage-risk visibility added after P0:** the control desk now presents a red action-required storage panel and includes off-sync storage in operating-rule readiness. The API exposes only the provider and safe/unsafe state, never the private path, and performs no relocation.
 - **Private-data relocation is now safely rehearsable:** `tools/relocate-data.ps1` defaults to a zero-write dry run, refuses project-internal/cloud-synchronised destinations, requires an explicit stopped-server confirmation plus an exact typed phrase for copying, never overwrites or deletes, and verifies every copied file plus the unchanged source by SHA-256. Synthetic regression coverage is part of the full suite. The live folder was inspected only in dry-run mode: five private files remain in OneDrive pending founder approval of the destination, backup and access controls.
 - **E3 pre-enable auth hardening complete in source:** verified social-provider email may deduplicate automatically only into an already verified social-only account. Pre-authenticated callbacks cannot attach to any password account—even a verified one—and must use a future authenticated settings/step-up flow. An attacker-pre-registered unverified account is never upgraded or linked. OAuth remains disabled and still requires real PostgreSQL integration tests before activation.
-- **PostgreSQL source activation gate added:** all 18 ordered migrations plus the runtime/worker least-privilege grant scripts are SHA-256 locked and checked for missing, unexpected, reordered, modified or transaction-boundary-damaged assets. This prevents an unreviewed SQL set from silently entering staging, but does not claim the absent real PostgreSQL execution/RLS/concurrency evidence required by E1/E2.
-- **E7 public-read limiting complete in the detached runtime:** Cleaner search and approved public reviews now require separate scopes through the trusted shared-limiter boundary already used by authentication. Bounded denials return `Retry-After`; missing client identity, malformed decisions and limiter outages fail closed with a generic 503 and private monitoring. Runtime composition now requires both the limiter and server-derived client-key resolver. Expired-session purging and real cross-instance limiter evidence remain outstanding.
+- **PostgreSQL source activation gate added:** all 19 ordered migrations plus the runtime/worker least-privilege grant scripts are SHA-256 locked and checked for missing, unexpected, reordered, modified or transaction-boundary-damaged assets. This prevents an unreviewed SQL set from silently entering staging, but does not claim the absent real PostgreSQL execution/RLS/concurrency evidence required by E1/E2.
+- **E7 source implementation complete in the detached runtime:** Cleaner search and approved public reviews require separate scopes through the trusted shared-limiter boundary already used by authentication. Bounded denials return `Retry-After`; missing client identity, malformed decisions and limiter outages fail closed with a generic 503 and private monitoring. Expired sessions are deleted in bounded concurrent-safe batches only through the restricted worker; direct runtime deletion is revoked. Real PostgreSQL execution, scheduled-worker and cross-instance limiter evidence remain outstanding.
 
 ---
 
@@ -35,7 +35,7 @@
 This repo contains **two runtimes**:
 
 1. **The live pilot** — `server.mjs` (~5,094 lines, zero dependencies) + `public/`. Native Node HTTP + append-only NDJSON files in `data/`. This is what runs today. It boots clean and `GET /api/health` returns healthy. It does **not** take payments and has **no** production login. Post-scan steps (quote/match/book) are **manual** via `/admin`.
-2. **The dormant marketplace** — `src/marketplace/*` (40 modules) + `db/migrations/001–018` (PostgreSQL, RLS, auth, bookings, matching, tracking, reviews). **It cannot run:** `server.mjs` imports only `config.mjs` from it, there are **zero npm dependencies**, and there is **no Postgres driver**. Its "DB tests" are string-matches against `.sql` text, not real queries (F2, F8).
+2. **The dormant marketplace** — `src/marketplace/*` (44 modules) + `db/migrations/001–019` (PostgreSQL, RLS, auth, bookings, matching, tracking, reviews and maintenance). **It cannot run:** `server.mjs` imports only `config.mjs` from it, there are **zero npm dependencies**, and there is **no Postgres driver**. Its database tests still inspect source contracts rather than execute real queries (F2, F8).
 
 The intended product is an Uber-style cleaning marketplace: *request → room scan → checklist → match one cleaner → both accept → confirm → track → complete.*
 
@@ -129,7 +129,7 @@ Until this is chosen, the agent should do all of **P0** (both paths need it) and
 ### P1 — Make it a real app that takes payments (bigger epics; needs the §4 decision + founder infra)
 
 **E1 — Stand up the database + wire the runtime (F2, F8). Path B, or a slimmer version for Path A.**
-- Steps: add and version-lock a maintained Postgres driver; construct a pool from `DATABASE_URL`; compose `createMarketplaceRuntime(pool)` into a real server entrypoint behind capability gates; apply `db/migrations/001–018` + `runtime-role-grants.sql` / `worker-role-grants.sql` to a provisioned database.
+- Steps: add and version-lock a maintained Postgres driver; construct a pool from `DATABASE_URL`; compose `createMarketplaceRuntime(pool)` into a real server entrypoint behind capability gates; apply `db/migrations/001–019` + `runtime-role-grants.sql` / `worker-role-grants.sql` to a provisioned database.
 - Acceptance: with infra present, `runtime` reports ready and authenticated routes respond; with infra absent, everything stays safely disabled (no partial login).
 - Validate: real integration run (E2); `npm test`.
 
@@ -156,9 +156,9 @@ Until this is chosen, the agent should do all of **P0** (both paths need it) and
 - Steps: move media to the configured object storage; load secrets from a manager, not files; set `APP_ORIGIN` to the verified HTTPS origin; keep dispatch blocked until a non-local HTTPS origin is configured (already enforced — keep it).
 - Acceptance: media served from private storage via token-authorised URLs; no secret read from disk in production.
 
-**E7 — Session purge + public rate limiting (F18).**
-- Steps: add an expired-session purge worker; rate-limit public GET endpoints in the marketplace router.
-- Acceptance: sessions table stays bounded; public GETs are throttled.
+**E7 — Session purge + public rate limiting (F18). Source complete; staging evidence pending.**
+- Steps: deploy the prepared expired-session purge worker and persistent shared limiter; verify both against PostgreSQL and two application instances.
+- Acceptance: the sessions table stays bounded under real scheduled execution; public GET throttling is shared across instances.
 
 ### P2 — Make it truly automated "Uber" (after P1 is real and proven)
 

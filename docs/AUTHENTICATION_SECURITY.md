@@ -58,6 +58,7 @@ The public capability endpoint has an additional runtime-composition gate. Valid
 - production uses the Secure `__Host-` cookie; local development uses the separate non-secure cookie name;
 - logout revokes the exact current database session before expiring the cookie, while logout-all revokes every account session;
 - privilege-changing rotation verifies that the new session belongs to the same account, revokes the old session first and fails closed if replacement creation fails.
+- expired rows are physically deleted only by `purge_expired_sessions`, a bounded `FOR UPDATE SKIP LOCKED` function executable by the separate worker role; the web role cannot delete sessions directly, and the worker receives no session-table access.
 
 The isolated authentication controller now prepares generic signup, verification resend/confirmation, password login, reset request/confirmation, exact logout, logout-all and role onboarding routes. Email links carry their opaque token in the URL fragment, not a server-visible query string. Successful login returns the token only as an HttpOnly cookie and returns separate CSRF material; password reset never silently signs the browser in.
 

@@ -72,5 +72,7 @@ REVOKE SELECT ON conversations, messages FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_realtime_events FROM tideway_app;
 REVOKE SELECT ON notifications FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON reviews FROM tideway_app;
+-- Sessions may be created/revoked through actor-bound application transactions, but only the restricted worker may physically purge expired rows.
+REVOKE DELETE ON sessions FROM tideway_app;
 
 COMMIT;
