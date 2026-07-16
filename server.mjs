@@ -25,6 +25,7 @@ import { createTrackingTestStore } from "./tracking-test-store.mjs";
 import { assessPrivateDataDirectory } from "./data-directory-safety.mjs";
 import { validateProductionDeployment } from "./deployment-readiness.mjs";
 import "./public/scope-time-breakdown.js";
+import "./public/proposal-economics.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 if (process.env.NODE_ENV === "production") {
@@ -32,6 +33,7 @@ if (process.env.NODE_ENV === "production") {
   if (!deployment.ok) throw new Error(`Production deployment preflight failed: ${deployment.errors.join(" ")}`);
 }
 const scopeTimeWorksheet = globalThis.TidewayScopeTimeBreakdown;
+const proposalEconomicsModel = globalThis.TidewayProposalEconomics;
 const publicDir = path.join(root, "public");
 const dataDir = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(root, "data");
 const dataDirectorySafety = assessPrivateDataDirectory(dataDir, { explicitlyConfigured: Boolean(process.env.DATA_DIR) });
@@ -1603,18 +1605,13 @@ function proposalCostModelCurrent(proposal, config) {
 
 function calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, additionalCosts, config) {
   const costAssumptions = costAssumptionsFromConfig(config);
-  const customerTotal = moneyValue(estimatedHours * customerRate);
-  const cleanerPay = moneyValue(estimatedHours * cleanerRate);
-  const labourOnCosts = moneyValue(cleanerPay * costAssumptions.labourOnCostPercent / 100);
-  const paymentFees = moneyValue(customerTotal * costAssumptions.paymentFeePercent / 100 + costAssumptions.paymentFeeFixed);
-  const travelCosts = moneyValue(costAssumptions.travelCostPerJob);
-  const suppliesCosts = moneyValue(costAssumptions.suppliesCostPerJob);
-  const riskContingency = moneyValue(customerTotal * costAssumptions.riskContingencyPercent / 100);
-  const otherCosts = moneyValue(additionalCosts);
-  const nonCleanerCosts = moneyValue(labourOnCosts + paymentFees + travelCosts + suppliesCosts + riskContingency + otherCosts);
-  const contribution = moneyValue(customerTotal - cleanerPay - nonCleanerCosts);
-  const marginPercent = customerTotal > 0 ? (contribution / customerTotal) * 100 : 0;
-  return { customerTotal, cleanerPay, labourOnCosts, paymentFees, travelCosts, suppliesCosts, riskContingency, otherCosts, nonCleanerCosts, contribution, marginPercent, costAssumptions };
+  return proposalEconomicsModel.calculateProposalEconomics({
+    hours: estimatedHours,
+    customerRate,
+    cleanerRate,
+    additionalCosts,
+    assumptions: costAssumptions
+  });
 }
 
 function launchEconomicsRehearsal(config) {
@@ -1652,13 +1649,22 @@ function launchEconomicsRehearsal(config) {
   }
 
   const configured = calculateProposalEconomics(minimumHours, configuredCustomerRate, cleanerHourlyPay, 0, config);
-  const fixedCosts = configured.cleanerPay
-    + configured.labourOnCosts
-    + assumptions.paymentFeeFixed
-    + assumptions.travelCostPerJob
-    + assumptions.suppliesCostPerJob;
-  const targetSafeCustomerRate = moneyValue(Math.ceil(((fixedCosts / targetFactor) / minimumHours) * 100) / 100);
-  const targetSafe = calculateProposalEconomics(minimumHours, targetSafeCustomerRate, cleanerHourlyPay, 0, config);
+  const safeRate = proposalEconomicsModel.minimumSafeCustomerRate({
+    hours: minimumHours,
+    cleanerRate: cleanerHourlyPay,
+    targetMarginPercent,
+    assumptions
+  });
+  if (!safeRate.available) {
+    return {
+      available: false,
+      costAssumptionsConfirmed: costAssumptionsConfirmed(config),
+      configuredMeetsTarget: false,
+      targetMarginPercent
+    };
+  }
+  const targetSafeCustomerRate = safeRate.customerRate;
+  const targetSafe = safeRate.economics;
   const targetRateSupported = targetSafeCustomerRate <= maxProposalHourlyRate;
   const configuredMeetsTarget = configured.contribution > 0 && configured.marginPercent >= targetMarginPercent;
   return {

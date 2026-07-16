@@ -2506,20 +2506,24 @@ function syncQuoteDefaults(config = {}) {
 
 function updateQuoteCalculator() {
   const [hours, customerRate, cleanerRate, additionalCosts] = quoteFields.map((field) => Math.max(0, Number(field.value) || 0));
-  const customerTotal = hours * customerRate;
-  const cleanerPay = hours * cleanerRate;
   const labourOnCostPercent = Math.max(0, Number(state.config.labourOnCostPercent) || 0);
   const paymentFeePercent = Math.max(0, Number(state.config.paymentFeePercent) || 0);
   const paymentFeeFixed = Math.max(0, Number(state.config.paymentFeeFixed) || 0);
   const travelCosts = Math.max(0, Number(state.config.travelCostPerJob) || 0);
   const suppliesCosts = Math.max(0, Number(state.config.suppliesCostPerJob) || 0);
   const riskContingencyPercent = Math.max(0, Number(state.config.riskContingencyPercent) || 0);
-  const labourOnCosts = cleanerPay * labourOnCostPercent / 100;
-  const paymentFees = customerTotal * paymentFeePercent / 100 + paymentFeeFixed;
-  const riskContingency = customerTotal * riskContingencyPercent / 100;
-  const includedCosts = labourOnCosts + paymentFees + travelCosts + suppliesCosts + riskContingency + additionalCosts;
-  const contribution = customerTotal - cleanerPay - includedCosts;
-  const margin = customerTotal ? (contribution / customerTotal) * 100 : 0;
+  const assumptions = { labourOnCostPercent, paymentFeePercent, paymentFeeFixed, travelCostPerJob: travelCosts, suppliesCostPerJob: suppliesCosts, riskContingencyPercent };
+  const exact = globalThis.TidewayProposalEconomics.calculateProposalEconomics({ hours, customerRate, cleanerRate, additionalCosts, assumptions });
+  const {
+    customerTotal,
+    cleanerPay,
+    labourOnCosts,
+    paymentFees,
+    riskContingency,
+    nonCleanerCosts: includedCosts,
+    contribution,
+    marginPercent: margin
+  } = exact;
   document.querySelector("#quote-total").textContent = money.format(customerTotal);
   document.querySelector("#quote-pay").textContent = money.format(cleanerPay);
   document.querySelector("#quote-contribution").textContent = money.format(contribution);
@@ -2531,11 +2535,10 @@ function updateQuoteCalculator() {
   const guidance = document.querySelector("#quote-guidance");
   const minimumMargin = Math.max(0, Number(state.config.minimumContributionMarginPercent) || 0);
   const minimumHours = Math.max(0, Number(state.config.minimumHours) || 0);
-  const variableCostRate = (paymentFeePercent + riskContingencyPercent) / 100;
-  const targetFactor = minimumMargin > 0 && minimumMargin < 100 ? 1 - variableCostRate - (minimumMargin / 100) : 0;
-  const fixedCosts = cleanerPay + labourOnCosts + additionalCosts + paymentFeeFixed + travelCosts + suppliesCosts;
-  const requiredRate = hours > 0 && targetFactor > 0 ? Math.ceil(((fixedCosts / targetFactor) / hours) * 100) / 100 : 0;
-  const requiredTotal = requiredRate * hours;
+  const safeRate = globalThis.TidewayProposalEconomics.minimumSafeCustomerRate({ hours, cleanerRate, additionalCosts, targetMarginPercent: minimumMargin, assumptions });
+  const targetFactor = safeRate.targetFactor || 0;
+  const requiredRate = safeRate.available ? safeRate.customerRate : 0;
+  const requiredTotal = safeRate.available ? safeRate.customerTotal : 0;
   document.querySelector("#quote-required-total").textContent = requiredTotal ? money.format(requiredTotal) : "Set margin floor";
   document.querySelector("#quote-required-rate").textContent = requiredRate ? `${money.format(requiredRate)}/hour` : "Set margin floor";
   guidance.className = "quote-guidance";
