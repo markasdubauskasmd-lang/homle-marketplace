@@ -15,7 +15,9 @@
 
 ## Scan-first boundary
 
-The existing `/request` flow remains Tideway's working private room-photo and spoken-note route. The account dashboard does not pretend that production media storage is ready: photo/video capture stays closed until the private object-storage, image-sanitation, retention and PostgreSQL/RLS gates pass. Once those gates are proven, the room scan should be attached to the draft before any Cleaner matching begins.
+The account dashboard now treats the room scan as the required booking handoff. A Landlord speaks or types a walkthrough, turns it into editable room-labelled tasks, saves only those concise tasks, then attaches current room photos through the private sanitation pipeline before deliberate submission. The raw walkthrough stays in the browser. Any later walkthrough, generated checklist, manual checklist or reusable-checklist change clears the review confirmation and requires the Landlord to reconcile the current scope again. Saving a new draft automatically opens its private scan and focuses the room selector.
+
+These controls remain fail-closed while the marketplace attachment is disabled. Real account capture still requires the managed PostgreSQL, private object-storage, image-sanitation, retention, RLS and HTTPS device gates below; the separate `/request` route remains the working local concierge-pilot path meanwhile.
 
 ## Activation requirements
 

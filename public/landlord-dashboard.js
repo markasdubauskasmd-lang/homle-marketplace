@@ -60,6 +60,13 @@ function showFeedback(target, message, kind = "error") {
   target.focus?.();
 }
 
+function invalidateScopeReview(message) {
+  const confirmation = requestForm.elements.scopeReviewed;
+  if (!confirmation.checked) return;
+  confirmation.checked = false;
+  showFeedback(requestFeedback, message, "info");
+}
+
 function selectWorkspaceTab(name) {
   document.querySelectorAll("[data-landlord-tab]").forEach((button) => {
     const active = button.dataset.landlordTab === name;
@@ -549,6 +556,7 @@ function useSavedChecklist() {
   const value = tasksToLines(property.savedChecklist);
   if (!value) return showFeedback(requestFeedback, "This property has no reusable checklist. Add tasks from the current room walkthrough.");
   if (requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this property's saved checklist?")) return;
+  invalidateScopeReview("The checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
   dirty = true;
   showFeedback(requestFeedback, "Saved checklist copied. Review every task against the current room scan before saving.", "success");
@@ -559,8 +567,8 @@ function summariseSpeech() {
   if (!tasks.length) return showFeedback(requestFeedback, "No cleaning tasks could be summarised. Name each room and describe the cleaning action clearly.");
   const value = tasks.join("\n");
   if (requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this new concise speech summary?")) return;
+  invalidateScopeReview("The concise checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
-  requestForm.elements.scopeReviewed.checked = false;
   dirty = true;
   showFeedback(requestFeedback, `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} prepared. Review every bullet before confirming.`, "success");
 }
@@ -587,7 +595,10 @@ function configureSpeech() {
       if (event.results[index].isFinal) finalText += `${text.trim()} `;
       else interimText += text;
     }
-    if (finalText) requestForm.elements.transcript.value = `${requestForm.elements.transcript.value.trim()} ${finalText}`.trim().slice(0, 5000);
+    if (finalText) {
+      invalidateScopeReview("The spoken walkthrough changed. Summarise again or manually reconcile every room task before confirming.");
+      requestForm.elements.transcript.value = `${requestForm.elements.transcript.value.trim()} ${finalText}`.trim().slice(0, 5000);
+    }
     speechStatus.textContent = interimText ? `Listening: ${interimText.slice(0, 160)}` : "Listening…";
     dirty = true;
   };
@@ -604,6 +615,8 @@ document.querySelector("[data-close-property-form]").addEventListener("click", (
 document.querySelector("[data-use-saved-checklist]").addEventListener("click", useSavedChecklist);
 document.querySelector("[data-summarise-speech]").addEventListener("click", summariseSpeech);
 speechButton.addEventListener("click", () => { if (!recognition) return; if (listening) recognition.stop(); else { try { recognition.start(); } catch { speechStatus.textContent = "Speech is already starting. Try again in a moment."; } } });
+requestForm.elements.transcript.addEventListener("input", () => { invalidateScopeReview("The walkthrough changed. Summarise again or manually reconcile every room task before confirming."); });
+requestForm.elements.tasks.addEventListener("input", () => { invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });
 requestForm.elements.cleaningType.addEventListener("change", () => { const checkbox = [...requestForm.querySelectorAll('[name="requiredServices"]')].find((input) => input.value === requestForm.elements.cleaningType.value); if (checkbox) checkbox.checked = true; });
 propertyForm.addEventListener("input", () => { dirty = true; });
 requestForm.addEventListener("input", () => { dirty = true; });

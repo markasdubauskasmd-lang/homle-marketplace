@@ -8,7 +8,7 @@
   <title>Landlord workspace | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260716-64">
-  <script src="/landlord-dashboard.js?v=20260716-4" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260716-5" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
@@ -85,7 +85,8 @@
             <section class="landlord-speech-scope" aria-labelledby="speech-scope-title">
               <div class="landlord-speech-heading"><div><p class="eyebrow">Speech to concise bullets</p><h3 id="speech-scope-title">Walk through each room naturally.</h3></div><button class="button button-outline" type="button" data-speech-toggle>Start speaking</button></div>
               <p data-speech-status role="status">Checking speech support…</p>
-              <label>Spoken or typed walkthrough<textarea name="transcript" rows="5" maxlength="5000" placeholder="This is the kitchen. Wipe the worktops and mop the floor. Moving into the bathroom…"></textarea></label>
+              <label>Spoken or typed walkthrough<textarea name="transcript" rows="5" maxlength="5000" aria-describedby="transcript-privacy" placeholder="This is the kitchen. Wipe the worktops and mop the floor. Moving into the bathroom…"></textarea></label>
+              <small id="transcript-privacy">The walkthrough stays in this browser; Tideway saves only the concise room tasks. Changing the walkthrough or checklist clears the review confirmation.</small>
               <button class="button button-outline" type="button" data-summarise-speech>Summarise into room tasks</button>
             </section>
 
