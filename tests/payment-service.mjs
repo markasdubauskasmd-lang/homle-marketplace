@@ -13,6 +13,7 @@ const commandIds = [
   "88888888-8888-4888-8888-888888888888",
   "99999999-9999-4999-8999-999999999999"
 ];
+const publishableKey = `pk_test_${"p".repeat(32)}`;
 const calls = [];
 let idIndex = 0;
 
@@ -74,7 +75,9 @@ const provider = {
   }
 };
 
-const service = createPaymentService(repository, provider, { createId: () => idIndex++ === 0 ? paymentId : commandIds[idIndex - 2] });
+const service = createPaymentService(repository, provider, { publishableKey, createId: () => idIndex++ === 0 ? paymentId : commandIds[idIndex - 2] });
+assert.deepEqual(service.getClientConfiguration(landlord), { publishableKey, testMode: true });
+await assert.rejects(async () => service.getClientConfiguration(cleaner), (error) => error.code === "payment-role-required");
 const paymentStatus = await service.getForBooking(landlord, bookingId);
 assert(paymentStatus.paymentId === paymentId && paymentStatus.bookingId === bookingId && paymentStatus.status === "authorized" && !Object.hasOwn(paymentStatus, "providerPaymentId") && !JSON.stringify(paymentStatus).includes("pi_test_private"), "Landlord payment status lost its booking scope or exposed the provider reference.");
 await assert.rejects(service.getForBooking(cleaner, bookingId), (error) => error.code === "payment-role-required");
@@ -105,17 +108,22 @@ await assert.rejects(service.handleWebhook(Buffer.alloc(0), "signature"), (error
 await assert.rejects(service.handleWebhook(Buffer.alloc(1024 * 1024 + 1), "signature"), (error) => error.code === "invalid-payment-webhook");
 
 const reconcilesBeforeIgnored = calls.filter((call) => call.kind === "reconcile").length;
-const ignoredService = createPaymentService(repository, { ...provider, async verifyWebhook() { return { ignored: true, eventId: "evt_unrelated_signed" }; } }, { createId: () => paymentId });
+const ignoredService = createPaymentService(repository, { ...provider, async verifyWebhook() { return { ignored: true, eventId: "evt_unrelated_signed" }; } }, { publishableKey, createId: () => paymentId });
 assert.equal((await ignoredService.handleWebhook(Buffer.from("{}"), "signed")).ignored, true);
 assert.equal(calls.filter((call) => call.kind === "reconcile").length, reconcilesBeforeIgnored, "A signed unrelated Stripe event entered payment reconciliation.");
 
 const mismatchedProvider = { ...provider, async createAuthorization(input) { return { id: "pi_bad_amount", status: "authorized", amountPence: input.amountPence - 1, currency: input.currency }; } };
-const mismatchService = createPaymentService(repository, mismatchedProvider, { createId: () => paymentId });
+const mismatchService = createPaymentService(repository, mismatchedProvider, { publishableKey, createId: () => paymentId });
 await assert.rejects(mismatchService.beginAuthorization(landlord, { bookingId, idempotencyKey: "mismatch_retry_key_123456789012345" }), /invalid authorization result/i);
 
 const retryRepository = { ...repository, async beginAuthorization() { return { paymentId, bookingId, status: "requires-customer-action", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, providerPaymentId: "pi_test_private" }; } };
-const retryService = createPaymentService(retryRepository, provider, { createId: () => paymentId });
+const retryService = createPaymentService(retryRepository, provider, { publishableKey, createId: () => paymentId });
 const resumed = await retryService.beginAuthorization(landlord, { bookingId, idempotencyKey: "resume_retry_key_123456789012345678" });
 assert(resumed.clientSecret === "pi_secret_private" && calls.some((call) => call.kind === "provider-retrieve-authorization"), "An interrupted customer-action authorization could not be resumed safely from the provider.");
 
-console.log("Payment service tests passed: server-frozen authorization, role-bound capture/cancel/refund/transfer, private idempotency, server-owned payout destination and verified webhook reconciliation.");
+const failedRetryRepository = { ...repository, async beginAuthorization() { return { paymentId, bookingId, status: "authorization-failed", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, providerPaymentId: "pi_test_private" }; } };
+const failedRetryService = createPaymentService(failedRetryRepository, provider, { publishableKey, createId: () => paymentId });
+const failedRetry = await failedRetryService.beginAuthorization(landlord, { bookingId, idempotencyKey: "failed_retry_key_123456789012345678" });
+assert(failedRetry.status === "requires-customer-action" && failedRetry.clientSecret === "pi_secret_private", "A failed authorization could not reopen the same provider payment safely.");
+
+console.log("Payment service tests passed: server-frozen and resumable authorization, role-bound capture/cancel/refund/transfer, private idempotency, server-owned payout destination and verified webhook reconciliation.");

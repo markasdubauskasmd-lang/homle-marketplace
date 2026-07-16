@@ -1,0 +1,3 @@
+db/migrations/*.sql text eol=lf
+db/*-role-grants.sql text eol=lf
+db/migration-lock.json text eol=lf

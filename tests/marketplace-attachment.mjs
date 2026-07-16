@@ -142,7 +142,7 @@ assert.equal(ended, 1);
 
 let paymentAdapterVerified = 0;
 let paymentProviderConfiguration;
-const paymentEnvironment = Object.freeze({ ...completeEnvironment, PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` });
+const paymentEnvironment = Object.freeze({ ...completeEnvironment, PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_PUBLISHABLE_KEY: `pk_test_${"c".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` });
 const paymentAttachment = await createMarketplaceAttachment({
   env: paymentEnvironment,
   adapters,

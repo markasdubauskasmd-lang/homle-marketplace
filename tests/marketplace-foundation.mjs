@@ -51,10 +51,12 @@ assert(!invalidFacebookVersion.ok && invalidFacebookVersion.errors.some((error) 
 assert(publicAuthenticationCapabilities({ GOOGLE_CLIENT_ID: "client", GOOGLE_CLIENT_SECRET: "secret" }).google === false, "OAuth client credentials enabled a provider without the database, session and exact-origin boundary.");
 const partialStripe = validateMarketplaceEnvironment({ STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}` });
 assert(!partialStripe.ok && partialStripe.errors.some((error) => error.includes("STRIPE_WEBHOOK_SECRET")), "Partial Stripe configuration did not fail closed.");
-const liveStripe = validateMarketplaceEnvironment({ PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_live_${"a".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` });
+const liveStripe = validateMarketplaceEnvironment({ PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_live_${"a".repeat(32)}`, STRIPE_PUBLISHABLE_KEY: `pk_test_${"c".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` });
 assert(!liveStripe.ok && liveStripe.errors.some((error) => error.includes("live keys are prohibited")), "The reviewed test-only payment adapter accepted a live key.");
+const livePublishableStripe = validateMarketplaceEnvironment({ PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_PUBLISHABLE_KEY: `pk_live_${"c".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` });
+assert(!livePublishableStripe.ok && livePublishableStripe.errors.some((error) => error.includes("STRIPE_PUBLISHABLE_KEY") && error.includes("live keys are prohibited")), "The reviewed test checkout accepted a live publishable key.");
 assert(!validateMarketplaceEnvironment({ PAYMENTS_ENABLED: "sometimes" }).ok, "An ambiguous payment feature switch was accepted.");
-const stagedStripe = marketplaceEnvironment({ PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` });
+const stagedStripe = marketplaceEnvironment({ PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_PUBLISHABLE_KEY: `pk_test_${"c".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}` });
 assert(stagedStripe.payments.requested && stagedStripe.payments.stripeConfigured && !JSON.stringify(stagedStripe).includes("sk_test_"), "Test payment readiness was not represented safely or exposed its secret.");
 const weakSession = validateMarketplaceEnvironment({ SESSION_SECRET: "too-short" });
 assert(!weakSession.ok && weakSession.errors.some((error) => error.includes("32 characters")), "A weak session secret passed validation.");

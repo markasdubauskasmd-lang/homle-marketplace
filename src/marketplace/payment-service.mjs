@@ -111,6 +111,8 @@ export function createPaymentService(repository, provider, options = {}) {
   const requiredProvider = ["createAuthorization", "retrieveAuthorization", "capture", "cancel", "refund", "transfer", "verifyWebhook"];
   if (!repository || requiredRepository.some((method) => typeof repository[method] !== "function")) throw new TypeError("A complete payment repository is required.");
   if (!provider || provider.name !== "stripe" || requiredProvider.some((method) => typeof provider[method] !== "function")) throw new TypeError("A complete Stripe payment adapter is required.");
+  const publishableKey = String(options.publishableKey || "").trim();
+  if (!/^pk_test_[A-Za-z0-9_]{16,200}$/.test(publishableKey)) throw new TypeError("A Stripe test publishable key is required for the payment client.");
   const createId = typeof options.createId === "function" ? options.createId : randomUUID;
 
   async function beginAuthorization(actor, input) {
@@ -120,7 +122,7 @@ export function createPaymentService(repository, provider, options = {}) {
     const paymentId = uuid(createId(), "generated payment id");
     const prepared = await repository.beginAuthorization(actor, { paymentId, bookingId, provider: "stripe", idempotencyKeyHash });
     if (prepared.providerPaymentId) {
-      if (!["requires-customer-action", "processing"].includes(prepared.status)) return publicPayment(prepared);
+      if (!["requires-customer-action", "authorization-failed", "processing"].includes(prepared.status)) return publicPayment(prepared);
       const refreshed = providerAuthorization(await provider.retrieveAuthorization({ providerPaymentId: prepared.providerPaymentId }), prepared);
       if (refreshed.providerPaymentId !== prepared.providerPaymentId) throw new TypeError("The payment provider returned the wrong authorization.");
       return publicPayment(await repository.recordAuthorization(actor, prepared.paymentId, refreshed), refreshed.clientSecret);
@@ -169,6 +171,10 @@ export function createPaymentService(repository, provider, options = {}) {
   }
 
   return Object.freeze({
+    getClientConfiguration(actor) {
+      requireRole(actor, "landlord");
+      return Object.freeze({ publishableKey, testMode: true });
+    },
     async getForBooking(actor, bookingId) {
       requireRole(actor, "landlord", "administrator");
       const record = await repository.getByBooking(actor, uuid(bookingId, "booking id"));

@@ -40,12 +40,12 @@ assert.deepEqual(authorizationCall.input, {
   amount: 12_000,
   currency: "gbp",
   capture_method: "manual",
-  automatic_payment_methods: { enabled: true },
+  payment_method_types: ["card"],
   transfer_group: `tideway_booking_${bookingId}`,
   metadata: { tideway_payment_id: paymentId, tideway_booking_id: bookingId }
 });
 assert.equal(authorizationCall.options.idempotencyKey, `tideway_payment_${paymentId}`);
-assert(!JSON.stringify(authorizationCall).includes("email") && !JSON.stringify(authorizationCall).includes("card"));
+assert(!JSON.stringify(authorizationCall).includes("email") && !Object.hasOwn(authorizationCall.input, "payment_method") && !Object.hasOwn(authorizationCall.input, "payment_method_data"), "Authorization included customer identity or browser-collected card details.");
 
 const resumed = await provider.retrieveAuthorization({ providerPaymentId: "pi_test_authorization" });
 assert.equal(resumed.status, "requires-customer-action");

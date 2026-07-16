@@ -116,6 +116,7 @@ const reviewService = {
   async moderateReview(actor, reviewId, input) { calls.push({ kind: "review-moderate", actor, reviewId, input }); return { reviewId, bookingId: "55555555-5555-4555-8555-555555555555", cleanerId: "22222222-2222-4222-8222-222222222222", rating: 5, moderationStatus: input.decision, createdAt: "2026-07-15T19:00:00.000Z" }; }
 };
 const paymentService = {
+  getClientConfiguration(actor) { calls.push({ kind: "payment-config", actor }); return { publishableKey: `pk_test_${"p".repeat(32)}`, testMode: true }; },
   async getForBooking(actor, bookingId) {
     calls.push({ kind: "payment-get", actor, bookingId });
     return { paymentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId, status: "authorized", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: false, clientSecret: null };
@@ -166,6 +167,10 @@ const absentWebhookResponse = response();
 assert(await noPaymentRouter.handle(request("POST", "/api/marketplace/payments/webhook", { body: Buffer.from("{}") }), absentWebhookResponse, new URL("http://127.0.0.1:4173/api/marketplace/payments/webhook")) === false && absentWebhookResponse.statusCode === null, "Disabled payments exposed a webhook route.");
 
 const bookingPaymentUrl = "/api/marketplace/bookings/55555555-5555-4555-8555-555555555555/payment";
+const paymentConfiguration = await dispatch(router, "GET", "/api/marketplace/payments/config", { headers: { cookie: authHeaders.cookie } });
+assert(paymentConfiguration.response.statusCode === 200 && paymentConfiguration.body.payment.publishableKey.startsWith("pk_test_") && paymentConfiguration.body.payment.testMode === true && calls.at(-1).kind === "payment-config", "Authenticated test checkout could not obtain its bounded publishable configuration.");
+const unauthenticatedPaymentConfiguration = await dispatch(router, "GET", "/api/marketplace/payments/config");
+assert(unauthenticatedPaymentConfiguration.response.statusCode === 401, "Payment client configuration was exposed without an authenticated Landlord session.");
 const unauthenticatedPayment = await dispatch(router, "GET", bookingPaymentUrl);
 assert(unauthenticatedPayment.response.statusCode === 401, "Payment status was visible without an authenticated account.");
 const missingPaymentCsrf = await dispatch(router, "POST", bookingPaymentUrl, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { idempotencyKey: "authorize_booking_payment_123456789012" } });

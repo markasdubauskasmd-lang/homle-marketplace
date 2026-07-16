@@ -304,6 +304,11 @@ try {
   const cleanerEditorText = await cleanerEditorPage.text();
   const landlordDashboardText = await landlordDashboardPage.text();
   assert(cleanerDirectoryPage.ok && cleanerEditorPage.ok && landlordDashboardPage.ok && homeText.includes('href="/cleaners">Find a Cleaner</a>') && cleanerDirectoryText.includes("Find the right Cleaner for the job") && cleanerDirectoryText.includes("data-directory-state") && cleanerEditorText.includes("Build a profile landlords can trust") && cleanerEditorText.includes("data-cleaner-profile-form hidden") && cleanerEditorText.includes("data-profile-controls disabled") && landlordDashboardText.includes("Checking secure Landlord access") && landlordDashboardText.includes("data-landlord-workspace hidden") && landlordDashboardText.includes("Save private draft"), "The real Cleaner/Landlord routes, homepage entry point or fail-closed private controls are not served by the pilot runtime.");
+  const paymentPage = await fetch(`${base}/booking-payment?bookingId=55555555-5555-4555-8555-555555555555`);
+  const paymentPageText = await paymentPage.text();
+  const paymentPageScript = await fetch(`${base}/booking-payment.js?v=smoke-test`);
+  const paymentPageScriptText = await paymentPageScript.text();
+  assert(paymentPage.ok && paymentPageText.includes("Test mode only") && paymentPageText.includes("data-payment-card hidden") && !paymentPageText.includes("js.stripe.com") && paymentPage.headers.get("content-security-policy")?.includes("https://js.stripe.com") && paymentPage.headers.get("cache-control") === "no-store" && paymentPageScript.ok && paymentPageScriptText.includes('requestJson("/api/marketplace/account")') && paymentPageScriptText.includes('document.createElement("script")'), "The test checkout route, fail-closed controls, dynamic Stripe boundary or private response policy is missing.");
   const authProviders = await fetch(`${base}/api/auth/providers`);
   const authProvidersBody = await authProviders.json();
   const serialisedAuthProviders = JSON.stringify(authProvidersBody);

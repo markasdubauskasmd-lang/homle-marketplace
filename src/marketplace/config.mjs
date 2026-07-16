@@ -3,7 +3,7 @@ const providerRequirements = Object.freeze({
   apple: ["APPLE_CLIENT_ID", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY"],
   facebook: ["FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET", "FACEBOOK_GRAPH_API_VERSION"]
 });
-const paymentRequirements = Object.freeze(["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
+const paymentRequirements = Object.freeze(["STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY", "STRIPE_WEBHOOK_SECRET"]);
 
 function present(env, key) {
   return typeof env[key] === "string" && env[key].trim().length > 0;
@@ -70,6 +70,7 @@ export function validateMarketplaceEnvironment(env = process.env) {
   if (state.payments.partial) errors.push(`Stripe payments are partially configured; missing ${state.payments.missing.join(", ")}.`);
   if (state.payments.requested && !state.payments.stripeConfigured) errors.push(`PAYMENTS_ENABLED requires ${state.payments.missing.join(", ")}.`);
   if (present(env, "STRIPE_SECRET_KEY") && !/^sk_test_[A-Za-z0-9_]{16,200}$/.test(env.STRIPE_SECRET_KEY.trim())) errors.push("STRIPE_SECRET_KEY must be a Stripe test secret key; live keys are prohibited by this adapter.");
+  if (present(env, "STRIPE_PUBLISHABLE_KEY") && !/^pk_test_[A-Za-z0-9_]{16,200}$/.test(env.STRIPE_PUBLISHABLE_KEY.trim())) errors.push("STRIPE_PUBLISHABLE_KEY must be a Stripe test publishable key; live keys are prohibited by this checkout.");
   if (present(env, "STRIPE_WEBHOOK_SECRET") && !/^whsec_[A-Za-z0-9_]{16,200}$/.test(env.STRIPE_WEBHOOK_SECRET.trim())) errors.push("STRIPE_WEBHOOK_SECRET must be a valid Stripe webhook signing secret.");
   if (present(env, "DATABASE_URL") && !/^postgres(?:ql)?:\/\//i.test(env.DATABASE_URL.trim())) errors.push("DATABASE_URL must use PostgreSQL.");
   if (present(env, "SESSION_SECRET") && !state.sessionConfigured) errors.push("SESSION_SECRET must contain at least 32 characters.");

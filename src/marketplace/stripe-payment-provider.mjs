@@ -150,7 +150,7 @@ export async function createStripePaymentProvider(configuration = {}, options = 
         amount: selected.amountPence,
         currency: "gbp",
         capture_method: "manual",
-        automatic_payment_methods: { enabled: true },
+        payment_method_types: ["card"],
         transfer_group: selected.transferGroup,
         metadata: metadata(selected)
       }, { idempotencyKey: selected.idempotencyKey });

@@ -158,11 +158,16 @@ const mimeTypes = {
 };
 
 function setSecurityHeaders(response, requestPath = "") {
-  response.setHeader("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+  const paymentPage = requestPath === "/booking-payment";
+  response.setHeader("Content-Security-Policy", paymentPage
+    ? "default-src 'self'; img-src 'self' data: blob: https://*.stripe.com; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://r.stripe.com https://m.stripe.network; frame-src https://js.stripe.com https://hooks.stripe.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    : "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
   response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Frame-Options", "DENY");
-  response.setHeader("Permissions-Policy", requestPath === "/brief"
+  response.setHeader("Permissions-Policy", requestPath === "/booking-payment"
+    ? "camera=(), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\" \"https://hooks.stripe.com\")"
+    : requestPath === "/brief"
     ? "camera=(self), microphone=(self), geolocation=()"
     : requestPath === "/tracking-test"
       ? "camera=(), microphone=(), geolocation=(self)"
@@ -5090,6 +5095,7 @@ async function serveFile(requestPath, response) {
     "/cleaners": "cleaners.html",
     "/cleaner/profile": "cleaner-profile.html",
     "/landlord/dashboard": "landlord-dashboard.html",
+    "/booking-payment": "booking-payment.html",
     "/marketplace-preview": "marketplace-preview.html",
     "/tracking-test": "tracking-test.html",
     "/brief": "brief.html",

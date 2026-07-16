@@ -74,7 +74,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!realtime || typeof realtime.openStream !== "function") throw new TypeError("Marketplace HTTP routes require the booking real-time service.");
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
-  if (payments && !["handleWebhook", "beginAuthorization", "getForBooking"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
+  if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
   const limitPublicRead = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
 
@@ -91,6 +91,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
           const result = await payments.handleWebhook(await readRawBody(request), signature);
           sendJson(response, 200, { ok: true, accepted: result?.accepted === true, duplicate: result?.duplicate === true, ignored: result?.ignored === true });
+          return true;
+        }
+        if (pathname === "/api/marketplace/payments/config") {
+          if (!payments) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["landlord"] });
+          sendJson(response, 200, { ok: true, payment: payments.getClientConfiguration(context.actor) });
           return true;
         }
         const selectedBookingPayment = pathname.match(bookingPaymentPath);

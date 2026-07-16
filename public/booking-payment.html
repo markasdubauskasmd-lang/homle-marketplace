@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#0e665b">
+  <title>Secure booking payment | Tideway</title>
+  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260716-59">
+  <script src="/booking-payment.js?v=20260716-1" type="module"></script>
+</head>
+<body class="booking-payment-page">
+  <a class="skip-link" href="#payment-main">Skip to booking payment</a>
+  <header class="site-header"><div class="shell nav-wrap"><a class="brand" href="/" aria-label="Tideway home"><img src="/logo.svg" alt="" width="40" height="40"><span>Tideway</span></a><nav class="directory-nav" aria-label="Payment navigation"><a href="/landlord/dashboard">Landlord workspace</a><a href="/login">Account access</a></nav></div></header>
+
+  <main id="payment-main" class="booking-payment-main shell">
+    <section class="booking-payment-intro">
+      <div><p class="eyebrow">Protected booking step</p><h1>Authorize the agreed cleaning total.</h1><p>Payment details stay inside Stripe's secure element. Tideway receives a payment status, never your full card number or security code.</p></div>
+      <span class="booking-payment-mode">Test mode only</span>
+    </section>
+
+    <section class="booking-payment-state" data-payment-state data-kind="checking" role="status" aria-live="polite">
+      <span aria-hidden="true">i</span><div><strong data-payment-state-title>Checking secure payment access…</strong><p data-payment-state-copy>This page opens only for the authenticated Landlord on the selected booking.</p><div class="booking-payment-state-actions"><a class="button" href="/login" data-payment-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-payment-retry hidden>Try again</button></div></div>
+    </section>
+
+    <section class="booking-payment-card" data-payment-card hidden aria-labelledby="payment-card-title">
+      <div class="booking-payment-summary">
+        <div><p class="eyebrow">Booking total</p><h2 id="payment-card-title" data-payment-amount>Amount unavailable</h2><p data-payment-reference></p></div>
+        <div class="booking-payment-status"><span>Status</span><strong data-payment-status>Not started</strong></div>
+      </div>
+
+      <div class="booking-payment-message" data-payment-message role="status" aria-live="polite"><strong data-payment-message-title></strong><p data-payment-message-copy></p></div>
+      <button class="button booking-payment-prepare" type="button" data-payment-prepare hidden>Prepare secure payment</button>
+
+      <form class="booking-payment-form" data-payment-form hidden novalidate>
+        <div class="booking-payment-element" data-payment-element aria-label="Secure payment details"></div>
+        <div class="booking-payment-feedback" data-payment-feedback role="alert" hidden></div>
+        <button class="button" type="submit" data-payment-submit>Authorize booking total</button>
+        <p class="booking-payment-boundary"><strong>This places a temporary authorization only.</strong> Tideway's reviewed workflow permits capture only after the cleaning is completed. This source checkout accepts test keys only and stays unavailable unless the protected test runtime is ready.</p>
+      </form>
+
+      <div class="booking-payment-trust"><div><strong>Server-frozen amount</strong><span>The browser cannot change the accepted booking total.</span></div><div><strong>No card storage</strong><span>Sensitive payment fields are sent directly to Stripe.</span></div><div><strong>Signed status</strong><span>Tideway trusts the verified server webhook, not this browser.</span></div></div>
+    </section>
+  </main>
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Tideway.</span><a href="/privacy">Privacy notice</a></div></footer>
+</body>
+</html>

@@ -24,7 +24,8 @@
     { "order": 20, "file": "020_shared_rate_limits.sql", "sha256": "85ffc3e6006bf8d658b56ff499e57e87bd3109cabc9b56ae0a432c4ec66de24b" },
     { "order": 21, "file": "021_facebook_pending_identity.sql", "sha256": "cb5f272afa0323a08f5050361441c654745267e7bbf4047a26228dd010439aba" },
     { "order": 22, "file": "022_marketplace_payment_ledger.sql", "sha256": "28e195cad1090a1dcfe5772ab3169295ecc7f93486f9117732f7ffdab18cb444" },
-    { "order": 23, "file": "023_landlord_payment_status.sql", "sha256": "38c9c9fd5bd2b1fddf57878db19aa155223947a17eefbdbad456fd2d641110b8" }
+    { "order": 23, "file": "023_landlord_payment_status.sql", "sha256": "38c9c9fd5bd2b1fddf57878db19aa155223947a17eefbdbad456fd2d641110b8" },
+    { "order": 24, "file": "024_resumable_booking_payment_authorization.sql", "sha256": "de744662798314d6728c043e880d64857bea2ba2a83e30b595f0db5663dafb5f" }
   ],
   "grantFiles": [
     { "file": "runtime-role-grants.sql", "sha256": "5207d9d099d6cf1f4c0c10cca44ad41ccc767337a6551cf96d1ff4cc6cf08ede" },
