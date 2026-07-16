@@ -3,6 +3,9 @@ import { createHmac } from "node:crypto";
 const supportedScopes = Object.freeze([
   "google-start",
   "google-callback",
+  "facebook-start",
+  "facebook-callback",
+  "facebook-verification-confirm",
   "signup",
   "verification-resend",
   "verification-confirm",

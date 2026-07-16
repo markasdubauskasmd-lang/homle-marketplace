@@ -27,7 +27,10 @@ DECLARE
     'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.start_cleaner_journey(uuid,boolean,numeric,numeric,numeric,timestamp with time zone)',
     'tideway_private.submit_booking_review(uuid,uuid,smallint,smallint,smallint,smallint,smallint,text)',
-    'tideway_private.consume_rate_limit(text,bytea)'
+    'tideway_private.consume_rate_limit(text,bytea)',
+    'tideway_private.lookup_existing_social_identity(authentication_provider,text)',
+    'tideway_private.begin_pending_social_identity(authentication_provider,text,citext,text,text,jsonb,bytea,timestamp with time zone)',
+    'tideway_private.consume_pending_social_identity(bytea)'
   ];
   worker_functions constant text[] := ARRAY[
     'tideway_private.expire_due_cleaner_invitations(integer)',
@@ -36,7 +39,8 @@ DECLARE
     'tideway_private.claim_due_email_notifications(uuid,integer,integer)',
     'tideway_private.complete_email_notification(uuid,uuid,text,text)',
     'tideway_private.purge_expired_sessions(integer)',
-    'tideway_private.purge_expired_rate_limits(integer)'
+    'tideway_private.purge_expired_rate_limits(integer)',
+    'tideway_private.purge_expired_pending_social_identities(integer)'
   ];
 BEGIN
   IF current_setting('server_version_num')::integer < 160000 THEN
@@ -77,6 +81,9 @@ BEGIN
   IF to_regclass('public.sessions_expiry_purge_idx') IS NULL THEN RAISE EXCEPTION 'Expired-session purge index is missing'; END IF;
   IF to_regclass('tideway_private.request_rate_limits') IS NULL OR to_regclass('tideway_private.request_rate_limits_updated_idx') IS NULL THEN
     RAISE EXCEPTION 'Shared rate-limit storage or expiry index is missing';
+  END IF;
+  IF to_regclass('tideway_private.pending_social_identities') IS NULL OR to_regclass('tideway_private.pending_social_identity_retention_idx') IS NULL THEN
+    RAISE EXCEPTION 'Pending social-identity storage or retention index is missing';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.bookings'::regclass AND conname = 'bookings_no_cleaner_overlap' AND contype = 'x') THEN
     RAISE EXCEPTION 'Cleaner overlap exclusion constraint is missing';
@@ -130,6 +137,16 @@ BEGIN
      OR has_table_privilege('tideway_worker', 'tideway_private.request_rate_limits', 'UPDATE')
      OR has_table_privilege('tideway_worker', 'tideway_private.request_rate_limits', 'DELETE') THEN
     RAISE EXCEPTION 'Restricted roles have direct access to private rate-limit keys';
+  END IF;
+  IF has_table_privilege('tideway_app', 'tideway_private.pending_social_identities', 'SELECT')
+     OR has_table_privilege('tideway_app', 'tideway_private.pending_social_identities', 'INSERT')
+     OR has_table_privilege('tideway_app', 'tideway_private.pending_social_identities', 'UPDATE')
+     OR has_table_privilege('tideway_app', 'tideway_private.pending_social_identities', 'DELETE')
+     OR has_table_privilege('tideway_worker', 'tideway_private.pending_social_identities', 'SELECT')
+     OR has_table_privilege('tideway_worker', 'tideway_private.pending_social_identities', 'INSERT')
+     OR has_table_privilege('tideway_worker', 'tideway_private.pending_social_identities', 'UPDATE')
+     OR has_table_privilege('tideway_worker', 'tideway_private.pending_social_identities', 'DELETE') THEN
+    RAISE EXCEPTION 'Restricted roles have direct access to pending social identity material';
   END IF;
   IF EXISTS (
     SELECT 1 FROM pg_class relation

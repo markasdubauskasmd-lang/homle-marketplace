@@ -44,6 +44,10 @@ const emptyEnvironment = marketplaceEnvironment({});
 assert(!emptyEnvironment.databaseConfigured && !emptyEnvironment.capabilities.google && !emptyEnvironment.capabilities.emailPassword, "Unconfigured authentication appeared enabled.");
 const partialGoogle = validateMarketplaceEnvironment({ GOOGLE_CLIENT_ID: "client-only" });
 assert(!partialGoogle.ok && partialGoogle.errors.some((error) => error.includes("GOOGLE_CLIENT_SECRET")), "Partial Google OAuth configuration did not fail closed.");
+const partialFacebook = validateMarketplaceEnvironment({ FACEBOOK_APP_ID: "app", FACEBOOK_APP_SECRET: "secret" });
+assert(!partialFacebook.ok && partialFacebook.errors.some((error) => error.includes("FACEBOOK_GRAPH_API_VERSION")), "Facebook configuration passed without an explicit Graph API version.");
+const invalidFacebookVersion = validateMarketplaceEnvironment({ FACEBOOK_APP_ID: "app", FACEBOOK_APP_SECRET: "secret", FACEBOOK_GRAPH_API_VERSION: "latest" });
+assert(!invalidFacebookVersion.ok && invalidFacebookVersion.errors.some((error) => error.includes("vN.N")), "Facebook configuration accepted a floating Graph API version.");
 assert(publicAuthenticationCapabilities({ GOOGLE_CLIENT_ID: "client", GOOGLE_CLIENT_SECRET: "secret" }).google === false, "OAuth client credentials enabled a provider without the database, session and exact-origin boundary.");
 const weakSession = validateMarketplaceEnvironment({ SESSION_SECRET: "too-short" });
 assert(!weakSession.ok && weakSession.errors.some((error) => error.includes("32 characters")), "A weak session secret passed validation.");
@@ -118,7 +122,7 @@ assert(postgresPoolOptions({}) === null && postgresPoolOptions({ DATABASE_URL: "
 const repositoryCalls = [];
 const repositoryDatabase = {
   async withAuthenticationTransaction(operation) {
-    return operation({ async query(text, values) { repositoryCalls.push({ kind: "authentication", text, values }); return { rows: [{ user_id: "account-id" }] }; } });
+    return operation({ async query(text, values) { repositoryCalls.push({ kind: "authentication", text, values }); return { rows: [{ user_id: "account-id", ...(text.includes("begin_pending_social_identity") ? { state: "pending" } : {}) }] }; } });
   },
   async withAccountTransaction(actor, operation) {
     return operation({ async query(text, values) { repositoryCalls.push({ kind: "user", actor, text, values }); return { rows: [{ id: "session-id" }], rowCount: 1 }; } });
@@ -132,6 +136,9 @@ await authenticationRepository.recordPasswordAttempt("77777777-7777-4777-8777-77
 await authenticationRepository.issuePasswordReset("landlord@example.com", sessionMaterial.tokenHash, "2026-07-15T13:00:00.000Z");
 await authenticationRepository.consumePasswordReset(sessionMaterial.tokenHash, passwordHash);
 await authenticationRepository.resolveSocialIdentity("google", { subject: "provider-subject", email: "landlord@example.com", emailVerified: true, displayName: "Landlord", avatarUrl: "https://images.example.com/landlord.jpg", profile: { locale: "en-GB" } });
+await authenticationRepository.findExistingSocialIdentity("facebook", "facebook-subject");
+await authenticationRepository.beginPendingSocialIdentity({ provider: "facebook", subject: "facebook-subject", email: "landlord@example.com", displayName: "Landlord", avatarUrl: "https://images.example.com/landlord.jpg", profile: {}, verificationHash: sessionMaterial.tokenHash, expiresAt: "2026-07-15T13:00:00.000Z" });
+await authenticationRepository.consumePendingSocialIdentity(sessionMaterial.tokenHash);
 await authenticationRepository.completeRoleOnboarding({ userId: "44444444-4444-4444-8444-444444444444", roles: [] }, "landlord");
 await authenticationRepository.findPasswordAccount(" Landlord@Example.COM ");
 await authenticationRepository.findSession(sessionMaterial.tokenHash);
@@ -140,8 +147,8 @@ const repositoryActor = { userId: "44444444-4444-4444-8444-444444444444", roles:
 await authenticationRepository.createSession(repositoryActor, sessionMaterial);
 await authenticationRepository.revokeSession(repositoryActor, "55555555-5555-4555-8555-555555555555");
 await authenticationRepository.revokeAllSessions(repositoryActor);
-const authenticationFunctionCalls = ["register_password_account", "consume_email_verification", "record_password_attempt", "issue_password_reset", "consume_password_reset", "resolve_social_identity"];
-assert(repositoryCalls.length === 13 && repositoryCalls.slice(0, 6).every((call) => call.kind === "authentication") && authenticationFunctionCalls.every((name, index) => repositoryCalls[index].text.includes(name)) && repositoryCalls[6].kind === "user" && repositoryCalls[6].text.includes("complete_role_onboarding") && repositoryCalls.slice(7, 10).every((call) => call.kind === "authentication") && repositoryCalls.slice(10).every((call) => call.kind === "user") && repositoryCalls[5].values[0] === "google" && repositoryCalls[7].values[0] === "landlord@example.com" && repositoryCalls.every((call) => call.text.includes("$1")), "Authentication repository bypassed its pre-authenticated/authenticated boundaries or used non-parameterized calls.");
+const authenticationFunctionCalls = ["register_password_account", "consume_email_verification", "record_password_attempt", "issue_password_reset", "consume_password_reset", "resolve_social_identity", "lookup_existing_social_identity", "begin_pending_social_identity", "consume_pending_social_identity"];
+assert(repositoryCalls.length === 16 && repositoryCalls.slice(0, 9).every((call) => call.kind === "authentication") && authenticationFunctionCalls.every((name, index) => repositoryCalls[index].text.includes(name)) && repositoryCalls[9].kind === "user" && repositoryCalls[9].text.includes("complete_role_onboarding") && repositoryCalls.slice(10, 13).every((call) => call.kind === "authentication") && repositoryCalls.slice(13).every((call) => call.kind === "user") && repositoryCalls[5].values[0] === "google" && repositoryCalls[10].values[0] === "landlord@example.com" && repositoryCalls.every((call) => call.text.includes("$1")), "Authentication repository bypassed its pre-authenticated/authenticated boundaries or used non-parameterized calls.");
 
 const schemaSql = await readFile(new URL("../db/migrations/001_marketplace_schema.sql", import.meta.url), "utf8");
 const rlsSql = await readFile(new URL("../db/migrations/002_marketplace_row_level_security.sql", import.meta.url), "utf8");
@@ -157,6 +164,6 @@ assert(schemaSql.includes("booking_id uuid NOT NULL UNIQUE REFERENCES bookings")
 assert(schemaSql.includes("booking_id uuid PRIMARY KEY REFERENCES bookings") && schemaSql.includes("expires_at timestamptz NOT NULL"), "Current-only expiring cleaner location storage is missing.");
 assert(rlsSql.includes("ALTER TABLE cleaner_locations ENABLE ROW LEVEL SECURITY") && rlsSql.includes("ALTER TABLE password_credentials ENABLE ROW LEVEL SECURITY") && rlsSql.includes("ALTER TABLE email_verification_tokens ENABLE ROW LEVEL SECURITY") && rlsSql.includes("ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY") && rlsSql.includes("location_assigned_cleaner_write") && rlsSql.includes("booking_participant") && rlsSql.includes("completed_booking_landlord_reviews"), "Row-level credential, booking, location or review authorization policies are missing.");
 assert(authSql.includes("SECURITY DEFINER SET search_path = public, pg_temp") && authSql.includes("lookup_password_account") && authSql.includes("lookup_session") && authSql.includes("lookup_verified_email") && (authSql.match(/REVOKE ALL ON FUNCTION/g) || []).length === 3 && authSql.includes("GRANT EXECUTE ON FUNCTION"), "Authentication lookup functions are missing, publicly executable or lack an explicit restricted-role grant path.");
-assert(runtimeGrantsSql.includes("rolbypassrls") && runtimeGrantsSql.includes("rolsuper") && runtimeGrantsSql.includes("GRANT USAGE ON SCHEMA public, tideway_private TO tideway_app") && (runtimeGrantsSql.match(/GRANT EXECUTE ON FUNCTION tideway_private\.lookup_/g) || []).length === 3, "The runtime database role can bypass row-level security or lacks its explicit authentication-function grants.");
+assert(runtimeGrantsSql.includes("rolbypassrls") && runtimeGrantsSql.includes("rolsuper") && runtimeGrantsSql.includes("GRANT USAGE ON SCHEMA public, tideway_private TO tideway_app") && (runtimeGrantsSql.match(/GRANT EXECUTE ON FUNCTION tideway_private\.lookup_/g) || []).length === 4, "The runtime database role can bypass row-level security or lacks its explicit authentication-function grants.");
 
 console.log("Marketplace foundation tests passed: role-based booking access, transition authority, protected property instructions, consent-bound live location, cleaning-progress ownership, completed-booking review eligibility and fail-closed authentication configuration.");

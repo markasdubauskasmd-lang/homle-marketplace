@@ -24,6 +24,9 @@ GRANT EXECUTE ON FUNCTION tideway_private.lookup_password_account(citext) TO tid
 GRANT EXECUTE ON FUNCTION tideway_private.lookup_session(bytea) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.lookup_verified_email(citext) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.resolve_social_identity(authentication_provider, text, citext, boolean, text, text, jsonb) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.lookup_existing_social_identity(authentication_provider, text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.begin_pending_social_identity(authentication_provider, text, citext, text, text, jsonb, bytea, timestamptz) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.consume_pending_social_identity(bytea) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.complete_role_onboarding(user_role) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.register_password_account(citext, text, text, bytea, timestamptz) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.consume_email_verification(bytea) TO tideway_app;
@@ -74,6 +77,7 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_realtime_events FROM tideway_ap
 REVOKE SELECT ON notifications FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON reviews FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.request_rate_limits FROM tideway_app;
+REVOKE ALL ON TABLE tideway_private.pending_social_identities FROM tideway_app;
 -- Sessions may be created/revoked through actor-bound application transactions, but only the restricted worker may physically purge expired rows.
 REVOKE DELETE ON sessions FROM tideway_app;
 

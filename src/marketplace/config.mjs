@@ -1,7 +1,7 @@
 const providerRequirements = Object.freeze({
   google: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
   apple: ["APPLE_CLIENT_ID", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY"],
-  facebook: ["FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET"]
+  facebook: ["FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET", "FACEBOOK_GRAPH_API_VERSION"]
 });
 
 function present(env, key) {
@@ -36,9 +36,9 @@ export function marketplaceEnvironment(env = process.env) {
       emailPassword: databaseConfigured && sessionConfigured && authTokenConfigured && emailConfigured && Boolean(appOrigin),
       passwordReset: databaseConfigured && sessionConfigured && authTokenConfigured && emailConfigured && Boolean(appOrigin),
       emailVerification: databaseConfigured && sessionConfigured && authTokenConfigured && emailConfigured && Boolean(appOrigin),
-      google: databaseConfigured && sessionConfigured && Boolean(appOrigin) && providers.google.enabled,
-      apple: databaseConfigured && sessionConfigured && Boolean(appOrigin) && providers.apple.enabled,
-      facebook: databaseConfigured && sessionConfigured && Boolean(appOrigin) && providers.facebook.enabled
+      google: databaseConfigured && sessionConfigured && authTokenConfigured && Boolean(appOrigin) && providers.google.enabled,
+      apple: databaseConfigured && sessionConfigured && authTokenConfigured && Boolean(appOrigin) && providers.apple.enabled,
+      facebook: databaseConfigured && sessionConfigured && authTokenConfigured && emailConfigured && Boolean(appOrigin) && providers.facebook.enabled
     }
   };
 }
@@ -63,6 +63,9 @@ export function validateMarketplaceEnvironment(env = process.env) {
       errors.push("APP_ORIGIN must be a valid absolute origin.");
     }
   }
+  if (present(env, "FACEBOOK_GRAPH_API_VERSION") && !/^v\d{1,2}\.\d{1,2}$/.test(env.FACEBOOK_GRAPH_API_VERSION.trim())) errors.push("FACEBOOK_GRAPH_API_VERSION must be explicitly configured as vN.N.");
+  if (present(env, "FACEBOOK_APP_ID") && !/^\d{5,32}$/.test(env.FACEBOOK_APP_ID.trim())) errors.push("FACEBOOK_APP_ID must contain only the numeric Meta App ID.");
+  if (present(env, "FACEBOOK_APP_SECRET") && !/^[a-f0-9]{32,128}$/i.test(env.FACEBOOK_APP_SECRET.trim())) errors.push("FACEBOOK_APP_SECRET must contain the exact Meta app secret.");
   const objectStorageKeys = ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_REGION", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"];
   const suppliedObjectStorage = objectStorageKeys.filter((key) => present(env, key));
   if (suppliedObjectStorage.length > 0 && suppliedObjectStorage.length < objectStorageKeys.length) errors.push(`Object storage is partially configured; missing ${objectStorageKeys.filter((key) => !present(env, key)).join(", ")}.`);

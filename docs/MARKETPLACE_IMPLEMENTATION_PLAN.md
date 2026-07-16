@@ -48,12 +48,12 @@ Implemented checkpoint:
 - Bounded, concurrency-safe expired-session deletion through the separately credentialed worker role; web runtime `DELETE` authority on sessions is revoked and the orchestration loop reports when capped batches may remain.
 - Setup details in `docs/DATABASE_SETUP.md`, the mandatory provider-verification boundary in `docs/AUTHENTICATION_SECURITY.md`, and isolated regression tests using fake PostgreSQL-compatible repositories.
 
-Not yet enabled: real PostgreSQL, SMTP and private-bucket evidence, final monitoring, HTTPS deployment or genuine accounts. The server attachment, exact runtime dependencies, strict-TLS SMTP, S3/Sharp private-media boundary and Google OIDC callback are prepared behind an explicit gate. Provider capability flags remain off.
+Not yet enabled: real PostgreSQL, SMTP and private-bucket evidence, final monitoring, HTTPS deployment or genuine accounts. The server attachment, exact runtime dependencies, strict-TLS SMTP, S3/Sharp private-media boundary, Google OIDC and Facebook-plus-Tideway-mailbox callback are prepared behind an explicit gate. Provider capability flags remain off.
 
 - Add a PostgreSQL connection/repository layer and transaction helper that always sets the RLS user context.
 - Add opaque secure sessions, `HttpOnly; Secure; SameSite=Lax` cookies, CSRF tokens, rotation, logout-all-sessions and session expiry.
 - Add email/password signup using memory-hard password hashing, email verification and single-use password-reset tokens.
-- Add Google OIDC with authorization code plus PKCE, then Apple and Facebook behind provider capability flags.
+- Add Google OIDC with authorization code plus PKCE; add Facebook authorization-code validation plus Tideway-owned mailbox verification; keep Apple behind its own later provider capability.
 - In one transaction, create the first account from a verified provider identity or link it to the existing verified-email account. Reject ambiguous/unverified merges.
 - Add re-authenticated provider connection/removal in settings.
 - Add `/login`, `/signup`, `/onboarding` and `/settings` using the existing Tideway design tokens.
@@ -236,7 +236,7 @@ Required before production account use:
 - Sessions/authentication tokens/encryption: distinct `SESSION_SECRET`, `AUTH_TOKEN_SECRET`, `DATA_ENCRYPTION_KEY` values.
 - Public deployment: `APP_ORIGIN` using verified HTTPS.
 - Email verification/reset/notifications: `SMTP_URL`, `EMAIL_FROM`.
-- OAuth as enabled: Google client ID/secret; Apple client/team/key/private key; Facebook app ID/secret.
+- OAuth as enabled: Google client ID/secret; Facebook app ID/secret plus exact Graph API version; Apple client/team/key/private key.
 - Private object storage: exact endpoint, bucket, region, server access credentials and optional path-style flag.
 - Map provider in tracking phase: `MAP_PROVIDER` and an origin-restricted public token. No provider is selected or enabled without founder approval and cost/privacy review.
 

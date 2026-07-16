@@ -15,6 +15,8 @@ import { createCredentialService } from "./credential-service.mjs";
 import { createMarketplaceDatabase } from "./database.mjs";
 import { createIdentityService } from "./identity-service.mjs";
 import { createGoogleOidcProvider } from "./google-oidc.mjs";
+import { createFacebookLoginProvider } from "./facebook-login.mjs";
+import { createFacebookIdentityService } from "./facebook-identity-service.mjs";
 import { createJourneyRepository } from "./journey-repository.mjs";
 import { createJourneyService } from "./journey-service.mjs";
 import { createMarketplaceHttpRouter } from "./marketplace-http.mjs";
@@ -60,6 +62,17 @@ export function createMarketplaceRuntime(pool, options = {}) {
       fetch: options.googleFetch
     })
     : null);
+  const facebookLoginProvider = options.facebookLoginProvider || (environment.providers.facebook.enabled
+    ? createFacebookLoginProvider({
+      appOrigin: environment.appOrigin,
+      appId: env.FACEBOOK_APP_ID,
+      appSecret: env.FACEBOOK_APP_SECRET,
+      graphVersion: env.FACEBOOK_GRAPH_API_VERSION,
+      stateSecret: env.AUTH_TOKEN_SECRET,
+      fetch: options.facebookFetch
+    })
+    : null);
+  const facebookIdentityService = createFacebookIdentityService(authenticationRepository, { tokenSecret: env.AUTH_TOKEN_SECRET });
   const credentialService = createCredentialService(authenticationRepository, { tokenSecret: env.AUTH_TOKEN_SECRET });
   const accountSessionService = createAccountSessionService(authenticationRepository, { sessionSecret: env.SESSION_SECRET, production: environment.production });
   const security = createAccountSecurity(authenticationRepository, {
@@ -96,7 +109,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires SMTP_URL and EMAIL_FROM configuration.");
   const authenticationRouter = options.emailDelivery
-    ? createAuthenticationHttpRouter({ security, credentialService, identityService, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
+    ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
     : null;
   const router = authenticationRouter ? {
     async handle(request, response, url) {
@@ -110,6 +123,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     authenticationRepository,
     identityService,
     googleOidcProvider,
+    facebookLoginProvider,
+    facebookIdentityService,
     credentialService,
     accountSessionService,
     security,
@@ -141,6 +156,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
     googleOidcReady: authenticationRouter !== null && googleOidcProvider !== null,
+    facebookLoginReady: authenticationRouter !== null && facebookLoginProvider !== null,
     marketplaceRouter,
     router
   });

@@ -37,9 +37,9 @@ databaseDecision = { allowed: false, retry_after_seconds: 0 };
 await assert.rejects(() => limiter.consume({ scope: "login", key: "trusted:client" }), /invalid retry time/);
 assert.throws(() => createPostgresRateLimiter({}, { secret }), /query-capable pool/);
 assert.throws(() => createPostgresRateLimiter(pool, { secret: "short" }), /32-character secret/);
-assert.equal(postgresRateLimitScopes.length, 10);
+assert.equal(postgresRateLimitScopes.length, 13);
 
-const migration = await readFile(new URL("../db/migrations/020_shared_rate_limits.sql", import.meta.url), "utf8");
+const migration = `${await readFile(new URL("../db/migrations/020_shared_rate_limits.sql", import.meta.url), "utf8")}\n${await readFile(new URL("../db/migrations/021_facebook_pending_identity.sql", import.meta.url), "utf8")}`;
 const runtimeGrants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const workerGrants = await readFile(new URL("../db/worker-role-grants.sql", import.meta.url), "utf8");
 const deploymentVerification = await readFile(new URL("../db/integration/deployment-verification.sql", import.meta.url), "utf8");

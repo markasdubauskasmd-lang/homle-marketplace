@@ -21,6 +21,9 @@ This is prepared source, not production evidence. `MARKETPLACE_ENABLED` remains 
 | --- | ---: | ---: |
 | Google start | 20 | 15 minutes |
 | Google callback | 30 | 15 minutes |
+| Facebook start | 20 | 15 minutes |
+| Facebook callback | 30 | 15 minutes |
+| Facebook verification confirmation | 20 | 60 minutes |
 | Signup | 5 | 60 minutes |
 | Verification resend | 5 | 60 minutes |
 | Verification confirmation | 20 | 60 minutes |
@@ -36,7 +39,7 @@ Account credential locking remains a separate defense. The shared client-key buc
 
 ## Deployment evidence required
 
-1. Apply all 20 locked migrations and both current role-grant files.
+1. Apply all 21 locked migrations and both current role-grant files.
 2. Run `tools/postgres-verification-runner.mjs`; it checks the function, purge grant, private table/index and absence of direct restricted-role access.
 3. Run `tools/postgres-integration-runner.mjs`; its app-role behavior transaction proves ten allowed login decisions, the eleventh denial and direct-table denial, then rolls the fixture back.
 4. Route controlled staging requests through two application instances with the same `SESSION_SECRET` and trusted client resolver. Confirm their combined request count reaches one shared threshold.

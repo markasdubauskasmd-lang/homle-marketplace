@@ -102,6 +102,46 @@ export function createAuthenticationRepository(database) {
       });
     },
 
+    async findExistingSocialIdentity(provider, subjectValue) {
+      const selectedProvider = socialProvider(provider);
+      const subject = boundedProviderText(subjectValue, "Provider subject", 255);
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query(
+          "SELECT * FROM tideway_private.lookup_existing_social_identity($1::authentication_provider, $2::text)",
+          [selectedProvider, subject]
+        );
+        return result.rows[0] || null;
+      });
+    },
+
+    async beginPendingSocialIdentity(input) {
+      const provider = socialProvider(input?.provider);
+      const subject = boundedProviderText(input?.subject, "Provider subject", 255);
+      const email = normalizedEmail(input?.email);
+      const displayName = boundedProviderText(input?.displayName, "Provider display name", 120, false);
+      const avatarUrl = boundedProviderText(input?.avatarUrl, "Provider avatar URL", 2048, false);
+      const profile = input?.profile && typeof input.profile === "object" && !Array.isArray(input.profile) ? input.profile : {};
+      if (JSON.stringify(profile).length > 4096) throw new TypeError("Provider profile snapshot is too large.");
+      const verificationHash = tokenHash(input?.verificationHash, "Social verification token hash");
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query(
+          "SELECT tideway_private.begin_pending_social_identity($1::authentication_provider, $2::text, $3::citext, $4::text, $5::text, $6::jsonb, $7::bytea, $8::timestamptz) AS state",
+          [provider, subject, email, displayName, avatarUrl, profile, verificationHash, input?.expiresAt]
+        );
+        return result.rows[0]?.state || null;
+      });
+    },
+
+    async consumePendingSocialIdentity(verificationHash) {
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query(
+          "SELECT * FROM tideway_private.consume_pending_social_identity($1::bytea)",
+          [tokenHash(verificationHash, "Social verification token hash")]
+        );
+        return result.rows[0] || null;
+      });
+    },
+
     async completeRoleOnboarding(actor, role) {
       if (!actor) throw new TypeError("An authenticated account is required.");
       if (role !== "cleaner" && role !== "landlord") throw new TypeError("Onboarding role must be Cleaner or Landlord.");

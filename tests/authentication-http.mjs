@@ -83,7 +83,24 @@ const googleOidcProvider = {
     return { subject: "google-subject", email: "owner@example.com", emailVerified: true, displayName: "Property Owner", avatarUrl: "", locale: "en-GB" };
   }
 };
-const router = createAuthenticationHttpRouter({ security, credentialService, identityService, accountSessionService, emailDelivery, rateLimiter, googleOidcProvider }, {
+let facebookCompletionError = null;
+const facebookLoginProvider = {
+  name: "facebook",
+  clearCookie: "tideway_facebook_flow=; Max-Age=0; HttpOnly; Secure",
+  begin() { calls.push({ kind: "facebook-start" }); return { location: "https://www.facebook.com/v99.0/dialog/oauth?state=opaque", setCookie: "tideway_facebook_flow=signed; HttpOnly; Secure" }; },
+  async complete(url, cookie) {
+    calls.push({ kind: "facebook-complete", url: url.toString(), cookie });
+    if (facebookCompletionError) throw facebookCompletionError;
+    return { subject: "facebook-subject", email: "owner@example.com", emailVerified: false, displayName: "Property Owner", avatarUrl: "", locale: "" };
+  }
+};
+let facebookBeginResult = { authenticated: false, verificationRequired: true, emailDelivery: { kind: "facebook-email-verification", recipient: "owner@example.com", token: "facebook-verification-private", expiresAt: "2026-07-16T13:00:00.000Z" } };
+let facebookVerifyResult = { verified: false, reason: "invalid-or-expired" };
+const facebookIdentityService = {
+  async begin(claims) { calls.push({ kind: "facebook-identity-begin", claims }); return facebookBeginResult; },
+  async verify(token) { calls.push({ kind: "facebook-identity-verify", token }); return facebookVerifyResult; }
+};
+const router = createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, accountSessionService, emailDelivery, rateLimiter, googleOidcProvider, facebookLoginProvider }, {
   appOrigin: origin,
   clientKey: () => "198.51.100.10",
   minimumPublicResponseMs: 500,
@@ -110,8 +127,28 @@ const failedGoogleCallback = await dispatch(router, "GET", "/api/marketplace/aut
 assert(failedGoogleCallback.response.statusCode === 303 && failedGoogleCallback.response.headers.Location === "/login#social=google-failed" && failedGoogleCallback.response.headers["Set-Cookie"][0].includes("Max-Age=0") && !failedGoogleCallback.response.headers.Location.includes("private provider rejection"), "Rejected Google callback leaked provider details or retained its one-time flow cookie.");
 googleCompletionError = null;
 
+const facebookStart = await dispatch(router, "GET", "/api/marketplace/auth/facebook/start", undefined, { "user-agent": "Example Browser" });
+assert(facebookStart.response.statusCode === 302 && facebookStart.response.headers.Location.startsWith("https://www.facebook.com/") && facebookStart.response.headers["Set-Cookie"][0].includes("HttpOnly") && calls.some((call) => call.kind === "facebook-start"), "Facebook sign-in did not start through a non-cacheable server redirect and secure flow cookie.");
+const facebookPending = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=private-code&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed", "user-agent": "Example Browser" });
+assert(facebookPending.response.statusCode === 303 && facebookPending.response.headers.Location === "/login#social=facebook-verification-sent" && facebookPending.response.headers["Set-Cookie"][0].includes("Max-Age=0") && deliveries.at(-1).kind === "facebook-email-verification" && deliveries.at(-1).link.startsWith(`${origin}/verify-facebook#token=`) && !facebookPending.response.body.includes("owner@example.com"), "First Facebook callback did not require a private Tideway mailbox-verification link.");
+const invalidFacebookVerification = await dispatch(router, "POST", "/api/marketplace/auth/facebook/verification/confirm", { token: "bad" }, publicHeaders);
+facebookVerifyResult = { verified: true, account: { userId: currentContext.actor.userId, email: "owner@example.com", emailVerifiedAt: "2026-07-16T12:05:00.000Z", displayName: "Property Owner", selectedRole: null, roles: [] } };
+const validFacebookVerification = await dispatch(router, "POST", "/api/marketplace/auth/facebook/verification/confirm", { token: "good" }, publicHeaders);
+assert(invalidFacebookVerification.response.statusCode === 400 && validFacebookVerification.response.statusCode === 200 && validFacebookVerification.body.csrfToken === "new-csrf-private" && validFacebookVerification.response.headers["Set-Cookie"].includes("HttpOnly"), "Facebook mailbox verification accepted an invalid token or failed to establish Tideway's opaque session.");
+facebookBeginResult = { authenticated: true, account: facebookVerifyResult.account };
+const facebookRepeat = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=repeat&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed", "user-agent": "Example Browser" });
+assert(facebookRepeat.response.statusCode === 303 && facebookRepeat.response.headers.Location.startsWith("/onboarding#social=facebook&csrfToken=") && facebookRepeat.response.headers["Set-Cookie"].length === 2, "A previously verified Facebook subject was forced through mailbox verification again or did not receive a Tideway session.");
+facebookBeginResult = { authenticated: false, verificationRequired: false, reason: "facebook-email-unavailable", emailDelivery: null };
+const facebookNoEmail = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=no-email&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed" });
+assert(facebookNoEmail.response.headers.Location === "/login#social=facebook-email-unavailable", "Facebook missing-email handling created an account or lost its safe fallback.");
+facebookCompletionError = new TypeError("private Facebook rejection");
+const failedFacebookCallback = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=bad&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed" });
+assert(failedFacebookCallback.response.statusCode === 303 && failedFacebookCallback.response.headers.Location === "/login#social=facebook-failed" && !failedFacebookCallback.response.headers.Location.includes("private Facebook rejection"), "Rejected Facebook callback leaked provider detail or retained flow state.");
+facebookCompletionError = null;
+
 const signup = await dispatch(router, "POST", "/api/marketplace/auth/signup", { email: "new@example.com", displayName: "New User", password: "long password" }, publicHeaders);
-assert(signup.response.statusCode === 202 && signup.body.accepted && waits[0] === 500 && deliveries[0].recipient === "new@example.com" && deliveries[0].link.startsWith(`${origin}/verify-email#token=`) && !deliveries[0].link.includes("?token=") && !signup.response.body.includes("verification-token-private"), "Signup leaked delivery material, omitted the generic timing boundary or put its token in a server URL query.");
+const signupDelivery = deliveries.at(-1);
+assert(signup.response.statusCode === 202 && signup.body.accepted && waits[0] === 500 && signupDelivery.recipient === "new@example.com" && signupDelivery.link.startsWith(`${origin}/verify-email#token=`) && !signupDelivery.link.includes("?token=") && !signup.response.body.includes("verification-token-private"), "Signup leaked delivery material, omitted the generic timing boundary or put its token in a server URL query.");
 const missingResend = await dispatch(router, "POST", "/api/marketplace/auth/verification/resend", { email: "missing@example.com" }, publicHeaders);
 const knownResend = await dispatch(router, "POST", "/api/marketplace/auth/verification/resend", { email: "owner@example.com" }, publicHeaders);
 assert(missingResend.response.statusCode === 202 && knownResend.response.statusCode === 202 && missingResend.response.body === knownResend.response.body && deliveries.at(-1).link.includes("resent-token-private") && !knownResend.response.body.includes("owner@example.com"), "Verification resend exposed account existence or raw recipient/token material.");

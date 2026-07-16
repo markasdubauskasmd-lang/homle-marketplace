@@ -49,7 +49,7 @@ function trustedLink(value, kind, appOrigin) {
   try { url = new URL(value); } catch { throw new TypeError("Authentication email link is invalid."); }
   const secure = url.protocol === "https:";
   const local = url.protocol === "http:" && url.hostname === "127.0.0.1";
-  const expectedPath = kind === "email-verification" ? "/verify-email" : "/reset-password";
+  const expectedPath = kind === "email-verification" ? "/verify-email" : kind === "facebook-email-verification" ? "/verify-facebook" : "/reset-password";
   if ((!secure && !local) || url.origin !== appOrigin || url.pathname !== expectedPath || url.username || url.password || url.search || !url.hash) throw new TypeError("Authentication email link is invalid.");
   return url.toString();
 }
@@ -72,15 +72,16 @@ function stableHash(value) {
 
 function preparedMessage(input, appOrigin) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new TypeError("Email delivery payload is invalid.");
-  if (input.kind === "email-verification" || input.kind === "password-reset") {
+  if (input.kind === "email-verification" || input.kind === "facebook-email-verification" || input.kind === "password-reset") {
     const recipient = emailAddress(input.recipient, "Email recipient");
     const link = trustedLink(input.link, input.kind, appOrigin);
     const expiresAt = new Date(input.expiresAt);
     if (!Number.isFinite(expiresAt.getTime()) || expiresAt.toISOString() !== input.expiresAt) throw new TypeError("Authentication email expiry is invalid.");
-    const verification = input.kind === "email-verification";
-    const subject = verification ? "Tideway: verify your email" : "Tideway: reset your password";
-    const action = verification ? "Verify your email address" : "Reset your Tideway password";
-    const purpose = verification ? "email verification" : "password reset";
+    const verification = input.kind !== "password-reset";
+    const facebookVerification = input.kind === "facebook-email-verification";
+    const subject = facebookVerification ? "Tideway: verify your email for Facebook sign-in" : verification ? "Tideway: verify your email" : "Tideway: reset your password";
+    const action = facebookVerification ? "Verify this email address to finish Facebook sign-in" : verification ? "Verify your email address" : "Reset your Tideway password";
+    const purpose = facebookVerification ? "Facebook sign-in verification" : verification ? "email verification" : "password reset";
     const text = `${action}:\n\n${link}\n\nThis private ${purpose} link expires at ${expiresAt.toISOString()}. If you did not request this, you can ignore this email.`;
     return { recipient, subject, text, seed: `${input.kind}\0${recipient.toLowerCase()}\0${link}\0${input.expiresAt}` };
   }

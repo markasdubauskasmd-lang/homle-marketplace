@@ -20,7 +20,7 @@ function header(request, name) {
 }
 
 function deliveryLink(origin, delivery) {
-  const path = delivery.kind === "email-verification" ? "/verify-email" : delivery.kind === "password-reset" ? "/reset-password" : "";
+  const path = delivery.kind === "email-verification" ? "/verify-email" : delivery.kind === "facebook-email-verification" ? "/verify-facebook" : delivery.kind === "password-reset" ? "/reset-password" : "";
   if (!path) throw new TypeError("A supported authentication delivery is required.");
   const link = new URL(path, origin);
   link.hash = new URLSearchParams({ token: delivery.token }).toString();
@@ -57,9 +57,12 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const emailDelivery = dependencies?.emailDelivery;
   const rateLimiter = dependencies?.rateLimiter;
   const google = dependencies?.googleOidcProvider || null;
+  const facebook = dependencies?.facebookLoginProvider || null;
+  const facebookIdentity = dependencies?.facebookIdentityService || null;
   if (!security || typeof security.protect !== "function" || typeof security.requireOrigin !== "function") throw new TypeError("Authentication HTTP routes require account security.");
   if (!credentials || ["register", "requestEmailVerification", "verifyEmail", "signIn", "requestPasswordReset", "resetPassword"].some((method) => typeof credentials[method] !== "function")) throw new TypeError("Authentication HTTP routes require the credential service.");
   if (!identity || typeof identity.completeOnboarding !== "function" || (google && typeof identity.socialSignIn !== "function")) throw new TypeError("Authentication HTTP routes require the identity service.");
+  if (facebook && (!facebookIdentity || typeof facebookIdentity.begin !== "function" || typeof facebookIdentity.verify !== "function")) throw new TypeError("Facebook authentication routes require the pending identity service.");
   if (!sessions || ["establish", "rotate", "logout", "logoutAll"].some((method) => typeof sessions[method] !== "function")) throw new TypeError("Authentication HTTP routes require the session service.");
   if (!emailDelivery || typeof emailDelivery.send !== "function") throw new TypeError("Authentication HTTP routes require a trusted email-delivery adapter.");
   const appOrigin = exactOrigin(options.appOrigin);
@@ -70,6 +73,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
   const limit = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
   if (google && (google.name !== "google" || typeof google.begin !== "function" || typeof google.complete !== "function" || typeof google.clearCookie !== "string")) throw new TypeError("Google authentication routes require a complete OIDC provider.");
+  if (facebook && (facebook.name !== "facebook" || typeof facebook.begin !== "function" || typeof facebook.complete !== "function" || typeof facebook.clearCookie !== "string")) throw new TypeError("Facebook authentication routes require a complete provider verifier.");
 
   async function privateDelivery(delivery) {
     if (!delivery) return;
@@ -118,6 +122,40 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           }
           return true;
         }
+        if (url.pathname === `${prefix}facebook/start`) {
+          if (!facebook) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          await limit(request, "facebook-start");
+          const attempt = facebook.begin();
+          sendRedirect(response, 302, attempt.location, [attempt.setCookie]);
+          return true;
+        }
+        if (url.pathname === `${prefix}facebook/callback`) {
+          if (!facebook) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          try {
+            await limit(request, "facebook-callback");
+            const claims = await facebook.complete(url, header(request, "cookie"));
+            const result = await facebookIdentity.begin(claims);
+            if (result.authenticated) {
+              const session = await sessions.establish(result.account, metadata(request));
+              const destination = session.account.roles.length ? "/login" : "/onboarding";
+              const fragment = new URLSearchParams({ social: "facebook", csrfToken: session.csrfToken });
+              sendRedirect(response, 303, `${destination}#${fragment}`, [facebook.clearCookie, session.setCookie]);
+            } else if (result.verificationRequired) {
+              await privateDelivery(result.emailDelivery);
+              sendRedirect(response, 303, "/login#social=facebook-verification-sent", [facebook.clearCookie]);
+            } else {
+              sendRedirect(response, 303, "/login#social=facebook-email-unavailable", [facebook.clearCookie]);
+            }
+          } catch (error) {
+            const rateLimited = error?.statusCode === 429;
+            if (!rateLimited && !(error instanceof TypeError)) onUnexpectedError(error);
+            const fragment = new URLSearchParams({ social: rateLimited ? "rate-limited" : "facebook-failed" });
+            sendRedirect(response, 303, `/login#${fragment}`, [facebook.clearCookie]);
+          }
+          return true;
+        }
         if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
         security.requireOrigin(request);
         if (url.pathname === `${prefix}signup`) {
@@ -145,6 +183,19 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
             return true;
           }
           sendJson(response, 200, { ok: true, verified: true });
+          return true;
+        }
+        if (url.pathname === `${prefix}facebook/verification/confirm`) {
+          if (!facebook) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
+          await limit(request, "facebook-verification-confirm");
+          const result = await facebookIdentity.verify((await readJsonObject(request)).token);
+          if (!result.verified) {
+            const collision = result.reason === "existing-account-requires-sign-in";
+            sendJson(response, collision ? 409 : 400, { ok: false, code: collision ? "existing-account-requires-sign-in" : "verification-invalid", error: collision ? "This email already belongs to an account that must sign in before Facebook can be connected." : "This verification link is invalid or expired." });
+            return true;
+          }
+          const session = await sessions.establish(result.account, metadata(request));
+          sendJson(response, 200, { ok: true, account: session.account, csrfToken: session.csrfToken, expiresAt: session.expiresAt }, { "Set-Cookie": session.setCookie });
           return true;
         }
         if (url.pathname === `${prefix}login`) {

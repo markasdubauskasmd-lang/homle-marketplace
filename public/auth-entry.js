@@ -2,6 +2,7 @@ const modes = Object.freeze({
   "/login": { form: "login", title: "Sign in to Tideway", lead: "Use your verified account to open the correct private workspace." },
   "/signup": { form: "signup", title: "Create a Tideway account", lead: "Start as a Cleaner or Landlord/Property Manager after verifying your email." },
   "/verify-email": { form: "verify", title: "Verify your email", lead: "Use the private one-time link sent to your email address." },
+  "/verify-facebook": { form: "facebook-verify", title: "Finish Facebook sign-in", lead: "Verify the private email link before Tideway creates or connects an account." },
   "/reset-password": { form: "reset", title: "Reset your password", lead: "Replace your password and close every existing session." },
   "/onboarding": { form: "onboarding", title: "Choose your Tideway workspace", lead: "Select Cleaner or Landlord/Property Manager to complete account setup." }
 });
@@ -44,14 +45,15 @@ function activateForm(providers) {
   for (const link of socialLinks) link.hidden = !socialPage || providers[link.dataset.socialProvider] !== true;
   if (socialActions) socialActions.hidden = !socialReady;
   for (const form of forms) {
-    const active = form.dataset.accountForm === activeName && (selectedMode.form === "onboarding" || providers.emailPassword === true);
+    const capabilityReady = selectedMode.form === "onboarding" || (selectedMode.form === "facebook-verify" ? providers.facebook === true : providers.emailPassword === true);
+    const active = form.dataset.accountForm === activeName && capabilityReady;
     form.hidden = !active;
     form.querySelectorAll("[data-account-controls]").forEach((fieldset) => { fieldset.disabled = !active; });
   }
   runtime.hidden = false;
   title.textContent = selectedMode.title;
   lead.textContent = selectedMode.lead;
-  if (selectedMode.form === "verify" && !privateToken) showFeedback("This verification link is incomplete or has already been removed. Request a fresh link below.", "error");
+  if ((selectedMode.form === "verify" || selectedMode.form === "facebook-verify") && !privateToken) showFeedback("This verification link is incomplete or has already been removed.", "error");
 }
 
 function formBody(form) {
@@ -122,6 +124,19 @@ async function submitAccountForm(event) {
       await post("/api/marketplace/auth/verification/confirm", { token: privateToken });
       showFeedback("Email verified. You can now sign in.", "success");
       form.querySelector("fieldset").disabled = true;
+    } else if (kind === "facebook-verify") {
+      if (!privateToken) throw new Error("This Facebook verification link is incomplete or expired.");
+      const result = await post("/api/marketplace/auth/facebook/verification/confirm", { token: privateToken });
+      if (!storeCsrf(result.csrfToken)) {
+        await post("/api/marketplace/auth/logout", {}, result.csrfToken);
+        throw new Error("Secure browser storage is unavailable, so Tideway closed the new session. Try a standard browser window.");
+      }
+      if (!result.account?.roles?.length) {
+        location.assign("/onboarding#social=facebook-verified");
+        return;
+      }
+      showFeedback("Facebook sign-in verified. Your secure Tideway session is ready.", "success");
+      form.querySelector("fieldset").disabled = true;
     } else if (kind === "verification-request") {
       await post("/api/marketplace/auth/verification/resend", { email: body.email });
       showFeedback("If the account still needs verification, a fresh private link is on its way.", "success");
@@ -175,6 +190,21 @@ try {
       }
     } else if (socialResult === "google-failed") {
       showFeedback("Google sign-in could not be completed. No Tideway session was created; please try again.", "error");
+    } else if (socialResult === "facebook" && socialCsrfToken) {
+      if (storeCsrf(socialCsrfToken)) {
+        showFeedback(location.pathname === "/onboarding" ? "Facebook sign-in succeeded. Choose how you will use Tideway." : "Facebook sign-in succeeded. Your secure Tideway session is ready.", "success");
+      } else {
+        await post("/api/marketplace/auth/logout", {}, socialCsrfToken);
+        showFeedback("Secure browser storage is unavailable, so Tideway closed the Facebook session. Try a standard browser window.", "error");
+      }
+    } else if (socialResult === "facebook-verified") {
+      showFeedback("Your email is verified and Facebook sign-in is complete. Choose how you will use Tideway.", "success");
+    } else if (socialResult === "facebook-verification-sent") {
+      showFeedback("Facebook identity was confirmed. Check the private email link to finish creating or connecting your Tideway account.", "success");
+    } else if (socialResult === "facebook-email-unavailable") {
+      showFeedback("Facebook did not provide an email address. Use email sign-in, or allow email access in Facebook and try again.", "error");
+    } else if (socialResult === "facebook-failed") {
+      showFeedback("Facebook sign-in could not be completed. No Tideway session was created; please try again.", "error");
     } else if (socialResult === "rate-limited") {
       showFeedback("Too many sign-in attempts were made. Please wait before trying again.", "error");
     }

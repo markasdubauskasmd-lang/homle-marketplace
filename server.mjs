@@ -5084,6 +5084,7 @@ async function serveFile(requestPath, response) {
     "/login": "account.html",
     "/signup": "account.html",
     "/verify-email": "account.html",
+    "/verify-facebook": "account.html",
     "/reset-password": "account.html",
     "/onboarding": "account.html",
     "/marketplace-preview": "marketplace-preview.html",

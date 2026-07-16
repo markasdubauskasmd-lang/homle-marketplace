@@ -304,6 +304,7 @@ try {
   const loginPage = await fetch(`${base}/login`);
   const signupPage = await fetch(`${base}/signup`);
   const verificationPage = await fetch(`${base}/verify-email`);
+  const facebookVerificationPage = await fetch(`${base}/verify-facebook`);
   const resetPage = await fetch(`${base}/reset-password`);
   const onboardingPage = await fetch(`${base}/onboarding`);
   const loginPageText = await loginPage.text();
@@ -311,6 +312,7 @@ try {
   const verificationPageText = await verificationPage.text();
   const authEntryAsset = await fetch(`${base}/auth-entry.js?v=smoke-test`);
   const authEntryText = await authEntryAsset.text();
+  assert(facebookVerificationPage.ok, "The private Facebook mailbox-verification page is not routed through the capability-gated account shell.");
   assert(loginPage.ok && signupPage.ok && verificationPage.ok && resetPage.ok && onboardingPage.ok && loginPageText.includes("Account access is not open yet") && signupPageText.includes("Account access is not open yet") && loginPageText.includes('href="/request">Request a clean</a>') && loginPageText.includes('href="/join">Join as a cleaner</a>') && loginPageText.includes("data-account-runtime hidden") && loginPageText.includes("data-account-controls disabled") && verificationPageText.includes('data-account-form="verification-request"') && !loginPageText.includes("Sign in with Google") && !signupPageText.includes('action="/api/') && authEntryAsset.ok && authEntryText.includes("Account access is safely unavailable") && authEntryText.includes("providers.emailPassword === true") && authEntryText.includes('history.replaceState(null, "", `${location.pathname}${location.search}`)') && authEntryText.includes("/api/marketplace/auth/login") && authEntryText.includes("/api/marketplace/auth/verification/resend"), "Capability-gated account entry/recovery pages displayed a non-working action, retained a fragment token or failed to keep the working pilot routes.");
   const sharedStyles = await fetch(`${base}/styles.css?v=smoke-test`);
   const sharedStylesText = await sharedStyles.text();

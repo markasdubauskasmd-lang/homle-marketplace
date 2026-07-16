@@ -31,6 +31,11 @@ BEGIN
     RAISE EXCEPTION 'Runtime role can read private rate-limit keys';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
+  BEGIN
+    PERFORM 1 FROM tideway_private.pending_social_identities;
+    RAISE EXCEPTION 'Runtime role can read pending social identity material';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
 
   FOR attempt IN 1..10 LOOP
     SELECT * INTO decision FROM tideway_private.consume_rate_limit('login', decode(repeat('ab', 32), 'hex'));

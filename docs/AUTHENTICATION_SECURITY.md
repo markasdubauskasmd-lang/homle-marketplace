@@ -8,7 +8,7 @@ For every provider, the server must validate the authorization response against 
 
 - Google: use authorization code with PKCE and validate the OpenID Connect ID token against Google's issuer and keys.
 - Apple: use authorization code, nonce and Apple's signed ID token. Preserve Apple's first-login name carefully because it may not be returned again; private-relay email is valid only when Apple verifies it.
-- Facebook: use authorization code, validate the app/client binding and fetch the identity through the provider API over TLS. Enable the provider only if a verified email is actually returned.
+- Facebook: use authorization code, validate the app/client binding and fetch the identity through the provider API over TLS. Treat the returned email as unverified; require Tideway's separate single-use mailbox-verification transaction before first account creation or social-only linking.
 
 The callback must consume the login attempt exactly once before creating a Tideway session. Login attempts and provider access tokens must not be logged. Provider access/refresh tokens are not required for basic Tideway sign-in and should not be retained unless a later approved feature genuinely needs them.
 

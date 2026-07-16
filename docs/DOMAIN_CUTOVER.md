@@ -41,10 +41,10 @@ The command performs no DNS or hosting changes. It requires:
 - CSP, HSTS, MIME, framing, referrer and Permissions Policy headers;
 - healthy Tideway integrity with writes allowed;
 - `Cache-Control: no-store` on health/authentication discovery;
-- role-safe, secret-free authentication capability discovery with Google, Apple and Facebook still closed.
+- role-safe, secret-free authentication capability discovery with Google, Facebook and Apple still closed until their complete provider-specific staging gates pass.
 
 Store the JSON result with the private launch evidence and record a concise hostname/date summary in the control desk. A passing result proves the public-origin boundary only; it does not prove legal identity, insurance, cleaner supply, pricing, payment readiness, PostgreSQL or end-to-end booking fulfilment.
 
 ## Social sign-in dependency
 
-Google and Facebook application callback URLs cannot be finalised until the canonical origin passes this check. Their buttons remain hidden until provider-specific issuer/signature/audience verification, state and PKCE/nonce protection, exact callback routes, safe cross-provider account linking, staging PostgreSQL tests and deployment-held credentials are complete. Register credentials only in the provider console and deployment secret manager; never paste client secrets into source or the browser.
+Google and Facebook application callback URLs cannot be finalised until the canonical origin passes this check. Their buttons remain hidden until the implemented provider-specific validation, exact callback routes, safe account linking/mailbox verification, staging PostgreSQL tests and deployment-held credentials are complete. Register credentials only in the provider console and deployment secret manager; never paste client secrets into source or the browser.

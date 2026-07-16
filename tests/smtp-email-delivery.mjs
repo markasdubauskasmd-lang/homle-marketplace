@@ -52,6 +52,16 @@ assert(messages[0].text.includes(verification.link) && messages[0].text.includes
 assert(!Object.hasOwn(messages[0], "html") && !Object.hasOwn(messages[0], "attachments"));
 assert.match(messages[0].headers["X-Tideway-Delivery-Id"], /^[a-f0-9]{64}$/);
 
+const facebookVerification = await delivery.send({
+  kind: "facebook-email-verification",
+  recipient: "owner@invalid.example",
+  link: "https://staging.tideway.example/verify-facebook#token=private-facebook-token",
+  expiresAt: "2026-07-16T13:00:00.000Z"
+});
+assert.notEqual(facebookVerification.messageId, first.messageId);
+assert.equal(messages.at(-1).subject, "Tideway: verify your email for Facebook sign-in");
+assert(messages.at(-1).text.includes("finish Facebook sign-in") && messages.at(-1).text.includes("/verify-facebook#token="));
+
 const notification = await delivery.send({
   to: "cleaner@invalid.example",
   idempotencyKey: "00000000-0000-4000-8000-000000000001",
