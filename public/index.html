@@ -172,15 +172,18 @@
                 <h3 id="request-step-2-title">When should the clean happen?</h3>
                 <p>Choose the first suitable date. Private access instructions come only after a booking is accepted.</p>
               </div>
-              <div class="field-row">
-                <label>Known hazards <select name="hazards" required><option value="">Choose one</option><option>None known</option><option>Pets present</option><option>Stairs or limited access</option><option>Building works or heavy soiling</option><option>Other — explain below</option></select></label>
-                <label>Frequency <select name="frequency"><option>One-off</option><option>Weekly</option><option>Several times a week</option><option>Fortnightly</option><option>As properties turn over</option><option>Not sure yet</option></select></label>
-              </div>
+              <label>Known hazards <select name="hazards" required><option value="">Choose one</option><option>None known</option><option>Pets present</option><option>Stairs or limited access</option><option>Building works or heavy soiling</option><option>Other — explain below</option></select></label>
               <div class="field-row">
                 <label>Preferred date <input name="preferredDate" type="date" required aria-describedby="preferred-date-help"><small id="preferred-date-help">Choose the first date you could accept. Homle will confirm the exact visit before booking.</small></label>
                 <label>Preferred arrival window <select name="preferredTimeWindow"><option>Flexible</option><option>Morning (8am–12pm)</option><option>Afternoon (12pm–5pm)</option><option>Evening (5pm–8pm)</option></select></label>
               </div>
-              <label>Job details <span>(optional)</span><textarea name="details" rows="4" data-access-detail-safe aria-describedby="job-details-safety" placeholder="Deadline, special tasks or anything else we should know"></textarea><small id="job-details-safety">Describe cleaning needs only. Do not include entry codes, passwords or hidden-key locations.</small></label>
+              <details class="application-optional-fields">
+                <summary>Add recurring or extra details <span>Optional</span></summary>
+                <div>
+                  <label>Frequency <select name="frequency"><option>One-off</option><option>Weekly</option><option>Several times a week</option><option>Fortnightly</option><option>As properties turn over</option><option>Not sure yet</option></select></label>
+                  <label>Job details <span>(optional)</span><textarea name="details" rows="4" data-access-detail-safe aria-describedby="job-details-safety" placeholder="Deadline, special tasks or anything else we should know"></textarea><small id="job-details-safety">Describe cleaning needs only. Do not include entry codes, passwords or hidden-key locations.</small></label>
+                </div>
+              </details>
               <div class="guided-form-actions">
                 <button class="button button-outline" type="button" data-guided-back>Back</button>
                 <button class="button" type="button" data-guided-next>Continue to contact</button>
