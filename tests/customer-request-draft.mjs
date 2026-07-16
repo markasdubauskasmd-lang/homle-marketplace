@@ -15,7 +15,7 @@ const saved = saveCustomerRequestDraft(storage, {
     postcode: "SW1A 1AA",
     customerType: "Landlord",
     propertyType: "Flat or house",
-    service: "Rental turnover clean",
+    service: "Regular home clean",
     siteSize: "Two bedrooms",
     accessNotes: "Meet at reception",
     contactName: "Test Landlord",
@@ -29,6 +29,7 @@ const saved = saveCustomerRequestDraft(storage, {
 }, now);
 assert.equal(saved.currentStep, 3);
 assert.equal(saved.fields.contactName, "Test Landlord");
+assert.equal(saved.fields.service, "Regular home clean");
 assert.equal(saved.retry.key, retryKey);
 assert.equal(saved.retry.fingerprint, customerRequestDraftFingerprint(saved.fields));
 const storedText = [...values.values()][0];
@@ -65,6 +66,7 @@ const [html, app, privacy] = await Promise.all([
   readFile(path.join(root, "public", "privacy.html"), "utf8")
 ]);
 assert(html.includes("data-customer-draft-status") && html.includes("Access codes and privacy consent are never stored"));
+assert(html.includes("<option>Regular home clean</option>"), "The working customer request omitted ordinary household cleaning.");
 assert(app.includes("readCustomerRequestDraft") && app.includes("clearCustomerRequestDraft(window.sessionStorage)"));
 assert(app.includes("containsSensitiveAccessDetails") && app.includes("accessDetailsSafetyMessage"));
 assert(app.includes("customerDraftControls.get(form) || cleanerDraftControls.get(form)") && app.includes("draftControls?.rememberSubmission(pending.key)"));

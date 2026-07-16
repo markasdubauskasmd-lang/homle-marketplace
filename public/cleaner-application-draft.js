@@ -18,6 +18,7 @@ export const cleanerApplicationDraftFields = Object.freeze({
   notes: 1000
 });
 export const cleanerApplicationDraftServices = Object.freeze([
+  "serviceDomestic",
   "serviceTurnovers",
   "serviceEndOfTenancy",
   "serviceWorkplaces",

@@ -12,13 +12,13 @@ const retryKey = "31cbeef4-d217-4c08-a2c4-60fd03c5f0c8";
 
 const saved = saveCleanerApplicationDraft(storage, {
   fields: { fullName: "Test Applicant", email: "applicant@example.com", postcode: "SW1A 1AA", notes: "Prefers rental turnovers.", website: "must-not-save", professionalBio: "must-not-save" },
-  services: { serviceTurnovers: true, consent: true, rightToWork: true },
+  services: { serviceDomestic: true, consent: true, rightToWork: true },
   currentStep: 3,
   submissionKey: retryKey
 }, now);
 assert.equal(saved.currentStep, 3);
 assert.equal(saved.fields.fullName, "Test Applicant");
-assert.equal(saved.services.serviceTurnovers, true);
+assert.equal(saved.services.serviceDomestic, true);
 assert.equal(saved.retry.key, retryKey);
 assert.equal(saved.retry.fingerprint, cleanerApplicationDraftFingerprint(saved.fields, saved.services));
 const storedText = [...values.values()][0];
@@ -45,6 +45,7 @@ assert.equal(values.size, 0, "Corrupt drafts must be removed.");
 
 const [html, app] = await Promise.all([readFile(path.join(root, "public", "index.html"), "utf8"), readFile(path.join(root, "public", "app.js"), "utf8")]);
 assert(html.includes("data-cleaner-draft-status") && html.includes("Eligibility and consent confirmations are never restored"));
+assert(html.includes('name="serviceDomestic"') && html.includes("Regular home cleaning"), "The working Cleaner application omitted ordinary household cleaning.");
 assert(app.includes("readCleanerApplicationDraft") && app.includes("clearCleanerApplicationDraft(window.sessionStorage)"));
 assert(app.includes("AbortController") && app.includes("navigator.onLine === false"), "Cleaner submission needs bounded poor-connection recovery.");
 assert(app.includes("cleanerDraftControls.get(form)") && app.includes("draftControls?.rememberSubmission(pending.key)"), "Cleaner recovery must preserve exact retry identity across an interrupted response.");

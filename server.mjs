@@ -149,6 +149,7 @@ const cleanerScreeningChecks = [
 ];
 
 const cleanerServiceFields = {
+  serviceDomestic: "Regular domestic cleaning",
   serviceTurnovers: "Rental turnovers",
   serviceEndOfTenancy: "End-of-tenancy",
   serviceWorkplaces: "Offices and workplaces",
@@ -157,12 +158,15 @@ const cleanerServiceFields = {
 };
 
 const requestServiceMap = {
+  "Regular home clean": "Regular domestic cleaning",
   "Rental turnover clean": "Rental turnovers",
   "End-of-tenancy clean": "End-of-tenancy",
   "Regular workplace clean": "Offices and workplaces",
   "Communal area clean": "Communal areas",
   "One-off deep clean": "Deep cleans"
 };
+
+const requestServices = new Set([...Object.keys(requestServiceMap), "Not sure yet"]);
 
 const requestFrequencies = new Set(["One-off", "Weekly", "Several times a week", "Fortnightly", "As properties turn over", "Not sure yet"]);
 
@@ -4929,6 +4933,7 @@ async function handleCleaningRequest(request, response) {
   if ([record.siteSize, record.accessNotes, record.details].some((value) => value && containsSensitiveAccessDetails(value))) errors.push(accessDetailsSafetyMessage);
   if (record.preferredDate && (!/^\d{4}-\d{2}-\d{2}$/.test(record.preferredDate) || record.preferredDate < localDateToday())) errors.push("Preferred date must be today or later.");
   if (record.preferredTimeWindow && !Object.hasOwn(preferredArrivalWindows, record.preferredTimeWindow)) errors.push("Choose a supported preferred arrival window.");
+  if (record.service && !requestServices.has(record.service)) errors.push("Choose a supported cleaning service.");
   if (!requestFrequencies.has(record.frequency)) errors.push("Choose a supported cleaning frequency.");
   if (!record.consent) errors.push("Privacy consent is required.");
   if (errors.length) return json(response, 422, { ok: false, errors });

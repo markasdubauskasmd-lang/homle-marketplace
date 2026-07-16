@@ -161,7 +161,7 @@
               </div>
               <div class="field-row">
                 <label>Property type <select name="propertyType" required><option value="">Choose one</option><option>Flat or house</option><option>Office or workplace</option><option>Communal area</option><option>Short-let property</option><option>Other commercial space</option></select></label>
-                <label>Service <select name="service" required><option value="">Choose one</option><option>Rental turnover clean</option><option>End-of-tenancy clean</option><option>Regular workplace clean</option><option>Communal area clean</option><option>One-off deep clean</option><option>Not sure yet</option></select></label>
+                <label>Service <select name="service" required><option value="">Choose one</option><option>Regular home clean</option><option>Rental turnover clean</option><option>End-of-tenancy clean</option><option>Regular workplace clean</option><option>Communal area clean</option><option>One-off deep clean</option><option>Not sure yet</option></select></label>
               </div>
               <label>Site size or rooms <input name="siteSize" required data-access-detail-safe placeholder="For example: 2 bedrooms and 1 bathroom, or 1,500 sq ft office"></label>
               <div class="guided-form-actions">
@@ -267,6 +267,7 @@
               </div>
               <fieldset class="service-options" data-service-group>
                 <legend>Cleaning work you want <span>(choose at least one)</span></legend>
+                <label class="checkbox"><input name="serviceDomestic" type="checkbox"><span>Regular home cleaning</span></label>
                 <label class="checkbox"><input name="serviceTurnovers" type="checkbox"><span>Rental turnovers</span></label>
                 <label class="checkbox"><input name="serviceEndOfTenancy" type="checkbox"><span>End-of-tenancy</span></label>
                 <label class="checkbox"><input name="serviceWorkplaces" type="checkbox"><span>Offices and workplaces</span></label>
