@@ -279,6 +279,17 @@ textarea { resize: vertical; }
 .settings-dialog p { margin: 0; color: var(--muted); }
 .settings-dialog label { display: grid; gap: 7px; font-weight: 800; }
 .settings-dialog button:disabled { cursor: wait; opacity: .65; }
+.settings-privacy-card { margin-top: 28px; padding-top: 28px; border-top: 1px solid var(--line); }
+.settings-privacy-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.settings-danger-button { color: #8a2f28; border-color: #d8a8a3; }
+.settings-privacy-note { padding: 14px; border: 1px solid #ead9b7; border-radius: 13px; background: #fff9ec; color: #59471f !important; line-height: 1.55; }
+.settings-privacy-list { display: grid; gap: 9px; margin: 10px 0 0; padding: 0; list-style: none; }
+.settings-privacy-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fbfdfc; }
+.settings-privacy-list strong, .settings-privacy-list small { display: block; }
+.settings-privacy-list small { margin-top: 3px; color: var(--muted); }
+.settings-privacy-status { padding: 6px 9px; border-radius: 999px; background: #edf5f2; color: var(--green-dark); font-size: .82rem; font-weight: 900; text-align: center; }
+.settings-confirmation { grid-template-columns: 22px 1fr !important; align-items: start; padding: 14px; border: 1px solid #d8a8a3; border-radius: 13px; background: #fff6f5; }
+.settings-confirmation input { width: 18px; height: 18px; margin-top: 2px; }
 .brief-complete-page { min-height: 100vh; background: linear-gradient(180deg, #eef8f5, #fff); }
 .brief-complete-shell { max-width: 880px; }
 .brief-complete-card { padding: clamp(30px, 7vw, 68px); border: 1px solid var(--line); border-radius: 26px; background: #fff; box-shadow: 0 24px 70px rgba(11,70,63,.11); text-align: center; }
@@ -958,6 +969,9 @@ textarea { resize: vertical; }
   .account-card, .account-side { padding: 26px 20px; border-radius: 19px; }
   .settings-shell { width: min(100% - 20px, 820px); padding: 26px 20px; border-radius: 19px; }
   .settings-provider-actions .button, .settings-dialog-actions .button { width: 100%; }
+  .settings-privacy-actions, .settings-privacy-list li { display: grid; }
+  .settings-privacy-actions .button { width: 100%; }
+  .settings-privacy-status { justify-self: start; }
   .account-card h1 { font-size: clamp(2.15rem, 12vw, 3.25rem); }
   .account-actions .button { width: 100%; }
   .account-form .button { width: 100%; }
@@ -1620,6 +1634,15 @@ textarea { resize: vertical; }
 .landlord-form-feedback[data-kind="success"] { color: var(--green-dark); border-color: #9bcdbf; background: var(--mint-pale); }
 .landlord-record-form .button[type="submit"] { justify-self: start; min-width: 190px; }
 .landlord-record-form .button[aria-busy="true"] { cursor: progress; opacity: .7; }
+.dashboard-next-action { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 18px; align-items: center; margin: 0 0 24px; padding: 22px; border: 1px solid #7fc9b7; border-radius: 22px; background: linear-gradient(145deg, #e8faf4, #fff); box-shadow: 0 14px 36px rgba(16,72,63,.09); }
+.dashboard-next-mark { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 16px; background: var(--green); color: #fff; font-size: 1.5rem; font-weight: 900; }
+.dashboard-next-action h2 { margin: 3px 0 4px; color: var(--green-dark); font-size: clamp(1.35rem, 3vw, 1.75rem); }
+.dashboard-next-action p:last-child { margin: 0; color: var(--muted); }
+.dashboard-next-action .button { min-width: 170px; white-space: nowrap; }
+.dashboard-optional-fields { border: 1px solid var(--line); border-radius: 13px; background: #fff; }
+.dashboard-optional-fields summary { display: flex; justify-content: space-between; gap: 15px; padding: 14px; color: var(--green-dark); font-weight: 850; cursor: pointer; }
+.dashboard-optional-fields summary span { color: var(--muted); font-size: .78rem; }
+.dashboard-optional-fields > div { display: grid; gap: 17px; padding: 4px 14px 16px; }
 .landlord-request-form { margin-top: 0; margin-bottom: 22px; }
 .landlord-required-services { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .landlord-speech-scope { display: grid; gap: 14px; padding: 18px; border: 1px solid #b7d8ce; border-radius: 15px; background: var(--mint-pale); }
@@ -1687,6 +1710,9 @@ textarea { resize: vertical; }
   .landlord-speech-heading, .landlord-checklist-heading { display: grid; }
   .landlord-speech-heading .button, .landlord-checklist-heading .text-button { width: 100%; }
   .landlord-record-form .button[type="submit"] { width: 100%; }
+  .dashboard-next-action { grid-template-columns: 42px 1fr; padding: 18px 15px; }
+  .dashboard-next-mark { width: 40px; height: 40px; border-radius: 13px; }
+  .dashboard-next-action .button { grid-column: 1 / -1; width: 100%; min-width: 0; }
   .landlord-scan-picker-actions { display: grid; grid-template-columns: 1fr; }
   .landlord-scan-picker-actions .button, .landlord-request-submit-form .button, .landlord-scan-upload-form .button[type="submit"] { width: 100%; }
   .landlord-scan-photo { grid-template-columns: 1fr; }

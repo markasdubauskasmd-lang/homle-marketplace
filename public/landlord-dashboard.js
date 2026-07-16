@@ -27,11 +27,17 @@ const propertySave = document.querySelector("[data-save-property]");
 const requestSave = document.querySelector("[data-save-request]");
 const speechButton = document.querySelector("[data-speech-toggle]");
 const speechStatus = document.querySelector("[data-speech-status]");
+const nextTitle = document.querySelector("[data-landlord-next-title]");
+const nextCopy = document.querySelector("[data-landlord-next-copy]");
+const nextLink = document.querySelector("[data-landlord-next-link]");
+const nextButton = document.querySelector("[data-landlord-next-button]");
 let properties = [];
 let requests = [];
 let bookings = [];
 let recognition = null;
 let listening = false;
+let speechFailed = false;
+let speechChangedDuringListen = false;
 let dirty = false;
 let loading = false;
 const requestScans = new Map();
@@ -156,6 +162,7 @@ function renderProperties() {
   propertyList.hidden = properties.length === 0;
   requestForm.querySelector("[data-request-controls]").disabled = properties.length === 0;
   document.querySelector("[data-property-count]").textContent = String(properties.length);
+  renderNextAction();
 }
 
 function propertyFact(label, value) {
@@ -415,6 +422,7 @@ function renderRequests() {
   requestList.hidden = requests.length === 0;
   const draftCount = requests.filter((request) => request.status === "draft").length;
   document.querySelector("[data-draft-count]").textContent = String(draftCount);
+  renderNextAction();
 }
 
 function renderBookingCard(booking) {
@@ -457,6 +465,51 @@ function renderBookings() {
   document.querySelector("[data-landlord-history-count]").textContent = String(buckets.history.length);
   document.querySelector("[data-landlord-history-section]").hidden = buckets.history.length === 0;
   document.querySelector("[data-landlord-active-count]").textContent = String(current.length);
+  renderNextAction();
+}
+
+function renderNextAction() {
+  const buckets = bookingSummaryBuckets(bookings, "landlord");
+  const booking = buckets.active[0] || buckets.upcoming[0];
+  nextLink.hidden = true;
+  nextButton.hidden = true;
+  if (booking?.paymentStepAvailable) {
+    nextTitle.textContent = "Secure your confirmed booking";
+    nextCopy.textContent = `${booking.propertyName || "Your property"} is ready for its booking-total authorization.`;
+    nextLink.href = `/booking-payment?bookingId=${encodeURIComponent(booking.bookingId)}`;
+    nextLink.textContent = "Authorize booking";
+    nextLink.hidden = false;
+    return;
+  }
+  if (booking?.activeJobAvailable) {
+    nextTitle.textContent = buckets.active.length ? "Open your live clean" : "View your confirmed clean";
+    nextCopy.textContent = `${booking.propertyName || "Your property"} · ${formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)}`;
+    nextLink.href = `/bookings/${booking.bookingId}`;
+    nextLink.textContent = buckets.active.length ? "Open live progress" : "View booking";
+    nextLink.hidden = false;
+    return;
+  }
+  if (!properties.length) {
+    nextTitle.textContent = "Add the property to clean";
+    nextCopy.textContent = "Only the name and address are needed now. Extra property details can wait.";
+    nextButton.textContent = "Add property";
+    nextButton.dataset.nextAction = "property";
+    nextButton.hidden = false;
+    return;
+  }
+  if (requests.some((request) => request.status === "draft")) {
+    nextTitle.textContent = "Finish your room scan";
+    nextCopy.textContent = "Add room photos, check the spoken-note summary and submit the private request.";
+    nextButton.textContent = "Continue room scan";
+    nextButton.dataset.nextAction = "draft";
+    nextButton.hidden = false;
+    return;
+  }
+  nextTitle.textContent = "Speak and scan your rooms";
+  nextCopy.textContent = "Choose the property, say what needs cleaning, then review the concise checklist.";
+  nextButton.textContent = "Start cleaning request";
+  nextButton.dataset.nextAction = "request";
+  nextButton.hidden = false;
 }
 
 async function loadWorkspace() {
@@ -545,8 +598,7 @@ async function createRequestDraft(event) {
     budgetPence = moneyToPence(data.get("budget"));
   } catch (error) { return showFeedback(requestFeedback, error.message); }
   const cleaningType = String(data.get("cleaningType") || "");
-  const requiredServices = data.getAll("requiredServices").map(String);
-  if (!requiredServices.includes(cleaningType)) return showFeedback(requestFeedback, "Select the primary cleaning type in Required services as well.");
+  const requiredServices = [cleaningType];
   if (data.get("scopeReviewed") !== "on") return showFeedback(requestFeedback, "Review and confirm the concise room checklist before saving this draft.");
   const csrf = storedCsrf();
   if (!csrf) return showFeedback(requestFeedback, "Your secure editing token is missing. Sign in again before saving.");
@@ -592,15 +644,15 @@ function useSavedChecklist() {
   showFeedback(requestFeedback, "Saved checklist copied. Review every task against the current room scan before saving.", "success");
 }
 
-function summariseSpeech() {
+function summariseSpeech({ automatic = false } = {}) {
   const tasks = checklistFromTranscript(requestForm.elements.transcript.value);
   if (!tasks.length) return showFeedback(requestFeedback, "No cleaning tasks could be summarised. Name each room and describe the cleaning action clearly.");
   const value = tasks.join("\n");
-  if (requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this new concise speech summary?")) return;
+  if (!automatic && requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this new concise speech summary?")) return;
   invalidateScopeReview("The concise checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
   dirty = true;
-  showFeedback(requestFeedback, `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} prepared. Review every bullet before confirming.`, "success");
+  showFeedback(requestFeedback, `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} prepared${automatic ? " automatically" : ""}. Review every bullet before confirming.`, "success");
 }
 
 function configureSpeech() {
@@ -614,9 +666,17 @@ function configureSpeech() {
   recognition.lang = "en-GB";
   recognition.continuous = true;
   recognition.interimResults = true;
-  recognition.onstart = () => { listening = true; speechButton.textContent = "Stop speaking"; speechStatus.textContent = "Listening… Describe each room and the cleaning needed."; };
-  recognition.onend = () => { listening = false; speechButton.textContent = "Start speaking"; speechStatus.textContent = "Speech stopped. Review the transcript, then summarise it."; };
-  recognition.onerror = () => { listening = false; speechButton.textContent = "Start speaking"; speechStatus.textContent = "Speech capture stopped. Your existing transcript is still here; type or try again."; };
+  recognition.onstart = () => { listening = true; speechFailed = false; speechChangedDuringListen = false; speechButton.textContent = "Stop speaking"; speechStatus.textContent = "Listening… Describe each room and the cleaning needed."; };
+  recognition.onend = () => {
+    listening = false;
+    speechButton.textContent = "Start speaking";
+    if (speechFailed) return;
+    if (speechChangedDuringListen && requestForm.elements.transcript.value.trim()) {
+      summariseSpeech({ automatic: true });
+      speechStatus.textContent = "Speech stopped. Concise room tasks were updated automatically.";
+    } else speechStatus.textContent = "Speech stopped. No new room notes were heard.";
+  };
+  recognition.onerror = () => { listening = false; speechFailed = true; speechButton.textContent = "Start speaking"; speechStatus.textContent = "Speech capture stopped. Your existing transcript is still here; type or try again."; };
   recognition.onresult = (event) => {
     let finalText = "";
     let interimText = "";
@@ -628,6 +688,7 @@ function configureSpeech() {
     if (finalText) {
       invalidateScopeReview("The spoken walkthrough changed. Summarise again or manually reconcile every room task before confirming.");
       requestForm.elements.transcript.value = `${requestForm.elements.transcript.value.trim()} ${finalText}`.trim().slice(0, 5000);
+      speechChangedDuringListen = true;
     }
     speechStatus.textContent = interimText ? `Listening: ${interimText.slice(0, 160)}` : "Listening…";
     dirty = true;
@@ -647,7 +708,25 @@ document.querySelector("[data-summarise-speech]").addEventListener("click", summ
 speechButton.addEventListener("click", () => { if (!recognition) return; if (listening) recognition.stop(); else { try { recognition.start(); } catch { speechStatus.textContent = "Speech is already starting. Try again in a moment."; } } });
 requestForm.elements.transcript.addEventListener("input", () => { invalidateScopeReview("The walkthrough changed. Summarise again or manually reconcile every room task before confirming."); });
 requestForm.elements.tasks.addEventListener("input", () => { invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });
-requestForm.elements.cleaningType.addEventListener("change", () => { const checkbox = [...requestForm.querySelectorAll('[name="requiredServices"]')].find((input) => input.value === requestForm.elements.cleaningType.value); if (checkbox) checkbox.checked = true; });
+nextButton.addEventListener("click", () => {
+  const action = nextButton.dataset.nextAction;
+  if (action === "property") {
+    selectWorkspaceTab("properties");
+    propertyForm.hidden = false;
+    propertyForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    propertyForm.querySelector("input")?.focus({ preventScroll: true });
+    return;
+  }
+  selectWorkspaceTab("requests");
+  if (action === "draft") {
+    requestList.scrollIntoView({ behavior: "smooth", block: "start" });
+    requestList.querySelector("details")?.setAttribute("open", "");
+    return;
+  }
+  if (properties.length === 1) propertySelect.value = properties[0].propertyId;
+  requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
+});
 propertyForm.addEventListener("input", () => { dirty = true; });
 requestForm.addEventListener("input", () => { dirty = true; });
 propertyForm.addEventListener("submit", createProperty);

@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Account settings | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-64">
-  <script src="/settings.js?v=20260716-2" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-65">
+  <script src="/settings.js?v=20260716-3" type="module"></script>
 </head>
 <body class="account-page">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -30,6 +30,13 @@
           <div class="settings-provider-actions"><button class="button button-outline" type="button" data-connect-provider="google" hidden>Connect Google</button><button class="button button-outline" type="button" data-connect-provider="facebook" hidden>Connect Facebook</button></div>
         </div>
       </section>
+      <section class="settings-card settings-privacy-card" data-privacy-content hidden aria-labelledby="privacy-rights-title">
+        <div><p class="eyebrow">Your information</p><h2 id="privacy-rights-title">Privacy requests</h2><p>Ask for a copy of your Tideway account data or request account deletion. Requests are privately reviewed before anything changes.</p></div>
+        <div class="settings-privacy-actions"><button class="button button-outline" type="button" data-privacy-action="export">Request my data</button><button class="button button-outline settings-danger-button" type="button" data-privacy-action="deletion">Request account deletion</button></div>
+        <div class="account-feedback" data-privacy-feedback role="status" aria-live="polite" hidden></div>
+        <div data-privacy-history hidden><h3>Your requests</h3><ul class="settings-privacy-list" data-privacy-list></ul></div>
+        <p class="settings-privacy-note"><strong>Important:</strong> a deletion request does not instantly delete your account, cancel a booking or change a payment. Tideway must first verify your identity and review any active booking, dispute, payment or legal-retention requirement.</p>
+      </section>
       <div class="account-actions"><a class="button button-outline" href="/login">Return to sign in</a></div>
     </section>
   </main>
@@ -39,6 +46,14 @@
       <label data-password-field>Current Tideway password<input name="password" type="password" autocomplete="current-password" minlength="12" maxlength="128"></label>
       <div class="account-feedback" data-link-feedback role="status" aria-live="polite" hidden></div>
       <div class="settings-dialog-actions"><button class="button button-outline" type="button" data-link-cancel>Cancel</button><button class="button" type="submit" data-link-submit>Continue securely</button></div>
+    </form>
+  </dialog>
+  <dialog class="settings-dialog" data-privacy-dialog aria-labelledby="privacy-dialog-title">
+    <form method="dialog" data-privacy-form>
+      <div><p class="eyebrow">Private account request</p><h2 id="privacy-dialog-title" data-privacy-dialog-title>Request my data</h2><p data-privacy-dialog-copy>Tideway will verify your request and prepare a secure response.</p></div>
+      <label class="settings-confirmation" data-deletion-confirmation hidden><input type="checkbox" name="confirmDeletion"> <span>I understand this is a request for review and does not immediately cancel bookings, refund payments or delete data.</span></label>
+      <div class="account-feedback" data-privacy-dialog-feedback role="status" aria-live="polite" hidden></div>
+      <div class="settings-dialog-actions"><button class="button button-outline" type="button" data-privacy-cancel>Cancel</button><button class="button" type="submit" data-privacy-submit>Send private request</button></div>
     </form>
   </dialog>
   <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Tideway private pilot.</span><a href="/privacy">Privacy notice</a></div></footer>

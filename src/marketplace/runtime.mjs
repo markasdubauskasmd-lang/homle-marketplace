@@ -42,6 +42,8 @@ import { createReviewRepository } from "./review-repository.mjs";
 import { createReviewService } from "./review-service.mjs";
 import { createDisputeRepository } from "./dispute-repository.mjs";
 import { createDisputeService } from "./dispute-service.mjs";
+import { createPrivacyRequestRepository } from "./privacy-request-repository.mjs";
+import { createPrivacyRequestService } from "./privacy-request-service.mjs";
 
 export function createMarketplaceRuntime(pool, options = {}) {
   const env = options.env || process.env;
@@ -120,7 +122,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const reviewService = createReviewService(reviewRepository);
   const disputeRepository = createDisputeRepository(database);
   const disputeService = createDisputeService(disputeRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, paymentService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  const privacyRequestRepository = createPrivacyRequestRepository(database);
+  const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, privacyRequestService, paymentService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires SMTP_URL and EMAIL_FROM configuration.");
   const authenticationRouter = options.emailDelivery
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
@@ -175,6 +179,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     reviewService,
     disputeRepository,
     disputeService,
+    privacyRequestRepository,
+    privacyRequestService,
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
     googleOidcReady: authenticationRouter !== null && googleOidcProvider !== null,

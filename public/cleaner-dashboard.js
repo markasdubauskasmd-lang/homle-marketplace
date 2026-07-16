@@ -160,6 +160,35 @@ function renderBookings() {
   document.querySelector("[data-cleaner-active-count]").textContent = String(buckets.active.length);
   document.querySelector("[data-cleaner-upcoming-count]").textContent = String(buckets.upcoming.length);
   document.querySelector("[data-cleaner-history-count]").textContent = String(buckets.history.length);
+  renderNextAction(buckets);
+}
+
+function renderNextAction(buckets) {
+  const title = document.querySelector("[data-cleaner-next-title]");
+  const copy = document.querySelector("[data-cleaner-next-copy]");
+  const link = document.querySelector("[data-cleaner-next-link]");
+  const pending = buckets.pending[0];
+  const active = buckets.active[0];
+  const upcoming = buckets.upcoming[0];
+  if (pending) {
+    title.textContent = "Review your next request";
+    copy.textContent = `${formatBookingWindow(pending.scheduledStartAt, pending.scheduledEndAt)} · ${formatBookingMoney(pending.pricePence)} offered pay`;
+    link.href = "#cleaner-pending-title";
+    link.textContent = "Review request";
+    return;
+  }
+  const booking = active || upcoming;
+  if (booking?.activeJobAvailable) {
+    title.textContent = active ? "Open your active clean" : "Prepare for your next clean";
+    copy.textContent = `${booking.propertyName || "Cleaning property"} · ${formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)}`;
+    link.href = `/bookings/${booking.bookingId}`;
+    link.textContent = active ? "Open active job" : "View job checklist";
+    return;
+  }
+  title.textContent = "Keep your profile ready";
+  copy.textContent = "Confirm your services and availability so suitable requests can reach you.";
+  link.href = "/cleaner/profile";
+  link.textContent = "Open profile";
 }
 
 async function refreshBookings() {

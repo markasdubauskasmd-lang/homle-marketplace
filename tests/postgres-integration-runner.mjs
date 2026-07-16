@@ -31,6 +31,8 @@ assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account ca
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account can read a private room scan/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Cleaner can read a room scan without Landlord preview consent/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /insufficient_privilege/);
+assert.match(sources.get("marketplace-rls-behaviour.sql"), /Privacy export intake lost active-request idempotency/);
+assert.match(sources.get("marketplace-rls-behaviour.sql"), /Runtime role can read account privacy requests directly/);
 assert.match(sources.get("marketplace-post-concurrency.sql"), /Cleaner property access did not follow the accepted booking/);
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Runtime role can bypass the function-only dispute workflow/);
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Unrelated account opened a booking dispute/);
@@ -47,6 +49,7 @@ for (const file of ["accept-booking-a.sql", "accept-booking-b.sql"]) {
 }
 for (const idPrefix of ["10000000", "20000000", "30000000", "40000000"]) assert.ok(sources.get("marketplace-integration-cleanup.sql").includes(idPrefix));
 assert.match(sources.get("marketplace-integration-cleanup.sql"), /DELETE FROM cleaner_service_areas/);
+assert.match(sources.get("marketplace-integration-cleanup.sql"), /DELETE FROM privacy_requests/);
 assert.ok(sources.get("marketplace-integration-cleanup.sql").indexOf("DELETE FROM audit_logs") < sources.get("marketplace-integration-cleanup.sql").indexOf("DELETE FROM users"), "Fixture audit evidence must be removed before its actor users.");
 
 const ownerPassword = "owner p@ss/secret";

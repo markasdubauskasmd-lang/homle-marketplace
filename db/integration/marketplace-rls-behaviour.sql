@@ -60,6 +60,11 @@ BEGIN
   EXCEPTION WHEN insufficient_privilege THEN NULL;
   END;
   BEGIN
+    PERFORM 1 FROM privacy_requests;
+    RAISE EXCEPTION 'Runtime role can read account privacy requests directly';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
     PERFORM 1 FROM cleaning_request_photos;
     RAISE EXCEPTION 'Runtime role can read private request-photo object keys directly';
   EXCEPTION WHEN insufficient_privilege THEN NULL;
@@ -86,7 +91,7 @@ $shared_rate_limit$;
 SELECT set_config('app.user_id', '10000000-0000-4000-8000-000000000001', true);
 SELECT set_config('app.user_roles', 'landlord', true);
 DO $landlord$
-DECLARE disconnected_record record;
+DECLARE disconnected_record record; export_first jsonb; export_retry jsonb; deletion_first jsonb; privacy_history jsonb;
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Landlord cannot read both own bookings'; END IF;
   IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Landlord cannot read both own properties'; END IF;
@@ -94,6 +99,17 @@ BEGIN
   IF tideway_private.verify_my_social_identity('google','integration-google-subject') IS NOT TRUE
      OR tideway_private.verify_my_social_identity('google','different-subject') IS TRUE THEN
     RAISE EXCEPTION 'Provider step-up did not require the exact connected subject';
+  END IF;
+  SELECT tideway_private.request_my_privacy_action('71000000-0000-4000-8000-000000000001','export') INTO export_first;
+  SELECT tideway_private.request_my_privacy_action('71000000-0000-4000-8000-000000000002','export') INTO export_retry;
+  IF export_first->>'requestId'<>'71000000-0000-4000-8000-000000000001' OR (export_first->>'created')::boolean IS NOT TRUE
+     OR export_retry->>'requestId'<>'71000000-0000-4000-8000-000000000001' OR (export_retry->>'created')::boolean IS NOT FALSE THEN
+    RAISE EXCEPTION 'Privacy export intake lost active-request idempotency';
+  END IF;
+  SELECT tideway_private.request_my_privacy_action('71000000-0000-4000-8000-000000000003','deletion') INTO deletion_first;
+  SELECT tideway_private.get_my_privacy_requests() INTO privacy_history;
+  IF deletion_first->>'requestType'<>'deletion' OR jsonb_array_length(privacy_history)<>2 THEN
+    RAISE EXCEPTION 'Privacy intake did not separate export and deletion requests or owner history';
   END IF;
   SELECT * INTO disconnected_record FROM tideway_private.disconnect_my_social_identity('facebook');
   IF disconnected_record.disconnected IS NOT TRUE OR disconnected_record.reason IS NOT NULL OR disconnected_record.revoked_sessions <> 2 THEN

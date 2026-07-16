@@ -91,6 +91,8 @@ GRANT EXECUTE ON FUNCTION tideway_private.open_booking_dispute(uuid,uuid,uuid,te
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_dispute(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_admin_booking_disputes(text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.review_booking_dispute(uuid,text,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.request_my_privacy_action(uuid,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_my_privacy_requests() TO tideway_app;
 REVOKE ALL ON FUNCTION tideway_private.provision_bootstrap_administrator(citext,uuid,text,text) FROM tideway_app;
 
 -- Booking transitions are only writable through the audited, actor-aware functions above.
@@ -103,6 +105,7 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_realtime_events FROM tideway_ap
 REVOKE SELECT ON notifications FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON reviews FROM tideway_app;
 REVOKE SELECT ON disputes FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON privacy_requests FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_payments, payment_commands, payment_status_history FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.request_rate_limits FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.pending_social_identities FROM tideway_app;

@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Landlord workspace | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-65">
-  <script src="/landlord-dashboard.js?v=20260716-7" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-66">
+  <script src="/landlord-dashboard.js?v=20260716-8" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
@@ -49,6 +49,12 @@
         <dl class="landlord-dashboard-stats"><div><dt>Properties</dt><dd data-property-count>0</dd></div><div><dt>Request drafts</dt><dd data-draft-count>0</dd></div><div><dt>Active bookings</dt><dd data-landlord-active-count>0</dd><small>Confirmed records only</small></div></dl>
       </section>
 
+      <section class="dashboard-next-action" data-landlord-next aria-labelledby="landlord-next-title">
+        <span class="dashboard-next-mark" aria-hidden="true">→</span>
+        <div><p class="eyebrow">Do this next</p><h2 id="landlord-next-title" data-landlord-next-title>Start your first clean</h2><p data-landlord-next-copy>Save the cleaning location, then speak and scan each room.</p></div>
+        <a class="button" href="#" data-landlord-next-link hidden>Continue</a><button class="button" type="button" data-landlord-next-button>Start now</button>
+      </section>
+
       <section class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
         <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p><h2 id="landlord-bookings-title">Active and upcoming bookings</h2></div><span class="booking-private-pill">Private to your account</span></div>
         <div class="booking-dashboard-list" data-landlord-booking-list></div>
@@ -74,13 +80,15 @@
             <label>Address line 1<input name="addressLine1" autocomplete="address-line1" maxlength="240" required></label>
             <div class="field-row"><label>Address line 2 <span>(optional)</span><input name="addressLine2" autocomplete="address-line2" maxlength="240"></label><label>Town or locality<input name="locality" autocomplete="address-level2" maxlength="120" required></label></div>
             <label>UK postcode<input name="postcode" autocomplete="postal-code" maxlength="12" required></label>
-            <div class="field-row"><label>Bedrooms<input name="bedrooms" type="number" inputmode="decimal" min="0" max="200" step="0.5"></label><label>Bathrooms<input name="bathrooms" type="number" inputmode="decimal" min="0" max="200" step="0.5"></label></div>
-            <label>Approximate size (m²) <span>(optional)</span><input name="approximateSizeSqM" type="number" inputmode="numeric" min="1" max="1000000" step="1"></label>
-            <label>Access instructions <span>(kept protected)</span><textarea name="accessInstructions" rows="3" maxlength="3000" placeholder="Do not include access codes until needed. These details are encrypted and shared with the selected Cleaner only after acceptance."></textarea></label>
-            <label>Parking instructions <span>(optional)</span><textarea name="parkingInstructions" rows="2" maxlength="1200"></textarea></label>
-            <label>Cleaning preferences <span>(optional)</span><textarea name="cleaningPreferences" rows="3" maxlength="3000"></textarea></label>
-            <label>Reusable room checklist <span>(optional)</span><textarea name="savedChecklist" rows="5" placeholder="Kitchen: Wipe worktops&#10;Bathroom: Remove limescale"></textarea><small>One room-labelled task per line. A request still requires a fresh room-scan review.</small></label>
-            <label>Special notes <span>(optional)</span><textarea name="specialNotes" rows="3" maxlength="3000"></textarea></label>
+            <details class="dashboard-optional-fields"><summary>Add property details later <span>Optional</span></summary><div>
+              <div class="field-row"><label>Bedrooms<input name="bedrooms" type="number" inputmode="decimal" min="0" max="200" step="0.5"></label><label>Bathrooms<input name="bathrooms" type="number" inputmode="decimal" min="0" max="200" step="0.5"></label></div>
+              <label>Approximate size (m²) <span>(optional)</span><input name="approximateSizeSqM" type="number" inputmode="numeric" min="1" max="1000000" step="1"></label>
+              <label>Access instructions <span>(kept protected)</span><textarea name="accessInstructions" rows="3" maxlength="3000" placeholder="Do not include access codes until needed. These details are encrypted and shared with the selected Cleaner only after acceptance."></textarea></label>
+              <label>Parking instructions <span>(optional)</span><textarea name="parkingInstructions" rows="2" maxlength="1200"></textarea></label>
+              <label>Cleaning preferences <span>(optional)</span><textarea name="cleaningPreferences" rows="3" maxlength="3000"></textarea></label>
+              <label>Reusable room checklist <span>(optional)</span><textarea name="savedChecklist" rows="5" placeholder="Kitchen: Wipe worktops&#10;Bathroom: Remove limescale"></textarea><small>One room-labelled task per line. A request still requires a fresh room-scan review.</small></label>
+              <label>Special notes <span>(optional)</span><textarea name="specialNotes" rows="3" maxlength="3000"></textarea></label>
+            </div></details>
             <div class="landlord-form-feedback" data-property-feedback role="status" aria-live="polite" hidden></div>
             <button class="button" type="submit" data-save-property>Save property privately</button>
           </fieldset>
@@ -97,16 +105,14 @@
             <div class="field-row"><label>Date<input name="requestedDate" type="date" required></label><label>Start time<input name="requestedTime" type="time" required></label></div>
             <label>Estimated duration<select name="durationMinutes" required><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="300">5 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></label>
             <label>Primary cleaning type<select name="cleaningType" required><option value="">Choose one</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select></label>
-            <fieldset class="service-options landlord-required-services"><legend>Required services</legend><label class="checkbox"><input type="checkbox" name="requiredServices" value="regular-domestic"><span>Regular domestic</span></label><label class="checkbox"><input type="checkbox" name="requiredServices" value="rental-turnovers"><span>Rental turnover</span></label><label class="checkbox"><input type="checkbox" name="requiredServices" value="end-of-tenancy"><span>End of tenancy</span></label><label class="checkbox"><input type="checkbox" name="requiredServices" value="workplaces"><span>Workplace</span></label><label class="checkbox"><input type="checkbox" name="requiredServices" value="communal-areas"><span>Communal areas</span></label><label class="checkbox"><input type="checkbox" name="requiredServices" value="deep-cleans"><span>Deep clean</span></label></fieldset>
-            <div class="field-row"><label>Frequency<select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select></label><label>Budget (£) <span>(optional)</span><input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01"></label></div>
-            <label>Special instructions <span>(optional)</span><textarea name="specialInstructions" rows="3" maxlength="5000"></textarea></label>
+            <details class="dashboard-optional-fields"><summary>Add budget or recurring preference <span>Optional</span></summary><div><div class="field-row"><label>Frequency<select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select></label><label>Budget (£) <span>(optional)</span><input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01"></label></div><label>Special instructions <span>(optional)</span><textarea name="specialInstructions" rows="3" maxlength="5000"></textarea></label></div></details>
 
             <section class="landlord-speech-scope" aria-labelledby="speech-scope-title">
               <div class="landlord-speech-heading"><div><p class="eyebrow">Speech to concise bullets</p><h3 id="speech-scope-title">Walk through each room naturally.</h3></div><button class="button button-outline" type="button" data-speech-toggle>Start speaking</button></div>
               <p data-speech-status role="status">Checking speech support…</p>
               <label>Spoken or typed walkthrough<textarea name="transcript" rows="5" maxlength="5000" aria-describedby="transcript-privacy" placeholder="This is the kitchen. Wipe the worktops and mop the floor. Moving into the bathroom…"></textarea></label>
-              <small id="transcript-privacy">The walkthrough stays in this browser; Tideway saves only the concise room tasks. Changing the walkthrough or checklist clears the review confirmation.</small>
-              <button class="button button-outline" type="button" data-summarise-speech>Summarise into room tasks</button>
+              <small id="transcript-privacy">When you stop speaking, Tideway automatically creates concise room tasks. You can still use the summary button after typing.</small>
+              <button class="button button-outline" type="button" data-summarise-speech>Update concise room tasks</button>
             </section>
 
             <div class="landlord-checklist-heading"><label for="request-tasks">Reviewed room checklist</label><button class="text-button" type="button" data-use-saved-checklist>Use property's saved checklist</button></div>

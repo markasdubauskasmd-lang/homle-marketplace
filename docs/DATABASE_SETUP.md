@@ -31,7 +31,7 @@ Before any migration-owner connection is used, verify that the complete ordered 
 node tools/check-database-assets.mjs
 ```
 
-This dependency-free check requires all 34 consecutively numbered migrations, rejects missing or unlocked SQL files, verifies the SHA-256 of every migration and role-grant script, and requires each file to retain its explicit `BEGIN;`/`COMMIT;` boundary. An intentional SQL change must be reviewed and receive an explicit matching lock update in the same commit. This is a source-integrity gate only; it does not replace executing the migrations and security/concurrency tests against a real PostgreSQL database.
+This dependency-free check requires all 35 consecutively numbered migrations, rejects missing or unlocked SQL files, verifies the SHA-256 of every migration and role-grant script, and requires each file to retain its explicit `BEGIN;`/`COMMIT;` boundary. An intentional SQL change must be reviewed and receive an explicit matching lock update in the same commit. This is a source-integrity gate only; it does not replace executing the migrations and security/concurrency tests against a real PostgreSQL database.
 
 Create the database and restricted runtime role using administrator tooling, then run these files as the migration owner in this order:
 
@@ -70,6 +70,7 @@ psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/031_fix_invit
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/032_social_provider_step_up_and_removal.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/033_audited_booking_disputes.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/034_bootstrap_administrator_provisioning.sql
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/035_account_privacy_request_intake.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/runtime-role-grants.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/worker-role-grants.sql
 ```
@@ -94,7 +95,7 @@ DATABASE_VERIFICATION_URL='postgresql://migration_owner:password@staging-host/ti
 
 The command requires the `psql` client and runs `db/integration/deployment-verification.sql` inside an explicit read-only transaction. It verifies PostgreSQL and extension versions, the complete RLS table inventory, non-bypass runtime/worker roles, ownership, critical constraints and indexes, trusted `SECURITY DEFINER` search paths, required function grants, revoked direct access to protected data, and worker isolation. Remote URLs default to `sslmode=verify-full`; only `sslmode`, `sslrootcert` and a 1–60 second `connect_timeout` are accepted as URL parameters.
 
-This is a deployed-structure and effective-grant check, not a substitute for the real multi-account RLS, transaction-concurrency, double-booking and notification-worker integration tests in E2. It passed against the disposable local PostgreSQL 16.14 database on 16 July 2026 with 40 RLS tables, 34 application-function checks, 13 worker-function checks and a separate owner-only Administrator-bootstrap denial check for both restricted roles. It has not yet run against founder-approved managed staging.
+This is a deployed-structure and effective-grant check, not a substitute for the real multi-account RLS, transaction-concurrency, double-booking and notification-worker integration tests in E2. It passed against the disposable local PostgreSQL 16.14 database on 16 July 2026 with 40 RLS tables, 36 application-function checks, 13 worker-function checks and a separate owner-only Administrator-bootstrap denial check for both restricted roles. It has not yet run against founder-approved managed staging.
 
 ## Run the marketplace integration suite
 

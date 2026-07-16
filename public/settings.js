@@ -17,11 +17,28 @@ const passwordField = document.querySelector("[data-password-field]");
 const passwordInput = form.elements.password;
 const cancel = document.querySelector("[data-link-cancel]");
 const submit = document.querySelector("[data-link-submit]");
+const privacyContent = document.querySelector("[data-privacy-content]");
+const privacyFeedback = document.querySelector("[data-privacy-feedback]");
+const privacyHistory = document.querySelector("[data-privacy-history]");
+const privacyList = document.querySelector("[data-privacy-list]");
+const privacyButtons = [...document.querySelectorAll("[data-privacy-action]")];
+const privacyDialog = document.querySelector("[data-privacy-dialog]");
+const privacyForm = document.querySelector("[data-privacy-form]");
+const privacyDialogTitle = document.querySelector("[data-privacy-dialog-title]");
+const privacyDialogCopy = document.querySelector("[data-privacy-dialog-copy]");
+const privacyDialogFeedback = document.querySelector("[data-privacy-dialog-feedback]");
+const deletionConfirmation = document.querySelector("[data-deletion-confirmation]");
+const deletionCheckbox = privacyForm.elements.confirmDeletion;
+const privacyCancel = document.querySelector("[data-privacy-cancel]");
+const privacySubmit = document.querySelector("[data-privacy-submit]");
 const providerLabels = Object.freeze({ password: "Email and password", google: "Google", facebook: "Facebook" });
 let selectedProvider = "";
 let selectedAction = "";
 let passwordStepUpAvailable = false;
 let recentStepUpProvider = "";
+let privacyRecords = [];
+let selectedPrivacyType = "";
+const pendingPrivacyIds = new Map();
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 const fragment = new URLSearchParams(location.hash.slice(1));
@@ -53,6 +70,53 @@ function safeProviderLocation(value, provider) {
   const callback = `${location.origin}/api/marketplace/auth/${provider}/callback`;
   if ((!google && !facebook) || url.searchParams.get("redirect_uri") !== callback || url.searchParams.get("response_type") !== "code" || !url.searchParams.get("state")) throw new Error("The provider returned an unsafe connection address.");
   return url.toString();
+}
+
+function privacyLabel(type) {
+  return type === "deletion" ? "Account deletion" : "Data export";
+}
+
+function privacyStatus(status) {
+  return ({ requested: "Received", verifying: "Verifying identity", processing: "In progress", completed: "Completed", rejected: "Closed after review" })[status] || "Under review";
+}
+
+function renderPrivacyRequests() {
+  const activeTypes = new Set(privacyRecords.filter((record) => ["requested", "verifying", "processing"].includes(record.status)).map((record) => record.requestType));
+  for (const button of privacyButtons) {
+    const active = activeTypes.has(button.dataset.privacyAction);
+    button.disabled = active;
+    button.textContent = active ? `${privacyLabel(button.dataset.privacyAction)} requested` : button.dataset.privacyAction === "deletion" ? "Request account deletion" : "Request my data";
+  }
+  privacyList.replaceChildren(...privacyRecords.map((record) => {
+    const item = document.createElement("li");
+    const detail = document.createElement("div");
+    const strong = document.createElement("strong");
+    strong.textContent = privacyLabel(record.requestType);
+    const small = document.createElement("small");
+    small.textContent = `Requested ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(record.createdAt))}`;
+    const status = document.createElement("span");
+    status.className = `settings-privacy-status settings-privacy-status-${record.status}`;
+    status.textContent = privacyStatus(record.status);
+    detail.append(strong, small);
+    item.append(detail, status);
+    return item;
+  }));
+  privacyHistory.hidden = privacyRecords.length === 0;
+}
+
+function openPrivacyDialog(type) {
+  selectedPrivacyType = type;
+  privacyForm.reset();
+  showFeedback(privacyDialogFeedback, "");
+  const deletion = type === "deletion";
+  privacyDialogTitle.textContent = deletion ? "Request account deletion" : "Request my data";
+  privacyDialogCopy.textContent = deletion
+    ? "Tideway will verify your identity and review active obligations before any account data can be removed."
+    : "Tideway will verify your identity and prepare a secure copy of the account data it holds about you.";
+  deletionConfirmation.hidden = !deletion;
+  deletionCheckbox.required = deletion;
+  privacyDialog.showModal();
+  (deletion ? deletionCheckbox : privacySubmit).focus();
 }
 
 function openDialog(action, provider) {
@@ -116,7 +180,10 @@ async function load() {
   else if (resultMessage.endsWith("-verified")) showFeedback(feedback, `${providerLabels[resultMessage.split("-", 1)[0]] || "Provider"} confirmed it is you. You can now change another method for ten minutes.`, "success");
   else if (resultMessage) showFeedback(feedback, resultMessage === "rate-limited" ? "Too many attempts. Wait before trying again." : "The provider security check was not completed. Your existing sign-in methods were not changed.");
   try {
-    const result = await requestJson("/api/marketplace/auth/provider-links");
+    const [result, privacyResult] = await Promise.all([
+      requestJson("/api/marketplace/auth/provider-links"),
+      requestJson("/api/marketplace/privacy-requests")
+    ]);
     const connected = new Set(result.connected.map((item) => item.provider));
     passwordStepUpAvailable = connected.has("password");
     recentStepUpProvider = connected.has(result.recentStepUp?.provider) ? result.recentStepUp.provider : "";
@@ -147,6 +214,9 @@ async function load() {
         ? `${providerLabels[recentStepUpProvider]} recently confirmed it is you. Tideway clears this approval when another connection starts.`
         : "Confirm one existing provider before connecting or removing another sign-in method.";
     content.hidden = false;
+    privacyRecords = Array.isArray(privacyResult.privacyRequests) ? privacyResult.privacyRequests : [];
+    renderPrivacyRequests();
+    privacyContent.hidden = false;
     stateTitle.textContent = "Your account is protected.";
     stateCopy.textContent = connectable || verifiable
       ? "You can add another method without changing your Tideway role, profile or bookings."
@@ -159,7 +229,9 @@ async function load() {
 
 for (const button of connectButtons) button.addEventListener("click", () => openDialog("connect", button.dataset.connectProvider));
 for (const button of stepUpButtons) button.addEventListener("click", () => startStepUp(button.dataset.stepUpProvider));
+for (const button of privacyButtons) button.addEventListener("click", () => openPrivacyDialog(button.dataset.privacyAction));
 cancel.addEventListener("click", () => dialog.close());
+privacyCancel.addEventListener("click", () => privacyDialog.close());
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const csrf = csrfToken();
@@ -185,6 +257,32 @@ form.addEventListener("submit", async (event) => {
     cancel.disabled = false;
     submit.textContent = selectedAction === "remove" ? "Remove and sign out" : "Continue securely";
     (passwordStepUpAvailable ? passwordInput : submit).focus();
+  }
+});
+
+privacyForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (selectedPrivacyType === "deletion" && !deletionCheckbox.checked) return showFeedback(privacyDialogFeedback, "Confirm that you understand what this request does before continuing.");
+  const csrf = csrfToken();
+  if (!csrf) return showFeedback(privacyDialogFeedback, "Your security token is missing. Sign in again before making this request.");
+  const requestId = pendingPrivacyIds.get(selectedPrivacyType) || crypto.randomUUID();
+  pendingPrivacyIds.set(selectedPrivacyType, requestId);
+  privacySubmit.disabled = true;
+  privacyCancel.disabled = true;
+  privacySubmit.textContent = "Sending privately…";
+  try {
+    const result = await requestJson("/api/marketplace/privacy-requests", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ requestId, requestType: selectedPrivacyType }) });
+    pendingPrivacyIds.delete(selectedPrivacyType);
+    privacyRecords = [result.privacyRequest, ...privacyRecords.filter((record) => record.requestId !== result.privacyRequest.requestId && !(record.requestType === result.privacyRequest.requestType && ["requested", "verifying", "processing"].includes(record.status)))];
+    renderPrivacyRequests();
+    privacyDialog.close();
+    showFeedback(privacyFeedback, `${privacyLabel(selectedPrivacyType)} request received. Tideway will verify it before anything changes.`, "success");
+  } catch (error) {
+    showFeedback(privacyDialogFeedback, error.message);
+  } finally {
+    privacySubmit.disabled = false;
+    privacyCancel.disabled = false;
+    privacySubmit.textContent = "Send private request";
   }
 });
 

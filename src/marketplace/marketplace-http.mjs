@@ -69,6 +69,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const notifications = dependencies?.notificationService;
   const reviews = dependencies?.reviewService;
   const disputes = dependencies?.disputeService;
+  const privacyRequests = dependencies?.privacyRequestService;
   const payments = dependencies?.paymentService || null;
   const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
@@ -86,6 +87,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
   if (!disputes || !["open", "getForBooking", "listForAdministrator", "review"].every((method) => typeof disputes[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-case service.");
+  if (!privacyRequests || !["list", "request"].every((method) => typeof privacyRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account privacy-request service.");
   if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
   const limitPublicRead = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
@@ -128,6 +130,16 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);
           sendJson(response, 200, { ok: true, account: { displayName: context.account.displayName, email: context.account.email, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
+          return true;
+        }
+        if (pathname === "/api/marketplace/privacy-requests") {
+          if (request.method !== "GET" && request.method !== "POST") return methodNotAllowed(response, ["GET", "POST"]), true;
+          const mutation = request.method === "POST";
+          const context = await security.protect(request, { mutation });
+          const result = mutation
+            ? await privacyRequests.request(context.actor, await readJsonObject(request))
+            : await privacyRequests.list(context.actor);
+          sendJson(response, mutation && result.created === true ? 201 : 200, { ok: true, ...(mutation ? { privacyRequest: result } : { privacyRequests: result }) });
           return true;
         }
         if (pathname === "/api/marketplace/bookings") {
