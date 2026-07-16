@@ -1,5 +1,7 @@
 # Booking-specific messaging
 
+The participant-only service is now connected to the authenticated active-job routes (`/bookings/:bookingId`, `/tracking` and `/cleaning-progress`). Cleaner and Landlord messages render with text-only DOM operations, arrive through the existing no-poll event stream and retain a stable retry key until a send succeeds. The interface can load older pages without losing newer live messages.
+
 Tideway now has a private message contract for the Landlord and assigned Cleaner on one booking. It is additive to the current pilot and remains detached until PostgreSQL staging, authenticated account UI and delivery tests pass.
 
 ## Authorization and lifecycle

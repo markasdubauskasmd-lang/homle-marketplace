@@ -2,9 +2,12 @@ import { readFile } from "node:fs/promises";
 import {
   activeBookingId,
   activeJobAction,
+  activeJobMessagingOpen,
   activeJobRole,
   activeJobStage,
+  createClientMessageId,
   elapsedLabel,
+  mergeBookingMessages,
   progressSummary,
   taskCanBeDecided,
   taskCanBeUpdated
@@ -29,6 +32,13 @@ assert(activeJobAction("cleaner", {}, { status: "cleaning-in-progress", totalTas
 assert(activeJobAction("landlord", { status: "cleaner-en-route" }, {}).enabled === false, "A Landlord received a Cleaner lifecycle mutation.");
 assert(taskCanBeUpdated("cleaner", "cleaning-in-progress") && !taskCanBeUpdated("landlord", "cleaning-in-progress"), "Cleaning task ownership is not role-safe.");
 assert(taskCanBeDecided("landlord", { unexpected: true, landlordApprovalStatus: "pending" }) && !taskCanBeDecided("cleaner", { unexpected: true, landlordApprovalStatus: "pending" }), "Unexpected-task decisions are not Landlord-only.");
+assert(activeJobMessagingOpen("confirmed") && activeJobMessagingOpen("completed") && !activeJobMessagingOpen("cancelled"), "Booking chat did not follow the server-owned messaging lifecycle.");
+const messageA = { messageId: "88888888-8888-4888-8888-888888888888", senderRole: "cleaner", body: "I have arrived at reception.", createdAt: "2026-07-16T10:01:00.000Z", senderUserId: "private" };
+const messageB = { messageId: "99999999-9999-4999-8999-999999999999", senderRole: "landlord", body: "Thank you. Please start upstairs.", createdAt: "2026-07-16T10:02:00.000Z" };
+const mergedMessages = mergeBookingMessages([messageB], [messageA, messageB, { messageId: "bad", senderRole: "landlord", body: "Invalid", createdAt: messageA.createdAt }]);
+assert(mergedMessages.length === 2 && mergedMessages[0].messageId === messageA.messageId && !Object.hasOwn(mergedMessages[0], "senderUserId"), "Live chat merging lost chronological deduplication or retained a private account identifier.");
+const fallbackId = createClientMessageId({ getRandomValues(bytes) { bytes.fill(7); return bytes; } });
+assert(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(fallbackId), "The browser message retry key was not a secure UUID shape.");
 assert(progressSummary({ totalTasks: 4, completedTasks: 2, resolvedTasks: 3, overallPercentage: 75 }).unresolved === 1, "Progress summary lost unresolved work.");
 assert(elapsedLabel(7_500) === "2h 5m", "Elapsed cleaning time was formatted incorrectly.");
 
@@ -40,16 +50,17 @@ const [html, script, styles, server, packageFile] = await Promise.all([
   readFile(new URL("../package.json", import.meta.url), "utf8")
 ]);
 
-for (const copy of ["Start journey", "I have arrived", "Start cleaning", "Finish cleaning", "Private live journey", "Live room checklist", "Booking participants only"]) assert(html.includes(copy), `The active-job interface omitted ${copy}.`);
-assert(html.includes("data-task-list") && html.includes("data-pause-dialog") && html.includes("data-task-dialog") && html.includes("role=\"progressbar\""), "The active-job interface omitted task, pause, unexpected-work or accessible progress controls.");
+for (const copy of ["Start journey", "I have arrived", "Start cleaning", "Finish cleaning", "Private live journey", "Live room checklist", "Booking participants only", "Private booking chat", "No personal contact details", "Send privately"]) assert(html.includes(copy), `The active-job interface omitted ${copy}.`);
+assert(html.includes("data-task-list") && html.includes("data-pause-dialog") && html.includes("data-task-dialog") && html.includes("role=\"progressbar\"") && html.includes("role=\"log\"") && html.includes("maxlength=\"2000\""), "The active-job interface omitted task, pause, unexpected-work, accessible progress or bounded chat controls.");
 assert(!/sample cleaner|preview state|stylised map preview/i.test(html), "The authenticated screen could be mistaken for the design preview.");
-for (const source of ["/tracking", "/cleaning-progress", "/property", "/events", "/journey/start", "/journey/location", "/journey/arrive", "/cleaning-progress/start", "/cleaning-progress/pause", "/cleaning-progress/finish", "/decision"]) assert(script.includes(source), `The active-job controller omitted the secured ${source} interface.`);
+for (const source of ["/tracking", "/cleaning-progress", "/property", "/events", "/messages", "/journey/start", "/journey/location", "/journey/arrive", "/cleaning-progress/start", "/cleaning-progress/pause", "/cleaning-progress/finish", "/decision"]) assert(script.includes(source), `The active-job controller omitted the secured ${source} interface.`);
 assert(script.includes("navigator.geolocation.getCurrentPosition") && script.includes("navigator.geolocation.watchPosition") && script.includes("navigator.geolocation.clearWatch"), "Foreground location consent, updates or automatic browser cleanup are missing.");
 assert(script.includes("new EventSource") && script.includes('addEventListener("booking-snapshot"') && script.includes("pagehide"), "Durable live events or page cleanup are missing.");
+assert(script.includes("clientMessageId") && script.includes("state.messageRetry") && script.includes("applyMessagePage(snapshot.messages") && script.includes("Load earlier messages"), "Private chat lost retry-safe sends, live delivery or stable history pagination.");
 assert(script.includes('"X-CSRF-Token"') && script.includes("credentials: \"same-origin\"") && !script.includes("innerHTML"), "Active-job mutations lost CSRF/session protection or introduced unsafe HTML rendering.");
 assert(!/(google|mapbox|openstreetmap|leaflet)/i.test(`${html}\n${script}`), "The private current location could leak to an unapproved external map provider.");
 assert(server.includes('activeJobPage') && server.includes('geolocation=(self)') && server.includes('activeJobRoute ? "active-job.html"'), "Canonical booking routes or their scoped geolocation policy are missing.");
-assert(styles.includes(".active-primary-action") && styles.includes("@media (max-width: 680px)") && styles.includes("prefers-reduced-motion"), "The active-job experience omitted one-hand mobile or reduced-motion styling.");
+assert(styles.includes(".active-primary-action") && styles.includes(".active-message-list") && styles.includes("@media (max-width: 680px)") && styles.includes("prefers-reduced-motion"), "The active-job experience omitted one-hand mobile chat or reduced-motion styling.");
 assert(packageFile.includes("tests/active-job-ui.mjs"), "The active-job checks are not included in the project gate.");
 
-console.log("Active-job UI tests passed: canonical participant route, role-safe journey/task actions, explicit foreground location, durable live snapshots, mobile controls and privacy-first map boundary.");
+console.log("Active-job UI tests passed: canonical participant route, role-safe journey/task actions, explicit foreground location, durable live snapshots, private retry-safe chat, mobile controls and privacy-first map boundary.");

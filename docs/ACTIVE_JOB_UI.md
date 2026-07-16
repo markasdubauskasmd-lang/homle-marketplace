@@ -23,6 +23,8 @@ The Cleaner receives large, one-hand controls appropriate to the current server 
 5. The Cleaner can change task status, add a note, report an issue, pause/resume and propose an unexpected task for Landlord approval.
 6. **Finish cleaning** stays disabled until every server-projected task is resolved. The server remains authoritative.
 
+Both participants can use the private booking chat from this screen. Messages arrive through the durable booking event stream, older messages use stable cursor pagination and a browser retry reuses the same idempotency key if the server response is lost. Tideway blocks phone numbers, email addresses, links and outside-messaging handles so participants can coordinate without exposing personal contact details.
+
 All mutations use the opaque session plus the tab-bound CSRF token. Hiding a button is never the authorization boundary; the existing role-checked services, PostgreSQL functions, RLS and booking status rules remain responsible for every accepted change.
 
 ## Landlord experience
@@ -51,10 +53,9 @@ The current solution is the most defensible web baseline. Reliable locked-screen
 - Run migration 026 in staging and verify that Cleaner and Landlord dashboards list only their own role-safe booking summaries before opening this screen.
 - Connect the real PostgreSQL runtime and create two genuine test accounts under the final HTTPS domain.
 - Complete the private before/after photo interaction in the active-job UI; the secured upload/access services and photo metadata already exist.
-- Add booking messaging to this screen or link the existing participant-only message service.
 - Decide whether to approve a map/ETA provider after privacy, cost and deployment review.
 - Perform the final two-device mobile-browser test over HTTPS, including denied permission, lost connection, reload/resume, arrival shutdown and an unrelated-account denial.
 
 ## Verification
 
-`tests/active-job-ui.mjs` covers route parsing, selected-role behavior, lifecycle action selection, unresolved-task finish blocking, Landlord-only unexpected-task decisions, foreground geolocation cleanup, durable live snapshots, CSRF/session use, no unsafe HTML rendering, no external map dependency, canonical server routing, scoped geolocation policy and mobile/reduced-motion styles. Journey, progress and real-time service suites continue to prove the server-side authorization and privacy boundaries.
+`tests/active-job-ui.mjs` covers route parsing, selected-role behavior, lifecycle action selection, unresolved-task finish blocking, Landlord-only unexpected-task decisions, foreground geolocation cleanup, durable live snapshots, private-chat lifecycle, chronological deduplication, retry UUIDs, stable pagination, CSRF/session use, no unsafe HTML rendering, no external map dependency, canonical server routing, scoped geolocation policy and mobile/reduced-motion styles. Journey, progress, message and real-time service suites continue to prove the server-side authorization and privacy boundaries.

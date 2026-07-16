@@ -1,11 +1,14 @@
 import {
   activeBookingId,
   activeJobAction,
+  activeJobMessagingOpen,
   activeJobRole,
   activeJobStage,
   activeJobStages,
   activeJobStatusLabels,
+  createClientMessageId,
   elapsedLabel,
+  mergeBookingMessages,
   progressSummary,
   safeDateTime,
   taskCanBeDecided,
@@ -24,7 +27,11 @@ const pauseDialog = document.querySelector("[data-pause-dialog]");
 const pauseForm = document.querySelector("[data-pause-form]");
 const taskDialog = document.querySelector("[data-task-dialog]");
 const taskForm = document.querySelector("[data-task-form]");
-const state = { account: null, role: "", tracking: null, progress: null, property: null, eventSource: null, watchId: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false };
+const messageForm = document.querySelector("[data-message-form]");
+const messageInput = document.querySelector("[data-message-input]");
+const messageSend = document.querySelector("[data-message-send]");
+const messageOlder = document.querySelector("[data-message-older]");
+const state = { account: null, role: "", tracking: null, progress: null, property: null, messages: [], messageCursor: null, messagesHasMore: false, messageRetry: null, messageLoading: false, messageSending: false, eventSource: null, watchId: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false };
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 document.querySelector("[data-booking-reference]").textContent = bookingId ? bookingId.slice(0, 8).toUpperCase() : "Invalid";
@@ -59,6 +66,13 @@ function showLocationFeedback(message, kind = "info") {
   feedback.textContent = message;
 }
 
+function showMessageFeedback(message, kind = "info") {
+  const feedback = document.querySelector("[data-message-feedback]");
+  feedback.hidden = !message;
+  feedback.dataset.kind = kind;
+  feedback.textContent = message;
+}
+
 async function requestJson(path, options = {}) {
   const { headers = {}, ...rest } = options;
   const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers } });
@@ -71,6 +85,25 @@ async function mutate(path, method = "POST", body = {}) {
   const csrf = storedCsrf();
   if (!csrf) throw Object.assign(new Error("Your secure editing token is missing. Sign in again before changing this booking."), { statusCode: 401 });
   return requestJson(path, { method, headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
+}
+
+function applyMessagePage(page, { preserveCursor = false } = {}) {
+  if (page?.bookingId !== bookingId || !Array.isArray(page.messages)) throw new Error("The private booking chat could not be verified.");
+  state.messages = mergeBookingMessages(state.messages, page.messages);
+  if (!preserveCursor) {
+    state.messagesHasMore = page.hasMore === true;
+    state.messageCursor = page.nextCursor || null;
+  }
+}
+
+function messagePagePath(cursor = null) {
+  const url = new URL(`/api/marketplace/bookings/${bookingId}/messages`, location.origin);
+  url.searchParams.set("limit", "50");
+  if (cursor) {
+    url.searchParams.set("beforeCreatedAt", cursor.beforeCreatedAt);
+    url.searchParams.set("beforeMessageId", cursor.beforeMessageId);
+  }
+  return `${url.pathname}${url.search}`;
 }
 
 function currentStatus() {
@@ -243,6 +276,38 @@ function renderProperty() {
   document.querySelector("[data-property-notes]").textContent = state.property.specialNotes || "Not supplied";
 }
 
+function renderMessages({ forceBottom = false } = {}) {
+  const list = document.querySelector("[data-message-list]");
+  const stayAtBottom = forceBottom || list.scrollHeight - list.scrollTop - list.clientHeight < 72;
+  list.replaceChildren();
+  for (const message of state.messages) {
+    const own = message.senderRole === state.role;
+    const article = document.createElement("article");
+    article.className = `active-message${own ? " active-message-own" : ""}`;
+    const heading = document.createElement("div");
+    const sender = document.createElement("strong");
+    sender.textContent = own ? "You" : message.senderRole === "cleaner" ? "Cleaner" : "Landlord";
+    const time = document.createElement("time");
+    time.dateTime = message.createdAt;
+    time.textContent = safeDateTime(message.createdAt);
+    const body = document.createElement("p");
+    body.textContent = message.body;
+    heading.append(sender, time);
+    article.append(heading, body);
+    list.append(article);
+  }
+  document.querySelector("[data-message-empty]").hidden = state.messages.length > 0;
+  messageOlder.hidden = !state.messagesHasMore;
+  messageOlder.disabled = state.messageLoading;
+  messageOlder.textContent = state.messageLoading ? "Loading earlier messages…" : "Load earlier messages";
+  const open = activeJobMessagingOpen(currentStatus());
+  messageInput.disabled = !open || state.messageSending;
+  messageSend.disabled = !open || state.messageSending;
+  messageSend.textContent = state.messageSending ? "Sending…" : open ? "Send privately" : "Messaging closed";
+  if (state.messageSending) messageSend.setAttribute("aria-busy", "true"); else messageSend.removeAttribute("aria-busy");
+  if (stayAtBottom) requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
+}
+
 function renderActions() {
   const action = activeJobAction(state.role, state.tracking, state.progress);
   primaryAction.textContent = action.label;
@@ -266,12 +331,13 @@ function render() {
   document.querySelector("[data-role-label]").textContent = state.role === "cleaner" ? "Cleaner active job" : "Landlord live view";
   document.querySelector("[data-status-heading]").textContent = activeJobStatusLabels[status] || "Private booking";
   document.querySelector("[data-status-copy]").textContent = status === "cancelled" ? "This booking is closed and location sharing has stopped." : "Updates are shared only with the Cleaner and Landlord on this booking.";
-  document.querySelector("[data-workspace-link]").href = state.role === "cleaner" ? "/cleaner/profile" : "/landlord/dashboard";
+  document.querySelector("[data-workspace-link]").href = state.role === "cleaner" ? "/cleaner/dashboard" : "/landlord/dashboard";
   document.querySelector("[data-live-state]").textContent = state.eventSource ? "Live updates connected" : "Opening live updates";
   renderStages(status);
   renderJourney();
   renderProgress();
   renderProperty();
+  renderMessages();
   renderActions();
   if (["cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "cancelled", "disputed"].includes(status)) stopLocationSharing();
 }
@@ -300,6 +366,7 @@ function openLiveStream() {
       if (snapshot.bookingId !== bookingId) throw new Error("Booking mismatch");
       if (snapshot.tracking) state.tracking = snapshot.tracking;
       if (snapshot.progress) state.progress = snapshot.progress;
+      if (snapshot.messages) applyMessagePage(snapshot.messages, { preserveCursor: true });
       render();
       if (["completed", "cancelled", "disputed"].includes(snapshot.status)) {
         closeLiveStream();
@@ -451,6 +518,64 @@ taskForm.addEventListener("submit", (event) => {
   });
 });
 
+async function loadEarlierMessages() {
+  if (state.messageLoading || !state.messagesHasMore || !state.messageCursor) return;
+  state.messageLoading = true;
+  const list = document.querySelector("[data-message-list]");
+  const previousHeight = list.scrollHeight;
+  renderMessages();
+  showMessageFeedback("");
+  try {
+    const page = await requestJson(messagePagePath(state.messageCursor));
+    applyMessagePage(page);
+    renderMessages();
+    requestAnimationFrame(() => { list.scrollTop = Math.max(0, list.scrollHeight - previousHeight); });
+  } catch (error) {
+    showMessageFeedback(error.message || "Earlier messages could not be loaded. Try again.", "error");
+  } finally {
+    state.messageLoading = false;
+    renderMessages();
+  }
+}
+
+messageForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (state.messageSending || !messageForm.reportValidity()) return;
+  if (!activeJobMessagingOpen(currentStatus())) return showMessageFeedback("Messaging is closed at this booking stage.", "error");
+  const body = messageInput.value.trim();
+  if (!body) return showMessageFeedback("Write a message before sending.", "error");
+  try {
+    if (!state.messageRetry || state.messageRetry.body !== body) state.messageRetry = { body, clientMessageId: createClientMessageId() };
+  } catch (error) {
+    return showMessageFeedback(error.message, "error");
+  }
+  state.messageSending = true;
+  renderMessages();
+  showMessageFeedback("");
+  try {
+    const result = await mutate(`/api/marketplace/bookings/${bookingId}/messages`, "POST", state.messageRetry);
+    if (result.message?.bookingId !== bookingId) throw new Error("The sent booking message could not be verified.");
+    state.messages = mergeBookingMessages(state.messages, [result.message]);
+    state.messageRetry = null;
+    messageForm.reset();
+    document.querySelector("[data-message-count]").textContent = "0";
+    showMessageFeedback("Message shared privately with this booking participant.", "success");
+    renderMessages({ forceBottom: true });
+  } catch (error) {
+    showMessageFeedback(error.message || "The message could not be sent. Your text is still here to retry.", "error");
+  } finally {
+    state.messageSending = false;
+    renderMessages();
+  }
+});
+
+messageInput.addEventListener("input", () => {
+  document.querySelector("[data-message-count]").textContent = String(messageInput.value.length);
+  if (state.messageRetry && state.messageRetry.body !== messageInput.value.trim()) state.messageRetry = null;
+});
+
+messageOlder.addEventListener("click", loadEarlierMessages);
+
 for (const button of document.querySelectorAll("[data-dialog-cancel]")) button.addEventListener("click", () => button.closest("dialog").close());
 
 function updateNetworkState() {
@@ -471,14 +596,16 @@ async function load() {
     }
     state.role = activeJobRole(state.account);
     if (!state.role) return showGate("Choose a Cleaner or Landlord workspace", "This account has not completed role onboarding for active bookings.", { kind: "authentication", allowSignIn: true });
-    const [trackingResult, progressResult, propertyResult] = await Promise.all([
+    const [trackingResult, progressResult, propertyResult, messageResult] = await Promise.all([
       requestJson(`/api/marketplace/bookings/${bookingId}/tracking`),
       requestJson(`/api/marketplace/bookings/${bookingId}/cleaning-progress`),
-      requestJson(`/api/marketplace/bookings/${bookingId}/property`).catch(() => ({ property: null }))
+      requestJson(`/api/marketplace/bookings/${bookingId}/property`).catch(() => ({ property: null })),
+      requestJson(messagePagePath())
     ]);
     state.tracking = trackingResult.tracking;
     state.progress = progressResult.progress;
     state.property = propertyResult.property;
+    applyMessagePage(messageResult);
     showFeedback("");
     render();
     openLiveStream();

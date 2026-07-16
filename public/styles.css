@@ -1700,8 +1700,8 @@ textarea { resize: vertical; }
 .active-job-stages .current span { color: #fff; border-color: var(--orange); background: var(--green-dark); box-shadow: 0 0 0 5px rgba(216,111,36,.14); }
 .active-job-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 24px; align-items: start; }
 .active-job-primary { display: grid; gap: 22px; }
-.active-journey-card, .active-progress-card, .active-property-card, .active-job-actions { border: 1px solid var(--line); border-radius: 22px; background: #fff; box-shadow: 0 14px 42px rgba(16,36,33,.07); }
-.active-journey-card, .active-progress-card, .active-property-card { padding: clamp(20px, 4vw, 30px); }
+.active-journey-card, .active-progress-card, .active-message-card, .active-property-card, .active-job-actions { border: 1px solid var(--line); border-radius: 22px; background: #fff; box-shadow: 0 14px 42px rgba(16,36,33,.07); }
+.active-journey-card, .active-progress-card, .active-message-card, .active-property-card { padding: clamp(20px, 4vw, 30px); }
 .active-card-heading { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
 .active-card-heading h2 { margin: 4px 0 0; font-size: clamp(1.5rem, 4vw, 2.25rem); }
 .active-private-pill { flex: 0 0 auto; padding: .45rem .65rem; color: var(--green-dark); border: 1px solid #b7d8ce; border-radius: 999px; background: #eff9f5; font-size: .64rem; font-weight: 850; }
@@ -1753,6 +1753,27 @@ textarea { resize: vertical; }
 .active-task-editor .button { min-height: 46px; white-space: nowrap; }
 .active-task-decisions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 13px; }
 .active-task-decisions .button { min-height: 44px; }
+.active-message-boundary { margin: 10px 0 0; color: var(--muted); font-size: .74rem; }
+.active-message-older { display: flex; min-height: 42px; margin: 18px auto 0; }
+.active-message-list { display: grid; gap: 10px; max-height: 420px; margin-top: 18px; padding: 4px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.active-message { max-width: min(82%, 620px); padding: 11px 13px; border: 1px solid #d5dfdc; border-radius: 4px 14px 14px; background: #f4f7f6; }
+.active-message-own { justify-self: end; border-color: #a9d8ca; border-radius: 14px 4px 14px 14px; background: #e7f6f1; }
+.active-message > div { display: flex; justify-content: space-between; gap: 15px; align-items: baseline; }
+.active-message strong { color: var(--green-dark); font-size: .7rem; }
+.active-message time { color: var(--muted); font-size: .58rem; }
+.active-message p { margin: 5px 0 0; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--ink); font-size: .78rem; }
+.active-message-empty { margin-top: 18px; padding: 20px; border: 1px dashed #b9cbc5; border-radius: 12px; text-align: center; }
+.active-message-empty strong { color: var(--green-dark); }
+.active-message-empty p { margin: 4px 0 0; color: var(--muted); font-size: .74rem; }
+.active-message-form { display: grid; gap: 8px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.active-message-form label { color: var(--green-dark); font-size: .72rem; font-weight: 850; }
+.active-message-form textarea { min-height: 88px; resize: vertical; }
+.active-message-form > div { display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+.active-message-form small { color: var(--muted); }
+.active-message-form .button { min-width: 150px; min-height: 48px; }
+.active-message-form button[aria-busy="true"] { cursor: progress; opacity: .65; }
+.active-message-feedback { margin-top: 12px; padding: 11px 13px; color: var(--green-dark); border: 1px solid #b7d8ce; border-radius: 10px; background: #eff9f5; font-weight: 700; }
+.active-message-feedback[data-kind="error"] { color: #7a221b; border-color: #dfa9a2; background: #fff2f0; }
 .active-empty-tasks { margin-top: 18px; padding: 18px; border: 1px dashed #b9cbc5; border-radius: 12px; text-align: center; }
 .active-empty-tasks p { margin: 4px 0 0; color: var(--muted); }
 .active-property-card > p { margin: 14px 0 0; color: var(--green-dark); font-weight: 800; }
@@ -1808,7 +1829,7 @@ textarea { resize: vertical; }
   .active-job-stages small { max-width: 48px; font-size: .55rem; }
   .active-job-stages span { width: 29px; height: 29px; }
   .active-job-stages li::before { top: 14px; }
-  .active-journey-card, .active-progress-card, .active-property-card, .active-job-actions { border-radius: 18px; }
+  .active-journey-card, .active-progress-card, .active-message-card, .active-property-card, .active-job-actions { border-radius: 18px; }
   .active-card-heading { display: grid; }
   .active-private-pill { justify-self: start; }
   .active-location-surface { min-height: 250px; }
@@ -1819,6 +1840,10 @@ textarea { resize: vertical; }
   .active-task-editor .button { grid-column: 1; width: 100%; }
   .active-task-decisions { display: grid; }
   .active-task-decisions .button, .active-job-actions > .button { width: 100%; }
+  .active-message { max-width: 92%; }
+  .active-message-list { max-height: 55vh; margin-inline: -4px; }
+  .active-message-form > div { align-items: stretch; }
+  .active-message-form .button { min-width: 0; }
   .active-job-actions { padding: 20px 16px; }
   .active-primary-action { min-height: 66px; }
   .active-job-dialog form { padding: 22px 17px; }

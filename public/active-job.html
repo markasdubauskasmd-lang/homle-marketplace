@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Active cleaning job | Tideway</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-60">
-  <script src="/active-job.js?v=20260716-1" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260716-61">
+  <script src="/active-job.js?v=20260716-2" type="module"></script>
 </head>
 <body class="active-job-page">
   <a class="skip-link" href="#active-job-main">Skip to active job</a>
@@ -58,6 +58,20 @@
             <div class="active-pause-notice" data-pause-notice hidden><strong>Cleaning paused</strong><span>The elapsed-work clock is paused and both participants can see this state.</span></div>
             <div class="active-task-list" data-task-list></div>
             <div class="active-empty-tasks" data-task-empty hidden><strong>No checklist is available.</strong><p>The reviewed room checklist must be present before the Cleaner can finish the job.</p></div>
+          </section>
+
+          <section class="active-message-card" aria-labelledby="messages-title">
+            <div class="active-card-heading"><div><p class="eyebrow">Private booking chat</p><h2 id="messages-title">Cleaner and Landlord messages</h2></div><span class="active-private-pill">No personal contact details</span></div>
+            <p class="active-message-boundary">Keep visit coordination inside Tideway. Phone numbers, email addresses, links and outside-messaging handles are blocked.</p>
+            <button class="button button-outline active-message-older" type="button" data-message-older hidden>Load earlier messages</button>
+            <div class="active-message-list" data-message-list role="log" aria-live="polite" aria-relevant="additions text"></div>
+            <div class="active-message-empty" data-message-empty><strong>No messages yet.</strong><p>Use this private chat for timing, access and cleaning questions.</p></div>
+            <form class="active-message-form" data-message-form>
+              <label for="active-message-body">Message</label>
+              <textarea id="active-message-body" name="body" rows="3" minlength="1" maxlength="2000" placeholder="For example: I am parked outside and will start with the kitchen." required data-message-input></textarea>
+              <div><small><span data-message-count>0</span>/2000</small><button class="button" type="submit" data-message-send>Send privately</button></div>
+            </form>
+            <div class="active-message-feedback" data-message-feedback role="status" aria-live="polite" hidden></div>
           </section>
 
           <section class="active-property-card" data-property-card hidden aria-labelledby="property-title">

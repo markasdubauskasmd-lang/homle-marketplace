@@ -1,4 +1,5 @@
 const bookingIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const messagingStatuses = new Set(["pending-cleaner-acceptance", "confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "disputed"]);
 
 export const activeJobStages = Object.freeze([
   "confirmed",
@@ -65,6 +66,30 @@ export function taskCanBeDecided(role, task) {
 
 export function taskCanBeUpdated(role, status) {
   return role === "cleaner" && status === "cleaning-in-progress";
+}
+
+export function activeJobMessagingOpen(status) {
+  return messagingStatuses.has(status);
+}
+
+export function mergeBookingMessages(current, incoming, maximum = 500) {
+  const records = new Map();
+  for (const value of [...(Array.isArray(current) ? current : []), ...(Array.isArray(incoming) ? incoming : [])]) {
+    if (!bookingIdPattern.test(value?.messageId || "") || !["cleaner", "landlord"].includes(value?.senderRole) || typeof value?.body !== "string" || value.body.length < 1 || value.body.length > 2000 || !Number.isFinite(Date.parse(value?.createdAt || ""))) continue;
+    records.set(value.messageId.toLowerCase(), Object.freeze({ messageId: value.messageId.toLowerCase(), senderRole: value.senderRole, body: value.body, createdAt: new Date(value.createdAt).toISOString() }));
+  }
+  const ordered = [...records.values()].sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.messageId.localeCompare(right.messageId));
+  return Object.freeze(ordered.slice(-Math.max(1, Math.min(1000, Number(maximum) || 500))));
+}
+
+export function createClientMessageId(cryptography = globalThis.crypto) {
+  if (typeof cryptography?.randomUUID === "function") return cryptography.randomUUID();
+  if (typeof cryptography?.getRandomValues !== "function") throw new Error("Secure message retry protection is unavailable in this browser.");
+  const bytes = cryptography.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
 }
 
 export function progressSummary(progress = {}) {
