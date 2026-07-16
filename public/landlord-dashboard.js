@@ -27,6 +27,8 @@ const propertySave = document.querySelector("[data-save-property]");
 const requestSave = document.querySelector("[data-save-request]");
 const speechButton = document.querySelector("[data-speech-toggle]");
 const speechStatus = document.querySelector("[data-speech-status]");
+const speechFallback = document.querySelector("[data-speech-fallback]");
+const taskPreview = document.querySelector("[data-task-preview]");
 const nextTitle = document.querySelector("[data-landlord-next-title]");
 const nextCopy = document.querySelector("[data-landlord-next-copy]");
 const nextLink = document.querySelector("[data-landlord-next-link]");
@@ -77,6 +79,34 @@ function invalidateScopeReview(message) {
   if (!confirmation.checked) return;
   confirmation.checked = false;
   showFeedback(requestFeedback, message, "info");
+}
+
+function renderTaskPreview() {
+  const lines = String(requestForm.elements.tasks.value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  taskPreview.replaceChildren();
+  if (!lines.length) {
+    const empty = element("p", "landlord-task-empty", "No tasks yet. Start speaking or type the room walkthrough.");
+    empty.setAttribute("role", "listitem");
+    taskPreview.append(empty);
+    return;
+  }
+  const rooms = new Map();
+  for (const line of lines) {
+    const separator = line.indexOf(":");
+    const room = separator > 0 ? line.slice(0, separator).trim() : "Needs a room name";
+    const task = separator > 0 ? line.slice(separator + 1).trim() : line;
+    if (!rooms.has(room)) rooms.set(room, []);
+    rooms.get(room).push(task || "Add a specific cleaning task");
+  }
+  for (const [room, tasks] of rooms) {
+    const group = element("section", "landlord-task-room");
+    group.setAttribute("role", "listitem");
+    group.append(element("strong", "", room));
+    const list = element("ul");
+    tasks.forEach((task) => list.append(element("li", "", task)));
+    group.append(list);
+    taskPreview.append(group);
+  }
 }
 
 function showRequestCompletion(submission, { automaticDispatch = false, warning = "" } = {}) {
@@ -611,6 +641,7 @@ async function createRequestDraft(event) {
     renderRequests();
     requestForm.reset();
     initialiseRequestDefaults();
+    renderTaskPreview();
     showFeedback(requestFeedback, `Private draft ${result.cleaningRequest.requestId} saved. It was not sent for matching.`, "success");
     dirty = false;
     openRequestScan(result.cleaningRequest.requestId);
@@ -640,6 +671,7 @@ function useSavedChecklist() {
   if (requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this property's saved checklist?")) return;
   invalidateScopeReview("The checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
+  renderTaskPreview();
   dirty = true;
   showFeedback(requestFeedback, "Saved checklist copied. Review every task against the current room scan before saving.", "success");
 }
@@ -651,6 +683,7 @@ function summariseSpeech({ automatic = false } = {}) {
   if (!automatic && requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this new concise speech summary?")) return;
   invalidateScopeReview("The concise checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
+  renderTaskPreview();
   dirty = true;
   showFeedback(requestFeedback, `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} prepared${automatic ? " automatically" : ""}. Review every bullet before confirming.`, "success");
 }
@@ -660,6 +693,7 @@ function configureSpeech() {
   if (!Recognition) {
     speechButton.disabled = true;
     speechStatus.textContent = "Speech capture is not supported in this browser. Type the walkthrough instead.";
+    speechFallback.open = true;
     return;
   }
   recognition = new Recognition();
@@ -707,7 +741,7 @@ document.querySelector("[data-use-saved-checklist]").addEventListener("click", u
 document.querySelector("[data-summarise-speech]").addEventListener("click", summariseSpeech);
 speechButton.addEventListener("click", () => { if (!recognition) return; if (listening) recognition.stop(); else { try { recognition.start(); } catch { speechStatus.textContent = "Speech is already starting. Try again in a moment."; } } });
 requestForm.elements.transcript.addEventListener("input", () => { invalidateScopeReview("The walkthrough changed. Summarise again or manually reconcile every room task before confirming."); });
-requestForm.elements.tasks.addEventListener("input", () => { invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });
+requestForm.elements.tasks.addEventListener("input", () => { renderTaskPreview(); invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });
 nextButton.addEventListener("click", () => {
   const action = nextButton.dataset.nextAction;
   if (action === "property") {
@@ -742,5 +776,6 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
 window.addEventListener("beforeunload", (event) => { if (dirty) event.preventDefault(); });
 document.querySelector("[data-year]").textContent = new Date().getFullYear();
 initialiseRequestDefaults();
+renderTaskPreview();
 configureSpeech();
 loadWorkspace();

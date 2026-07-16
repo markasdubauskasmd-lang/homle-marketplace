@@ -110,14 +110,20 @@
             <section class="landlord-speech-scope" aria-labelledby="speech-scope-title">
               <div class="landlord-speech-heading"><div><p class="eyebrow">Speech to concise bullets</p><h3 id="speech-scope-title">Walk through each room naturally.</h3></div><button class="button button-outline" type="button" data-speech-toggle>Start speaking</button></div>
               <p data-speech-status role="status">Checking speech support…</p>
-              <label>Spoken or typed walkthrough<textarea name="transcript" rows="5" maxlength="5000" aria-describedby="transcript-privacy" placeholder="This is the kitchen. Wipe the worktops and mop the floor. Moving into the bathroom…"></textarea></label>
-              <small id="transcript-privacy">When you stop speaking, Tideway automatically creates concise room tasks. You can still use the summary button after typing.</small>
-              <button class="button button-outline" type="button" data-summarise-speech>Update concise room tasks</button>
+              <p class="landlord-speech-prompt"><strong>Speak once.</strong> Name the room, then say what needs cleaning. Tideway updates the Cleaner bullets when you stop.</p>
+              <details class="landlord-speech-fallback" data-speech-fallback><summary>Type instead or edit what was heard</summary><div>
+                <label>Spoken or typed walkthrough<textarea name="transcript" rows="5" maxlength="5000" aria-describedby="transcript-privacy" placeholder="This is the kitchen. Wipe the worktops and mop the floor. Moving into the bathroom…"></textarea></label>
+                <small id="transcript-privacy">The raw walkthrough stays in this browser. Only the reviewed concise tasks are saved.</small>
+                <button class="button button-outline" type="button" data-summarise-speech>Update concise bullets</button>
+              </div></details>
             </section>
 
-            <div class="landlord-checklist-heading"><label for="request-tasks">Reviewed room checklist</label><button class="text-button" type="button" data-use-saved-checklist>Use property's saved checklist</button></div>
-            <textarea id="request-tasks" name="tasks" rows="8" required placeholder="Kitchen: Wipe the worktops&#10;Bathroom: Remove limescale from the shower screen"></textarea>
-            <label class="checkbox landlord-review-confirmation"><input name="scopeReviewed" type="checkbox" required><span>I reviewed every concise room task and confirm this private draft reflects the work I want quoted.</span></label>
+            <section class="landlord-checklist-review" aria-labelledby="request-tasks-title">
+              <div class="landlord-checklist-heading"><div><p class="eyebrow">Cleaner instructions</p><h3 id="request-tasks-title">Review the concise bullets</h3></div><button class="text-button" type="button" data-use-saved-checklist>Use saved checklist</button></div>
+              <div class="landlord-task-preview" data-task-preview role="list" aria-live="polite"><p role="listitem">No tasks yet. Start speaking or type the room walkthrough.</p></div>
+              <details class="landlord-task-editor"><summary>Edit concise bullets</summary><div><label for="request-tasks">One room-labelled task per line</label><textarea id="request-tasks" name="tasks" rows="8" placeholder="Kitchen: Wipe the worktops&#10;Bathroom: Remove limescale from the shower screen"></textarea></div></details>
+              <label class="checkbox landlord-review-confirmation"><input name="scopeReviewed" type="checkbox" required><span>I reviewed every bullet and confirm this is the work I want quoted.</span></label>
+            </section>
             <div class="landlord-form-feedback" data-request-feedback role="status" aria-live="polite" hidden></div>
             <button class="button" type="submit" data-save-request>Save private draft</button>
             <small class="landlord-draft-boundary">This action sets <strong>Draft</strong>. It cannot invite a Cleaner, confirm a booking or take payment.</small>

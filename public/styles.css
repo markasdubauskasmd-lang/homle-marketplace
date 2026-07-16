@@ -1668,8 +1668,18 @@ textarea { resize: vertical; }
 .landlord-speech-heading h3 { margin: 4px 0 0; font-size: 1.3rem; }
 .landlord-speech-scope > p { margin: 0; color: var(--muted); font-size: .78rem; }
 .landlord-speech-scope .button { justify-self: start; }
+.landlord-speech-scope .landlord-speech-prompt { padding: 12px 14px; color: var(--green-dark); border-radius: 11px; background: #fff; font-size: .88rem; line-height: 1.5; }
+.landlord-speech-fallback, .landlord-task-editor { border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.landlord-speech-fallback > summary, .landlord-task-editor > summary { padding: 13px 14px; color: var(--green-dark); font-weight: 850; cursor: pointer; }
+.landlord-speech-fallback > div, .landlord-task-editor > div { display: grid; gap: 12px; padding: 2px 14px 14px; }
+.landlord-checklist-review { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
 .landlord-checklist-heading { display: flex; justify-content: space-between; gap: 15px; align-items: center; }
-.landlord-checklist-heading label { font-weight: 800; }
+.landlord-checklist-heading h3 { margin: 3px 0 0; font-size: 1.2rem; }
+.landlord-task-preview { display: grid; gap: 10px; }
+.landlord-task-empty, .landlord-task-preview > p { margin: 0; padding: 16px; color: var(--muted); border: 1px dashed #a9c2ba; border-radius: 12px; background: #f7faf9; text-align: center; }
+.landlord-task-room { padding: 13px 15px; border-left: 4px solid var(--green); border-radius: 0 11px 11px 0; background: var(--mint-pale); }
+.landlord-task-room strong { color: var(--green-dark); }
+.landlord-task-room ul { display: grid; gap: 6px; margin: 8px 0 0; padding-left: 20px; }
 .landlord-review-confirmation { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .landlord-draft-boundary { color: #6b5a46; }
 .landlord-request-card { background: #fff; }
@@ -1727,6 +1737,7 @@ textarea { resize: vertical; }
   .landlord-required-services { grid-template-columns: 1fr; }
   .landlord-speech-heading, .landlord-checklist-heading { display: grid; }
   .landlord-speech-heading .button, .landlord-checklist-heading .text-button { width: 100%; }
+  .landlord-speech-heading .button { min-height: 54px; font-size: 1rem; }
   .landlord-record-form .button[type="submit"] { width: 100%; }
   .dashboard-next-action { grid-template-columns: 42px 1fr; padding: 18px 15px; }
   .dashboard-next-mark { width: 40px; height: 40px; border-radius: 13px; }

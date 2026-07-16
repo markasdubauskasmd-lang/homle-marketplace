@@ -34,7 +34,7 @@ The account-first action remains visible in the hero and navigation. When at lea
 
 Dashboard → **Do this next** → add the minimum property details → choose date/type → speak room notes → automatic concise tasks → confirm scope → camera/room scan → submit.
 
-The top action changes automatically between add property, start request, continue room scan, authorize a confirmed booking and open live progress. Optional property, access, parking, recurring and budget fields stay available in disclosure panels without blocking the primary path. One cleaning-type choice now supplies the required service. Stopping speech updates the concise room tasks automatically; manual summary remains a fallback for typed edits. Scope review, photo consent, price/payment and final submission remain deliberate because they are safety/contract boundaries rather than avoidable friction.
+The top action changes automatically between add property, start request, continue room scan, authorize a confirmed booking and open live progress. Optional property, access, parking, recurring and budget fields stay available in disclosure panels without blocking the primary path. One cleaning-type choice now supplies the required service. The request now leads with one large speech action; stopping speech updates a room-grouped bullet review automatically. The raw transcript and manual bullet editor stay collapsed unless the Landlord chooses them, while unsupported browsers open the typed fallback automatically. Scope review, photo consent, price/payment and final submission remain deliberate because they are safety/contract boundaries rather than avoidable friction.
 
 ### Cleaner
 
