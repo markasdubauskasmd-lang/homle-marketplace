@@ -1685,6 +1685,7 @@ function availabilityField(labelText, name, type, value = "") {
 function buildCleanerAvailability(record) {
   const slots = record.cleanerAvailability || [];
   const requests = record.availabilityRequests || [];
+  const confirmationAllowed = record.status === "approved" && record.screening?.complete === true;
   const panel = document.createElement("details");
   panel.className = `cleaner-availability${slots.length ? " availability-confirmed" : ""}`;
   const summary = document.createElement("summary");
@@ -1708,13 +1709,15 @@ function buildCleanerAvailability(record) {
       item.className = "availability-item availability-request-item";
       addText(item, "strong", `Cleaner submitted · ${requestItem.availableDate} · ${requestItem.startTime}-${requestItem.endTime}`);
       if (requestItem.note) addText(item, "span", `Cleaner note: ${requestItem.note}`);
+      if (!confirmationAllowed) addText(item, "span", "This time can be declined now, but it cannot be confirmed until every screening check and the separate approval decision are complete.");
       addText(item, "span", "Pending only — not available to matching.");
       const form = document.createElement("form");
       form.className = "availability-request-form";
       const decision = document.createElement("select");
       decision.name = "decision";
       decision.setAttribute("aria-label", `Decision for ${requestItem.availableDate} ${requestItem.startTime}-${requestItem.endTime}`);
-      for (const [value, label] of [["confirmed", "Confirm exact window"], ["declined", "Decline request"]]) {
+      const decisions = confirmationAllowed ? [["confirmed", "Confirm exact window"], ["declined", "Decline request"]] : [["declined", "Decline request"]];
+      for (const [value, label] of decisions) {
         const option = document.createElement("option");
         option.value = value;
         option.textContent = label;

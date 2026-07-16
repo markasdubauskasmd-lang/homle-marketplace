@@ -96,7 +96,7 @@ function renderStatus(result) {
     item.textContent = `${request.availableDate} · ${request.startTime}-${request.endTime} · pending`;
     pendingList.append(item);
   }
-  if (result.links?.availabilitySubmissionAllowed && firstAvailability && pending.length === 0 && result.readiness.confirmedAvailabilityWindows === 0) {
+  if (result.links?.availabilitySubmissionAllowed && firstAvailability?.future === true && pending.length === 0 && result.readiness.confirmedAvailabilityWindows === 0) {
     availabilityForm.elements.availableDate.value = firstAvailability.availableDate;
     availabilityForm.elements.startTime.value = firstAvailability.startTime;
     availabilityForm.elements.endTime.value = firstAvailability.endTime;

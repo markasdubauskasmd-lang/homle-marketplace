@@ -110,6 +110,11 @@ const statusOptions = {
   request: new Set(["new", "contacted", "quoted", "booked", "completed", "lost"]),
   cleaner: new Set(["new", "contacted", "screening", "approved", "paused", "rejected"])
 };
+const cleanerAvailabilitySubmissionStatuses = new Set(["new", "contacted", "screening", "approved"]);
+
+function cleanerAvailabilitySubmissionAllowed(status) {
+  return cleanerAvailabilitySubmissionStatuses.has(String(status || "").trim().toLowerCase());
+}
 
 const statusTransitions = {
   request: {
@@ -547,11 +552,10 @@ async function saveCleanerAvailabilityRequest(record) {
   let result;
   const operation = writeQueue.catch(() => {}).then(async () => {
     await mkdir(dataDir, { recursive: true });
-    const [events, cleaners, updates, screenings] = await Promise.all([
+    const [events, cleaners, updates] = await Promise.all([
       readRecords("cleaner-availability.ndjson"),
       readRecords("cleaner-applications.ndjson"),
-      readRecords("status-updates.ndjson"),
-      readRecords("cleaner-screening.ndjson")
+      readRecords("status-updates.ndjson")
     ]);
     const replay = events.find((item) => item.action === "requested" && item.submissionKey === record.submissionKey);
     if (replay) {
@@ -562,8 +566,8 @@ async function saveCleanerAvailabilityRequest(record) {
     const cleaner = cleaners.find((item) => item.id === record.cleanerId);
     let cleanerStatus = cleaner?.status || "new";
     for (const update of updates) if (update.id === record.cleanerId && update.kind === "cleaner") cleanerStatus = update.status;
-    if (!cleaner || cleanerStatus !== "approved" || !latestCleanerScreening(record.cleanerId, screenings)?.complete) {
-      throw Object.assign(new Error("Exact availability can only be submitted after screening and current approval."), { statusCode: 422 });
+    if (!cleaner || !cleanerAvailabilitySubmissionAllowed(cleanerStatus)) {
+      throw Object.assign(new Error("Availability updates are closed while this application is paused or closed."), { statusCode: 422 });
     }
     const proposed = availabilitySlotSchedule(record);
     const confirmedOverlap = activeCleanerAvailability(events, record.cleanerId).find((slot) => schedulesOverlap(proposed, availabilitySlotSchedule(slot)));
@@ -3968,16 +3972,15 @@ async function createPrivateCleanerAvailabilityRequest(request, response) {
   ensureSameOrigin(request);
   const token = text(request.headers["x-cleaner-status-token"], 80);
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(response, 404, { ok: false, error: "This private cleaner link is invalid." });
-  const [cleaners, statusUpdates, screenings] = await Promise.all([
+  const [cleaners, statusUpdates] = await Promise.all([
     readRecords("cleaner-applications.ndjson"),
-    readRecords("status-updates.ndjson"),
-    readRecords("cleaner-screening.ndjson")
+    readRecords("status-updates.ndjson")
   ]);
   const cleaner = cleaners.find((record) => record.cleanerStatusToken === token);
   if (!cleaner) return json(response, 404, { ok: false, error: "This private cleaner link is invalid." });
   let status = cleaner.status || "new";
   for (const update of statusUpdates) if (update.id === cleaner.id && update.kind === "cleaner") status = update.status;
-  if (status !== "approved" || !latestCleanerScreening(cleaner.id, screenings)?.complete) return json(response, 422, { ok: false, error: "Exact availability can only be submitted after screening and current approval." });
+  if (!cleanerAvailabilitySubmissionAllowed(status)) return json(response, 422, { ok: false, error: "Availability updates are closed while this application is paused or closed." });
 
   const input = await readJson(request);
   const availableDate = text(input.availableDate, 20);
@@ -3991,7 +3994,7 @@ async function createPrivateCleanerAvailabilityRequest(request, response) {
   const availabilityRequest = { id: `AVR-${randomUUID().slice(0, 8).toUpperCase()}`, cleanerId: cleaner.id, action: "requested", status: "pending", availableDate, startTime, endTime, note, createdAt: new Date().toISOString(), submissionKey: key, submissionFingerprint: fingerprint };
   const saved = await saveCleanerAvailabilityRequest(availabilityRequest);
   const safeRequest = { reference: saved.request.id, availableDate: saved.request.availableDate, startTime: saved.request.startTime, endTime: saved.request.endTime, status: "pending" };
-  return json(response, saved.replayed ? 200 : 201, { ok: true, request: safeRequest, replayed: saved.replayed, message: "Availability submitted for Tideway confirmation. It is not used for matching yet." });
+  return json(response, saved.replayed ? 200 : 201, { ok: true, request: safeRequest, replayed: saved.replayed, message: "Availability submitted for Tideway confirmation. It cannot be used for matching until screening, current approval and a separate Tideway confirmation are complete." });
 }
 
 async function getPrivateCleanerStatus(request, response) {
@@ -4016,15 +4019,18 @@ async function getPrivateCleanerStatus(request, response) {
   const futureAvailability = activeCleanerAvailability(availabilityEvents, cleaner.id).filter((slot) => availabilitySlotSchedule(slot)?.endMs > businessWallClockMs());
   const pendingAvailabilityRequests = cleanerAvailabilityRequests(availabilityEvents, cleaner.id).filter((item) => item.status === "pending" && availabilitySlotSchedule(item)?.endMs > businessWallClockMs());
   const firstAvailabilityCaptured = Boolean(cleaner.firstAvailableDate && cleaner.firstAvailableStartTime && cleaner.firstAvailableEndTime);
+  const firstAvailabilitySchedule = firstAvailabilityCaptured ? availabilitySlotSchedule({ availableDate: cleaner.firstAvailableDate, startTime: cleaner.firstAvailableStartTime, endTime: cleaner.firstAvailableEndTime }) : null;
+  const firstAvailabilityFuture = Boolean(firstAvailabilitySchedule && firstAvailabilitySchedule.endMs > businessWallClockMs());
   const profileStarterCaptured = cleanerProfileStarterCaptured(cleaner);
   const readyForOpportunities = status === "approved" && screeningComplete && futureAvailability.length > 0;
   const profileStarterSubmissionAllowed = !screeningComplete && !["approved", "paused", "rejected"].includes(status);
+  const availabilitySubmissionAllowed = cleanerAvailabilitySubmissionAllowed(status);
 
   let stage = "application-review";
   let headline = "Application received";
   let nextAction = !profileStarterCaptured && profileStarterSubmissionAllowed
     ? "Complete the private professional profile below while Tideway reviews the application. It is required before screening can finish."
-    : firstAvailabilityCaptured ? "Tideway has received the application and its first exact window. Screening, approval and separate availability confirmation are still required." : "Tideway has received the application. Screening and exact availability have not yet been confirmed.";
+    : firstAvailabilityFuture ? "Tideway has received the application and its first exact window. Keep future times current below while screening, approval and separate availability confirmation remain incomplete." : "The first supplied window has passed or was not captured. Add a current future time below while Tideway reviews the application.";
   if (status === "contacted") {
     stage = "screening";
     headline = "Contact step recorded";
@@ -4068,12 +4074,12 @@ async function getPrivateCleanerStatus(request, response) {
 
   return json(response, 200, {
     ok: true,
-    application: { reference: cleaner.id, profileStarter: { captured: profileStarterCaptured, languageCount: profileStarterCaptured ? cleaner.languages.length : 0, professionalBio: profileStarterCaptured ? cleaner.professionalBio : "", languages: profileStarterCaptured ? cleaner.languages : [], equipmentPlan: profileStarterCaptured ? cleaner.equipmentPlan : "", updatedAt: profileStarterCaptured ? cleaner.profileUpdatedAt || cleaner.createdAt : null }, firstAvailability: firstAvailabilityCaptured ? { availableDate: cleaner.firstAvailableDate, startTime: cleaner.firstAvailableStartTime, endTime: cleaner.firstAvailableEndTime, status: "unconfirmed" } : null },
+    application: { reference: cleaner.id, profileStarter: { captured: profileStarterCaptured, languageCount: profileStarterCaptured ? cleaner.languages.length : 0, professionalBio: profileStarterCaptured ? cleaner.professionalBio : "", languages: profileStarterCaptured ? cleaner.languages : [], equipmentPlan: profileStarterCaptured ? cleaner.equipmentPlan : "", updatedAt: profileStarterCaptured ? cleaner.profileUpdatedAt || cleaner.createdAt : null }, firstAvailability: firstAvailabilityCaptured ? { availableDate: cleaner.firstAvailableDate, startTime: cleaner.firstAvailableStartTime, endTime: cleaner.firstAvailableEndTime, status: "unconfirmed", future: firstAvailabilityFuture } : null },
     current: { stage, headline, nextAction },
     steps,
     readiness: { profileStarterCaptured, screeningComplete, approvalRecorded: status === "approved", firstAvailabilityCaptured, confirmedAvailabilityWindows: readyForOpportunities ? futureAvailability.length : 0, pendingAvailabilityWindows: pendingAvailabilityRequests.length, readyForOpportunities },
     availabilityRequests: pendingAvailabilityRequests.map((item) => ({ reference: item.id, availableDate: item.availableDate, startTime: item.startTime, endTime: item.endTime, status: "pending" })),
-    links: { profileStarterSubmissionAllowed, availabilitySubmissionAllowed: status === "approved" && screeningComplete }
+    links: { profileStarterSubmissionAllowed, availabilitySubmissionAllowed }
   });
 }
 
