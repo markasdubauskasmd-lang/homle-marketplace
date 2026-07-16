@@ -57,6 +57,15 @@ Do not add credentials to source control or `.env.example`.
 7. Run the default domain verifier first to prove Google is closed. After full attachment is deliberately enabled, set `TIDEWAY_EXPECT_SOCIAL_PROVIDERS=google` and rerun it: the report must prove the advertised capability, exact Google authorization host/path, canonical callback, PKCE request, secure host-only flow cookie and no-store response without following the provider redirect.
 8. Test new-account creation, repeat login, role onboarding, password-account collision/step-up, logout and mobile browser behavior under the final domain.
 
+For Homle, the canonical callbacks are:
+
+```text
+https://homle.co.uk/api/marketplace/auth/google/callback
+https://homle.co.uk/api/marketplace/auth/facebook/callback
+```
+
+Before starting managed staging, set `TIDEWAY_EXPECT_SOCIAL_PROVIDERS` to the provider being activated first (for example `google`) and run `pnpm run preflight:authentication`. The resulting JSON contains only booleans, provider names, callback URLs and missing-action text; it never returns credential values. A passing configuration report is not permission to expose the buttons: the report lists the remaining live service probes, external-domain check and two-account staging evidence that must still pass.
+
 ## Facebook security model
 
 The server uses a version-pinned Facebook authorization-code flow:

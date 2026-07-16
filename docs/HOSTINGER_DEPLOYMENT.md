@@ -62,6 +62,8 @@ Uploading only `public/` would make the site look live while registration, booki
 7. Attach managed staging services and complete the two-account, two-phone test before enabling accounts or payments.
 8. Run the external domain verifier, then remove every synthetic staging record before real intake.
 
+For account activation, select the first real provider with `TIDEWAY_EXPECT_SOCIAL_PROVIDERS` and run `pnpm run preflight:authentication` against the reviewed Hostinger environment before changing the marketplace flag. Google uses `https://homle.co.uk/api/marketplace/auth/google/callback`; Facebook uses `https://homle.co.uk/api/marketplace/auth/facebook/callback`. The preflight reports incomplete database, SMTP, storage, monitoring, email fallback or provider configuration without printing any secret. It deliberately cannot replace the subsequent managed-service probes and two-account HTTPS test.
+
 ## Current control boundary
 
 The initial application upload was completed outside this Codex task. This live audit was read-only: it verified the public pages, health response, provider capability response, social start-route closure, current DNS origins and room-scan permission headers. It did not change hPanel files, environment variables, DNS, email, databases or credentials.
