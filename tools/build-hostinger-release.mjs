@@ -12,6 +12,7 @@ const releaseEntryPoints = Object.freeze([
   "server.mjs",
   "scripts/marketplace-worker.mjs",
   "tools/check-dependency-lock.mjs",
+  "tools/domain-readiness.mjs",
   "tools/production-preflight.mjs",
   "tools/authentication-preflight.mjs",
   "tools/build-hostinger-release.mjs"
@@ -174,6 +175,7 @@ export function validateReleaseEntries(entries, expectedFiles) {
     "public/index.html",
     "src/marketplace/runtime.mjs",
     "tools/check-dependency-lock.mjs",
+    "tools/domain-readiness.mjs",
     "tools/production-preflight.mjs",
     "tools/authentication-preflight.mjs",
     "tools/build-hostinger-release.mjs"

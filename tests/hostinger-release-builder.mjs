@@ -21,6 +21,7 @@ for (const required of [
   "src/marketplace/runtime.mjs",
   "scripts/marketplace-worker.mjs",
   "tools/check-dependency-lock.mjs",
+  "tools/domain-readiness.mjs",
   "tools/production-preflight.mjs",
   "tools/authentication-preflight.mjs",
   "tools/build-hostinger-release.mjs"
