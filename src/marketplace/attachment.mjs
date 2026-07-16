@@ -4,6 +4,7 @@ import { marketplaceEnvironment, publicAuthenticationCapabilities, validateMarke
 import { postgresPoolOptions } from "./database.mjs";
 import { createPostgresRateLimiter } from "./postgres-rate-limiter.mjs";
 import { createMarketplaceRuntime } from "./runtime.mjs";
+import { createTrustedClientKeyResolver } from "./trusted-client-key.mjs";
 
 function enabledState(env) {
   const value = String(env.MARKETPLACE_ENABLED || "").trim().toLowerCase();
@@ -66,7 +67,6 @@ export async function probeMarketplaceDatabase(pool) {
 }
 
 function requireAdapters(adapters) {
-  if (typeof adapters?.clientKey !== "function") throw new TypeError("Marketplace enablement requires a trusted server-derived client key.");
   if (!adapters?.emailDelivery || typeof adapters.emailDelivery.send !== "function") throw new TypeError("Marketplace enablement requires a trusted email-delivery adapter.");
   const storageMethods = ["createUploadUrl", "headObject", "inspectAndSanitizeImage", "createReadUrl", "deleteObject"];
   if (!adapters.objectStorage || !storageMethods.every((method) => typeof adapters.objectStorage[method] === "function")) throw new TypeError("Marketplace enablement requires complete private object storage.");
@@ -96,6 +96,8 @@ export async function createMarketplaceAttachment(options = {}) {
   if (!environment.emailConfigured) throw new TypeError("Marketplace attachment requires SMTP_URL and EMAIL_FROM.");
   if (!environment.objectStorageConfigured) throw new TypeError("Marketplace attachment requires complete private object-storage configuration.");
 
+  const clientKey = (options.createClientKeyResolver || createTrustedClientKeyResolver)(env);
+
   const loadAdapters = options.loadAdapters || loadMarketplaceDeploymentAdapters;
   const adapters = options.adapters || await loadAdapters(env);
   requireAdapters(adapters);
@@ -109,7 +111,7 @@ export async function createMarketplaceAttachment(options = {}) {
     runtime = (options.createRuntime || createMarketplaceRuntime)(pool, {
       env,
       rateLimiter,
-      clientKey: adapters.clientKey,
+      clientKey,
       emailDelivery: adapters.emailDelivery,
       objectStorage: adapters.objectStorage,
       etaProvider: adapters.etaProvider,

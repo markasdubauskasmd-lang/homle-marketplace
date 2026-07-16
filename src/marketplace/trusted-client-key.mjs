@@ -1,0 +1,75 @@
+import { BlockList, isIP } from "node:net";
+
+function normalizedAddress(value, label) {
+  const address = typeof value === "string" ? value.trim() : "";
+  if (!address || address.length > 64 || /[\u0000-\u0020\u007f]/.test(address)) throw new TypeError(`${label} is not a valid IP address.`);
+  const mapped = address.toLowerCase().startsWith("::ffff:") ? address.slice(7) : address;
+  const family = isIP(mapped);
+  if (!family) throw new TypeError(`${label} is not a valid IP address.`);
+  return { address: mapped, family };
+}
+
+function proxyTrustList(value) {
+  const source = typeof value === "string" ? value.trim() : "";
+  if (!source || source.length > 4096) throw new TypeError("TRUSTED_PROXY_CIDRS is required and must be bounded when TRUST_PROXY=true.");
+  const entries = source.split(",").map((entry) => entry.trim());
+  if (!entries.length || entries.length > 64 || entries.some((entry) => !entry)) throw new TypeError("TRUSTED_PROXY_CIDRS must contain between one and 64 IP addresses or CIDRs.");
+
+  const blockList = new BlockList();
+  for (const entry of entries) {
+    const slash = entry.lastIndexOf("/");
+    if (slash === -1) {
+      const parsed = normalizedAddress(entry, "Trusted proxy address");
+      blockList.addAddress(parsed.address, parsed.family === 4 ? "ipv4" : "ipv6");
+      continue;
+    }
+    if (entry.indexOf("/") !== slash) throw new TypeError("TRUSTED_PROXY_CIDRS contains an invalid CIDR.");
+    const parsed = normalizedAddress(entry.slice(0, slash), "Trusted proxy network");
+    const prefixText = entry.slice(slash + 1);
+    if (!/^\d{1,3}$/.test(prefixText)) throw new TypeError("TRUSTED_PROXY_CIDRS contains an invalid prefix length.");
+    const prefix = Number(prefixText);
+    const maximum = parsed.family === 4 ? 32 : 128;
+    if (prefix < 0 || prefix > maximum) throw new TypeError("TRUSTED_PROXY_CIDRS contains an invalid prefix length.");
+    blockList.addSubnet(parsed.address, prefix, parsed.family === 4 ? "ipv4" : "ipv6");
+  }
+  return blockList;
+}
+
+function trustProxyEnabled(value) {
+  const selected = String(value || "false").trim().toLowerCase();
+  if (selected === "false") return false;
+  if (selected === "true") return true;
+  throw new TypeError("TRUST_PROXY must be true or false.");
+}
+
+function remoteClient(request) {
+  return normalizedAddress(request?.socket?.remoteAddress, "Request peer address");
+}
+
+function forwardedClient(request) {
+  const header = request?.headers?.["x-forwarded-for"];
+  if (typeof header !== "string" || header.includes(",")) throw new TypeError("The trusted proxy must provide exactly one X-Forwarded-For address.");
+  return normalizedAddress(header, "Forwarded client address");
+}
+
+export function createTrustedClientAddressResolver(env = process.env) {
+  const proxyEnabled = trustProxyEnabled(env.TRUST_PROXY);
+  const trustedProxies = proxyEnabled ? proxyTrustList(env.TRUSTED_PROXY_CIDRS) : null;
+
+  return function trustedClientAddress(request) {
+    const peer = remoteClient(request);
+    if (!proxyEnabled) return peer.address;
+    const type = peer.family === 4 ? "ipv4" : "ipv6";
+    if (!trustedProxies.check(peer.address, type)) throw new TypeError("The request did not arrive from a configured trusted proxy.");
+    return forwardedClient(request).address;
+  };
+}
+
+export function createTrustedClientKeyResolver(env = process.env) {
+  const proxyEnabled = trustProxyEnabled(env.TRUST_PROXY);
+  const resolveAddress = createTrustedClientAddressResolver(env);
+  return function trustedClientKey(request) {
+    const client = normalizedAddress(resolveAddress(request), "Resolved client address");
+    return `${proxyEnabled ? "proxy" : "direct"}:ipv${client.family}:${client.address}`;
+  };
+}

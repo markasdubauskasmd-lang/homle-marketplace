@@ -8,7 +8,7 @@ This is prepared source, not production evidence. `MARKETPLACE_ENABLED` remains 
 
 ## Privacy boundary
 
-- The deployment adapter derives a trusted client identifier from the actual socket and explicitly configured proxy hops. Browser-supplied forwarding headers must never be trusted directly.
+- The internal [trusted client-identity resolver](TRUSTED_CLIENT_IDENTITY.md) derives a client identifier from the actual socket. In explicit single-proxy mode it first verifies the immediate peer against configured CIDRs and requires one sanitized forwarding address; deployment adapters cannot override this boundary.
 - `createPostgresRateLimiter` HMACs that identifier with a purpose string, the `SESSION_SECRET` and the exact route scope. PostgreSQL receives only a 32-byte digest.
 - The same client produces different hashes in different scopes, preventing database-level correlation between login, signup and directory activity.
 - Neither `tideway_app` nor `tideway_worker` can read, insert, update or delete the private counter table directly.

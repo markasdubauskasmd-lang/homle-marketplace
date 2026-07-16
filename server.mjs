@@ -18,6 +18,7 @@ import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeClea
 import { buildRoomScanFollowupDraft } from "./request-followup-draft.mjs";
 import { validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
 import { createMarketplaceAttachment } from "./src/marketplace/attachment.mjs";
+import { createTrustedClientAddressResolver } from "./src/marketplace/trusted-client-key.mjs";
 import { createTrackingTestStore } from "./tracking-test-store.mjs";
 import { assessPrivateDataDirectory } from "./data-directory-safety.mjs";
 import "./public/scope-time-breakdown.js";
@@ -43,7 +44,7 @@ const maxFinancialRecordAmount = 1000000;
 let writeQueue = Promise.resolve();
 const rateLimitBuckets = new Map();
 const trackingTestStore = createTrackingTestStore();
-const trustProxy = process.env.TRUST_PROXY === "true";
+const resolveClientAddress = createTrustedClientAddressResolver(process.env);
 const adminRequireKey = process.env.ADMIN_REQUIRE_KEY === "true";
 const marketplaceConfig = validateMarketplaceEnvironment(process.env);
 if (!marketplaceConfig.ok) throw new Error(`Invalid marketplace environment: ${marketplaceConfig.errors.join(" ")}`);
@@ -173,17 +174,8 @@ function json(response, statusCode, body) {
   response.end(JSON.stringify(body));
 }
 
-function normaliseClientAddress(value) {
-  const address = String(value || "").trim().replace(/^::ffff:/, "");
-  return isIP(address) ? address : "unknown";
-}
-
 function requestClientAddress(request) {
-  if (trustProxy) {
-    const forwardedAddress = String(request.headers["x-forwarded-for"] || "").split(",")[0].trim();
-    if (isIP(forwardedAddress)) return normaliseClientAddress(forwardedAddress);
-  }
-  return normaliseClientAddress(request.socket.remoteAddress);
+  return resolveClientAddress(request);
 }
 
 function secretsMatch(supplied, expected) {

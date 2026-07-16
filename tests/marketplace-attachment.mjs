@@ -19,7 +19,6 @@ const completeEnvironment = Object.freeze({
 });
 
 const adapters = Object.freeze({
-  clientKey() { return "trusted:test"; },
   emailDelivery: { async send() {} },
   objectStorage: {
     async createUploadUrl() {}, async headObject() {}, async inspectAndSanitizeImage() {},
@@ -44,6 +43,14 @@ await assert.rejects(createMarketplaceAttachment({ env: { MARKETPLACE_ENABLED: "
 await assert.rejects(createMarketplaceAttachment({ env: { MARKETPLACE_ENABLED: "true" }, adapters }), /requires database, session, token, encryption and exact-origin/);
 await assert.rejects(loadMarketplaceDeploymentAdapters({ MARKETPLACE_ADAPTER_MODULE: "relative-adapter.mjs" }), /absolute file path/);
 
+let invalidProxyLoadedAdapters = false;
+await assert.rejects(createMarketplaceAttachment({
+  env: { ...completeEnvironment, TRUST_PROXY: "true" },
+  adapters: undefined,
+  async loadAdapters() { invalidProxyLoadedAdapters = true; throw new Error("must not load"); }
+}), /TRUSTED_PROXY_CIDRS is required/);
+assert.equal(invalidProxyLoadedAdapters, false, "Invalid proxy trust loaded deployment adapters before failing closed.");
+
 let released = 0;
 let ended = 0;
 let realtimeClosed = 0;
@@ -62,11 +69,18 @@ const pool = {
 };
 const router = { async handle() { return true; } };
 const sharedRateLimiter = { async consume() { return { allowed: true }; } };
+const trustedClientKey = () => "direct:ipv4:198.51.100.10";
 let limiterCreated = 0;
+let clientKeyCreated = 0;
 const attachment = await createMarketplaceAttachment({
   env: completeEnvironment,
   adapters,
   async createPool() { return pool; },
+  createClientKeyResolver(selectedEnvironment) {
+    clientKeyCreated += 1;
+    assert.equal(selectedEnvironment, completeEnvironment);
+    return trustedClientKey;
+  },
   createRateLimiter(selectedPool, options) {
     limiterCreated += 1;
     assert.equal(selectedPool, pool);
@@ -76,6 +90,7 @@ const attachment = await createMarketplaceAttachment({
   createRuntime(selectedPool, options) {
     assert.equal(selectedPool, pool);
     assert.equal(options.rateLimiter, sharedRateLimiter);
+    assert.equal(options.clientKey, trustedClientKey);
     assert.equal(options.objectStorage, adapters.objectStorage);
     return {
       router,
@@ -89,6 +104,7 @@ assert.equal(attachment.enabled, true);
 assert.equal(attachment.ready, true);
 assert.equal(attachment.router, router);
 assert.equal(limiterCreated, 1);
+assert.equal(clientKeyCreated, 1);
 assert.equal(released, 1);
 assert.ok(probeQueries[0].includes("current_user") && probeQueries[0].includes("tideway_private.lookup_session"));
 assert.equal(attachment.authenticationCapabilities.emailPassword, true);
