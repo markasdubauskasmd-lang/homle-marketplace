@@ -1,6 +1,6 @@
 # Marketplace database setup
 
-The existing local NDJSON pilot remains the active data store. The PostgreSQL marketplace schema is additive and has not been applied on this computer because PostgreSQL and `psql` are not installed here.
+The existing local NDJSON pilot remains the active data store. The PostgreSQL marketplace schema is additive. On 16 July 2026, all locked assets were applied from scratch to a disposable PostgreSQL 16.14 database bound only to `127.0.0.1`, outside OneDrive and outside the project. The deployment verifier and behavioural integration suite passed; the database contained zero fixture users afterward. This local evidence does not replace managed staging, approved production credentials or backup/monitoring evidence.
 
 ## Required boundary
 
@@ -31,7 +31,7 @@ Before any migration-owner connection is used, verify that the complete ordered 
 node tools/check-database-assets.mjs
 ```
 
-This dependency-free check requires all 23 consecutively numbered migrations, rejects missing or unlocked SQL files, verifies the SHA-256 of every migration and role-grant script, and requires each file to retain its explicit `BEGIN;`/`COMMIT;` boundary. An intentional SQL change must be reviewed and receive an explicit matching lock update in the same commit. This is a source-integrity gate only; it does not replace executing the migrations and security/concurrency tests against a real PostgreSQL database.
+This dependency-free check requires all 31 consecutively numbered migrations, rejects missing or unlocked SQL files, verifies the SHA-256 of every migration and role-grant script, and requires each file to retain its explicit `BEGIN;`/`COMMIT;` boundary. An intentional SQL change must be reviewed and receive an explicit matching lock update in the same commit. This is a source-integrity gate only; it does not replace executing the migrations and security/concurrency tests against a real PostgreSQL database.
 
 Create the database and restricted runtime role using administrator tooling, then run these files as the migration owner in this order:
 
@@ -65,6 +65,8 @@ psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/026_participa
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/027_authenticated_provider_connections.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/028_invitation_eligibility_hardening.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/029_consent_bound_automatic_dispatch.sql
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/030_private_request_room_scans.sql
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/031_fix_invitation_service_area_lookup.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/runtime-role-grants.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/worker-role-grants.sql
 ```
@@ -89,7 +91,7 @@ DATABASE_VERIFICATION_URL='postgresql://migration_owner:password@staging-host/ti
 
 The command requires the `psql` client and runs `db/integration/deployment-verification.sql` inside an explicit read-only transaction. It verifies PostgreSQL and extension versions, the complete RLS table inventory, non-bypass runtime/worker roles, ownership, critical constraints and indexes, trusted `SECURITY DEFINER` search paths, required function grants, revoked direct access to protected data, and worker isolation. Remote URLs default to `sslmode=verify-full`; only `sslmode`, `sslrootcert` and a 1–60 second `connect_timeout` are accepted as URL parameters.
 
-This is a deployed-structure and effective-grant check, not a substitute for the real multi-account RLS, transaction-concurrency, double-booking and notification-worker integration tests in E2. It has not run on this development computer because neither PostgreSQL nor `psql` is installed and no founder-approved staging database is connected.
+This is a deployed-structure and effective-grant check, not a substitute for the real multi-account RLS, transaction-concurrency, double-booking and notification-worker integration tests in E2. It passed against the disposable local PostgreSQL 16.14 database on 16 July 2026 with 40 RLS tables, 21 application-function checks and 12 worker-function checks. It has not yet run against founder-approved managed staging.
 
 ## Run the marketplace integration suite
 
@@ -107,8 +109,10 @@ Remove-Item Env:DATABASE_INTEGRATION_OWNER_URL, Env:DATABASE_INTEGRATION_APP_URL
 
 Inject the two URLs from a secret manager in CI rather than committing or printing them. The runner passes credentials only through child-process environment variables and does not put connection URLs in `psql` arguments. It never contacts the normal `DATABASE_URL`, and the public/local pilot is not involved. A failed cleanup must be treated as a test-environment incident; remove the three reserved users and their cascaded fixtures before rerunning.
 
+The suite passed from a fresh database on PostgreSQL 16.14 on 16 July 2026. Real execution exposed and led to fixes for an ambiguous outward-postcode variable in the final Cleaner invitation function and cleanup ordering for audit records. The rerun proved owner isolation, unrelated-user denial, private access-instruction timing, revoked direct workflow writes, current-payment journey gating, exactly-once history and a two-transaction overlap race in which exactly one acceptance succeeded. Cleanup left zero reserved users. Repeat this same proof in managed staging before attachment.
+
 The application transaction boundary sets `app.user_id` and `app.user_roles` locally after `BEGIN` and before any protected query. Pre-login lookups can call only restricted `SECURITY DEFINER` authentication functions. A verified account may have an authenticated session with no selected role while onboarding is pending. First-account provisioning binds writes to the new user ID but does not grant a role; only Cleaner or Landlord onboarding may add a self-selected role. Administrator is never self-selectable.
 
 Run `SELECT * FROM tideway_private.expire_due_cleaner_invitations(100);`, `SELECT * FROM tideway_private.purge_expired_cleaner_locations(500);` and `SELECT * FROM tideway_private.expire_due_job_photo_uploads(500);` through the deployment scheduler using only the `tideway_worker` connection, at least once per minute. Run the consent-bound `createAutomaticDispatchWorker` on the same cadence through its own `tideway_worker` pool; it leases only requests explicitly authorized by their Landlord, chooses profitable eligible candidates and writes one invitation at a time. Run `SELECT * FROM tideway_private.purge_expired_sessions(500);` through the same restricted role at least every 15 minutes; `createSessionPurgeWorker` drains at most five batches by default and reports `moreMayRemain` for an immediate follow-up. Run `SELECT tideway_private.purge_expired_rate_limits(1000);` and `SELECT tideway_private.purge_expired_pending_social_identities(1000);` at least hourly and continue in bounded batches while either returns the limit. The functions use bounded `SKIP LOCKED` batches so concurrent workers do not process the same row. For every expired upload, the worker must also delete both returned quarantine and final object keys through the private storage adapter; a bucket lifecycle rule must be the final cleanup backstop. Monitor failures and continue immediately while a run returns the batch limit. The web role cannot directly update or delete cleaning requests, has its direct session-delete grant revoked, and neither restricted role has direct access to private limiter keys or pending social-identity material.
 
-Before production use, run the migrations and database integration tests against an empty staging database, inspect effective grants, confirm `tideway_app` cannot bypass RLS, and test denial from an unrelated account. The current repository contains a PostgreSQL-compatible pool adapter, exact locked driver dependency and fake-pool tests. Declaring/installing the driver does not prove database behavior: E2 remains open until the guarded integration harness passes against PostgreSQL 16 with separate owner and `tideway_app` credentials.
+Before production use, repeat the migrations and database integration tests against an empty managed staging database, inspect effective grants, confirm `tideway_app` cannot bypass RLS, and test denial from an unrelated account. The current repository contains a PostgreSQL-compatible pool adapter and exact locked driver dependency. Local E2 database behaviour is now proven with separate owner and `tideway_app` credentials; managed staging, scheduled-worker and multi-instance evidence remain open.

@@ -38,6 +38,7 @@ for (const file of ["accept-booking-a.sql", "accept-booking-b.sql"]) {
 }
 for (const idPrefix of ["10000000", "20000000", "30000000", "40000000"]) assert.ok(sources.get("marketplace-integration-cleanup.sql").includes(idPrefix));
 assert.match(sources.get("marketplace-integration-cleanup.sql"), /DELETE FROM cleaner_service_areas/);
+assert.ok(sources.get("marketplace-integration-cleanup.sql").indexOf("DELETE FROM audit_logs") < sources.get("marketplace-integration-cleanup.sql").indexOf("DELETE FROM users"), "Fixture audit evidence must be removed before its actor users.");
 
 const ownerPassword = "owner p@ss/secret";
 const appPassword = "app p@ss/secret";
