@@ -34,6 +34,12 @@
         <section class="account-runtime" data-account-runtime hidden aria-label="Secure account form">
           <div class="account-feedback" data-account-feedback role="status" aria-live="polite" hidden></div>
 
+          <div class="account-social" data-social-actions hidden>
+            <p>Continue with a verified account</p>
+            <a class="button button-outline" data-social-provider="google" href="/api/marketplace/auth/google/start" hidden>Continue with Google</a>
+            <a class="button button-outline" data-social-provider="facebook" href="/api/marketplace/auth/facebook/start" hidden>Continue with Facebook</a>
+          </div>
+
           <form class="account-form" data-account-form="login" hidden novalidate>
             <fieldset data-account-controls disabled>
               <legend>Sign in securely</legend>

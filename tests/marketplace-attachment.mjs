@@ -73,6 +73,7 @@ const attachment = await createMarketplaceAttachment({
     return {
       router,
       authenticationHttpReady: true,
+      googleOidcReady: true,
       realtimeSignalSource: { async close() { realtimeClosed += 1; } }
     };
   }
@@ -85,7 +86,7 @@ assert.ok(probeQueries[0].includes("current_user") && probeQueries[0].includes("
 assert.equal(attachment.authenticationCapabilities.emailPassword, true);
 assert.equal(attachment.authenticationCapabilities.passwordReset, true);
 assert.equal(attachment.authenticationCapabilities.emailVerification, true);
-assert.equal(attachment.authenticationCapabilities.google, false, "Configured Google credentials were advertised before an OAuth callback router exists.");
+assert.equal(attachment.authenticationCapabilities.google, true, "A configured and attached Google callback router was not advertised truthfully.");
 await attachment.close();
 await attachment.close();
 assert.equal(realtimeClosed, 1);

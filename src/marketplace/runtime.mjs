@@ -14,6 +14,7 @@ import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config
 import { createCredentialService } from "./credential-service.mjs";
 import { createMarketplaceDatabase } from "./database.mjs";
 import { createIdentityService } from "./identity-service.mjs";
+import { createGoogleOidcProvider } from "./google-oidc.mjs";
 import { createJourneyRepository } from "./journey-repository.mjs";
 import { createJourneyService } from "./journey-service.mjs";
 import { createMarketplaceHttpRouter } from "./marketplace-http.mjs";
@@ -50,6 +51,15 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const database = createMarketplaceDatabase(pool);
   const authenticationRepository = createAuthenticationRepository(database);
   const identityService = createIdentityService(authenticationRepository);
+  const googleOidcProvider = options.googleOidcProvider || (environment.providers.google.enabled
+    ? createGoogleOidcProvider({
+      appOrigin: environment.appOrigin,
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      stateSecret: env.AUTH_TOKEN_SECRET,
+      fetch: options.googleFetch
+    })
+    : null);
   const credentialService = createCredentialService(authenticationRepository, { tokenSecret: env.AUTH_TOKEN_SECRET });
   const accountSessionService = createAccountSessionService(authenticationRepository, { sessionSecret: env.SESSION_SECRET, production: environment.production });
   const security = createAccountSecurity(authenticationRepository, {
@@ -86,7 +96,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, messageService, realtimeService, notificationService, reviewService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires SMTP_URL and EMAIL_FROM configuration.");
   const authenticationRouter = options.emailDelivery
-    ? createAuthenticationHttpRouter({ security, credentialService, identityService, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
+    ? createAuthenticationHttpRouter({ security, credentialService, identityService, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
     : null;
   const router = authenticationRouter ? {
     async handle(request, response, url) {
@@ -99,6 +109,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     database,
     authenticationRepository,
     identityService,
+    googleOidcProvider,
     credentialService,
     accountSessionService,
     security,
@@ -129,6 +140,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     reviewService,
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
+    googleOidcReady: authenticationRouter !== null && googleOidcProvider !== null,
     marketplaceRouter,
     router
   });

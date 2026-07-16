@@ -17,7 +17,7 @@ function response() {
     body: "",
     writeHead(statusCode, headers) { this.statusCode = statusCode; this.headers = headers; },
     end(body = "") { this.body = String(body); },
-    parsed() { return JSON.parse(this.body); }
+    parsed() { return this.body ? JSON.parse(this.body) : null; }
   };
 }
 
@@ -56,6 +56,7 @@ const credentialService = {
   async resetPassword(token, password) { calls.push({ kind: "reset-confirm", token, password }); return resetResult; }
 };
 const identityService = {
+  async socialSignIn(provider, claims) { calls.push({ kind: "social-sign-in", provider, claims }); return { user_id: currentContext.actor.userId, email: claims.email, email_verified_at: "2026-07-15T12:00:00.000Z", display_name: claims.displayName, selected_role: null, roles: [] }; },
   async completeOnboarding(actor, role) { calls.push({ kind: "onboarding", actor, role }); return { user_id: actor.userId, selected_role: role, roles: [role] }; }
 };
 const accountSessionService = {
@@ -71,7 +72,18 @@ const rateLimiter = { async consume(input) { calls.push({ kind: "limit", input }
 let nowValue = 1000;
 const waits = [];
 let unexpectedError;
-const router = createAuthenticationHttpRouter({ security, credentialService, identityService, accountSessionService, emailDelivery, rateLimiter }, {
+let googleCompletionError = null;
+const googleOidcProvider = {
+  name: "google",
+  clearCookie: "tideway_google_flow=; Max-Age=0; HttpOnly; Secure",
+  begin() { calls.push({ kind: "google-start" }); return { location: "https://accounts.google.com/o/oauth2/v2/auth?state=opaque", setCookie: "tideway_google_flow=signed; HttpOnly; Secure" }; },
+  async complete(url, cookie) {
+    calls.push({ kind: "google-complete", url: url.toString(), cookie });
+    if (googleCompletionError) throw googleCompletionError;
+    return { subject: "google-subject", email: "owner@example.com", emailVerified: true, displayName: "Property Owner", avatarUrl: "", locale: "en-GB" };
+  }
+};
+const router = createAuthenticationHttpRouter({ security, credentialService, identityService, accountSessionService, emailDelivery, rateLimiter, googleOidcProvider }, {
   appOrigin: origin,
   clientKey: () => "198.51.100.10",
   minimumPublicResponseMs: 500,
@@ -88,6 +100,15 @@ const wrongMethod = await dispatch(router, "GET", "/api/marketplace/auth/login",
 assert(wrongMethod.response.statusCode === 405 && wrongMethod.response.headers.Allow === "POST", "Authentication routes did not enforce POST-only mutations.");
 const wrongOrigin = await dispatch(router, "POST", "/api/marketplace/auth/login", { email: "owner@example.com", password: "secret" }, { ...publicHeaders, origin: "https://attacker.example" });
 assert(wrongOrigin.response.statusCode === 403 && wrongOrigin.body.code === "origin-rejected", "Unauthenticated login accepted a cross-origin request.");
+
+const googleStart = await dispatch(router, "GET", "/api/marketplace/auth/google/start", undefined, { "user-agent": "Example Browser" });
+assert(googleStart.response.statusCode === 302 && googleStart.response.headers.Location.startsWith("https://accounts.google.com/") && googleStart.response.headers["Set-Cookie"][0].includes("HttpOnly") && googleStart.response.headers["Cache-Control"] === "no-store" && calls.some((call) => call.kind === "google-start"), "Google sign-in did not start through a non-cacheable server redirect and secure flow cookie.");
+const googleCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=private-code&state=opaque", undefined, { cookie: "tideway_google_flow=signed", "user-agent": "Example Browser" });
+assert(googleCallback.response.statusCode === 303 && googleCallback.response.headers.Location.startsWith("/onboarding#social=google&csrfToken=") && !googleCallback.response.headers.Location.includes("private-code") && googleCallback.response.headers["Set-Cookie"].length === 2 && googleCallback.response.headers["Set-Cookie"][0].includes("Max-Age=0") && googleCallback.response.headers["Set-Cookie"][1].includes("HttpOnly") && calls.some((call) => call.kind === "social-sign-in" && call.provider === "google") && calls.some((call) => call.kind === "establish"), "Verified Google callback did not clear flow state, create/reuse the Tideway identity, establish an opaque session and continue to role onboarding.");
+googleCompletionError = new TypeError("private provider rejection");
+const failedGoogleCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=bad&state=opaque", undefined, { cookie: "tideway_google_flow=signed" });
+assert(failedGoogleCallback.response.statusCode === 303 && failedGoogleCallback.response.headers.Location === "/login#social=google-failed" && failedGoogleCallback.response.headers["Set-Cookie"][0].includes("Max-Age=0") && !failedGoogleCallback.response.headers.Location.includes("private provider rejection"), "Rejected Google callback leaked provider details or retained its one-time flow cookie.");
+googleCompletionError = null;
 
 const signup = await dispatch(router, "POST", "/api/marketplace/auth/signup", { email: "new@example.com", displayName: "New User", password: "long password" }, publicHeaders);
 assert(signup.response.statusCode === 202 && signup.body.accepted && waits[0] === 500 && deliveries[0].recipient === "new@example.com" && deliveries[0].link.startsWith(`${origin}/verify-email#token=`) && !deliveries[0].link.includes("?token=") && !signup.response.body.includes("verification-token-private"), "Signup leaked delivery material, omitted the generic timing boundary or put its token in a server URL query.");

@@ -127,7 +127,7 @@ export async function createMarketplaceAttachment(options = {}) {
     emailPassword: true,
     passwordReset: true,
     emailVerification: true,
-    google: false,
+    google: runtime.googleOidcReady === true,
     apple: false,
     facebook: false
   });

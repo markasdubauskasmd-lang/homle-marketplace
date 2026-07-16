@@ -14,8 +14,12 @@ const stateCopy = document.querySelector("[data-account-state-copy]");
 const runtime = document.querySelector("[data-account-runtime]");
 const feedback = document.querySelector("[data-account-feedback]");
 const forms = [...document.querySelectorAll("[data-account-form]")];
+const socialActions = document.querySelector("[data-social-actions]");
+const socialLinks = [...document.querySelectorAll("[data-social-provider]")];
 const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
 const privateToken = fragment.get("token") || "";
+const socialResult = fragment.get("social") || "";
+const socialCsrfToken = fragment.get("csrfToken") || "";
 
 if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
 document.title = `${selectedMode.title} — Tideway`;
@@ -33,10 +37,14 @@ function showFeedback(message, kind = "info") {
   feedback.focus?.();
 }
 
-function activateForm() {
+function activateForm(providers) {
   const activeName = selectedMode.form === "reset" && !privateToken ? "reset-request" : selectedMode.form === "verify" && !privateToken ? "verification-request" : selectedMode.form;
+  const socialPage = selectedMode.form === "login" || selectedMode.form === "signup";
+  const socialReady = socialPage && socialLinks.some((link) => providers[link.dataset.socialProvider] === true);
+  for (const link of socialLinks) link.hidden = !socialPage || providers[link.dataset.socialProvider] !== true;
+  if (socialActions) socialActions.hidden = !socialReady;
   for (const form of forms) {
-    const active = form.dataset.accountForm === activeName;
+    const active = form.dataset.accountForm === activeName && (selectedMode.form === "onboarding" || providers.emailPassword === true);
     form.hidden = !active;
     form.querySelectorAll("[data-account-controls]").forEach((fieldset) => { fieldset.disabled = !active; });
   }
@@ -153,10 +161,23 @@ try {
   const response = await fetch("/api/auth/providers", { headers: { Accept: "application/json" }, cache: "no-store" });
   const result = response.ok ? await response.json() : null;
   const providers = result?.providers || {};
-  if (providers.emailPassword === true) {
+  const authenticationReady = providers.emailPassword === true || providers.google === true || providers.facebook === true;
+  if (authenticationReady) {
     stateTitle.textContent = "Secure account access is ready.";
-    stateCopy.textContent = "Forms are protected by verified email, rate limits, secure sessions and server-side role checks.";
-    activateForm();
+    stateCopy.textContent = "Available sign-in methods use rate limits, secure sessions and server-side role checks.";
+    activateForm(providers);
+    if (socialResult === "google" && socialCsrfToken) {
+      if (storeCsrf(socialCsrfToken)) {
+        showFeedback(location.pathname === "/onboarding" ? "Google sign-in succeeded. Choose how you will use Tideway." : "Google sign-in succeeded. Your secure Tideway session is ready.", "success");
+      } else {
+        await post("/api/marketplace/auth/logout", {}, socialCsrfToken);
+        showFeedback("Secure browser storage is unavailable, so Tideway closed the Google session. Try a standard browser window.", "error");
+      }
+    } else if (socialResult === "google-failed") {
+      showFeedback("Google sign-in could not be completed. No Tideway session was created; please try again.", "error");
+    } else if (socialResult === "rate-limited") {
+      showFeedback("Too many sign-in attempts were made. Please wait before trying again.", "error");
+    }
   } else {
     stateTitle.textContent = "Account access is safely unavailable.";
     stateCopy.textContent = "The database, verified email delivery and sign-in runtime are not active, so Tideway is not showing buttons that cannot work.";

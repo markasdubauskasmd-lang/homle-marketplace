@@ -282,6 +282,12 @@ const enabledRuntime = createMarketplaceRuntime(pool, {
   ...runtimeAbuseControl
 });
 assert(enabledRuntime.authenticationHttpReady && enabledRuntime.authenticationRouter && enabledRuntime.router !== enabledRuntime.marketplaceRouter, "A complete trusted email/rate/client boundary did not compose the isolated authentication controller into the runtime chain.");
+const googleRuntime = createMarketplaceRuntime(pool, {
+  env: { ...enabledEnvironment, GOOGLE_CLIENT_ID: "google-client.apps.googleusercontent.com", GOOGLE_CLIENT_SECRET: "google-client-secret" },
+  emailDelivery: { async send() {} },
+  ...runtimeAbuseControl
+});
+assert(googleRuntime.googleOidcReady === true && googleRuntime.googleOidcProvider?.callbackUrl === `${baseEnvironment.APP_ORIGIN}/api/marketplace/auth/google/callback`, "Complete Google configuration did not compose the exact callback verifier into the authentication runtime.");
 let missingRuntime = false;
 try { createMarketplaceRuntime(pool, { env: {} }); } catch (error) { missingRuntime = error.message.includes("DATABASE_URL") && error.message.includes("SESSION_SECRET") && error.message.includes("DATA_ENCRYPTION_KEY"); }
 assert(missingRuntime, "Marketplace runtime did not fail closed without its database/session/encryption configuration.");

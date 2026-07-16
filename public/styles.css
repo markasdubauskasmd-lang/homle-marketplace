@@ -228,6 +228,9 @@ textarea { resize: vertical; }
 .account-feedback { margin-bottom: 16px; padding: 13px 15px; border: 1px solid #9bcdbf; border-radius: 11px; background: var(--mint-pale); color: #164a42; font-weight: 700; }
 .account-feedback[data-kind="error"] { color: #7b1e17; border-color: #e1aaa5; background: #fff0ee; }
 .account-feedback[data-kind="success"] { color: #0c554b; border-color: #87c9b9; background: #ecfaf5; }
+.account-social { display: grid; gap: 10px; margin-bottom: 22px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.account-social p { margin: 0 0 2px; color: var(--muted); font-size: .9rem; font-weight: 800; }
+.account-social .button { width: 100%; }
 .account-form fieldset { display: grid; gap: 16px; margin: 0; padding: 0; border: 0; }
 .account-form legend { margin-bottom: 18px; color: var(--green-dark); font-family: Georgia, 'Times New Roman', serif; font-size: 1.75rem; font-weight: 800; }
 .account-form small { color: var(--muted); line-height: 1.45; }

@@ -38,6 +38,17 @@ function accountFromOnboarding(context, result) {
   };
 }
 
+function sendRedirect(response, statusCode, location, cookies = []) {
+  const headers = {
+    Location: location,
+    "Cache-Control": "no-store",
+    "Referrer-Policy": "no-referrer"
+  };
+  if (cookies.length) headers["Set-Cookie"] = cookies;
+  response.writeHead(statusCode, headers);
+  response.end();
+}
+
 export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const security = dependencies?.security;
   const credentials = dependencies?.credentialService;
@@ -45,9 +56,10 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const sessions = dependencies?.accountSessionService;
   const emailDelivery = dependencies?.emailDelivery;
   const rateLimiter = dependencies?.rateLimiter;
+  const google = dependencies?.googleOidcProvider || null;
   if (!security || typeof security.protect !== "function" || typeof security.requireOrigin !== "function") throw new TypeError("Authentication HTTP routes require account security.");
   if (!credentials || ["register", "requestEmailVerification", "verifyEmail", "signIn", "requestPasswordReset", "resetPassword"].some((method) => typeof credentials[method] !== "function")) throw new TypeError("Authentication HTTP routes require the credential service.");
-  if (!identity || typeof identity.completeOnboarding !== "function") throw new TypeError("Authentication HTTP routes require the identity service.");
+  if (!identity || typeof identity.completeOnboarding !== "function" || (google && typeof identity.socialSignIn !== "function")) throw new TypeError("Authentication HTTP routes require the identity service.");
   if (!sessions || ["establish", "rotate", "logout", "logoutAll"].some((method) => typeof sessions[method] !== "function")) throw new TypeError("Authentication HTTP routes require the session service.");
   if (!emailDelivery || typeof emailDelivery.send !== "function") throw new TypeError("Authentication HTTP routes require a trusted email-delivery adapter.");
   const appOrigin = exactOrigin(options.appOrigin);
@@ -57,6 +69,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const wait = options.wait || ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
   const limit = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
+  if (google && (google.name !== "google" || typeof google.begin !== "function" || typeof google.complete !== "function" || typeof google.clearCookie !== "string")) throw new TypeError("Google authentication routes require a complete OIDC provider.");
 
   async function privateDelivery(delivery) {
     if (!delivery) return;
@@ -78,6 +91,33 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
       if (!url.pathname.startsWith(prefix) && url.pathname !== "/api/marketplace/onboarding") return false;
       const startedAt = now();
       try {
+        if (url.pathname === `${prefix}google/start`) {
+          if (!google) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          await limit(request, "google-start");
+          const attempt = google.begin();
+          sendRedirect(response, 302, attempt.location, [attempt.setCookie]);
+          return true;
+        }
+        if (url.pathname === `${prefix}google/callback`) {
+          if (!google) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          try {
+            await limit(request, "google-callback");
+            const claims = await google.complete(url, header(request, "cookie"));
+            const account = await identity.socialSignIn("google", claims);
+            const session = await sessions.establish(account, metadata(request));
+            const destination = session.account.roles.length ? "/login" : "/onboarding";
+            const fragment = new URLSearchParams({ social: "google", csrfToken: session.csrfToken });
+            sendRedirect(response, 303, `${destination}#${fragment}`, [google.clearCookie, session.setCookie]);
+          } catch (error) {
+            const rateLimited = error?.statusCode === 429;
+            if (!rateLimited && !(error instanceof TypeError)) onUnexpectedError(error);
+            const fragment = new URLSearchParams({ social: rateLimited ? "rate-limited" : "google-failed" });
+            sendRedirect(response, 303, `/login#${fragment}`, [google.clearCookie]);
+          }
+          return true;
+        }
         if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
         security.requireOrigin(request);
         if (url.pathname === `${prefix}signup`) {
