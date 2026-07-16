@@ -16,6 +16,8 @@ The current Hostinger deployment serves the new Homle homepage and working conci
 
 The private `/brief` route correctly allows same-origin camera and microphone access; ordinary pages keep those browser permissions closed. No code-only button change can enable social sign-in. Activation requires the managed PostgreSQL database and migrations, SMTP, private object storage, monitoring adapter, exact production secrets and approved Google/Meta app credentials described below. Until those pass staging, the homepage intentionally keeps visitors on the working guided request rather than exposing broken account buttons.
 
+The corrected read-only verifier passes DNS, trusted TLS, the permanent HTTPS redirect, homepage, health, anonymous Administrator denial, production closure of the local tracking lab and truthful disabled Google/Facebook behavior. The live edge currently returns only `Content-Security-Policy: upgrade-insecure-requests` and no one-year HSTS header, overriding or omitting the stronger application policy. The prepared release adds application HSTS and proves the full application CSP/HSTS response in its production-process test. After redeploy, run the verifier again. If the edge still replaces those headers, configure an equivalent full CSP and one-year HSTS at Hostinger or obtain Hostinger support before enabling accounts.
+
 ## Correct Hostinger deployment surface
 
 Do not copy this project into `public_html` with the ordinary File Manager. Homle has a persistent Node server and protected API routes. The existing Hostinger Node app must be updated through its **Deploy Web App** release flow, using a Node.js-capable Business or Cloud plan. Removing and re-adding the live site is unnecessary for a normal application update and risks unrelated resources.
@@ -29,11 +31,11 @@ Authoritative Hostinger references:
 
 ## Prepared release
 
-- `../Homle-Hostinger-Node-release-70a31de5.zip`
-- evidence manifest `../Homle-Hostinger-Node-release-70a31de5.manifest.json`
-- source commit `70a31de5`
-- SHA-256 `93294BD36E4A68EFE1441AD7BC8B54B33654986D935BDB65F04F4A89C64FE239`
-- 180 ZIP entries / 175 files, 539,874 bytes; no `.env`, customer data, tests, documentation, Git history, local tracking lab or local secrets
+- `../Homle-Hostinger-Node-release-fc15a21a.zip`
+- evidence manifest `../Homle-Hostinger-Node-release-fc15a21a.manifest.json`
+- source commit `fc15a21a`
+- SHA-256 `5D22500D73C4C39FF0A241886FB7727DC4A80DEC0EC468B9EBD8EBD286B5455E`
+- 180 ZIP entries / 175 files, 539,919 bytes; no `.env`, customer data, tests, documentation, Git history, local tracking lab or local secrets
 - Node type: `Other`
 - entry file: `server.mjs`
 - supported runtime: Node.js 24
@@ -61,7 +63,7 @@ Uploading only `public/` would make the site look live while registration, booki
 3. Select Node.js 24, type `Other`, entry `server.mjs`, and no static output directory.
 4. Configure the reviewed production environment in hPanel; never upload a local `.env` into the application files.
 5. Keep marketplace and payments disabled for the first infrastructure probe.
-6. Verify `/api/health`, anonymous Administrator denial, closed local tracking lab, security headers and the `www` 308 to the canonical apex while preserving a test path and query.
+6. Run `TIDEWAY_PUBLIC_ORIGIN=https://homle.co.uk node tools/domain-readiness.mjs`. Verify `/api/health`, anonymous Administrator denial, closed local tracking lab, the full CSP, one-year HSTS and the `www` 308 to the canonical apex while preserving a test path and query. Do not enable accounts while the security-header check is red.
 7. Attach managed staging services and complete the two-account, two-phone test before enabling accounts or payments.
 8. Run the external domain verifier, then remove every synthetic staging record before real intake.
 
