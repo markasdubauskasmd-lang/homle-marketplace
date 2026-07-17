@@ -2,11 +2,13 @@
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { inflateRawSync } from "node:zlib";
 import { verifyDatabaseAssets } from "../db/migration-assets.mjs";
+import { normalizePackagedReleaseIdentity, releaseIdentityFilename } from "../release-identity.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const releaseEntryPoints = Object.freeze([
@@ -150,17 +152,36 @@ export function inspectZipEntries(buffer) {
     }
     const compressedSize = buffer.readUInt32LE(offset + 20);
     const uncompressedSize = buffer.readUInt32LE(offset + 24);
+    const compressionMethod = buffer.readUInt16LE(offset + 10);
     const nameLength = buffer.readUInt16LE(offset + 28);
     const extraLength = buffer.readUInt16LE(offset + 30);
     const commentLength = buffer.readUInt16LE(offset + 32);
+    const localHeaderOffset = buffer.readUInt32LE(offset + 42);
     const end = offset + 46 + nameLength + extraLength + commentLength;
     if (end > buffer.length) throw new Error(`Release archive central entry ${index + 1} is truncated.`);
     const name = normalizedRelativePath(buffer.subarray(offset + 46, offset + 46 + nameLength).toString("utf8"));
-    entries.push({ name, compressedSize, uncompressedSize, directory: name.endsWith("/") });
+    entries.push({ name, compressedSize, uncompressedSize, compressionMethod, localHeaderOffset, directory: name.endsWith("/") });
     offset = end;
   }
   if (offset !== centralOffset + centralSize) throw new Error("Release archive central directory length does not match its header.");
   return entries;
+}
+
+export function readZipEntry(buffer, entryName) {
+  const selected = inspectZipEntries(buffer).find((entry) => entry.name === normalizedRelativePath(entryName));
+  if (!selected || selected.directory) throw new Error(`Release archive entry was not found: ${entryName}`);
+  const offset = selected.localHeaderOffset;
+  if (offset + 30 > buffer.length || buffer.readUInt32LE(offset) !== 0x04034b50) throw new Error(`Release archive entry has an invalid local header: ${entryName}`);
+  const nameLength = buffer.readUInt16LE(offset + 26);
+  const extraLength = buffer.readUInt16LE(offset + 28);
+  const start = offset + 30 + nameLength + extraLength;
+  const end = start + selected.compressedSize;
+  if (end > buffer.length) throw new Error(`Release archive entry is truncated: ${entryName}`);
+  const compressed = buffer.subarray(start, end);
+  const content = selected.compressionMethod === 0 ? Buffer.from(compressed) : selected.compressionMethod === 8 ? inflateRawSync(compressed) : null;
+  if (!content) throw new Error(`Release archive entry uses an unsupported compression method: ${entryName}`);
+  if (content.length !== selected.uncompressedSize) throw new Error(`Release archive entry size does not match: ${entryName}`);
+  return content;
 }
 
 export function validateReleaseEntries(entries, expectedFiles) {
@@ -184,6 +205,7 @@ export function validateReleaseEntries(entries, expectedFiles) {
   }
   for (const required of [
     "server.mjs",
+    releaseIdentityFilename,
     "travel-coverage.mjs",
     "public/index.html",
     "src/marketplace/runtime.mjs",
@@ -226,6 +248,7 @@ export async function buildHostingerRelease({
   const databaseAssets = await verifyDatabaseAssets({ databaseDirectory: path.join(resolvedRoot, "db") });
   if (!databaseAssets.ok) throw new Error(`Refusing to package invalid database assets: ${databaseAssets.errors.join(" ")}`);
   const expectedFiles = await selectReleaseFiles(resolvedRoot);
+  const expectedArchiveFiles = [...expectedFiles, releaseIdentityFilename].sort((left, right) => left.localeCompare(right, "en"));
   const archiveName = `Homle-Hostinger-Node-release-${commit}.zip`;
   const manifestName = `Homle-Hostinger-Node-release-${commit}.manifest.json`;
   const archivePath = path.join(resolvedOutput, archiveName);
@@ -237,11 +260,26 @@ export async function buildHostingerRelease({
   await mkdir(resolvedOutput, { recursive: true });
   await rm(archivePath, { force: true });
   await rm(manifestPath, { force: true });
+  const temporaryDirectory = await mkdtemp(path.join(resolvedOutput, ".homle-release-build-"));
+  const generatedAt = new Date().toISOString();
+  const packagedIdentity = {
+    schemaVersion: 1,
+    application: "Homle",
+    sourceCommit: commit,
+    builtAt: generatedAt,
+    migrationCount: databaseAssets.migrations.length
+  };
+  normalizePackagedReleaseIdentity(packagedIdentity);
   try {
-    runGit(resolvedRoot, ["archive", "--format=zip", `--output=${archivePath}`, "HEAD", "--", ...expectedFiles]);
+    const identityPath = path.join(temporaryDirectory, releaseIdentityFilename);
+    await writeFile(identityPath, `${JSON.stringify(packagedIdentity, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+    const addedIdentityPath = normalizedRelativePath(path.relative(resolvedRoot, identityPath));
+    runGit(resolvedRoot, ["archive", "--format=zip", `--output=${archivePath}`, `--add-file=${addedIdentityPath}`, "HEAD", "--", ...expectedFiles]);
     const archive = await readFile(archivePath);
     const entries = inspectZipEntries(archive);
-    const counts = validateReleaseEntries(entries, expectedFiles);
+    const counts = validateReleaseEntries(entries, expectedArchiveFiles);
+    const archivedIdentity = normalizePackagedReleaseIdentity(JSON.parse(readZipEntry(archive, releaseIdentityFilename).toString("utf8")));
+    if (archivedIdentity.sourceCommit !== commit || archivedIdentity.migrationCount !== databaseAssets.migrations.length || archivedIdentity.builtAt !== generatedAt) throw new Error("Release archive identity does not match the verified source and database assets.");
     const manifest = {
       schemaVersion: 1,
       application: "Homle",
@@ -256,7 +294,7 @@ export async function buildHostingerRelease({
       requiredRuntimeFilesVerified: true,
       databaseAssetsVerified: true,
       migrationCount: databaseAssets.migrations.length,
-      generatedAt: new Date().toISOString()
+      generatedAt
     };
     await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
     return { ...manifest, archivePath, manifestPath };
@@ -264,6 +302,8 @@ export async function buildHostingerRelease({
     await rm(archivePath, { force: true });
     await rm(manifestPath, { force: true });
     throw error;
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
   }
 }
 

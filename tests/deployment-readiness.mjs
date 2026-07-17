@@ -151,6 +151,7 @@ try {
   const health = await response.json();
   assert.equal(response.status, 200);
   assert.equal(health.ok, true);
+  assert.deepEqual(health.release, { source: "unidentified", sourceCommit: null, builtAt: null, migrationCount: null });
   assert.equal(health.marketplace.enabled, false);
   assert.equal(health.localDemosEnabled, false);
   assert.equal(response.headers.get("cache-control"), "no-store");

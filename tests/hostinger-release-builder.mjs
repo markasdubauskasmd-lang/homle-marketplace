@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   buildHostingerRelease,
   inspectZipEntries,
+  readZipEntry,
   selectReleaseFiles,
   validateReleaseEntries
 } from "../tools/build-hostinger-release.mjs";
@@ -71,21 +72,24 @@ try {
   assert.equal(release.requiredRuntimeFilesVerified, true);
   assert.equal(release.databaseAssetsVerified, true);
   assert.equal(release.migrationCount, 40);
-  assert(release.entryCount >= release.fileCount && release.fileCount === expectedFiles.length);
+  assert(release.entryCount >= release.fileCount && release.fileCount === expectedFiles.length + 1);
 
   const archive = await readFile(release.archivePath);
   const entries = inspectZipEntries(archive);
+  assert.equal(entries.some((entry) => entry.name === "homle-release.json"), true, "Built release omitted its runtime deployment identity.");
+  const identity = JSON.parse(readZipEntry(archive, "homle-release.json").toString("utf8"));
+  assert.deepEqual(identity, { schemaVersion: 1, application: "Homle", sourceCommit: release.sourceCommit, builtAt: release.generatedAt, migrationCount: 40 });
   assert.equal(entries.some((entry) => entry.name === "travel-coverage.mjs"), true, "Built release omitted the server's travel coverage dependency.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/038_facebook_data_deletion_callback.sql"), true, "Built release omitted the locked Facebook data-deletion migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/039_unexpected_task_frozen_terms.sql"), true, "Built release omitted the locked unexpected-task economics migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/040_payment_reconciliation_ordering.sql"), true, "Built release omitted the locked payment-ordering migration.");
   assert.equal(entries.some((entry) => entry.name === "public/tracking-test.html"), false, "Built release exposed the local tracking lab.");
-  validateReleaseEntries(entries, expectedFiles);
+  validateReleaseEntries(entries, [...expectedFiles, "homle-release.json"]);
 
   const manifest = JSON.parse(await readFile(release.manifestPath, "utf8"));
   assert.equal(manifest.archive, path.basename(release.archivePath));
   assert.equal(manifest.sha256, release.sha256);
-  assert.equal(manifest.fileCount, expectedFiles.length);
+  assert.equal(manifest.fileCount, expectedFiles.length + 1);
   await assert.rejects(
     buildHostingerRelease({ root, outputDirectory, requireClean: false }),
     /already exists/i,
@@ -95,4 +99,4 @@ try {
   await rm(outputDirectory, { recursive: true, force: true });
 }
 
-console.log("Hostinger release builder tests passed: dependency-complete allowlist, ZIP integrity, private-material exclusion, manifest evidence and overwrite protection.");
+console.log("Hostinger release builder tests passed: dependency-complete allowlist, embedded runtime identity, ZIP integrity, private-material exclusion, manifest evidence and overwrite protection.");

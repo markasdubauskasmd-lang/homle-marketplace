@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { resolvePublicAddresses, verifyDomainReadiness } from "../tools/domain-readiness.mjs";
+import { expectedReleaseCommit, resolvePublicAddresses, verifyDomainReadiness } from "../tools/domain-readiness.mjs";
 
 const securityHeaders = {
   "content-security-policy": "default-src 'self'; img-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
@@ -9,6 +9,7 @@ const securityHeaders = {
   "referrer-policy": "strict-origin-when-cross-origin",
   "permissions-policy": "camera=(), microphone=(), geolocation=()"
 };
+const packagedBuiltAt = new Date(Date.now() - 60_000).toISOString();
 
 const systemDnsFallback = await resolvePublicAddresses("homle.example", {
   async resolve4() { throw Object.assign(new Error("resolver refused"), { code: "ECONNREFUSED" }); },
@@ -31,7 +32,8 @@ await assert.rejects(
 );
 
 function jsonResponse(value) {
-  return new Response(JSON.stringify(value), { status: 200, headers: { ...securityHeaders, "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+  const body = value?.service === "tideway-marketplace" ? { ...value, release: { source: "packaged", sourceCommit: "414dd3ca", builtAt: packagedBuiltAt, migrationCount: 40 } } : value;
+  return new Response(JSON.stringify(body), { status: 200, headers: { ...securityHeaders, "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
 }
 
 function closedResponse(status) {
@@ -46,6 +48,7 @@ function privateBoundaryResponse(url) {
 
 const requested = [];
 const good = await verifyDomainReadiness("https://tidewaycleaning.co.uk", {
+  expectedReleaseCommit: "414dd3ca",
   async resolveAddresses(hostname) { assert.equal(hostname, "tidewaycleaning.co.uk"); return ["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"]; },
   async tlsProbe() { return { daysRemaining: 60, validUntil: "2026-09-14T00:00:00.000Z" }; },
   async fetch(url, options) {
@@ -63,6 +66,7 @@ const good = await verifyDomainReadiness("https://tidewaycleaning.co.uk", {
 assert.equal(good.ok, true);
 assert.equal(good.origin, "https://tidewaycleaning.co.uk");
 assert.ok(good.checks.every((check) => check.ok));
+assert.equal(good.checks.find((check) => check.name === "release-identity")?.ok, true);
 assert.equal(requested.length, 11);
 assert.ok(requested.every((entry) => entry.options.redirect === "manual" && entry.options.signal instanceof AbortSignal));
 assert.ok(requested.every((entry) => entry.options.method === undefined && !entry.options.headers["x-admin-key"]), "Readiness attempted a mutation or sent an Administrator key.");
@@ -144,6 +148,8 @@ for (const name of ["health", "anonymous-admin-closed", "local-demo-closed:/trac
 await assert.rejects(verifyDomainReadiness("https://tidewaycleaning.co.uk", { expectedSocialProviders: "google" }), /array/i);
 await assert.rejects(verifyDomainReadiness("https://tidewaycleaning.co.uk", { expectedSocialProviders: ["apple"] }), /google and facebook/i);
 await assert.rejects(verifyDomainReadiness("https://tidewaycleaning.co.uk", { expectedSocialProviders: ["google", "GOOGLE"] }), /duplicates/i);
+assert.equal(expectedReleaseCommit("A92999ED"), "a92999ed");
+assert.throws(() => expectedReleaseCommit("main"), /eight-character source commit/i);
 
 for (const invalid of [
   "http://tidewaycleaning.co.uk", "https://localhost", "https://127.0.0.1", "https://tidewaycleaning.co.uk/path",
@@ -161,8 +167,8 @@ const bad = await verifyDomainReadiness("https://unsafe-cleaning.co.uk", {
   }
 });
 assert.equal(bad.ok, false);
-for (const name of ["dns", "tls", "http-redirect", "homepage", "security-headers", "health", "health-cache", "anonymous-admin-closed", "local-demo-closed:/tracking-test", "local-demo-closed:/tracking-test.html", "local-demo-closed:/tracking-test.js", "local-demo-closed:/api/tracking-test/snapshot", "authentication-capabilities", "authentication-cache", "google-sign-in-closed", "facebook-sign-in-closed"]) {
+for (const name of ["dns", "tls", "http-redirect", "homepage", "security-headers", "health", "health-cache", "release-identity", "anonymous-admin-closed", "local-demo-closed:/tracking-test", "local-demo-closed:/tracking-test.html", "local-demo-closed:/tracking-test.js", "local-demo-closed:/api/tracking-test/snapshot", "authentication-capabilities", "authentication-cache", "google-sign-in-closed", "facebook-sign-in-closed"]) {
   assert.equal(bad.checks.find((check) => check.name === name)?.ok, false, `${name} failure was not detected.`);
 }
 
-console.log("Domain readiness tests passed: exact public origin, public DNS, trusted TLS, canonical redirect, security headers, closed private/local surfaces, truthful authentication discovery and closed/enabled Google/Facebook start-route proof.");
+console.log("Domain readiness tests passed: exact public origin, public DNS, trusted TLS, canonical redirect, security headers, exact packaged release identity, closed private/local surfaces, truthful authentication discovery and closed/enabled Google/Facebook start-route proof.");

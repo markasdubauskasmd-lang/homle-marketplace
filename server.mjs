@@ -25,11 +25,13 @@ import { createTrackingTestStore } from "./tracking-test-store.mjs";
 import { assessPrivateDataDirectory } from "./data-directory-safety.mjs";
 import { validateProductionDeployment } from "./deployment-readiness.mjs";
 import { marketplaceActivationReadiness } from "./marketplace-activation-readiness.mjs";
+import { loadReleaseIdentity } from "./release-identity.mjs";
 import { cleanerOffersRequestedService, cleanerServiceFields, requestServices, requiredCleanerService } from "./pilot-service.mjs";
 import "./public/scope-time-breakdown.js";
 import "./public/proposal-economics.js";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+const releaseIdentity = await loadReleaseIdentity({ projectRoot: root });
 if (process.env.NODE_ENV === "production") {
   const deployment = validateProductionDeployment(process.env, { projectRoot: root });
   if (!deployment.ok) throw new Error(`Production deployment preflight failed: ${deployment.errors.join(" ")}`);
@@ -5205,6 +5207,7 @@ async function handleHttpRequest(request, response) {
       return json(response, 200, {
         ok: true,
         service: "tideway-marketplace",
+        release: releaseIdentity,
         dataIntegrity: dataIntegrityState.healthy ? "healthy" : "degraded",
         writesAllowed: dataIntegrityState.healthy,
         integrityCheckedAt: dataIntegrityState.checkedAt,

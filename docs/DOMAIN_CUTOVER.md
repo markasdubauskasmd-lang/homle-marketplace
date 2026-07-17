@@ -1,6 +1,6 @@
 # Domain and HTTPS cutover
 
-The founder plans to purchase the Tideway domain on 17 July 2026. Buying a name is not the same as completing deployment evidence. Keep the website local until the hosting, DNS, TLS and application checks below pass; do not point paid traffic at a placeholder or partially configured marketplace.
+The Homle domain is now in use. Owning and pointing a name is not the same as completing deployment evidence. Keep account and payment activation closed until the hosting, DNS, TLS and application checks below pass; do not point paid traffic at a partially configured marketplace.
 
 ## Information to record after purchase
 
@@ -29,7 +29,9 @@ Set the purchased origin in the current shell and run the read-only verifier:
 
 ```powershell
 $env:TIDEWAY_PUBLIC_ORIGIN = "https://your-domain.example"
+$env:TIDEWAY_EXPECT_RELEASE = "1234abcd" # exact sourceCommit from the prepared release manifest
 node tools/domain-readiness.mjs
+$env:TIDEWAY_EXPECT_RELEASE = $null
 Remove-Item Env:TIDEWAY_PUBLIC_ORIGIN
 ```
 
@@ -37,9 +39,11 @@ The first run deliberately expects Google and Facebook to be closed. After Postg
 
 ```powershell
 $env:TIDEWAY_PUBLIC_ORIGIN = "https://your-domain.example"
+$env:TIDEWAY_EXPECT_RELEASE = "1234abcd"
 $env:TIDEWAY_EXPECT_SOCIAL_PROVIDERS = "google,facebook"
 node tools/domain-readiness.mjs
 Remove-Item Env:TIDEWAY_EXPECT_SOCIAL_PROVIDERS
+$env:TIDEWAY_EXPECT_RELEASE = $null
 Remove-Item Env:TIDEWAY_PUBLIC_ORIGIN
 ```
 
@@ -53,6 +57,7 @@ The command performs no DNS or hosting changes. It requires:
 - an HTTP 200 HTML homepage;
 - CSP, HSTS, MIME, framing, referrer and Permissions Policy headers;
 - healthy Tideway integrity with writes allowed;
+- the exact eight-character packaged source commit and migration count embedded by the verified release builder, optionally matched to `TIDEWAY_EXPECT_RELEASE` from the private manifest;
 - an explicit `localDemosEnabled: false` production-health signal;
 - `Cache-Control: no-store` on health/authentication discovery;
 - a read-only anonymous request to `/admin` that returns JSON 401 with `Cache-Control: no-store`, no redirect and no cookie;
@@ -60,7 +65,7 @@ The command performs no DNS or hosting changes. It requires:
 - role-safe, secret-free authentication capability discovery matching the exact expected Google/Facebook state while keeping Apple closed;
 - a manual, non-following request to each Google/Facebook start route: disabled providers must return 404 without a cookie or redirect, while enabled providers must return the exact external HTTPS provider route, canonical Tideway callback, secure host-only flow cookie and `Cache-Control: no-store`.
 
-The verifier never follows an application or Google/Facebook redirect, sends an Administrator key, starts a tracking session, exchanges an authorization code, creates an account or contacts the provider. It uses GET requests for the private/local-surface probes and reports only pass/fail evidence rather than response bodies, client IDs, state values, cookies or redirect URLs.
+The verifier never follows an application or Google/Facebook redirect, sends an Administrator key, starts a tracking session, exchanges an authorization code, creates an account or contacts the provider. It uses GET requests for the private/local-surface probes and reports only pass/fail evidence rather than response bodies, client IDs, state values, cookies or redirect URLs. The exposed release identity contains only the packaged source commit, build time and migration count—never a repository URL, branch, credential or private path.
 
 Store the JSON result with the private launch evidence and record a concise hostname/date summary in the control desk. A passing result proves the public-origin boundary only; it does not prove legal identity, insurance, cleaner supply, pricing, payment readiness, PostgreSQL or end-to-end booking fulfilment.
 
