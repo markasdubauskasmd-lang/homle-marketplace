@@ -27,6 +27,7 @@ Before scheduling this worker:
 - apply and verify all 38 locked migrations and both restricted-role grant files on PostgreSQL 16;
 - pass the real multi-account RLS and two-worker concurrency harness;
 - configure and approve every private `BOOKING_*` cost and margin input;
+- include the approved fixed travel cost, per-kilometre cost and one-way/return distance multiplier so farther candidates cannot inherit a nearby job's travel allowance;
 - provide genuine active Cleaner profiles, availability, coverage and prices;
 - prove invitation email/in-app delivery and expiry in staging;
 - attach private monitoring and alert on leases, repeated transient failures and full batches;

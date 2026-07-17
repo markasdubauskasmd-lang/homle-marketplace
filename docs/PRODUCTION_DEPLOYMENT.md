@@ -7,6 +7,8 @@ Homle supports two deliberately separate production modes:
 
 The public-site mode no longer requires placeholder database credentials. It remains detached from marketplace authentication and payments, and `/api/auth/providers` must report every provider as unavailable.
 
+Booking activation also requires all ten `BOOKING_*` values from `.env.example`. The travel inputs deliberately separate a fixed job allowance, a per-kilometre rate and a basis-point distance multiplier; their values must come from the founder's documented operating-cost decision rather than a software default.
+
 `PILOT_INTAKE_ENABLED` independently controls the legacy file-backed concierge intake. Production must set it explicitly. Keep it `false` for a visual preview or any host with temporary storage. Set it `true` only after an encrypted durable volume is mounted at `DATA_DIR`, retention/backup operations are ready and real intake is separately approved. It must remain `false` when the PostgreSQL marketplace is enabled so one deployment cannot write private records to two unrelated systems.
 
 ## Host-neutral container artifact

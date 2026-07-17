@@ -6,7 +6,7 @@ This Phase 3 checkpoint adds the first account-backed booking transaction. It re
 
 - A Landlord may invite a public, complete and currently available Cleaner only for their own submitted request.
 - The browser supplies only the request and Cleaner identifiers. Cleaner pay, platform costs, customer price and target margin come from one private server policy; submitted price fields are ignored.
-- The policy derives Cleaner pay from the Cleaner’s active service prices and requested duration, covers approved labour on-cost, payment, travel, supplies and other costs, then solves the smallest customer price meeting the approved contribution-margin floor.
+- The policy derives Cleaner pay from the Cleaner’s active service prices and requested duration, covers approved labour on-cost, payment, distance-aware travel, supplies and other costs, then solves the smallest customer price meeting the approved contribution-margin floor.
 - Manual-quote services fail closed rather than receiving an invented price.
 - PostgreSQL rechecks ownership, request state, budget, the active Cleaner account, publication/completion, property-type preference, every automatically priceable required service, exact current Cleaner pay, full-window availability, declared outward-postcode/radius coverage, every overlapping pending/confirmed job and positive target-margin economics while holding the request lock.
 - A transaction-scoped advisory lock serialises competing invitations for the same Cleaner. Only the current hardened wrapper is executable by the application role; superseded functions remain owner-only for migration/integration evidence and cannot be used by the web or worker role.
@@ -22,7 +22,7 @@ This Phase 3 checkpoint adds the first account-backed booking transaction. It re
 
 ## Private configuration
 
-All eight `BOOKING_*` environment variables in `.env.example` must be supplied together. Basis-point values use 10,000 = 100%. Zero cost is valid only when it is an explicit approved business assumption. Partial configuration fails startup; missing configuration leaves Cleaner invitation creation unavailable with a safe 503 response while invitation responses remain supported.
+All ten `BOOKING_*` environment variables in `.env.example` must be supplied together. Basis-point values use 10,000 = 100%. Travel is the approved fixed job cost plus the rounded one-way matching distance multiplied by `BOOKING_TRAVEL_COST_PER_KM_PENCE` and `BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS`; use 10,000 for one-way cost or 20,000 when the approved assumption includes the Cleaner returning from the job. When the per-kilometre rate is non-zero, a candidate without trustworthy coordinates fails closed before an invitation can be priced. Zero cost is valid only when it is an explicit approved business assumption. Partial configuration fails startup; missing configuration leaves Cleaner invitation creation unavailable with a safe 503 response while invitation responses remain supported.
 
 These values are confidential operating inputs and must stay in the deployment secret manager. They must never be accepted from a Landlord/Cleaner request body or embedded in browser JavaScript.
 

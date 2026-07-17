@@ -40,7 +40,27 @@ export function createBookingRepository(database) {
     getInvitationCandidate(actor, requestId, cleanerId) {
       return database.withUserTransaction(actor, async (client) => {
         const result = await client.query(
-          "SELECT request.id, request.requested_start_at, request.requested_end_at, request.required_services, request.budget_pence, COALESCE(jsonb_agg(jsonb_build_object('serviceCode', service.service_code, 'pricingModel', service.pricing_model, 'pricePence', service.price_pence) ORDER BY service.service_code) FILTER (WHERE service.id IS NOT NULL), '[]'::jsonb) AS services FROM cleaning_requests request JOIN cleaner_profiles profile ON profile.user_id=$2::uuid AND profile.is_public LEFT JOIN cleaner_services service ON service.cleaner_user_id=profile.user_id AND service.is_active WHERE request.id=$1::uuid AND request.landlord_user_id=$3::uuid AND request.status='searching-for-cleaner' GROUP BY request.id",
+          `SELECT request.id, request.requested_start_at, request.requested_end_at, request.required_services,
+                  request.budget_pence, coverage.distance_km,
+                  COALESCE(jsonb_agg(jsonb_build_object('serviceCode', service.service_code, 'pricingModel', service.pricing_model, 'pricePence', service.price_pence) ORDER BY service.service_code) FILTER (WHERE service.id IS NOT NULL), '[]'::jsonb) AS services
+             FROM cleaning_requests request
+             JOIN properties property ON property.id=request.property_id AND property.archived_at IS NULL
+             JOIN cleaner_profiles profile ON profile.user_id=$2::uuid AND profile.is_public
+             CROSS JOIN LATERAL (
+               SELECT round(MIN(
+                 CASE WHEN property.latitude IS NOT NULL AND property.longitude IS NOT NULL
+                           AND area.latitude IS NOT NULL AND area.longitude IS NOT NULL
+                   THEN 6371 * acos(LEAST(1, GREATEST(-1,
+                     sin(radians(property.latitude::double precision)) * sin(radians(area.latitude::double precision)) +
+                     cos(radians(property.latitude::double precision)) * cos(radians(area.latitude::double precision)) *
+                     cos(radians(area.longitude::double precision - property.longitude::double precision))
+                   ))) END
+               )::numeric, 2) AS distance_km
+                 FROM cleaner_service_areas area WHERE area.cleaner_user_id=profile.user_id
+             ) coverage
+             LEFT JOIN cleaner_services service ON service.cleaner_user_id=profile.user_id AND service.is_active
+            WHERE request.id=$1::uuid AND request.landlord_user_id=$3::uuid AND request.status='searching-for-cleaner'
+            GROUP BY request.id, coverage.distance_km`,
           [requestId, cleanerId, actor.userId]
         );
         return result.rows[0] || null;

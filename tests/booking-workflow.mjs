@@ -4,6 +4,7 @@ import { bookingPricingPolicyFromEnvironment, createBookingPricingPolicy, create
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 async function rejects(operation, fragment) { try { await operation(); } catch (error) { return String(error.message).includes(fragment); } return false; }
+async function rejectsCode(operation, code) { try { await operation(); } catch (error) { return error?.code === code; } return false; }
 
 const now = new Date("2026-07-15T10:00:00.000Z");
 const landlord = { userId: "11111111-1111-4111-8111-111111111111", roles: ["landlord"] };
@@ -16,6 +17,7 @@ const candidate = {
   requested_end_at: "2026-07-20T12:00:00.000Z",
   required_services: ["regular-domestic"],
   budget_pence: 20000,
+  distance_km: "12.40",
   services: [{ serviceCode: "regular-domestic", pricingModel: "hourly", pricePence: 2500 }]
 };
 const policy = createBookingPricingPolicy({
@@ -32,9 +34,30 @@ const costs = quote.cleanerPayPence + quote.labourOnCostPence + quote.paymentFee
 assert(quote.cleanerPayPence === 7500 && quote.customerPricePence > costs && (quote.customerPricePence - costs) * 10000 >= quote.customerPricePence * 2000 && quote.responseDeadline === "2026-07-15T13:00:00.000Z", "Private pricing did not cover cleaner pay, costs, target margin and a bounded response window.");
 assert(await rejects(() => Promise.resolve(createBookingPricingPolicy({ targetMarginBasisPoints: 0 })), "Target margin"), "A zero-margin policy was accepted.");
 assert(await rejects(() => Promise.resolve(policy.quote({ ...candidate, services: [{ serviceCode: "regular-domestic", pricingModel: "quote", pricePence: null }] }, now)), "manual quote"), "A manual-quote service was silently priced.");
+const distancePolicy = createBookingPricingPolicy({
+  targetMarginBasisPoints: 2000,
+  labourOnCostBasisPoints: 1000,
+  paymentFeeBasisPoints: 300,
+  paymentFeeFixedPence: 20,
+  travelCostPence: 500,
+  travelCostPerKmPence: 35,
+  travelDistanceMultiplierBasisPoints: 20000,
+  suppliesCostPence: 250,
+  invitationTtlMinutes: 180
+});
+const distanceQuote = distancePolicy.quote(candidate, now);
+const nearbyQuote = distancePolicy.quote({ ...candidate, distance_km: "1.00" }, now);
+assert(distanceQuote.travelCostPence === 1368 && nearbyQuote.travelCostPence === 570 && distanceQuote.customerPricePence > nearbyQuote.customerPricePence, "Distance-aware pricing did not freeze the approved base plus multiplied per-kilometre travel cost into the customer total.");
+for (const suppliedDistance of [null, "", "not-a-distance", "-1", "500.01"]) {
+  assert(await rejectsCode(() => Promise.resolve(distancePolicy.quote({ ...candidate, distance_km: suppliedDistance }, now)), "travel-distance-unavailable"), `Unsafe travel distance ${String(suppliedDistance)} was priced instead of failing closed.`);
+}
+const excessiveTravelPolicy = createBookingPricingPolicy({ targetMarginBasisPoints: 2000, travelCostPence: 999999, travelCostPerKmPence: 100000, travelDistanceMultiplierBasisPoints: 50000 });
+assert(await rejectsCode(() => Promise.resolve(excessiveTravelPolicy.quote({ ...candidate, distance_km: "500" }, now)), "request-not-priceable"), "An excessive distance cost escaped the supported frozen travel-cost ceiling.");
 assert(bookingPricingPolicyFromEnvironment({}) === null && await rejects(() => Promise.resolve(bookingPricingPolicyFromEnvironment({ BOOKING_TARGET_MARGIN_BPS: "2000" })), "complete private"), "Missing or partial booking economics did not fail closed.");
-const configuredPolicy = bookingPricingPolicyFromEnvironment({ BOOKING_TARGET_MARGIN_BPS: "2000", BOOKING_LABOUR_ON_COST_BPS: "1000", BOOKING_PAYMENT_FEE_BPS: "300", BOOKING_PAYMENT_FEE_FIXED_PENCE: "20", BOOKING_TRAVEL_COST_PENCE: "500", BOOKING_SUPPLIES_COST_PENCE: "250", BOOKING_OTHER_COST_PENCE: "0", BOOKING_INVITATION_TTL_MINUTES: "180" });
-assert(configuredPolicy.quote(candidate, now).customerPricePence === quote.customerPricePence, "Complete private environment pricing did not compose deterministically.");
+const previousEnvironmentPolicy = { BOOKING_TARGET_MARGIN_BPS: "2000", BOOKING_LABOUR_ON_COST_BPS: "1000", BOOKING_PAYMENT_FEE_BPS: "300", BOOKING_PAYMENT_FEE_FIXED_PENCE: "20", BOOKING_TRAVEL_COST_PENCE: "500", BOOKING_SUPPLIES_COST_PENCE: "250", BOOKING_OTHER_COST_PENCE: "0", BOOKING_INVITATION_TTL_MINUTES: "180" };
+assert(await rejects(() => Promise.resolve(bookingPricingPolicyFromEnvironment(previousEnvironmentPolicy)), "complete private"), "The previous fixed-only environment silently activated without an explicit distance rate and distance multiplier.");
+const configuredPolicy = bookingPricingPolicyFromEnvironment({ ...previousEnvironmentPolicy, BOOKING_TRAVEL_COST_PER_KM_PENCE: "35", BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS: "20000" });
+assert(configuredPolicy.quote(candidate, now).customerPricePence === distanceQuote.customerPricePence, "Complete private distance-aware environment pricing did not compose deterministically.");
 
 const calls = [];
 const fakeRepository = {
@@ -84,12 +107,14 @@ assert(await rejects(() => disabled.inviteCleaner(landlord, { cleaningRequestId:
 
 const sqlCalls = [];
 let failure = null;
-const database = { async withUserTransaction(actor, operation) { return operation({ async query(text, values) { sqlCalls.push({ actor, text, values }); if (failure) throw failure; if (text.includes("getInvitationCandidate")) return { rows: [] }; return { rows: [{ id: bookingId }] }; } }); } };
+const database = { async withUserTransaction(actor, operation) { return operation({ async query(text, values) { sqlCalls.push({ actor, text, values }); if (failure) throw failure; if (text.includes("coverage.distance_km")) return { rows: [{ id: requestId, distance_km: "4.20" }] }; return { rows: [{ id: bookingId }] }; } }); } };
 const repository = createBookingRepository(database);
+const selectedCandidate = await repository.getInvitationCandidate(landlord, requestId, cleaner.userId);
 await repository.listParticipantBookings(cleaner, 50);
 await repository.inviteCleaner(landlord, { bookingId, requestId, cleanerId: cleaner.userId, responseDeadline: quote.responseDeadline, customerPricePence: quote.customerPricePence, cleanerPayPence: quote.cleanerPayPence, labourOnCostPence: quote.labourOnCostPence, paymentFeePence: quote.paymentFeePence, travelCostPence: quote.travelCostPence, suppliesCostPence: quote.suppliesCostPence, otherCostPence: quote.otherCostPence, targetMarginBasisPoints: quote.targetMarginBasisPoints });
 await repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null });
-assert(sqlCalls[0].text.includes("list_my_booking_summaries") && sqlCalls[0].values[0] === 50 && sqlCalls[1].text.includes("tideway_private.invite_cleaner") && sqlCalls[1].values.length === 12 && sqlCalls[2].text.includes("respond_to_cleaner_invitation") && sqlCalls[2].actor.userId === cleaner.userId, "Booking repository bypassed participant-safe summaries, actor-bound audited transitions or parameterized terms.");
+assert(selectedCandidate.distance_km === "4.20" && sqlCalls[0].text.includes("JOIN properties property") && sqlCalls[0].text.includes("cleaner_service_areas") && sqlCalls[0].text.includes("coverage.distance_km") && sqlCalls[0].values[1] === cleaner.userId, "Direct Cleaner invitation pricing did not bind the selected Cleaner to the property distance evidence.");
+assert(sqlCalls[1].text.includes("list_my_booking_summaries") && sqlCalls[1].values[0] === 50 && sqlCalls[2].text.includes("tideway_private.invite_cleaner") && sqlCalls[2].values.length === 12 && sqlCalls[3].text.includes("respond_to_cleaner_invitation") && sqlCalls[3].actor.userId === cleaner.userId, "Booking repository bypassed participant-safe summaries, actor-bound audited transitions or parameterized terms.");
 failure = Object.assign(new Error("duplicate overlap"), { code: "23P01" });
 assert(await rejects(() => repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null }), "overlaps"), "Concurrent exclusion violations were not mapped to a safe schedule conflict.");
 for (const [databaseMessage, publicMessage] of [
