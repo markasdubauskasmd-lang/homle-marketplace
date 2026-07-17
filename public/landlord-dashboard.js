@@ -2,6 +2,7 @@ import { checklistFromTranscript } from "./checklist.js";
 import { clearSelectedCleaner, readSelectedCleaner } from "./account-intent.js";
 import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
+import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
 import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-5";
 import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260717-1";
 
@@ -503,7 +504,7 @@ function requestScanPanel(request) {
     noteLabel.append(note);
     const pickerActions = element("div", "landlord-scan-picker-actions");
     const cameraButton = element("button", "button", "Open rear camera");
-    const libraryButton = element("button", "button button-outline", "Choose existing photo");
+    const libraryButton = element("button", "button button-outline", "Choose existing photos");
     cameraButton.type = libraryButton.type = "button";
     const cameraInput = element("input");
     cameraInput.type = "file";
@@ -512,29 +513,43 @@ function requestScanPanel(request) {
     cameraInput.hidden = true;
     const libraryInput = element("input");
     libraryInput.type = "file";
-    libraryInput.accept = "image/jpeg,image/png,image/webp,image/heic,.heic,.heif";
+    libraryInput.accept = "image/jpeg,image/png,image/webp,image/heic,.heic";
+    libraryInput.multiple = true;
     libraryInput.hidden = true;
-    const selected = element("span", "landlord-scan-selected", "No photo selected");
-    let file = null;
-    function choose(event) {
-      const candidate = event.target.files?.[0] || null;
-      event.target.value = "";
-      if (!candidate) return;
-      if (!new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]).has(candidate.type) || candidate.size < 1 || candidate.size > 15_000_000) {
-        file = null;
-        return showFeedback(feedback, "Choose one JPEG, PNG, WebP or HEIC image up to 15 MB.");
+    const selected = element("span", "landlord-scan-selected", "No photos selected");
+    let files = [];
+    const upload = element("button", "button", "Upload private room photos");
+    upload.type = "submit";
+    function renderSelection() {
+      if (!files.length) {
+        selected.textContent = "No photos selected";
+        upload.textContent = "Upload private room photos";
+        return;
       }
-      file = candidate;
-      selected.textContent = `${candidate.name || "Camera photo"} · ${humanFileSize(candidate.size)}`;
-      feedback.hidden = true;
+      const totalBytes = files.reduce((sum, item) => sum + item.byteSize, 0);
+      selected.textContent = files.length === 1 ? `${files[0].name} · ${humanFileSize(files[0].byteSize)}` : `${files.length} photos selected · ${humanFileSize(totalBytes)} total`;
+      upload.textContent = `Upload ${files.length} private ${files.length === 1 ? "photo" : "photos"}`;
+    }
+    function choose(event) {
+      const candidates = event.target.files;
+      event.target.value = "";
+      if (!candidates?.length) return;
+      try {
+        const existingPhotoCount = Array.isArray(requestScans.get(request.requestId)?.photos) ? requestScans.get(request.requestId).photos.length : 0;
+        files = validatedRoomPhotoSelection(candidates, { existingPhotoCount });
+        renderSelection();
+        feedback.hidden = true;
+      } catch (error) {
+        files = [];
+        renderSelection();
+        showFeedback(feedback, error.message);
+      }
     }
     cameraInput.addEventListener("change", choose);
     libraryInput.addEventListener("change", choose);
     cameraButton.addEventListener("click", () => cameraInput.click());
     libraryButton.addEventListener("click", () => libraryInput.click());
     pickerActions.append(cameraButton, libraryButton, cameraInput, libraryInput);
-    const upload = element("button", "button", "Upload private room photo");
-    upload.type = "submit";
     for (const control of [room, note, cameraButton, libraryButton, cameraInput, libraryInput, upload]) control.disabled = !mediaReady;
     if (!mediaReady) selected.textContent = "Photo capture unlocks after secure storage is verified";
     form.append(roomLabel, noteLabel, pickerActions, selected, upload);
@@ -542,37 +557,48 @@ function requestScanPanel(request) {
       event.preventDefault();
       feedback.hidden = true;
       if (!form.reportValidity()) return;
-      if (!file) return showFeedback(feedback, "Take a current room photo or choose one from this device.");
+      if (!files.length) return showFeedback(feedback, "Take a current room photo or choose photos from this device.");
       const csrf = await recoverCsrf(feedback, "uploading this room photo");
       if (!csrf) return;
-      setPending(upload, true, "Checking and uploading…");
+      const queuedCount = files.length;
+      let uploadedCount = 0;
+      setPending(upload, true, `Checking photo 1 of ${queuedCount}…`);
       try {
-        const checksumSha256 = await sha256(file);
-        const intent = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/intents`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ roomName: room.value, note: note.value, mimeType: file.type, byteSize: file.size, checksumSha256 }) });
-        const signed = intent.upload;
-        if (signed?.method !== "PUT" || !signed.uploadId || !signed.uploadUrl || !signed.requiredHeaders || Object.keys(signed.requiredHeaders).length !== 4) throw new Error("The secure upload instructions were incomplete.");
-        const destination = new URL(signed.uploadUrl);
-        if (destination.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(destination.hostname)) throw new Error("The secure upload destination was unsafe.");
-        const uploadController = new AbortController();
-        const uploadTimer = window.setTimeout(() => uploadController.abort(), 120_000);
-        try {
-          checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer", signal: uploadController.signal }));
-        } catch (error) {
-          if (error?.name === "AbortError") throw new Error("The private photo upload took too long. The selected photo is still here; check the connection and try again.");
-          throw error;
-        } finally {
-          window.clearTimeout(uploadTimer);
+        while (files.length) {
+          const candidate = files[0];
+          setPending(upload, true, `Checking photo ${uploadedCount + 1} of ${queuedCount}…`);
+          const checksumSha256 = await sha256(candidate.file);
+          const intent = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/intents`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ roomName: room.value, note: note.value, mimeType: candidate.mimeType, byteSize: candidate.byteSize, checksumSha256 }) });
+          const signed = intent.upload;
+          if (signed?.method !== "PUT" || !signed.uploadId || !signed.uploadUrl || !signed.requiredHeaders || Object.keys(signed.requiredHeaders).length !== 4) throw new Error("The secure upload instructions were incomplete.");
+          const destination = new URL(signed.uploadUrl);
+          if (destination.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(destination.hostname)) throw new Error("The secure upload destination was unsafe.");
+          const uploadController = new AbortController();
+          const uploadTimer = window.setTimeout(() => uploadController.abort(), 120_000);
+          try {
+            checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: candidate.file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer", signal: uploadController.signal }));
+          } catch (error) {
+            if (error?.name === "AbortError") throw new Error("The private photo upload took too long. The remaining selected photos are still here; check the connection and try again.");
+            throw error;
+          } finally {
+            window.clearTimeout(uploadTimer);
+          }
+          const completed = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/${encodeURIComponent(signed.uploadId)}/complete`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}" });
+          requestScans.set(request.requestId, completed.scan);
+          renderScanPhotos(request.requestId, completed.scan, list, count);
+          files.shift();
+          uploadedCount += 1;
+          renderSelection();
+          loaded = true;
         }
-        const completed = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/${encodeURIComponent(signed.uploadId)}/complete`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}" });
-        requestScans.set(request.requestId, completed.scan);
-        renderScanPhotos(request.requestId, completed.scan, list, count);
-        file = null;
-        selected.textContent = "No photo selected";
         note.value = "";
-        loaded = true;
-        showFeedback(feedback, "Private room photo checked, sanitized and attached.", "success");
-      } catch (error) { showFeedback(feedback, error.message); }
-      finally { setPending(upload, false, "Upload private room photo"); }
+        showFeedback(feedback, `${uploadedCount} private room ${uploadedCount === 1 ? "photo" : "photos"} checked, sanitized and attached.`, "success");
+      } catch (error) {
+        if (error?.code === "request-photo-limit") files = [];
+        renderSelection();
+        showFeedback(feedback, `${uploadedCount ? `${uploadedCount} ${uploadedCount === 1 ? "photo was" : "photos were"} attached. ` : ""}${error.message}`);
+      }
+      finally { setPending(upload, false, files.length ? `Upload ${files.length} remaining ${files.length === 1 ? "photo" : "photos"}` : "Upload private room photos"); }
     });
     panel.append(form);
 
