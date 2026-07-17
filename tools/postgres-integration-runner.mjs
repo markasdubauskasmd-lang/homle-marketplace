@@ -14,6 +14,17 @@ const scripts = Object.freeze({
   administratorBootstrapOwner: "administrator-bootstrap-owner.sql",
   setup: "marketplace-integration-setup.sql",
   matchingSelfExclusion: "matching-self-exclusion.sql",
+  automaticDispatchSetup: "automatic-dispatch-rehearsal-setup.sql",
+  automaticDispatchClaimA: "automatic-dispatch-claim-a.sql",
+  automaticDispatchClaimB: "automatic-dispatch-claim-b.sql",
+  automaticDispatchFirstInviteA: "automatic-dispatch-first-invite-a.sql",
+  automaticDispatchFirstInviteB: "automatic-dispatch-first-invite-b.sql",
+  automaticDispatchFirstExpirySetup: "automatic-dispatch-first-expiry-setup.sql",
+  automaticDispatchRequeue: "automatic-dispatch-requeue.sql",
+  automaticDispatchSecondExpirySetup: "automatic-dispatch-second-expiry-setup.sql",
+  automaticDispatchAttemptLimit: "automatic-dispatch-attempt-limit.sql",
+  automaticDispatchVerify: "automatic-dispatch-rehearsal-verify.sql",
+  automaticDispatchCleanup: "automatic-dispatch-rehearsal-cleanup.sql",
   landlordSingleDispatch: "landlord-single-dispatch-authorization.sql",
   cleaningRequestRealtimeAndAvatar: "cleaning-request-realtime-and-avatar.sql",
   facebookDataDeletion: "facebook-data-deletion-behaviour.sql",
@@ -88,26 +99,29 @@ export function runConcurrentPsql(jobs, { command = "psql", timeoutMs = 30_000, 
   })));
 }
 
-function validateTargets(owner, app, confirmation) {
+function validateTargets(owner, app, worker, confirmation) {
   if (confirmation !== postgresIntegrationConfirmation) throw new Error(`Set TIDEWAY_DATABASE_TEST_CONFIRMATION exactly to: ${postgresIntegrationConfirmation}`);
   if (!/_tideway_test$/i.test(owner.summary.database)) throw new Error("PostgreSQL integration database name must end in _tideway_test.");
   if (app.summary.user !== "tideway_app") throw new Error("DATABASE_INTEGRATION_APP_URL must authenticate as tideway_app.");
-  if (owner.summary.user === app.summary.user || owner.summary.user === "tideway_worker") throw new Error("The integration owner must be separate from Tideway runtime and worker roles.");
+  if (worker.summary.user !== "tideway_worker") throw new Error("DATABASE_INTEGRATION_WORKER_URL must authenticate as tideway_worker.");
+  if (owner.summary.user === app.summary.user || owner.summary.user === worker.summary.user) throw new Error("The integration owner must be separate from Tideway runtime and worker roles.");
   for (const field of ["host", "port", "database"]) {
-    if (owner.summary[field] !== app.summary[field]) throw new Error("Integration owner and app URLs must target the same PostgreSQL database endpoint.");
+    if (owner.summary[field] !== app.summary[field] || owner.summary[field] !== worker.summary[field]) throw new Error("Integration owner, app and worker URLs must target the same PostgreSQL database endpoint.");
   }
 }
 
 export async function runPostgresMarketplaceIntegration(options = {}) {
   const owner = postgresVerificationEnvironment(options.ownerUrl ?? process.env.DATABASE_INTEGRATION_OWNER_URL, options.baseEnvironment || process.env);
   const app = postgresVerificationEnvironment(options.appUrl ?? process.env.DATABASE_INTEGRATION_APP_URL, options.baseEnvironment || process.env);
-  validateTargets(owner, app, options.confirmation ?? process.env.TIDEWAY_DATABASE_TEST_CONFIRMATION);
+  const worker = postgresVerificationEnvironment(options.workerUrl ?? process.env.DATABASE_INTEGRATION_WORKER_URL, options.baseEnvironment || process.env);
+  validateTargets(owner, app, worker, options.confirmation ?? process.env.TIDEWAY_DATABASE_TEST_CONFIRMATION);
 
   const command = options.psqlCommand || "psql";
   const execute = options.spawnSync || spawnSync;
   const executeConcurrent = options.runConcurrent || ((jobs) => runConcurrentPsql(jobs, { command, spawnProcess: options.spawnProcess }));
   const ownerEnvironment = { ...owner.environment, PGAPPNAME: "tideway-integration-owner" };
   const appEnvironment = { ...app.environment, PGAPPNAME: "tideway-integration-app" };
+  const workerEnvironment = { ...worker.environment, PGAPPNAME: "tideway-integration-worker" };
   let fixturesCreated = false;
   let cleanupFailure = null;
 
@@ -120,6 +134,26 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Integration fixture setup", file: scripts.setup, environment: ownerEnvironment, command, execute });
     fixturesCreated = true;
     runPsqlSync({ label: "Matching self-exclusion behaviour test", file: scripts.matchingSelfExclusion, environment: appEnvironment, command, execute });
+    runPsqlSync({ label: "Automatic-dispatch rehearsal setup", file: scripts.automaticDispatchSetup, environment: ownerEnvironment, command, execute });
+    const dispatchClaims = await executeConcurrent([
+      { file: scripts.automaticDispatchClaimA, environment: workerEnvironment },
+      { file: scripts.automaticDispatchClaimB, environment: workerEnvironment }
+    ]);
+    if (!Array.isArray(dispatchClaims) || dispatchClaims.length !== 2 || dispatchClaims.some((result) => result?.status !== 0)) {
+      const error = new Error("Concurrent automatic-dispatch workers did not both finish safely.");
+      error.integrationOutput = dispatchClaims?.map((result) => sanitizePostgresOutput(`${result?.stdout || ""}\n${result?.stderr || ""}`)).join("\n") || "";
+      throw error;
+    }
+    const claimA = dispatchClaims[0].stdout.includes("AUTOMATIC_DISPATCH_CLAIM_A|1") && dispatchClaims[1].stdout.includes("AUTOMATIC_DISPATCH_CLAIM_B|0");
+    const claimB = dispatchClaims[0].stdout.includes("AUTOMATIC_DISPATCH_CLAIM_A|0") && dispatchClaims[1].stdout.includes("AUTOMATIC_DISPATCH_CLAIM_B|1");
+    if (claimA === claimB) throw new Error("Concurrent automatic-dispatch workers did not produce exactly one lease owner.");
+    runPsqlSync({ label: "First automatic invitation", file: claimA ? scripts.automaticDispatchFirstInviteA : scripts.automaticDispatchFirstInviteB, environment: workerEnvironment, command, execute });
+    runPsqlSync({ label: "First automatic-invitation expiry setup", file: scripts.automaticDispatchFirstExpirySetup, environment: ownerEnvironment, command, execute });
+    runPsqlSync({ label: "Automatic-dispatch expiry and requeue", file: scripts.automaticDispatchRequeue, environment: workerEnvironment, command, execute });
+    runPsqlSync({ label: "Second automatic-invitation expiry setup", file: scripts.automaticDispatchSecondExpirySetup, environment: ownerEnvironment, command, execute });
+    runPsqlSync({ label: "Automatic-dispatch attempt ceiling", file: scripts.automaticDispatchAttemptLimit, environment: workerEnvironment, command, execute });
+    runPsqlSync({ label: "Automatic-dispatch rehearsal verification", file: scripts.automaticDispatchVerify, environment: ownerEnvironment, command, execute });
+    runPsqlSync({ label: "Automatic-dispatch rehearsal cleanup", file: scripts.automaticDispatchCleanup, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Landlord single-dispatch authorization test", file: scripts.landlordSingleDispatch, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Private request live-update and session-avatar test", file: scripts.cleaningRequestRealtimeAndAvatar, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Facebook data-deletion behaviour test", file: scripts.facebookDataDeletion, environment: appEnvironment, command, execute });
@@ -149,7 +183,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, matchingSelfExclusion: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, matchingSelfExclusion: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {
@@ -165,7 +199,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
 if (process.argv[1] && path.resolve(process.argv[1]) === toolPath) {
   try {
     const result = await runPostgresMarketplaceIntegration();
-    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, signed-provider deletion persistence, RLS, privacy, concurrent overlap protection, a complete synthetic Landlord-to-Cleaner participant lifecycle, audited disputes, current-payment journey gating and exactly-once payment ordering verified and fixtures removed.`);
+    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, signed-provider deletion persistence, RLS, privacy, two-worker automatic dispatch with expiry/requeue, concurrent booking overlap protection, a complete synthetic Landlord-to-Cleaner participant lifecycle, audited disputes, current-payment journey gating and exactly-once payment ordering verified and fixtures removed.`);
   } catch (error) {
     console.error(error.message);
     if (error.integrationOutput) console.error(error.integrationOutput.trim());

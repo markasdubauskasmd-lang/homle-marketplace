@@ -22,6 +22,10 @@ The maintenance-only process registers seven non-overlapping jobs:
 | Current-location expiry | 1 minute | Deletes only expired current points; detailed location history is not retained. |
 | Payment readiness | 15 minutes | Notifies once when the five-day authorization window opens, then once inside 24 hours only if the exact authorization is still missing; it never changes money or booking status. |
 | Confirmed-visit reminders | 15 minutes | Once payment is valid for the scheduled start, reminds both participants within 24 hours and prompts only the Cleaner inside two hours to open the active job when ready to set off. Keys include the exact schedule, and the job changes no booking, payment or location. |
+
+## Automatic-dispatch concurrency evidence
+
+On 18 July 2026, the disposable PostgreSQL integration suite connected twice as the restricted `tideway_worker` role and raced both sessions for one Landlord-authorized request. Exactly one lease was issued. The first synthetic invitation expired, matching reopened to the next untried eligible Cleaner, the second invitation expired, and a further claim was refused at the exact two-attempt limit. System-owned status history and audit records were verified before all fixtures and the disposable database were removed. No worker was deployed, no schedule was enabled and no external delivery provider was contacted; repeat this proof with deployed worker monitoring and real staging notifications before activation.
 | Session expiry | 15 minutes | Drains bounded expired-session batches without giving the web role delete access. |
 | Rate-limit retention | 1 hour | Removes only limiter buckets inactive for two hours. |
 | Pending social-identity retention | 1 hour | Removes only used/expired Facebook mailbox-verification material after its retention window. |

@@ -10,6 +10,7 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const integrationDirectory = path.join(projectRoot, "db", "integration");
 const requiredFiles = [
   "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "matching-self-exclusion.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql",
+  "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-claim-a.sql", "automatic-dispatch-claim-b.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-invite-b.sql", "automatic-dispatch-first-invite-core.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql",
   "accept-booking-a.sql", "accept-booking-b.sql", "marketplace-post-concurrency.sql",
   "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql",
   "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql",
@@ -30,6 +31,15 @@ assert.match(sources.get("marketplace-integration-setup.sql"), /invite_cleaner_b
 assert.match(sources.get("marketplace-integration-setup.sql"), /cleaning_request_photos[\s\S]*submit_cleaning_request/);
 assert.match(sources.get("matching-self-exclusion.sql"), /A landlord was recommended as a cleaner for their own request/);
 assert.match(sources.get("matching-self-exclusion.sql"), /The independent eligible cleaner was not recommended/);
+assert.match(sources.get("automatic-dispatch-rehearsal-setup.sql"), /configure_automatic_dispatch[\s\S]*true,2::smallint/);
+assert.match(sources.get("automatic-dispatch-claim-a.sql"), /AUTOMATIC_DISPATCH_CLAIM_A\|/);
+assert.match(sources.get("automatic-dispatch-claim-b.sql"), /AUTOMATIC_DISPATCH_CLAIM_B\|/);
+assert.match(sources.get("automatic-dispatch-first-invite-core.sql"), /exactly two independent eligible Cleaners/);
+assert.match(sources.get("automatic-dispatch-requeue.sql"), /exclude the tried Cleaner and select the next eligible Cleaner/);
+assert.match(sources.get("automatic-dispatch-attempt-limit.sql"), /exceeded the Landlord-approved attempt ceiling/);
+assert.match(sources.get("automatic-dispatch-rehearsal-verify.sql"), /stop cleanly at the approved attempt limit/);
+assert.match(sources.get("automatic-dispatch-rehearsal-cleanup.sql"), /cleanup left synthetic records/);
+for (const file of requiredFiles.filter((name) => name.startsWith("automatic-dispatch-"))) assert.doesNotMatch(sources.get(file), /https?:\/\//, `${file} must not contact an external provider.`);
 assert.match(sources.get("landlord-single-dispatch-authorization.sql"), /The Landlord one-Cleaner authorization was not stored exactly/);
 assert.match(sources.get("landlord-single-dispatch-authorization.sql"), /An unrelated Landlord authorized Cleaner matching/);
 assert.match(sources.get("cleaning-request-realtime-and-avatar.sql"), /An unrelated Landlord subscribed to a private cleaning request/);
@@ -78,22 +88,31 @@ assert.ok(sources.get("marketplace-integration-cleanup.sql").indexOf("DELETE FRO
 
 const ownerPassword = "owner p@ss/secret";
 const appPassword = "app p@ss/secret";
+const workerPassword = "worker p@ss/secret";
 const ownerUrl = `postgresql://migration_owner:${encodeURIComponent(ownerPassword)}@db.example:5432/acme_tideway_test?sslmode=verify-full`;
 const appUrl = `postgresql://tideway_app:${encodeURIComponent(appPassword)}@db.example:5432/acme_tideway_test?sslmode=verify-full`;
+const workerUrl = `postgresql://tideway_worker:${encodeURIComponent(workerPassword)}@db.example:5432/acme_tideway_test?sslmode=verify-full`;
 const calls = [];
 function successfulSpawn(command, args, options) {
   calls.push({ command, args, options, file: path.basename(args.at(-1)) });
   return { status: 0, stdout: "ok\n", stderr: "" };
 }
-let concurrentJobs;
+const concurrentBatches = [];
+let concurrentCall = 0;
 const result = await runPostgresMarketplaceIntegration({
   ownerUrl,
   appUrl,
+  workerUrl,
   confirmation: postgresIntegrationConfirmation,
-  baseEnvironment: { PATH: "private-path", DATABASE_INTEGRATION_OWNER_URL: ownerUrl, DATABASE_INTEGRATION_APP_URL: appUrl, SMTP_URL: "unrelated-secret" },
+  baseEnvironment: { PATH: "private-path", DATABASE_INTEGRATION_OWNER_URL: ownerUrl, DATABASE_INTEGRATION_APP_URL: appUrl, DATABASE_INTEGRATION_WORKER_URL: workerUrl, SMTP_URL: "unrelated-secret" },
   spawnSync: successfulSpawn,
   async runConcurrent(jobs) {
-    concurrentJobs = jobs;
+    concurrentBatches.push(jobs);
+    concurrentCall += 1;
+    if (concurrentCall === 1) return [
+      { status: 0, stdout: "AUTOMATIC_DISPATCH_CLAIM_A|1", stderr: "" },
+      { status: 0, stdout: "AUTOMATIC_DISPATCH_CLAIM_B|0", stderr: "" }
+    ];
     return [
       { status: 0, stdout: "confirmed", stderr: "" },
       { status: 3, stdout: "", stderr: "ERROR: cleaner-schedule-conflict" }
@@ -101,36 +120,46 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, matchingSelfExclusion: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, matchingSelfExclusion: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql",
-  "matching-self-exclusion.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
+  "matching-self-exclusion.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);
 for (const call of calls) {
   assert.equal(call.command, "psql");
-  assert.ok(call.args.every((argument) => !argument.includes(ownerPassword) && !argument.includes(appPassword) && !argument.includes("postgresql://")));
+  assert.ok(call.args.every((argument) => !argument.includes(ownerPassword) && !argument.includes(appPassword) && !argument.includes(workerPassword) && !argument.includes("postgresql://")));
 }
 assert.equal(calls.find((call) => call.file === "deployment-verification.sql").options.env.PGPASSWORD, ownerPassword);
 assert.equal(calls.find((call) => call.file === "marketplace-rls-behaviour.sql").options.env.PGPASSWORD, appPassword);
-assert.ok(calls.every((call) => !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_OWNER_URL") && !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_APP_URL") && !Object.hasOwn(call.options.env, "SMTP_URL")));
-assert.equal(concurrentJobs.length, 2);
-assert.ok(concurrentJobs.every((job) => job.environment.PGUSER === "tideway_app" && job.environment.PGPASSWORD === appPassword));
+assert.equal(calls.find((call) => call.file === "automatic-dispatch-requeue.sql").options.env.PGPASSWORD, workerPassword);
+assert.ok(calls.every((call) => !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_OWNER_URL") && !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_APP_URL") && !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_WORKER_URL") && !Object.hasOwn(call.options.env, "SMTP_URL")));
+assert.equal(concurrentBatches.length, 2);
+assert.ok(concurrentBatches[0].every((job) => job.environment.PGUSER === "tideway_worker" && job.environment.PGPASSWORD === workerPassword));
+assert.ok(concurrentBatches[1].every((job) => job.environment.PGUSER === "tideway_app" && job.environment.PGPASSWORD === appPassword));
 
 await assert.rejects(
-  runPostgresMarketplaceIntegration({ ownerUrl, appUrl, confirmation: "yes", spawnSync: successfulSpawn }),
+  runPostgresMarketplaceIntegration({ ownerUrl, appUrl, workerUrl, confirmation: "yes", spawnSync: successfulSpawn }),
   /Set TIDEWAY_DATABASE_TEST_CONFIRMATION/
 );
 await assert.rejects(
-  runPostgresMarketplaceIntegration({ ownerUrl: ownerUrl.replace("acme_tideway_test", "production"), appUrl: appUrl.replace("acme_tideway_test", "production"), confirmation: postgresIntegrationConfirmation, spawnSync: successfulSpawn }),
+  runPostgresMarketplaceIntegration({ ownerUrl: ownerUrl.replace("acme_tideway_test", "production"), appUrl: appUrl.replace("acme_tideway_test", "production"), workerUrl: workerUrl.replace("acme_tideway_test", "production"), confirmation: postgresIntegrationConfirmation, spawnSync: successfulSpawn }),
   /must end in _tideway_test/
 );
 await assert.rejects(
-  runPostgresMarketplaceIntegration({ ownerUrl, appUrl: appUrl.replace("tideway_app", "another_role"), confirmation: postgresIntegrationConfirmation, spawnSync: successfulSpawn }),
+  runPostgresMarketplaceIntegration({ ownerUrl, appUrl: appUrl.replace("tideway_app", "another_role"), workerUrl, confirmation: postgresIntegrationConfirmation, spawnSync: successfulSpawn }),
   /authenticate as tideway_app/
 );
 await assert.rejects(
-  runPostgresMarketplaceIntegration({ ownerUrl, appUrl: appUrl.replace("acme_tideway_test", "other_tideway_test"), confirmation: postgresIntegrationConfirmation, spawnSync: successfulSpawn }),
+  runPostgresMarketplaceIntegration({ ownerUrl, appUrl, workerUrl: workerUrl.replace("tideway_worker", "another_role"), confirmation: postgresIntegrationConfirmation, spawnSync: successfulSpawn }),
+  /authenticate as tideway_worker/
+);
+await assert.rejects(
+  runPostgresMarketplaceIntegration({ ownerUrl, appUrl: appUrl.replace("acme_tideway_test", "other_tideway_test"), workerUrl, confirmation: postgresIntegrationConfirmation, spawnSync: successfulSpawn }),
+  /same PostgreSQL database endpoint/
+);
+await assert.rejects(
+  runPostgresMarketplaceIntegration({ ownerUrl, appUrl, workerUrl: workerUrl.replace("acme_tideway_test", "other_tideway_test"), confirmation: postgresIntegrationConfirmation, spawnSync: successfulSpawn }),
   /same PostgreSQL database endpoint/
 );
 
@@ -139,12 +168,19 @@ await assert.rejects(
   runPostgresMarketplaceIntegration({
     ownerUrl,
     appUrl,
+    workerUrl,
     confirmation: postgresIntegrationConfirmation,
     spawnSync(command, args, options) {
       cleanupCalls.push(path.basename(args.at(-1)));
       return { status: 0, stdout: "ok", stderr: "" };
     },
-    async runConcurrent() { return [{ status: 0 }, { status: 0 }]; }
+    async runConcurrent(jobs) {
+      if (jobs[0].file === "automatic-dispatch-claim-a.sql") return [
+        { status: 0, stdout: "AUTOMATIC_DISPATCH_CLAIM_A|1" },
+        { status: 0, stdout: "AUTOMATIC_DISPATCH_CLAIM_B|0" }
+      ];
+      return [{ status: 0 }, { status: 0 }];
+    }
   }),
   /one success and one protected schedule conflict/
 );
@@ -180,4 +216,4 @@ const spawnFailure = await runConcurrentPsql([{ file: "accept-booking-a.sql", en
 assert.equal(spawnFailure[0].status, null);
 assert.equal(spawnFailure[0].error.code, "ENOENT");
 
-console.log("PostgreSQL integration harness tests passed: disposable-target guard, separate credentials, RLS fixtures, concurrent overlap outcome, cleanup and secret-free process arguments.");
+console.log("PostgreSQL integration harness tests passed: disposable-target guard, separate owner/app/worker credentials, two-worker dispatch lease evidence, RLS fixtures, concurrent overlap outcome, cleanup and secret-free process arguments.");
