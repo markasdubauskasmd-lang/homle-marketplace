@@ -83,13 +83,13 @@ export function validateProductionDeployment(env = process.env, options = {}) {
 
   errors.push(...marketplaceValidation.errors);
   if (marketplace.authentication.requested || marketplace.marketplace.requested) {
-    if (marketplace.marketplace.requested && !marketplace.emailConfigured) errors.push("The enabled marketplace requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
+    if (marketplace.marketplace.requested && !marketplace.emailConfigured && !marketplace.launchApproval.stagingAccountsRestricted) errors.push("The enabled marketplace requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
     if (!marketplace.marketplace.requested && !marketplace.emailConfigured && !marketplace.capabilities.google) errors.push("Enabled authentication requires one configured email provider or a complete Google OAuth client.");
     if (!deploymentModule(env.MARKETPLACE_ADAPTER_MODULE)) errors.push(`Enabled authentication requires ${builtInMonitoringAdapter}, ${builtInRenderLogMonitoringAdapter} or an absolute deployment monitoring adapter module.`);
     if (exact(env.MARKETPLACE_ADAPTER_MODULE) === builtInMonitoringAdapter) errors.push(...validateMonitoringWebhookEnvironment(env).errors);
     if (exact(env.MARKETPLACE_ADAPTER_MODULE) === builtInRenderLogMonitoringAdapter) errors.push(...validateRenderLogMonitoringEnvironment(env).errors);
   }
-  if (marketplace.marketplace.requested && !marketplace.objectStorageConfigured) errors.push("The enabled marketplace requires complete private object-storage configuration.");
+  if (marketplace.marketplace.requested && !marketplace.objectStorageConfigured && !marketplace.launchApproval.stagingAccountsRestricted) errors.push("The enabled marketplace requires complete private object-storage configuration.");
 
   return Object.freeze({
     ok: errors.length === 0,
