@@ -5,12 +5,16 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 
 const readyHealth = { ok: true, service: "tideway-marketplace", marketplace: { enabled: true, ready: true, authenticationReady: true } };
 assert(homeEntryMode(readyHealth) === "account", "A fully attached marketplace does not open account-first booking.");
-for (const unsafe of [null, {}, { ...readyHealth, marketplace: { ...readyHealth.marketplace, enabled: false } }, { ...readyHealth, marketplace: { ...readyHealth.marketplace, ready: false } }, { ...readyHealth, marketplace: { ...readyHealth.marketplace, authenticationReady: false } }]) {
+const authenticationHealth = { ...readyHealth, marketplace: { enabled: false, ready: false, authenticationReady: true } };
+assert(homeEntryMode(authenticationHealth) === "authentication", "A verified account-only service did not expose its sign-in entry.");
+for (const unsafe of [null, {}, { ...readyHealth, marketplace: { ...readyHealth.marketplace, authenticationReady: false } }]) {
   assert(homeEntryMode(unsafe) === "concierge", "An incomplete or untrusted health response exposed disabled marketplace entry.");
 }
 const account = homeEntryPresentation("account");
+const authentication = homeEntryPresentation("authentication");
 const concierge = homeEntryPresentation("concierge");
 assert(account.bookingPath === "/signup?intent=book" && account.cleanerPath === "/cleaners" && account.accountAccess === true, "Ready account entry lost its direct routes.");
+assert(authentication.bookingPath === "/request" && authentication.accountAccess === true && authentication.statusCopy.includes("Approved testers") && authentication.statusCopy.includes("remain guided"), "Account-only mode opened unavailable booking routes or hid sign-in.");
 assert(concierge.bookingPath === "/request" && concierge.cleanerPath === "/request" && concierge.accountAccess === false, "Detached mode does not fail safely into the working request journey.");
 assert(concierge.statusCopy.includes("Coverage") && concierge.statusCopy.includes("price are confirmed before any booking"), "Pilot fallback copy invents availability or a confirmed booking.");
 
@@ -36,4 +40,4 @@ assert((pilotPage.match(/href="\/request#request-cleaning"/g) || []).length >= 4
 assert(server.includes('requestUrl.pathname === "/api/health"') && server.includes("authenticationReady: accountAttachment.authenticationHttpReady"), "Homepage capability mode is not backed by the public health contract.");
 assert(packageFile.includes("tests/home-entry-ui.mjs"), "Capability-aware homepage verification is not part of the project gate.");
 
-console.log("Homepage entry tests passed: working concierge fallback, verified account upgrade, honest copy, no-script safety and lightweight rendering.");
+console.log("Homepage entry tests passed: working concierge fallback, approved-tester sign-in, full marketplace upgrade, honest copy, no-script safety and lightweight rendering.");
