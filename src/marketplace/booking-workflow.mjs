@@ -25,6 +25,21 @@ function serviceRows(value) {
   try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
 }
 
+function priceableTravelCost(candidate, config) {
+  if (config.travelCostPerKmPence === 0) return config.travelCostPence;
+  const suppliedDistance = candidate?.distance_km;
+  const distanceKm = suppliedDistance == null || suppliedDistance === "" ? Number.NaN : Number(suppliedDistance);
+  if (!Number.isFinite(distanceKm) || distanceKm < 0 || distanceKm > 500) {
+    throw Object.assign(new Error("The cleaner-to-property travel distance is unavailable, so this request cannot be priced safely."), { statusCode: 409, code: "travel-distance-unavailable" });
+  }
+  const distanceCostPence = Math.ceil(distanceKm * config.travelCostPerKmPence * config.travelDistanceMultiplierBasisPoints / 10000);
+  const totalTravelCostPence = config.travelCostPence + distanceCostPence;
+  if (!Number.isSafeInteger(distanceCostPence) || distanceCostPence < 0 || !Number.isSafeInteger(totalTravelCostPence) || totalTravelCostPence > 1_000_000) {
+    throw Object.assign(new Error("The selected travel distance cannot be priced inside the supported safe range."), { statusCode: 409, code: "request-not-priceable" });
+  }
+  return totalTravelCostPence;
+}
+
 function bookingProjection(record, actor) {
   const base = {
     bookingId: record.id,
@@ -113,6 +128,8 @@ export function createBookingPricingPolicy(configuration = {}) {
     paymentFeeBasisPoints: integer(configuration.paymentFeeBasisPoints ?? 0, 0, 2000, "Payment fee"),
     paymentFeeFixedPence: integer(configuration.paymentFeeFixedPence ?? 0, 0, 10000, "Fixed payment fee"),
     travelCostPence: integer(configuration.travelCostPence ?? 0, 0, 1000000, "Travel cost"),
+    travelCostPerKmPence: integer(configuration.travelCostPerKmPence ?? 0, 0, 100000, "Travel cost per kilometre"),
+    travelDistanceMultiplierBasisPoints: integer(configuration.travelDistanceMultiplierBasisPoints ?? 10000, 1, 50000, "Travel distance multiplier"),
     suppliesCostPence: integer(configuration.suppliesCostPence ?? 0, 0, 1000000, "Supplies cost"),
     otherCostPence: integer(configuration.otherCostPence ?? 0, 0, 1000000, "Other cost"),
     invitationTtlMinutes: integer(configuration.invitationTtlMinutes ?? 180, 15, 1440, "Invitation lifetime")
@@ -135,18 +152,19 @@ export function createBookingPricingPolicy(configuration = {}) {
         cleanerPayPence += model === "hourly" ? Math.ceil(price * durationMinutes / 60) : price;
       }
       const labourOnCostPence = Math.ceil(cleanerPayPence * config.labourOnCostBasisPoints / 10000);
-      const fixedCosts = cleanerPayPence + labourOnCostPence + config.travelCostPence + config.suppliesCostPence + config.otherCostPence + config.paymentFeeFixedPence;
+      const travelCostPence = priceableTravelCost(candidate, config);
+      const fixedCosts = cleanerPayPence + labourOnCostPence + travelCostPence + config.suppliesCostPence + config.otherCostPence + config.paymentFeeFixedPence;
       let low = fixedCosts + 1;
       let high = 10_000_000;
       while (low < high) {
         const proposed = Math.floor((low + high) / 2);
         const fee = config.paymentFeeFixedPence + Math.ceil(proposed * config.paymentFeeBasisPoints / 10000);
-        const contribution = proposed - cleanerPayPence - labourOnCostPence - fee - config.travelCostPence - config.suppliesCostPence - config.otherCostPence;
+        const contribution = proposed - cleanerPayPence - labourOnCostPence - fee - travelCostPence - config.suppliesCostPence - config.otherCostPence;
         if (contribution * 10000 >= proposed * config.targetMarginBasisPoints) high = proposed;
         else low = proposed + 1;
       }
       const paymentFeePence = config.paymentFeeFixedPence + Math.ceil(low * config.paymentFeeBasisPoints / 10000);
-      const finalContribution = low - cleanerPayPence - labourOnCostPence - paymentFeePence - config.travelCostPence - config.suppliesCostPence - config.otherCostPence;
+      const finalContribution = low - cleanerPayPence - labourOnCostPence - paymentFeePence - travelCostPence - config.suppliesCostPence - config.otherCostPence;
       if (low > 10_000_000 || cleanerPayPence > 10_000_000 || finalContribution <= 0 || finalContribution * 10000 < low * config.targetMarginBasisPoints) throw Object.assign(new Error("The selected scope cannot be priced inside the supported safe range."), { statusCode: 409, code: "request-not-priceable" });
       const responseDeadline = new Date(Math.min(start.getTime(), now.getTime() + config.invitationTtlMinutes * 60000));
       if (responseDeadline.getTime() <= now.getTime()) throw Object.assign(new Error("The requested start time is too close to invite a cleaner."), { statusCode: 409, code: "request-too-soon" });
@@ -155,7 +173,7 @@ export function createBookingPricingPolicy(configuration = {}) {
         cleanerPayPence,
         labourOnCostPence,
         paymentFeePence,
-        travelCostPence: config.travelCostPence,
+        travelCostPence,
         suppliesCostPence: config.suppliesCostPence,
         otherCostPence: config.otherCostPence,
         targetMarginBasisPoints: config.targetMarginBasisPoints,
@@ -172,6 +190,8 @@ export function bookingPricingPolicyFromEnvironment(env = process.env) {
     paymentFeeBasisPoints: "BOOKING_PAYMENT_FEE_BPS",
     paymentFeeFixedPence: "BOOKING_PAYMENT_FEE_FIXED_PENCE",
     travelCostPence: "BOOKING_TRAVEL_COST_PENCE",
+    travelCostPerKmPence: "BOOKING_TRAVEL_COST_PER_KM_PENCE",
+    travelDistanceMultiplierBasisPoints: "BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS",
     suppliesCostPence: "BOOKING_SUPPLIES_COST_PENCE",
     otherCostPence: "BOOKING_OTHER_COST_PENCE",
     invitationTtlMinutes: "BOOKING_INVITATION_TTL_MINUTES"
