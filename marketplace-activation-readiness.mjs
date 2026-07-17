@@ -6,15 +6,9 @@ const requirementDefinitions = Object.freeze([
     complete: (state) => state.privateDataStorageSafe === true
   },
   {
-    key: "marketplaceServices",
-    label: "Managed marketplace services",
-    missing: "Attach and verify PostgreSQL, email delivery and private media storage",
-    complete: (state) => state.marketplaceEnabled === true && state.marketplaceReady === true
-  },
-  {
     key: "accountAccess",
     label: "Account service attachment",
-    missing: "Attach email sign-up, email verification and password-reset services",
+    missing: "Connect and verify account email delivery, sessions and the restricted database",
     complete: (state) => state.authenticationReady === true
       && state.providers?.emailPassword === true
       && state.providers?.emailVerification === true
@@ -23,8 +17,14 @@ const requirementDefinitions = Object.freeze([
   {
     key: "socialSignIn",
     label: "Social provider attachment",
-    missing: "Attach one approved Google or Facebook sign-in provider",
+    missing: "Create and attach the real Homle Google OAuth web client; add Facebook after Google works",
     complete: (state) => state.providers?.google === true || state.providers?.facebook === true
+  },
+  {
+    key: "marketplaceServices",
+    label: "Managed marketplace services",
+    missing: "Attach private media storage and verify managed booking services",
+    complete: (state) => state.marketplaceEnabled === true && state.marketplaceReady === true
   },
   {
     key: "payments",

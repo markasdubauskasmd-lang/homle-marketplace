@@ -7,7 +7,7 @@ function assert(condition, message) {
 const detached = marketplaceActivationReadiness({ privateDataStorageSafe: true, localDemosEnabled: true });
 assert(detached.completed === 1 && detached.total === 6 && detached.ready === false, "A safe local data folder must not be mistaken for an activated marketplace.");
 assert(detached.checks.privateDataStorage === true && detached.checks.marketplaceServices === false, "Detached activation checks are incorrect.");
-assert(detached.next?.key === "marketplaceServices" && detached.next.action.includes("PostgreSQL"), "The activation gate did not name the next evidence-backed service step.");
+assert(detached.next?.key === "accountAccess" && detached.next.action.includes("email delivery"), "The activation gate did not name the next account-service step.");
 
 const accountsWithoutSocial = marketplaceActivationReadiness({
   privateDataStorageSafe: true,
