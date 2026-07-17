@@ -39,6 +39,7 @@ const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern
 const bookingReviewResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews/response$`);
 const bookingPaymentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/payment$`);
 const adminPaymentCommandPath = new RegExp(`^/api/marketplace/admin/payments/(${uuidPattern})/(capture|cancel|refund|transfer)$`);
+const adminRequestMatchingReadinessPath = new RegExp(`^/api/marketplace/admin/cleaning-requests/(${uuidPattern})/matching-readiness$`);
 const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
 const bookingDisputePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/dispute$`);
 const adminDisputePath = new RegExp(`^/api/marketplace/admin/disputes/(${uuidPattern})$`);
@@ -55,6 +56,20 @@ function queryFilters(url) {
     result.verifiedOnly = supplied === "true";
   }
   return result;
+}
+
+export function administratorMatchingReadiness(result) {
+  if (!result || typeof result !== "object" || !Array.isArray(result.candidates) || typeof result.generatedAt !== "string" || !Number.isFinite(Date.parse(result.generatedAt))) throw new Error("Matching readiness is unavailable.");
+  const prices = result.candidates.map((candidate) => Number(candidate?.estimatedCustomerPricePence)).filter((price) => Number.isInteger(price) && price > 0 && price <= 10_000_000);
+  if (prices.length !== result.candidates.length) throw new Error("Matching readiness pricing is unavailable.");
+  return Object.freeze({
+    generatedAt: new Date(result.generatedAt).toISOString(),
+    candidateCount: result.candidates.length,
+    candidateLimit: 25,
+    moreMayExist: result.candidates.length === 25,
+    lowestCustomerPricePence: prices.length ? Math.min(...prices) : null,
+    highestCustomerPricePence: prices.length ? Math.max(...prices) : null
+  });
 }
 
 export function createMarketplaceHttpRouter(dependencies, options = {}) {
@@ -135,6 +150,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { roles: ["administrator"] });
           const page = await administratorBookings.list(context.actor, { view: url.searchParams.get("view"), limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
           sendJson(response, 200, { ok: true, ...page });
+          return true;
+        }
+        const selectedAdminMatchingReadiness = pathname.match(adminRequestMatchingReadinessPath);
+        if (selectedAdminMatchingReadiness) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const readiness = administratorMatchingReadiness(await matching.recommendForRequest(context.actor, selectedAdminMatchingReadiness[1]));
+          sendJson(response, 200, { ok: true, matchingReadiness: readiness });
           return true;
         }
         const selectedAdminPaymentCommand = pathname.match(adminPaymentCommandPath);

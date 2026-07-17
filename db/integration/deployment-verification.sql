@@ -14,6 +14,7 @@ DECLARE
   payment_operations_migration_installed boolean := false;
   case_payment_handoff_migration_installed boolean := false;
   booking_operations_migration_installed boolean := false;
+  matching_self_exclusion_migration_installed boolean := false;
   rls_tables constant text[] := ARRAY[
     'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
@@ -188,6 +189,8 @@ BEGIN
       INTO case_payment_handoff_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 52)'
       INTO booking_operations_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 53)'
+      INTO matching_self_exclusion_migration_installed;
   END IF;
   IF payment_operations_migration_installed THEN
     selected_name := 'tideway_private.list_administrator_payment_operations(text,integer,integer)';
@@ -237,6 +240,26 @@ BEGIN
       OR position('provider_payment_id' IN COALESCE(selected_source,''))>0
       OR position('display_name' IN COALESCE(selected_source,''))>0 THEN
       RAISE EXCEPTION 'The Administrator booking operations projection is missing its restricted, privacy-minimised boundary';
+    END IF;
+  END IF;
+  IF matching_self_exclusion_migration_installed THEN
+    selected_name := 'tideway_private.recommend_cleaners_for_request_v2(uuid,integer)';
+    selected_function := to_regprocedure(selected_name);
+    IF selected_function IS NULL THEN RAISE EXCEPTION 'Required protected function is missing: %', selected_name; END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=selected_function AND procedure.prosecdef
+        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+    ) OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('public', selected_function, 'EXECUTE')
+      OR position('candidate.cleaner_id<>request_landlord_id' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'The shared matching candidate boundary is missing database-enforced self-exclusion';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)');
+    IF position('recommend_cleaners_for_request_v2' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Automatic dispatch bypasses the shared self-excluding matching candidate boundary';
     END IF;
   END IF;
   IF scope_handoff_migration_installed THEN

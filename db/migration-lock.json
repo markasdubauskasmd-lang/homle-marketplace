@@ -53,10 +53,11 @@
     { "order": 49, "file": "049_pending_cleaner_scope_handoff.sql", "sha256": "d8fdafd5083b9164e08d864ae60340509b9fe1ac8c9ef87c2b764cd6a09b5058" },
     { "order": 50, "file": "050_administrator_payment_operations.sql", "sha256": "6ea0a59598a1b4e2547c023611d83f5453139f2c7619fb934c59d4e84bf5da49" },
     { "order": 51, "file": "051_administrator_case_payment_handoff.sql", "sha256": "d2ee0833e268ac1050072b55626daa81e8892167c2e97e0bd279ea04609c3d9e" },
-    { "order": 52, "file": "052_administrator_booking_operations.sql", "sha256": "af4b12da2edc377b774f3fe590b304674cfcdf5e5e10cc50dee01d05a24b04ce" }
+    { "order": 52, "file": "052_administrator_booking_operations.sql", "sha256": "af4b12da2edc377b774f3fe590b304674cfcdf5e5e10cc50dee01d05a24b04ce" },
+    { "order": 53, "file": "053_matching_self_exclusion.sql", "sha256": "cafb6ef53e2e7f24d569620ec6c7f76facb20ef247bf760d60eaa594d34c11f5" }
   ],
   "grantFiles": [
-    { "file": "runtime-role-grants.sql", "sha256": "8e664d1a48e40238340f1829fab759172cc967984f8be6df2dd4705901715db0" },
+    { "file": "runtime-role-grants.sql", "sha256": "d99a602c5f2ef1f3b3a531312448aabd6648d587112a8a9474bc901449aae8ed" },
     { "file": "worker-role-grants.sql", "sha256": "61e35fff770941bf21eb1efc017d78b53d122945ae3a92b1b2b073479351eebc" }
   ]
 }

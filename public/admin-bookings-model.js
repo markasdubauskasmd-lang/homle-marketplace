@@ -27,3 +27,12 @@ export function adminBookingQueue(value) {
   if (!value || !Array.isArray(value.operations) || !Number.isInteger(value.limit) || !Number.isInteger(value.offset)) throw new Error("The booking operations queue is unavailable.");
   return { operations: value.operations, limit: value.limit, offset: value.offset };
 }
+
+export function adminMatchingReadiness(value) {
+  const record = value?.matchingReadiness;
+  if (!record || !Number.isInteger(record.candidateCount) || record.candidateCount < 0 || record.candidateCount > 25 || record.candidateLimit !== 25 || typeof record.generatedAt !== "string" || !Number.isFinite(Date.parse(record.generatedAt))) throw new Error("Live matching readiness is unavailable.");
+  const lowest = record.lowestCustomerPricePence;
+  const highest = record.highestCustomerPricePence;
+  if (record.candidateCount === 0 && (lowest != null || highest != null) || record.candidateCount > 0 && (!Number.isInteger(lowest) || !Number.isInteger(highest) || lowest < 1 || highest < lowest)) throw new Error("Live matching pricing is unavailable.");
+  return Object.freeze({ generatedAt: new Date(record.generatedAt).toISOString(), candidateCount: record.candidateCount, moreMayExist: record.moreMayExist === true, lowestCustomerPricePence: lowest, highestCustomerPricePence: highest });
+}

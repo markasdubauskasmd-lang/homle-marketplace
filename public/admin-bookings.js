@@ -1,4 +1,4 @@
-import { adminBookingQueue, adminBookingView, operationStatusLabel, plannedMarginPercent, shortOperationReference } from "./admin-bookings-model.js";
+import { adminBookingQueue, adminBookingView, adminMatchingReadiness, operationStatusLabel, plannedMarginPercent, shortOperationReference } from "./admin-bookings-model.js";
 
 const pageSize = 50;
 const gate = document.querySelector("[data-admin-bookings-gate]");
@@ -11,6 +11,7 @@ const previous = document.querySelector("[data-admin-bookings-previous]");
 const next = document.querySelector("[data-admin-bookings-next]");
 let queue = { operations: [], limit: pageSize, offset: 0 };
 let loading = false;
+const matchingReadiness = new Map();
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
@@ -37,10 +38,29 @@ function operationCard(record) {
     const margin = plannedMarginPercent(record);
     facts.append(fact("Customer total", moneyPence(record.customerPricePence)), fact("Cleaner pay", moneyPence(record.cleanerPayPence)), fact("Planned direct costs", moneyPence(record.plannedCostsPence)), fact("Planned contribution", `${moneyPence(record.plannedContributionPence)}${margin == null ? "" : ` (${margin.toFixed(1)}%)`}`), fact("Payment", record.paymentStatus || "Not started"), fact("Case", record.caseStatus || "None"));
   }
+  card.append(heading, nextAction, facts);
   const actions = node("div", "booking-summary-actions");
+  if (record.operationKind === "request" && record.status === "searching-for-cleaner") {
+    const result = matchingReadiness.get(record.requestId);
+    const panel = node("div", "admin-booking-match-readiness");
+    if (result) {
+      const count = result.moreMayExist ? "25 or more" : String(result.candidateCount);
+      panel.append(node("strong", "", result.candidateCount ? `${count} eligible Cleaner option${result.candidateCount === 1 ? "" : "s"}` : "No eligible Cleaner options right now"));
+      panel.append(node("p", "", result.candidateCount ? `Current customer estimate range: ${moneyPence(result.lowestCustomerPricePence)}–${moneyPence(result.highestCustomerPricePence)}. Pricing and eligibility were recalculated now.` : "No Cleaner currently clears every service, availability, area, overlap and approved-pricing check. No invitation was created."));
+    }
+    const check = node("button", "button button-outline", result ? "Check matching again" : "Check live matching");
+    check.type = "button";
+    check.addEventListener("click", async () => {
+      if (!navigator.onLine) return showFeedback("Reconnect before checking live matching. No invitation was created.", "error");
+      check.disabled = true; check.setAttribute("aria-busy", "true"); check.textContent = "Checking…"; showFeedback("");
+      try { matchingReadiness.set(record.requestId, adminMatchingReadiness(await requestJson(`/api/marketplace/admin/cleaning-requests/${encodeURIComponent(record.requestId)}/matching-readiness`))); render(); showFeedback("Live matching recalculated. No Cleaner was contacted or invited.", "success"); }
+      catch (error) { showFeedback(error.message, "error"); check.disabled = false; check.removeAttribute("aria-busy"); check.textContent = result ? "Check matching again" : "Check live matching"; }
+    });
+    panel.append(check); card.append(panel);
+  }
   if (record.caseStatus || record.status === "disputed") { const link = node("a", "button button-outline", "Open booking cases"); link.href = "/admin/cases"; actions.append(link); }
   if (record.bookingId && (record.paymentStatus || ["confirmed", "completed", "cancelled"].includes(record.status))) { const link = node("a", "button button-outline", "Open related test payment"); link.href = `/admin/payments?bookingId=${encodeURIComponent(record.bookingId)}`; actions.append(link); }
-  card.append(heading, nextAction, facts); if (actions.childElementCount) card.append(actions); return card;
+  if (actions.childElementCount) card.append(actions); return card;
 }
 
 function render() {

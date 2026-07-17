@@ -100,7 +100,7 @@ DECLARE disconnected_record record; export_first jsonb; export_retry jsonb; dele
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Landlord cannot read both own bookings'; END IF;
   IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Landlord cannot read both own properties'; END IF;
-  IF (SELECT count(*) FROM cleaning_requests WHERE id::text LIKE '30000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Landlord cannot read both own requests'; END IF;
+  IF (SELECT count(*) FROM cleaning_requests WHERE id::text LIKE '30000000-0000-4000-8000-%') <> 3 THEN RAISE EXCEPTION 'Landlord cannot read all own requests'; END IF;
   IF tideway_private.verify_my_social_identity('google','integration-google-subject') IS NOT TRUE
      OR tideway_private.verify_my_social_identity('google','different-subject') IS TRUE THEN
     RAISE EXCEPTION 'Provider step-up did not require the exact connected subject';

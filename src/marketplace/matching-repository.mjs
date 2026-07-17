@@ -15,7 +15,7 @@ export function createMatchingRepository(database) {
     recommendForRequest(actor, requestId, limit) {
       return database.withUserTransaction(actor, async (client) => {
         try {
-          const result = await client.query("SELECT * FROM tideway_private.recommend_cleaners_for_request($1::uuid, $2::integer)", [requestId, limit]);
+          const result = await client.query("SELECT * FROM tideway_private.recommend_cleaners_for_request_v2($1::uuid, $2::integer)", [requestId, limit]);
           return result.rows;
         } catch (error) { throw mapMatchingError(error); }
       });
