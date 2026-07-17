@@ -23,7 +23,10 @@ const eventCopy = Object.freeze({
   "booking-completed": ["Cleaning visit completed", "The Landlord confirmed the finished cleaning visit."],
   "review-requested": ["Review the completed clean", "The cleaning checklist is complete and ready for your review."],
   "review-submitted": ["Homle review submitted", "A review was submitted for a completed booking and is awaiting moderation."],
-  "booking-message": ["New Homle booking message", "A booking participant sent a private message in Homle."]
+  "booking-message": ["New Homle booking message", "A booking participant sent a private message in Homle."],
+  "dispute-opened": ["Private booking case opened", "A private case was opened for this booking. Homle paused the booking while it is reviewed."],
+  "dispute-reviewing": ["Booking case under review", "Homle started reviewing the private case for this booking."],
+  "dispute-resolved": ["Booking case resolved", "Homle recorded an outcome for the private booking case. Open Homle to review it."]
 });
 
 function integer(value, minimum, maximum, fallback, label) {

@@ -6,6 +6,7 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 const bookingId = "55555555-5555-4555-8555-555555555555";
 assert(notificationPresentation("cleaner-started-travelling").action === "Track arrival", "Journey updates do not lead to tracking.");
 assert(notificationPresentation("unexpected-task-approval-requested").description.includes("No price changes automatically"), "Unexpected tasks lost their no-automatic-price promise.");
+assert(notificationPresentation("dispute-opened").action === "Review case" && notificationPresentation("dispute-reviewing").title === "Booking case under review" && notificationPresentation("dispute-resolved").action === "Review outcome", "Private booking-case events do not lead participants to a clear next action.");
 assert(notificationPresentation("not-yet-known").title === "Booking updated", "Unknown events do not fail safely.");
 assert(notificationBookingPath(bookingId) === `/bookings/${bookingId}` && notificationBookingPath("../admin") === null, "Notification booking paths accept an unsafe identifier.");
 assert(notificationWorkspacePath({ selectedRole: "landlord", roles: ["landlord"] }) === "/landlord/dashboard", "Landlords do not return to their workspace.");
@@ -32,7 +33,7 @@ assert(script.includes('/api/marketplace/notifications?') && script.includes('/a
 assert(script.includes('"X-CSRF-Token"') && script.includes('credentials: "same-origin"') && script.includes("keepalive: true"), "Read mutations lost session, CSRF or navigation-safe delivery.");
 assert(script.includes("replaceChildren") && script.includes("textContent") && !script.includes("innerHTML"), "Notification content is not rendered with safe DOM operations.");
 assert(script.includes("inboxCutoff") && script.includes("cutoffCreatedAt"), "Mark-all-read is not protected by a race-safe cutoff.");
-assert(model.includes("No price changes automatically") && model.includes("private message") && !model.includes("address"), "Public update copy leaks details or misstates price changes.");
+assert(model.includes("No price changes automatically") && model.includes("private message") && model.includes("Private booking case opened") && !model.includes("address"), "Public update copy leaks details or omits the private booking-case state.");
 assert(server.includes('"/notifications": "notifications.html"') && cleanerDashboard.includes('href="/notifications"') && landlordDashboard.includes('href="/notifications"'), "The private inbox is not reachable from both workspaces.");
 assert(cleanerDashboard.includes("data-notification-link") && cleanerDashboard.includes("data-notification-count") && cleanerDashboard.includes("notification-badge.js") && landlordDashboard.includes("data-notification-link") && landlordDashboard.includes("data-notification-count") && landlordDashboard.includes("notification-badge.js"), "Unread updates are not visible from both role dashboards.");
 assert(badgeScript.includes('/api/marketplace/notifications?limit=1') && badgeScript.includes('credentials: "same-origin"') && badgeScript.includes('cache: "no-store"') && badgeScript.includes("event.persisted") && badgeScript.includes('document.visibilityState === "visible"'), "The dashboard badge is not private, bounded or refreshed after returning to the page.");

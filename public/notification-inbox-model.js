@@ -19,7 +19,10 @@ const copy = Object.freeze({
   "booking-completed": ["Cleaning visit completed", "The completed booking is ready for its final record and review.", "View booking"],
   "review-requested": ["Share your review", "The clean is complete. A verified review takes less than a minute.", "Review Cleaner"],
   "review-submitted": ["Review submitted", "Your review was received and is awaiting moderation.", "View booking"],
-  "booking-message": ["New booking message", "A booking participant sent you a private message.", "Read message"]
+  "booking-message": ["New booking message", "A booking participant sent you a private message.", "Read message"],
+  "dispute-opened": ["Private booking case opened", "A participant opened a private case. The booking is paused while Homle reviews it.", "Review case"],
+  "dispute-reviewing": ["Booking case under review", "Homle started reviewing the private case for this booking.", "View case"],
+  "dispute-resolved": ["Booking case resolved", "Homle recorded the case outcome. Review the private booking update.", "Review outcome"]
 });
 
 export function notificationPresentation(eventType) {

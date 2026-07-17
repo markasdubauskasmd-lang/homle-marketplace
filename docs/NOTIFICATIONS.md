@@ -18,13 +18,13 @@ The web runtime exposes three authenticated routes:
 
 Mutation routes require the existing exact-origin and CSRF checks. Database functions independently derive the account from transaction-local identity. A foreign notification therefore returns the same not-found result as a missing one. The runtime role cannot select or mutate `notifications` directly.
 
-Inbox payloads are allowlisted twice, in PostgreSQL and in the service. Only booking/task/photo/message IDs, response deadline, matching-reopened flag, task decision, sender role and durable event ID can leave this boundary. Names, email addresses, phone numbers, property/access details, message bodies, photos and current location cannot enter the projection.
+Inbox payloads are allowlisted twice, in PostgreSQL and in the service. Only booking/task/photo/message/case IDs, response deadline, matching-reopened flag, task decision, sender role, durable event ID and bounded case status/outcome can leave this boundary. Case descriptions and resolution notes, names, email addresses, phone numbers, property/access details, message bodies, photos and current location cannot enter the projection.
 
 ## Email outbox
 
 Migration `017_notification_inbox_and_outbox.sql` creates an email outbox row automatically after supported in-app lifecycle events. The derived row uses a channel-prefixed unique key, so transaction retries cannot create duplicate email work.
 
-Supported events cover invitation, response, confirmation, journey start/nearby/arrival, cleaning start/pause/resume/progress, issues and photos, unexpected-task decisions, completion/review and booking messages. Email rows contain only the minimal allowlisted payload and never copy a message body, address, access instructions, contact details, photo data or coordinates.
+Supported events cover invitation, response, confirmation, journey start/nearby/arrival, cleaning start/pause/resume/progress, issues and photos, unexpected-task decisions, completion/review, booking messages and the opened/reviewing/resolved private booking-case lifecycle. Email rows contain only the minimal allowlisted payload and never copy a case description, resolution note, message body, address, access instructions, contact details, payment detail, photo data or coordinates. The worker's executable copy map is regression-checked against the latest database email allowlist so a newly queued event cannot silently become a permanent delivery failure.
 
 A separately credentialed `tideway_worker` claims due rows with `FOR UPDATE SKIP LOCKED`, a UUID lease and a bounded batch. Delivery attempts:
 
@@ -39,7 +39,7 @@ A separately credentialed `tideway_worker` claims due rows with `FOR UPDATE SKIP
 
 ## Deployment boundary
 
-1. Apply migrations through `017_notification_inbox_and_outbox.sql` using the migration owner.
+1. Apply every locked migration through the current migration lock using the migration owner. Migration 017 creates the outbox and migration 033 extends it for private booking-case events.
 2. Reapply `db/runtime-role-grants.sql` and `db/worker-role-grants.sql` after the functions exist.
 3. Give the web process only the `tideway_app` database identity.
 4. Give the separate [worker process](WORKER_OPERATIONS.md) a pool authenticated only as `tideway_worker`; it receives execute rights on claim/complete functions and no direct table rights.
@@ -59,4 +59,4 @@ node tests/notification-inbox-ui.mjs
 node tests/marketplace-http.mjs
 ```
 
-The tests cover actor binding, cursor validation, read cutoffs, foreign/missing isolation, double payload redaction, safe route construction and rendering, role return, mobile states, worker leases, stable provider idempotency, transient retry, permanent failure, bounded error evidence, narrow grants and runtime composition.
+The tests cover actor binding, cursor validation, read cutoffs, foreign/missing isolation, double payload redaction, safe case-state projection, safe route construction and rendering, role return, mobile states, exact database-to-worker event parity, worker leases, stable provider idempotency, transient retry, permanent failure, bounded error evidence, narrow grants and runtime composition.

@@ -9,7 +9,7 @@ Migration `033_audited_booking_disputes.sql` turns the original dispute table in
 - The description is trimmed, control-character checked and limited to 20–5,000 characters.
 - A browser-generated request UUID plus `(booking, opener)` uniqueness makes a lost-response retry idempotent.
 - A partial unique index permits only one `open` or `reviewing` case per booking. If the other participant submits while it is active, the same case is returned.
-- Opening changes the booking to `disputed`, writes booking history, sends private participant notifications and records an audit event. It does not issue a refund, capture money or contact anyone outside Tideway.
+- Opening changes the booking to `disputed`, writes booking history, queues privacy-minimal participant notifications and records an audit event. The mobile inbox and detached email worker have explicit opened/reviewing/resolved copy; only identifiers and bounded state leave the service, never the case description or resolution note. It does not issue a refund, capture money or contact anyone outside Homle, and the email worker remains disabled until approved SMTP staging evidence exists.
 
 Participants use:
 

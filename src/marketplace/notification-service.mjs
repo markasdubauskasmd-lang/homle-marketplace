@@ -1,6 +1,6 @@
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const eventTypePattern = /^[a-z][a-z0-9-]{0,79}$/;
-const safePayloadKeys = Object.freeze(["bookingId", "responseDeadline", "matchingReopened", "taskId", "decision", "photoId", "messageId", "reviewId", "senderRole", "eventId"]);
+const safePayloadKeys = Object.freeze(["bookingId", "responseDeadline", "matchingReopened", "taskId", "decision", "photoId", "messageId", "reviewId", "senderRole", "eventId", "disputeId", "status", "outcome"]);
 
 function uuid(value, label) {
   if (!uuidPattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
@@ -38,10 +38,12 @@ function safePayload(value) {
   for (const key of safePayloadKeys) {
     const selected = source[key];
     if (selected == null) continue;
-    if (["bookingId", "taskId", "photoId", "messageId", "reviewId"].includes(key) && uuidPattern.test(selected)) result[key] = String(selected).toLowerCase();
+    if (["bookingId", "taskId", "photoId", "messageId", "reviewId", "disputeId"].includes(key) && uuidPattern.test(selected)) result[key] = String(selected).toLowerCase();
     else if (key === "responseDeadline" && typeof selected === "string" && Number.isFinite(Date.parse(selected))) result[key] = new Date(selected).toISOString();
     else if (key === "matchingReopened" && typeof selected === "boolean") result[key] = selected;
     else if (["decision", "senderRole"].includes(key) && typeof selected === "string" && /^[a-z][a-z0-9-]{0,49}$/.test(selected)) result[key] = selected;
+    else if (key === "status" && ["open", "reviewing", "resolved"].includes(selected)) result[key] = selected;
+    else if (key === "outcome" && ["completed", "cancelled"].includes(selected)) result[key] = selected;
     else if (key === "eventId" && /^\d{1,20}$/.test(String(selected))) result[key] = String(selected);
   }
   return Object.freeze(result);
