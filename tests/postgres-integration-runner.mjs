@@ -12,7 +12,7 @@ const requiredFiles = [
   "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql",
   "accept-booking-a.sql", "accept-booking-b.sql", "marketplace-post-concurrency.sql",
   "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql",
-  "marketplace-payment-gate.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
+  "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
 ];
 const sources = new Map();
 for (const file of requiredFiles) sources.set(file, await readFile(path.join(integrationDirectory, file), "utf8"));
@@ -47,6 +47,9 @@ assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Post-completion 
 assert.match(sources.get("marketplace-payment-gate.sql"), /Journey started without a payment authorization/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Stale payment authorization unlocked the journey transition/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Current payment authorization did not unlock journey start/);
+assert.match(sources.get("marketplace-payment-ordering.sql"), /A second event applied the same refund twice/);
+assert.match(sources.get("marketplace-payment-ordering.sql"), /Cleaner transfer began while a refund was live/);
+assert.match(sources.get("marketplace-payment-ordering.sql"), /A late authorization event regressed captured\/refunded payment state/);
 assert.match(sources.get("marketplace-integration-verify.sql"), /pending-cleaner-acceptance/);
 assert.match(sources.get("marketplace-integration-verify.sql"), /Confirmation history is not exactly once/);
 assert.match(sources.get("marketplace-integration-verify.sql"), /Facebook deletion callback audit evidence is missing or duplicated/);
@@ -85,10 +88,10 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql",
-  "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-gate.sql", "marketplace-integration-verify.sql",
+  "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);
 for (const call of calls) {

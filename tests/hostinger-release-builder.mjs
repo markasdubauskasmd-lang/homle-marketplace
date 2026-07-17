@@ -22,6 +22,7 @@ for (const required of [
   "db/migration-lock.json",
   "db/migrations/038_facebook_data_deletion_callback.sql",
   "db/migrations/039_unexpected_task_frozen_terms.sql",
+  "db/migrations/040_payment_reconciliation_ordering.sql",
   "db/runtime-role-grants.sql",
   "db/worker-role-grants.sql",
   "db/bootstrap/assert-empty-staging.sql",
@@ -69,7 +70,7 @@ try {
   assert.equal(release.privateMaterialIncluded, false);
   assert.equal(release.requiredRuntimeFilesVerified, true);
   assert.equal(release.databaseAssetsVerified, true);
-  assert.equal(release.migrationCount, 39);
+  assert.equal(release.migrationCount, 40);
   assert(release.entryCount >= release.fileCount && release.fileCount === expectedFiles.length);
 
   const archive = await readFile(release.archivePath);
@@ -77,6 +78,7 @@ try {
   assert.equal(entries.some((entry) => entry.name === "travel-coverage.mjs"), true, "Built release omitted the server's travel coverage dependency.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/038_facebook_data_deletion_callback.sql"), true, "Built release omitted the locked Facebook data-deletion migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/039_unexpected_task_frozen_terms.sql"), true, "Built release omitted the locked unexpected-task economics migration.");
+  assert.equal(entries.some((entry) => entry.name === "db/migrations/040_payment_reconciliation_ordering.sql"), true, "Built release omitted the locked payment-ordering migration.");
   assert.equal(entries.some((entry) => entry.name === "public/tracking-test.html"), false, "Built release exposed the local tracking lab.");
   validateReleaseEntries(entries, expectedFiles);
 

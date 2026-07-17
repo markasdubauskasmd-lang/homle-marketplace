@@ -58,6 +58,7 @@ const migration = await readFile(new URL("../db/migrations/022_marketplace_payme
 const paymentStatusMigration = await readFile(new URL("../db/migrations/023_landlord_payment_status.sql", import.meta.url), "utf8");
 const preAuthorizationMigration = await readFile(new URL("../db/migrations/037_pre_authorization_booking_total.sql", import.meta.url), "utf8");
 const payoutMigration = await readFile(new URL("../db/migrations/036_cleaner_payout_onboarding.sql", import.meta.url), "utf8");
+const orderingMigration = await readFile(new URL("../db/migrations/040_payment_reconciliation_ordering.sql", import.meta.url), "utf8");
 const grants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const runtime = await readFile(new URL("../src/marketplace/runtime.mjs", import.meta.url), "utf8");
 const attachment = await readFile(new URL("../src/marketplace/attachment.mjs", import.meta.url), "utf8");
@@ -70,6 +71,8 @@ for (const required of [
   "payment_one_live_capture_idx", "payment_one_live_transfer_idx", "ENABLE ROW LEVEL SECURITY"
 ]) assert(migration.includes(required), `Payment migration omitted ${required}.`);
 assert(!migration.includes("client_secret") && !migration.includes("card_number") && !migration.includes("raw_payload"), "Payment migration attempted to persist client secrets, card details or raw provider payloads.");
+for (const required of ["payment_one_live_refund_idx", "command-already-reconciled", "invalid-state-transition", "supplied_amount_pence IS DISTINCT FROM command_record.amount_pence", "command_kind='transfer' AND command.status <> 'provider-failed'", "command_kind='refund' AND command.status IN ('created','provider-pending')", "payment_record.amount_captured_pence <> payment_record.amount_pence", "provider_command_id=COALESCE(provider_command_id,supplied_object_id)"]) assert(orderingMigration.includes(required), `Payment ordering hardening omitted ${required}.`);
+assert(orderingMigration.includes("IF command_record.status IN ('reconciled','provider-failed')") && orderingMigration.includes("IF supplied_kind='transfer-reversed'") && orderingMigration.trimEnd().endsWith("COMMIT;"), "A late provider return can reopen a final command, webhook reconciliation can double-apply a command, a legitimate reversal is blocked or the locked transaction boundary is missing.");
 for (const required of ["begin_booking_payment_authorization", "reconcile_payment_provider_event", "get_my_cleaner_payout_onboarding", "begin_my_cleaner_payout_onboarding", "attach_my_cleaner_payout_account", "sync_my_cleaner_payout_account", "REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_payments", "REVOKE ALL ON TABLE tideway_private.cleaner_payout_accounts"]) assert(grants.includes(required), `Runtime payment grants omitted ${required}.`);
 for (const required of ["cleaner_payout_onboarding", "pg_advisory_xact_lock", "payout-account-conflict", "sync_my_cleaner_payout_account", "REVOKE ALL ON TABLE"]) assert(payoutMigration.includes(required), `Cleaner payout migration omitted ${required}.`);
 for (const required of ["read_booking_payment", "booking.landlord_user_id = actor_id", "payment.amount_captured_pence", "REVOKE ALL ON FUNCTION"]) assert(paymentStatusMigration.includes(required), `Landlord payment-status migration omitted ${required}.`);
