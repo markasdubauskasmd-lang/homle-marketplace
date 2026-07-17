@@ -3,7 +3,7 @@ import { clearSelectedCleaner, readSelectedCleaner } from "./account-intent.js";
 import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
 import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
-import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-5";
+import { landlordDispatchAction, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260717-6";
 import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260717-2";
 
 const state = document.querySelector("[data-landlord-state]");
@@ -75,6 +75,7 @@ let invitationStream = null;
 let invitationStreamBookingId = "";
 let bookingTransitionRefresh = null;
 const requestScans = new Map();
+const uncertainDispatchRequests = new Set();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
 let selectedCleanerId = "";
 try { if (bookingStart) selectedCleanerId = readSelectedCleaner(localStorage); } catch {}
@@ -725,6 +726,33 @@ function renderRequests() {
       : "This request has entered the account workflow.";
     const boundary = element("p", "landlord-request-boundary", boundaryCopy);
     card.append(heading, facts, boundary, requestScanPanel(request));
+    const dispatchAction = landlordDispatchAction(request);
+    if (dispatchAction.kind !== "none") {
+      const dispatchPanel = element("section", "landlord-dispatch-action");
+      dispatchPanel.setAttribute("aria-label", "Cleaner matching authorization");
+      dispatchPanel.dataset.dispatchRequestId = request.requestId;
+      const dispatchFeedback = element("p", "form-feedback");
+      dispatchFeedback.hidden = true;
+      if (uncertainDispatchRequests.has(request.requestId)) {
+        dispatchPanel.append(element("strong", "", "Check whether matching was authorised"), element("p", "", "The last connection ended before Homle could confirm the result. Refresh the saved request before authorising anything again."));
+        const refresh = element("button", "button button-outline", "Refresh matching status");
+        refresh.type = "button";
+        refresh.addEventListener("click", () => refreshDispatchAuthorization(request.requestId, refresh, dispatchFeedback));
+        dispatchPanel.append(refresh, dispatchFeedback);
+      } else if (dispatchAction.kind === "waiting") {
+        dispatchPanel.append(element("strong", "", "Finding one eligible Cleaner"), element("p", "", `You authorised ${dispatchAction.attemptLimit === 1 ? "one Cleaner invitation" : `up to ${dispatchAction.attemptLimit} total invitations`}. Homle is checking service fit, exact availability and profitable pricing. No booking or charge exists until a Cleaner accepts and you authorise payment.`));
+      } else if (dispatchAction.kind === "exhausted") {
+        dispatchPanel.append(element("strong", "", "Matching needs review"), element("p", "", "Five Cleaner invitation attempts have been used. Homle will not contact anyone else automatically; review the timing or scope before deciding what to change."));
+      } else {
+        const firstAttempt = dispatchAction.kind === "authorize" && dispatchAction.attemptCount === 0;
+        dispatchPanel.append(element("strong", "", firstAttempt ? "Ready to find your Cleaner?" : "Try one more eligible Cleaner?"), element("p", "", "This authorises exactly one additional invitation to the best eligible profitable match. It is not a booking, no payment is taken, and the Cleaner must still accept."));
+        const authorize = element("button", "button", firstAttempt ? "Find my Cleaner" : "Try one more Cleaner");
+        authorize.type = "button";
+        authorize.addEventListener("click", () => authorizeNextCleaner(request.requestId, dispatchAction.attemptLimit, authorize, dispatchFeedback));
+        dispatchPanel.append(authorize, dispatchFeedback);
+      }
+      card.append(dispatchPanel);
+    }
     if (["draft", "searching-for-cleaner"].includes(request.status)) {
       const actions = element("div", "landlord-request-actions");
       const withdraw = element("button", "text-button", "Withdraw request");
@@ -741,6 +769,50 @@ function renderRequests() {
   const draftCount = requests.filter((request) => request.status === "draft").length;
   document.querySelector("[data-draft-count]").textContent = String(draftCount);
   renderNextAction();
+}
+
+async function authorizeNextCleaner(requestId, attemptLimit, button, feedback) {
+  feedback.hidden = true;
+  const csrf = await recoverCsrf(feedback, "authorising Cleaner matching");
+  if (!csrf) return;
+  setPending(button, true, "Authorising…");
+  try {
+    const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/automatic-dispatch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ enabled: true, attemptLimit })
+    });
+    requests = requests.map((request) => request.requestId === requestId ? { ...request, automaticDispatch: result.automaticDispatch } : request);
+    uncertainDispatchRequests.delete(requestId);
+    renderRequests();
+    showFeedback(requestStatus, "Matching authorised for one additional Cleaner. No booking or payment exists until they accept and you approve the next step.", "success");
+  } catch (error) {
+    const uncertain = error?.code === "request-timeout" || /may have (?:reached Homle|completed)/i.test(error?.message || "");
+    if (uncertain) {
+      uncertainDispatchRequests.add(requestId);
+      renderRequests();
+      showFeedback(requestStatus, "Homle could not verify whether matching was authorised. Refresh the saved status before trying again; no action will be repeated automatically.");
+    } else {
+      showFeedback(feedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot authorise matching. Sign in again." : error.message);
+      setPending(button, false, attemptLimit === 1 ? "Find my Cleaner" : "Try one more Cleaner");
+    }
+  }
+}
+
+async function refreshDispatchAuthorization(requestId, button, feedback) {
+  feedback.hidden = true;
+  setPending(button, true, "Refreshing…");
+  try {
+    const result = await requestJson("/api/marketplace/cleaning-requests");
+    requests = Array.isArray(result.cleaningRequests) ? result.cleaningRequests : [];
+    uncertainDispatchRequests.delete(requestId);
+    renderRequests();
+    const current = requests.find((request) => request.requestId === requestId);
+    showFeedback(requestStatus, current?.automaticDispatch?.enabled ? "Matching authorization is saved. Homle will not repeat it." : "Matching was not authorised. You can choose the next action now.", "success");
+  } catch (error) {
+    showFeedback(feedback, error.message);
+    setPending(button, false, "Refresh matching status");
+  }
 }
 
 function setBookingLiveStatus(message, kind = "info") {
@@ -947,10 +1019,12 @@ function renderNextAction() {
   const activeRequest = requests.find((request) => ["searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "matched"].includes(request.status));
   if (activeRequest) {
     const waitingForCleaner = ["cleaner-invited", "pending-cleaner-acceptance"].includes(activeRequest.status);
-    nextTitle.textContent = waitingForCleaner ? "A Cleaner is reviewing your request" : activeRequest.status === "matched" ? "Your Cleaner is matched" : "Homle is looking for your Cleaner";
-    nextCopy.textContent = `${requestStatusLabel(activeRequest.status)} · Review the submitted rooms, tasks and current status in one place.`;
-    nextButton.textContent = "View request status";
-    nextButton.dataset.nextAction = "submitted";
+    const dispatchAction = landlordDispatchAction(activeRequest);
+    const needsAuthorization = ["authorize", "retry"].includes(dispatchAction.kind);
+    nextTitle.textContent = needsAuthorization ? (dispatchAction.kind === "authorize" ? "Find your Cleaner" : "Try one more eligible Cleaner") : waitingForCleaner ? "A Cleaner is reviewing your request" : activeRequest.status === "matched" ? "Your Cleaner is matched" : "Homle is looking for your Cleaner";
+    nextCopy.textContent = needsAuthorization ? "Authorize exactly one next invitation. Homle still rechecks availability, service fit and profitable pricing before anything is sent." : `${requestStatusLabel(activeRequest.status)} · Review the submitted rooms, tasks and current status in one place.`;
+    nextButton.textContent = needsAuthorization ? (dispatchAction.kind === "authorize" ? "Find my Cleaner" : "Review next Cleaner attempt") : "View request status";
+    nextButton.dataset.nextAction = needsAuthorization ? "dispatch" : "submitted";
     nextButton.dataset.nextRequestId = activeRequest.requestId;
     nextButton.hidden = false;
     return;
@@ -1206,6 +1280,12 @@ nextButton.addEventListener("click", () => {
   selectWorkspaceTab("requests");
   if (action === "submitted") {
     openRequestScan(nextButton.dataset.nextRequestId);
+    return;
+  }
+  if (action === "dispatch") {
+    const panel = [...document.querySelectorAll("[data-dispatch-request-id]")].find((candidate) => candidate.dataset.dispatchRequestId === nextButton.dataset.nextRequestId);
+    panel?.scrollIntoView({ behavior: "smooth", block: "center" });
+    panel?.querySelector("button")?.focus({ preventScroll: true });
     return;
   }
   if (action === "draft") {

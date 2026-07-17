@@ -9,7 +9,7 @@ import { postgresIntegrationConfirmation, runConcurrentPsql, runPostgresMarketpl
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const integrationDirectory = path.join(projectRoot, "db", "integration");
 const requiredFiles = [
-  "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "matching-self-exclusion.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql",
+  "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "matching-self-exclusion.sql", "landlord-single-dispatch-authorization.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql",
   "accept-booking-a.sql", "accept-booking-b.sql", "marketplace-post-concurrency.sql",
   "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql",
   "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
@@ -29,6 +29,8 @@ assert.match(sources.get("marketplace-integration-setup.sql"), /invite_cleaner_b
 assert.match(sources.get("marketplace-integration-setup.sql"), /cleaning_request_photos[\s\S]*submit_cleaning_request/);
 assert.match(sources.get("matching-self-exclusion.sql"), /A landlord was recommended as a cleaner for their own request/);
 assert.match(sources.get("matching-self-exclusion.sql"), /The independent eligible cleaner was not recommended/);
+assert.match(sources.get("landlord-single-dispatch-authorization.sql"), /The Landlord one-Cleaner authorization was not stored exactly/);
+assert.match(sources.get("landlord-single-dispatch-authorization.sql"), /An unrelated Landlord authorized Cleaner matching/);
 assert.match(sources.get("facebook-data-deletion-behaviour.sql"), /Known Facebook subject did not enter one stable deletion queue item/);
 assert.match(sources.get("facebook-data-deletion-behaviour.sql"), /Unknown Facebook subject did not receive an honest completed confirmation/);
 assert.match(sources.get("facebook-data-deletion-behaviour.sql"), /Runtime role can read private Facebook deletion confirmation material/);
@@ -90,10 +92,10 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, matchingSelfExclusion: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, matchingSelfExclusion: true, landlordSingleDispatch: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql",
-  "matching-self-exclusion.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
+  "matching-self-exclusion.sql", "landlord-single-dispatch-authorization.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);
 for (const call of calls) {
