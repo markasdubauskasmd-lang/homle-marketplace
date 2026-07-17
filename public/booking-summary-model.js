@@ -38,6 +38,12 @@ export function formatBookingWindow(startValue, endValue) {
   return `${date}, ${time.format(start)}–${time.format(end)}`;
 }
 
+export function formatBookingMoment(value) {
+  const date = new Date(value || "");
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(date);
+}
+
 export function bookingSummaryPrimaryAction(booking, role) {
   if (role === "cleaner" && booking?.canRespond === true && booking.status === "pending-cleaner-acceptance") return Object.freeze({ kind: "respond", label: "Review request" });
   if (booking?.activeJobAvailable === true) return Object.freeze({ kind: "active-job", label: ["awaiting-review", "completed"].includes(booking.status) ? "View job record" : "Open active job" });
@@ -51,6 +57,8 @@ export function landlordBookingNextAction(bookings) {
   if (live) return Object.freeze({ kind: "active-job", booking: live, active: true });
   const payment = buckets.upcoming.find((booking) => booking.paymentStepAvailable === true);
   if (payment) return Object.freeze({ kind: "payment", booking: payment, active: false });
+  const paymentWaiting = buckets.upcoming.find((booking) => Boolean(booking.paymentStepOpensAt));
+  if (paymentWaiting) return Object.freeze({ kind: "payment-waiting", booking: paymentWaiting, active: false });
   const confirmed = buckets.upcoming.find((booking) => booking.activeJobAvailable === true);
   if (confirmed) return Object.freeze({ kind: "active-job", booking: confirmed, active: false });
   return Object.freeze({ kind: "none", booking: null, active: false });

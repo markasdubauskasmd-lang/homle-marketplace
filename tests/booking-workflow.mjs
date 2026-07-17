@@ -47,7 +47,7 @@ const fakeRepository = {
       responseDeadline: null, pricePence: cleanerView ? quote.cleanerPayPence : quote.customerPricePence,
       pricePerspective: cleanerView ? "cleaner-pay" : "customer-total", propertyName: "Riverside flat", propertyArea: "SW1A",
       cleaningType: "regular-domestic", taskCount: 4, counterpartyName: cleanerView ? "Landlord" : "Assigned Cleaner",
-      canRespond: false, activeJobAvailable: true, paymentStepAvailable: !cleanerView, respondedAt: now.toISOString(), confirmedAt: now.toISOString()
+      canRespond: false, activeJobAvailable: true, paymentAuthorizationReady: false, paymentStepAvailable: !cleanerView, paymentStepOpensAt: null, respondedAt: now.toISOString(), confirmedAt: now.toISOString()
     }];
   },
   async getInvitationCandidate(actor, suppliedRequestId, cleanerId) { calls.push({ kind: "candidate", actor, suppliedRequestId, cleanerId }); return candidate; },
@@ -63,7 +63,13 @@ const fakeRepository = {
 const workflow = createBookingWorkflowService(fakeRepository, { pricingPolicy: policy, clock: () => new Date(now) });
 const [landlordBookings, cleanerBookings] = await Promise.all([workflow.listParticipantBookings(landlord), workflow.listParticipantBookings(cleaner, { limit: "25" })]);
 assert(landlordBookings[0].pricePence === quote.customerPricePence && landlordBookings[0].pricePerspective === "customer-total" && landlordBookings[0].paymentStepAvailable === true, "The Landlord booking list lost the customer total or payment action.");
-assert(cleanerBookings[0].pricePence === quote.cleanerPayPence && cleanerBookings[0].pricePerspective === "cleaner-pay" && cleanerBookings[0].paymentStepAvailable === false && JSON.stringify(cleanerBookings).includes(String(quote.customerPricePence)) === false, "The Cleaner booking list exposed the customer total or lost the offered pay.");
+assert(cleanerBookings[0].pricePence === quote.cleanerPayPence && cleanerBookings[0].pricePerspective === "cleaner-pay" && !Object.hasOwn(cleanerBookings[0], "paymentStepAvailable") && !Object.hasOwn(cleanerBookings[0], "paymentAuthorizationReady") && !Object.hasOwn(cleanerBookings[0], "paymentStepOpensAt") && JSON.stringify(cleanerBookings).includes(String(quote.customerPricePence)) === false, "The Cleaner booking list exposed the customer total, Landlord payment state or lost the offered pay.");
+const paymentOpensAt = "2026-07-25T09:00:00.000Z";
+const earlyPaymentWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], paymentStepAvailable: false, paymentAuthorizationReady: false, paymentStepOpensAt: paymentOpensAt }]; } }, { pricingPolicy: policy });
+const [earlyPaymentBooking] = await earlyPaymentWorkflow.listParticipantBookings(landlord);
+assert(earlyPaymentBooking.paymentStepAvailable === false && earlyPaymentBooking.paymentAuthorizationReady === false && earlyPaymentBooking.paymentStepOpensAt === paymentOpensAt, "The participant projection lost the server-owned payment opening time.");
+const inconsistentPaymentWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], paymentAuthorizationReady: true, paymentStepAvailable: true }]; } }, { pricingPolicy: policy });
+assert(await rejects(() => inconsistentPaymentWorkflow.listParticipantBookings(landlord), "timing is inconsistent"), "Contradictory payment readiness escaped into the dashboard.");
 const invitation = await workflow.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId, customerPricePence: 1, cleanerPayPence: 1 });
 assert(calls.find((call) => call.kind === "invite").invitation.customerPricePence === quote.customerPricePence && calls.find((call) => call.kind === "invite").invitation.cleanerPayPence === quote.cleanerPayPence && invitation.status === "pending-cleaner-acceptance" && !Object.hasOwn(invitation, "cleanerPayPence"), "Browser economics reached the booking or private Cleaner pay leaked to a Landlord.");
 const accepted = await workflow.respondToInvitation(cleaner, bookingId, { decision: "accept", cleanerPayPence: 1 });
@@ -100,6 +106,7 @@ failure = null;
 
 const migration = await readFile(new URL("../db/migrations/009_booking_invitation_and_acceptance.sql", import.meta.url), "utf8");
 const summaryMigration = await readFile(new URL("../db/migrations/026_participant_booking_summaries.sql", import.meta.url), "utf8");
+const paymentWindowMigration = await readFile(new URL("../db/migrations/042_booking_payment_window_summary.sql", import.meta.url), "utf8");
 const expiryMigration = await readFile(new URL("../db/migrations/011_invitation_expiry_and_requeue.sql", import.meta.url), "utf8");
 const hardeningMigration = await readFile(new URL("../db/migrations/028_invitation_eligibility_hardening.sql", import.meta.url), "utf8");
 const serviceAreaRepairMigration = await readFile(new URL("../db/migrations/031_fix_invitation_service_area_lookup.sql", import.meta.url), "utf8");
@@ -109,6 +116,7 @@ for (const required of ["bookings_one_live_attempt_per_request_idx", "planned_co
 assert(grants.includes("respond_to_cleaner_invitation") && grants.includes("REVOKE INSERT, UPDATE, DELETE ON bookings"), "Runtime role can bypass audited booking transitions.");
 for (const required of ["list_my_booking_summaries", "booking.landlord_user_id = actor_id OR booking.cleaner_user_id = actor_id", "pricePerspective", "cleaner-pay", "customer-total", "substring", "propertyArea", "canRespond", "activeJobAvailable", "LIMIT maximum_results", "REVOKE ALL"]) assert(summaryMigration.includes(required), `Participant booking summaries omitted ${required}.`);
 assert(grants.includes("list_my_booking_summaries(integer)"), "The runtime cannot execute the participant-safe booking summary function.");
+for (const required of ["paymentAuthorizationReady", "paymentStepAvailable", "paymentStepOpensAt", "booking.scheduled_start_at <= now()+interval '5 days'", "payment.authorized_at BETWEEN booking.scheduled_start_at-interval '5 days'"]) assert(paymentWindowMigration.includes(required), `Payment-aware participant summary omitted ${required}.`);
 for (const required of ["expired_at", "change_source", "booking_history_actor_source_check", "request_history_actor_source_check", "expire_cleaner_invitation", "expire_due_cleaner_invitations", "FOR UPDATE SKIP LOCKED", "matching reopened", "cleaner-invitation-expired", "respond_to_cleaner_invitation_core", "booking.cleaner_user_id = actor_id"]) assert(expiryMigration.includes(required), `Invitation expiry migration omitted ${required}.`);
 assert(!grants.includes("expire_due_cleaner_invitations") && workerGrants.includes("tideway_worker") && workerGrants.includes("expire_due_cleaner_invitations(integer)") && workerGrants.includes("rolbypassrls"), "Invitation expiry is callable by the web role or lacks a restricted non-bypass worker boundary.");
 for (const required of ["pg_advisory_xact_lock", "account.account_status='active'", "cleaner-property-mismatch", "cleaner-outside-service-area", "cleaner-price-changed", "cleaner-has-overlapping-invitation", "service.pricing_model IN ('hourly','fixed')", "expected_cleaner_pay<>proposed_cleaner_pay_pence", "cleaner_availability", "tstzrange", "invite_cleaner_before_eligibility_hardening", "respond_to_cleaner_invitation_before_eligibility_hardening", "REVOKE ALL"]) assert(hardeningMigration.includes(required), `Invitation eligibility hardening omitted ${required}.`);

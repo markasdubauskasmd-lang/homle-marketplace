@@ -80,6 +80,10 @@ function participantBookingProjection(record, actor) {
   if (!scheduledStartAt || !scheduledEndAt || Date.parse(scheduledEndAt) <= Date.parse(scheduledStartAt)) throw new Error("Booking schedule is unavailable.");
   const propertyArea = summaryText(record.propertyArea ?? record.property_area, 4);
   if (propertyArea && !/^[A-Z]{1,2}[0-9][A-Z0-9]?$/.test(propertyArea)) throw new Error("Booking area is unavailable.");
+  const paymentAuthorizationReady = participantRole === "landlord" && status === "confirmed" && (record.paymentAuthorizationReady === true || record.payment_authorization_ready === true);
+  const paymentStepAvailable = participantRole === "landlord" && status === "confirmed" && (record.paymentStepAvailable === true || record.payment_step_available === true);
+  const paymentStepOpensAt = participantRole === "landlord" && status === "confirmed" ? optionalIso(record.paymentStepOpensAt ?? record.payment_step_opens_at, "payment opening time") : null;
+  if ((paymentAuthorizationReady && paymentStepAvailable) || (paymentStepOpensAt && (paymentAuthorizationReady || paymentStepAvailable))) throw new Error("Booking payment timing is inconsistent.");
   return Object.freeze({
     bookingId,
     participantRole,
@@ -96,7 +100,7 @@ function participantBookingProjection(record, actor) {
     counterpartyName: summaryText(record.counterpartyName ?? record.counterparty_name, 160, participantRole === "cleaner" ? "Landlord" : "Assigned Cleaner"),
     canRespond: participantRole === "cleaner" && status === "pending-cleaner-acceptance" && (record.canRespond === true || record.can_respond === true),
     activeJobAvailable: ["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "disputed"].includes(status) && (record.activeJobAvailable === true || record.active_job_available === true),
-    paymentStepAvailable: participantRole === "landlord" && status === "confirmed" && (record.paymentStepAvailable === true || record.payment_step_available === true),
+    ...(participantRole === "landlord" ? { paymentAuthorizationReady, paymentStepAvailable, paymentStepOpensAt } : {}),
     respondedAt: optionalIso(record.respondedAt ?? record.responded_at, "response time"),
     confirmedAt: optionalIso(record.confirmedAt ?? record.confirmed_at, "confirmation time")
   });

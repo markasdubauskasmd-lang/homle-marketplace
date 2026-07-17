@@ -2,7 +2,7 @@ import { checklistFromTranscript } from "./checklist.js";
 import { clearSelectedCleaner, readSelectedCleaner } from "./account-intent.js";
 import { isUkPostcode } from "./contact-validation.js";
 import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-5";
-import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260716-1";
+import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260717-1";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -537,6 +537,8 @@ function renderBookingCard(booking) {
     actions.append(payment);
   }
   card.append(heading, facts);
+  if (booking.paymentAuthorizationReady) card.append(element("p", "landlord-request-boundary", "Payment authorization is ready for this clean."));
+  else if (booking.paymentStepOpensAt) card.append(element("p", "landlord-request-boundary", `Payment opens ${formatBookingMoment(booking.paymentStepOpensAt)}. No action is needed yet.`));
   if (actions.childElementCount) card.append(actions);
   return card;
 }
@@ -575,6 +577,14 @@ function renderNextAction() {
     nextCopy.textContent = `${booking.propertyName || "Your property"} is ready for its booking-total authorization.`;
     nextLink.href = `/booking-payment?bookingId=${encodeURIComponent(booking.bookingId)}`;
     nextLink.textContent = "Authorize booking";
+    nextLink.hidden = false;
+    return;
+  }
+  if (bookingAction.kind === "payment-waiting") {
+    nextTitle.textContent = "Payment opens closer to your clean";
+    nextCopy.textContent = `You can authorize ${booking.propertyName || "your property"} from ${formatBookingMoment(booking.paymentStepOpensAt)}. No action is needed now.`;
+    nextLink.href = `/bookings/${booking.bookingId}`;
+    nextLink.textContent = "View confirmed booking";
     nextLink.hidden = false;
     return;
   }
