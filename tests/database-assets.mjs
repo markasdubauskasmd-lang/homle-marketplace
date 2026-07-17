@@ -33,6 +33,8 @@ try {
   assert.equal(repositoryResult.migrations.at(-1), "046_fix_social_identity_column_ambiguity.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 46\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
+  assert.doesNotMatch(deploymentVerifier, /to_regclass\('tideway_private\.schema_migrations'\) IS NOT NULL\s+AND EXISTS/, "Pre-upgrade verification statically referenced a ledger that may not exist yet.");
   const appBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("app_functions constant"), deploymentVerifier.indexOf("worker_functions constant"));
   const workerBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("worker_functions constant"), deploymentVerifier.indexOf("BEGIN", deploymentVerifier.indexOf("worker_functions constant")));
   const advertisedAppChecks = Number(deploymentVerifier.match(/'appFunctionChecks',\s*(\d+)/)?.[1]);
