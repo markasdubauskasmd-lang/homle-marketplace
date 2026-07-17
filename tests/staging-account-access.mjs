@@ -45,7 +45,7 @@ const identityRepository = Object.fromEntries([
   "resolveSocialIdentity", "completeRoleOnboarding", "listConnectedIdentities", "connectSocialIdentity", "verifyConnectedSocialIdentity", "disconnectSocialIdentity"
 ].map((method) => [method, async () => { identityCalls.push(method); throw new Error("blocked identity repository call"); }]));
 const identity = createIdentityService(identityRepository, { accountAccess: restricted });
-assert.throws(() => identity.socialSignIn("google", { subject: "google-unapproved", email: "unapproved@invalid.example", emailVerified: true, displayName: "Unknown" }), /unavailable/);
+assert.throws(() => identity.socialSignIn("google", { subject: "google-unapproved", email: "unapproved@invalid.example", emailVerified: true, displayName: "Unknown" }), (error) => error instanceof TypeError && error.code === "staging-account-access-unavailable" && /unavailable/.test(error.message));
 assert.deepEqual(identityCalls, [], "A disallowed Google account reached social account resolution.");
 
 const facebookCalls = [];

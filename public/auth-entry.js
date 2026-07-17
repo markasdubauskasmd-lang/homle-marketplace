@@ -402,6 +402,8 @@ try {
       showFeedback("Facebook did not provide an email address. Use email sign-in, or allow email access in Facebook and try again.", "error");
     } else if (socialResult === "facebook-failed") {
       showFeedback("Facebook sign-in could not be completed. No Homle session was created; please try again.", "error");
+    } else if (socialResult === "staging-access-unavailable") {
+      showFeedback("This preview is limited to approved test accounts. This sign-in account is not on the approved list, so no Homle account or session was created. Ask the Homle owner to approve it, then try again.", "error");
     } else if (socialResult === "rate-limited") {
       showFeedback("Too many sign-in attempts were made. Please wait before trying again.", "error");
     }

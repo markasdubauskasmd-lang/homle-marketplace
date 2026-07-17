@@ -284,11 +284,12 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
             sendRedirect(response, 303, `${destination}#${fragment}`, [google.clearCookie, session.setCookie]);
           } catch (error) {
             const rateLimited = error?.statusCode === 429;
+            const stagingAccessUnavailable = error?.code === "staging-account-access-unavailable";
             if (!rateLimited && !(error instanceof TypeError)) onUnexpectedError(error);
             const linking = providerLink.has(header(request, "cookie"));
             const steppingUp = providerLink.hasStepUpFlow(header(request, "cookie"));
             const accountFlow = linking || steppingUp;
-            const fragment = new URLSearchParams({ [accountFlow ? "provider" : "social"]: rateLimited ? "rate-limited" : "google-failed" });
+            const fragment = new URLSearchParams({ [accountFlow ? "provider" : "social"]: rateLimited ? "rate-limited" : stagingAccessUnavailable && !accountFlow ? "staging-access-unavailable" : "google-failed" });
             sendRedirect(response, 303, `${accountFlow ? "/settings" : "/login"}#${fragment}`, [google.clearCookie, ...(linking ? [providerLink.clearCookie] : []), ...(steppingUp ? [providerLink.clearStepUpFlowCookie] : [])]);
           }
           return true;
@@ -325,6 +326,8 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
             } else if (result.verificationRequired) {
               await privateDelivery(result.emailDelivery, claims.flowIntent);
               sendRedirect(response, 303, "/login#social=facebook-verification-sent", [facebook.clearCookie]);
+            } else if (result.reason === "staging-access-unavailable") {
+              sendRedirect(response, 303, "/login#social=staging-access-unavailable", [facebook.clearCookie]);
             } else {
               sendRedirect(response, 303, "/login#social=facebook-email-unavailable", [facebook.clearCookie]);
             }

@@ -71,7 +71,7 @@ export function createIdentityService(repository, options = {}) {
   return {
     socialSignIn(provider, verifiedClaims) {
       const normalized = normalizedVerifiedSocialClaims(provider, verifiedClaims);
-      if (!accountAccess.allows(normalized.email)) throw new TypeError("Social sign-in is unavailable for this account.");
+      if (!accountAccess.allows(normalized.email)) throw Object.assign(new TypeError("Social sign-in is unavailable for this account."), { code: "staging-account-access-unavailable" });
       return repository.resolveSocialIdentity(provider, normalized);
     },
     completeOnboarding(actor, role) {

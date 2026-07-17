@@ -62,8 +62,9 @@ const credentialService = {
   async requestPasswordReset(email) { calls.push({ kind: "reset-request", email }); return { accepted: true, emailDelivery: email === "owner@example.com" ? { kind: "password-reset", recipient: email, token: "reset-token-private", expiresAt: "2026-07-15T16:00:00.000Z" } : null }; },
   async resetPassword(token, password) { calls.push({ kind: "reset-confirm", token, password }); return resetResult; }
 };
+let socialSignInError = null;
 const identityService = {
-  async socialSignIn(provider, claims) { calls.push({ kind: "social-sign-in", provider, claims }); return { user_id: currentContext.actor.userId, email: claims.email, email_verified_at: "2026-07-15T12:00:00.000Z", display_name: claims.displayName, selected_role: null, roles: [] }; },
+  async socialSignIn(provider, claims) { calls.push({ kind: "social-sign-in", provider, claims }); if (socialSignInError) throw socialSignInError; return { user_id: currentContext.actor.userId, email: claims.email, email_verified_at: "2026-07-15T12:00:00.000Z", display_name: claims.displayName, selected_role: null, roles: [] }; },
   async completeOnboarding(actor, role) { calls.push({ kind: "onboarding", actor, role }); return { user_id: actor.userId, selected_role: role, roles: [role] }; },
   async connectedProviders(actor) { calls.push({ kind: "connected-providers", actor }); return connectedProviders; },
   async connectProvider(actor, provider, claims) { calls.push({ kind: "connect-provider", actor, provider, claims }); connectedProviders.push({ provider, connectedAt: "2026-07-16T12:00:00.000Z", lastUsedAt: null }); return { provider }; },
@@ -185,6 +186,10 @@ assert(googleCallback.response.statusCode === 303 && googleCallback.response.hea
 const googleCleanerStart = await dispatch(router, "GET", "/api/marketplace/auth/google/start?intent=work", undefined, { "user-agent": "Example Browser" });
 const googleCleanerCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=cleaner-code&state=opaque", undefined, { cookie: "tideway_google_flow=signed", "user-agent": "Example Browser" });
 assert(googleCleanerStart.response.statusCode === 302 && calls.some((call) => call.kind === "google-start" && call.intent === "work") && googleCleanerCallback.response.statusCode === 303 && googleCleanerCallback.response.headers.Location.startsWith("/onboarding#social=google&csrfToken=") && googleCleanerCallback.response.headers.Location.endsWith("&intent=work"), "Google account creation did not preserve the Cleaner profile action through its signed server flow.");
+socialSignInError = Object.assign(new TypeError("private staging access result"), { code: "staging-account-access-unavailable" });
+const unapprovedGoogleCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=unapproved&state=opaque", undefined, { cookie: "tideway_google_flow=signed" });
+assert(unapprovedGoogleCallback.response.statusCode === 303 && unapprovedGoogleCallback.response.headers.Location === "/login#social=staging-access-unavailable" && unapprovedGoogleCallback.response.headers["Set-Cookie"][0].includes("Max-Age=0") && !unapprovedGoogleCallback.response.headers.Location.includes("private staging access result"), "A verified but unapproved Google test account received a vague or private callback failure instead of the safe staging result.");
+socialSignInError = null;
 googleCompletionError = new TypeError("private provider rejection");
 const failedGoogleCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=bad&state=opaque", undefined, { cookie: "tideway_google_flow=signed" });
 assert(failedGoogleCallback.response.statusCode === 303 && failedGoogleCallback.response.headers.Location === "/login#social=google-failed" && failedGoogleCallback.response.headers["Set-Cookie"][0].includes("Max-Age=0") && !failedGoogleCallback.response.headers.Location.includes("private provider rejection"), "Rejected Google callback leaked provider details or retained its one-time flow cookie.");
@@ -203,6 +208,9 @@ assert(invalidFacebookVerification.response.statusCode === 400 && validFacebookV
 facebookBeginResult = { authenticated: true, account: facebookVerifyResult.account };
 const facebookRepeat = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=repeat&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed", "user-agent": "Example Browser" });
 assert(facebookRepeat.response.statusCode === 303 && facebookRepeat.response.headers.Location.startsWith("/onboarding#social=facebook&csrfToken=") && facebookRepeat.response.headers.Location.endsWith("&intent=book") && facebookRepeat.response.headers["Set-Cookie"].length === 2, "A previously verified Facebook subject was forced through mailbox verification again, lost booking intent or did not receive a Homle session.");
+facebookBeginResult = { authenticated: false, verificationRequired: false, reason: "staging-access-unavailable", emailDelivery: null };
+const unapprovedFacebook = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=unapproved&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed" });
+assert(unapprovedFacebook.response.headers.Location === "/login#social=staging-access-unavailable", "A verified but unapproved Facebook test account received a vague sign-in failure.");
 facebookBeginResult = { authenticated: false, verificationRequired: false, reason: "facebook-email-unavailable", emailDelivery: null };
 const facebookNoEmail = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=no-email&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed" });
 assert(facebookNoEmail.response.headers.Location === "/login#social=facebook-email-unavailable", "Facebook missing-email handling created an account or lost its safe fallback.");
