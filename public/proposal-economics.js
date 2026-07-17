@@ -1,10 +1,12 @@
 (function attachProposalEconomics(globalObject) {
-  const version = 1;
+  const version = 2;
   const assumptionFields = [
     "labourOnCostPercent",
     "paymentFeePercent",
     "paymentFeeFixed",
     "travelCostPerJob",
+    "travelCostPerKm",
+    "travelDistanceMultiplier",
     "suppliesCostPerJob",
     "riskContingencyPercent"
   ];
@@ -19,20 +21,23 @@
   }
 
   function normaliseAssumptions(assumptions = {}) {
-    return Object.fromEntries(assumptionFields.map((field) => [field, Math.max(0, finiteNumber(assumptions[field]))]));
+    return Object.fromEntries(assumptionFields.map((field) => [field, field === "travelDistanceMultiplier"
+      ? Math.max(1, finiteNumber(assumptions[field], 1))
+      : Math.max(0, finiteNumber(assumptions[field]))]));
   }
 
-  function calculateProposalEconomics({ hours, customerRate, cleanerRate, additionalCosts = 0, assumptions = {} } = {}) {
+  function calculateProposalEconomics({ hours, customerRate, cleanerRate, additionalCosts = 0, travelDistanceKm = 0, assumptions = {} } = {}) {
     const safeHours = Math.max(0, finiteNumber(hours));
     const safeCustomerRate = Math.max(0, finiteNumber(customerRate));
     const safeCleanerRate = Math.max(0, finiteNumber(cleanerRate));
     const safeAdditionalCosts = Math.max(0, finiteNumber(additionalCosts));
+    const safeTravelDistanceKm = Math.max(0, finiteNumber(travelDistanceKm));
     const costAssumptions = normaliseAssumptions(assumptions);
     const customerTotal = moneyValue(safeHours * safeCustomerRate);
     const cleanerPay = moneyValue(safeHours * safeCleanerRate);
     const labourOnCosts = moneyValue(cleanerPay * costAssumptions.labourOnCostPercent / 100);
     const paymentFees = moneyValue(customerTotal * costAssumptions.paymentFeePercent / 100 + costAssumptions.paymentFeeFixed);
-    const travelCosts = moneyValue(costAssumptions.travelCostPerJob);
+    const travelCosts = moneyValue(costAssumptions.travelCostPerJob + safeTravelDistanceKm * costAssumptions.travelCostPerKm * costAssumptions.travelDistanceMultiplier);
     const suppliesCosts = moneyValue(costAssumptions.suppliesCostPerJob);
     const riskContingency = moneyValue(customerTotal * costAssumptions.riskContingencyPercent / 100);
     const otherCosts = moneyValue(safeAdditionalCosts);
@@ -51,14 +56,16 @@
       nonCleanerCosts,
       contribution,
       marginPercent,
+      travelDistanceKm: safeTravelDistanceKm,
       costAssumptions
     };
   }
 
-  function minimumSafeCustomerRate({ hours, cleanerRate, additionalCosts = 0, targetMarginPercent, assumptions = {} } = {}) {
+  function minimumSafeCustomerRate({ hours, cleanerRate, additionalCosts = 0, travelDistanceKm = 0, targetMarginPercent, assumptions = {} } = {}) {
     const safeHours = finiteNumber(hours);
     const safeCleanerRate = finiteNumber(cleanerRate);
     const safeAdditionalCosts = finiteNumber(additionalCosts);
+    const safeTravelDistanceKm = finiteNumber(travelDistanceKm);
     const safeTargetMargin = finiteNumber(targetMarginPercent);
     const costAssumptions = normaliseAssumptions(assumptions);
     const percentageCosts = (costAssumptions.paymentFeePercent + costAssumptions.riskContingencyPercent) / 100;
@@ -66,6 +73,7 @@
     const inputsValid = safeHours > 0
       && safeCleanerRate > 0
       && safeAdditionalCosts >= 0
+      && safeTravelDistanceKm >= 0
       && safeTargetMargin > 0
       && safeTargetMargin < 100
       && targetFactor > 0;
@@ -76,6 +84,7 @@
       customerRate: 0,
       cleanerRate: safeCleanerRate,
       additionalCosts: safeAdditionalCosts,
+      travelDistanceKm: safeTravelDistanceKm,
       assumptions: costAssumptions
     });
     const fixedCosts = zeroRevenue.cleanerPay
@@ -95,6 +104,7 @@
         customerRate,
         cleanerRate: safeCleanerRate,
         additionalCosts: safeAdditionalCosts,
+        travelDistanceKm: safeTravelDistanceKm,
         assumptions: costAssumptions
       });
       if (economics.contribution > 0 && economics.marginPercent + 1e-9 >= safeTargetMargin) {

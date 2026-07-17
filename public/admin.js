@@ -117,11 +117,14 @@ function proposalEconomicsPanel(form, submit, minimumRequiredHours) {
   const customerRateInput = form.elements.customerRate;
   const cleanerRateInput = form.elements.cleanerRate;
   const otherCostsInput = form.elements.otherCosts;
+  const travelDistanceInput = form.elements.travelDistanceKm;
   const assumptions = {
     labourOnCostPercent: Number(state.config.labourOnCostPercent) || 0,
     paymentFeePercent: Number(state.config.paymentFeePercent) || 0,
     paymentFeeFixed: Number(state.config.paymentFeeFixed) || 0,
     travelCostPerJob: Number(state.config.travelCostPerJob) || 0,
+    travelCostPerKm: Number(state.config.travelCostPerKm) || 0,
+    travelDistanceMultiplier: Number(state.config.travelDistanceMultiplier) || 1,
     suppliesCostPerJob: Number(state.config.suppliesCostPerJob) || 0,
     riskContingencyPercent: Number(state.config.riskContingencyPercent) || 0
   };
@@ -132,8 +135,11 @@ function proposalEconomicsPanel(form, submit, minimumRequiredHours) {
     const customerRate = Number(customerRateInput.value);
     const cleanerRate = Number(cleanerRateInput.value);
     const additionalCosts = Number(otherCostsInput.value || 0);
-    const validInputs = [hours, customerRate, cleanerRate, additionalCosts].every(Number.isFinite)
-      && hours >= minimumRequiredHours && customerRate > 0 && cleanerRate > 0 && additionalCosts >= 0;
+    const travelDistanceKm = Number(travelDistanceInput.value || 0);
+    const validInputs = [hours, customerRate, cleanerRate, additionalCosts, travelDistanceKm].every(Number.isFinite)
+      && hours >= minimumRequiredHours && customerRate > 0 && cleanerRate > 0 && additionalCosts >= 0
+      && travelDistanceKm >= 0 && travelDistanceKm <= 500
+      && (assumptions.travelCostPerKm === 0 || travelDistanceKm > 0);
     useSafeRate.hidden = true;
     panel.classList.remove("proposal-economics-safe", "proposal-economics-blocked");
     if (!proposalEconomics || state.config.variableCostsConfirmed !== true) {
@@ -145,17 +151,19 @@ function proposalEconomicsPanel(form, submit, minimumRequiredHours) {
     if (!validInputs) {
       submit.disabled = true;
       panel.classList.add("proposal-economics-blocked");
-      guidance.textContent = `Use at least ${minimumRequiredHours} hour${minimumRequiredHours === 1 ? "" : "s"}, with positive customer and Cleaner rates.`;
+      guidance.textContent = assumptions.travelCostPerKm > 0 && travelDistanceKm <= 0
+        ? "Enter the verified one-way Cleaner travel distance before preparing this price."
+        : `Use at least ${minimumRequiredHours} hour${minimumRequiredHours === 1 ? "" : "s"}, with positive customer and Cleaner rates.`;
       return;
     }
-    const economics = proposalEconomics.calculateProposalEconomics({ hours, customerRate, cleanerRate, additionalCosts, assumptions });
+    const economics = proposalEconomics.calculateProposalEconomics({ hours, customerRate, cleanerRate, additionalCosts, travelDistanceKm, assumptions });
     metricElements.customerTotal.textContent = money.format(economics.customerTotal);
     metricElements.cleanerPay.textContent = money.format(economics.cleanerPay);
     metricElements.nonCleanerCosts.textContent = money.format(economics.nonCleanerCosts);
     metricElements.contribution.textContent = money.format(economics.contribution);
     metricElements.marginPercent.textContent = `${economics.marginPercent.toFixed(1)}%`;
     const marginSafe = targetMarginPercent > 0 && economics.contribution > 0 && economics.marginPercent + 1e-9 >= targetMarginPercent;
-    const safeRate = targetMarginPercent > 0 ? proposalEconomics.minimumSafeCustomerRate({ hours, cleanerRate, additionalCosts, targetMarginPercent, assumptions }) : { available: false };
+    const safeRate = targetMarginPercent > 0 ? proposalEconomics.minimumSafeCustomerRate({ hours, cleanerRate, additionalCosts, travelDistanceKm, targetMarginPercent, assumptions }) : { available: false };
     submit.disabled = !marginSafe;
     panel.classList.add(marginSafe ? "proposal-economics-safe" : "proposal-economics-blocked");
     if (marginSafe) {
@@ -175,7 +183,7 @@ function proposalEconomicsPanel(form, submit, minimumRequiredHours) {
       guidance.textContent = "No target-safe price could be calculated from these inputs. Review the hours, Cleaner pay and confirmed costs.";
     }
   };
-  for (const input of [hoursInput, customerRateInput, cleanerRateInput, otherCostsInput]) input.addEventListener("input", refresh);
+  for (const input of [hoursInput, customerRateInput, cleanerRateInput, otherCostsInput, travelDistanceInput]) input.addEventListener("input", refresh);
   refresh();
   return { panel, refresh };
 }
@@ -193,9 +201,12 @@ function showProposalForm(record, match, target) {
     proposalField("Estimated hours", "estimatedHours", "number", minimumRequiredHours),
     proposalField("Customer rate per hour (£)", "customerRate", "number", state.config.customerHourlyRate),
     proposalField("Cleaner pay per hour (£)", "cleanerRate", "number", state.config.cleanerHourlyPay),
-    proposalField("Additional job costs (£)", "otherCosts", "number", "0")
+    proposalField("Additional job costs (£)", "otherCosts", "number", "0"),
+    proposalField("One-way Cleaner travel (km)", "travelDistanceKm", "number", state.config.pricingTravelDistanceKm)
   );
   form.elements.estimatedHours.min = String(minimumRequiredHours);
+  form.elements.travelDistanceKm.max = "500";
+  form.elements.travelDistanceKm.step = "0.1";
   const noteLabel = document.createElement("label");
   noteLabel.append(document.createTextNode("Internal proposal note"));
   const note = document.createElement("textarea");
@@ -2574,6 +2585,7 @@ function renderConfigPreview(result, valid) {
   if (economics.available) {
     economicsPanel.querySelector("[data-configured-job-total]").textContent = `${money.format(economics.configured.customerTotal)} at ${money.format(economics.configuredCustomerRate)}/hour for ${economics.minimumHours} hours`;
     economicsPanel.querySelector("[data-configured-cleaner-pay]").textContent = money.format(economics.configured.cleanerPay);
+    economicsPanel.querySelector("[data-configured-travel-cost]").textContent = `${money.format(economics.configured.travelCosts)} at ${Number(economics.pricingTravelDistanceKm).toFixed(1)} km one way`;
     economicsPanel.querySelector("[data-configured-job-costs]").textContent = money.format(economics.configured.nonCleanerCosts);
     economicsPanel.querySelector("[data-configured-contribution]").textContent = money.format(economics.configured.contribution);
     economicsPanel.querySelector("[data-configured-margin]").textContent = `${Number(economics.configured.marginPercent).toFixed(1)}%`;
@@ -2614,30 +2626,33 @@ configForm.addEventListener("input", () => { configPreviewPanel.hidden = true; }
 configForm.addEventListener("change", () => { configPreviewPanel.hidden = true; });
 
 const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
-const quoteFields = ["#quote-hours", "#quote-customer-rate", "#quote-cleaner-rate", "#quote-costs"].map((selector) => document.querySelector(selector));
+const quoteFields = ["#quote-hours", "#quote-customer-rate", "#quote-cleaner-rate", "#quote-costs", "#quote-travel-distance"].map((selector) => document.querySelector(selector));
 
 function syncQuoteDefaults(config = {}) {
-  const defaults = [config.minimumHours, config.customerHourlyRate, config.cleanerHourlyPay, 0];
+  const defaults = [config.minimumHours, config.customerHourlyRate, config.cleanerHourlyPay, 0, config.pricingTravelDistanceKm];
   quoteFields.forEach((field, index) => {
     if (!field.value && Number(defaults[index]) > 0) field.value = String(defaults[index]);
   });
 }
 
 function updateQuoteCalculator() {
-  const [hours, customerRate, cleanerRate, additionalCosts] = quoteFields.map((field) => Math.max(0, Number(field.value) || 0));
+  const [hours, customerRate, cleanerRate, additionalCosts, travelDistanceKm] = quoteFields.map((field) => Math.max(0, Number(field.value) || 0));
   const labourOnCostPercent = Math.max(0, Number(state.config.labourOnCostPercent) || 0);
   const paymentFeePercent = Math.max(0, Number(state.config.paymentFeePercent) || 0);
   const paymentFeeFixed = Math.max(0, Number(state.config.paymentFeeFixed) || 0);
-  const travelCosts = Math.max(0, Number(state.config.travelCostPerJob) || 0);
+  const travelCostPerJob = Math.max(0, Number(state.config.travelCostPerJob) || 0);
+  const travelCostPerKm = Math.max(0, Number(state.config.travelCostPerKm) || 0);
+  const travelDistanceMultiplier = Math.max(1, Number(state.config.travelDistanceMultiplier) || 1);
   const suppliesCosts = Math.max(0, Number(state.config.suppliesCostPerJob) || 0);
   const riskContingencyPercent = Math.max(0, Number(state.config.riskContingencyPercent) || 0);
-  const assumptions = { labourOnCostPercent, paymentFeePercent, paymentFeeFixed, travelCostPerJob: travelCosts, suppliesCostPerJob: suppliesCosts, riskContingencyPercent };
-  const exact = globalThis.TidewayProposalEconomics.calculateProposalEconomics({ hours, customerRate, cleanerRate, additionalCosts, assumptions });
+  const assumptions = { labourOnCostPercent, paymentFeePercent, paymentFeeFixed, travelCostPerJob, travelCostPerKm, travelDistanceMultiplier, suppliesCostPerJob: suppliesCosts, riskContingencyPercent };
+  const exact = globalThis.TidewayProposalEconomics.calculateProposalEconomics({ hours, customerRate, cleanerRate, additionalCosts, travelDistanceKm, assumptions });
   const {
     customerTotal,
     cleanerPay,
     labourOnCosts,
     paymentFees,
+    travelCosts,
     riskContingency,
     nonCleanerCosts: includedCosts,
     contribution,
@@ -2654,7 +2669,7 @@ function updateQuoteCalculator() {
   const guidance = document.querySelector("#quote-guidance");
   const minimumMargin = Math.max(0, Number(state.config.minimumContributionMarginPercent) || 0);
   const minimumHours = Math.max(0, Number(state.config.minimumHours) || 0);
-  const safeRate = globalThis.TidewayProposalEconomics.minimumSafeCustomerRate({ hours, cleanerRate, additionalCosts, targetMarginPercent: minimumMargin, assumptions });
+  const safeRate = globalThis.TidewayProposalEconomics.minimumSafeCustomerRate({ hours, cleanerRate, additionalCosts, travelDistanceKm, targetMarginPercent: minimumMargin, assumptions });
   const targetFactor = safeRate.targetFactor || 0;
   const requiredRate = safeRate.available ? safeRate.customerRate : 0;
   const requiredTotal = safeRate.available ? safeRate.customerTotal : 0;
@@ -2663,6 +2678,9 @@ function updateQuoteCalculator() {
   guidance.className = "quote-guidance";
   if (!customerTotal) {
     guidance.textContent = "Enter the expected hours and rates before promising a price.";
+  } else if (travelCostPerKm > 0 && travelDistanceKm <= 0) {
+    guidance.textContent = "Enter the verified one-way Cleaner travel distance before relying on this quote.";
+    guidance.classList.add("quote-danger");
   } else if (minimumHours > 0 && hours < minimumHours) {
     guidance.textContent = `The ${hours}-hour estimate is below the ${minimumHours}-hour minimum. Increase the scoped hours before preparing a proposal.`;
     guidance.classList.add("quote-danger");

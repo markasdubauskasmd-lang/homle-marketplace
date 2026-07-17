@@ -13,7 +13,7 @@ const readiness = {
     identity: ["legal owner name", "business structure"],
     contact: ["valid support email", "valid public HTTPS website origin"],
     pilotArea: [],
-    economics: ["positive customer hourly rate", "founder contribution-margin floor"],
+    economics: ["positive customer hourly rate", "founder contribution-margin floor", "conservative travel distance for distance-based pricing"],
     insurance: ["insurance marked active and verified"],
     payments: ["payment provider marked live and verified"],
     operatingRules: ["decided cleaner engagement model"]

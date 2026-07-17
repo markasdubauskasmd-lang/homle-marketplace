@@ -1034,7 +1034,11 @@ async function auditDataIntegrity() {
 
   if (configStatus === "ok" && parsedConfig) {
     const numericFields = ["customerHourlyRate", "cleanerHourlyPay", "labourOnCostPercent", "minimumHours", "minimumContributionMarginPercent", "paymentFeePercent", "paymentFeeFixed", "travelCostPerJob", "suppliesCostPerJob", "riskContingencyPercent", "customerQuoteValidityHours", "cleanerOpportunityValidityHours", "inactiveMediaRetentionDays", "completedMediaRetentionDays"];
+    const travelCostPerKm = parsedConfig.travelCostPerKm ?? 0;
+    const travelDistanceMultiplier = parsedConfig.travelDistanceMultiplier ?? 1;
+    const pricingTravelDistanceKm = parsedConfig.pricingTravelDistanceKm ?? 0;
     const valid = numericFields.every((field) => hasFiniteNumber(parsedConfig, field))
+      && [travelCostPerKm, travelDistanceMultiplier, pricingTravelDistanceKm].every((value) => typeof value === "number" && Number.isFinite(value))
       && parsedConfig.customerHourlyRate >= 0 && parsedConfig.customerHourlyRate <= maxProposalHourlyRate
       && parsedConfig.cleanerHourlyPay >= 0 && parsedConfig.cleanerHourlyPay <= maxProposalHourlyRate
       && parsedConfig.labourOnCostPercent >= 0 && parsedConfig.labourOnCostPercent <= 100
@@ -1043,6 +1047,10 @@ async function auditDataIntegrity() {
       && parsedConfig.paymentFeePercent >= 0 && parsedConfig.paymentFeePercent <= 20
       && parsedConfig.paymentFeeFixed >= 0 && parsedConfig.paymentFeeFixed <= 20
       && parsedConfig.travelCostPerJob >= 0 && parsedConfig.travelCostPerJob <= 200
+      && travelCostPerKm >= 0 && travelCostPerKm <= 20
+      && travelDistanceMultiplier >= 1 && travelDistanceMultiplier <= 5
+      && pricingTravelDistanceKm >= 0 && pricingTravelDistanceKm <= 500
+      && (travelCostPerKm === 0 || pricingTravelDistanceKm > 0)
       && parsedConfig.suppliesCostPerJob >= 0 && parsedConfig.suppliesCostPerJob <= 200
       && parsedConfig.riskContingencyPercent >= 0 && parsedConfig.riskContingencyPercent <= 50
       && (!parsedConfig.customerQuoteValidityHours || (Number.isInteger(parsedConfig.customerQuoteValidityHours) && parsedConfig.customerQuoteValidityHours >= 1 && parsedConfig.customerQuoteValidityHours <= 168))
@@ -1055,16 +1063,26 @@ async function auditDataIntegrity() {
   const proposalFile = parsedFiles.get("match-proposals.ndjson");
   if (proposalFile?.valid) {
     const amountFields = ["customerTotal", "cleanerPay", "labourOnCosts", "paymentFees", "travelCosts", "suppliesCosts", "riskContingency", "otherCosts", "nonCleanerCosts", "contribution"];
-    const assumptionFields = ["labourOnCostPercent", "paymentFeePercent", "paymentFeeFixed", "travelCostPerJob", "suppliesCostPerJob", "riskContingencyPercent"];
+    const legacyAssumptionFields = ["labourOnCostPercent", "paymentFeePercent", "paymentFeeFixed", "travelCostPerJob", "suppliesCostPerJob", "riskContingencyPercent"];
+    const distanceAssumptionFields = ["travelCostPerKm", "travelDistanceMultiplier"];
     for (const { record, line } of proposalFile.records) {
+      const modelVersion = record.economicsModelVersion === undefined ? 1 : Number(record.economicsModelVersion);
+      const supportedModel = Number.isInteger(modelVersion) && [1, proposalEconomicsModel.version].includes(modelVersion);
+      const distancePriced = modelVersion === proposalEconomicsModel.version;
       const baseFieldsValid = ["estimatedHours", "customerRate", "cleanerRate", "marginPercent", ...amountFields].every((field) => hasFiniteNumber(record, field));
-      const assumptionsValid = assumptionFields.every((field) => hasFiniteNumber(record.costAssumptions, field));
+      const assumptionsValid = legacyAssumptionFields.every((field) => hasFiniteNumber(record.costAssumptions, field))
+        && (!distancePriced || distanceAssumptionFields.every((field) => hasFiniteNumber(record.costAssumptions, field)));
+      const distanceValid = !distancePriced || (hasFiniteNumber(record, "travelDistanceKm")
+        && record.travelDistanceKm >= 0 && record.travelDistanceKm <= 500
+        && record.costAssumptions.travelCostPerKm >= 0 && record.costAssumptions.travelCostPerKm <= 20
+        && record.costAssumptions.travelDistanceMultiplier >= 1 && record.costAssumptions.travelDistanceMultiplier <= 5
+        && (record.costAssumptions.travelCostPerKm === 0 || record.travelDistanceKm > 0));
       let consistent = false;
-      if (baseFieldsValid && assumptionsValid) {
-        const expected = calculateProposalEconomics(record.estimatedHours, record.customerRate, record.cleanerRate, record.otherCosts, record.costAssumptions);
+      if (supportedModel && baseFieldsValid && assumptionsValid && distanceValid) {
+        const expected = calculateProposalEconomics(record.estimatedHours, record.customerRate, record.cleanerRate, record.otherCosts, record.costAssumptions, distancePriced ? record.travelDistanceKm : 0);
         consistent = amountFields.every((field) => moneyMatches(record[field], expected[field])) && Math.abs(record.marginPercent - expected.marginPercent) < 0.000001;
       }
-      const withinLimits = baseFieldsValid
+      const withinLimits = supportedModel && baseFieldsValid && distanceValid
         && record.estimatedHours > 0 && record.estimatedHours <= maxProposalHours
         && record.customerRate > 0 && record.customerRate <= maxProposalHourlyRate
         && record.cleanerRate > 0 && record.cleanerRate <= maxProposalHourlyRate
@@ -1608,6 +1626,8 @@ function costAssumptionsFromConfig(config) {
     paymentFeePercent: Number(config.paymentFeePercent) || 0,
     paymentFeeFixed: Number(config.paymentFeeFixed) || 0,
     travelCostPerJob: Number(config.travelCostPerJob) || 0,
+    travelCostPerKm: Number(config.travelCostPerKm) || 0,
+    travelDistanceMultiplier: Number(config.travelDistanceMultiplier) || 1,
     suppliesCostPerJob: Number(config.suppliesCostPerJob) || 0,
     riskContingencyPercent: Number(config.riskContingencyPercent) || 0
   };
@@ -1620,22 +1640,29 @@ function costAssumptionsConfirmed(config) {
     && costs.paymentFeePercent >= 0 && costs.paymentFeePercent <= 20
     && costs.paymentFeeFixed >= 0 && costs.paymentFeeFixed <= 20
     && costs.travelCostPerJob >= 0 && costs.travelCostPerJob <= 200
+    && costs.travelCostPerKm >= 0 && costs.travelCostPerKm <= 20
+    && costs.travelDistanceMultiplier >= 1 && costs.travelDistanceMultiplier <= 5
+    && (costs.travelCostPerKm === 0 || (Number(config.pricingTravelDistanceKm) > 0 && Number(config.pricingTravelDistanceKm) <= 500))
     && costs.suppliesCostPerJob >= 0 && costs.suppliesCostPerJob <= 200
     && costs.riskContingencyPercent >= 0 && costs.riskContingencyPercent <= 50;
 }
 
 function proposalCostModelCurrent(proposal, config) {
   const expected = costAssumptionsFromConfig(config);
-  return Boolean(proposal.costAssumptions) && Object.keys(expected).every((key) => Number(proposal.costAssumptions[key]) === expected[key]);
+  return Boolean(proposal.costAssumptions) && Object.keys(expected).every((key) => {
+    const fallback = key === "travelDistanceMultiplier" ? 1 : 0;
+    return Number(proposal.costAssumptions[key] ?? fallback) === expected[key];
+  });
 }
 
-function calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, additionalCosts, config) {
+function calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, additionalCosts, config, travelDistanceKm = 0) {
   const costAssumptions = costAssumptionsFromConfig(config);
   return proposalEconomicsModel.calculateProposalEconomics({
     hours: estimatedHours,
     customerRate,
     cleanerRate,
     additionalCosts,
+    travelDistanceKm,
     assumptions: costAssumptions
   });
 }
@@ -1645,6 +1672,7 @@ function launchEconomicsRehearsal(config) {
   const configuredCustomerRate = Number(config.customerHourlyRate);
   const cleanerHourlyPay = Number(config.cleanerHourlyPay);
   const targetMarginPercent = Number(config.minimumContributionMarginPercent);
+  const pricingTravelDistanceKm = Number(config.pricingTravelDistanceKm) || 0;
   const assumptions = costAssumptionsFromConfig(config);
   const targetFactor = 1 - ((assumptions.paymentFeePercent + assumptions.riskContingencyPercent + targetMarginPercent) / 100);
   const assumptionsSupported = Object.values(assumptions).every(Number.isFinite)
@@ -1652,6 +1680,10 @@ function launchEconomicsRehearsal(config) {
     && assumptions.paymentFeePercent <= 20
     && assumptions.paymentFeeFixed <= 20
     && assumptions.travelCostPerJob <= 200
+    && assumptions.travelCostPerKm <= 20
+    && assumptions.travelDistanceMultiplier >= 1
+    && assumptions.travelDistanceMultiplier <= 5
+    && (assumptions.travelCostPerKm === 0 || (pricingTravelDistanceKm > 0 && pricingTravelDistanceKm <= 500))
     && assumptions.suppliesCostPerJob <= 200
     && assumptions.riskContingencyPercent <= 50;
   const inputsAvailable = [minimumHours, configuredCustomerRate, cleanerHourlyPay, targetMarginPercent].every(Number.isFinite)
@@ -1674,10 +1706,11 @@ function launchEconomicsRehearsal(config) {
     };
   }
 
-  const configured = calculateProposalEconomics(minimumHours, configuredCustomerRate, cleanerHourlyPay, 0, config);
+  const configured = calculateProposalEconomics(minimumHours, configuredCustomerRate, cleanerHourlyPay, 0, config, pricingTravelDistanceKm);
   const safeRate = proposalEconomicsModel.minimumSafeCustomerRate({
     hours: minimumHours,
     cleanerRate: cleanerHourlyPay,
+    travelDistanceKm: pricingTravelDistanceKm,
     targetMarginPercent,
     assumptions
   });
@@ -1699,10 +1732,12 @@ function launchEconomicsRehearsal(config) {
     minimumHours,
     configuredCustomerRate,
     cleanerHourlyPay,
+    pricingTravelDistanceKm,
     targetMarginPercent,
     configured: {
       customerTotal: configured.customerTotal,
       cleanerPay: configured.cleanerPay,
+      travelCosts: configured.travelCosts,
       nonCleanerCosts: configured.nonCleanerCosts,
       contribution: configured.contribution,
       marginPercent: configured.marginPercent
@@ -1863,7 +1898,7 @@ function launchReadiness(config) {
   const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
   const today = localDateToday();
   const publicSite = publicSiteVerification(config);
-  const configuredBaseEconomics = calculateProposalEconomics(Number(config.minimumHours) || 0, Number(config.customerHourlyRate) || 0, Number(config.cleanerHourlyPay) || 0, 0, config);
+  const configuredBaseEconomics = calculateProposalEconomics(Number(config.minimumHours) || 0, Number(config.customerHourlyRate) || 0, Number(config.cleanerHourlyPay) || 0, 0, config, Number(config.pricingTravelDistanceKm) || 0);
   const configuredBaseEconomicsViable = costAssumptionsConfirmed(config)
     && configuredBaseEconomics.contribution > 0
     && configuredBaseEconomics.marginPercent >= Number(config.minimumContributionMarginPercent);
@@ -1891,6 +1926,7 @@ function launchReadiness(config) {
       { label: "founder contribution-margin floor", complete: Number(config.minimumContributionMarginPercent) > 0 && Number(config.minimumContributionMarginPercent) < 100 },
       { label: "customer rate above cleaner pay", complete: Number(config.customerHourlyRate) > Number(config.cleanerHourlyPay) && Number(config.cleanerHourlyPay) > 0 },
       { label: "reviewed labour on-cost, payment, travel, supplies and risk assumptions", complete: costAssumptionsConfirmed(config) },
+      { label: "conservative travel distance for distance-based pricing", complete: Number(config.travelCostPerKm) === 0 || (Number(config.pricingTravelDistanceKm) > 0 && Number(config.pricingTravelDistanceKm) <= 500) },
       { label: "configured minimum job meets the contribution-margin floor", complete: configuredBaseEconomicsViable },
       { label: "viable margin and percentage-cost stack", complete: Number(config.minimumContributionMarginPercent) + Number(config.paymentFeePercent) + Number(config.riskContingencyPercent) < 100 }
     ],
@@ -4404,6 +4440,7 @@ async function createAdminProposal(request, response) {
   const customerRate = Math.max(0, Number(input.customerRate) || 0);
   const cleanerRate = Math.max(0, Number(input.cleanerRate) || 0);
   const otherCosts = Math.max(0, Number(input.otherCosts) || 0);
+  const travelDistanceKm = input.travelDistanceKm === undefined || input.travelDistanceKm === null || input.travelDistanceKm === "" ? 0 : Number(input.travelDistanceKm);
   const note = text(input.note, 1000);
 
   const errors = [];
@@ -4411,10 +4448,11 @@ async function createAdminProposal(request, response) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(proposedDate)) errors.push("Choose a proposed date.");
   if (proposedDate && proposedDate < localDateToday()) errors.push("Proposed date cannot be in the past.");
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(proposedStartTime)) errors.push("Choose an exact proposed start time.");
-  const proposalNumbers = [estimatedHours, customerRate, cleanerRate, otherCosts];
-  if (proposalNumbers.some((value) => !Number.isFinite(value))) errors.push("Hours, rates and additional job costs must be finite numbers.");
+  const proposalNumbers = [estimatedHours, customerRate, cleanerRate, otherCosts, travelDistanceKm];
+  if (proposalNumbers.some((value) => !Number.isFinite(value))) errors.push("Hours, rates, travel distance and additional job costs must be finite numbers.");
   if (estimatedHours <= 0 || estimatedHours > maxProposalHours || customerRate <= 0 || cleanerRate <= 0) errors.push(`Hours must be between 0 and ${maxProposalHours}, and customer rate and cleaner pay must be greater than zero.`);
   if (customerRate > maxProposalHourlyRate || cleanerRate > maxProposalHourlyRate || otherCosts > maxProposalAdditionalCosts) errors.push("Proposal rates or additional costs exceed the supported financial limits.");
+  if (travelDistanceKm < 0 || travelDistanceKm > 500) errors.push("Cleaner travel distance must be between 0 and 500 kilometres.");
   const schedule = jobSchedule({ proposedDate, proposedStartTime, estimatedHours });
   if (proposedDate && proposedStartTime && estimatedHours > 0 && !schedule) errors.push("The proposed cleaning must start and finish on a valid calendar date.");
   if (schedule && schedule.startMs < earliestBookableWallClockMs()) errors.push("The proposed cleaning must start at least 15 minutes in the future in UK local time.");
@@ -4440,6 +4478,7 @@ async function createAdminProposal(request, response) {
   if ((latestStatuses.get(cleaner.id) || cleaner.status) !== "approved") return json(response, 422, { ok: false, error: "Only an approved cleaner can be proposed." });
   if (!latestCleanerScreening(cleaner.id, screenings)?.complete) return json(response, 422, { ok: false, error: "Only a fully screened cleaner can be proposed." });
   if (!costAssumptionsConfirmed(config)) return json(response, 422, { ok: false, error: "Confirm the labour on-cost, payment, travel, supplies and risk assumptions before preparing proposal economics." });
+  if (Number(config.travelCostPerKm) > 0 && travelDistanceKm <= 0) return json(response, 422, { ok: false, error: "Enter the verified one-way Cleaner travel distance before preparing proposal economics." });
   if (config.minimumHours > 0 && estimatedHours < config.minimumHours) return json(response, 422, { ok: false, error: `Estimated hours must meet the ${config.minimumHours}-hour minimum.` });
   const requiredService = requiredCleanerService(customerRequest.service);
   if (!requiredService) return json(response, 422, { ok: false, error: "Choose a specific supported cleaning service before preparing a proposal." });
@@ -4448,7 +4487,7 @@ async function createAdminProposal(request, response) {
   if (!travelCoverage.covered) return json(response, 422, { ok: false, error: `The cleaner's stated travel areas do not explicitly cover ${travelCoverage.outwardCode || "the customer postcode"}. Reconfirm their work areas before preparing a proposal.` });
   if (!findCleanerAvailabilitySlot(cleaner.id, { proposedDate, proposedStartTime, estimatedHours }, availabilityEvents)) return json(response, 422, { ok: false, error: "The proposed visit must fit entirely inside an active, confirmed cleaner availability window." });
 
-  const economics = calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, otherCosts, config);
+  const economics = calculateProposalEconomics(estimatedHours, customerRate, cleanerRate, otherCosts, config, travelDistanceKm);
   const { customerTotal, cleanerPay, labourOnCosts, paymentFees, travelCosts, suppliesCosts, riskContingency, nonCleanerCosts, contribution, marginPercent, costAssumptions } = economics;
   if ([customerTotal, cleanerPay, labourOnCosts, paymentFees, travelCosts, suppliesCosts, riskContingency, nonCleanerCosts, contribution, marginPercent].some((value) => !Number.isFinite(value))) {
     return json(response, 422, { ok: false, error: "The proposal economics could not be represented safely. Use smaller finite pricing inputs." });
@@ -4473,6 +4512,8 @@ async function createAdminProposal(request, response) {
     customerRate,
     cleanerRate,
     otherCosts,
+    economicsModelVersion: proposalEconomicsModel.version,
+    travelDistanceKm,
     labourOnCosts,
     paymentFees,
     travelCosts,
@@ -4715,6 +4756,9 @@ function evaluateAdminConfigInput(input) {
     paymentFeePercent: Math.max(0, Number(input.paymentFeePercent) || 0),
     paymentFeeFixed: Math.max(0, Number(input.paymentFeeFixed) || 0),
     travelCostPerJob: Math.max(0, Number(input.travelCostPerJob) || 0),
+    travelCostPerKm: input.travelCostPerKm === undefined || input.travelCostPerKm === null || input.travelCostPerKm === "" ? 0 : Number(input.travelCostPerKm),
+    travelDistanceMultiplier: input.travelDistanceMultiplier === undefined || input.travelDistanceMultiplier === null || input.travelDistanceMultiplier === "" ? 1 : Number(input.travelDistanceMultiplier),
+    pricingTravelDistanceKm: input.pricingTravelDistanceKm === undefined || input.pricingTravelDistanceKm === null || input.pricingTravelDistanceKm === "" ? 0 : Number(input.pricingTravelDistanceKm),
     suppliesCostPerJob: Math.max(0, Number(input.suppliesCostPerJob) || 0),
     riskContingencyPercent: Math.max(0, Number(input.riskContingencyPercent) || 0),
     variableCostsConfirmed: input.variableCostsConfirmed === true || ["true", "on"].includes(text(input.variableCostsConfirmed, 10).toLowerCase()),
@@ -4727,7 +4771,7 @@ function evaluateAdminConfigInput(input) {
     updatedAt: new Date().toISOString()
   };
   const errors = [];
-  const numericConfigValues = [config.customerHourlyRate, config.cleanerHourlyPay, config.labourOnCostPercent, config.minimumHours, config.minimumContributionMarginPercent, config.paymentFeePercent, config.paymentFeeFixed, config.travelCostPerJob, config.suppliesCostPerJob, config.riskContingencyPercent, config.customerQuoteValidityHours, config.cleanerOpportunityValidityHours, config.inactiveMediaRetentionDays, config.completedMediaRetentionDays];
+  const numericConfigValues = [config.customerHourlyRate, config.cleanerHourlyPay, config.labourOnCostPercent, config.minimumHours, config.minimumContributionMarginPercent, config.paymentFeePercent, config.paymentFeeFixed, config.travelCostPerJob, config.travelCostPerKm, config.travelDistanceMultiplier, config.pricingTravelDistanceKm, config.suppliesCostPerJob, config.riskContingencyPercent, config.customerQuoteValidityHours, config.cleanerOpportunityValidityHours, config.inactiveMediaRetentionDays, config.completedMediaRetentionDays];
   if (numericConfigValues.some((value) => !Number.isFinite(value))) errors.push("Pricing, cost, response-window and retention values must be finite numbers.");
   if (config.supportEmail && !isEmail(config.supportEmail)) errors.push("Enter a valid support email.");
   if (config.supportPhone && !isPhone(config.supportPhone)) errors.push("Enter a valid support phone number.");
@@ -4747,6 +4791,10 @@ function evaluateAdminConfigInput(input) {
   if (config.paymentFeePercent > 20) errors.push("Payment fee percentage must be between 0% and 20%.");
   if (config.paymentFeeFixed > 20) errors.push("Fixed payment fee must be between £0 and £20.");
   if (config.travelCostPerJob > 200 || config.suppliesCostPerJob > 200) errors.push("Travel and supplies assumptions must each be between £0 and £200 per job.");
+  if (config.travelCostPerKm < 0 || config.travelCostPerKm > 20) errors.push("Travel cost per kilometre must be between £0 and £20.");
+  if (config.travelDistanceMultiplier < 1 || config.travelDistanceMultiplier > 5) errors.push("Travel distance multiplier must be between 1 and 5.");
+  if (config.pricingTravelDistanceKm < 0 || config.pricingTravelDistanceKm > 500) errors.push("Pricing rehearsal distance must be between 0 and 500 kilometres.");
+  if (config.travelCostPerKm > 0 && config.pricingTravelDistanceKm <= 0) errors.push("Add a conservative one-way travel distance when per-kilometre travel pricing is used.");
   if (config.riskContingencyPercent > 50) errors.push("Risk contingency must be between 0% and 50%.");
   if (config.minimumContributionMarginPercent + config.paymentFeePercent + config.riskContingencyPercent >= 100) errors.push("The margin floor plus payment-fee and risk percentages must stay below 100%.");
   if (config.customerQuoteValidityHours && (!Number.isInteger(config.customerQuoteValidityHours) || config.customerQuoteValidityHours < 1 || config.customerQuoteValidityHours > 168)) errors.push("Customer quote response window must be a whole number from 1 to 168 hours.");

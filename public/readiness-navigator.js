@@ -16,6 +16,7 @@
     "founder contribution-margin floor": "minimumContributionMarginPercent",
     "customer rate above cleaner pay": "customerHourlyRate",
     "reviewed labour on-cost, payment, travel, supplies and risk assumptions": "variableCostsConfirmed",
+    "conservative travel distance for distance-based pricing": "pricingTravelDistanceKm",
     "configured minimum job meets the contribution-margin floor": "customerHourlyRate",
     "viable margin and percentage-cost stack": "minimumContributionMarginPercent",
     "insurance marked active and verified": "insuranceStatus",
