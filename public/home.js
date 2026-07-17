@@ -27,6 +27,7 @@ function applyEntryMode(mode) {
     link.textContent = presentation.bookingLabel;
   });
   document.querySelectorAll("[data-cleaner-entry]").forEach((link) => { link.href = presentation.cleanerPath; });
+  document.querySelectorAll("[data-directory-entry]").forEach((link) => { link.href = presentation.directoryPath; });
   document.querySelectorAll("[data-account-entry]").forEach((link) => { link.hidden = !presentation.accountAccess; });
   const step = document.querySelector("[data-book-step-copy]");
   const status = document.querySelector("[data-entry-status]");

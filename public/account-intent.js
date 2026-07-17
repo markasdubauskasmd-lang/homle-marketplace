@@ -6,7 +6,8 @@ const cleanerIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-
 export const accountIntentLifetimeMs = 30 * 60 * 1000;
 
 export function normalizeAccountIntent(value) {
-  return String(value || "").trim().toLowerCase() === "book" ? "book" : "";
+  const selected = String(value || "").trim().toLowerCase();
+  return new Set(["book", "work"]).has(selected) ? selected : "";
 }
 
 export function accountIntentFromSearch(search = "") {
@@ -92,7 +93,9 @@ export function clearSelectedCleaner(storage) {
 }
 
 export function accountEntryPath(intent, cleanerId = "") {
-  if (normalizeAccountIntent(intent) !== "book") return "/signup";
+  const normalized = normalizeAccountIntent(intent);
+  if (normalized === "work") return "/signup?intent=work";
+  if (normalized !== "book") return "/signup";
   const selected = normalizeSelectedCleaner(cleanerId);
   return selected ? `/signup?${new URLSearchParams({ intent: "book", cleaner: selected })}` : "/signup?intent=book";
 }

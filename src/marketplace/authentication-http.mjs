@@ -32,8 +32,8 @@ async function facebookSignedRequest(request) {
 
 function accountIntent(value) {
   if (value === undefined) return "";
-  if (value !== "book") throw Object.assign(new Error("Choose a supported account action."), { statusCode: 400, code: "invalid-account-intent" });
-  return "book";
+  if (!new Set(["book", "work"]).has(value)) throw Object.assign(new Error("Choose a supported account action."), { statusCode: 400, code: "invalid-account-intent" });
+  return value;
 }
 
 function signInIntent(url) {
@@ -47,7 +47,7 @@ function deliveryLink(origin, delivery, intent = "") {
   const path = delivery.kind === "email-verification" ? "/verify-email" : delivery.kind === "facebook-email-verification" ? "/verify-facebook" : delivery.kind === "password-reset" ? "/reset-password" : "";
   if (!path) throw new TypeError("A supported authentication delivery is required.");
   const link = new URL(path, origin);
-  link.hash = new URLSearchParams({ token: delivery.token, ...(intent === "book" ? { intent } : {}) }).toString();
+  link.hash = new URLSearchParams({ token: delivery.token, ...(intent ? { intent } : {}) }).toString();
   return link.toString();
 }
 
@@ -273,7 +273,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
             const account = await identity.socialSignIn("google", claims);
             const session = await sessions.establish(account, metadata(request));
             const destination = session.account.roles.length ? "/login" : "/onboarding";
-            const fragment = new URLSearchParams({ social: "google", csrfToken: session.csrfToken, ...(claims.flowIntent === "book" ? { intent: "book" } : {}) });
+            const fragment = new URLSearchParams({ social: "google", csrfToken: session.csrfToken, ...(claims.flowIntent ? { intent: claims.flowIntent } : {}) });
             sendRedirect(response, 303, `${destination}#${fragment}`, [google.clearCookie, session.setCookie]);
           } catch (error) {
             const rateLimited = error?.statusCode === 429;
@@ -313,7 +313,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
             if (result.authenticated) {
               const session = await sessions.establish(result.account, metadata(request));
               const destination = session.account.roles.length ? "/login" : "/onboarding";
-              const fragment = new URLSearchParams({ social: "facebook", csrfToken: session.csrfToken, ...(claims.flowIntent === "book" ? { intent: "book" } : {}) });
+              const fragment = new URLSearchParams({ social: "facebook", csrfToken: session.csrfToken, ...(claims.flowIntent ? { intent: claims.flowIntent } : {}) });
               sendRedirect(response, 303, `${destination}#${fragment}`, [facebook.clearCookie, session.setCookie]);
             } else if (result.verificationRequired) {
               await privateDelivery(result.emailDelivery, claims.flowIntent);

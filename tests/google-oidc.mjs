@@ -109,6 +109,11 @@ const bookingLocation = new URL(bookingAttempt.location);
 activeNonce = bookingLocation.searchParams.get("nonce");
 const bookingClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=booking-code&state=${encodeURIComponent(bookingLocation.searchParams.get("state"))}`), bookingAttempt.setCookie.split(";", 1)[0]);
 assert(bookingClaims.flowPurpose === "sign-in" && bookingClaims.flowIntent === "book", "The account-first booking action was not retained in Google's signed server flow.");
+const cleanerAttempt = provider.begin({ intent: "work" });
+const cleanerUrl = new URL(cleanerAttempt.location);
+activeNonce = cleanerUrl.searchParams.get("nonce");
+const cleanerClaims = await provider.complete(new URL(`${provider.callbackUrl}?code=cleaner-code&state=${encodeURIComponent(cleanerUrl.searchParams.get("state"))}`), cleanerAttempt.setCookie.split(";", 1)[0]);
+assert(cleanerClaims.flowPurpose === "sign-in" && cleanerClaims.flowIntent === "work", "The account-first Cleaner profile action was not retained in Google's signed server flow.");
 let invalidPurposeRejected = false;
 try { provider.begin({ purpose: "unexpected" }); } catch (error) { invalidPurposeRejected = /purpose/i.test(error.message); }
 assert(invalidPurposeRejected, "Google accepted an unknown flow purpose.");
@@ -121,7 +126,7 @@ assert(proxiedClaims.subject === "google-subject-123" && lastTokenBody.get("redi
 
 const second = start();
 await provider.complete(new URL(`${provider.callbackUrl}?code=second-code&state=${encodeURIComponent(second.state)}`), second.cookie);
-assert(tokenRequests === 6 && keyRequests === 1, "Google signing keys were not bounded and cached or the authorization code was not exchanged exactly once per callback.");
+assert(tokenRequests === 7 && keyRequests === 1, "Google signing keys were not bounded and cached or the authorization code was not exchanged exactly once per callback.");
 
 const mismatched = start();
 assert(await rejects(() => provider.complete(new URL(`${provider.callbackUrl}?code=code&state=${encodeURIComponent(`${mismatched.state}x`)}`), mismatched.cookie), "mismatched"), "Google callback accepted a state that did not match the signed HTTP-only flow cookie.");
@@ -150,7 +155,7 @@ const accountStyles = await readFile(new URL("../public/styles.css", import.meta
 assert(accountPage.includes('data-social-actions hidden') && accountPage.includes('data-social-provider="google"') && accountPage.includes('data-social-provider="facebook"') && /data-social-provider="google"[^>]+hidden/.test(accountPage) && /data-social-provider="facebook"[^>]+hidden/.test(accountPage), "The account page exposed a provider before capability discovery or omitted its gated controls.");
 assert(accountScript.includes("providers[link.dataset.socialProvider] === true") && accountScript.indexOf("history.replaceState") < accountScript.indexOf('fetch("/api/auth/providers"') && accountScript.includes('fragment.get("csrfToken")') && accountScript.includes("storeCsrf(socialCsrfToken)"), "The account browser flow did not require an explicit provider capability or remove callback fragments before network activity.");
 assert(accountPage.includes("data-email-toggle") && accountPage.includes('aria-expanded="false"') && accountPage.includes('id="account-email-login"') && accountPage.includes('id="account-email-signup"') && accountScript.includes("const providerFirst = socialReady && emailReady && socialPage") && accountScript.includes("emailEntryDeferred") && accountScript.includes("function revealEmailForm") && accountScript.includes('form?.querySelector("input")?.focus()'), "Provider-ready account entry still exposes the email form at once or lacks an accessible one-action email fallback.");
-assert(accountPage.includes('data-onboarding-choice="landlord"') && accountPage.includes('data-onboarding-choice="cleaner"') && accountScript.includes('cleanerChoice.hidden = true') && accountScript.includes('submit.textContent = "Continue to property details"') && accountScript.includes("You chose Book a clean") && accountScript.includes("Confirm the booking workspace below"), "Booking intent still asks the user to make an irrelevant Cleaner decision or loses explicit Landlord confirmation.");
+assert(accountPage.includes('data-onboarding-choice="landlord"') && accountPage.includes('data-onboarding-choice="cleaner"') && accountScript.includes('const selectedRole = bookingIntent ? "landlord" : "cleaner"') && accountScript.includes('bookingIntent ? "cleaner" : "landlord"') && accountScript.includes('submit.textContent = bookingIntent ? "Continue to property details" : "Continue to Cleaner profile"') && accountScript.includes("You chose Book a clean") && accountScript.includes("You chose Work as a cleaner") && accountScript.includes("Confirm the booking workspace below") && accountScript.includes("Confirm the Cleaner workspace below"), "Role-aware account intent still asks for an irrelevant role decision or loses explicit Landlord/Cleaner confirmation.");
 assert(accountStyles.includes(".account-provider-button") && accountStyles.includes(".account-email-toggle") && accountStyles.includes("min-height: 52px") && accountStyles.includes("width: 100%"), "The provider-first account actions lack prominent mobile-friendly controls.");
 
 console.log("Google OIDC tests passed: exact callback, signed account-first booking intent, provider-first entry, one-decision Landlord confirmation, short-lived state, nonce, PKCE, server-only exchange, token validation and cookie cleanup.");

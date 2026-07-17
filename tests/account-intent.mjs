@@ -28,12 +28,15 @@ const storage = memoryStorage();
 const cleanerId = "22222222-2222-4222-8222-222222222222";
 
 assert.equal(normalizeAccountIntent("book"), "book");
+assert.equal(normalizeAccountIntent("work"), "work");
 assert.equal(normalizeAccountIntent("https://attacker.example"), "");
 assert.equal(accountIntentFromSearch("?intent=book"), "book");
+assert.equal(accountIntentFromSearch("?intent=work"), "work");
 assert.equal(accountIntentFromSearch("?intent=book&intent=book"), "");
 assert.equal(accountIntentFromSearch("?intent=https%3A%2F%2Fattacker.example"), "");
 assert.equal(accountEntryPath("book"), "/signup?intent=book");
 assert.equal(accountEntryPath("book", cleanerId), `/signup?intent=book&cleaner=${cleanerId}`);
+assert.equal(accountEntryPath("work", cleanerId), "/signup?intent=work");
 assert.equal(accountEntryPath("javascript:alert(1)"), "/signup");
 assert.equal(normalizeSelectedCleaner(cleanerId.toUpperCase()), cleanerId);
 assert.equal(normalizeSelectedCleaner("not-a-cleaner"), "");
@@ -47,6 +50,10 @@ assert.equal(readAccountIntent(storage, now + accountIntentLifetimeMs), "");
 saveAccountIntent(storage, "book", now);
 clearAccountIntent(storage);
 assert.equal(readAccountIntent(storage, now), "");
+
+assert.equal(saveAccountIntent(storage, "work", now), "work");
+assert.equal(readAccountIntent(storage, now + accountIntentLifetimeMs - 1), "work");
+clearAccountIntent(storage);
 
 assert.equal(saveSelectedCleaner(storage, cleanerId, now), cleanerId);
 assert.equal(readSelectedCleaner(storage, now + accountIntentLifetimeMs - 1), cleanerId);

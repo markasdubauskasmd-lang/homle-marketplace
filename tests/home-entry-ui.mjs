@@ -13,9 +13,9 @@ for (const unsafe of [null, {}, { ...readyHealth, marketplace: { ...readyHealth.
 const account = homeEntryPresentation("account");
 const authentication = homeEntryPresentation("authentication");
 const concierge = homeEntryPresentation("concierge");
-assert(account.bookingPath === "/signup?intent=book" && account.cleanerPath === "/cleaners" && account.accountAccess === true, "Ready account entry lost its direct routes.");
-assert(authentication.bookingPath === "/request" && authentication.accountAccess === true && authentication.statusCopy.includes("Approved testers") && authentication.statusCopy.includes("remain guided"), "Account-only mode opened unavailable booking routes or hid sign-in.");
-assert(concierge.bookingPath === "/request" && concierge.cleanerPath === "/request" && concierge.accountAccess === false, "Detached mode does not fail safely into the working request journey.");
+assert(account.bookingPath === "/signup?intent=book" && account.cleanerPath === "/signup?intent=work" && account.directoryPath === "/cleaners" && account.accountAccess === true, "Ready account entry lost its role-aware direct routes.");
+assert(authentication.bookingPath === "/signup?intent=book" && authentication.cleanerPath === "/signup?intent=work" && authentication.accountAccess === true && authentication.statusCopy.includes("Landlord or Cleaner profile") && authentication.statusCopy.includes("remain closed"), "Account-only mode did not open both approved profile roles or misstated booking availability.");
+assert(concierge.bookingPath === "/request" && concierge.cleanerPath === "/join" && concierge.directoryPath === "/request" && concierge.accountAccess === false, "Detached mode does not fail safely into the working request and Cleaner application journeys.");
 assert(concierge.statusCopy.includes("Coverage") && concierge.statusCopy.includes("price are confirmed before any booking"), "Pilot fallback copy invents availability or a confirmed booking.");
 
 const [page, script, accountPage, pilotPage, briefPage, statusPage, directoryPage, server, packageFile] = await Promise.all([
@@ -32,9 +32,9 @@ const [page, script, accountPage, pilotPage, briefPage, statusPage, directoryPag
 
 assert((page.match(/data-book-entry/g) || []).length >= 4 && !page.includes('href="/signup?intent=book">Book a clean</a>'), "The no-script homepage can still send visitors into disabled registration.");
 assert(page.includes('href="/request" data-book-entry') && page.includes("Homle is accepting guided pilot requests") && page.includes("data-entry-status aria-live=\"polite\""), "The default guided-request route or accessible truth state is missing.");
-assert(page.includes("data-account-entry hidden") && page.includes('href="/request" data-cleaner-entry'), "Detached mode exposes unusable account or directory entry.");
+assert(page.includes("data-account-entry hidden") && page.includes('href="/request" data-directory-entry') && (page.match(/data-cleaner-entry/g) || []).length >= 4, "Detached mode exposes unusable account entry or omits role-aware Cleaner entry.");
 assert(script.includes('fetch("/api/health"') && script.includes('credentials: "omit"') && script.includes('cache: "no-store"') && script.includes('applyEntryMode("concierge")'), "Capability discovery is not public, non-cacheable and fail-closed.");
-assert(script.includes("homeEntryMode(health)") && script.includes("textContent") && !script.includes("innerHTML") && !script.includes("/api/cleaning-requests"), "Homepage upgrade uses unsafe rendering or pulls intake behavior into the lightweight page.");
+assert(script.includes("homeEntryMode(health)") && script.includes("presentation.directoryPath") && script.includes("textContent") && !script.includes("innerHTML") && !script.includes("/api/cleaning-requests"), "Homepage upgrade uses unsafe rendering, conflates Cleaner onboarding with directory search or pulls intake behavior into the lightweight page.");
 assert(accountPage.includes('href="/request">Request a clean</a>') && briefPage.includes('href="/request">Start a cleaning request</a>') && statusPage.includes('href="/request">Start a new cleaning request</a>') && directoryPage.includes('href="/request">Request a clean</a>'), "A detached account, scan, tracker or directory recovery path still enters unavailable registration.");
 assert((pilotPage.match(/href="\/request#request-cleaning"/g) || []).length >= 4 && !pilotPage.includes('href="/signup?intent=book"'), "The guided pilot page reloads or leaves its working request form for disabled registration.");
 assert(server.includes('requestUrl.pathname === "/api/health"') && server.includes("authenticationReady: accountAttachment.authenticationHttpReady"), "Homepage capability mode is not backed by the public health contract.");
