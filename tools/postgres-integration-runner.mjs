@@ -21,6 +21,8 @@ const scripts = Object.freeze({
   acceptA: "accept-booking-a.sql",
   acceptB: "accept-booking-b.sql",
   postConcurrency: "marketplace-post-concurrency.sql",
+  participantLifecycleSetup: "participant-lifecycle-rehearsal-setup.sql",
+  participantLifecycle: "participant-lifecycle-rehearsal.sql",
   disputeSetup: "marketplace-dispute-setup.sql",
   disputeBehaviour: "marketplace-dispute-behaviour.sql",
   paymentGate: "marketplace-payment-gate.sql",
@@ -138,14 +140,16 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     }
 
     runPsqlSync({ label: "Post-concurrency RLS test", file: scripts.postConcurrency, environment: appEnvironment, command, execute });
+    runPsqlSync({ label: "Job-start payment gate test", file: scripts.paymentGate, environment: ownerEnvironment, command, execute });
+    runPsqlSync({ label: "Participant lifecycle rehearsal setup", file: scripts.participantLifecycleSetup, environment: ownerEnvironment, command, execute });
+    runPsqlSync({ label: "Participant lifecycle rehearsal", file: scripts.participantLifecycle, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Dispute fixture setup", file: scripts.disputeSetup, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Dispute workflow test", file: scripts.disputeBehaviour, environment: appEnvironment, command, execute });
-    runPsqlSync({ label: "Job-start payment gate test", file: scripts.paymentGate, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Payment reconciliation ordering test", file: scripts.paymentOrdering, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, matchingSelfExclusion: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, matchingSelfExclusion: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {
@@ -161,7 +165,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
 if (process.argv[1] && path.resolve(process.argv[1]) === toolPath) {
   try {
     const result = await runPostgresMarketplaceIntegration();
-    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, signed-provider deletion persistence, RLS, privacy, social-provider step-up/removal, audited disputes, current-payment journey gating, exactly-once payment ordering and concurrent overlap protection verified and fixtures removed.`);
+    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, signed-provider deletion persistence, RLS, privacy, concurrent overlap protection, a complete synthetic Landlord-to-Cleaner participant lifecycle, audited disputes, current-payment journey gating and exactly-once payment ordering verified and fixtures removed.`);
   } catch (error) {
     console.error(error.message);
     if (error.integrationOutput) console.error(error.integrationOutput.trim());

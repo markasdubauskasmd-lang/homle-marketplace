@@ -11,6 +11,7 @@ const integrationDirectory = path.join(projectRoot, "db", "integration");
 const requiredFiles = [
   "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "matching-self-exclusion.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql",
   "accept-booking-a.sql", "accept-booking-b.sql", "marketplace-post-concurrency.sql",
+  "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql",
   "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql",
   "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
 ];
@@ -39,13 +40,19 @@ assert.match(sources.get("facebook-data-deletion-behaviour.sql"), /Runtime role 
 assert.match(sources.get("facebook-data-deletion-behaviour.sql"), /Facebook deletion request identifier reuse did not fail closed/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account can read bookings/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account can read a private room scan/);
-assert.match(sources.get("marketplace-rls-behaviour.sql"), /Cleaner can read a room scan without Landlord preview consent/);
+assert.match(sources.get("marketplace-rls-behaviour.sql"), /Pending Cleaner scope handoff bypassed separate Landlord photo-preview consent/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /insufficient_privilege/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Privacy export intake lost active-request idempotency/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Runtime role can read account privacy requests directly/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Cleaner payout onboarding lost owner binding, stable retry or verified readiness state/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Runtime role can read private Cleaner payout onboarding material/);
 assert.match(sources.get("marketplace-post-concurrency.sql"), /Cleaner property access did not follow the accepted booking/);
+assert.match(sources.get("participant-lifecycle-rehearsal-setup.sql"), /scheduled_start_at = now\(\) \+ interval '5 minutes'/);
+assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /start_cleaner_journey/);
+assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /finish_booking_cleaning/);
+assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /Cleaner could see an unapproved review/);
+assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /Unrelated account gained participant lifecycle access/);
+assert.doesNotMatch(sources.get("participant-lifecycle-rehearsal.sql"), /https?:\/\//, "The disposable participant rehearsal must not contact an external provider.");
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Runtime role can bypass the function-only dispute workflow/);
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Unrelated account opened a booking dispute/);
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Administrator dispute queue lost its safe case projection/);
@@ -94,10 +101,10 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, matchingSelfExclusion: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, matchingSelfExclusion: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql",
-  "matching-self-exclusion.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
+  "matching-self-exclusion.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);
 for (const call of calls) {

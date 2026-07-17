@@ -7,6 +7,8 @@ Tideway now has authenticated, mobile-first booking lists for both marketplace r
 - `/cleaner/dashboard` shows pending invitations, active/upcoming work and history. The invitation presents pay once with an exact label and a one-tap **Accept £X job** action; adjacent copy makes the availability/time/pay commitment explicit before the tap. Decline retains its separate confirmation. Acceptance is still decided by the server after it rechecks invitation expiry, eligibility, availability and overlapping confirmed work.
 - `/landlord/dashboard` shows the signed-in Landlord's active/upcoming bookings and history alongside their properties and request-draft workspace. Eligible bookings link to payment authorization and confirmed work links to the participant-only active-job screen.
 
+The pages are separate role-specific workspaces. `/landlord/dashboard` uses a property-focused header and Landlord-only primary actions; `/cleaner/dashboard` uses a distinct work-focused header and Cleaner-only primary actions. A dual-role account can switch only from its signed-in account menu. That menu shows the approved Google or Facebook profile photo when available, otherwise safe initials, without exposing provider identifiers or private tokens.
+
 Both pages remain closed while the default-off PostgreSQL marketplace attachment is unavailable. They contain no sample people, prices, properties or bookings.
 
 ## Privacy and pricing boundary
@@ -23,10 +25,10 @@ All invitation decisions require the Tideway session, selected Cleaner role, sam
 
 ## Activation requirements
 
-1. Apply the 26 locked migrations and restricted runtime grants to PostgreSQL 16.
+1. Apply all migrations in `db/migration-lock.json` (currently 55) and the restricted runtime grants to PostgreSQL 16.
 2. Run the deployment verifier and behavioral RLS/concurrency harness with separate owner, web and worker roles.
 3. Attach the complete marketplace only under the final HTTPS origin.
 4. Create two genuine staging accounts, invite the Cleaner, and verify both role views on separate mobile devices.
 5. Confirm that unrelated users, expired invitations and modified browser requests fail closed.
 
-No real booking, Cleaner decision or payment was created during source verification.
+The disposable PostgreSQL runner now proves one complete synthetic participant lifecycle and removes every reserved fixture afterward. It does not create a real booking or contact a payment, email, storage, map, customer or Cleaner provider; managed two-phone and provider-backed test evidence remains required.

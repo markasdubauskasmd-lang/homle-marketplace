@@ -12,7 +12,7 @@ DECLARE
   blocked boolean;
   occurred timestamptz := now()-interval '4 minutes';
 BEGIN
-  SELECT * INTO booking_record FROM bookings WHERE id='40000000-0000-4000-8000-000000000001' FOR UPDATE;
+  SELECT * INTO booking_record FROM bookings WHERE id='40000000-0000-4000-8000-000000000003' FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Payment-ordering booking fixture is missing'; END IF;
   UPDATE bookings SET status='completed',updated_at=now() WHERE id=booking_record.id;
   INSERT INTO booking_payments(id,booking_id,landlord_user_id,cleaner_user_id,provider,currency,amount_pence,amount_captured_pence,status,terms_fingerprint,provider_payment_id,idempotency_key_hash,authorized_at,captured_at,last_provider_event_at)

@@ -99,7 +99,7 @@ DO $landlord$
 DECLARE disconnected_record record; export_first jsonb; export_retry jsonb; deletion_first jsonb; privacy_history jsonb;
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Landlord cannot read both own bookings'; END IF;
-  IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Landlord cannot read both own properties'; END IF;
+  IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 3 THEN RAISE EXCEPTION 'Landlord cannot read all own properties'; END IF;
   IF (SELECT count(*) FROM cleaning_requests WHERE id::text LIKE '30000000-0000-4000-8000-%') <> 3 THEN RAISE EXCEPTION 'Landlord cannot read all own requests'; END IF;
   IF tideway_private.verify_my_social_identity('google','integration-google-subject') IS NOT TRUE
      OR tideway_private.verify_my_social_identity('google','different-subject') IS TRUE THEN
@@ -142,11 +142,11 @@ BEGIN
   IF jsonb_array_length(scan->'photos')<>1 OR scan->'photos'->0->>'roomName'<>'Kitchen' THEN RAISE EXCEPTION 'Consented invited-Cleaner room scan is unavailable'; END IF;
   SELECT * INTO object_record FROM tideway_private.get_cleaning_request_photo_object('30000000-0000-4000-8000-000000000001','60000000-0000-4000-8000-000000000001');
   IF object_record.storage_key IS NULL THEN RAISE EXCEPTION 'Consented invited-Cleaner room photo is unavailable'; END IF;
-  BEGIN
-    PERFORM tideway_private.get_cleaning_request_scan('30000000-0000-4000-8000-000000000002');
-    RAISE EXCEPTION 'Cleaner can read a room scan without Landlord preview consent';
-  EXCEPTION WHEN no_data_found THEN NULL;
-  END;
+  SELECT tideway_private.get_cleaning_request_scan('30000000-0000-4000-8000-000000000002') INTO scan;
+  IF jsonb_array_length(scan->'tasks')<>1 OR scan->'tasks'->0->>'roomName'<>'Bathroom'
+     OR jsonb_array_length(scan->'photos')<>0 OR (scan->>'cleanerPreviewAuthorized')::boolean IS TRUE THEN
+    RAISE EXCEPTION 'Pending Cleaner scope handoff bypassed separate Landlord photo-preview consent';
+  END IF;
   SELECT tideway_private.begin_my_cleaner_payout_onboarding('72000000-0000-4000-8000-000000000001') INTO payout_first;
   SELECT tideway_private.attach_my_cleaner_payout_account('72000000-0000-4000-8000-000000000001','acct_integration_cleaner') INTO payout_synced;
   SELECT tideway_private.begin_my_cleaner_payout_onboarding('72000000-0000-4000-8000-000000000002') INTO payout_retry;
