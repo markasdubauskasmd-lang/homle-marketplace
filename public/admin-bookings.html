@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+  <title>Booking operations — Homle</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/admin-bookings.js"></script>
+</head>
+<body class="account-page">
+  <a class="skip-link" href="#admin-bookings-main">Skip to booking operations</a>
+  <p class="network-status" data-network-status role="status" hidden>You are offline. Reconnect before refreshing.</p>
+  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/admin"><img src="/logo.svg" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator"><a href="/admin/cases">Booking cases</a><a href="/admin/payments">Test payments</a><a href="/admin">Control desk</a></nav></div></header>
+  <main id="admin-bookings-main" class="booking-dashboard-shell">
+    <section class="booking-dashboard-gate" data-admin-bookings-gate aria-live="polite"><div><p class="eyebrow">Private marketplace operations</p><h1 data-admin-bookings-gate-title>Checking secure Administrator access…</h1><p data-admin-bookings-gate-copy>This page opens only inside an authenticated Homle Administrator account.</p><div class="booking-dashboard-actions"><a class="button" href="/login?next=%2Fadmin%2Fbookings" data-admin-bookings-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-admin-bookings-retry hidden>Try again</button></div></div></section>
+    <div class="booking-dashboard" data-admin-bookings-workspace hidden>
+      <header class="booking-dashboard-header"><div><p class="eyebrow">First-booking control lane</p><h1>Booking operations</h1><p>See where each reviewed request or booking is stuck, its frozen planned economics, and the next safe action. No action is taken from this page.</p></div><button class="button button-outline" type="button" data-admin-bookings-refresh>Refresh</button></header>
+      <aside class="admin-case-policy-banner"><div><p class="eyebrow">Privacy boundary</p><h2>No names, addresses, access instructions or provider identifiers</h2></div><p>References are shortened on screen. Prices and planned contribution are internal evidence, before central overhead and tax. Use the separate case and test-payment desks for audited decisions.</p></aside>
+      <dl class="booking-dashboard-stats"><div><dt>Loaded</dt><dd data-admin-bookings-count>0</dd></div><div><dt>Needs attention</dt><dd data-admin-bookings-attention>0</dd></div><div><dt>Active visits</dt><dd data-admin-bookings-active>0</dd></div></dl>
+      <section class="booking-dashboard-section"><div class="admin-cases-toolbar"><div><h2>Private operations queue</h2><p>Submitted requests appear before a booking exists; frozen economics appear only after a Cleaner invitation.</p></div><label>View<select data-admin-bookings-filter><option value="">All</option><option value="attention">Needs attention</option><option value="active">Active</option><option value="finished">Completed or cancelled</option></select></label></div>
+        <div class="admin-bookings-list" data-admin-bookings-list aria-live="polite" aria-busy="true"></div>
+        <div class="booking-dashboard-empty" data-admin-bookings-empty hidden><strong>No operations in this view</strong><p>Change the view or refresh the queue.</p></div>
+        <nav class="admin-cases-pagination" aria-label="Booking operations pages"><button class="button button-outline button-small" type="button" data-admin-bookings-previous disabled>Previous</button><span data-admin-bookings-page>Page 1</span><button class="button button-outline button-small" type="button" data-admin-bookings-next disabled>Next</button></nav>
+      </section>
+      <div class="booking-dashboard-feedback" data-admin-bookings-feedback role="status" tabindex="-1" hidden></div>
+    </div>
+  </main>
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle</span><span>Private Administrator workspace · <a href="/privacy">Privacy</a></span></div></footer>
+</body></html>

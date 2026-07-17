@@ -2411,6 +2411,10 @@ textarea { resize: vertical; }
 .admin-payment-confirmation-facts div { padding: .75rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--mist); }
 .admin-payment-confirmation-facts dt { color: var(--muted); font-size: .82rem; }
 .admin-payment-confirmation-facts dd { margin: .2rem 0 0; font-weight: 800; }
+.admin-bookings-list { display: grid; gap: 1rem; }
+.admin-booking-card-attention { border-left: 5px solid #d97904; }
+.admin-booking-next { margin: .9rem 0; padding: .85rem 1rem; border-radius: 12px; background: #edf8f5; }
+.admin-booking-next p { margin: .25rem 0 0; }
 @media (max-width: 680px) {
   .admin-payment-facts, .admin-payment-confirmation-facts { grid-template-columns: 1fr 1fr; }
   .admin-payment-card .booking-summary-actions { display: grid; grid-template-columns: 1fr; }

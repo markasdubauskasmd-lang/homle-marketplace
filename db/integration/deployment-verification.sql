@@ -13,6 +13,7 @@ DECLARE
   scope_handoff_migration_installed boolean := false;
   payment_operations_migration_installed boolean := false;
   case_payment_handoff_migration_installed boolean := false;
+  booking_operations_migration_installed boolean := false;
   rls_tables constant text[] := ARRAY[
     'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
@@ -185,6 +186,8 @@ BEGIN
       INTO payment_operations_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 51)'
       INTO case_payment_handoff_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 52)'
+      INTO booking_operations_migration_installed;
   END IF;
   IF payment_operations_migration_installed THEN
     selected_name := 'tideway_private.list_administrator_payment_operations(text,integer,integer)';
@@ -217,6 +220,23 @@ BEGIN
       OR position('provider_payment_id' IN COALESCE(selected_source,''))>0
       OR position('destination_account_id' IN COALESCE(selected_source,''))>0 THEN
       RAISE EXCEPTION 'The booking-case payment handoff is missing its exact, restricted, provider-private boundary';
+    END IF;
+  END IF;
+  IF booking_operations_migration_installed THEN
+    selected_name := 'tideway_private.list_administrator_booking_operations(text,integer,integer)';
+    selected_function := to_regprocedure(selected_name);
+    IF selected_function IS NULL THEN RAISE EXCEPTION 'Required protected function is missing: %', selected_name; END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=selected_function AND procedure.prosecdef
+        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+    ) OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('public', selected_function, 'EXECUTE')
+      OR position('access_instructions' IN COALESCE(selected_source,''))>0
+      OR position('provider_payment_id' IN COALESCE(selected_source,''))>0
+      OR position('display_name' IN COALESCE(selected_source,''))>0 THEN
+      RAISE EXCEPTION 'The Administrator booking operations projection is missing its restricted, privacy-minimised boundary';
     END IF;
   END IF;
   IF scope_handoff_migration_installed THEN

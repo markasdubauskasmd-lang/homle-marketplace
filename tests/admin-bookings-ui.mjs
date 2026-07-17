@@ -1,0 +1,25 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { adminBookingQueue, adminBookingView, operationStatusLabel, plannedMarginPercent, shortOperationReference } from "../public/admin-bookings-model.js";
+
+assert.equal(adminBookingView("attention"), "attention");
+assert.equal(adminBookingView(""), null);
+assert.throws(() => adminBookingView("addresses"), /valid booking operations view/);
+assert.equal(shortOperationReference({ bookingId: "33333333-3333-4333-8333-333333333333" }), "BKG-33333333");
+assert.equal(operationStatusLabel("cleaning-in-progress"), "Cleaning In Progress");
+assert.equal(plannedMarginPercent({ customerPricePence: 12000, plannedContributionPence: 3500 }), 29.2);
+assert.equal(adminBookingQueue({ operations: [], limit: 50, offset: 0 }).limit, 50);
+
+const [page, script, migration, grants, server] = await Promise.all([
+  readFile(new URL("../public/admin-bookings.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/admin-bookings.js", import.meta.url), "utf8"),
+  readFile(new URL("../db/migrations/052_administrator_booking_operations.sql", import.meta.url), "utf8"),
+  readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8"),
+  readFile(new URL("../server.mjs", import.meta.url), "utf8")
+]);
+assert(page.includes("No names, addresses, access instructions or provider identifiers") && page.includes('name="referrer" content="no-referrer"'), "The operations page lost its privacy explanation or referrer boundary.");
+assert(script.includes("/api/marketplace/admin/bookings") && script.includes("plannedContributionPence") && !script.includes("innerHTML"), "The operations UI lost the protected API, frozen economics or safe DOM rendering.");
+for (const forbidden of ["access_instructions", "provider_payment_id", "destination_account_id", "display_name", "email", "postcode"]) assert(!migration.includes(forbidden), `Administrator operations exposed forbidden ${forbidden}.`);
+assert(migration.includes("planned_contribution_pence") && migration.includes("planned_labour_on_cost_pence") && migration.includes("SECURITY DEFINER") && migration.includes("administrator-required"), "The operations projection omitted full planned economics or Administrator enforcement.");
+assert(grants.includes("list_administrator_booking_operations(text,integer,integer)") && server.includes('"/admin/bookings": "admin-bookings.html"'), "The restricted grant or protected page route is missing.");
+console.log("Administrator booking UI tests passed: privacy-minimised queue, safe rendering and full planned economics.");

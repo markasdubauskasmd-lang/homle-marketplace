@@ -205,7 +205,10 @@ const rateLimiter = {
     return input.scope === rateLimitedScope ? { allowed: false, retryAfterSeconds: 99999 } : { allowed: true };
   }
 };
-const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const administratorBookingService = {
+  async list(actor, input) { calls.push({ kind: "administrator-booking-list", actor, input }); return { operations: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; }
+};
+const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -262,6 +265,8 @@ const absentBookingPaymentResponse = response();
 assert(await noPaymentRouter.handle(request("GET", bookingPaymentUrl), absentBookingPaymentResponse, new URL(`http://127.0.0.1:4173${bookingPaymentUrl}`)) === false && absentBookingPaymentResponse.statusCode === null, "Disabled payments exposed a participant payment route.");
 
 const adminPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments?status=actionable&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
+const adminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings?view=attention&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
+const landlordAdminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings", { headers: { cookie: authHeaders.cookie } });
 const relatedPaymentQueue = await dispatch(router, "GET", `/api/marketplace/admin/payments?bookingId=${paymentBookingId}`, { headers: { cookie: administratorAuthHeaders.cookie } });
 const relatedPaymentCall = calls.findLast((call) => call.kind === "payment-admin-list");
 const landlordPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments", { headers: { cookie: authHeaders.cookie } });
@@ -269,6 +274,7 @@ const missingAdminPaymentCsrf = await dispatch(router, "POST", "/api/marketplace
 const capturedPayment = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/capture", { headers: administratorAuthHeaders, body: { idempotencyKey: "admin_capture_retry_key_123456789012" } });
 const refundedPayment = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/refund", { headers: administratorAuthHeaders, body: { idempotencyKey: "admin_refund_retry_key_1234567890123", amountPence: 1500, destinationAccountId: "acct_browser_attack" } });
 assert(adminPaymentQueue.response.statusCode === 200 && adminPaymentQueue.body.testMode === true && calls.find((call) => call.kind === "payment-admin-list")?.input.status === "actionable" && landlordPaymentQueue.response.statusCode === 403 && missingAdminPaymentCsrf.response.statusCode === 403, "Administrator payment queue lost role isolation, exact filters, test-mode proof or CSRF protection.");
+assert(adminBookingQueue.response.statusCode === 200 && landlordAdminBookingQueue.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-booking-list")?.input.view === "attention", "Administrator booking operations lost role isolation or its exact view filter.");
 assert(relatedPaymentQueue.response.statusCode === 200 && relatedPaymentCall.input.bookingId === paymentBookingId && relatedPaymentCall.input.status === null, "The case-payment route lost its exact booking filter or introduced a payment mutation.");
 assert(capturedPayment.response.statusCode === 202 && refundedPayment.response.statusCode === 202 && calls.find((call) => call.kind === "payment-admin-capture")?.input.idempotencyKey === "admin_capture_retry_key_123456789012" && calls.find((call) => call.kind === "payment-admin-refund")?.input.amountPence === 1500 && !Object.hasOwn(calls.find((call) => call.kind === "payment-admin-refund").input, "destinationAccountId"), "Administrator capture/refund routes lost exact payment, retry, amount or server-owned destination boundaries.");
 const absentAdminPaymentResponse = response();
