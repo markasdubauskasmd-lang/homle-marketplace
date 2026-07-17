@@ -17,6 +17,7 @@ const releaseEntryPoints = Object.freeze([
   "tools/production-preflight.mjs",
   "tools/authentication-preflight.mjs",
   "tools/bootstrap-staging-database.mjs",
+  "tools/staging-service-probe.mjs",
   "tools/build-hostinger-release.mjs"
 ]);
 const alwaysIncluded = Object.freeze(["package.json", "pnpm-lock.yaml"]);
