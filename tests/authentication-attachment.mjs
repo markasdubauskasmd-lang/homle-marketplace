@@ -52,6 +52,7 @@ let probed = 0;
 const router = { async handle() { return true; } };
 const attachment = await createAuthenticationAttachment({
   env: environment,
+  workspaceReady: true,
   adapters: { onUnexpectedError() {}, async close() { adaptersClosed += 1; } },
   createClientKeyResolver() { return () => "direct:ipv4:198.51.100.10"; },
   async createEmailDelivery() {
@@ -60,7 +61,8 @@ const attachment = await createAuthenticationAttachment({
   async createPool() { return { async end() { poolClosed += 1; } }; },
   async probeDatabase() { probed += 1; },
   createRateLimiter() { return { async consume() { return { allowed: true }; } }; },
-  createRuntime() {
+  createRuntime(selectedPool, options) {
+    assert.equal(options.workspaceReady, true);
     return { router, authenticationHttpReady: true, emailPasswordReady: true, googleOidcReady: true, facebookLoginReady: true };
   }
 });

@@ -176,6 +176,8 @@ assert.equal(attachment.authenticationCapabilities.emailVerification, true);
 assert.equal(attachment.authenticationCapabilities.google, true, "A configured and attached Google callback router was not advertised truthfully.");
 assert.equal(attachment.authenticationCapabilities.facebook, true, "A configured and attached Facebook callback plus mailbox-verification router was not advertised truthfully.");
 assert.equal(attachment.paymentsReady, false, "Payments appeared attached without the explicit payment switch.");
+assert.equal(attachment.emailReady, true);
+assert.equal(attachment.mediaReady, true);
 await attachment.close();
 await attachment.close();
 assert.equal(realtimeClosed, 1);
@@ -183,6 +185,44 @@ assert.equal(smtpClosed, 1);
 assert.equal(storageClosed, 1);
 assert.equal(ended, 1);
 assert.equal(realtimeEnded, 1);
+
+const restrictedCoreEnvironment = Object.freeze({
+  ...completeEnvironment,
+  STAGING_ACCOUNTS_ONLY: "true",
+  SMTP_URL: undefined,
+  EMAIL_FROM: undefined,
+  OBJECT_STORAGE_ENDPOINT: undefined,
+  OBJECT_STORAGE_BUCKET: undefined,
+  OBJECT_STORAGE_REGION: undefined,
+  OBJECT_STORAGE_ACCESS_KEY_ID: undefined,
+  OBJECT_STORAGE_SECRET_ACCESS_KEY: undefined
+});
+let restrictedCoreClosed = 0;
+const restrictedCore = await createMarketplaceAttachment({
+  env: restrictedCoreEnvironment,
+  adapters,
+  async createPool() { return { async end() {} }; },
+  async createRealtimePool() { return { async end() {} }; },
+  async probeDatabase() { return { databaseName: "tideway" }; },
+  async probeRealtimeDatabase() { return { databaseName: "tideway" }; },
+  createRealtimeSignalSource() { return { async close() { restrictedCoreClosed += 1; } }; },
+  async createEmailDelivery() { throw new Error("Restricted core must not create unconfigured email delivery."); },
+  async createObjectStorage() { throw new Error("Restricted core must not create unconfigured object storage."); },
+  createClientKeyResolver() { return trustedClientKey; },
+  createRateLimiter() { return sharedRateLimiter; },
+  createRuntime(selectedPool, options) {
+    assert.equal(options.emailDelivery, undefined);
+    assert.equal(options.objectStorage, undefined);
+    return { router, authenticationHttpReady: false, googleOidcReady: false, facebookLoginReady: false };
+  }
+});
+assert.equal(restrictedCore.enabled, true);
+assert.equal(restrictedCore.ready, true);
+assert.equal(restrictedCore.authenticationHttpReady, false);
+assert.equal(restrictedCore.emailReady, false);
+assert.equal(restrictedCore.mediaReady, false);
+await restrictedCore.close();
+assert.equal(restrictedCoreClosed, 1);
 
 let paymentAdapterVerified = 0;
 let paymentProviderConfiguration;

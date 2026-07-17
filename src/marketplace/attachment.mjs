@@ -146,6 +146,8 @@ function unavailableAttachment(env, reason = "disabled") {
     reason,
     authenticationHttpReady: false,
     authenticationCapabilities,
+    emailReady: false,
+    mediaReady: false,
     paymentsReady: false,
     router: null,
     async close() {}
@@ -159,9 +161,10 @@ export async function createMarketplaceAttachment(options = {}) {
   const validation = validateMarketplaceEnvironment(env);
   if (!validation.ok) throw new TypeError(`Marketplace attachment configuration is invalid: ${validation.errors.join(" ")}`);
   const environment = marketplaceEnvironment(env);
+  const restrictedStaging = environment.launchApproval.stagingAccountsRestricted === true;
   if (!environment.databaseConfigured || !environment.sessionConfigured || !environment.authTokenConfigured || !environment.encryptionConfigured || !environment.appOrigin) throw new TypeError("Marketplace attachment requires database, session, token, encryption and exact-origin configuration.");
-  if (!environment.emailConfigured) throw new TypeError("Marketplace attachment requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
-  if (!environment.objectStorageConfigured) throw new TypeError("Marketplace attachment requires complete private object-storage configuration.");
+  if (!environment.emailConfigured && !restrictedStaging) throw new TypeError("Marketplace attachment requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
+  if (!environment.objectStorageConfigured && !restrictedStaging) throw new TypeError("Marketplace attachment requires complete private object-storage configuration.");
 
   const clientKey = (options.createClientKeyResolver || createTrustedClientKeyResolver)(env);
 
@@ -183,11 +186,15 @@ export async function createMarketplaceAttachment(options = {}) {
   let runtime;
   let paymentProvider;
   try {
-    emailDelivery = await createEmailDelivery(env, { onUnexpectedError: adapters.onUnexpectedError });
-    if (!emailDelivery || typeof emailDelivery.send !== "function" || typeof emailDelivery.verify !== "function" || typeof emailDelivery.close !== "function") throw new TypeError("Marketplace email delivery did not compose completely.");
-    objectStorage = await createObjectStorage(env, { onUnexpectedError: adapters.onUnexpectedError });
-    const storageMethods = ["verify", "createUploadUrl", "headObject", "inspectAndSanitizeImage", "createReadUrl", "deleteObject", "close"];
-    if (!objectStorage || !storageMethods.every((method) => typeof objectStorage[method] === "function")) throw new TypeError("Marketplace private object storage did not compose completely.");
+    if (environment.emailConfigured) {
+      emailDelivery = await createEmailDelivery(env, { onUnexpectedError: adapters.onUnexpectedError });
+      if (!emailDelivery || typeof emailDelivery.send !== "function" || typeof emailDelivery.verify !== "function" || typeof emailDelivery.close !== "function") throw new TypeError("Marketplace email delivery did not compose completely.");
+    }
+    if (environment.objectStorageConfigured) {
+      objectStorage = await createObjectStorage(env, { onUnexpectedError: adapters.onUnexpectedError });
+      const storageMethods = ["verify", "createUploadUrl", "headObject", "inspectAndSanitizeImage", "createReadUrl", "deleteObject", "close"];
+      if (!objectStorage || !storageMethods.every((method) => typeof objectStorage[method] === "function")) throw new TypeError("Marketplace private object storage did not compose completely.");
+    }
     pool = await createPool(env);
     const databaseEvidence = await (options.probeDatabase || probeMarketplaceDatabase)(pool);
     if (environment.realtimeDatabaseConfigured) {
@@ -197,8 +204,8 @@ export async function createMarketplaceAttachment(options = {}) {
     } else {
       realtimePool = pool;
     }
-    await emailDelivery.verify();
-    await objectStorage.verify();
+    await emailDelivery?.verify();
+    await objectStorage?.verify();
     if (environment.payments.requested) {
       paymentProvider = await createPaymentProvider({ secretKey: env.STRIPE_SECRET_KEY, webhookSecret: env.STRIPE_WEBHOOK_SECRET });
       if (!paymentProvider || paymentProvider.name !== "stripe" || !["verify", "createPayoutAccount", "retrievePayoutAccount", "createPayoutOnboardingLink"].every((method) => typeof paymentProvider[method] === "function")) throw new TypeError("Stripe payment adapter did not compose completely.");
@@ -217,7 +224,7 @@ export async function createMarketplaceAttachment(options = {}) {
       etaProvider: adapters.etaProvider,
       onUnexpectedError: adapters.onUnexpectedError
     });
-    if (!runtime?.router || typeof runtime.router.handle !== "function" || runtime.authenticationHttpReady !== true || (environment.payments.requested && runtime.paymentReady !== true)) throw new TypeError("Marketplace runtime did not compose its router, authentication and requested payment boundaries completely.");
+    if (!runtime?.router || typeof runtime.router.handle !== "function" || (emailDelivery && runtime.authenticationHttpReady !== true) || (environment.payments.requested && runtime.paymentReady !== true)) throw new TypeError("Marketplace runtime did not compose its router and requested provider boundaries completely.");
   } catch (error) {
     try { await realtimeSignalSource?.close?.(); } catch {}
     try { await emailDelivery?.close?.(); } catch {}
@@ -241,8 +248,10 @@ export async function createMarketplaceAttachment(options = {}) {
     enabled: true,
     ready: true,
     reason: "ready",
-    authenticationHttpReady: true,
+    authenticationHttpReady: runtime.authenticationHttpReady === true,
     authenticationCapabilities,
+    emailReady: Boolean(emailDelivery),
+    mediaReady: Boolean(objectStorage),
     paymentsReady: environment.payments.requested && runtime.paymentReady === true,
     router: runtime.router,
     async close() {
@@ -250,8 +259,8 @@ export async function createMarketplaceAttachment(options = {}) {
       closed = true;
       const failures = [];
       try { await realtimeSignalSource.close?.(); } catch (error) { failures.push(error); }
-      try { await emailDelivery.close(); } catch (error) { failures.push(error); }
-      try { await objectStorage.close(); } catch (error) { failures.push(error); }
+      try { await emailDelivery?.close(); } catch (error) { failures.push(error); }
+      try { await objectStorage?.close(); } catch (error) { failures.push(error); }
       if (realtimePool !== pool) try { await realtimePool.end?.(); } catch (error) { failures.push(error); }
       try { await pool.end?.(); } catch (error) { failures.push(error); }
       try { await adapters.close(); } catch (error) { failures.push(error); }
