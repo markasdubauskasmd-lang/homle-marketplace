@@ -24,6 +24,109 @@ BEGIN
 END
 $landlord_authorization_check$;
 
+DO $landlord_message$
+DECLARE
+  selected_booking_id uuid;
+  sent jsonb;
+  retried jsonb;
+  conflict_blocked boolean := false;
+BEGIN
+  PERFORM set_config('app.user_id', '10000000-0000-4000-8000-000000000001', true);
+  PERFORM set_config('app.user_roles', 'landlord', true);
+  SELECT booking.id INTO selected_booking_id FROM bookings booking
+    WHERE booking.id::text LIKE '40000000-0000-4000-8000-%' AND booking.status='confirmed'
+    ORDER BY booking.id LIMIT 1;
+
+  sent := tideway_private.send_booking_message(
+    selected_booking_id,
+    '54000000-0000-4000-8000-000000000001',
+    '54100000-0000-4000-8000-000000000001',
+    'Please focus on the living areas.'
+  );
+  retried := tideway_private.send_booking_message(
+    selected_booking_id,
+    '54000000-0000-4000-8000-000000000002',
+    '54100000-0000-4000-8000-000000000001',
+    'Please focus on the living areas.'
+  );
+  IF sent->>'messageId'<>'54000000-0000-4000-8000-000000000001'
+     OR retried->>'messageId'<>sent->>'messageId'
+     OR sent->>'senderRole'<>'landlord' THEN
+    RAISE EXCEPTION 'Landlord message or exact retry was not recorded once';
+  END IF;
+  BEGIN
+    PERFORM tideway_private.send_booking_message(
+      selected_booking_id,
+      '54000000-0000-4000-8000-000000000002',
+      '54100000-0000-4000-8000-000000000001',
+      'Changed retry content.'
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    IF SQLERRM<>'message-idempotency-conflict' THEN RAISE; END IF;
+    conflict_blocked := true;
+  END;
+  IF conflict_blocked IS NOT TRUE THEN RAISE EXCEPTION 'Changed message retry was accepted'; END IF;
+END
+$landlord_message$;
+
+DO $cleaner_message$
+DECLARE
+  selected_booking_id uuid;
+  projection jsonb;
+  sent jsonb;
+  contact_blocked boolean := false;
+BEGIN
+  PERFORM set_config('app.user_id', '10000000-0000-4000-8000-000000000002', true);
+  PERFORM set_config('app.user_roles', 'cleaner', true);
+  SELECT booking.id INTO selected_booking_id FROM bookings booking
+    WHERE booking.id::text LIKE '40000000-0000-4000-8000-%' AND booking.status='confirmed'
+    ORDER BY booking.id LIMIT 1;
+
+  projection := tideway_private.get_booking_messages(selected_booking_id,NULL,NULL,50);
+  IF jsonb_array_length(projection->'messages')<>1
+     OR projection->'messages'->0->>'body'<>'Please focus on the living areas.'
+     OR projection->'messages'->0->>'senderRole'<>'landlord' THEN
+    RAISE EXCEPTION 'Cleaner did not receive the private Landlord booking message';
+  END IF;
+  sent := tideway_private.send_booking_message(
+    selected_booking_id,
+    '54000000-0000-4000-8000-000000000003',
+    '54100000-0000-4000-8000-000000000002',
+    'Understood. I will update the checklist.'
+  );
+  IF sent->>'senderRole'<>'cleaner' THEN RAISE EXCEPTION 'Cleaner reply lost its participant role'; END IF;
+  BEGIN
+    PERFORM tideway_private.send_booking_message(
+      selected_booking_id,
+      '54000000-0000-4000-8000-000000000004',
+      '54100000-0000-4000-8000-000000000003',
+      'Call me on 07123456789.'
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    IF SQLERRM<>'invalid-booking-message' THEN RAISE; END IF;
+    contact_blocked := true;
+  END;
+  IF contact_blocked IS NOT TRUE THEN RAISE EXCEPTION 'Direct contact details were accepted in booking chat'; END IF;
+END
+$cleaner_message$;
+
+DO $landlord_message_projection$
+DECLARE selected_booking_id uuid; projection jsonb;
+BEGIN
+  PERFORM set_config('app.user_id', '10000000-0000-4000-8000-000000000001', true);
+  PERFORM set_config('app.user_roles', 'landlord', true);
+  SELECT booking.id INTO selected_booking_id FROM bookings booking
+    WHERE booking.id::text LIKE '40000000-0000-4000-8000-%' AND booking.status='confirmed'
+    ORDER BY booking.id LIMIT 1;
+  projection := tideway_private.get_booking_messages(selected_booking_id,NULL,NULL,50);
+  IF jsonb_array_length(projection->'messages')<>2
+     OR projection->'messages'->1->>'body'<>'Understood. I will update the checklist.'
+     OR projection->'messages'->1->>'senderRole'<>'cleaner' THEN
+    RAISE EXCEPTION 'Landlord did not receive the private Cleaner booking reply';
+  END IF;
+END
+$landlord_message_projection$;
+
 DO $cleaner_visit$
 DECLARE
   selected_booking_id uuid;
@@ -186,12 +289,18 @@ DECLARE
   selected_booking_id uuid;
   blocked_progress boolean := false;
   blocked_review boolean := false;
+  blocked_messages boolean := false;
+  blocked_send boolean := false;
 BEGIN
-  PERFORM set_config('app.user_id', '10000000-0000-4000-8000-000000000003', true);
+  PERFORM set_config('app.user_id', '10000000-0000-4000-8000-000000000001', true);
   PERFORM set_config('app.user_roles', 'landlord', true);
   SELECT booking.id INTO selected_booking_id FROM bookings booking
     WHERE booking.id::text LIKE '40000000-0000-4000-8000-%' AND booking.status = 'completed'
     ORDER BY booking.id LIMIT 1;
+  IF selected_booking_id IS NULL THEN RAISE EXCEPTION 'Completed participant booking is missing before outsider-denial checks'; END IF;
+
+  PERFORM set_config('app.user_id', '10000000-0000-4000-8000-000000000003', true);
+  PERFORM set_config('app.user_roles', 'landlord', true);
 
   BEGIN
     PERFORM tideway_private.get_cleaning_progress(selected_booking_id);
@@ -205,7 +314,24 @@ BEGIN
     IF SQLERRM <> 'booking-not-found' THEN RAISE; END IF;
     blocked_review := true;
   END;
-  IF blocked_progress IS NOT TRUE OR blocked_review IS NOT TRUE THEN
+  BEGIN
+    PERFORM tideway_private.get_booking_messages(selected_booking_id,NULL,NULL,50);
+  EXCEPTION WHEN SQLSTATE 'P0002' THEN
+    IF SQLERRM <> 'booking-not-found' THEN RAISE; END IF;
+    blocked_messages := true;
+  END;
+  BEGIN
+    PERFORM tideway_private.send_booking_message(
+      selected_booking_id,
+      '54000000-0000-4000-8000-000000000005',
+      '54100000-0000-4000-8000-000000000005',
+      'Synthetic outsider message.'
+    );
+  EXCEPTION WHEN SQLSTATE 'P0002' THEN
+    IF SQLERRM <> 'booking-not-found' THEN RAISE; END IF;
+    blocked_send := true;
+  END;
+  IF blocked_progress IS NOT TRUE OR blocked_review IS NOT TRUE OR blocked_messages IS NOT TRUE OR blocked_send IS NOT TRUE THEN
     RAISE EXCEPTION 'Unrelated account gained participant lifecycle access';
   END IF;
 END

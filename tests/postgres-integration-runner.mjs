@@ -60,6 +60,9 @@ assert.match(sources.get("marketplace-post-concurrency.sql"), /Cleaner property 
 assert.match(sources.get("participant-lifecycle-rehearsal-setup.sql"), /scheduled_start_at = now\(\) \+ interval '5 minutes'/);
 assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /start_cleaner_journey/);
 assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /finish_booking_cleaning/);
+assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /Landlord message or exact retry was not recorded once/);
+assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /Direct contact details were accepted in booking chat/);
+assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /blocked_messages[\s\S]*blocked_send/);
 assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /Cleaner could see an unapproved review/);
 assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /Unrelated account gained participant lifecycle access/);
 assert.doesNotMatch(sources.get("participant-lifecycle-rehearsal.sql"), /https?:\/\//, "The disposable participant rehearsal must not contact an external provider.");
@@ -75,6 +78,7 @@ assert.match(sources.get("marketplace-payment-ordering.sql"), /Cleaner transfer 
 assert.match(sources.get("marketplace-payment-ordering.sql"), /A late authorization event regressed captured\/refunded payment state/);
 assert.match(sources.get("marketplace-integration-verify.sql"), /pending-cleaner-acceptance/);
 assert.match(sources.get("marketplace-integration-verify.sql"), /Confirmation history is not exactly once/);
+assert.match(sources.get("marketplace-integration-verify.sql"), /Two-way participant messages are missing or duplicated/);
 assert.match(sources.get("marketplace-integration-verify.sql"), /Facebook deletion callback audit evidence is missing or duplicated/);
 for (const file of ["accept-booking-a.sql", "accept-booking-b.sql"]) {
   assert.match(sources.get(file), /respond_to_cleaner_invitation/);
@@ -120,7 +124,7 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, matchingSelfExclusion: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, matchingSelfExclusion: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql",
   "matching-self-exclusion.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
