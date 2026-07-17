@@ -11,6 +11,11 @@ async function rejects(operation, expected) {
   return false;
 }
 
+async function rejectsCode(operation, expected) {
+  try { await operation(); } catch (error) { return error?.code === expected; }
+  return false;
+}
+
 function encoded(value) {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
 }
@@ -129,9 +134,9 @@ await provider.complete(new URL(`${provider.callbackUrl}?code=second-code&state=
 assert(tokenRequests === 7 && keyRequests === 1, "Google signing keys were not bounded and cached or the authorization code was not exchanged exactly once per callback.");
 
 const mismatched = start();
-assert(await rejects(() => provider.complete(new URL(`${provider.callbackUrl}?code=code&state=${encodeURIComponent(`${mismatched.state}x`)}`), mismatched.cookie), "mismatched"), "Google callback accepted a state that did not match the signed HTTP-only flow cookie.");
-assert(await rejects(() => provider.complete(new URL(`${provider.callbackUrl}?code=code&state=${encodeURIComponent(mismatched.state)}`), ""), "missing or expired"), "Google callback accepted a missing flow cookie.");
-assert(await rejects(() => provider.complete(new URL(`${provider.callbackUrl}?error=access_denied&state=${encodeURIComponent(mismatched.state)}`), mismatched.cookie), "cancelled or rejected"), "Google denial was treated as a successful sign-in.");
+assert(await rejectsCode(() => provider.complete(new URL(`${provider.callbackUrl}?code=code&state=${encodeURIComponent(`${mismatched.state}x`)}`), mismatched.cookie), "google-flow-invalid"), "Google callback accepted a state that did not match the signed HTTP-only flow cookie.");
+assert(await rejectsCode(() => provider.complete(new URL(`${provider.callbackUrl}?code=code&state=${encodeURIComponent(mismatched.state)}`), ""), "google-flow-invalid"), "Google callback accepted a missing flow cookie.");
+assert(await rejectsCode(() => provider.complete(new URL(`${provider.callbackUrl}?error=access_denied&state=${encodeURIComponent(mismatched.state)}`), mismatched.cookie), "google-provider-access-denied"), "Google denial was treated as a successful sign-in or lost its safe operational classification.");
 
 for (const [override, expected, label] of [
   [{ aud: "different-client" }, "different application", "audience"],
@@ -142,7 +147,7 @@ for (const [override, expected, label] of [
 ]) {
   claimsOverride = override;
   const attempt = start();
-  assert(await rejects(() => provider.complete(new URL(`${provider.callbackUrl}?code=invalid-${label}&state=${encodeURIComponent(attempt.state)}`), attempt.cookie), expected), `Google identity-token ${label} validation failed open.`);
+  assert(await rejectsCode(() => provider.complete(new URL(`${provider.callbackUrl}?code=invalid-${label}&state=${encodeURIComponent(attempt.state)}`), attempt.cookie), "google-identity-verification-failed"), `Google identity-token ${label} validation failed open or lost its safe operational classification (${expected}).`);
 }
 claimsOverride = {};
 
@@ -155,6 +160,7 @@ const accountStyles = await readFile(new URL("../public/styles.css", import.meta
 assert(accountPage.includes('data-social-actions hidden') && accountPage.includes('data-social-provider="google"') && accountPage.includes('data-social-provider="facebook"') && /data-social-provider="google"[^>]+hidden/.test(accountPage) && /data-social-provider="facebook"[^>]+hidden/.test(accountPage), "The account page exposed a provider before capability discovery or omitted its gated controls.");
 assert(accountScript.includes("providers[link.dataset.socialProvider] === true") && accountScript.indexOf("history.replaceState") < accountScript.indexOf('fetch("/api/auth/providers"') && accountScript.includes('fragment.get("csrfToken")') && accountScript.includes("storeCsrf(socialCsrfToken)"), "The account browser flow did not require an explicit provider capability or remove callback fragments before network activity.");
 assert(accountScript.includes('socialResult === "staging-access-unavailable"') && accountScript.includes("This preview is limited to approved test accounts") && accountScript.includes("no Homle account or session was created"), "A verified social account denied by the staging allowlist still receives a vague provider error.");
+assert(accountScript.includes('fragment.get("reason")') && accountScript.includes('"access-denied"') && accountScript.includes('"attempt-expired"') && accountScript.includes('"handoff-rejected"') && accountScript.includes('"identity-unverified"') && accountScript.includes('"account-save-failed"'), "The Google callback UI still collapses provider, secure-flow, token, identity and account/session failures into one unactionable message.");
 assert(accountPage.includes("data-email-toggle") && accountPage.includes('aria-expanded="false"') && accountPage.includes('id="account-email-login"') && accountPage.includes('id="account-email-signup"') && accountScript.includes("const providerFirst = socialReady && emailReady && socialPage") && accountScript.includes("emailEntryDeferred") && accountScript.includes("function revealEmailForm") && accountScript.includes('form?.querySelector("input")?.focus()'), "Provider-ready account entry still exposes the email form at once or lacks an accessible one-action email fallback.");
 assert(accountPage.includes('data-onboarding-choice="landlord"') && accountPage.includes('data-onboarding-choice="cleaner"') && accountScript.includes('const selectedRole = bookingIntent ? "landlord" : "cleaner"') && accountScript.includes('bookingIntent ? "cleaner" : "landlord"') && accountScript.includes('submit.textContent = bookingIntent ? "Continue to property details" : "Continue to Cleaner profile"') && accountScript.includes("You chose Book a clean") && accountScript.includes("You chose Work as a cleaner") && accountScript.includes("Confirm the booking workspace below") && accountScript.includes("Confirm the Cleaner workspace below"), "Role-aware account intent still asks for an irrelevant role decision or loses explicit Landlord/Cleaner confirmation.");
 assert(accountPage.includes("data-account-ready") && accountScript.includes('fetch("/api/marketplace/account"') && accountScript.includes('return destination && !workspaceReady ? "/account-ready" : destination') && accountScript.includes("Your Cleaner profile is created") && accountScript.includes("Your Landlord profile is created") && accountScript.includes('fetch("/api/health"'), "Authentication-only social onboarding can still fall into a disabled dashboard or cannot verify the created role profile.");

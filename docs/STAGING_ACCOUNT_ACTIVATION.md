@@ -58,6 +58,16 @@ After the owner has reviewed Render's restricted log access for this private tes
 
 Deploy, then verify `/api/auth/providers`. It must advertise only providers that composed successfully. Start sign-in from `/login` or `/signup`; never start at a callback URL.
 
+If Google returns to Homle but sign-in does not complete, the login page now shows one fixed, actionable category instead of a generic provider error:
+
+- Google consent/testing access was denied;
+- the short-lived same-browser attempt expired or its secure cookie was unavailable;
+- Google rejected the server-side code handoff;
+- the returned Google identity could not be cryptographically verified; or
+- Google verified the identity but Homle could not persist the account/session.
+
+For every category except expected consent denial, Render receives only a privacy-safe callback stage code and a one-way error fingerprint. The event must not include an email, Google subject, authorization code, token, flow cookie or provider response. Inspect the latest `authentication` / `google-callback` event after one fresh retry; do not ask a tester to send callback URLs, browser storage or OAuth query strings.
+
 Before asking a tester to sign in, run the external readiness verifier. It makes one anonymous, no-cookie request to Google's validated authorization URL and stops before login. If Google has not saved the exact callback on the matching web client, the report fails with `google-provider-registration` and prints the exact URI to add; this prevents another tester from reaching Google's `redirect_uri_mismatch` page:
 
 ```powershell

@@ -29,6 +29,7 @@ const accountReadyLogout = document.querySelector("[data-account-ready-logout]")
 const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
 const privateToken = fragment.get("token") || "";
 const socialResult = fragment.get("social") || "";
+const socialFailureReason = fragment.get("reason") || "";
 const socialCsrfToken = fragment.get("csrfToken") || "";
 const fragmentIntent = normalizeAccountIntent(fragment.get("intent"));
 let accountIntent = accountIntentFromSearch(location.search) || fragmentIntent;
@@ -385,7 +386,14 @@ try {
         showFeedback("Secure browser storage is unavailable, so Homle closed the Google session. Try a standard browser window.", "error");
       }
     } else if (socialResult === "google-failed") {
-      showFeedback("Google sign-in could not be completed. No Homle session was created; please try again.", "error");
+      const googleFailureMessages = {
+        "access-denied": "Google did not approve this sign-in. If Homle is still in Google testing mode, use an account added as a test user, then try again.",
+        "attempt-expired": "The secure Google sign-in attempt expired or its browser cookie was unavailable. Start again from this Homle sign-in page in the same browser tab.",
+        "handoff-rejected": "Google rejected the secure account handoff. Homle has recorded the exact stage so the Google client setup can be corrected.",
+        "identity-unverified": "Google returned an account response Homle could not verify. Try once more; if it repeats, the technical stage has been recorded.",
+        "account-save-failed": "Google verified the account, but Homle could not safely save the account or session. The technical stage has been recorded for repair."
+      };
+      showFeedback(googleFailureMessages[socialFailureReason] || "Google sign-in could not be completed. No Homle session was created; please try again.", "error");
     } else if (socialResult === "facebook" && socialCsrfToken) {
       if (storeCsrf(socialCsrfToken)) {
         const opened = location.pathname !== "/onboarding" && await openSignedInWorkspace();

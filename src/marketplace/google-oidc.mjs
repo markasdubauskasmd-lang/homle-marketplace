@@ -8,6 +8,10 @@ const flowLifetimeSeconds = 10 * 60;
 const maximumClockSkewSeconds = 60;
 const maximumProviderResponseBytes = 64 * 1024;
 
+function googleFailure(code, message) {
+  return Object.assign(new TypeError(message), { code });
+}
+
 function boundedSecret(value, label, minimum = 1) {
   const text = typeof value === "string" ? value.trim() : "";
   if (text.length < minimum || text.length > 4096 || /[\u0000-\u001f\u007f]/.test(text)) throw new TypeError(`${label} is invalid.`);
@@ -216,17 +220,41 @@ export function createGoogleOidcProvider(options = {}) {
       // The main server may receive an internal HTTP origin behind a trusted HTTPS
       // reverse proxy. The provider redirect URI remains the exact configured
       // public origin; only the routed callback path and query are consumed here.
-      if (url.pathname !== new URL(callbackUrl).pathname) throw new TypeError("Google returned to an invalid callback address.");
-      if (url.searchParams.has("error")) throw new TypeError("Google sign-in was cancelled or rejected.");
-      const code = singleQuery(url, "code", 4096);
-      const state = singleQuery(url, "state", 256);
-      const flow = verifiedFlow(cookieValue(cookieHeader, cookieName), stateSecret, Math.floor(clock() / 1000));
-      if (!equalText(state, flow.state)) throw new TypeError("Google returned a mismatched sign-in state.");
+      if (url.pathname !== new URL(callbackUrl).pathname) throw googleFailure("google-callback-invalid", "Google returned to an invalid callback address.");
+      if (url.searchParams.has("error")) {
+        const providerError = url.searchParams.get("error") === "access_denied" ? "google-provider-access-denied" : "google-provider-rejected";
+        throw googleFailure(providerError, "Google sign-in was cancelled or rejected.");
+      }
+      let code;
+      let state;
+      let flow;
+      try {
+        code = singleQuery(url, "code", 4096);
+        state = singleQuery(url, "state", 256);
+        flow = verifiedFlow(cookieValue(cookieHeader, cookieName), stateSecret, Math.floor(clock() / 1000));
+        if (!equalText(state, flow.state)) throw new TypeError("Google returned a mismatched sign-in state.");
+      } catch {
+        throw googleFailure("google-flow-invalid", "The Google sign-in attempt is missing, invalid or expired.");
+      }
       const body = new URLSearchParams({ code, client_id: clientId, client_secret: clientSecret, redirect_uri: callbackUrl, grant_type: "authorization_code", code_verifier: flow.verifier });
-      const response = await fetcher(tokenEndpoint, providerRequest({ method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body, redirect: "error" }));
-      const tokens = await jsonProviderResponse(response, "Google token exchange");
-      if (typeof tokens.id_token !== "string") throw new TypeError("Google did not return an identity token.");
-      return { ...await verifyIdentityToken(tokens.id_token, flow.nonce), flowPurpose: flow.purpose, flowIntent: flow.intent || "" };
+      let response;
+      try {
+        response = await fetcher(tokenEndpoint, providerRequest({ method: "POST", headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" }, body, redirect: "error" }));
+      } catch {
+        throw googleFailure("google-token-network-failed", "Google could not be reached to complete sign-in.");
+      }
+      let tokens;
+      try {
+        tokens = await jsonProviderResponse(response, "Google token exchange");
+        if (typeof tokens.id_token !== "string") throw new TypeError("Google did not return an identity token.");
+      } catch {
+        throw googleFailure("google-token-exchange-rejected", "Google rejected the secure sign-in handoff.");
+      }
+      try {
+        return { ...await verifyIdentityToken(tokens.id_token, flow.nonce), flowPurpose: flow.purpose, flowIntent: flow.intent || "" };
+      } catch {
+        throw googleFailure("google-identity-verification-failed", "Google returned an identity response that could not be verified.");
+      }
     }
   });
 }

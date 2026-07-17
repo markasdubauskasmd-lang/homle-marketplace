@@ -73,6 +73,22 @@ function sendRedirect(response, statusCode, location, cookies = []) {
   response.end();
 }
 
+function callbackDiagnostic(error, provider, stage) {
+  if (typeof error?.code === "string" && /^[a-z0-9][a-z0-9._-]{0,63}$/.test(error.code)) return error;
+  return Object.assign(new Error(`${provider} authentication callback failed during ${stage}.`), {
+    name: "AuthenticationCallbackError",
+    code: `${provider}-${stage}-failed`
+  });
+}
+
+function googleFailureReason(error, stage) {
+  if (error?.code === "google-provider-access-denied" || error?.code === "google-provider-rejected") return "access-denied";
+  if (error?.code === "google-flow-invalid" || error?.code === "google-callback-invalid") return "attempt-expired";
+  if (error?.code === "google-token-exchange-rejected" || error?.code === "google-token-network-failed") return "handoff-rejected";
+  if (error?.code === "google-identity-verification-failed") return "identity-unverified";
+  return stage === "account" || stage === "session" ? "account-save-failed" : "provider-failed";
+}
+
 export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const security = dependencies?.security;
   const credentials = dependencies?.credentialService;
@@ -265,6 +281,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
         if (url.pathname === `${prefix}google/callback`) {
           if (!google) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          let googleStage = "provider";
           try {
             await limit(request, "google-callback");
             const claims = await google.complete(url, header(request, "cookie"));
@@ -277,7 +294,9 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
               return true;
             }
             if ((claims.flowPurpose ?? "sign-in") !== "sign-in") throw new TypeError("Google returned an invalid flow purpose.");
+            googleStage = "account";
             const account = await identity.socialSignIn("google", claims);
+            googleStage = "session";
             const session = await sessions.establish(account, metadata(request));
             const destination = session.account.roles.length ? "/login" : "/onboarding";
             const fragment = new URLSearchParams({ social: "google", csrfToken: session.csrfToken, ...(claims.flowIntent ? { intent: claims.flowIntent } : {}) });
@@ -285,11 +304,15 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           } catch (error) {
             const rateLimited = error?.statusCode === 429;
             const stagingAccessUnavailable = error?.code === "staging-account-access-unavailable";
-            if (!rateLimited && !(error instanceof TypeError)) onUnexpectedError(error);
+            const expectedProviderRejection = error?.code === "google-provider-access-denied" || error?.code === "google-provider-rejected";
+            if (!rateLimited && !stagingAccessUnavailable && !expectedProviderRejection) onUnexpectedError(callbackDiagnostic(error, "google", googleStage), { component: "authentication", operation: "google-callback" });
             const linking = providerLink.has(header(request, "cookie"));
             const steppingUp = providerLink.hasStepUpFlow(header(request, "cookie"));
             const accountFlow = linking || steppingUp;
-            const fragment = new URLSearchParams({ [accountFlow ? "provider" : "social"]: rateLimited ? "rate-limited" : stagingAccessUnavailable && !accountFlow ? "staging-access-unavailable" : "google-failed" });
+            const fragment = new URLSearchParams({
+              [accountFlow ? "provider" : "social"]: rateLimited ? "rate-limited" : stagingAccessUnavailable && !accountFlow ? "staging-access-unavailable" : "google-failed",
+              ...(!rateLimited && !stagingAccessUnavailable ? { reason: googleFailureReason(error, googleStage) } : {})
+            });
             sendRedirect(response, 303, `${accountFlow ? "/settings" : "/login"}#${fragment}`, [google.clearCookie, ...(linking ? [providerLink.clearCookie] : []), ...(steppingUp ? [providerLink.clearStepUpFlowCookie] : [])]);
           }
           return true;

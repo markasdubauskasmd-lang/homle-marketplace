@@ -192,7 +192,7 @@ assert(unapprovedGoogleCallback.response.statusCode === 303 && unapprovedGoogleC
 socialSignInError = null;
 googleCompletionError = new TypeError("private provider rejection");
 const failedGoogleCallback = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=bad&state=opaque", undefined, { cookie: "tideway_google_flow=signed" });
-assert(failedGoogleCallback.response.statusCode === 303 && failedGoogleCallback.response.headers.Location === "/login#social=google-failed" && failedGoogleCallback.response.headers["Set-Cookie"][0].includes("Max-Age=0") && !failedGoogleCallback.response.headers.Location.includes("private provider rejection"), "Rejected Google callback leaked provider details or retained its one-time flow cookie.");
+assert(failedGoogleCallback.response.statusCode === 303 && failedGoogleCallback.response.headers.Location === "/login#social=google-failed&reason=provider-failed" && failedGoogleCallback.response.headers["Set-Cookie"][0].includes("Max-Age=0") && !failedGoogleCallback.response.headers.Location.includes("private provider rejection") && unexpectedError?.code === "google-provider-failed" && !unexpectedError.message.includes("private provider rejection"), "Rejected Google callback leaked provider details, retained its one-time flow cookie or bypassed privacy-safe stage monitoring.");
 googleCompletionError = null;
 
 const duplicateFacebookIntent = await dispatch(router, "GET", "/api/marketplace/auth/facebook/start?intent=book&intent=book", undefined, { "user-agent": "Example Browser" });
@@ -238,7 +238,7 @@ const googleLinkCallback = await dispatch(router, "GET", "/api/marketplace/auth/
 assert(googleLinkCallback.response.statusCode === 303 && googleLinkCallback.response.headers.Location === "/settings#provider=google-connected" && googleLinkCallback.response.headers["Set-Cookie"].length === 2 && calls.some((call) => call.kind === "connect-provider" && call.provider === "google") && !googleLinkCallback.response.headers.Location.includes("link"), "Google provider callback did not connect only to the authenticated session or clear both flow cookies.");
 const socialSignInsBeforeMissingLinkState = calls.filter((call) => call.kind === "social-sign-in").length;
 const missingLinkState = await dispatch(router, "GET", "/api/marketplace/auth/google/callback?code=link-without-binding&state=opaque", undefined, { cookie: "__Host-tideway_session=opaque; tideway_google_flow=signed" });
-assert(missingLinkState.response.headers.Location === "/login#social=google-failed" && calls.filter((call) => call.kind === "social-sign-in").length === socialSignInsBeforeMissingLinkState, "A signed provider-link callback without its session binding downgraded into ordinary social sign-in.");
+assert(missingLinkState.response.headers.Location === "/login#social=google-failed&reason=provider-failed" && calls.filter((call) => call.kind === "social-sign-in").length === socialSignInsBeforeMissingLinkState, "A signed provider-link callback without its session binding downgraded into ordinary social sign-in.");
 const duplicateGoogleLink = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/google/start", { password: "correct" }, privateHeaders);
 assert(duplicateGoogleLink.response.statusCode === 409 && duplicateGoogleLink.body.code === "provider-already-connected", "An already-connected provider started a replacement flow.");
 const facebookLinkStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/facebook/start", { password: "correct" }, privateHeaders);
