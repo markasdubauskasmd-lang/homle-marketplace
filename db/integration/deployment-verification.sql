@@ -71,6 +71,7 @@ DECLARE
   ];
   worker_functions constant text[] := ARRAY[
     'tideway_private.expire_due_cleaner_invitations(integer)',
+    'tideway_private.queue_due_booking_payment_reminders(integer)',
     'tideway_private.purge_expired_cleaner_locations(integer)',
     'tideway_private.expire_due_job_photo_uploads(integer)',
     'tideway_private.expire_due_request_photo_uploads(integer)',
@@ -270,7 +271,7 @@ SELECT json_build_object(
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
   'appFunctionChecks', 45,
-  'workerFunctionChecks', 13
+  'workerFunctionChecks', 14
 ) AS tideway_deployment_verification;
 
 ROLLBACK;

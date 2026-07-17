@@ -40,6 +40,7 @@ export async function createDefaultWorkerPool(env = process.env) {
 
 const requiredWorkerFunctions = Object.freeze([
   "expire_due_cleaner_invitations(integer)",
+  "queue_due_booking_payment_reminders(integer)",
   "purge_expired_cleaner_locations(integer)",
   "expire_due_job_photo_uploads(integer)",
   "expire_due_request_photo_uploads(integer)",

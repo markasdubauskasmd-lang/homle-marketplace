@@ -3,6 +3,7 @@ const copy = Object.freeze({
   "cleaner-declined": ["Cleaner response received", "The invited Cleaner declined. Homle can continue matching.", "View request"],
   "booking-confirmed": ["Booking confirmed", "The Cleaner accepted the date, scope and agreed price.", "View booking"],
   "cleaner-invitation-expired": ["Invitation expired", "The Cleaner invitation expired without a response.", "View request"],
+  "payment-action-required": ["Payment step needed", "Confirm payment authorisation before the clean so the Cleaner can start on time.", "Complete payment step"],
   "cleaner-started-travelling": ["Cleaner is on the way", "Live journey updates are now available for this booking.", "Track arrival"],
   "cleaner-nearby": ["Cleaner is nearby", "The Cleaner is close to the property.", "Track arrival"],
   "cleaner-arrived": ["Cleaner arrived", "The Cleaner recorded their arrival at the property.", "Open live job"],
@@ -42,6 +43,7 @@ export function notificationActionPath(eventType, bookingId, payload = {}) {
   if (eventType === "new-booking-request") return "/cleaner/dashboard";
   if (eventType === "cleaner-declined") return "/landlord/dashboard";
   if (eventType === "cleaner-invitation-expired") return payload?.matchingReopened === true ? "/landlord/dashboard" : "/cleaner/dashboard";
+  if (eventType === "payment-action-required") return `/booking-payment?bookingId=${bookingId.toLowerCase()}`;
   return bookingPath;
 }
 

@@ -1,6 +1,6 @@
 # Marketplace worker operations
 
-Tideway has a separate, default-off process for continuous maintenance, notification delivery, private upload cleanup and consent-bound matching. It never shares the web process's database identity. The worker authenticates only as `tideway_worker`, has no direct public-table privileges and can execute only the 13 reviewed functions in `db/worker-role-grants.sql`.
+Tideway has a separate, default-off process for continuous maintenance, notification delivery, private upload cleanup and consent-bound matching. It never shares the web process's database identity. The worker authenticates only as `tideway_worker`, has no direct public-table privileges and can execute only the 14 reviewed functions in `db/worker-role-grants.sql`.
 
 ## Safe capability split
 
@@ -14,12 +14,13 @@ All four flags default to false. Enabling the maintenance process does not imply
 
 ## Scheduled jobs
 
-The maintenance-only process registers five non-overlapping jobs:
+The maintenance-only process registers six non-overlapping jobs:
 
 | Job | Normal interval | Boundary |
 |---|---:|---|
 | Invitation expiry | 1 minute | Cancels only due unanswered invitations and reopens matching through the audited function. |
 | Current-location expiry | 1 minute | Deletes only expired current points; detailed location history is not retained. |
+| Payment readiness | 15 minutes | Warns the Landlord once when a confirmed clean is within 24 hours and its exact authorization will not remain current at the scheduled start; it never changes money or booking status. |
 | Session expiry | 15 minutes | Drains bounded expired-session batches without giving the web role delete access. |
 | Rate-limit retention | 1 hour | Removes only limiter buckets inactive for two hours. |
 | Pending social-identity retention | 1 hour | Removes only used/expired Facebook mailbox-verification material after its retention window. |
@@ -56,4 +57,4 @@ node tools/postgres-worker-verification-runner.mjs
 Remove-Item Env:WORKER_DATABASE_VERIFICATION_URL, Env:TIDEWAY_WORKER_TEST_CONFIRMATION
 ```
 
-The guarded verifier refuses another database name or role, probes PostgreSQL 16+, confirms function-only access and runs the five maintenance jobs once. On 16 July 2026 it passed locally against a fresh PostgreSQL 16.14 disposable database: 13 restricted functions and five jobs succeeded with no customer data present. Managed staging, provider-backed optional jobs, scheduler alerts and multi-instance evidence remain required before production activation.
+The guarded verifier refuses another database name or role, probes PostgreSQL 16+, confirms function-only access and runs the six maintenance jobs once. The predecessor schema passed locally against a fresh PostgreSQL 16.14 disposable database with 13 restricted functions and five jobs. Migration 041 adds the fourteenth function and sixth job; repeat the guarded proof against managed staging before production activation. Provider-backed optional jobs, scheduler alerts and multi-instance evidence also remain required.

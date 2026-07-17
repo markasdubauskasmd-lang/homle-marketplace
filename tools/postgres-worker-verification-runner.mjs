@@ -30,7 +30,7 @@ export async function runPostgresWorkerVerification(options = {}) {
     const database = await (options.probeDatabase || probeMarketplaceWorkerDatabase)(pool);
     const failures = [];
     supervisor = (options.createRuntime || createMarketplaceWorkerRuntime)(pool, { onUnexpectedError(error, context) { failures.push({ error, context }); } });
-    const names = ["invitation-expiry", "location-expiry", "session-expiry", "rate-limit-retention", "social-identity-retention"];
+    const names = ["invitation-expiry", "location-expiry", "payment-readiness-reminders", "session-expiry", "rate-limit-retention", "social-identity-retention"];
     const results = [];
     for (const name of names) results.push(await supervisor.runNow(name));
     if (failures.length || results.some((result) => result?.ran !== true || result?.ok !== true)) throw new Error("One or more restricted worker jobs failed.");

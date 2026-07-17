@@ -61,6 +61,7 @@ export function createMarketplaceMaintenanceJobs(repository, options = {}) {
   const jobs = [
     createDrainJob(repository, "expireInvitations", { name: "invitation-expiry", intervalMs: minute, batchLimit: 100, defaultLimit: 100, maximumLimit: 500 }),
     createDrainJob(repository, "purgeLocations", { name: "location-expiry", intervalMs: minute, batchLimit: 500, defaultLimit: 500, maximumLimit: 1000 }),
+    createDrainJob(repository, "queuePaymentReadinessReminders", { name: "payment-readiness-reminders", intervalMs: quarterHour, batchLimit: 100, defaultLimit: 100, maximumLimit: 500 }),
     createDrainJob(repository, "purgeSessions", { name: "session-expiry", intervalMs: quarterHour, batchLimit: 500, defaultLimit: 500, maximumLimit: 5000 }),
     createDrainJob(repository, "purgeRateLimits", { name: "rate-limit-retention", intervalMs: hourly, batchLimit: 1000, defaultLimit: 1000, maximumLimit: 5000 }),
     createDrainJob(repository, "purgePendingSocialIdentities", { name: "social-identity-retention", intervalMs: hourly, batchLimit: 1000, defaultLimit: 1000, maximumLimit: 5000 })
