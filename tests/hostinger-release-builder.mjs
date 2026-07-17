@@ -26,6 +26,7 @@ for (const required of [
   "db/migrations/040_payment_reconciliation_ordering.sql",
   "db/migrations/041_due_payment_readiness_notifications.sql",
   "db/migrations/042_booking_payment_window_summary.sql",
+  "db/migrations/043_two_stage_payment_reminders.sql",
   "db/runtime-role-grants.sql",
   "db/worker-role-grants.sql",
   "db/bootstrap/assert-empty-staging.sql",
@@ -73,20 +74,21 @@ try {
   assert.equal(release.privateMaterialIncluded, false);
   assert.equal(release.requiredRuntimeFilesVerified, true);
   assert.equal(release.databaseAssetsVerified, true);
-  assert.equal(release.migrationCount, 42);
+  assert.equal(release.migrationCount, 43);
   assert(release.entryCount >= release.fileCount && release.fileCount === expectedFiles.length + 1);
 
   const archive = await readFile(release.archivePath);
   const entries = inspectZipEntries(archive);
   assert.equal(entries.some((entry) => entry.name === "homle-release.json"), true, "Built release omitted its runtime deployment identity.");
   const identity = JSON.parse(readZipEntry(archive, "homle-release.json").toString("utf8"));
-  assert.deepEqual(identity, { schemaVersion: 1, application: "Homle", sourceCommit: release.sourceCommit, builtAt: release.generatedAt, migrationCount: 42 });
+  assert.deepEqual(identity, { schemaVersion: 1, application: "Homle", sourceCommit: release.sourceCommit, builtAt: release.generatedAt, migrationCount: 43 });
   assert.equal(entries.some((entry) => entry.name === "travel-coverage.mjs"), true, "Built release omitted the server's travel coverage dependency.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/038_facebook_data_deletion_callback.sql"), true, "Built release omitted the locked Facebook data-deletion migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/039_unexpected_task_frozen_terms.sql"), true, "Built release omitted the locked unexpected-task economics migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/040_payment_reconciliation_ordering.sql"), true, "Built release omitted the locked payment-ordering migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/041_due_payment_readiness_notifications.sql"), true, "Built release omitted the locked payment-readiness migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/042_booking_payment_window_summary.sql"), true, "Built release omitted the authoritative payment-window summary migration.");
+  assert.equal(entries.some((entry) => entry.name === "db/migrations/043_two_stage_payment_reminders.sql"), true, "Built release omitted the two-stage payment reminder migration.");
   assert.equal(entries.some((entry) => entry.name === "public/tracking-test.html"), false, "Built release exposed the local tracking lab.");
   validateReleaseEntries(entries, [...expectedFiles, "homle-release.json"]);
 

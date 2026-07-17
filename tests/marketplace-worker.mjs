@@ -6,7 +6,7 @@ import { createMarketplaceWorkerRuntime } from "../src/marketplace/worker-runtim
 import { createWorkerSupervisor } from "../src/marketplace/worker-supervisor.mjs";
 import { runPostgresWorkerVerification, validateWorkerVerificationTarget, workerVerificationConfirmation } from "../tools/postgres-worker-verification-runner.mjs";
 
-const workerRelease = Object.freeze({ source: "packaged", sourceCommit: "607f0113", builtAt: new Date(Date.now() - 60_000).toISOString(), migrationCount: 42 });
+const workerRelease = Object.freeze({ source: "packaged", sourceCommit: "607f0113", builtAt: new Date(Date.now() - 60_000).toISOString(), migrationCount: 43 });
 const workerEnvironment = Object.freeze({ MARKETPLACE_WORKER_ENABLED: "true", TIDEWAY_EXPECT_RELEASE: "607f0113", WORKER_DATABASE_URL: "postgresql://tideway_worker@127.0.0.1/test" });
 
 let now = Date.parse("2026-07-16T09:00:00.000Z");
@@ -109,8 +109,8 @@ const attached = await createMarketplaceWorkerAttachment({
   createRuntime: () => fakeSupervisor
 });
 assert.deepEqual(attached.capabilities, { email: false, media: false, dispatch: false });
-assert.deepEqual(attached.release, { sourceCommit: "607f0113", builtAt: workerRelease.builtAt, migrationCount: 42 });
-assert.deepEqual(attached.snapshot().release, { sourceCommit: "607f0113", migrationCount: 42 });
+assert.deepEqual(attached.release, { sourceCommit: "607f0113", builtAt: workerRelease.builtAt, migrationCount: 43 });
+assert.deepEqual(attached.snapshot().release, { sourceCommit: "607f0113", migrationCount: 43 });
 await attached.close();
 await attached.close();
 assert.equal(poolClosed, 1, "Worker attachment did not close its pool exactly once.");

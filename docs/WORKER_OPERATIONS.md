@@ -20,7 +20,7 @@ The maintenance-only process registers six non-overlapping jobs:
 |---|---:|---|
 | Invitation expiry | 1 minute | Cancels only due unanswered invitations and reopens matching through the audited function. |
 | Current-location expiry | 1 minute | Deletes only expired current points; detailed location history is not retained. |
-| Payment readiness | 15 minutes | Warns the Landlord once when a confirmed clean is within 24 hours and its exact authorization will not remain current at the scheduled start; it never changes money or booking status. |
+| Payment readiness | 15 minutes | Notifies once when the five-day authorization window opens, then once inside 24 hours only if the exact authorization is still missing; it never changes money or booking status. |
 | Session expiry | 15 minutes | Drains bounded expired-session batches without giving the web role delete access. |
 | Rate-limit retention | 1 hour | Removes only limiter buckets inactive for two hours. |
 | Pending social-identity retention | 1 hour | Removes only used/expired Facebook mailbox-verification material after its retention window. |
