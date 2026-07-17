@@ -1670,6 +1670,10 @@ textarea { resize: vertical; }
 .landlord-scan-boundary h2 { margin: 4px 0 5px; color: #fff; font-size: 1.55rem; }
 .landlord-scan-boundary p:last-child { margin: 0; color: #cae0da; font-size: .86rem; }
 .landlord-scan-boundary .button { white-space: nowrap; background: #fff; color: var(--green-dark); }
+.landlord-capability-note { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 13px; align-items: start; margin: -6px 0 24px; padding: 15px 17px; color: #654510; border: 1px solid #ddbd78; border-radius: 14px; background: #fff8e8; }
+.landlord-capability-note > span { display: grid; width: 34px; height: 34px; place-items: center; color: #fff; border-radius: 50%; background: #9a6a16; font-weight: 900; }
+.landlord-capability-note strong { display: block; margin: 1px 0 4px; }
+.landlord-capability-note p { margin: 0; font-size: .84rem; }
 .landlord-workspace-tabs { display: grid; grid-template-columns: 1fr 1fr; max-width: 520px; margin: 0 0 18px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: #e8efec; }
 .landlord-workspace-tabs button { min-height: 46px; padding: .65rem 1rem; color: var(--muted); border: 0; border-radius: 10px; background: transparent; font-weight: 830; cursor: pointer; }
 .landlord-workspace-tabs button.current { color: var(--green-dark); background: #fff; box-shadow: 0 4px 16px rgba(16,36,33,.09); }

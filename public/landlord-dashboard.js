@@ -47,6 +47,7 @@ const nextTitle = document.querySelector("[data-landlord-next-title]");
 const nextCopy = document.querySelector("[data-landlord-next-copy]");
 const nextLink = document.querySelector("[data-landlord-next-link]");
 const nextButton = document.querySelector("[data-landlord-next-button]");
+const mediaReadiness = document.querySelector("[data-landlord-media-readiness]");
 let properties = [];
 let requests = [];
 let bookings = [];
@@ -60,6 +61,7 @@ let editingPropertyId = "";
 let withdrawingRequestId = "";
 let withdrawalPending = false;
 let loading = false;
+let mediaReady = false;
 const requestScans = new Map();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
 let selectedCleanerId = "";
@@ -387,7 +389,7 @@ function requestScanPanel(request) {
   const summary = element("summary", "", request.status === "draft" ? "Add room photos and submit" : "View reviewed room scan");
   details.append(summary);
   const panel = element("div", "landlord-request-scan-body");
-  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? "Choose the checklist room and take a current photo. Add a photo note only when the checklist needs extra visual context. Homle strips metadata and keeps the sanitized image private." : "This is the reviewed room-scan handoff attached to the request.");
+  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? (mediaReady ? "Choose the checklist room and take a current photo. Add a photo note only when the checklist needs extra visual context. Homle strips metadata and keeps the sanitized image private." : "Your spoken room checklist is saved. Private photo storage is not connected yet, so camera upload and matching submission remain safely locked.") : "This is the reviewed room-scan handoff attached to the request.");
   const feedback = element("div", "landlord-form-feedback");
   feedback.hidden = true;
   feedback.tabIndex = -1;
@@ -398,6 +400,11 @@ function requestScanPanel(request) {
   let loaded = false;
 
   async function loadScan() {
+    if (!mediaReady) {
+      count.textContent = "Private room-photo storage not connected";
+      loaded = true;
+      return;
+    }
     try {
       const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/scan`);
       requestScans.set(request.requestId, result.scan);
@@ -462,6 +469,8 @@ function requestScanPanel(request) {
     pickerActions.append(cameraButton, libraryButton, cameraInput, libraryInput);
     const upload = element("button", "button", "Upload private room photo");
     upload.type = "submit";
+    for (const control of [room, note, cameraButton, libraryButton, cameraInput, libraryInput, upload]) control.disabled = !mediaReady;
+    if (!mediaReady) selected.textContent = "Photo capture unlocks after secure storage is verified";
     form.append(roomLabel, noteLabel, pickerActions, selected, upload);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -524,6 +533,8 @@ function requestScanPanel(request) {
     auto.addEventListener("change", () => { attempts.disabled = !auto.checked; });
     const submit = element("button", "button", "Submit cleaning request");
     submit.type = "submit";
+    for (const control of [confirm, preview, auto, preferred, attempts, submit]) control.disabled = !mediaReady || control === attempts;
+    if (!mediaReady) submit.textContent = "Room photos required before submission";
     submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerId ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
     submitForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -746,8 +757,8 @@ function renderNextAction() {
     return;
   }
   if (requests.some((request) => request.status === "draft")) {
-    nextTitle.textContent = "Finish your room scan";
-    nextCopy.textContent = "Add room photos, check the spoken-note summary and submit the private request.";
+    nextTitle.textContent = mediaReady ? "Finish your room scan" : "Review your spoken room checklist";
+    nextCopy.textContent = mediaReady ? "Add room photos, check the spoken-note summary and submit the private request." : "Your draft is safe. Photo upload and matching will unlock only after private storage is verified.";
     nextButton.textContent = "Continue room scan";
     nextButton.dataset.nextAction = "draft";
     nextButton.hidden = false;
@@ -765,17 +776,20 @@ async function loadWorkspace() {
   loading = true;
   showState("Checking secure Landlord access…", "Your properties and drafts open only inside an authenticated Landlord session.");
   try {
-    const [accountResult, propertyResult, requestResult, bookingResult] = await Promise.all([
+    const [accountResult, propertyResult, requestResult, bookingResult, healthResult] = await Promise.all([
       requestJson("/api/marketplace/account"),
       requestJson("/api/marketplace/properties"),
       requestJson("/api/marketplace/cleaning-requests"),
-      requestJson("/api/marketplace/bookings?limit=50")
+      requestJson("/api/marketplace/bookings?limit=50"),
+      requestJson("/api/health")
     ]);
     const account = accountResult.account;
     if (account?.selectedRole !== "landlord" || !account?.roles?.includes("landlord")) return showState("This is not a Landlord account.", "Use the workspace selected during onboarding or sign in with a Landlord/Property Manager account.", { kind: "authentication", allowSignIn: true });
     properties = Array.isArray(propertyResult.properties) ? propertyResult.properties : [];
     requests = Array.isArray(requestResult.cleaningRequests) ? requestResult.cleaningRequests : [];
     bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
+    mediaReady = healthResult?.marketplace?.mediaReady === true;
+    mediaReadiness.hidden = mediaReady;
     document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
     renderProperties();
     renderRequests();
