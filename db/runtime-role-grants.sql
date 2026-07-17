@@ -93,6 +93,8 @@ GRANT EXECUTE ON FUNCTION tideway_private.list_admin_booking_disputes(text,integ
 GRANT EXECUTE ON FUNCTION tideway_private.review_booking_dispute(uuid,text,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.request_my_privacy_action(uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_privacy_requests() TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.request_facebook_data_deletion(uuid,text,bytea,bytea) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_facebook_data_deletion_status(bytea) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_cleaner_payout_onboarding() TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.begin_my_cleaner_payout_onboarding(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.attach_my_cleaner_payout_account(uuid,text) TO tideway_app;
@@ -110,6 +112,7 @@ REVOKE SELECT ON notifications FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON reviews FROM tideway_app;
 REVOKE SELECT ON disputes FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON privacy_requests FROM tideway_app;
+REVOKE ALL ON TABLE tideway_private.facebook_data_deletion_requests FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_payments, payment_commands, payment_status_history FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.request_rate_limits FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.pending_social_identities FROM tideway_app;

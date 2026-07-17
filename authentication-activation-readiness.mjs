@@ -51,6 +51,7 @@ export function authenticationActivationReadiness(env = process.env, options = {
       origin: callbackOrigin(env.APP_ORIGIN) || null,
       expectedProviders: expected,
       callbacks: Object.freeze({}),
+      facebookDataDeletion: null,
       checks: Object.freeze({ productionDeployment: deployment.ok, marketplaceCore: false, emailFallback: false, socialProviders: false }),
       errors: Object.freeze([...deployment.errors, error.message]),
       nextEvidence: Object.freeze([])
@@ -84,6 +85,7 @@ export function authenticationActivationReadiness(env = process.env, options = {
     "Start the marketplace in managed staging and require its database, SMTP, private-storage and monitoring probes to pass.",
     `Run the external domain verifier with TIDEWAY_EXPECT_SOCIAL_PROVIDERS=${expected.join(",")}.`,
     "Complete new-account, repeat-login, role-onboarding, logout and account-collision tests with two non-customer staging accounts.",
+    ...(expected.includes("facebook") ? ["Register the signed Facebook data-deletion callback and public status URL in Meta, then prove a non-customer deletion request reaches the private privacy queue."] : []),
     "Keep payments disabled until their separate test-mode approval and reconciliation gate passes."
   ]) : Object.freeze([]);
   return Object.freeze({
@@ -92,6 +94,10 @@ export function authenticationActivationReadiness(env = process.env, options = {
     origin: origin || null,
     expectedProviders: expected,
     callbacks: Object.freeze(Object.fromEntries(expected.map((provider) => [provider, providerChecks[provider].callback]))),
+    facebookDataDeletion: expected.includes("facebook") && origin ? Object.freeze({
+      callback: `${origin}/api/marketplace/auth/facebook/data-deletion`,
+      statusPage: `${origin}/facebook-data-deletion`
+    }) : null,
     providers: Object.freeze(providerChecks),
     checks: Object.freeze({ productionDeployment: deployment.ok, marketplaceCore, emailFallback, socialProviders: expectedProvidersConfigured }),
     errors: Object.freeze([...new Set(errors)]),

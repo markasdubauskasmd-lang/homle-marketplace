@@ -6,6 +6,8 @@ const supportedScopes = Object.freeze([
   "facebook-start",
   "facebook-callback",
   "facebook-verification-confirm",
+  "facebook-data-deletion",
+  "facebook-data-deletion-status",
   "signup",
   "verification-resend",
   "verification-confirm",

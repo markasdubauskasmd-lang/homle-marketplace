@@ -62,6 +62,7 @@ For Homle, the canonical callbacks are:
 ```text
 https://homle.co.uk/api/marketplace/auth/google/callback
 https://homle.co.uk/api/marketplace/auth/facebook/callback
+https://homle.co.uk/api/marketplace/auth/facebook/data-deletion
 ```
 
 Before starting managed staging, set `TIDEWAY_EXPECT_SOCIAL_PROVIDERS` to the provider being activated first (for example `google`) and run `pnpm run preflight:authentication`. The resulting JSON contains only booleans, provider names, callback URLs and missing-action text; it never returns credential values. A passing configuration report is not permission to expose the buttons: the report lists the remaining live service probes, external-domain check and two-account staging evidence that must still pass.
@@ -80,13 +81,24 @@ The server uses a version-pinned Facebook authorization-code flow:
 
 Facebook start, callback and verification confirmation each have shared PostgreSQL rate limits. Missing provider email directs the user to email sign-in without creating an account. Provider or internal errors produce generic browser outcomes.
 
+The Meta account-removal callback is also implemented behind the same attachment gate. `POST /api/marketplace/auth/facebook/data-deletion` accepts only Meta's bounded form-encoded `signed_request`, verifies the `HMAC-SHA256` signature against the server-only App Secret in constant time, and accepts only a numeric app-scoped subject. Homle purpose-HMACs that subject before persistence, derives a stable opaque confirmation code for safe Meta retries, and creates or reuses one deletion request through a function-only authentication transaction. Unknown or already-removed subjects complete without creating an account. The response contains Meta's exact `url` and `confirmation_code` fields. The URL carries the confirmation code only in its fragment, removes it before the browser requests status, and sends it to a separately rate-limited no-store endpoint in a private header. Neither the raw Facebook subject nor a credential enters the status page, URL request, audit metadata or browser storage.
+
+Register these exact Meta values only after managed staging is attached:
+
+```text
+Data deletion callback: https://homle.co.uk/api/marketplace/auth/facebook/data-deletion
+Status page base URL:   https://homle.co.uk/facebook-data-deletion
+```
+
+Migration `038_facebook_data_deletion_callback.sql` adds the private callback/status record, the two reviewed rate-limit scopes and function-only runtime grants. A valid callback creates an honest privacy queue item; it does not claim the deletion has already been fulfilled. Administrator fulfilment, retention exceptions and final deletion evidence remain operational launch requirements.
+
 ## Facebook activation gate
 
 Before Facebook can become public:
 
 - create the Meta app under the approved legal business account and register the exact HTTPS callback `/api/marketplace/auth/facebook/callback`;
 - store `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` and an explicitly selected supported `FACEBOOK_GRAPH_API_VERSION` in deployment secrets;
-- complete Meta app review where required, the data-deletion callback, production privacy disclosures and provider-disconnection handling;
+- register and prove the exact signed data-deletion callback above, complete Meta app review where required, finish production privacy disclosures and retain provider-disconnection handling;
 - retain the authenticated password/social step-up and lockout-safe removal proof under the real Meta app, HTTPS session and two-account staging run;
 - pass the locked migration, RLS, concurrency, SMTP-delivery and full mobile-browser staging suites under the final domain.
 - rerun `tools/domain-readiness.mjs` with `TIDEWAY_EXPECT_SOCIAL_PROVIDERS=google,facebook` (or `facebook` if Google is intentionally closed) and retain the passing, secret-free result.

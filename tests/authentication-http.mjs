@@ -122,6 +122,16 @@ const facebookIdentityService = {
   async begin(claims) { calls.push({ kind: "facebook-identity-begin", claims }); return facebookBeginResult; },
   async verify(token) { calls.push({ kind: "facebook-identity-verify", token }); return facebookVerifyResult; }
 };
+const facebookDataDeletionService = {
+  async request(signedRequest) {
+    calls.push({ kind: "facebook-data-deletion", signedRequest });
+    return { statusUrl: `${origin}/facebook-data-deletion#code=${"c".repeat(32)}`, confirmationCode: "c".repeat(32), status: "requested" };
+  },
+  async status(code) {
+    calls.push({ kind: "facebook-data-deletion-status", code });
+    return code === "c".repeat(32) ? { status: "processing", requestedAt: "2026-07-16T12:00:00.000Z", completedAt: null } : null;
+  }
+};
 const providerLinkState = {
   clearCookie: "__Host-tideway_provider_link=; Max-Age=0; HttpOnly; Secure",
   clearStepUpFlowCookie: "__Host-tideway_provider_step_up_flow=; Max-Age=0; HttpOnly; Secure",
@@ -147,7 +157,7 @@ const providerLinkState = {
     return { provider: match[1], userId: context.actor.userId, sessionId: context.sessionId };
   }
 };
-const router = createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, providerLinkState, accountSessionService, emailDelivery, rateLimiter, googleOidcProvider, facebookLoginProvider }, {
+const router = createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery, rateLimiter, googleOidcProvider, facebookLoginProvider }, {
   appOrigin: origin,
   clientKey: () => "198.51.100.10",
   minimumPublicResponseMs: 500,
@@ -196,6 +206,14 @@ facebookCompletionError = new TypeError("private Facebook rejection");
 const failedFacebookCallback = await dispatch(router, "GET", "/api/marketplace/auth/facebook/callback?code=bad&state=opaque", undefined, { cookie: "tideway_facebook_flow=signed" });
 assert(failedFacebookCallback.response.statusCode === 303 && failedFacebookCallback.response.headers.Location === "/login#social=facebook-failed" && !failedFacebookCallback.response.headers.Location.includes("private Facebook rejection"), "Rejected Facebook callback leaked provider detail or retained flow state.");
 facebookCompletionError = null;
+
+const deletionWrongType = await dispatch(router, "POST", "/api/marketplace/auth/facebook/data-deletion", { signed_request: "signed.payload" }, publicHeaders);
+const deletionCallback = await dispatch(router, "POST", "/api/marketplace/auth/facebook/data-deletion", "signed_request=signed.payload", { "content-type": "application/x-www-form-urlencoded" });
+const deletionStatus = await dispatch(router, "GET", "/api/marketplace/auth/facebook/data-deletion/status", undefined, { "x-homle-deletion-code": "c".repeat(32) });
+const missingDeletionStatus = await dispatch(router, "GET", "/api/marketplace/auth/facebook/data-deletion/status", undefined, { "x-homle-deletion-code": "x".repeat(32) });
+assert(deletionWrongType.response.statusCode === 400 && deletionWrongType.body.code === "form-content-type-required", "Facebook deletion callback accepted an unsigned JSON/browser-style mutation.");
+assert(deletionCallback.response.statusCode === 200 && deletionCallback.body.confirmation_code === "c".repeat(32) && deletionCallback.body.url === `${origin}/facebook-data-deletion#code=${"c".repeat(32)}` && !deletionCallback.body.ok && calls.some((call) => call.kind === "facebook-data-deletion" && call.signedRequest === "signed.payload"), "Facebook deletion callback did not return Meta's exact private confirmation contract.");
+assert(deletionStatus.response.statusCode === 200 && deletionStatus.body.status === "processing" && deletionStatus.response.headers["Cache-Control"] === "no-store" && missingDeletionStatus.response.statusCode === 404, "Facebook deletion status leaked or failed to return the narrow no-store status projection.");
 
 const providerList = await dispatch(router, "GET", "/api/marketplace/auth/provider-links", undefined, privateHeaders);
 assert(providerList.response.statusCode === 200 && providerList.body.connected.length === 1 && providerList.body.connected[0].provider === "password" && providerList.body.available.google === true && providerList.body.available.facebook === true && providerList.body.available.apple === false && providerList.body.recentStepUp === null, "Authenticated settings did not return the narrow connected/available provider projection.");

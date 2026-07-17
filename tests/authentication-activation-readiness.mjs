@@ -63,6 +63,10 @@ try {
   assert.deepEqual(ready.checks, { productionDeployment: true, marketplaceCore: true, emailFallback: true, socialProviders: true });
   assert.equal(ready.callbacks.google, "https://homle.co.uk/api/marketplace/auth/google/callback");
   assert.equal(ready.callbacks.facebook, "https://homle.co.uk/api/marketplace/auth/facebook/callback");
+  assert.deepEqual(ready.facebookDataDeletion, {
+    callback: "https://homle.co.uk/api/marketplace/auth/facebook/data-deletion",
+    statusPage: "https://homle.co.uk/facebook-data-deletion"
+  });
   assert(ready.nextEvidence.some((item) => item.includes("two non-customer staging accounts")), "Configuration readiness was mistaken for live authentication evidence.");
   const serialized = JSON.stringify(ready);
   for (const secret of Object.values(secrets)) assert(!serialized.includes(secret), "Authentication preflight exposed a secret value.");
@@ -76,6 +80,7 @@ try {
   assert.equal(nonPublicOrigin.ok, false);
   assert.equal(nonPublicOrigin.origin, null);
   assert.equal(nonPublicOrigin.callbacks.google, null);
+  assert.equal(nonPublicOrigin.facebookDataDeletion, null);
 
   const detached = authenticationActivationReadiness({ ...configured, MARKETPLACE_ENABLED: "false", TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google" }, { projectRoot });
   assert.equal(detached.ok, false);

@@ -59,6 +59,8 @@ DECLARE
     'tideway_private.review_booking_dispute(uuid,text,text,text)',
     'tideway_private.request_my_privacy_action(uuid,text)',
     'tideway_private.get_my_privacy_requests()',
+    'tideway_private.request_facebook_data_deletion(uuid,text,bytea,bytea)',
+    'tideway_private.get_facebook_data_deletion_status(bytea)',
     'tideway_private.get_my_cleaner_payout_onboarding()',
     'tideway_private.begin_my_cleaner_payout_onboarding(uuid)',
     'tideway_private.attach_my_cleaner_payout_account(uuid,text)',
@@ -221,6 +223,16 @@ BEGIN
      OR has_table_privilege('tideway_worker', 'tideway_private.pending_social_identities', 'DELETE') THEN
     RAISE EXCEPTION 'Restricted roles have direct access to pending social identity material';
   END IF;
+  IF has_table_privilege('tideway_app', 'tideway_private.facebook_data_deletion_requests', 'SELECT')
+     OR has_table_privilege('tideway_app', 'tideway_private.facebook_data_deletion_requests', 'INSERT')
+     OR has_table_privilege('tideway_app', 'tideway_private.facebook_data_deletion_requests', 'UPDATE')
+     OR has_table_privilege('tideway_app', 'tideway_private.facebook_data_deletion_requests', 'DELETE')
+     OR has_table_privilege('tideway_worker', 'tideway_private.facebook_data_deletion_requests', 'SELECT')
+     OR has_table_privilege('tideway_worker', 'tideway_private.facebook_data_deletion_requests', 'INSERT')
+     OR has_table_privilege('tideway_worker', 'tideway_private.facebook_data_deletion_requests', 'UPDATE')
+     OR has_table_privilege('tideway_worker', 'tideway_private.facebook_data_deletion_requests', 'DELETE') THEN
+    RAISE EXCEPTION 'Restricted roles have direct access to Facebook deletion confirmation material';
+  END IF;
   IF has_table_privilege('tideway_app', 'tideway_private.cleaner_payout_accounts', 'SELECT')
      OR has_table_privilege('tideway_app', 'tideway_private.cleaner_payout_accounts', 'INSERT')
      OR has_table_privilege('tideway_app', 'tideway_private.cleaner_payout_accounts', 'UPDATE')
@@ -254,7 +266,7 @@ SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
-  'appFunctionChecks', 40,
+  'appFunctionChecks', 42,
   'workerFunctionChecks', 13
 ) AS tideway_deployment_verification;
 

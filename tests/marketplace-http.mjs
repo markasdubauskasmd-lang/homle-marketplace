@@ -441,6 +441,12 @@ const googleRuntime = createMarketplaceRuntime(pool, {
   ...runtimeAbuseControl
 });
 assert(googleRuntime.googleOidcReady === true && googleRuntime.googleOidcProvider?.callbackUrl === `${baseEnvironment.APP_ORIGIN}/api/marketplace/auth/google/callback`, "Complete Google configuration did not compose the exact callback verifier into the authentication runtime.");
+const facebookRuntime = createMarketplaceRuntime(pool, {
+  env: { ...enabledEnvironment, FACEBOOK_APP_ID: "123456789012345", FACEBOOK_APP_SECRET: "abcdef0123456789abcdef0123456789", FACEBOOK_GRAPH_API_VERSION: "v99.0" },
+  emailDelivery: { async send() {} },
+  ...runtimeAbuseControl
+});
+assert(facebookRuntime.facebookLoginReady === true && facebookRuntime.facebookLoginProvider && facebookRuntime.facebookDataDeletionRepository && facebookRuntime.facebookDataDeletionService, "Complete Facebook configuration did not compose sign-in together with Meta's signed data-deletion boundary.");
 let missingRuntime = false;
 try { createMarketplaceRuntime(pool, { env: {} }); } catch (error) { missingRuntime = error.message.includes("DATABASE_URL") && error.message.includes("SESSION_SECRET") && error.message.includes("DATA_ENCRYPTION_KEY"); }
 assert(missingRuntime, "Marketplace runtime did not fail closed without its database/session/encryption configuration.");

@@ -361,7 +361,13 @@ try {
 
   const privacy = await fetch(`${base}/privacy`);
   const privacyText = await privacy.text();
-  assert(privacy.ok && privacyText.includes("Privacy notice") && privacyText.includes("replace their requested date or arrival window") && privacyText.includes("append-only audit history") && privacyText.includes("one exact first-available date") && privacyText.includes("planning evidence only") && privacyText.includes("temporarily holds a client network address in memory") && privacyText.includes("private cleaner tracker") && privacyText.includes("that applicant's own professional introduction/languages/equipment plan") && privacyText.includes("screening notes, decision notes or the authorisation token") && privacyText.includes("never used for matching until Homle records a separate confirmation"), "Privacy page failed or omitted customer timing history, initial Cleaner availability, local anti-abuse, staged private profile, pending availability or tracker disclosures.");
+  assert(privacy.ok && privacyText.includes("Privacy notice") && privacyText.includes("replace their requested date or arrival window") && privacyText.includes("append-only audit history") && privacyText.includes("one exact first-available date") && privacyText.includes("planning evidence only") && privacyText.includes("temporarily holds a client network address in memory") && privacyText.includes("private cleaner tracker") && privacyText.includes("that applicant's own professional introduction/languages/equipment plan") && privacyText.includes("screening notes, decision notes or the authorisation token") && privacyText.includes("never used for matching until Homle records a separate confirmation") && privacyText.includes("connected Facebook account sends a signed deletion request"), "Privacy page failed or omitted customer timing history, initial Cleaner availability, local anti-abuse, staged private profile, pending availability, Facebook deletion or tracker disclosures.");
+
+  const facebookDeletionPage = await fetch(`${base}/facebook-data-deletion`);
+  const facebookDeletionText = await facebookDeletionPage.text();
+  const facebookDeletionAsset = await fetch(`${base}/facebook-data-deletion.js?v=smoke-test`);
+  const facebookDeletionScript = await facebookDeletionAsset.text();
+  assert(facebookDeletionPage.ok && facebookDeletionText.includes("Facebook data deletion") && facebookDeletionText.includes('role="status"') && facebookDeletionAsset.ok && facebookDeletionScript.includes('history.replaceState(null, "", `${location.pathname}${location.search}`)') && facebookDeletionScript.includes('"X-Homle-Deletion-Code": code') && !facebookDeletionScript.includes("localStorage") && !facebookDeletionScript.includes("innerHTML"), "Facebook deletion confirmation page lost its accessible status, fragment removal, private header lookup or no-browser-storage boundary.");
 
   const terms = await fetch(`${base}/terms`);
   const termsText = await terms.text();

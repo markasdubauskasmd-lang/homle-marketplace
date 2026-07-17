@@ -5162,6 +5162,7 @@ async function serveFile(requestPath, response) {
     "/admin": "admin.html",
     "/admin/cases": "admin-cases.html",
     "/privacy": "privacy.html",
+    "/facebook-data-deletion": "facebook-data-deletion.html",
     "/terms": "terms.html"
   };
   const activeJobRoute = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);

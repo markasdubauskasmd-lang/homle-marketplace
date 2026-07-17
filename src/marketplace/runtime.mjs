@@ -21,6 +21,8 @@ import { createIdentityService } from "./identity-service.mjs";
 import { createGoogleOidcProvider } from "./google-oidc.mjs";
 import { createFacebookLoginProvider } from "./facebook-login.mjs";
 import { createFacebookIdentityService } from "./facebook-identity-service.mjs";
+import { createFacebookDataDeletionRepository } from "./facebook-data-deletion-repository.mjs";
+import { createFacebookDataDeletionService } from "./facebook-data-deletion.mjs";
 import { createProviderLinkState } from "./provider-link-state.mjs";
 import { createJourneyRepository } from "./journey-repository.mjs";
 import { createJourneyService } from "./journey-service.mjs";
@@ -84,6 +86,14 @@ export function createMarketplaceRuntime(pool, options = {}) {
     })
     : null);
   const facebookIdentityService = createFacebookIdentityService(authenticationRepository, { tokenSecret: env.AUTH_TOKEN_SECRET });
+  const facebookDataDeletionRepository = createFacebookDataDeletionRepository(database);
+  const facebookDataDeletionService = facebookLoginProvider
+    ? createFacebookDataDeletionService(facebookDataDeletionRepository, {
+      appOrigin: environment.appOrigin,
+      appSecret: env.FACEBOOK_APP_SECRET,
+      tokenSecret: env.AUTH_TOKEN_SECRET
+    })
+    : null;
   const providerLinkState = createProviderLinkState({ secret: env.AUTH_TOKEN_SECRET, appOrigin: environment.appOrigin });
   const credentialService = createCredentialService(authenticationRepository, { tokenSecret: env.AUTH_TOKEN_SECRET });
   const accountSessionService = createAccountSessionService(authenticationRepository, { sessionSecret: env.SESSION_SECRET, production: environment.production });
@@ -131,7 +141,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires SMTP_URL and EMAIL_FROM configuration.");
   const authenticationRouter = options.emailDelivery
-    ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
+    ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
     : null;
   const router = authenticationRouter ? {
     async handle(request, response, url) {
@@ -147,6 +157,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     googleOidcProvider,
     facebookLoginProvider,
     facebookIdentityService,
+    facebookDataDeletionRepository,
+    facebookDataDeletionService,
     providerLinkState,
     credentialService,
     accountSessionService,
@@ -190,7 +202,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
     googleOidcReady: authenticationRouter !== null && googleOidcProvider !== null,
-    facebookLoginReady: authenticationRouter !== null && facebookLoginProvider !== null,
+    facebookLoginReady: authenticationRouter !== null && facebookLoginProvider !== null && facebookDataDeletionService !== null,
     marketplaceRouter,
     router
   });

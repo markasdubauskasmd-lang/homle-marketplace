@@ -1,4 +1,4 @@
-import { errorResponse, methodNotAllowed, readJsonObject, sendJson } from "./http-support.mjs";
+import { errorResponse, methodNotAllowed, readJsonObject, readRawBody, sendJson } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 
 const prefix = "/api/marketplace/auth/";
@@ -17,6 +17,17 @@ function exactOrigin(value) {
 function header(request, name) {
   const supplied = request?.headers?.[name.toLowerCase()];
   return Array.isArray(supplied) ? supplied[0] : String(supplied || "");
+}
+
+async function facebookSignedRequest(request) {
+  if (!/^application\/x-www-form-urlencoded(?:\s*;|$)/i.test(header(request, "content-type"))) {
+    throw Object.assign(new SyntaxError("Send a form-encoded Facebook deletion request."), { code: "form-content-type-required" });
+  }
+  const body = (await readRawBody(request, 12 * 1024)).toString("utf8");
+  const form = new URLSearchParams(body);
+  const values = form.getAll("signed_request");
+  if (values.length !== 1 || !values[0] || values[0].length > 8192) throw Object.assign(new SyntaxError("Facebook supplied an invalid deletion request."), { code: "invalid-facebook-deletion-request" });
+  return values[0];
 }
 
 function accountIntent(value) {
@@ -72,11 +83,13 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const google = dependencies?.googleOidcProvider || null;
   const facebook = dependencies?.facebookLoginProvider || null;
   const facebookIdentity = dependencies?.facebookIdentityService || null;
+  const facebookDataDeletion = dependencies?.facebookDataDeletionService || null;
   const providerLink = dependencies?.providerLinkState || null;
   if (!security || typeof security.protect !== "function" || typeof security.requireOrigin !== "function") throw new TypeError("Authentication HTTP routes require account security.");
   if (!credentials || ["register", "requestEmailVerification", "verifyEmail", "signIn", "requestPasswordReset", "resetPassword"].some((method) => typeof credentials[method] !== "function")) throw new TypeError("Authentication HTTP routes require the credential service.");
   if (!identity || ["completeOnboarding", "connectedProviders", "connectProvider", "verifyProviderStepUp", "disconnectProvider"].some((method) => typeof identity[method] !== "function") || (google && typeof identity.socialSignIn !== "function")) throw new TypeError("Authentication HTTP routes require the identity service.");
   if (facebook && (!facebookIdentity || typeof facebookIdentity.begin !== "function" || typeof facebookIdentity.verify !== "function")) throw new TypeError("Facebook authentication routes require the pending identity service.");
+  if (facebook && (!facebookDataDeletion || typeof facebookDataDeletion.request !== "function" || typeof facebookDataDeletion.status !== "function")) throw new TypeError("Facebook authentication routes require the signed data-deletion service.");
   if (!sessions || ["establish", "rotate", "logout", "logoutAll"].some((method) => typeof sessions[method] !== "function")) throw new TypeError("Authentication HTTP routes require the session service.");
   if (!emailDelivery || typeof emailDelivery.send !== "function") throw new TypeError("Authentication HTTP routes require a trusted email-delivery adapter.");
   const appOrigin = exactOrigin(options.appOrigin);
@@ -316,6 +329,23 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
             const fragment = new URLSearchParams({ [accountFlow ? "provider" : "social"]: rateLimited ? "rate-limited" : "facebook-failed" });
             sendRedirect(response, 303, `${accountFlow ? "/settings" : "/login"}#${fragment}`, [facebook.clearCookie, ...(linking ? [providerLink.clearCookie] : []), ...(steppingUp ? [providerLink.clearStepUpFlowCookie] : [])]);
           }
+          return true;
+        }
+        if (url.pathname === `${prefix}facebook/data-deletion`) {
+          if (!facebook || !facebookDataDeletion) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          await limit(request, "facebook-data-deletion");
+          const result = await facebookDataDeletion.request(await facebookSignedRequest(request));
+          sendJson(response, 200, { url: result.statusUrl, confirmation_code: result.confirmationCode });
+          return true;
+        }
+        if (url.pathname === `${prefix}facebook/data-deletion/status`) {
+          if (!facebook || !facebookDataDeletion) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          await limit(request, "facebook-data-deletion-status");
+          const result = await facebookDataDeletion.status(header(request, "x-homle-deletion-code"));
+          if (!result) return sendJson(response, 404, { ok: false, code: "deletion-request-not-found", error: "This deletion request is unavailable." }), true;
+          sendJson(response, 200, { ok: true, status: result.status, requestedAt: result.requestedAt, completedAt: result.completedAt });
           return true;
         }
         if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
