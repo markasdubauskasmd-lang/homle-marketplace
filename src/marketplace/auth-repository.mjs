@@ -1,6 +1,7 @@
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const socialProviders = Object.freeze(["google", "apple", "facebook"]);
 const connectableProviders = Object.freeze(["google", "facebook"]);
+const accountRoles = Object.freeze(["cleaner", "landlord", "administrator"]);
 
 function normalizedEmail(email) {
   if (typeof email !== "string") throw new TypeError("An email address is required.");
@@ -34,6 +35,21 @@ function boundedProviderText(value, label, maximum, required = true) {
   const normalized = typeof value === "string" ? value.trim() : "";
   if ((required && !normalized) || normalized.length > maximum || /[\u0000-\u001f\u007f]/.test(normalized)) throw new TypeError(`${label} is invalid.`);
   return normalized || null;
+}
+
+function normalizedAccountRoles(value) {
+  let roles;
+  if (Array.isArray(value)) roles = value;
+  else if (value === "{}" || value == null) roles = [];
+  else if (typeof value === "string" && /^\{(?:cleaner|landlord|administrator)(?:,(?:cleaner|landlord|administrator))*\}$/.test(value)) roles = value.slice(1, -1).split(",");
+  else throw new TypeError("The database returned an invalid account role list.");
+  if (roles.some((role) => !accountRoles.includes(role))) throw new TypeError("The database returned an unsupported account role.");
+  return [...new Set(roles)];
+}
+
+function accountResult(record) {
+  if (!record || !Object.hasOwn(record, "roles")) return record || null;
+  return { ...record, roles: normalizedAccountRoles(record.roles) };
 }
 
 export function createAuthenticationRepository(database) {
@@ -104,7 +120,7 @@ export function createAuthenticationRepository(database) {
           "SELECT * FROM tideway_private.resolve_social_identity($1::authentication_provider, $2::text, $3::citext, $4::boolean, $5::text, $6::text, $7::jsonb)",
           [selectedProvider, subject, email, true, displayName, avatarUrl, profile]
         );
-        return result.rows[0] || null;
+        return accountResult(result.rows[0]);
       });
     },
 
@@ -116,7 +132,7 @@ export function createAuthenticationRepository(database) {
           "SELECT * FROM tideway_private.lookup_existing_social_identity($1::authentication_provider, $2::text)",
           [selectedProvider, subject]
         );
-        return result.rows[0] || null;
+        return accountResult(result.rows[0]);
       });
     },
 
@@ -144,7 +160,7 @@ export function createAuthenticationRepository(database) {
           "SELECT * FROM tideway_private.consume_pending_social_identity($1::bytea)",
           [tokenHash(verificationHash, "Social verification token hash")]
         );
-        return result.rows[0] || null;
+        return accountResult(result.rows[0]);
       });
     },
 
@@ -201,28 +217,28 @@ export function createAuthenticationRepository(database) {
       if (role !== "cleaner" && role !== "landlord") throw new TypeError("Onboarding role must be Cleaner or Landlord.");
       return database.withAccountTransaction(actor, async (client) => {
         const result = await client.query("SELECT * FROM tideway_private.complete_role_onboarding($1::user_role)", [role]);
-        return result.rows[0] || null;
+        return accountResult(result.rows[0]);
       });
     },
 
     async findPasswordAccount(email) {
       return database.withAuthenticationTransaction(async (client) => {
         const result = await client.query("SELECT * FROM tideway_private.lookup_password_account($1::citext)", [normalizedEmail(email)]);
-        return result.rows[0] || null;
+        return accountResult(result.rows[0]);
       });
     },
 
     async findSession(sessionTokenHash) {
       return database.withAuthenticationTransaction(async (client) => {
         const result = await client.query("SELECT * FROM tideway_private.lookup_session($1::bytea)", [tokenHash(sessionTokenHash, "Session token hash")]);
-        return result.rows[0] || null;
+        return accountResult(result.rows[0]);
       });
     },
 
     async findVerifiedAccountByEmail(email) {
       return database.withAuthenticationTransaction(async (client) => {
         const result = await client.query("SELECT * FROM tideway_private.lookup_verified_email($1::citext)", [normalizedEmail(email)]);
-        return result.rows[0] || null;
+        return accountResult(result.rows[0]);
       });
     },
 
