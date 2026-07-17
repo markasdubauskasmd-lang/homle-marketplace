@@ -34,6 +34,7 @@ try {
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
+  assert.match(deploymentVerifier, /IF latest_migration_installed THEN\s+IF NOT EXISTS \(SELECT 1 FROM pg_constraint WHERE conrelid='public\.bookings'::regclass AND conname='bookings_distinct_participants'/, "Migration-48 verification must defer its new constraint check until after that locked migration is installed.");
   const onboardingRepair = await readFile(path.join(sourceDatabaseDirectory, "migrations", "047_fix_role_onboarding_column_ambiguity.sql"), "utf8");
   assert.match(onboardingRepair, /#variable_conflict error/, "Role onboarding must fail closed if a future PL\/pgSQL variable conflicts with a column.");
   assert.match(onboardingRepair, /ON CONFLICT ON CONSTRAINT cleaner_profiles_pkey DO NOTHING/, "Cleaner onboarding must name its conflict constraint explicitly.");
