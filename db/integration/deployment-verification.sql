@@ -136,9 +136,6 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.bookings'::regclass AND conname = 'bookings_no_cleaner_overlap' AND contype = 'x') THEN
     RAISE EXCEPTION 'Cleaner overlap exclusion constraint is missing';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.bookings'::regclass AND conname='bookings_distinct_participants' AND contype='c') THEN
-    RAISE EXCEPTION 'Dual-workspace self-booking constraint is missing';
-  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.reviews'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) = 'UNIQUE (booking_id)') THEN
     RAISE EXCEPTION 'One-review-per-booking unique constraint is missing';
   END IF;
@@ -182,6 +179,9 @@ BEGIN
       INTO latest_migration_installed;
   END IF;
   IF latest_migration_installed THEN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.bookings'::regclass AND conname='bookings_distinct_participants' AND contype='c') THEN
+      RAISE EXCEPTION 'Dual-workspace self-booking constraint is missing';
+    END IF;
     SELECT procedure.prosrc INTO selected_source
     FROM pg_proc procedure
     WHERE procedure.oid = to_regprocedure('tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)');
