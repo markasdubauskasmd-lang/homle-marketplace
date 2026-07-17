@@ -5,26 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="theme-color" content="#0e665b">
-  <title>Landlord workspace | Homle</title>
+  <title>Landlord dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260717-72">
-  <script src="/landlord-dashboard.js?v=20260717-11" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260718-73">
+  <script src="/landlord-dashboard.js?v=20260718-12" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
-  <script src="/workspace-switch.js?v=20260717-1" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
   <header class="site-header">
     <div class="shell nav-wrap">
-      <div class="workspace-brand"><a class="brand" href="/" aria-label="Homle home"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill">Landlord</span></div>
-      <nav class="directory-nav" aria-label="Landlord workspace navigation"><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaners">Find a Cleaner</a></nav>
-      <details class="account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="/settings">Account settings</a><button class="workspace-switch account-workspace-switch" type="button" data-workspace-switch data-target-workspace="cleaner" hidden disabled>Cleaner workspace</button></div></details>
+      <div class="workspace-brand"><a class="brand" href="/landlord/dashboard" aria-label="Homle Landlord dashboard"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill landlord-workspace-pill">Landlord</span></div>
+      <nav class="directory-nav landlord-dashboard-nav" aria-label="Landlord dashboard navigation"><a href="/landlord/dashboard" aria-current="page">Dashboard</a><a href="#properties-title">Properties</a><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaners">Find a Cleaner</a></nav>
+      <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="#properties-title">Manage properties</a><a href="/settings">Account settings</a></div></details>
     </div>
   </header>
 
   <main id="landlord-main" class="landlord-dashboard-main shell">
     <section class="landlord-dashboard-state" data-landlord-state role="status" aria-live="polite">
-      <span aria-hidden="true">i</span><div><strong data-landlord-state-title>Checking secure Landlord access…</strong><p data-landlord-state-copy>Your properties and drafts open only inside an authenticated Landlord session.</p><div><button class="button" type="button" data-workspace-switch data-target-workspace="landlord" hidden disabled>Add Landlord workspace</button><a class="button" href="/login" data-landlord-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-landlord-retry hidden>Try again</button></div></div>
+      <span aria-hidden="true">i</span><div><strong data-landlord-state-title>Checking secure Landlord access…</strong><p data-landlord-state-copy>Your properties and drafts open only inside an authenticated Landlord session.</p><div><a class="button" href="/login?intent=book" data-landlord-sign-in hidden>Sign in as a Landlord</a><button class="button button-outline" type="button" data-landlord-retry hidden>Try again</button></div></div>
     </section>
 
     <section class="brief-complete-card landlord-request-complete" data-request-complete hidden aria-labelledby="request-complete-title" tabindex="-1">
@@ -51,7 +50,9 @@
         <span aria-hidden="true">!</span><div><strong>You are offline.</strong><p>Your unfinished walkthrough and selected room photos stay in this tab. Reconnect before saving or uploading; Homle will not retry a change automatically.</p></div>
       </section>
       <section class="landlord-dashboard-heading landlord-dashboard-identity">
-        <div><p class="eyebrow">Landlord workspace</p><h1>Welcome, <span data-landlord-name>Landlord</span>.</h1><p>Save real properties, prepare a room-by-room scope and keep requests private until the photo-and-speech handoff is complete.</p></div>
+        <div class="role-dashboard-person landlord-dashboard-person"><span class="role-account-avatar landlord-role-avatar" data-account-avatar aria-hidden="true">H</span><div><p class="eyebrow">Signed in as Landlord</p><strong data-account-name>Your account</strong><small data-account-email></small></div></div>
+        <div class="role-dashboard-welcome"><p class="eyebrow">Landlord dashboard</p><h1>Welcome, <span data-landlord-name>Landlord</span>.</h1><p>Manage properties, scan rooms, book a Cleaner and track every confirmed clean from one private account.</p></div>
+        <p class="role-dashboard-boundary">Only your properties, cleaning requests and booking progress appear here. Cleaner availability, job decisions and professional-profile controls stay in the separate Cleaner dashboard.</p>
         <dl class="landlord-dashboard-stats"><div><dt>Properties</dt><dd data-property-count>0</dd></div><div><dt>Request drafts</dt><dd data-draft-count>0</dd></div><div><dt>Active bookings</dt><dd data-landlord-active-count>0</dd><small>Confirmed records only</small></div></dl>
       </section>
 

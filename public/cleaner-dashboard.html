@@ -7,26 +7,27 @@
   <meta name="theme-color" content="#0e665b">
   <title>Cleaner dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260717-72">
-  <script src="/cleaner-dashboard.js?v=20260717-11" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260718-73">
+  <script src="/cleaner-dashboard.js?v=20260718-12" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
-  <script src="/workspace-switch.js?v=20260717-1" type="module"></script>
 </head>
 <body class="booking-dashboard-page cleaner-dashboard-page">
   <a class="skip-link" href="#cleaner-dashboard-main">Skip to Cleaner dashboard</a>
-  <header class="site-header cleaner-site-header"><div class="shell nav-wrap"><div class="workspace-brand"><a class="brand" href="/" aria-label="Homle home"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill cleaner-workspace-pill">Cleaner</span></div><nav class="directory-nav" aria-label="Cleaner navigation"><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaner/availability">Availability</a><a href="/cleaner/payouts" data-cleaner-payout-link hidden>Payouts</a><a href="/cleaner/profile">Profile</a></nav><details class="account-menu" data-account-menu hidden><summary aria-label="Open Cleaner account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Cleaner account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="/settings">Account settings</a><button class="workspace-switch account-workspace-switch" type="button" data-workspace-switch data-target-workspace="landlord" hidden disabled>Landlord workspace</button></div></details></div></header>
+  <header class="site-header cleaner-site-header"><div class="shell nav-wrap"><div class="workspace-brand"><a class="brand" href="/cleaner/dashboard" aria-label="Homle Cleaner dashboard"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill cleaner-workspace-pill">Cleaner</span></div><nav class="directory-nav cleaner-dashboard-nav" aria-label="Cleaner navigation"><a href="/cleaner/dashboard" aria-current="page">Jobs</a><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaner/availability">Availability</a><a href="/cleaner/payouts" data-cleaner-payout-link hidden>Payouts</a><a href="/cleaner/profile">Profile</a></nav><details class="account-menu" data-account-menu hidden><summary aria-label="Open Cleaner account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Cleaner account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="/cleaner/profile">Professional profile</a><a href="/settings">Account settings</a></div></details></div></header>
 
   <main id="cleaner-dashboard-main" class="booking-dashboard-main shell">
     <section class="booking-dashboard-gate" data-cleaner-dashboard-gate role="status" aria-live="polite">
-      <span aria-hidden="true">i</span><div><strong data-cleaner-gate-title>Checking secure Cleaner access…</strong><p data-cleaner-gate-copy>Requests and jobs open only inside the assigned Cleaner account.</p><div><button class="button" type="button" data-workspace-switch data-target-workspace="cleaner" hidden disabled>Add Cleaner workspace</button><a class="button" href="/login" data-cleaner-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-cleaner-retry hidden>Try again</button></div></div>
+      <span aria-hidden="true">i</span><div><strong data-cleaner-gate-title>Checking secure Cleaner access…</strong><p data-cleaner-gate-copy>Requests and jobs open only inside the assigned Cleaner account.</p><div><a class="button" href="/login?intent=work" data-cleaner-sign-in hidden>Sign in as a Cleaner</a><button class="button button-outline" type="button" data-cleaner-retry hidden>Try again</button></div></div>
     </section>
 
     <div data-cleaner-dashboard hidden>
       <section class="cleaner-network-status" data-cleaner-network-status role="status" aria-live="polite" hidden>
         <span aria-hidden="true">!</span><div><strong>You are offline.</strong><p>Your current requests stay visible, but Homle will not send or automatically retry an accept or decline decision until the connection returns.</p></div>
       </section>
-      <section class="booking-dashboard-heading">
-        <div><p class="eyebrow">Cleaner dashboard</p><h1>Good to see you, <span data-cleaner-name>Cleaner</span>.</h1><p>Answer genuine requests, open today’s job and keep every booking update inside Homle.</p></div>
+      <section class="booking-dashboard-heading cleaner-dashboard-identity">
+        <div class="role-dashboard-person"><span class="role-account-avatar cleaner-role-avatar" data-account-avatar aria-hidden="true">H</span><div><p class="eyebrow">Signed in as Cleaner</p><strong data-account-name>Your account</strong><small data-account-email></small></div></div>
+        <div class="role-dashboard-welcome"><p class="eyebrow">Cleaner dashboard</p><h1>Good to see you, <span data-cleaner-name>Cleaner</span>.</h1><p>Review work offered to you, manage today’s jobs and keep your professional profile ready.</p></div>
+        <p class="role-dashboard-boundary">Only Cleaner requests, job progress, availability and earnings setup appear here. Landlord properties and booking forms stay in the separate Landlord dashboard.</p>
         <a class="button button-outline" href="/cleaner/profile" data-cleaner-profile-link>Complete your profile</a>
       </section>
       <section class="dashboard-next-action" data-cleaner-next aria-labelledby="cleaner-next-title">
