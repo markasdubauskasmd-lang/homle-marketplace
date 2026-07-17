@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { createMarketplaceAttachment, loadMarketplaceDeploymentAdapters, probeMarketplaceDatabase } from "../src/marketplace/attachment.mjs";
+import { createMarketplaceAttachment, loadMarketplaceDeploymentAdapters, probeMarketplaceDatabase, probeRealtimeDatabase } from "../src/marketplace/attachment.mjs";
 
 const completeEnvironment = Object.freeze({
   MARKETPLACE_ENABLED: "true",
   DATABASE_URL: "postgresql://tideway_app:secret@db.example/tideway",
+  REALTIME_DATABASE_URL: "postgresql://tideway_app:secret@db-direct.example/tideway",
   SESSION_SECRET: "session-secret-is-more-than-thirty-two-characters",
   AUTH_TOKEN_SECRET: "auth-token-secret-is-different-and-long-enough",
   DATA_ENCRYPTION_KEY: "encryption-secret-is-also-different-and-long",
@@ -62,6 +63,8 @@ assert.equal(invalidProxyLoadedAdapters, false, "Invalid proxy trust loaded depl
 
 let released = 0;
 let ended = 0;
+let realtimeEnded = 0;
+let realtimeReleased = 0;
 let realtimeClosed = 0;
 let smtpVerified = 0;
 let smtpClosed = 0;
@@ -73,12 +76,26 @@ const pool = {
     return {
       async query(sql) {
         probeQueries.push(sql);
-        return { rows: [{ database_role: "tideway_app", server_version_num: 160004, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_room_scan_ready: true, rate_limit_ready: true, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true }] };
+        return { rows: [{ database_role: "tideway_app", database_name: "tideway", server_version_num: 160004, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_room_scan_ready: true, rate_limit_ready: true, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true }] };
       },
       release() { released += 1; }
     };
   },
   async end() { ended += 1; }
+};
+const realtimeProbeQueries = [];
+const realtimePool = {
+  async connect() {
+    return {
+      async query(sql) {
+        realtimeProbeQueries.push(sql);
+        if (String(sql).includes("SELECT current_user")) return { rows: [{ database_role: "tideway_app", database_name: "tideway", server_version_num: 160004, role_is_safe: true }] };
+        return { rows: [] };
+      },
+      release() { realtimeReleased += 1; }
+    };
+  },
+  async end() { realtimeEnded += 1; }
 };
 const router = { async handle() { return true; } };
 const sharedRateLimiter = { async consume() { return { allowed: true }; } };
@@ -91,6 +108,11 @@ const attachment = await createMarketplaceAttachment({
   env: completeEnvironment,
   adapters,
   async createPool() { return pool; },
+  async createRealtimePool() { return realtimePool; },
+  createRealtimeSignalSource(selectedPool) {
+    assert.equal(selectedPool, realtimePool);
+    return { async close() { realtimeClosed += 1; } };
+  },
   async createEmailDelivery(selectedEnvironment, options) {
     assert.equal(selectedEnvironment, completeEnvironment);
     assert.equal(options.onUnexpectedError, adapters.onUnexpectedError);
@@ -118,12 +140,12 @@ const attachment = await createMarketplaceAttachment({
     assert.equal(options.clientKey, trustedClientKey);
     assert.equal(options.emailDelivery, emailDelivery);
     assert.equal(options.objectStorage, objectStorage);
+    assert.equal(typeof options.realtimeSignalSource.close, "function");
     return {
       router,
       authenticationHttpReady: true,
       googleOidcReady: true,
-      facebookLoginReady: true,
-      realtimeSignalSource: { async close() { realtimeClosed += 1; } }
+      facebookLoginReady: true
     };
   }
 });
@@ -135,6 +157,8 @@ assert.equal(clientKeyCreated, 1);
 assert.equal(smtpVerified, 1);
 assert.equal(storageVerified, 1);
 assert.equal(released, 1);
+assert.equal(realtimeReleased, 1);
+assert(realtimeProbeQueries.some((query) => String(query).includes("LISTEN tideway_booking_events")) && realtimeProbeQueries.some((query) => String(query).includes("UNLISTEN tideway_booking_events")), "The dedicated real-time connection did not prove LISTEN/UNLISTEN support.");
 assert.ok(probeQueries[0].includes("current_user") && probeQueries[0].includes("tideway_private.lookup_session") && probeQueries[0].includes("list_my_booking_summaries") && probeQueries[0].includes("configure_automatic_dispatch") && probeQueries[0].includes("submit_cleaning_request") && probeQueries[0].includes("withdraw_cleaning_request") && probeQueries[0].includes("create_request_photo_upload_intent") && probeQueries[0].includes("connect_social_identity") && probeQueries[0].includes("request_my_privacy_action") && probeQueries[0].includes("request_facebook_data_deletion") && probeQueries[0].includes("begin_my_cleaner_payout_onboarding"));
 assert.equal(attachment.authenticationCapabilities.emailPassword, true);
 assert.equal(attachment.authenticationCapabilities.passwordReset, true);
@@ -148,6 +172,7 @@ assert.equal(realtimeClosed, 1);
 assert.equal(smtpClosed, 1);
 assert.equal(storageClosed, 1);
 assert.equal(ended, 1);
+assert.equal(realtimeEnded, 1);
 
 let paymentAdapterVerified = 0;
 let paymentProviderConfiguration;
@@ -156,7 +181,10 @@ const paymentAttachment = await createMarketplaceAttachment({
   env: paymentEnvironment,
   adapters,
   async createPool() { return { async end() {} }; },
+  async createRealtimePool() { return { async end() {} }; },
   async probeDatabase() {},
+  async probeRealtimeDatabase() {},
+  createRealtimeSignalSource() { return { async close() {} }; },
   async createEmailDelivery() { return { async verify() {}, async send() {}, async close() {} }; },
   async createObjectStorage() { return { async verify() {}, async createUploadUrl() {}, async headObject() {}, async inspectAndSanitizeImage() {}, async createReadUrl() {}, async deleteObject() {}, async close() {} }; },
   createClientKeyResolver() { return trustedClientKey; },
@@ -173,7 +201,7 @@ const paymentAttachment = await createMarketplaceAttachment({
   },
   createRuntime(selectedPool, options) {
     assert.equal(options.paymentProvider.name, "stripe");
-    return { router, authenticationHttpReady: true, googleOidcReady: true, facebookLoginReady: true, paymentReady: true, realtimeSignalSource: { async close() {} } };
+    return { router, authenticationHttpReady: true, googleOidcReady: true, facebookLoginReady: true, paymentReady: true };
   }
 });
 assert.equal(paymentAttachment.paymentsReady, true);
@@ -192,6 +220,17 @@ await assert.rejects(probeMarketplaceDatabase({
   }
 }), /authenticate as tideway_app/);
 assert.equal(unsafeReleased, 1);
+
+let realtimeUnsafeReleased = 0;
+await assert.rejects(probeRealtimeDatabase({
+  async connect() {
+    return {
+      async query() { return { rows: [{ database_role: "migration_owner", database_name: "tideway", server_version_num: 160000, role_is_safe: true }] }; },
+      release() { realtimeUnsafeReleased += 1; }
+    };
+  }
+}), /REALTIME_DATABASE_URL must authenticate as tideway_app/);
+assert.equal(realtimeUnsafeReleased, 1);
 
 await assert.rejects(probeMarketplaceDatabase({
   async connect() {
@@ -217,5 +256,20 @@ await assert.rejects(createMarketplaceAttachment({
 assert.equal(failedPoolEnded, 1, "Failed marketplace startup did not close its pool.");
 assert.equal(failedSmtpClosed, 1, "Failed marketplace startup did not close SMTP delivery.");
 assert.equal(failedStorageClosed, 1, "Failed marketplace startup did not close private object storage.");
+
+let failedRealtimePoolEnded = 0;
+let failedApplicationPoolEnded = 0;
+await assert.rejects(createMarketplaceAttachment({
+  env: completeEnvironment,
+  adapters,
+  async createEmailDelivery() { return { async verify() {}, async send() {}, async close() {} }; },
+  async createObjectStorage() { return { async verify() {}, async createUploadUrl() {}, async headObject() {}, async inspectAndSanitizeImage() {}, async createReadUrl() {}, async deleteObject() {}, async close() {} }; },
+  async createPool() { return { async end() { failedApplicationPoolEnded += 1; } }; },
+  async probeDatabase() { return { databaseName: "tideway" }; },
+  async createRealtimePool() { return { async end() { failedRealtimePoolEnded += 1; } }; },
+  async probeRealtimeDatabase() { throw new Error("direct realtime probe failed"); }
+}), /direct realtime probe failed/);
+assert.equal(failedRealtimePoolEnded, 1, "Failed real-time readiness did not close its dedicated pool.");
+assert.equal(failedApplicationPoolEnded, 1, "Failed real-time readiness did not close the application pool.");
 
 console.log("Marketplace attachment tests passed: disabled isolation, complete-adapter gate, restricted database probe, truthful auth capabilities and idempotent resource shutdown.");

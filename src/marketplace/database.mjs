@@ -65,3 +65,15 @@ export function postgresPoolOptions(env = process.env) {
     ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: true } : undefined
   };
 }
+
+export function realtimePostgresPoolOptions(env = process.env) {
+  if (!env.REALTIME_DATABASE_URL) return null;
+  return {
+    connectionString: env.REALTIME_DATABASE_URL,
+    max: 1,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+    allowExitOnIdle: env.NODE_ENV !== "production",
+    ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: true } : undefined
+  };
+}

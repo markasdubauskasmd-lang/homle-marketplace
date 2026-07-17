@@ -8,6 +8,7 @@ const environment = Object.freeze({
   MARKETPLACE_ENABLED: "true",
   PAYMENTS_ENABLED: "false",
   DATABASE_URL: "postgresql://tideway_app:private-db-password@db.staging.example:5432/acme_homle_staging?sslmode=verify-full",
+  REALTIME_DATABASE_URL: "postgresql://tideway_app:private-db-password@db-direct.staging.example:5432/acme_homle_staging?sslmode=verify-full",
   SESSION_SECRET: "session-secret-is-long-private-and-distinct-01",
   AUTH_TOKEN_SECRET: "authentication-token-is-long-private-and-distinct-02",
   DATA_ENCRYPTION_KEY: "data-encryption-is-long-private-and-distinct-03",

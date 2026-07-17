@@ -10,6 +10,7 @@ The command refuses to run unless:
 - `PAYMENTS_ENABLED=false`;
 - the exact confirmation is supplied;
 - `DATABASE_URL` authenticates as `tideway_app` to a database ending `_tideway_staging` or `_homle_staging`;
+- `REALTIME_DATABASE_URL` is a direct `tideway_app` connection to that exact same database; both URLs use `sslmode=verify-full` and the attachment proves the dedicated connection supports `LISTEN/UNLISTEN`;
 - the database is remote and uses `sslmode=verify-full`;
 - the three distinct application secrets, SMTP, private object storage and monitoring adapter are completely configured.
 

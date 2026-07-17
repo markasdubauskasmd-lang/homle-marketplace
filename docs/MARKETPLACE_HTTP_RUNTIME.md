@@ -47,7 +47,7 @@ The controller owns the `/api/marketplace/` namespace and does not intercept any
 5. property repository/service;
 6. marketplace HTTP router.
 
-`src/marketplace/attachment.mjs` returns a zero-resource disabled boundary unless `MARKETPLACE_ENABLED=true`. Enablement fails closed unless database/secrets/origin, SMTP and complete S3-compatible storage configuration, valid client identity and private operational monitoring are present. It loads the shipped `homle:monitoring-webhook` adapter or a reviewed absolute custom module, constructs the [client resolver](TRUSTED_CLIENT_IDENTITY.md), [SMTP delivery](SMTP_EMAIL_DELIVERY.md) and [private media storage](PRIVATE_JOB_MEDIA.md) internally, verifies PostgreSQL 16+ as non-bypass `tideway_app`, then verifies SMTP and the private bucket before composing routes. Failure and shutdown close realtime, SMTP, storage, the pool and monitoring exactly once.
+`src/marketplace/attachment.mjs` returns a zero-resource disabled boundary unless `MARKETPLACE_ENABLED=true`. Enablement fails closed unless database/secrets/origin, SMTP and complete S3-compatible storage configuration, valid client identity and private operational monitoring are present. It loads the shipped `homle:monitoring-webhook` adapter or a reviewed absolute custom module, constructs the [client resolver](TRUSTED_CLIENT_IDENTITY.md), [SMTP delivery](SMTP_EMAIL_DELIVERY.md) and [private media storage](PRIVATE_JOB_MEDIA.md) internally, verifies PostgreSQL 16+ as non-bypass `tideway_app`, then verifies SMTP and the private bucket before composing routes. Normal SQL traffic uses `DATABASE_URL`; one separate pool capped at one connection uses the direct `REALTIME_DATABASE_URL`, proves `LISTEN/UNLISTEN`, and targets the same database before the runtime starts. Failure and shutdown close realtime signals, both database pools, SMTP, storage and monitoring exactly once.
 
 The main server dispatches `/api/marketplace/*` to this router before the NDJSON pilot and exposes only booleans in `/api/health`. `/api/auth/providers` advertises email/password, reset and verification only when those routes are actually attached. Google or Facebook becomes true only when its complete verifier, callback, persistence and runtime boundary are attached; credentials alone still cannot advertise either provider. Apple remains false because its production callback does not yet exist. Session issuance stores only token/CSRF hashes and keyed metadata hashes; logout and role-change rotation revoke database sessions before clearing or replacing cookies.
 
@@ -56,6 +56,8 @@ Public signup, verification resend and password-reset request return the same ge
 ## Enablement procedure
 
 The attachment point is present but remains disabled. Complete all of the following before setting `MARKETPLACE_ENABLED=true`:
+
+- configure `DATABASE_URL` for normal request traffic and a direct, session-capable `REALTIME_DATABASE_URL` for the same database; never point the latter at a transaction-mode pooler;
 
 1. Provision PostgreSQL 16 using separate migration-owner and restricted `tideway_app` roles.
 2. Apply migrations and runtime grants in the documented order, then run real RLS and concurrent-overlap integration tests.

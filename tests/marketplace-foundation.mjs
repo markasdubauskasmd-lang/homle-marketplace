@@ -12,7 +12,7 @@ import {
   taskStatuses
 } from "../src/marketplace/domain.mjs";
 import { marketplaceEnvironment, publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "../src/marketplace/config.mjs";
-import { createMarketplaceDatabase, postgresPoolOptions } from "../src/marketplace/database.mjs";
+import { createMarketplaceDatabase, postgresPoolOptions, realtimePostgresPoolOptions } from "../src/marketplace/database.mjs";
 import { createAuthenticationRepository, normalizedEmail } from "../src/marketplace/auth-repository.mjs";
 import { clearSessionCookie, createSessionMaterial, csrfMatches, hashPassword, hashPurposeToken, parseCookies, sessionCookie, sessionTokenFromRequest, verifyPassword } from "../src/marketplace/session.mjs";
 import { readFile } from "node:fs/promises";
@@ -78,6 +78,7 @@ const validProduction = {
   MARKETPLACE_ENABLED: "true",
   APP_ORIGIN: "https://tideway.example.com",
   DATABASE_URL: "postgresql://tideway:secret@db.example.com/tideway",
+  REALTIME_DATABASE_URL: "postgresql://tideway:secret@db-direct.example.com/tideway",
   SESSION_SECRET: "s".repeat(32),
   AUTH_TOKEN_SECRET: "t".repeat(32),
   DATA_ENCRYPTION_KEY: "e".repeat(32),
@@ -135,6 +136,7 @@ try {
 } catch { rolledBack = true; }
 assert(rolledBack && failingPool.calls.map((call) => call.text).includes("ROLLBACK") && failingPool.calls.at(-1).text === "RELEASE" && !failingPool.calls.map((call) => call.text).includes("COMMIT"), "A failed authenticated database operation was not rolled back and released.");
 assert(postgresPoolOptions({}) === null && postgresPoolOptions({ DATABASE_URL: "postgresql://localhost/tideway", DATABASE_POOL_MAX: "100", NODE_ENV: "production" }).max === 50 && postgresPoolOptions({ DATABASE_URL: "postgresql://localhost/tideway", NODE_ENV: "production" }).ssl.rejectUnauthorized === true, "PostgreSQL pool configuration was not disabled when absent or safely bounded for production.");
+assert(realtimePostgresPoolOptions({}) === null && realtimePostgresPoolOptions({ REALTIME_DATABASE_URL: "postgresql://localhost/tideway", NODE_ENV: "production" }).max === 1 && realtimePostgresPoolOptions({ REALTIME_DATABASE_URL: "postgresql://localhost/tideway", NODE_ENV: "production" }).ssl.rejectUnauthorized === true, "The dedicated real-time PostgreSQL pool was absent, unbounded or missing production TLS.");
 
 const repositoryCalls = [];
 const repositoryDatabase = {

@@ -12,6 +12,7 @@ const readinessOptions = Object.freeze({ projectRoot, releaseIdentity });
 const secrets = Object.freeze({
   admin: "unit-test-admin-secret-with-32-characters",
   database: "postgresql://homle_app:private@db.example.com/homle",
+  realtimeDatabase: "postgresql://homle_app:private@db-direct.example.com/homle",
   session: "session-secret-with-at-least-32-characters",
   token: "different-auth-secret-with-at-least-32-chars",
   encryption: "third-encryption-secret-with-32-characters",
@@ -35,6 +36,7 @@ const configured = {
   MARKETPLACE_ENABLED: "true",
   PAYMENTS_ENABLED: "false",
   DATABASE_URL: secrets.database,
+  REALTIME_DATABASE_URL: secrets.realtimeDatabase,
   SESSION_SECRET: secrets.session,
   AUTH_TOKEN_SECRET: secrets.token,
   DATA_ENCRYPTION_KEY: secrets.encryption,

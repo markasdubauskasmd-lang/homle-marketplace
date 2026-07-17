@@ -8,7 +8,8 @@ The existing local NDJSON pilot remains the active data store. The PostgreSQL ma
 - One migration owner that owns the schema and is never used by the web server.
 - One `tideway_app` runtime role that is neither a superuser nor permitted to bypass row-level security.
 - One separately credentialed `tideway_worker` role that is neither a superuser nor permitted to bypass row-level security. It receives only the named bounded maintenance/delivery functions, never direct table access or web login duties.
-- `DATABASE_URL` stored in the deployment secret manager and pointing to the runtime role.
+- `DATABASE_URL` stored in the deployment secret manager, pointing to the `tideway_app` runtime role, and eligible to use the provider's transaction-pooled endpoint for normal request traffic.
+- `REALTIME_DATABASE_URL` stored separately, pointing directly to the same database as `tideway_app`. Do not use a transaction-mode pooler for this connection: each web instance reserves one session connection for PostgreSQL `LISTEN/NOTIFY` booking events.
 - Separate random `SESSION_SECRET`, `AUTH_TOKEN_SECRET` and `DATA_ENCRYPTION_KEY` values stored only in the deployment secret manager.
 - TLS certificate verification in production. Do not add `sslmode=no-verify` or embed credentials in Git.
 

@@ -1,8 +1,9 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { marketplaceEnvironment, publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./config.mjs";
-import { postgresPoolOptions } from "./database.mjs";
+import { postgresPoolOptions, realtimePostgresPoolOptions } from "./database.mjs";
 import { createPostgresRateLimiter } from "./postgres-rate-limiter.mjs";
+import { bookingRealtimeChannel, createPostgresRealtimeSignalSource } from "./realtime-signal-source.mjs";
 import { createMarketplaceRuntime } from "./runtime.mjs";
 import { builtInMonitoringAdapter } from "./monitoring-webhook.mjs";
 import { createS3ObjectStorage } from "./s3-object-storage.mjs";
@@ -48,12 +49,27 @@ export async function createDefaultPostgresPool(env = process.env) {
   return new Pool(options);
 }
 
+export async function createDefaultRealtimePostgresPool(env = process.env) {
+  let postgres;
+  try {
+    postgres = await import("pg");
+  } catch (cause) {
+    throw Object.assign(new Error("The marketplace requires the reviewed pg dependency; install the frozen lockfile before enablement."), { cause });
+  }
+  const Pool = postgres.Pool || postgres.default?.Pool;
+  if (typeof Pool !== "function") throw new TypeError("The installed pg package does not expose a Pool constructor.");
+  const options = realtimePostgresPoolOptions(env);
+  if (!options) throw new TypeError("REALTIME_DATABASE_URL is required to construct the dedicated live-update pool.");
+  return new Pool(options);
+}
+
 export async function probeMarketplaceDatabase(pool) {
   if (!pool || typeof pool.connect !== "function") throw new TypeError("A PostgreSQL pool is required for marketplace readiness.");
   const client = await pool.connect();
   try {
     const result = await client.query(`
       SELECT current_user AS database_role,
+        current_database() AS database_name,
         current_setting('server_version_num')::integer AS server_version_num,
         COALESCE((SELECT NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname = current_user), false) AS role_is_safe,
         to_regprocedure('tideway_private.lookup_session(bytea)') IS NOT NULL AS lookup_session_ready,
@@ -87,7 +103,29 @@ export async function probeMarketplaceDatabase(pool) {
     if (Number(row.server_version_num) < 160000) throw new Error("Marketplace PostgreSQL 16 or newer is required.");
     if (row.role_is_safe !== true) throw new Error("Marketplace database role must not be superuser or bypass row-level security.");
     if (row.lookup_session_ready !== true || row.booking_workflow_ready !== true || row.booking_summaries_ready !== true || row.automatic_dispatch_ready !== true || row.request_room_scan_ready !== true || row.rate_limit_ready !== true || row.facebook_pending_identity_ready !== true || row.provider_connection_ready !== true || row.payment_ledger_ready !== true || row.payment_access_ready !== true || row.payment_journey_gate_ready !== true || row.unexpected_task_terms_ready !== true || row.privacy_request_ready !== true || row.facebook_data_deletion_ready !== true) throw new Error("Marketplace database migrations or runtime grants are incomplete.");
-    return Object.freeze({ databaseRole: row.database_role, postgresqlVersionNumber: Number(row.server_version_num) });
+    return Object.freeze({ databaseRole: row.database_role, databaseName: row.database_name, postgresqlVersionNumber: Number(row.server_version_num) });
+  } finally {
+    client.release();
+  }
+}
+
+export async function probeRealtimeDatabase(pool) {
+  if (!pool || typeof pool.connect !== "function") throw new TypeError("A dedicated PostgreSQL pool is required for real-time readiness.");
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      SELECT current_user AS database_role,
+        current_database() AS database_name,
+        current_setting('server_version_num')::integer AS server_version_num,
+        COALESCE((SELECT NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname = current_user), false) AS role_is_safe
+    `);
+    const row = result?.rows?.[0];
+    if (!row || row.database_role !== "tideway_app") throw new Error("Marketplace REALTIME_DATABASE_URL must authenticate as tideway_app.");
+    if (Number(row.server_version_num) < 160000) throw new Error("Marketplace real-time PostgreSQL 16 or newer is required.");
+    if (row.role_is_safe !== true) throw new Error("Marketplace real-time database role must not be superuser or bypass row-level security.");
+    await client.query(`LISTEN ${bookingRealtimeChannel}`);
+    await client.query(`UNLISTEN ${bookingRealtimeChannel}`);
+    return Object.freeze({ databaseRole: row.database_role, databaseName: row.database_name, postgresqlVersionNumber: Number(row.server_version_num), listenReady: true });
   } finally {
     client.release();
   }
@@ -130,12 +168,16 @@ export async function createMarketplaceAttachment(options = {}) {
   requireAdapters(adapters);
 
   const createPool = options.createPool || createDefaultPostgresPool;
+  const createRealtimePool = options.createRealtimePool || createDefaultRealtimePostgresPool;
+  const createRealtimeSignalSource = options.createRealtimeSignalSource || createPostgresRealtimeSignalSource;
   const createEmailDelivery = options.createEmailDelivery || createSmtpEmailDelivery;
   const createObjectStorage = options.createObjectStorage || createS3ObjectStorage;
   const createPaymentProvider = options.createPaymentProvider || createStripePaymentProvider;
   let emailDelivery;
   let objectStorage;
   let pool;
+  let realtimePool;
+  let realtimeSignalSource;
   let runtime;
   let paymentProvider;
   try {
@@ -145,7 +187,14 @@ export async function createMarketplaceAttachment(options = {}) {
     const storageMethods = ["verify", "createUploadUrl", "headObject", "inspectAndSanitizeImage", "createReadUrl", "deleteObject", "close"];
     if (!objectStorage || !storageMethods.every((method) => typeof objectStorage[method] === "function")) throw new TypeError("Marketplace private object storage did not compose completely.");
     pool = await createPool(env);
-    await (options.probeDatabase || probeMarketplaceDatabase)(pool);
+    const databaseEvidence = await (options.probeDatabase || probeMarketplaceDatabase)(pool);
+    if (environment.realtimeDatabaseConfigured) {
+      realtimePool = await createRealtimePool(env);
+      const realtimeEvidence = await (options.probeRealtimeDatabase || probeRealtimeDatabase)(realtimePool);
+      if (databaseEvidence?.databaseName && realtimeEvidence?.databaseName && databaseEvidence.databaseName !== realtimeEvidence.databaseName) throw new Error("DATABASE_URL and REALTIME_DATABASE_URL must target the same marketplace database.");
+    } else {
+      realtimePool = pool;
+    }
     await emailDelivery.verify();
     await objectStorage.verify();
     if (environment.payments.requested) {
@@ -154,6 +203,7 @@ export async function createMarketplaceAttachment(options = {}) {
       await paymentProvider.verify();
     }
     const rateLimiter = (options.createRateLimiter || createPostgresRateLimiter)(pool, { secret: env.SESSION_SECRET });
+    realtimeSignalSource = createRealtimeSignalSource(realtimePool);
     runtime = (options.createRuntime || createMarketplaceRuntime)(pool, {
       env,
       rateLimiter,
@@ -161,14 +211,16 @@ export async function createMarketplaceAttachment(options = {}) {
       emailDelivery,
       objectStorage,
       paymentProvider,
+      realtimeSignalSource,
       etaProvider: adapters.etaProvider,
       onUnexpectedError: adapters.onUnexpectedError
     });
     if (!runtime?.router || typeof runtime.router.handle !== "function" || runtime.authenticationHttpReady !== true || (environment.payments.requested && runtime.paymentReady !== true)) throw new TypeError("Marketplace runtime did not compose its router, authentication and requested payment boundaries completely.");
   } catch (error) {
-    try { await runtime?.realtimeSignalSource?.close?.(); } catch {}
+    try { await realtimeSignalSource?.close?.(); } catch {}
     try { await emailDelivery?.close?.(); } catch {}
     try { await objectStorage?.close?.(); } catch {}
+    if (realtimePool && realtimePool !== pool) try { await realtimePool.end?.(); } catch {}
     try { await pool?.end?.(); } catch {}
     try { await adapters.close(); } catch {}
     throw error;
@@ -195,9 +247,10 @@ export async function createMarketplaceAttachment(options = {}) {
       if (closed) return;
       closed = true;
       const failures = [];
-      try { await runtime.realtimeSignalSource?.close?.(); } catch (error) { failures.push(error); }
+      try { await realtimeSignalSource.close?.(); } catch (error) { failures.push(error); }
       try { await emailDelivery.close(); } catch (error) { failures.push(error); }
       try { await objectStorage.close(); } catch (error) { failures.push(error); }
+      if (realtimePool !== pool) try { await realtimePool.end?.(); } catch (error) { failures.push(error); }
       try { await pool.end?.(); } catch (error) { failures.push(error); }
       try { await adapters.close(); } catch (error) { failures.push(error); }
       if (failures.length) throw new AggregateError(failures, "Marketplace resources did not close cleanly.");

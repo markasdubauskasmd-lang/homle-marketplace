@@ -11,6 +11,7 @@ const environment = Object.freeze({
   MARKETPLACE_ENABLED: "true",
   PAYMENTS_ENABLED: "false",
   DATABASE_URL: "postgresql://tideway_app:private-db-password@db.staging.example:5432/acme_homle_staging?sslmode=verify-full",
+  REALTIME_DATABASE_URL: "postgresql://tideway_app:private-db-password@db-direct.staging.example:5432/acme_homle_staging?sslmode=verify-full",
   SESSION_SECRET: "session-secret-is-long-private-and-distinct-01",
   AUTH_TOKEN_SECRET: "authentication-token-is-long-private-and-distinct-02",
   DATA_ENCRYPTION_KEY: "data-encryption-is-long-private-and-distinct-03",
@@ -69,6 +70,9 @@ for (const [override, confirmation, pattern] of [
   [{ DATABASE_URL: environment.DATABASE_URL.replace("acme_homle_staging", "homle_production") }, stagingServiceProbeConfirmation, /must end in/],
   [{ DATABASE_URL: environment.DATABASE_URL.replace("sslmode=verify-full", "sslmode=require") }, stagingServiceProbeConfirmation, /verify-full/],
   [{ DATABASE_URL: environment.DATABASE_URL.replace("db.staging.example", "127.0.0.1") }, stagingServiceProbeConfirmation, /refuses a local/],
+  [{ REALTIME_DATABASE_URL: environment.REALTIME_DATABASE_URL.replace("tideway_app", "migration_owner") }, stagingServiceProbeConfirmation, /authenticate as tideway_app/],
+  [{ REALTIME_DATABASE_URL: environment.REALTIME_DATABASE_URL.replace("acme_homle_staging", "other_homle_staging") }, stagingServiceProbeConfirmation, /same managed staging database/],
+  [{ REALTIME_DATABASE_URL: environment.REALTIME_DATABASE_URL.replace("verify-full", "require") }, stagingServiceProbeConfirmation, /REALTIME_DATABASE_URL must use sslmode=verify-full/],
   [{ SMTP_URL: "" }, stagingServiceProbeConfirmation, /SMTP_URL/]
 ]) {
   await assert.rejects(probeMarketplaceStagingServices({ env: { ...environment, ...override }, confirmation, createAttachment: guardedAttachment }), pattern);

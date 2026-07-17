@@ -71,6 +71,7 @@ export function authenticationActivationReadiness(env = process.env, options = {
   const marketplaceCore = deployment.ok
     && state.marketplace.requested === true
     && state.databaseConfigured === true
+    && state.realtimeDatabaseConfigured === true
     && state.sessionConfigured === true
     && state.authTokenConfigured === true
     && state.encryptionConfigured === true

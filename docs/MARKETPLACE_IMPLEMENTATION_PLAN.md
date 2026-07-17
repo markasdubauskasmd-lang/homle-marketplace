@@ -232,7 +232,7 @@ Tests: message isolation, idempotent notifications, completed-only unique review
 
 Required before production account use:
 
-- PostgreSQL: `DATABASE_URL`.
+- PostgreSQL: pooled normal-traffic `DATABASE_URL` plus direct session-capable `REALTIME_DATABASE_URL` to the same database.
 - Sessions/authentication tokens/encryption: distinct `SESSION_SECRET`, `AUTH_TOKEN_SECRET`, `DATA_ENCRYPTION_KEY` values.
 - Public deployment: `APP_ORIGIN` using verified HTTPS.
 - Email verification/reset/notifications: `SMTP_URL`, `EMAIL_FROM`.

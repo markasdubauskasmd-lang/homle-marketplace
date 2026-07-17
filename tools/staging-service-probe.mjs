@@ -8,7 +8,7 @@ import { marketplaceEnvironment, validateMarketplaceEnvironment } from "../src/m
 const toolPath = fileURLToPath(import.meta.url);
 export const stagingServiceProbeConfirmation = "PROBE HOMLE MANAGED STAGING SERVICES";
 const secretNames = Object.freeze([
-  "DATABASE_URL", "SESSION_SECRET", "AUTH_TOKEN_SECRET", "DATA_ENCRYPTION_KEY", "SMTP_URL",
+  "DATABASE_URL", "REALTIME_DATABASE_URL", "SESSION_SECRET", "AUTH_TOKEN_SECRET", "DATA_ENCRYPTION_KEY", "SMTP_URL",
   "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY", "MONITORING_WEBHOOK_TOKEN",
   "GOOGLE_CLIENT_SECRET", "FACEBOOK_APP_SECRET", "APPLE_PRIVATE_KEY", "STRIPE_SECRET_KEY",
   "STRIPE_PUBLISHABLE_KEY", "STRIPE_WEBHOOK_SECRET"
@@ -18,22 +18,22 @@ function exact(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function stagingDatabaseTarget(value) {
+function stagingDatabaseTarget(value, name = "DATABASE_URL") {
   let url;
-  try { url = new URL(exact(value)); } catch { throw new TypeError("DATABASE_URL must be a valid managed PostgreSQL staging URL."); }
+  try { url = new URL(exact(value)); } catch { throw new TypeError(`${name} must be a valid managed PostgreSQL staging URL.`); }
   if (!["postgres:", "postgresql:"].includes(url.protocol) || !url.hostname || !url.username || !url.password || !url.pathname || url.pathname === "/") {
-    throw new TypeError("DATABASE_URL must contain the managed staging database, tideway_app user and private credential.");
+    throw new TypeError(`${name} must contain the managed staging database, tideway_app user and private credential.`);
   }
   let user;
   let database;
   try {
     user = decodeURIComponent(url.username);
     database = decodeURIComponent(url.pathname.slice(1));
-  } catch { throw new TypeError("DATABASE_URL contains invalid encoded account or database details."); }
+  } catch { throw new TypeError(`${name} contains invalid encoded account or database details.`); }
   if (user !== "tideway_app") throw new TypeError("The staging service probe must authenticate as tideway_app.");
   if (!/_(?:tideway|homle)_staging$/i.test(database)) throw new TypeError("The staging service probe database name must end in _tideway_staging or _homle_staging.");
   if (["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase())) throw new TypeError("The managed staging service probe refuses a local database endpoint.");
-  if (url.searchParams.get("sslmode") !== "verify-full") throw new TypeError("Managed staging DATABASE_URL must use sslmode=verify-full.");
+  if (url.searchParams.get("sslmode") !== "verify-full") throw new TypeError(`Managed staging ${name} must use sslmode=verify-full.`);
   return Object.freeze({ database, role: user, tls: "verify-full" });
 }
 
@@ -55,7 +55,10 @@ export function validateStagingServiceProbeEnvironment(env = process.env, confir
   if (!state.objectStorageConfigured) errors.push("Complete private object-storage configuration is required.");
   if (!exact(env.MARKETPLACE_ADAPTER_MODULE)) errors.push("A private monitoring adapter is required.");
   let database = null;
+  let realtimeDatabase = null;
   try { database = stagingDatabaseTarget(env.DATABASE_URL); } catch (error) { errors.push(error.message); }
+  try { realtimeDatabase = stagingDatabaseTarget(env.REALTIME_DATABASE_URL, "REALTIME_DATABASE_URL"); } catch (error) { errors.push(error.message); }
+  if (database && realtimeDatabase && database.database !== realtimeDatabase.database) errors.push("DATABASE_URL and REALTIME_DATABASE_URL must target the same managed staging database.");
   if (errors.length) throw validationError(errors);
   return Object.freeze({ database, providersConfigured: Object.freeze({ google: state.providers.google.enabled, facebook: state.providers.facebook.enabled }) });
 }

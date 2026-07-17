@@ -24,6 +24,7 @@ function booleanSetting(env, key) {
 export function marketplaceEnvironment(env = process.env) {
   const providers = Object.fromEntries(Object.entries(providerRequirements).map(([name, keys]) => [name, providerState(env, keys)]));
   const databaseConfigured = present(env, "DATABASE_URL");
+  const realtimeDatabaseConfigured = present(env, "REALTIME_DATABASE_URL");
   const sessionConfigured = present(env, "SESSION_SECRET") && env.SESSION_SECRET.trim().length >= 32;
   const authTokenConfigured = present(env, "AUTH_TOKEN_SECRET") && env.AUTH_TOKEN_SECRET.trim().length >= 32;
   const emailConfigured = present(env, "SMTP_URL") && present(env, "EMAIL_FROM");
@@ -38,6 +39,7 @@ export function marketplaceEnvironment(env = process.env) {
     production: env.NODE_ENV === "production",
     marketplace: { requested: marketplaceRequested },
     databaseConfigured,
+    realtimeDatabaseConfigured,
     sessionConfigured,
     authTokenConfigured,
     emailConfigured,
@@ -81,6 +83,7 @@ export function validateMarketplaceEnvironment(env = process.env) {
   if (present(env, "STRIPE_PUBLISHABLE_KEY") && !/^pk_test_[A-Za-z0-9_]{16,200}$/.test(env.STRIPE_PUBLISHABLE_KEY.trim())) errors.push("STRIPE_PUBLISHABLE_KEY must be a Stripe test publishable key; live keys are prohibited by this checkout.");
   if (present(env, "STRIPE_WEBHOOK_SECRET") && !/^whsec_[A-Za-z0-9_]{16,200}$/.test(env.STRIPE_WEBHOOK_SECRET.trim())) errors.push("STRIPE_WEBHOOK_SECRET must be a valid Stripe webhook signing secret.");
   if (present(env, "DATABASE_URL") && !/^postgres(?:ql)?:\/\//i.test(env.DATABASE_URL.trim())) errors.push("DATABASE_URL must use PostgreSQL.");
+  if (present(env, "REALTIME_DATABASE_URL") && !/^postgres(?:ql)?:\/\//i.test(env.REALTIME_DATABASE_URL.trim())) errors.push("REALTIME_DATABASE_URL must use PostgreSQL.");
   if (present(env, "SESSION_SECRET") && !state.sessionConfigured) errors.push("SESSION_SECRET must contain at least 32 characters.");
   if (present(env, "AUTH_TOKEN_SECRET") && !state.authTokenConfigured) errors.push("AUTH_TOKEN_SECRET must contain at least 32 characters.");
   if (state.sessionConfigured && state.authTokenConfigured && env.SESSION_SECRET.trim() === env.AUTH_TOKEN_SECRET.trim()) errors.push("AUTH_TOKEN_SECRET must be different from SESSION_SECRET.");
@@ -116,6 +119,7 @@ export function validateMarketplaceEnvironment(env = process.env) {
     if (!state.appOrigin) errors.push("APP_ORIGIN is required in production.");
     if (state.marketplace.requested) {
       if (!state.databaseConfigured) errors.push("DATABASE_URL is required when the production marketplace is enabled.");
+      if (!state.realtimeDatabaseConfigured) errors.push("REALTIME_DATABASE_URL is required when the production marketplace is enabled so live updates use a dedicated direct PostgreSQL connection.");
       if (!state.sessionConfigured) errors.push("A 32-character SESSION_SECRET is required when the production marketplace is enabled.");
       if (!state.authTokenConfigured) errors.push("A separate 32-character AUTH_TOKEN_SECRET is required when the production marketplace is enabled.");
       if (!state.encryptionConfigured) errors.push("A 32-character DATA_ENCRYPTION_KEY is required when the production marketplace is enabled.");

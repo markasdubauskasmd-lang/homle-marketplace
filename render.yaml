@@ -21,7 +21,7 @@ services:
       - key: DATA_DIR
         value: "/var/lib/tideway"
       - key: APP_ORIGIN
-        sync: false
+        value: "https://homle-marketplace-preview.onrender.com"
       - key: ADMIN_REQUIRE_KEY
         value: "true"
       - key: ADMIN_KEY
