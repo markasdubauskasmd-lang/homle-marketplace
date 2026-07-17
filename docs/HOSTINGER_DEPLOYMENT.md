@@ -31,17 +31,17 @@ Authoritative Hostinger references:
 
 ## Prepared release
 
-- `../Homle-Hostinger-Node-release-601f5967.zip`
-- evidence manifest `../Homle-Hostinger-Node-release-601f5967.manifest.json`
-- source commit `601f5967`
-- 230 ZIP entries / 223 files / 7 directories; 648,774 bytes; SHA-256 `15A59FBC107F1AF3668DB8BB01DC5C4A9564E7A8BA6A2B1A9C317E10EF2F3E86`
+- `../Homle-Hostinger-Node-release-50fa914e.zip`
+- evidence manifest `../Homle-Hostinger-Node-release-50fa914e.manifest.json`
+- source commit `50fa914e`
+- 236 ZIP entries / 227 files / 9 directories; 658,050 bytes; SHA-256 `771830892E7E9B58C913D53F5C5E8CA24EFED6D2D72345B28434E86F55CDC3A9`
 - no `.env`, customer data, tests, documentation, Git history, local tracking lab or local secrets
 - Node type: `Other`
 - entry file: `server.mjs`
 - supported runtime: Node.js 24
 - start command from the package: `node server.mjs`
 
-This release is built by `pnpm run release:hostinger`. The builder follows committed local imports, includes the whole shipped `public/` and `src/` runtime, verifies the ZIP central directory against its exact allowlist, rejects private/internal paths and records a SHA-256 manifest. It also includes every SHA-256-locked database migration, the migration lock and both least-privilege grant scripts, re-verifies those assets before packaging and records the migration count. Inclusion does not apply a migration automatically: use a separate migration-owner connection against approved managed staging, run the deployment verifier, and keep the Node process restricted to `tideway_app`. The builder caught that the older manual `9f5ce64` archive omitted the server-imported `travel-coverage.mjs` startup dependency; do not upload that superseded archive.
+This release is built by `pnpm run release:hostinger`. The builder follows committed local imports, includes the whole shipped `public/` and `src/` runtime, verifies the ZIP central directory against its exact allowlist, rejects private/internal paths and records a SHA-256 manifest. It also includes every SHA-256-locked database migration, the migration lock, both least-privilege grant scripts, the empty-staging guard and the read-only deployment verifier; it re-verifies those assets before packaging and records the migration count. Inclusion does not apply a migration automatically: use the guarded bootstrap with a separate migration-owner connection against an approved empty managed staging database, and keep the Node process restricted to `tideway_app`. The builder caught that the older manual `9f5ce64` archive omitted the server-imported `travel-coverage.mjs` startup dependency; do not upload that superseded archive.
 
 ## Why it is not uploaded through File Manager
 
