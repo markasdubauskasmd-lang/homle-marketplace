@@ -102,12 +102,16 @@ await service.saveLandlordProfile(landlord, { organisationName: "Example Propert
 const created = await service.createProperty(landlord, input);
 assert(created.exactAddress.postcode === "SW1A 1AA" && created.accessInstructions === accessInstructions && !Object.hasOwn(created, "accessInstructionsCiphertext") && !Object.hasOwn(created, "latitude") && !Object.hasOwn(created, "landlordUserId"), "The landlord property projection exposed storage or coordinate fields or omitted owned details.");
 assert(Buffer.isBuffer(repositoryCalls.find((call) => call.kind === "create").property.accessInstructionsCiphertext) && !JSON.stringify(created).includes("access_instructions_ciphertext"), "Property service sent plaintext access instructions to persistence or leaked ciphertext to its response.");
-assert((await service.listOwnProperties(landlord))[0].accessInstructions === accessInstructions, "A landlord could not retrieve their own protected property details.");
-assert(throws(() => createPropertyService(fakeRepository, { dataEncryptionSecret: "too-short" }), "at least 32") && await rejects(() => service.createProperty(cleaner, input), "Landlord account"), "Property service accepted a weak encryption key or a cleaner write.");
+const updatedInstructions = "Use the side entrance. The lockbox code is 9876.";
+const updated = await service.updateOwnProperty(landlord, { ...input, id: propertyId, accessInstructions: updatedInstructions });
+const updateCall = repositoryCalls.find((call) => call.kind === "update");
+assert(updated.propertyId === propertyId && updated.accessInstructions === updatedInstructions && Buffer.isBuffer(updateCall.property.accessInstructionsCiphertext) && !updateCall.property.accessInstructionsCiphertext.includes(Buffer.from(updatedInstructions)), "An owner property edit did not preserve identity, encrypt the replacement access instructions or return the protected owner projection.");
+assert((await service.listOwnProperties(landlord))[0].accessInstructions === updatedInstructions, "A landlord could not retrieve their updated protected property details.");
+assert(throws(() => createPropertyService(fakeRepository, { dataEncryptionSecret: "too-short" }), "at least 32") && await rejects(() => service.createProperty(cleaner, input), "Landlord account") && await rejects(() => service.updateOwnProperty(cleaner, { ...input, id: propertyId }), "Landlord account"), "Property service accepted a weak encryption key or a cleaner property write.");
 
 bookingStatus = "confirmed";
 const activeCleanerView = await service.getBookingProperty(cleaner, bookingId);
-assert(activeCleanerView.exactAddress.postcode === "SW1A 1AA" && activeCleanerView.accessInstructions === accessInstructions, "The assigned cleaner could not access visit details during a confirmed booking.");
+assert(activeCleanerView.exactAddress.postcode === "SW1A 1AA" && activeCleanerView.accessInstructions === updatedInstructions, "The assigned cleaner could not access the latest visit details during a confirmed booking.");
 bookingStatus = "pending-cleaner-acceptance";
 const invitedCleanerView = await service.getBookingProperty(cleaner, bookingId);
 assert(invitedCleanerView.exactAddress === null && invitedCleanerView.accessInstructions === null && invitedCleanerView.parkingInstructions === null && invitedCleanerView.specialNotes === null, "An unaccepted cleaner could see private property details.");
@@ -115,7 +119,7 @@ bookingStatus = "completed";
 const completedCleanerView = await service.getBookingProperty(cleaner, bookingId);
 assert(completedCleanerView.exactAddress === null && completedCleanerView.accessInstructions === null, "A completed booking retained unnecessary cleaner access to the property address or entry instructions.");
 bookingStatus = "draft";
-assert((await service.getBookingProperty(landlord, bookingId)).accessInstructions === accessInstructions, "The property owner lost access to their own instructions outside an active visit.");
+assert((await service.getBookingProperty(landlord, bookingId)).accessInstructions === updatedInstructions, "The property owner lost access to their own latest instructions outside an active visit.");
 bookingStatus = "confirmed";
 assert(await rejects(() => service.getBookingProperty(unrelated, bookingId), "forbidden"), "An unrelated authenticated user could access booking property data when a lower layer returned a row.");
 
@@ -135,7 +139,7 @@ await repository.createProperty(landlord, canonical);
 await repository.updateOwnProperty(landlord, canonical);
 await repository.listOwnProperties(landlord);
 await repository.getBookingProperty(cleaner, bookingId);
-assert(databaseCalls[0].values[1] === landlordId && databaseCalls[1].text.includes("WHERE id=$1::uuid AND landlord_user_id=$2::uuid") && databaseCalls[1].values[1] === landlordId && databaseCalls[2].text.includes("landlord_user_id=$1::uuid") && databaseCalls[3].text.includes("b.landlord_user_id=$2::uuid OR b.cleaner_user_id=$2::uuid") && databaseCalls.every((call) => !call.text.includes(accessInstructions)), "Property repository did not bind ownership and booking participation in parameterized queries.");
+assert(databaseCalls[0].values[1] === landlordId && databaseCalls[1].text.includes("WHERE id=$1::uuid AND landlord_user_id=$2::uuid") && databaseCalls[1].values[1] === landlordId && databaseCalls[1].text.includes("address_line_1 IS NOT DISTINCT FROM $4::text") && databaseCalls[1].text.includes("COALESCE($17::numeric,latitude)") && databaseCalls[1].text.includes("ELSE $17::numeric") && databaseCalls[2].text.includes("landlord_user_id=$1::uuid") && databaseCalls[3].text.includes("b.landlord_user_id=$2::uuid OR b.cleaner_user_id=$2::uuid") && databaseCalls.every((call) => !call.text.includes(accessInstructions)), "Property repository did not bind ownership, preserve unchanged-address coordinates, clear stale changed-address coordinates or protect booking participation in parameterized queries.");
 
 const rls = await readFile(new URL("../db/migrations/002_marketplace_row_level_security.sql", import.meta.url), "utf8");
 const propertyPolicy = rls.match(/CREATE POLICY properties_confirmed_cleaner_read[^;]+;/)?.[0] || "";

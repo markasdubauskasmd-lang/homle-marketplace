@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Landlord workspace | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-66">
-  <script src="/landlord-dashboard.js?v=20260717-1" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260717-67">
+  <script src="/landlord-dashboard.js?v=20260717-2" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
@@ -73,10 +73,11 @@
         <div class="landlord-panel-heading"><div><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your properties</h2></div><button class="button button-outline" type="button" data-toggle-property-form>Add property</button></div>
         <div class="landlord-empty-card" data-property-empty><strong>No account properties yet.</strong><p>Add a property to prepare a private request draft. Nothing is published to Cleaner search.</p></div>
         <div class="landlord-property-grid" data-property-list hidden></div>
+        <div class="landlord-form-feedback" data-property-status role="status" aria-live="polite" tabindex="-1" hidden></div>
 
         <form class="landlord-record-form" data-property-form hidden novalidate>
           <fieldset data-property-controls>
-            <div class="landlord-form-title"><div><p class="eyebrow">New private property</p><h3>Add the cleaning location</h3></div><button class="text-button" type="button" data-close-property-form>Close</button></div>
+            <div class="landlord-form-title"><div><p class="eyebrow">Protected property details</p><h3 data-property-form-title>Add the cleaning location</h3></div><button class="text-button" type="button" data-close-property-form>Close</button></div>
             <label>Property type<select name="propertyType" required><option value="">Choose one</option><option value="flat">Flat</option><option value="house">House</option><option value="studio">Studio</option><option value="office">Office</option><option value="retail">Retail</option><option value="clinic">Clinic</option><option value="communal">Communal area</option><option value="other">Other</option></select></label>
             <label>Address line 1<input name="addressLine1" autocomplete="address-line1" maxlength="240" required></label>
             <label>Town or locality<input name="locality" autocomplete="address-level2" maxlength="120" required></label>

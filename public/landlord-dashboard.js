@@ -26,6 +26,8 @@ const propertySelectLabel = document.querySelector("[data-property-select-label]
 const soleProperty = document.querySelector("[data-sole-property]");
 const solePropertyName = document.querySelector("[data-sole-property-name]");
 const propertyFeedback = document.querySelector("[data-property-feedback]");
+const propertyStatus = document.querySelector("[data-property-status]");
+const propertyFormTitle = document.querySelector("[data-property-form-title]");
 const requestFeedback = document.querySelector("[data-request-feedback]");
 const propertySave = document.querySelector("[data-save-property]");
 const requestSave = document.querySelector("[data-save-request]");
@@ -46,7 +48,9 @@ let recognition = null;
 let listening = false;
 let speechFailed = false;
 let speechChangedDuringListen = false;
-let dirty = false;
+let propertyDirty = false;
+let requestDirty = false;
+let editingPropertyId = "";
 let loading = false;
 const requestScans = new Map();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
@@ -155,10 +159,7 @@ function selectWorkspaceTab(name) {
 function continueBookingStart() {
   if (!bookingStart) return;
   if (!properties.length) {
-    selectWorkspaceTab("properties");
-    propertyForm.hidden = false;
-    propertyForm.scrollIntoView({ behavior: "smooth", block: "start" });
-    propertyForm.querySelector("input")?.focus({ preventScroll: true });
+    openPropertyEditor();
     return;
   }
   selectWorkspaceTab("requests");
@@ -180,6 +181,51 @@ function exactAddress(property) {
   return [address.addressLine1, address.addressLine2, address.locality, address.postcode].filter(Boolean).join(", ") || "Exact address unavailable";
 }
 
+function populatePropertyForm(property) {
+  const address = property?.exactAddress || {};
+  propertyForm.reset();
+  propertyForm.elements.name.value = property?.name || "";
+  propertyForm.elements.propertyType.value = property?.propertyType || "";
+  propertyForm.elements.addressLine1.value = address.addressLine1 || "";
+  propertyForm.elements.addressLine2.value = address.addressLine2 || "";
+  propertyForm.elements.locality.value = address.locality || "";
+  propertyForm.elements.postcode.value = address.postcode || "";
+  propertyForm.elements.bedrooms.value = property?.bedrooms ?? "";
+  propertyForm.elements.bathrooms.value = property?.bathrooms ?? "";
+  propertyForm.elements.approximateSizeSqM.value = property?.approximateSizeSqM ?? "";
+  propertyForm.elements.accessInstructions.value = property?.accessInstructions || "";
+  propertyForm.elements.parkingInstructions.value = property?.parkingInstructions || "";
+  propertyForm.elements.cleaningPreferences.value = property?.cleaningPreferences || "";
+  propertyForm.elements.savedChecklist.value = tasksToLines(property?.savedChecklist);
+  propertyForm.elements.specialNotes.value = property?.specialNotes || "";
+}
+
+function openPropertyEditor(property = null) {
+  if (!propertyForm.hidden && propertyDirty && !window.confirm("Discard the unsaved property changes and open these details instead?")) return;
+  editingPropertyId = property?.propertyId || "";
+  populatePropertyForm(property);
+  propertyFormTitle.textContent = property ? "Edit access and property details" : "Add the cleaning location";
+  propertySave.textContent = property ? "Update protected details" : "Save property privately";
+  propertyFeedback.hidden = true;
+  propertyStatus.hidden = true;
+  propertyDirty = false;
+  propertyForm.querySelector(".dashboard-optional-fields").open = Boolean(property);
+  propertyForm.hidden = false;
+  selectWorkspaceTab("properties");
+  propertyForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  (property ? propertyForm.elements.accessInstructions : propertyForm.elements.propertyType).focus({ preventScroll: true });
+}
+
+function closePropertyEditor() {
+  if (propertyDirty && !window.confirm("Close and discard these unsaved property changes?")) return;
+  propertyForm.hidden = true;
+  propertyForm.reset();
+  editingPropertyId = "";
+  propertyDirty = false;
+  propertyFormTitle.textContent = "Add the cleaning location";
+  propertySave.textContent = "Save property privately";
+}
+
 function renderProperties() {
   propertyList.replaceChildren();
   propertySelect.replaceChildren(element("option", "", properties.length ? "Choose a property" : "Add a property first"));
@@ -197,7 +243,13 @@ function renderProperties() {
     const notes = element("dl");
     notes.append(propertyFact("Access instructions", property.accessInstructions || "None saved"), propertyFact("Parking", property.parkingInstructions || "None saved"), propertyFact("Cleaning preferences", property.cleaningPreferences || "None saved"), propertyFact("Special notes", property.specialNotes || "None saved"));
     details.append(notes);
-    card.append(heading, facts, details);
+    const actions = element("div", "landlord-property-actions");
+    const edit = element("button", "button button-outline", property.accessInstructions ? "Edit access and details" : "Add access details");
+    edit.type = "button";
+    edit.setAttribute("aria-label", `${property.accessInstructions ? "Edit access and details for" : "Add access details for"} ${property.name || "saved property"}`);
+    edit.addEventListener("click", () => openPropertyEditor(property));
+    actions.append(edit);
+    card.append(heading, facts, details, actions);
     propertyList.append(card);
     const option = element("option", "", property.name || "Saved property");
     option.value = property.propertyId;
@@ -659,7 +711,7 @@ function optionalNumber(value) {
   return String(value || "").trim() === "" ? null : Number(value);
 }
 
-async function createProperty(event) {
+async function saveProperty(event) {
   event.preventDefault();
   propertyFeedback.hidden = true;
   if (!propertyForm.reportValidity()) return;
@@ -675,23 +727,31 @@ async function createProperty(event) {
     bedrooms: optionalNumber(data.get("bedrooms")), bathrooms: optionalNumber(data.get("bathrooms")), approximateSizeSqM: optionalNumber(data.get("approximateSizeSqM")),
     accessInstructions: String(data.get("accessInstructions") || ""), parkingInstructions: String(data.get("parkingInstructions") || ""), cleaningPreferences: String(data.get("cleaningPreferences") || ""), savedChecklist, specialNotes: String(data.get("specialNotes") || "")
   };
-  setPending(propertySave, true, "Saving…");
+  const selectedPropertyId = editingPropertyId;
+  const updating = Boolean(selectedPropertyId);
+  setPending(propertySave, true, updating ? "Updating…" : "Saving…");
   try {
-    const result = await requestJson("/api/marketplace/properties", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
-    properties.push(result.property);
+    const path = updating ? `/api/marketplace/properties/${encodeURIComponent(selectedPropertyId)}` : "/api/marketplace/properties";
+    const result = await requestJson(path, { method: updating ? "PUT" : "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
+    if (updating) properties = properties.map((property) => property.propertyId === selectedPropertyId ? result.property : property);
+    else properties.push(result.property);
     properties.sort((a, b) => String(a.name).localeCompare(String(b.name)));
     renderProperties();
     propertyForm.reset();
     propertyForm.hidden = true;
-    dirty = false;
-    if (bookingStart) {
+    editingPropertyId = "";
+    propertyDirty = false;
+    propertyFormTitle.textContent = "Add the cleaning location";
+    propertySave.textContent = "Save property privately";
+    showFeedback(propertyStatus, updating ? "Protected access and property details updated." : "Property saved privately.", "success");
+    if (bookingStart && !updating) {
       selectWorkspaceTab("requests");
       propertySelect.value = result.property.propertyId;
       requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
       requestForm.elements.requestedDate.focus({ preventScroll: true });
     }
   } catch (error) { showFeedback(propertyFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this property. Sign in again." : error.message); }
-  finally { setPending(propertySave, false, "Save property privately"); }
+  finally { setPending(propertySave, false, editingPropertyId ? "Update protected details" : "Save property privately"); }
 }
 
 async function createRequestDraft(event) {
@@ -724,7 +784,7 @@ async function createRequestDraft(event) {
     initialiseRequestDefaults();
     renderTaskPreview();
     showFeedback(requestFeedback, `Private draft ${result.cleaningRequest.requestId} saved. It was not sent for matching.`, "success");
-    dirty = false;
+    requestDirty = false;
     openRequestScan(result.cleaningRequest.requestId);
   } catch (error) { showFeedback(requestFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message); }
   finally { setPending(requestSave, false, "Save private draft"); }
@@ -755,7 +815,7 @@ function useSavedChecklist() {
   invalidateScopeReview("The checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
   renderTaskPreview();
-  dirty = true;
+  requestDirty = true;
   showFeedback(requestFeedback, "Saved checklist copied. Review every task against the current room scan before saving.", "success");
 }
 
@@ -767,7 +827,7 @@ function summariseSpeech({ automatic = false } = {}) {
   invalidateScopeReview("The concise checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
   renderTaskPreview();
-  dirty = true;
+  requestDirty = true;
   showFeedback(requestFeedback, `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} prepared${automatic ? " automatically" : ""}. Review every bullet before confirming.`, "success");
 }
 
@@ -808,7 +868,7 @@ function configureSpeech() {
       speechChangedDuringListen = true;
     }
     speechStatus.textContent = interimText ? `Listening: ${interimText.slice(0, 160)}` : "Listening…";
-    dirty = true;
+    requestDirty = true;
   };
   speechStatus.textContent = "Speech is available. Your browser may use its own speech-to-text service.";
 }
@@ -818,8 +878,8 @@ document.querySelector("[data-open-request-tab]").addEventListener("click", () =
   document.querySelector('[data-landlord-tab="requests"]').click();
   document.querySelector('[data-landlord-panel="requests"]').scrollIntoView({ behavior: "smooth", block: "start" });
 });
-document.querySelector("[data-toggle-property-form]").addEventListener("click", () => { propertyForm.hidden = false; propertyForm.querySelector("input")?.focus(); });
-document.querySelector("[data-close-property-form]").addEventListener("click", () => { if (!dirty || window.confirm("Close the property form and keep unsaved entries on this page?")) propertyForm.hidden = true; });
+document.querySelector("[data-toggle-property-form]").addEventListener("click", () => openPropertyEditor());
+document.querySelector("[data-close-property-form]").addEventListener("click", closePropertyEditor);
 document.querySelector("[data-use-saved-checklist]").addEventListener("click", useSavedChecklist);
 document.querySelector("[data-summarise-speech]").addEventListener("click", summariseSpeech);
 propertySelect.addEventListener("change", applySuggestedCleaningType);
@@ -833,10 +893,7 @@ requestForm.elements.tasks.addEventListener("input", () => { renderTaskPreview()
 nextButton.addEventListener("click", () => {
   const action = nextButton.dataset.nextAction;
   if (action === "property") {
-    selectWorkspaceTab("properties");
-    propertyForm.hidden = false;
-    propertyForm.scrollIntoView({ behavior: "smooth", block: "start" });
-    propertyForm.querySelector("input")?.focus({ preventScroll: true });
+    openPropertyEditor();
     return;
   }
   selectWorkspaceTab("requests");
@@ -853,9 +910,9 @@ nextButton.addEventListener("click", () => {
   requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
-propertyForm.addEventListener("input", () => { dirty = true; });
-requestForm.addEventListener("input", () => { dirty = true; });
-propertyForm.addEventListener("submit", createProperty);
+propertyForm.addEventListener("input", () => { propertyDirty = true; });
+requestForm.addEventListener("input", () => { requestDirty = true; });
+propertyForm.addEventListener("submit", saveProperty);
 requestForm.addEventListener("submit", createRequestDraft);
 retry.addEventListener("click", loadWorkspace);
 document.querySelector("[data-request-complete-another]").addEventListener("click", () => {
@@ -865,7 +922,7 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
   requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
-window.addEventListener("beforeunload", (event) => { if (dirty) event.preventDefault(); });
+window.addEventListener("beforeunload", (event) => { if (propertyDirty || requestDirty) event.preventDefault(); });
 document.querySelector("[data-year]").textContent = new Date().getFullYear();
 initialiseRequestDefaults();
 renderTaskPreview();

@@ -6,7 +6,7 @@
 
 - A private self-account route returns only the signed-in user's display name, email, selected role and roles. It never returns session tokens, database identifiers or provider identities.
 - Successful email, Google and Facebook sign-in hand off an established Cleaner to `/cleaner/dashboard` and an established Landlord to `/landlord/dashboard`; accounts that have not selected a role continue to `/onboarding`.
-- Landlords can list and create their own validated properties through the existing owner-authorised APIs. Protected entry instructions remain encrypted at rest by the marketplace service.
+- Landlords can list, create and reopen their own validated properties through the existing owner-authorised APIs. One clear card action opens the same short form for updating access, parking, preferences, checklist and property details; protected entry instructions are encrypted again on every save.
 - Landlords can turn speech into a concise room-by-room checklist, edit every item and create a future cleaning-request draft for one of their properties.
 - The browser always sends `submit: false`. Saving cannot search for, invite, assign or book a Cleaner and cannot take a payment.
 - The workspace lists the signed-in Landlord's active, upcoming and historical booking summaries. Confirmed jobs link to the participant-only active-job screen, while eligible confirmed bookings link to their exact payment-authorization step.
@@ -21,12 +21,14 @@ Successful submission now replaces the workspace with a dedicated authenticated 
 
 These controls remain fail-closed while the marketplace attachment is disabled. Real account capture still requires the managed PostgreSQL, private object-storage, image-sanitation, retention, RLS and HTTPS device gates below; the separate `/request` route remains the working local concierge-pilot path meanwhile.
 
+Saved property edits keep existing map coordinates only when every address field is unchanged. Editing any address field clears stale coordinates until the approved geocoding path supplies a replacement. The owner-bound update route, encryption boundary, address-coordinate rule, unsaved-change warning, accessible success state and full-width phone action are covered by focused tests.
+
 ## Activation requirements
 
 1. Run the locked migrations and RLS/concurrency harness against PostgreSQL 16 with separate owner, web and worker roles.
 2. Configure the exact HTTPS origin, secret manager, SMTP and private object storage; complete storage/CORS/lifecycle/threat-model verification.
 3. Enable the marketplace attachment only after its readiness checks pass and onboard genuine accounts.
-4. Add property editing/deletion and account-media upload UI, then exercise the complete scan-to-draft journey on mobile.
+4. Add deliberate property archiving/deletion and account-media upload UI, then exercise the complete scan-to-draft and property-edit journeys on real mobile browsers.
 5. Keep matching, invitations and payments behind their separate approval and profitability gates.
 
 No customer, Cleaner, property, request or booking record was created while testing this interface.
