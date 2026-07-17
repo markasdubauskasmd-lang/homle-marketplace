@@ -8,7 +8,7 @@
   <title>Homle account access</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260716-64">
-  <script src="/auth-entry.js?v=20260717-2" type="module"></script>
+  <script src="/auth-entry.js?v=20260717-3" type="module"></script>
 </head>
 <body class="account-page">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -117,6 +117,16 @@
               <button class="button" type="submit" data-onboarding-submit>Continue</button>
             </fieldset>
           </form>
+
+          <section class="account-ready-panel" data-account-ready hidden aria-labelledby="account-ready-title">
+            <p class="eyebrow">Private staging account</p>
+            <h2 id="account-ready-title" data-account-ready-title>Your Homle profile is ready.</h2>
+            <p data-account-ready-copy>Your role and secure account have been saved.</p>
+            <div class="account-actions">
+              <a class="button" href="/" data-account-ready-home>Return to Homle</a>
+              <button class="button button-outline" type="button" data-account-ready-logout>Sign out</button>
+            </div>
+          </section>
         </section>
 
         <div class="account-actions" data-pilot-actions>

@@ -6,7 +6,8 @@ const modes = Object.freeze({
   "/verify-email": { form: "verify", title: "Verify your email", lead: "Use the private one-time link sent to your email address." },
   "/verify-facebook": { form: "facebook-verify", title: "Finish Facebook sign-in", lead: "Verify the private email link before Homle creates or connects an account." },
   "/reset-password": { form: "reset", title: "Reset your password", lead: "Replace your password and close every existing session." },
-  "/onboarding": { form: "onboarding", title: "Choose your Homle workspace", lead: "Select Cleaner or Landlord/Property Manager to complete account setup." }
+  "/onboarding": { form: "onboarding", title: "Choose your Homle workspace", lead: "Select Cleaner or Landlord/Property Manager to complete account setup." },
+  "/account-ready": { form: "ready", title: "Your Homle profile is ready", lead: "Your secure role profile has been created for the private marketplace rehearsal." }
 });
 
 const selectedMode = modes[location.pathname] || modes["/login"];
@@ -21,6 +22,10 @@ const socialActions = document.querySelector("[data-social-actions]");
 const socialLinks = [...document.querySelectorAll("[data-social-provider]")];
 const emailToggle = document.querySelector("[data-email-toggle]");
 const accountChoiceDivider = document.querySelector("[data-account-choice-divider]");
+const accountReadyPanel = document.querySelector("[data-account-ready]");
+const accountReadyTitle = document.querySelector("[data-account-ready-title]");
+const accountReadyCopy = document.querySelector("[data-account-ready-copy]");
+const accountReadyLogout = document.querySelector("[data-account-ready-logout]");
 const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
 const privateToken = fragment.get("token") || "";
 const socialResult = fragment.get("social") || "";
@@ -37,6 +42,7 @@ const bookingIntent = accountIntent === "book";
 const cleanerIntent = accountIntent === "work";
 let emailFormRevealed = false;
 let activeProviders = Object.freeze({});
+let workspaceReady = false;
 
 if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
 document.title = `${selectedMode.title} — Homle`;
@@ -83,8 +89,9 @@ function activateForm(providers) {
     emailToggle.setAttribute("aria-expanded", String(emailFormRevealed));
   }
   if (accountChoiceDivider) accountChoiceDivider.hidden = !providerFirst || emailFormRevealed;
+  if (accountReadyPanel) accountReadyPanel.hidden = selectedMode.form !== "ready";
   for (const form of forms) {
-    const capabilityReady = selectedMode.form === "onboarding" || (selectedMode.form === "facebook-verify" ? providers.facebook === true : providers.emailPassword === true);
+    const capabilityReady = selectedMode.form === "onboarding" || selectedMode.form === "ready" || (selectedMode.form === "facebook-verify" ? providers.facebook === true : providers.emailPassword === true);
     const emailEntryDeferred = providerFirst && form.dataset.accountForm === activeName && !emailFormRevealed;
     const active = form.dataset.accountForm === activeName && capabilityReady && !emailEntryDeferred;
     form.hidden = !active;
@@ -157,17 +164,19 @@ function clearStoredCsrf() {
 }
 
 function workspacePath(account) {
-  if (accountIntent === "book") return account?.roles?.includes("landlord") ? "/landlord/dashboard?start=booking" : "";
-  if (accountIntent === "work") return account?.roles?.includes("cleaner") ? "/cleaner/profile" : "";
-  if (account?.selectedRole === "cleaner" && account?.roles?.includes("cleaner")) return "/cleaner/dashboard";
-  if (account?.selectedRole === "landlord" && account?.roles?.includes("landlord")) return "/landlord/dashboard";
-  return "";
+  let destination = "";
+  if (accountIntent === "book") destination = account?.roles?.includes("landlord") ? "/landlord/dashboard?start=booking" : "";
+  else if (accountIntent === "work") destination = account?.roles?.includes("cleaner") ? "/cleaner/profile" : "";
+  else if (account?.selectedRole === "cleaner" && account?.roles?.includes("cleaner")) destination = "/cleaner/dashboard";
+  else if (account?.selectedRole === "landlord" && account?.roles?.includes("landlord")) destination = "/landlord/dashboard";
+  return destination && !workspaceReady ? "/account-ready" : destination;
 }
 
 async function openSignedInWorkspace() {
   const response = await fetch("/api/marketplace/account", { credentials: "same-origin", headers: { Accept: "application/json" }, cache: "no-store" });
   if (!response.ok) return false;
   const result = await response.json();
+  workspaceReady = result.workspaceReady === true;
   if (accountIntent === "book" && result.account?.roles?.length && !result.account.roles.includes("landlord")) {
     showFeedback("This account currently has only a Cleaner workspace. Use a Landlord account to book a clean; Homle has not changed your role.", "error");
     return true;
@@ -181,6 +190,50 @@ async function openSignedInWorkspace() {
   clearCompletedIntent();
   location.assign(destination);
   return true;
+}
+
+async function loadAccountReady() {
+  const response = await fetch("/api/marketplace/account", { credentials: "same-origin", headers: { Accept: "application/json" }, cache: "no-store" });
+  if (response.status === 401) {
+    location.assign("/login");
+    return;
+  }
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.account) throw new Error(result.error || "Your saved Homle profile could not be verified.");
+  if (!result.account.roles?.length) {
+    location.assign("/onboarding");
+    return;
+  }
+  workspaceReady = result.workspaceReady === true;
+  if (workspaceReady) {
+    const destination = workspacePath(result.account);
+    if (destination && destination !== "/account-ready") {
+      location.assign(destination);
+      return;
+    }
+  }
+  const cleaner = result.account.selectedRole === "cleaner" && result.account.roles.includes("cleaner");
+  const landlord = result.account.selectedRole === "landlord" && result.account.roles.includes("landlord");
+  if (!cleaner && !landlord) throw new Error("Your saved Homle role could not be verified.");
+  if (accountReadyTitle) accountReadyTitle.textContent = cleaner ? "Your Cleaner profile is created." : "Your Landlord profile is created.";
+  if (accountReadyCopy) accountReadyCopy.textContent = cleaner
+    ? "Your secure Cleaner account and role are saved. Professional details, availability and service areas will open here when Homle's private booking services pass staging."
+    : "Your secure Landlord account and role are saved. Properties, room scans and booking requests will open here when Homle's private booking services pass staging.";
+}
+
+async function logoutReadyAccount() {
+  const csrfToken = storedCsrf();
+  if (!csrfToken) return showFeedback("Your secure sign-out token is missing. Close this browser session or sign in again before retrying.", "error");
+  accountReadyLogout.disabled = true;
+  try {
+    await post("/api/marketplace/auth/logout", {}, csrfToken);
+    clearStoredCsrf();
+    clearCompletedIntent();
+    location.assign("/");
+  } catch (error) {
+    showFeedback(error.message, "error");
+    accountReadyLogout.disabled = false;
+  }
 }
 
 async function submitAccountForm(event) {
@@ -289,6 +342,7 @@ async function submitAccountForm(event) {
 
 for (const form of forms) form.addEventListener("submit", submitAccountForm);
 emailToggle?.addEventListener("click", revealEmailForm);
+accountReadyLogout?.addEventListener("click", logoutReadyAccount);
 
 if ((bookingIntent || cleanerIntent) && selectedMode.form === "onboarding") {
   const selectedRole = bookingIntent ? "landlord" : "cleaner";
@@ -307,15 +361,22 @@ if ((bookingIntent || cleanerIntent) && selectedMode.form === "onboarding") {
 }
 
 try {
-  const response = await fetch("/api/auth/providers", { headers: { Accept: "application/json" }, cache: "no-store" });
+  const [response, healthResponse] = await Promise.all([
+    fetch("/api/auth/providers", { headers: { Accept: "application/json" }, cache: "no-store" }),
+    fetch("/api/health", { headers: { Accept: "application/json" }, credentials: "omit", cache: "no-store" }).catch(() => null)
+  ]);
   const result = response.ok ? await response.json() : null;
+  const health = healthResponse?.ok ? await healthResponse.json().catch(() => null) : null;
+  workspaceReady = health?.marketplace?.enabled === true && health?.marketplace?.ready === true;
   const providers = result?.providers || {};
   const authenticationReady = providers.emailPassword === true || providers.google === true || providers.facebook === true;
   if (authenticationReady) {
     stateTitle.textContent = "Secure account access is ready.";
     stateCopy.textContent = "Available sign-in methods use rate limits, secure sessions and server-side role checks.";
     activateForm(providers);
-    if (socialResult === "google" && socialCsrfToken) {
+    if (selectedMode.form === "ready") {
+      await loadAccountReady();
+    } else if (socialResult === "google" && socialCsrfToken) {
       if (storeCsrf(socialCsrfToken)) {
         const opened = location.pathname !== "/onboarding" && await openSignedInWorkspace();
         if (!opened) showFeedback(location.pathname === "/onboarding" ? (bookingIntent ? "Google sign-in succeeded. Confirm the booking workspace below." : cleanerIntent ? "Google sign-in succeeded. Confirm the Cleaner workspace below." : "Google sign-in succeeded. Choose how you will use Homle.") : "Google sign-in succeeded. Your secure Homle session is ready.", "success");

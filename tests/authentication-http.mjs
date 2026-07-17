@@ -159,6 +159,7 @@ const providerLinkState = {
 };
 const router = createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery, rateLimiter, googleOidcProvider, facebookLoginProvider }, {
   appOrigin: origin,
+  workspaceReady: false,
   clientKey: () => "198.51.100.10",
   minimumPublicResponseMs: 500,
   now: () => nowValue,
@@ -296,9 +297,16 @@ const logout = await dispatch(router, "POST", "/api/marketplace/auth/logout", {}
 const logoutAll = await dispatch(router, "POST", "/api/marketplace/auth/logout-all", {}, privateHeaders);
 assert(logout.response.statusCode === 200 && logout.response.headers["Set-Cookie"].includes("Max-Age=0") && logoutAll.body.revokedSessions === 4 && calls.some((call) => call.kind === "logout") && calls.some((call) => call.kind === "logout-all"), "Logout or logout-all did not revoke server sessions and expire the cookie.");
 
+const pendingAccount = await dispatch(router, "GET", "/api/marketplace/account", undefined, { cookie: privateHeaders.cookie });
+const accountMutation = await dispatch(router, "POST", "/api/marketplace/account", {}, privateHeaders);
+const anonymousAccount = await dispatch(router, "GET", "/api/marketplace/account");
+assert(pendingAccount.response.statusCode === 200 && pendingAccount.body.workspaceReady === false && pendingAccount.body.account.displayName === "Property Owner" && pendingAccount.body.account.roles.length === 0 && !Object.hasOwn(pendingAccount.body.account, "userId") && accountMutation.response.statusCode === 405 && anonymousAccount.response.statusCode === 401, "Authentication-only account status was unavailable, writable, unauthenticated or exposed a private account identifier.");
+
 const onboarding = await dispatch(router, "POST", "/api/marketplace/onboarding", { role: "landlord" }, privateHeaders);
 assert(onboarding.response.statusCode === 200 && onboarding.body.account.selectedRole === "landlord" && onboarding.body.csrfToken === "rotated-csrf-private" && onboarding.response.headers["Set-Cookie"].includes("rotated") && calls.at(-1).kind === "rotate" && calls.at(-1).account.email === "owner@example.com", "Role onboarding did not rotate the role-pending session with the existing account identity.");
 currentContext = { ...currentContext, actor: { ...currentContext.actor, roles: ["landlord"] }, account: { ...currentContext.account, selectedRole: "landlord" } };
+const readyAccount = await dispatch(router, "GET", "/api/marketplace/account", undefined, { cookie: privateHeaders.cookie });
+assert(readyAccount.body.account.selectedRole === "landlord" && readyAccount.body.account.roles.join(",") === "landlord" && readyAccount.body.workspaceReady === false, "Role onboarding could not be verified through the authentication-only account projection.");
 const repeatedOnboarding = await dispatch(router, "POST", "/api/marketplace/onboarding", { role: "cleaner" }, privateHeaders);
 assert(repeatedOnboarding.response.statusCode === 409 && repeatedOnboarding.body.code === "onboarding-complete", "Completed onboarding could be used for a self-service role change.");
 

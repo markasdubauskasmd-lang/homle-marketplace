@@ -143,7 +143,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
   const authenticationRouter = options.emailDelivery
-    ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError })
+    ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: true })
     : null;
   const router = authenticationRouter ? {
     async handle(request, response, url) {

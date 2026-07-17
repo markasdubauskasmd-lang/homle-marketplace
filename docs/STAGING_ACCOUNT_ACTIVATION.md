@@ -60,7 +60,7 @@ Deploy, then verify `/api/auth/providers`. It must advertise only providers that
 
 ## 5. Evidence and cleanup
 
-Test one approved Landlord and one approved Cleaner onboarding path. Confirm that a different email cannot create an account, request verification, reset a password or sign in. After the rehearsal, set `AUTHENTICATION_ENABLED=false` first.
+Test one approved Landlord and one approved Cleaner onboarding path. Each approved Google account must return to Homle, save exactly one role and reach `/account-ready`, where the role-specific completion state is verified through the authenticated current-account endpoint. The full property/profile editors remain closed until the marketplace dependencies pass. Confirm that a different email cannot create an account, request verification, reset a password or sign in. After the rehearsal, set `AUTHENTICATION_ENABLED=false` first.
 
 The repository includes an owner-only account cleanup command that deletes an approved account, its sessions, identities and account-only profile data. It refuses Administrator accounts and refuses any account that has properties, cleaning requests, media, bookings, payments, messages, reviews, disputes, privacy cases or other marketplace activity. This prevents an account rehearsal cleanup from silently destroying business evidence.
 

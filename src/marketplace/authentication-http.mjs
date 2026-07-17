@@ -98,6 +98,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const now = options.now || (() => Date.now());
   const wait = options.wait || ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
+  const workspaceReady = options.workspaceReady === true;
   const limit = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
   if (google && (google.name !== "google" || typeof google.begin !== "function" || typeof google.complete !== "function" || typeof google.clearCookie !== "string")) throw new TypeError("Google authentication routes require a complete OIDC provider.");
   if (facebook && (facebook.name !== "facebook" || typeof facebook.begin !== "function" || typeof facebook.complete !== "function" || typeof facebook.clearCookie !== "string")) throw new TypeError("Facebook authentication routes require a complete provider verifier.");
@@ -143,9 +144,15 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   return {
     async handle(request, response, suppliedUrl) {
       const url = suppliedUrl instanceof URL ? suppliedUrl : new URL(request.url || "/", "http://localhost");
-      if (!url.pathname.startsWith(prefix) && url.pathname !== "/api/marketplace/onboarding") return false;
+      if (!url.pathname.startsWith(prefix) && !new Set(["/api/marketplace/account", "/api/marketplace/onboarding"]).has(url.pathname)) return false;
       const startedAt = now();
       try {
+        if (url.pathname === "/api/marketplace/account") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          sendJson(response, 200, { ok: true, workspaceReady, account: { displayName: context.account.displayName, email: context.account.email, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
+          return true;
+        }
         if (url.pathname === `${prefix}provider-links`) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);

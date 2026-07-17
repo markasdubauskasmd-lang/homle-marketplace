@@ -5159,6 +5159,7 @@ async function serveFile(requestPath, response) {
     "/verify-facebook": "account.html",
     "/reset-password": "account.html",
     "/onboarding": "account.html",
+    "/account-ready": "account.html",
     "/settings": "settings.html",
     "/notifications": "notifications.html",
     "/cleaners": "cleaners.html",
@@ -5271,7 +5272,7 @@ async function handleHttpRequest(request, response) {
     if (request.method === "DELETE" && requestUrl.pathname === "/api/tracking-test/session") {
       return deleteTrackingTest(request, response);
     }
-    if (standaloneAuthenticationAttachment?.router && requestUrl.pathname.startsWith("/api/marketplace/auth/")) {
+    if (standaloneAuthenticationAttachment?.router && (requestUrl.pathname.startsWith("/api/marketplace/auth/") || requestUrl.pathname === "/api/marketplace/account" || requestUrl.pathname === "/api/marketplace/onboarding")) {
       if (await standaloneAuthenticationAttachment.router.handle(request, response, requestUrl)) return;
     }
     if (marketplaceAttachment.router && requestUrl.pathname.startsWith("/api/marketplace/")) {
