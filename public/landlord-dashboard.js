@@ -241,10 +241,22 @@ function continueBookingStart() {
 
 async function requestJson(path, options = {}) {
   const { headers = {}, ...rest } = options;
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers } });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(result.error || result.message || "The account action could not be completed."), { statusCode: response.status, code: result.code });
-  return result;
+  const mutation = Boolean(rest.method && rest.method !== "GET");
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 30_000);
+  try {
+    const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers }, signal: controller.signal });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(result.error || result.message || "The account action could not be completed."), { statusCode: response.status, code: result.code });
+    return result;
+  } catch (error) {
+    if (error?.name === "AbortError") throw Object.assign(new Error(mutation
+      ? "The connection took too long. This action may have completed. Your entries are still here; refresh the dashboard to check before trying again."
+      : "The connection took too long. Check the connection and try again."), { code: "request-timeout" });
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 async function recoverCsrf(target, action) {
@@ -541,7 +553,16 @@ function requestScanPanel(request) {
         if (signed?.method !== "PUT" || !signed.uploadId || !signed.uploadUrl || !signed.requiredHeaders || Object.keys(signed.requiredHeaders).length !== 4) throw new Error("The secure upload instructions were incomplete.");
         const destination = new URL(signed.uploadUrl);
         if (destination.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(destination.hostname)) throw new Error("The secure upload destination was unsafe.");
-        checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer" }));
+        const uploadController = new AbortController();
+        const uploadTimer = window.setTimeout(() => uploadController.abort(), 120_000);
+        try {
+          checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer", signal: uploadController.signal }));
+        } catch (error) {
+          if (error?.name === "AbortError") throw new Error("The private photo upload took too long. The selected photo is still here; check the connection and try again.");
+          throw error;
+        } finally {
+          window.clearTimeout(uploadTimer);
+        }
         const completed = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/${encodeURIComponent(signed.uploadId)}/complete`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}" });
         requestScans.set(request.requestId, completed.scan);
         renderScanPhotos(request.requestId, completed.scan, list, count);
