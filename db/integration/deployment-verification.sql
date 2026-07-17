@@ -27,7 +27,6 @@ DECLARE
   app_functions constant text[] := ARRAY[
     'tideway_private.lookup_session(bytea)',
     'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
-    'tideway_private.activate_my_workspace(user_role)',
     'tideway_private.search_cleaner_directory(text,text,timestamp with time zone,timestamp with time zone,numeric,integer,boolean,numeric,numeric,numeric,integer,integer)',
     'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.list_my_booking_summaries(integer)',
@@ -179,6 +178,19 @@ BEGIN
       INTO latest_migration_installed;
   END IF;
   IF latest_migration_installed THEN
+    selected_name := 'tideway_private.activate_my_workspace(user_role)';
+    selected_function := to_regprocedure(selected_name);
+    IF selected_function IS NULL THEN RAISE EXCEPTION 'Required protected function is missing: %', selected_name; END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=selected_function AND procedure.prosecdef
+        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+    ) THEN
+      RAISE EXCEPTION 'Protected function is not SECURITY DEFINER with the trusted search path: %', selected_name;
+    END IF;
+    IF NOT has_function_privilege('tideway_app', selected_name, 'EXECUTE') THEN
+      RAISE EXCEPTION 'App role is missing required function execution: %', selected_name;
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.bookings'::regclass AND conname='bookings_distinct_participants' AND contype='c') THEN
       RAISE EXCEPTION 'Dual-workspace self-booking constraint is missing';
     END IF;

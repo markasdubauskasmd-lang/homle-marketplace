@@ -34,7 +34,9 @@ try {
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
-  assert.match(deploymentVerifier, /IF latest_migration_installed THEN\s+IF NOT EXISTS \(SELECT 1 FROM pg_constraint WHERE conrelid='public\.bookings'::regclass AND conname='bookings_distinct_participants'/, "Migration-48 verification must defer its new constraint check until after that locked migration is installed.");
+  const migration48VerificationStart = deploymentVerifier.indexOf("IF latest_migration_installed THEN");
+  assert(migration48VerificationStart >= 0 && deploymentVerifier.indexOf("conname='bookings_distinct_participants'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its new constraint check until after that locked migration is installed.");
+  assert(deploymentVerifier.indexOf("selected_name := 'tideway_private.activate_my_workspace(user_role)'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its workspace-function check until after that locked migration is installed.");
   const onboardingRepair = await readFile(path.join(sourceDatabaseDirectory, "migrations", "047_fix_role_onboarding_column_ambiguity.sql"), "utf8");
   assert.match(onboardingRepair, /#variable_conflict error/, "Role onboarding must fail closed if a future PL\/pgSQL variable conflicts with a column.");
   assert.match(onboardingRepair, /ON CONFLICT ON CONSTRAINT cleaner_profiles_pkey DO NOTHING/, "Cleaner onboarding must name its conflict constraint explicitly.");
@@ -44,7 +46,7 @@ try {
   const workerBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("worker_functions constant"), deploymentVerifier.indexOf("BEGIN", deploymentVerifier.indexOf("worker_functions constant")));
   const advertisedAppChecks = Number(deploymentVerifier.match(/'appFunctionChecks',\s*(\d+)/)?.[1]);
   const advertisedWorkerChecks = Number(deploymentVerifier.match(/'workerFunctionChecks',\s*(\d+)/)?.[1]);
-  assert.equal(advertisedAppChecks, [...appBlock.matchAll(/'tideway_private\./g)].length, "deployment report must count every exact app function it verifies");
+  assert.equal(advertisedAppChecks, [...appBlock.matchAll(/'tideway_private\./g)].length + 1, "deployment report must count core functions plus the migration-48 workspace function it verifies conditionally");
   assert.equal(advertisedWorkerChecks, [...workerBlock.matchAll(/'tideway_private\./g)].length, "deployment report must count every exact worker function it verifies");
 
   await freshFixture();
