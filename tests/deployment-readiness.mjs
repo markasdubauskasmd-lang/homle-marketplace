@@ -138,6 +138,21 @@ try {
   assert.equal(marketplace.checks.stagingAccountsRestricted, true);
   assert.equal(marketplace.checks.publicMarketplaceApproved, false);
 
+  const restrictedCoreMarketplace = validateProductionDeployment({
+    ...safePilot,
+    MARKETPLACE_ENABLED: "true",
+    STAGING_ACCOUNTS_ONLY: "true",
+    DATABASE_URL: "postgresql://tideway_app:private@db.example.com/tideway",
+    REALTIME_DATABASE_URL: "postgresql://tideway_app:private@db-direct.example.com/tideway",
+    SESSION_SECRET: "session-secret-with-at-least-32-characters",
+    AUTH_TOKEN_SECRET: "different-auth-secret-with-at-least-32-chars",
+    DATA_ENCRYPTION_KEY: "third-encryption-secret-with-32-characters",
+    MARKETPLACE_ADAPTER_MODULE: path.join(projectRoot, "deployment", "monitoring-adapter.mjs")
+  }, { projectRoot });
+  assert.equal(restrictedCoreMarketplace.ok, true, restrictedCoreMarketplace.errors.join("\n"));
+  assert.equal(restrictedCoreMarketplace.mode, "marketplace");
+  assert.equal(restrictedCoreMarketplace.checks.stagingAccountsRestricted, true);
+
   const authentication = validateProductionDeployment({
     ...safePilot,
     AUTHENTICATION_ENABLED: "true",
