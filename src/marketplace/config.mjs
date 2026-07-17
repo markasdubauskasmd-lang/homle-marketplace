@@ -38,9 +38,11 @@ export function marketplaceEnvironment(env = process.env) {
   const suppliedPaymentKeys = paymentRequirements.filter((key) => present(env, key));
   const paymentsRequested = booleanSetting(env, "PAYMENTS_ENABLED") === true;
   const marketplaceRequested = booleanSetting(env, "MARKETPLACE_ENABLED") === true;
+  const authenticationRequested = booleanSetting(env, "AUTHENTICATION_ENABLED") === true;
   const stripeConfigured = suppliedPaymentKeys.length === paymentRequirements.length;
   return {
     production: env.NODE_ENV === "production",
+    authentication: { requested: authenticationRequested },
     marketplace: { requested: marketplaceRequested },
     databaseConfigured,
     realtimeDatabaseConfigured,
@@ -78,6 +80,7 @@ export function validateMarketplaceEnvironment(env = process.env) {
     if (status.partial) errors.push(`${provider} sign-in is partially configured; missing ${status.missing.join(", ")}.`);
   }
   if (booleanSetting(env, "MARKETPLACE_ENABLED") === null) errors.push("MARKETPLACE_ENABLED must be true or false.");
+  if (booleanSetting(env, "AUTHENTICATION_ENABLED") === null) errors.push("AUTHENTICATION_ENABLED must be true or false.");
   if (booleanSetting(env, "PAYMENTS_ENABLED") === null) errors.push("PAYMENTS_ENABLED must be true or false.");
   if (state.payments.requested && !state.marketplace.requested) errors.push("PAYMENTS_ENABLED requires MARKETPLACE_ENABLED=true.");
   if (state.payments.requested && state.appOrigin) {
@@ -124,6 +127,12 @@ export function validateMarketplaceEnvironment(env = process.env) {
   if (present(env, "DATA_ENCRYPTION_KEY") && !state.encryptionConfigured) errors.push("DATA_ENCRYPTION_KEY must contain at least 32 characters.");
   if (state.production) {
     if (!state.appOrigin) errors.push("APP_ORIGIN is required in production.");
+    if (state.authentication.requested) {
+      if (!state.databaseConfigured) errors.push("DATABASE_URL is required when production authentication is enabled.");
+      if (!state.sessionConfigured) errors.push("A 32-character SESSION_SECRET is required when production authentication is enabled.");
+      if (!state.authTokenConfigured) errors.push("A separate 32-character AUTH_TOKEN_SECRET is required when production authentication is enabled.");
+      if (!state.emailConfigured) errors.push("A configured email provider and EMAIL_FROM are required when production authentication is enabled.");
+    }
     if (state.marketplace.requested) {
       if (!state.databaseConfigured) errors.push("DATABASE_URL is required when the production marketplace is enabled.");
       if (!state.realtimeDatabaseConfigured) errors.push("REALTIME_DATABASE_URL is required when the production marketplace is enabled so live updates use a dedicated direct PostgreSQL connection.");

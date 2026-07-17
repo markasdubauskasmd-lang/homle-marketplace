@@ -60,7 +60,7 @@ export function authenticationActivationReadiness(env = process.env, options = {
       callbacks: Object.freeze({}),
       facebookDataDeletion: null,
       release: Object.freeze({ expectedCommit: expectedRelease, runningCommit: runningRelease.sourceCommit || null }),
-      checks: Object.freeze({ productionDeployment: deployment.ok, releaseIdentity: releaseIdentityReady, marketplaceCore: false, emailFallback: false, socialProviders: false }),
+      checks: Object.freeze({ productionDeployment: deployment.ok, releaseIdentity: releaseIdentityReady, authenticationCore: false, emailFallback: false, socialProviders: false }),
       errors: Object.freeze([...deployment.errors, ...(releaseError ? [releaseError] : []), error.message]),
       nextEvidence: Object.freeze([])
     });
@@ -68,15 +68,12 @@ export function authenticationActivationReadiness(env = process.env, options = {
 
   const state = marketplaceEnvironment(env);
   const origin = callbackOrigin(env.APP_ORIGIN);
-  const marketplaceCore = deployment.ok
-    && state.marketplace.requested === true
+  const authenticationCore = deployment.ok
+    && (state.authentication.requested === true || state.marketplace.requested === true)
     && state.databaseConfigured === true
-    && state.realtimeDatabaseConfigured === true
     && state.sessionConfigured === true
     && state.authTokenConfigured === true
-    && state.encryptionConfigured === true
-    && state.emailConfigured === true
-    && state.objectStorageConfigured === true;
+    && state.emailConfigured === true;
   const emailFallback = state.capabilities.emailPassword === true;
   const providerChecks = Object.fromEntries(supportedSocialProviders.map((provider) => [provider, Object.freeze({
     expected: expected.includes(provider),
@@ -85,14 +82,14 @@ export function authenticationActivationReadiness(env = process.env, options = {
   })]));
   const expectedProvidersConfigured = expected.every((provider) => providerChecks[provider].configured === true);
   const errors = [...deployment.errors];
-  if (!state.marketplace.requested) errors.push("MARKETPLACE_ENABLED must be true for authenticated accounts.");
+  if (!state.authentication.requested && !state.marketplace.requested) errors.push("AUTHENTICATION_ENABLED or MARKETPLACE_ENABLED must be true for authenticated accounts.");
   if (!emailFallback) errors.push("Email sign-up, verification and password reset require the complete database, session, token, email-provider and HTTPS-origin configuration.");
   for (const provider of expected) if (!providerChecks[provider].configured) errors.push(`${provider[0].toUpperCase()}${provider.slice(1)} sign-in credentials are incomplete.`);
   if (releaseError) errors.push(releaseError);
   else if (!releaseIdentityReady) errors.push(`The running Homle package does not match expected release ${expectedRelease}.`);
-  const configurationReady = releaseIdentityReady && marketplaceCore && emailFallback && expectedProvidersConfigured;
+  const configurationReady = releaseIdentityReady && authenticationCore && emailFallback && expectedProvidersConfigured;
   const nextEvidence = configurationReady ? Object.freeze([
-    "Start the marketplace in managed staging and require its database, email-provider, private-storage and monitoring probes to pass.",
+    "Start the authentication service in managed staging and require its database, email-provider and monitoring probes to pass.",
     `Run the external domain verifier with TIDEWAY_EXPECT_RELEASE=${expectedRelease} and TIDEWAY_EXPECT_SOCIAL_PROVIDERS=${expected.join(",")}.`,
     "Complete new-account, repeat-login, role-onboarding, logout and account-collision tests with two non-customer staging accounts.",
     ...(expected.includes("facebook") ? ["Register the signed Facebook data-deletion callback and public status URL in Meta, then prove a non-customer deletion request reaches the private privacy queue."] : []),
@@ -110,7 +107,7 @@ export function authenticationActivationReadiness(env = process.env, options = {
     }) : null,
     release: Object.freeze({ expectedCommit: expectedRelease, runningCommit: runningRelease.sourceCommit || null }),
     providers: Object.freeze(providerChecks),
-    checks: Object.freeze({ productionDeployment: deployment.ok, releaseIdentity: releaseIdentityReady, marketplaceCore, emailFallback, socialProviders: expectedProvidersConfigured }),
+    checks: Object.freeze({ productionDeployment: deployment.ok, releaseIdentity: releaseIdentityReady, authenticationCore, emailFallback, socialProviders: expectedProvidersConfigured }),
     errors: Object.freeze([...new Set(errors)]),
     nextEvidence
   });

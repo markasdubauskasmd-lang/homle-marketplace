@@ -20,6 +20,7 @@ import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeClea
 import { buildRoomScanFollowupDraft } from "./request-followup-draft.mjs";
 import { validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
 import { createMarketplaceAttachment } from "./src/marketplace/attachment.mjs";
+import { createAuthenticationAttachment } from "./src/marketplace/authentication-attachment.mjs";
 import { createTrustedClientAddressResolver } from "./src/marketplace/trusted-client-key.mjs";
 import { createTrackingTestStore } from "./tracking-test-store.mjs";
 import { assessPrivateDataDirectory } from "./data-directory-safety.mjs";
@@ -75,6 +76,12 @@ const objectStorageOrigins = (() => {
   return [...new Set(origins)];
 })();
 const marketplaceAttachment = await createMarketplaceAttachment({ env: process.env });
+const standaloneAuthenticationAttachment = marketplaceAttachment.authenticationHttpReady
+  ? null
+  : await createAuthenticationAttachment({ env: process.env });
+const accountAttachment = marketplaceAttachment.authenticationHttpReady
+  ? marketplaceAttachment
+  : standaloneAuthenticationAttachment;
 let dataIntegrityState = {
   healthy: true,
   checkedAt: "",
@@ -4619,8 +4626,8 @@ async function getAdminConfig(request, response) {
     privateDataStorageSafe: storageSafety.safeForPrivatePilot,
     marketplaceEnabled: marketplaceAttachment.enabled,
     marketplaceReady: marketplaceAttachment.ready,
-    authenticationReady: marketplaceAttachment.authenticationHttpReady,
-    providers: marketplaceAttachment.authenticationCapabilities,
+    authenticationReady: accountAttachment.authenticationHttpReady,
+    providers: accountAttachment.authenticationCapabilities,
     paymentsReady: marketplaceAttachment.paymentsReady,
     productionMode: process.env.NODE_ENV === "production",
     localDemosEnabled: localDemoEnabled
@@ -5225,14 +5232,14 @@ async function handleHttpRequest(request, response) {
         marketplace: {
           enabled: marketplaceAttachment.enabled,
           ready: marketplaceAttachment.ready,
-          authenticationReady: marketplaceAttachment.authenticationHttpReady,
+          authenticationReady: accountAttachment.authenticationHttpReady,
           paymentsReady: marketplaceAttachment.paymentsReady === true
         },
         localDemosEnabled: localDemoEnabled
       });
     }
     if (request.method === "GET" && requestUrl.pathname === "/api/auth/providers") {
-      return json(response, 200, { ok: true, providers: marketplaceAttachment.authenticationCapabilities });
+      return json(response, 200, { ok: true, providers: accountAttachment.authenticationCapabilities });
     }
     if (request.method === "POST" && requestUrl.pathname === "/api/tracking-test/session") {
       return await createTrackingTestSession(request, response);
@@ -5263,6 +5270,9 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "DELETE" && requestUrl.pathname === "/api/tracking-test/session") {
       return deleteTrackingTest(request, response);
+    }
+    if (standaloneAuthenticationAttachment?.router && requestUrl.pathname.startsWith("/api/marketplace/auth/")) {
+      if (await standaloneAuthenticationAttachment.router.handle(request, response, requestUrl)) return;
     }
     if (marketplaceAttachment.router && requestUrl.pathname.startsWith("/api/marketplace/")) {
       if (await marketplaceAttachment.router.handle(request, response, requestUrl)) return;
@@ -5437,6 +5447,7 @@ async function shutdown() {
   shutdownStarted = true;
   if (trackingTestExpiryTimer) clearInterval(trackingTestExpiryTimer);
   trackingTestStore?.close();
+  try { await standaloneAuthenticationAttachment?.close(); } catch (error) { console.error("Authentication shutdown failed.", error); }
   try { await marketplaceAttachment.close(); } catch (error) { console.error("Marketplace shutdown failed.", error); }
   let remaining = lanServer ? 2 : 1;
   const closed = () => {

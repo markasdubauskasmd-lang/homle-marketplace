@@ -23,6 +23,7 @@ ENV NODE_ENV=production \
     LAN_PORT=0 \
     PILOT_INTAKE_ENABLED=false \
     DATA_DIR=/var/lib/tideway \
+    AUTHENTICATION_ENABLED=false \
     MARKETPLACE_ENABLED=false \
     PAYMENTS_ENABLED=false
 

@@ -33,7 +33,8 @@ const configured = {
   TRUST_PROXY: "true",
   TRUSTED_PROXY_CIDRS: "127.0.0.1/32",
   PILOT_INTAKE_ENABLED: "false",
-  MARKETPLACE_ENABLED: "true",
+  AUTHENTICATION_ENABLED: "true",
+  MARKETPLACE_ENABLED: "false",
   PAYMENTS_ENABLED: "false",
   DATABASE_URL: secrets.database,
   REALTIME_DATABASE_URL: secrets.realtimeDatabase,
@@ -66,7 +67,7 @@ try {
   const ready = authenticationActivationReadiness(configured, readinessOptions);
   assert.equal(ready.ok, true, ready.errors.join("\n"));
   assert.equal(ready.configurationReady, true);
-  assert.deepEqual(ready.checks, { productionDeployment: true, releaseIdentity: true, marketplaceCore: true, emailFallback: true, socialProviders: true });
+  assert.deepEqual(ready.checks, { productionDeployment: true, releaseIdentity: true, authenticationCore: true, emailFallback: true, socialProviders: true });
   assert.deepEqual(ready.release, { expectedCommit: "6466d6e5", runningCommit: "6466d6e5" });
   assert.equal(ready.callbacks.google, "https://homle.co.uk/api/marketplace/auth/google/callback");
   assert.equal(ready.callbacks.facebook, "https://homle.co.uk/api/marketplace/auth/facebook/callback");
@@ -89,10 +90,10 @@ try {
   assert.equal(nonPublicOrigin.callbacks.google, null);
   assert.equal(nonPublicOrigin.facebookDataDeletion, null);
 
-  const detached = authenticationActivationReadiness({ ...configured, MARKETPLACE_ENABLED: "false", TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google" }, readinessOptions);
+  const detached = authenticationActivationReadiness({ ...configured, AUTHENTICATION_ENABLED: "false", MARKETPLACE_ENABLED: "false", TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google" }, readinessOptions);
   assert.equal(detached.ok, false);
-  assert.equal(detached.checks.marketplaceCore, false);
-  assert(detached.errors.some((error) => error.includes("MARKETPLACE_ENABLED")));
+  assert.equal(detached.checks.authenticationCore, false);
+  assert(detached.errors.some((error) => error.includes("AUTHENTICATION_ENABLED")));
 
   const mismatchedRelease = authenticationActivationReadiness(configured, { projectRoot, releaseIdentity: { ...releaseIdentity, sourceCommit: "00000000" } });
   assert.equal(mismatchedRelease.ok, false);
@@ -107,7 +108,7 @@ try {
   assert.equal(missingSelection.ok, false);
   assert(missingSelection.errors.some((error) => error.includes("Choose at least one")));
 
-  console.log("Authentication activation readiness tests passed: exact packaged release, Homle callbacks, complete provider selection, full marketplace prerequisites, staging-evidence boundary and secret-free reports.");
+  console.log("Authentication activation readiness tests passed: exact packaged release, Homle callbacks, complete provider selection, standalone account prerequisites, staging-evidence boundary and secret-free reports.");
 } finally {
   await rm(fixtureRoot, { recursive: true, force: true });
 }

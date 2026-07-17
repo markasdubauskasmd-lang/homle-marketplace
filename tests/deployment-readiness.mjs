@@ -24,6 +24,7 @@ const safePilot = Object.freeze({
   PILOT_INTAKE_ENABLED: "false",
   TRUST_PROXY: "true",
   TRUSTED_PROXY_CIDRS: "127.0.0.1/32",
+  AUTHENTICATION_ENABLED: "false",
   MARKETPLACE_ENABLED: "false",
   PAYMENTS_ENABLED: "false"
 });
@@ -99,7 +100,9 @@ try {
     [{ TRUST_PROXY_PROVIDER: "render", TRUSTED_PROXY_CIDRS: "", RENDER: "false", RENDER_SERVICE_ID: "srv-abcdef123456", RENDER_EXTERNAL_HOSTNAME: "homle-marketplace.onrender.com" }, "production Render"],
     [{ LAN_PORT: "4174" }, "LAN_PORT"],
     [{ PORT: "0" }, "PORT"],
+    [{ AUTHENTICATION_ENABLED: "" }, "AUTHENTICATION_ENABLED"],
     [{ MARKETPLACE_ENABLED: "" }, "MARKETPLACE_ENABLED"],
+    [{ PILOT_INTAKE_ENABLED: "true", AUTHENTICATION_ENABLED: "true" }, "one private-data system"],
     [{ PILOT_INTAKE_ENABLED: "true", MARKETPLACE_ENABLED: "true" }, "one private-data system"],
     [{ PAYMENTS_ENABLED: "" }, "PAYMENTS_ENABLED"],
     [{ MARKETPLACE_ENABLED: "false", PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_PUBLISHABLE_KEY: `pk_test_${"b".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"c".repeat(32)}` }, "MARKETPLACE_ENABLED"]
@@ -128,6 +131,22 @@ try {
   }, { projectRoot });
   assert.equal(marketplace.ok, true, marketplace.errors.join("\n"));
   assert.equal(marketplace.mode, "marketplace");
+  assert.equal(marketplace.authenticationEnabled, true);
+
+  const authentication = validateProductionDeployment({
+    ...safePilot,
+    AUTHENTICATION_ENABLED: "true",
+    DATABASE_URL: "postgresql://tideway_app:private@db.example.com/tideway",
+    SESSION_SECRET: "session-secret-with-at-least-32-characters",
+    AUTH_TOKEN_SECRET: "different-auth-secret-with-at-least-32-chars",
+    SMTP_URL: "smtps://mailer.example.com:465",
+    EMAIL_FROM: "Homle <no-reply@example.com>",
+    MARKETPLACE_ADAPTER_MODULE: path.join(projectRoot, "deployment", "monitoring-adapter.mjs")
+  }, { projectRoot });
+  assert.equal(authentication.ok, true, authentication.errors.join("\n"));
+  assert.equal(authentication.mode, "authentication");
+  assert.equal(authentication.authenticationEnabled, true);
+  assert.equal(authentication.marketplaceEnabled, false);
   const builtInMonitoringEnvironment = {
     ...safePilot,
     MARKETPLACE_ENABLED: "true",
