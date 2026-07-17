@@ -7,6 +7,8 @@ const toolPath = fileURLToPath(import.meta.url);
 const projectRoot = path.resolve(path.dirname(toolPath), "..");
 const integrationDirectory = path.join(projectRoot, "db", "integration");
 export const postgresIntegrationConfirmation = "RUN TIDEWAY DISPOSABLE DATABASE TESTS";
+export const requiredLifecycleRealtimeKinds = Object.freeze(["booking-status", "journey-location", "journey-location-stopped", "cleaning-progress", "booking-message"]);
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const scripts = Object.freeze({
   target: "assert-integration-target.sql",
@@ -68,6 +70,71 @@ function boundedAppend(current, chunk) {
   return (current + String(chunk || "")).slice(-8000);
 }
 
+function lifecycleSignal(notification) {
+  if (notification?.channel !== "tideway_booking_events" || typeof notification.payload !== "string") throw new Error("The lifecycle real-time listener received an invalid PostgreSQL channel or payload.");
+  let value;
+  try { value = JSON.parse(notification.payload); } catch { throw new Error("The lifecycle real-time listener received malformed JSON."); }
+  if (Object.keys(value).sort().join(",") !== "bookingId,eventId,kind") throw new Error("A booking notification exposed fields beyond the privacy-minimal wake-up contract.");
+  const eventId = Number(value.eventId);
+  if (!uuidPattern.test(value.bookingId || "") || !Number.isSafeInteger(eventId) || eventId < 1 || !requiredLifecycleRealtimeKinds.includes(value.kind)) throw new Error("The lifecycle real-time listener received an invalid booking signal.");
+  return Object.freeze({ bookingId: value.bookingId.toLowerCase(), eventId, kind: value.kind });
+}
+
+function completeLifecycleBooking(signals) {
+  const kindsByBooking = new Map();
+  for (const signal of signals) {
+    if (!kindsByBooking.has(signal.bookingId)) kindsByBooking.set(signal.bookingId, new Set());
+    kindsByBooking.get(signal.bookingId).add(signal.kind);
+  }
+  for (const [bookingId, kinds] of kindsByBooking) if (requiredLifecycleRealtimeKinds.every((kind) => kinds.has(kind))) return bookingId;
+  return "";
+}
+
+export async function runPostgresNotificationProbe({ connectionUrl, mutate, timeoutMs = 10_000, clientFactory } = {}) {
+  if (typeof connectionUrl !== "string" || !connectionUrl.startsWith("postgres")) throw new TypeError("A PostgreSQL application connection is required for the real-time lifecycle probe.");
+  if (typeof mutate !== "function") throw new TypeError("A lifecycle mutation callback is required for the real-time lifecycle probe.");
+  const createClient = clientFactory || (async (configuration) => {
+    const { Client } = await import("pg");
+    return new Client(configuration);
+  });
+  const client = await createClient({ connectionString: connectionUrl, application_name: "tideway-integration-realtime-listener" });
+  if (!client || typeof client.connect !== "function" || typeof client.query !== "function" || typeof client.on !== "function" || typeof client.end !== "function") throw new TypeError("The PostgreSQL real-time probe client is incomplete.");
+  const signals = [];
+  let settled = false;
+  let resolveSignals;
+  let rejectSignals;
+  const received = new Promise((resolve, reject) => { resolveSignals = resolve; rejectSignals = reject; });
+  const timer = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    rejectSignals(new Error("Committed lifecycle notifications did not reach the separate PostgreSQL listener in time."));
+  }, timeoutMs);
+  timer.unref?.();
+  const onNotification = (notification) => {
+    if (settled) return;
+    try {
+      const signal = lifecycleSignal(notification);
+      signals.push(signal);
+      const bookingId = completeLifecycleBooking(signals);
+      if (bookingId) { settled = true; resolveSignals(bookingId); }
+    } catch (error) { settled = true; rejectSignals(error); }
+  };
+  client.on("notification", onNotification);
+  try {
+    await client.connect();
+    await client.query("LISTEN tideway_booking_events");
+    const mutationResult = await mutate();
+    const bookingId = completeLifecycleBooking(signals) || await received;
+    return Object.freeze({ bookingId, signals: Object.freeze([...signals]), mutationResult });
+  } finally {
+    settled = true;
+    clearTimeout(timer);
+    try { await client.query("UNLISTEN tideway_booking_events"); } catch {}
+    try { client.removeListener?.("notification", onNotification); } catch {}
+    try { await client.end(); } catch {}
+  }
+}
+
 export function runConcurrentPsql(jobs, { command = "psql", timeoutMs = 30_000, spawnProcess = spawn } = {}) {
   return Promise.all(jobs.map((job) => new Promise((resolve) => {
     let stdout = "";
@@ -119,6 +186,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
   const command = options.psqlCommand || "psql";
   const execute = options.spawnSync || spawnSync;
   const executeConcurrent = options.runConcurrent || ((jobs) => runConcurrentPsql(jobs, { command, spawnProcess: options.spawnProcess }));
+  const executeRealtimeProbe = options.runRealtimeProbe || runPostgresNotificationProbe;
   const ownerEnvironment = { ...owner.environment, PGAPPNAME: "tideway-integration-owner" };
   const appEnvironment = { ...app.environment, PGAPPNAME: "tideway-integration-app" };
   const workerEnvironment = { ...worker.environment, PGAPPNAME: "tideway-integration-worker" };
@@ -176,14 +244,18 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Post-concurrency RLS test", file: scripts.postConcurrency, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Job-start payment gate test", file: scripts.paymentGate, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Participant lifecycle rehearsal setup", file: scripts.participantLifecycleSetup, environment: ownerEnvironment, command, execute });
-    runPsqlSync({ label: "Participant lifecycle rehearsal", file: scripts.participantLifecycle, environment: appEnvironment, command, execute });
+    const realtimeProof = await executeRealtimeProbe({
+      connectionUrl: options.appUrl ?? process.env.DATABASE_INTEGRATION_APP_URL,
+      mutate: () => runPsqlSync({ label: "Participant lifecycle rehearsal", file: scripts.participantLifecycle, environment: appEnvironment, command, execute })
+    });
+    if (!realtimeProof || !uuidPattern.test(realtimeProof.bookingId || "") || !Array.isArray(realtimeProof.signals) || !requiredLifecycleRealtimeKinds.every((kind) => realtimeProof.signals.some((signal) => signal?.bookingId === realtimeProof.bookingId && signal?.kind === kind))) throw new Error("The participant lifecycle did not produce every required privacy-minimal real-time signal on one booking.");
     runPsqlSync({ label: "Dispute fixture setup", file: scripts.disputeSetup, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Dispute workflow test", file: scripts.disputeBehaviour, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Payment reconciliation ordering test", file: scripts.paymentOrdering, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, matchingSelfExclusion: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, matchingSelfExclusion: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {
@@ -199,7 +271,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
 if (process.argv[1] && path.resolve(process.argv[1]) === toolPath) {
   try {
     const result = await runPostgresMarketplaceIntegration();
-    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, signed-provider deletion persistence, RLS, privacy, two-worker automatic dispatch with expiry/requeue, concurrent booking overlap protection, a complete synthetic Landlord-to-Cleaner lifecycle with private two-way messaging, audited disputes, current-payment journey gating and exactly-once payment ordering verified and fixtures removed.`);
+    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, signed-provider deletion persistence, RLS, privacy, two-worker automatic dispatch with expiry/requeue, concurrent booking overlap protection, a complete synthetic Landlord-to-Cleaner lifecycle with committed cross-connection real-time signals and private two-way messaging, audited disputes, current-payment journey gating and exactly-once payment ordering verified and fixtures removed.`);
   } catch (error) {
     console.error(error.message);
     if (error.integrationOutput) console.error(error.integrationOutput.trim());

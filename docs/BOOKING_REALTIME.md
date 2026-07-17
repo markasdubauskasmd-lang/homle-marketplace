@@ -35,6 +35,14 @@ Responses use `text/event-stream`, `Cache-Control: no-store, no-transform`, disa
 
 The service limits each user to three streams and the process to 1,000 streams by default, including concurrent opening reservations. Each stream closes at session expiry or after 15 minutes, whichever comes first, so reconnect rechecks the session; every signal refresh also rejects an inactive account. Browser disconnects release heartbeats, expiry timers and counters. Deployment shutdown must call `runtime.realtimeService.close()` before closing the database pool.
 
+## Disposable database proof
+
+The marketplace integration runner opens a dedicated `tideway_app` connection and completes `LISTEN tideway_booking_events` before a separate application connection begins the participant lifecycle transaction. A run passes only when one booking produces committed wake-ups for `booking-status`, `journey-location`, `journey-location-stopped`, `cleaning-progress` and `booking-message`.
+
+Every received payload must contain exactly `bookingId`, `eventId` and `kind`. Any extra field fails the run, preventing a notification from becoming a path for names, email addresses, locations, instructions, messages or photo data. After delivery, the Landlord's participant-authorized catch-up snapshot must contain the same five event families and current completed state. A separate unrelated account must receive `booking-not-found` from the same snapshot function.
+
+On 18 July 2026 this proof passed on a fresh disposable PostgreSQL 16 database after all 55 locked migrations and both restricted-role grant files. The synthetic accounts, bookings and messages were removed by the suite; the database and temporary migration-owner role were then deleted and the local restricted-role passwords were cleared. This is real local database evidence, not a substitute for the remaining managed-staging multi-instance and two-phone rehearsal.
+
 ## Mobile-web boundary
 
 SSE is reliable while the web page is active and reconnects using its durable event ID after ordinary connection loss. Mobile operating systems may suspend a background browser page, so Tideway must not promise uninterrupted background tracking. The Cleaner journey already stores only a short-lived current point; when the page resumes, the stream snapshot catches up from the database. A native application would be required for stronger background guarantees.

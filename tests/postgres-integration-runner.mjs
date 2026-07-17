@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
-import { postgresIntegrationConfirmation, runConcurrentPsql, runPostgresMarketplaceIntegration } from "../tools/postgres-integration-runner.mjs";
+import { postgresIntegrationConfirmation, requiredLifecycleRealtimeKinds, runConcurrentPsql, runPostgresMarketplaceIntegration, runPostgresNotificationProbe } from "../tools/postgres-integration-runner.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const integrationDirectory = path.join(projectRoot, "db", "integration");
@@ -64,6 +64,9 @@ assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /Landlord messa
 assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /Direct contact details were accepted in booking chat/);
 assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /blocked_messages[\s\S]*blocked_send/);
 assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /Cleaner could see an unapproved review/);
+assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /participant_realtime_catchup/);
+assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /get_booking_realtime_snapshot/);
+assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /blocked_realtime/);
 assert.match(sources.get("participant-lifecycle-rehearsal.sql"), /Unrelated account gained participant lifecycle access/);
 assert.doesNotMatch(sources.get("participant-lifecycle-rehearsal.sql"), /https?:\/\//, "The disposable participant rehearsal must not contact an external provider.");
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Runtime role can bypass the function-only dispute workflow/);
@@ -102,6 +105,7 @@ function successfulSpawn(command, args, options) {
   return { status: 0, stdout: "ok\n", stderr: "" };
 }
 const concurrentBatches = [];
+const realtimeProbes = [];
 let concurrentCall = 0;
 const result = await runPostgresMarketplaceIntegration({
   ownerUrl,
@@ -121,10 +125,18 @@ const result = await runPostgresMarketplaceIntegration({
       { status: 0, stdout: "confirmed", stderr: "" },
       { status: 3, stdout: "", stderr: "ERROR: cleaner-schedule-conflict" }
     ];
+  },
+  async runRealtimeProbe({ connectionUrl, mutate }) {
+    assert.equal(connectionUrl, appUrl);
+    const mutationResult = await mutate();
+    const bookingId = "40000000-0000-4000-8000-000000000001";
+    const signals = requiredLifecycleRealtimeKinds.map((kind, index) => ({ bookingId, eventId: index + 1, kind }));
+    realtimeProbes.push({ connectionUrl, signals });
+    return { bookingId, signals, mutationResult };
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, matchingSelfExclusion: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, matchingSelfExclusion: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql",
   "matching-self-exclusion.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
@@ -139,6 +151,8 @@ assert.equal(calls.find((call) => call.file === "marketplace-rls-behaviour.sql")
 assert.equal(calls.find((call) => call.file === "automatic-dispatch-requeue.sql").options.env.PGPASSWORD, workerPassword);
 assert.ok(calls.every((call) => !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_OWNER_URL") && !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_APP_URL") && !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_WORKER_URL") && !Object.hasOwn(call.options.env, "SMTP_URL")));
 assert.equal(concurrentBatches.length, 2);
+assert.equal(realtimeProbes.length, 1);
+assert.deepEqual(realtimeProbes[0].signals.map(({ kind }) => kind), requiredLifecycleRealtimeKinds);
 assert.ok(concurrentBatches[0].every((job) => job.environment.PGUSER === "tideway_worker" && job.environment.PGPASSWORD === workerPassword));
 assert.ok(concurrentBatches[1].every((job) => job.environment.PGUSER === "tideway_app" && job.environment.PGPASSWORD === appPassword));
 
@@ -189,6 +203,51 @@ await assert.rejects(
   /one success and one protected schedule conflict/
 );
 assert.equal(cleanupCalls.at(-1), "marketplace-integration-cleanup.sql", "Fixture cleanup did not run after a failed concurrency assertion.");
+
+const realtimeQueries = [];
+let realtimeConnections = 0;
+let realtimeEnds = 0;
+class FakeRealtimeClient extends EventEmitter {
+  async connect() { realtimeConnections += 1; }
+  async query(statement) { realtimeQueries.push(statement); return { rows: [] }; }
+  async end() { realtimeEnds += 1; }
+}
+const fakeRealtimeClient = new FakeRealtimeClient();
+const realtimeBookingId = "40000000-0000-4000-8000-000000000001";
+const notificationProof = await runPostgresNotificationProbe({
+  connectionUrl: appUrl,
+  timeoutMs: 1_000,
+  async clientFactory(configuration) {
+    assert.equal(configuration.connectionString, appUrl);
+    assert.equal(configuration.application_name, "tideway-integration-realtime-listener");
+    return fakeRealtimeClient;
+  },
+  async mutate() {
+    for (const [index, kind] of requiredLifecycleRealtimeKinds.entries()) {
+      fakeRealtimeClient.emit("notification", { channel: "tideway_booking_events", payload: JSON.stringify({ bookingId: realtimeBookingId, eventId: index + 1, kind }) });
+    }
+    return "lifecycle-committed";
+  }
+});
+assert.equal(notificationProof.bookingId, realtimeBookingId);
+assert.equal(notificationProof.mutationResult, "lifecycle-committed");
+assert.deepEqual(notificationProof.signals.map(({ kind }) => kind), requiredLifecycleRealtimeKinds);
+assert.deepEqual(realtimeQueries, ["LISTEN tideway_booking_events", "UNLISTEN tideway_booking_events"]);
+assert.equal(realtimeConnections, 1);
+assert.equal(realtimeEnds, 1);
+
+const privacyClient = new FakeRealtimeClient();
+await assert.rejects(
+  runPostgresNotificationProbe({
+    connectionUrl: appUrl,
+    timeoutMs: 1_000,
+    async clientFactory() { return privacyClient; },
+    async mutate() {
+      privacyClient.emit("notification", { channel: "tideway_booking_events", payload: JSON.stringify({ bookingId: realtimeBookingId, eventId: 1, kind: "booking-status", email: "must-not-leak@invalid.example" }) });
+    }
+  }),
+  /exposed fields beyond the privacy-minimal wake-up contract/
+);
 
 const asyncInvocations = [];
 const asyncResults = await runConcurrentPsql([

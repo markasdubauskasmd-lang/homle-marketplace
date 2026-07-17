@@ -284,6 +284,33 @@ BEGIN
 END
 $moderation_and_response$;
 
+DO $participant_realtime_catchup$
+DECLARE
+  selected_booking_id uuid;
+  realtime_snapshot jsonb;
+  required_kind text;
+BEGIN
+  PERFORM set_config('app.user_id', '10000000-0000-4000-8000-000000000001', true);
+  PERFORM set_config('app.user_roles', 'landlord', true);
+  SELECT booking.id INTO selected_booking_id FROM bookings booking
+    WHERE booking.id::text LIKE '40000000-0000-4000-8000-%' AND booking.status = 'completed'
+    ORDER BY booking.id LIMIT 1;
+  realtime_snapshot := tideway_private.get_booking_realtime_snapshot(selected_booking_id,0,100);
+  IF realtime_snapshot->>'bookingId' <> selected_booking_id::text
+     OR realtime_snapshot->>'status' <> 'completed'
+     OR (realtime_snapshot->>'currentVersion')::bigint < 1
+     OR realtime_snapshot->>'resyncRequired' <> 'false' THEN
+    RAISE EXCEPTION 'Participant real-time catch-up snapshot lost its completed booking state';
+  END IF;
+  FOREACH required_kind IN ARRAY ARRAY['booking-status','journey-location','journey-location-stopped','cleaning-progress','booking-message']
+  LOOP
+    IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(realtime_snapshot->'events') event WHERE event->>'kind'=required_kind) THEN
+      RAISE EXCEPTION 'Participant real-time catch-up snapshot omitted %', required_kind;
+    END IF;
+  END LOOP;
+END
+$participant_realtime_catchup$;
+
 DO $outsider_denial$
 DECLARE
   selected_booking_id uuid;
@@ -291,6 +318,7 @@ DECLARE
   blocked_review boolean := false;
   blocked_messages boolean := false;
   blocked_send boolean := false;
+  blocked_realtime boolean := false;
 BEGIN
   PERFORM set_config('app.user_id', '10000000-0000-4000-8000-000000000001', true);
   PERFORM set_config('app.user_roles', 'landlord', true);
@@ -321,6 +349,12 @@ BEGIN
     blocked_messages := true;
   END;
   BEGIN
+    PERFORM tideway_private.get_booking_realtime_snapshot(selected_booking_id,0,100);
+  EXCEPTION WHEN SQLSTATE 'P0002' THEN
+    IF SQLERRM <> 'booking-not-found' THEN RAISE; END IF;
+    blocked_realtime := true;
+  END;
+  BEGIN
     PERFORM tideway_private.send_booking_message(
       selected_booking_id,
       '54000000-0000-4000-8000-000000000005',
@@ -331,7 +365,7 @@ BEGIN
     IF SQLERRM <> 'booking-not-found' THEN RAISE; END IF;
     blocked_send := true;
   END;
-  IF blocked_progress IS NOT TRUE OR blocked_review IS NOT TRUE OR blocked_messages IS NOT TRUE OR blocked_send IS NOT TRUE THEN
+  IF blocked_progress IS NOT TRUE OR blocked_review IS NOT TRUE OR blocked_messages IS NOT TRUE OR blocked_send IS NOT TRUE OR blocked_realtime IS NOT TRUE THEN
     RAISE EXCEPTION 'Unrelated account gained participant lifecycle access';
   END IF;
 END
