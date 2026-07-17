@@ -60,7 +60,20 @@ Deploy, then verify `/api/auth/providers`. It must advertise only providers that
 
 ## 5. Evidence and cleanup
 
-Test one approved Landlord and one approved Cleaner onboarding path. Each approved Google account must return to Homle, save exactly one role and reach `/account-ready`, where the role-specific completion state is verified through the authenticated current-account endpoint. The full property/profile editors remain closed until the marketplace dependencies pass. Confirm that a different email cannot create an account, request verification, reset a password or sign in. After the rehearsal, set `AUTHENTICATION_ENABLED=false` first.
+Test one approved Landlord and one approved Cleaner onboarding path. Each approved Google account must return to Homle, save exactly one role and reach `/account-ready`, where the role-specific completion state is verified through the authenticated current-account endpoint. The full property/profile editors remain closed until the marketplace dependencies pass. Confirm that a different email cannot create an account, request verification, reset a password or sign in.
+
+Before cleanup, run the no-write evidence verifier. It accepts the two raw emails only through private prompts, requires both fingerprints to remain on the allowlist and returns only roles, counts, timestamps and the staging database name/host. It opens a repeatable-read read-only transaction and refuses missing/wrong roles, duplicate accounts, the wrong provider, inactive sessions, dual profiles or any marketplace/payment activity:
+
+```powershell
+$env:STAGING_ROLE_REHEARSAL_DATABASE_URL = Read-Host "Migration-owner external staging database URL"
+$env:STAGING_ACCOUNT_EMAIL_SHA256 = Read-Host "Comma-separated approved staging email fingerprints"
+$env:STAGING_ROLE_REHEARSAL_CONFIRMATION = "VERIFY TWO APPROVED HOMLE STAGING ROLE PROFILES"
+$env:STAGING_ROLE_REHEARSAL_PROVIDER = "google"
+pnpm run verify:staging-roles
+Remove-Item Env:STAGING_ROLE_REHEARSAL_DATABASE_URL, Env:STAGING_ACCOUNT_EMAIL_SHA256, Env:STAGING_ROLE_REHEARSAL_CONFIRMATION, Env:STAGING_ROLE_REHEARSAL_PROVIDER
+```
+
+Only after that evidence passes, set `AUTHENTICATION_ENABLED=false` first and deploy the closed state before removing either account.
 
 The repository includes an owner-only account cleanup command that deletes an approved account, its sessions, identities and account-only profile data. It refuses Administrator accounts and refuses any account that has properties, cleaning requests, media, bookings, payments, messages, reviews, disputes, privacy cases or other marketplace activity. This prevents an account rehearsal cleanup from silently destroying business evidence.
 

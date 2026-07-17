@@ -15,7 +15,7 @@ const restrictedDatabaseUsers = new Set(["tideway_app", "tideway_worker"]);
 const stagingDatabasePattern = /_(?:tideway|homle)_staging$/i;
 export const stagingAccountPurgeConfirmation = "DELETE APPROVED ACCOUNT-ONLY HOMLE STAGING TEST";
 
-const activityQuery = `
+export const stagingAccountActivityQuery = `
   SELECT
     (SELECT count(*) FROM user_roles WHERE granted_by=$1 AND user_id<>$1) AS roles_granted_to_others,
     (SELECT count(*) FROM properties WHERE landlord_user_id=$1) AS properties,
@@ -90,7 +90,7 @@ function count(value) {
   return parsed;
 }
 
-function activeSignals(row = {}) {
+export function stagingAccountActiveSignals(row = {}) {
   return Object.entries(row).filter(([, value]) => count(value) > 0).map(([name]) => name);
 }
 
@@ -149,9 +149,9 @@ export async function runStagingAccountPurge(options = {}) {
     if (!Array.isArray(target.rows) || target.rows.length !== 1) throw new Error("Exactly one approved staging account must exist before cleanup.");
     const account = target.rows[0];
     if (account.is_administrator === true) throw new Error("Administrator accounts cannot be removed by the staging account-only cleanup tool.");
-    const activity = await client.query(activityQuery, [account.id]);
+    const activity = await client.query(stagingAccountActivityQuery, [account.id]);
     if (!Array.isArray(activity.rows) || activity.rows.length !== 1) throw new Error("The staging database did not return a complete activity check.");
-    const signals = activeSignals(activity.rows[0]);
+    const signals = stagingAccountActiveSignals(activity.rows[0]);
     if (signals.length) throw new Error(`Account-only cleanup refused an account with marketplace or business activity: ${signals.join(", ")}.`);
     const removedAudit = await client.query("DELETE FROM audit_logs WHERE actor_user_id=$1 OR (resource_type='user' AND resource_id=$1::text) RETURNING id", [account.id]);
     const deleted = await client.query("DELETE FROM users WHERE id=$1 RETURNING id", [account.id]);
