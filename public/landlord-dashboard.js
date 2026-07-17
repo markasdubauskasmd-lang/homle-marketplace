@@ -52,6 +52,7 @@ const nextCopy = document.querySelector("[data-landlord-next-copy]");
 const nextLink = document.querySelector("[data-landlord-next-link]");
 const nextButton = document.querySelector("[data-landlord-next-button]");
 const mediaReadiness = document.querySelector("[data-landlord-media-readiness]");
+const networkStatus = document.querySelector("[data-landlord-network-status]");
 let properties = [];
 let requests = [];
 let bookings = [];
@@ -72,6 +73,14 @@ const requestScans = new Map();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
 let selectedCleanerId = "";
 try { if (bookingStart) selectedCleanerId = readSelectedCleaner(localStorage); } catch {}
+
+function browserOffline() {
+  return navigator.onLine === false;
+}
+
+function updateNetworkStatus() {
+  networkStatus.hidden = !browserOffline();
+}
 
 function storedCsrf() {
   try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
@@ -243,6 +252,9 @@ function continueBookingStart() {
 async function requestJson(path, options = {}) {
   const { headers = {}, ...rest } = options;
   const mutation = Boolean(rest.method && rest.method !== "GET");
+  if (browserOffline()) throw Object.assign(new Error(mutation
+    ? "You are offline. This change was not sent; your entries are still here. Reconnect, then try again."
+    : "You are offline. Reconnect to open your private workspace."), { code: "browser-offline" });
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 30_000);
   try {
@@ -251,6 +263,9 @@ async function requestJson(path, options = {}) {
     if (!response.ok) throw Object.assign(new Error(result.error || result.message || "The account action could not be completed."), { statusCode: response.status, code: result.code });
     return result;
   } catch (error) {
+    if (browserOffline()) throw Object.assign(new Error(mutation
+      ? "You went offline. This change may have reached Homle. Your entries are still here; reconnect and refresh to verify before trying again."
+      : "You are offline. Reconnect to open your private workspace."), { code: "browser-offline" });
     if (error?.name === "AbortError") throw Object.assign(new Error(mutation
       ? "The connection took too long. This action may have completed. Your entries are still here; refresh the dashboard to check before trying again."
       : "The connection took too long. Check the connection and try again."), { code: "request-timeout" });
@@ -267,8 +282,8 @@ async function recoverCsrf(target, action) {
     const result = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("This browser could not keep the renewed secure editing token.");
     return result.csrfToken;
-  } catch {
-    showFeedback(target, `Your secure session could not be recovered. Sign in again before ${action}.`);
+  } catch (error) {
+    showFeedback(target, error?.code === "browser-offline" ? error.message : `Your secure session could not be recovered. Sign in again before ${action}.`);
     return "";
   }
 }
@@ -565,6 +580,7 @@ function requestScanPanel(request) {
       setPending(upload, true, `Checking photo 1 of ${queuedCount}…`);
       try {
         while (files.length) {
+          if (browserOffline()) throw Object.assign(new Error("You are offline. The remaining selected photos are still here; reconnect, then continue the upload."), { code: "browser-offline" });
           const candidate = files[0];
           setPending(upload, true, `Checking photo ${uploadedCount + 1} of ${queuedCount}…`);
           const checksumSha256 = await sha256(candidate.file);
@@ -578,6 +594,7 @@ function requestScanPanel(request) {
           try {
             checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: candidate.file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer", signal: uploadController.signal }));
           } catch (error) {
+            if (browserOffline()) throw Object.assign(new Error("You went offline during the private upload. The remaining selected photos are still here; reconnect, then continue."), { code: "browser-offline" });
             if (error?.name === "AbortError") throw new Error("The private photo upload took too long. The remaining selected photos are still here; check the connection and try again.");
             throw error;
           } finally {
@@ -900,7 +917,8 @@ async function loadWorkspace() {
     workspace.hidden = false;
     continueBookingStart();
   } catch (error) {
-    if (error.statusCode === 401) showState("Sign in as a Landlord to open this workspace.", "Your properties and request drafts are private to your verified account.", { kind: "authentication", allowSignIn: true });
+    if (error.code === "browser-offline") showState("You are offline.", "Your unfinished room walkthrough stays in this tab. Reconnect and Homle will safely reopen the private workspace; no change will be retried automatically.", { kind: "offline", allowRetry: true });
+    else if (error.statusCode === 401) showState("Sign in as a Landlord to open this workspace.", "Your properties and request drafts are private to your verified account.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 403) showState("This account cannot open the Landlord workspace.", "Use a Landlord/Property Manager account selected during onboarding.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 404 || error.statusCode === 503) showState("Landlord accounts are not connected yet.", "The workspace is ready but remains closed until Homle's secure marketplace database and account runtime are activated.", { kind: "unavailable", allowRetry: true });
     else showState("The Landlord workspace is temporarily unavailable.", "No property or request was changed. Check the connection and try again.", { kind: "error", allowRetry: true });
@@ -1141,8 +1159,14 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
 window.addEventListener("beforeunload", (event) => { rememberWorkingRequest(); if (propertyDirty || requestDirty) event.preventDefault(); });
+window.addEventListener("offline", updateNetworkStatus);
+window.addEventListener("online", () => {
+  updateNetworkStatus();
+  if (!state.hidden && state.dataset.kind === "offline") loadWorkspace();
+});
 document.querySelector("[data-year]").textContent = new Date().getFullYear();
 initialiseRequestDefaults();
 renderTaskPreview();
 configureSpeech();
+updateNetworkStatus();
 loadWorkspace();

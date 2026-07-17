@@ -8,7 +8,7 @@
   <title>Landlord workspace | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260717-68">
-  <script src="/landlord-dashboard.js?v=20260717-8" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260717-9" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
   <script src="/workspace-switch.js?v=20260717-1" type="module"></script>
 </head>
@@ -46,6 +46,9 @@
     </section>
 
     <div data-landlord-workspace hidden>
+      <section class="landlord-network-status" data-landlord-network-status role="status" aria-live="polite" hidden>
+        <span aria-hidden="true">!</span><div><strong>You are offline.</strong><p>Your unfinished walkthrough and selected room photos stay in this tab. Reconnect before saving or uploading; Homle will not retry a change automatically.</p></div>
+      </section>
       <section class="landlord-dashboard-heading">
         <div><p class="eyebrow">Landlord workspace</p><h1>Welcome, <span data-landlord-name>Landlord</span>.</h1><p>Save real properties, prepare a room-by-room scope and keep requests private until the photo-and-speech handoff is complete.</p></div>
         <dl class="landlord-dashboard-stats"><div><dt>Properties</dt><dd data-property-count>0</dd></div><div><dt>Request drafts</dt><dd data-draft-count>0</dd></div><div><dt>Active bookings</dt><dd data-landlord-active-count>0</dd><small>Confirmed records only</small></div></dl>
