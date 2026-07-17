@@ -58,6 +58,18 @@ After the owner has reviewed Render's restricted log access for this private tes
 
 Deploy, then verify `/api/auth/providers`. It must advertise only providers that composed successfully. Start sign-in from `/login` or `/signup`; never start at a callback URL.
 
+Before asking a tester to sign in, run the external readiness verifier. It makes one anonymous, no-cookie request to Google's validated authorization URL and stops before login. If Google has not saved the exact callback on the matching web client, the report fails with `google-provider-registration` and prints the exact URI to add; this prevents another tester from reaching Google's `redirect_uri_mismatch` page:
+
+```powershell
+$env:TIDEWAY_PUBLIC_ORIGIN = "https://homle-marketplace-preview.onrender.com"
+$env:TIDEWAY_EXPECT_RELEASE = "1234abcd" # exact live sourceCommit from /api/health
+$env:TIDEWAY_EXPECT_SOCIAL_PROVIDERS = "google"
+node tools/domain-readiness.mjs
+Remove-Item Env:TIDEWAY_PUBLIC_ORIGIN, Env:TIDEWAY_EXPECT_RELEASE, Env:TIDEWAY_EXPECT_SOCIAL_PROVIDERS
+```
+
+Do not continue to mobile onboarding until every check passes. The verifier never signs in, creates an account or exposes the client ID, flow state, cookie or secret in its result.
+
 ## 5. Evidence and cleanup
 
 Test one approved Landlord and one approved Cleaner onboarding path. Each approved Google account must return to Homle, save exactly one role and reach `/account-ready`, where the role-specific completion state is verified through the authenticated current-account endpoint. The full property/profile editors remain closed until the marketplace dependencies pass. Confirm that a different email cannot create an account, request verification, reset a password or sign in.

@@ -210,6 +210,33 @@ function validSocialStartLocation(value, provider, origin) {
     && new Set((location.searchParams.get("scope") || "").split(/[\s,]+/).filter(Boolean)).has("email");
 }
 
+export async function probeGoogleProviderRegistration(locationValue, origin, options = {}) {
+  if (!validSocialStartLocation(locationValue, "google", origin)) throw new TypeError("A valid Homle Google authorization start URL is required.");
+  const fetchImplementation = options.fetch || globalThis.fetch;
+  if (typeof fetchImplementation !== "function") throw new TypeError("A fetch implementation is required.");
+  const response = await request(fetchImplementation, locationValue);
+  try {
+    if (response.status === 200) return Object.freeze({ ok: true, detail: "Google accepted the registered callback and continued to its sign-in flow." });
+    if (![301, 302, 303, 307, 308].includes(response.status)) {
+      return Object.freeze({ ok: false, detail: "Google did not accept the OAuth request before sign-in." });
+    }
+    let destination;
+    try { destination = new URL(response.headers.get("location") || ""); } catch {
+      return Object.freeze({ ok: false, detail: "Google returned an invalid sign-in continuation." });
+    }
+    const trustedGoogleDestination = destination.protocol === "https:"
+      && destination.hostname === "accounts.google.com"
+      && !destination.username
+      && !destination.password;
+    if (!trustedGoogleDestination || destination.pathname.startsWith("/signin/oauth/error")) {
+      return Object.freeze({ ok: false, detail: `Google rejected the OAuth request before sign-in. Add the exact Authorized redirect URI ${origin}/api/marketplace/auth/google/callback to this Google web client and save it.` });
+    }
+    return Object.freeze({ ok: true, detail: "Google accepted the registered callback and continued to its sign-in flow." });
+  } finally {
+    await response.body?.cancel?.();
+  }
+}
+
 export async function verifyDomainReadiness(origin, options = {}) {
   const target = exactPublicOrigin(origin);
   const fetchImplementation = options.fetch || globalThis.fetch;
@@ -279,7 +306,8 @@ export async function verifyDomainReadiness(origin, options = {}) {
     const containsSecretName = /CLIENT_SECRET|SESSION_SECRET|DATABASE_URL|AUTH_TOKEN_SECRET/i.test(bodyText);
     const rolesValid = providers?.roles?.join(",") === "cleaner,landlord";
     const marketplaceAuthReady = health?.marketplace?.authenticationReady === true;
-    const emailStateValid = ["emailPassword", "passwordReset", "emailVerification"].every((name) => providers?.[name] === marketplaceAuthReady);
+    const emailStates = ["emailPassword", "passwordReset", "emailVerification"].map((name) => providers?.[name]);
+    const emailStateValid = emailStates.every((value) => value === emailStates[0]) && (emailStates[0] === false || marketplaceAuthReady);
     const socialStateValid = ["google", "facebook"].every((name) => providers?.[name] === expectedSocial.has(name)) && providers?.apple === false;
     const expectedStatePossible = expectedSocial.size === 0 || marketplaceAuthReady;
     const typesValid = authenticationNames.every((name) => typeof providers?.[name] === "boolean");
@@ -292,11 +320,24 @@ export async function verifyDomainReadiness(origin, options = {}) {
     try {
       const response = await request(fetchImplementation, `${target.origin}/api/marketplace/auth/${provider}/start`);
       if (expectedSocial.has(provider)) {
+        const location = response.headers.get("location");
         const valid = response.status === 302
-          && validSocialStartLocation(response.headers.get("location"), provider, target.origin)
+          && validSocialStartLocation(location, provider, target.origin)
           && secureFlowCookie(response.headers, provider)
           && /(?:^|,)\s*no-store\b/i.test(response.headers.get("cache-control") || "");
         record(`${provider}-sign-in-start`, valid, `${provider[0].toUpperCase()}${provider.slice(1)} sign-in must start through its exact HTTPS provider route with the canonical callback, a secure flow cookie and no-store response.`);
+        if (provider === "google") {
+          if (!valid) {
+            record("google-provider-registration", false, "Google callback registration was not probed because Homle's sign-in start response was invalid.");
+          } else {
+            try {
+              const providerRegistration = await probeGoogleProviderRegistration(location, target.origin, { fetch: fetchImplementation });
+              record("google-provider-registration", providerRegistration.ok, providerRegistration.detail);
+            } catch (error) {
+              record("google-provider-registration", false, error.message);
+            }
+          }
+        }
       } else {
         const closed = response.status === 404 && !response.headers.has("location") && !response.headers.has("set-cookie");
         record(`${provider}-sign-in-closed`, closed, `${provider[0].toUpperCase()}${provider.slice(1)} sign-in must return 404 without a redirect or cookie while it is not expected.`);

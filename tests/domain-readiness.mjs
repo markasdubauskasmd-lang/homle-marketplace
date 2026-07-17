@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { normalizeExpectedReleaseCommit } from "../release-identity.mjs";
-import { resolvePublicAddresses, verifyDomainReadiness } from "../tools/domain-readiness.mjs";
+import { probeGoogleProviderRegistration, resolvePublicAddresses, verifyDomainReadiness } from "../tools/domain-readiness.mjs";
 
 const securityHeaders = {
   "content-security-policy": "default-src 'self'; img-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
@@ -47,6 +47,12 @@ function privateBoundaryResponse(url) {
   return null;
 }
 
+function googleStartLocation(origin = "https://tidewaycleaning.co.uk") {
+  const location = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  location.search = new URLSearchParams({ response_type: "code", client_id: "public-google-client-id", redirect_uri: `${origin}/api/marketplace/auth/google/callback`, scope: "openid email profile", state: "s".repeat(43), nonce: "n".repeat(43), code_challenge: "c".repeat(43), code_challenge_method: "S256" }).toString();
+  return location.toString();
+}
+
 const requested = [];
 const good = await verifyDomainReadiness("https://tidewaycleaning.co.uk", {
   expectedReleaseCommit: "414dd3ca",
@@ -87,10 +93,9 @@ const activeProviders = await verifyDomainReadiness("https://tidewaycleaning.co.
     if (boundary) return boundary;
     if (url.endsWith("/api/auth/providers")) return jsonResponse({ ok: true, providers: { emailPassword: true, passwordReset: true, emailVerification: true, google: true, apple: false, facebook: true, roles: ["cleaner", "landlord"] } });
     if (url.endsWith("/api/marketplace/auth/google/start")) {
-      const location = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-      location.search = new URLSearchParams({ response_type: "code", client_id: "public-google-client-id", redirect_uri: "https://tidewaycleaning.co.uk/api/marketplace/auth/google/callback", scope: "openid email profile", state: "s".repeat(43), nonce: "n".repeat(43), code_challenge: "c".repeat(43), code_challenge_method: "S256" }).toString();
-      return new Response(null, { status: 302, headers: { location: location.toString(), "set-cookie": `__Host-tideway_google_flow=${"g".repeat(50)}; Path=/; HttpOnly; SameSite=Lax; Secure`, "cache-control": "no-store" } });
+      return new Response(null, { status: 302, headers: { location: googleStartLocation(), "set-cookie": `__Host-tideway_google_flow=${"g".repeat(50)}; Path=/; HttpOnly; SameSite=Lax; Secure`, "cache-control": "no-store" } });
     }
+    if (url.startsWith("https://accounts.google.com/o/oauth2/v2/auth?")) return new Response(null, { status: 302, headers: { location: "https://accounts.google.com/v3/signin/identifier?continue=opaque" } });
     if (url.endsWith("/api/marketplace/auth/facebook/start")) {
       const location = new URL("https://www.facebook.com/v23.0/dialog/oauth");
       location.search = new URLSearchParams({ response_type: "code", client_id: "123456789", redirect_uri: "https://tidewaycleaning.co.uk/api/marketplace/auth/facebook/callback", scope: "email", state: "f".repeat(43) }).toString();
@@ -101,9 +106,44 @@ const activeProviders = await verifyDomainReadiness("https://tidewaycleaning.co.
 });
 assert.equal(activeProviders.ok, true);
 assert.equal(activeProviders.checks.find((check) => check.name === "google-sign-in-start")?.ok, true);
+assert.equal(activeProviders.checks.find((check) => check.name === "google-provider-registration")?.ok, true);
 assert.equal(activeProviders.checks.find((check) => check.name === "facebook-sign-in-start")?.ok, true);
-assert.equal(activeProviderRequests.length, 11);
+assert.equal(activeProviderRequests.length, 12);
 assert.ok(activeProviderRequests.every((entry) => entry.options.redirect === "manual"));
+const googleProviderProbe = activeProviderRequests.find((entry) => entry.url.startsWith("https://accounts.google.com/o/oauth2/v2/auth?"));
+assert(googleProviderProbe && !googleProviderProbe.options.headers.cookie && !googleProviderProbe.options.headers.authorization, "Provider registration probe sent credentials or an existing session to Google.");
+
+const rejectedGoogleRegistration = await probeGoogleProviderRegistration(googleStartLocation(), "https://tidewaycleaning.co.uk", {
+  async fetch(url, options) {
+    assert.equal(url, googleStartLocation());
+    assert.equal(options.redirect, "manual");
+    return new Response(null, { status: 302, headers: { location: "https://accounts.google.com/signin/oauth/error?authError=opaque" } });
+  }
+});
+assert.equal(rejectedGoogleRegistration.ok, false);
+assert.match(rejectedGoogleRegistration.detail, /exact Authorized redirect URI https:\/\/tidewaycleaning\.co\.uk\/api\/marketplace\/auth\/google\/callback/);
+await assert.rejects(probeGoogleProviderRegistration("https://attacker.example/oauth", "https://tidewaycleaning.co.uk", { async fetch() { throw new Error("must not be called"); } }), /valid Homle Google authorization/i);
+
+const googleOnlyAuthentication = await verifyDomainReadiness("https://tidewaycleaning.co.uk", {
+  expectedSocialProviders: ["google"],
+  async resolveAddresses() { return ["93.184.216.34"]; },
+  async tlsProbe() { return { daysRemaining: 60, validUntil: "2026-09-14T00:00:00.000Z" }; },
+  async fetch(url) {
+    if (url === "http://tidewaycleaning.co.uk/") return new Response(null, { status: 308, headers: { location: "https://tidewaycleaning.co.uk/" } });
+    if (url === "https://tidewaycleaning.co.uk/") return new Response("<!doctype html><title>Homle</title>", { status: 200, headers: { ...securityHeaders, "content-type": "text/html; charset=utf-8" } });
+    if (url.endsWith("/api/health")) return jsonResponse({ ok: true, service: "tideway-marketplace", dataIntegrity: "healthy", writesAllowed: true, localDemosEnabled: false, marketplace: { enabled: false, ready: false, authenticationReady: true } });
+    const boundary = privateBoundaryResponse(url);
+    if (boundary) return boundary;
+    if (url.endsWith("/api/auth/providers")) return jsonResponse({ ok: true, providers: { emailPassword: false, passwordReset: false, emailVerification: false, google: true, apple: false, facebook: false, roles: ["cleaner", "landlord"] } });
+    if (url.endsWith("/api/marketplace/auth/google/start")) return new Response(null, { status: 302, headers: { location: googleStartLocation(), "set-cookie": `__Host-tideway_google_flow=${"g".repeat(50)}; Path=/; HttpOnly; SameSite=Lax; Secure`, "cache-control": "no-store" } });
+    if (url.startsWith("https://accounts.google.com/o/oauth2/v2/auth?")) return new Response("<!doctype html><title>Sign in with Google</title>", { status: 200, headers: { "content-type": "text/html" } });
+    if (url.endsWith("/api/marketplace/auth/facebook/start")) return new Response(null, { status: 404 });
+    throw new Error(`Unexpected URL: ${url}`);
+  }
+});
+assert.equal(googleOnlyAuthentication.ok, true, "Google-only account staging was incorrectly treated as incomplete email/password authentication.");
+assert.equal(googleOnlyAuthentication.checks.find((check) => check.name === "authentication-capabilities")?.ok, true);
+assert.equal(googleOnlyAuthentication.checks.find((check) => check.name === "google-provider-registration")?.ok, true);
 
 const spoofedGoogle = await verifyDomainReadiness("https://tidewaycleaning.co.uk", {
   expectedSocialProviders: ["google"],
@@ -123,6 +163,7 @@ const spoofedGoogle = await verifyDomainReadiness("https://tidewaycleaning.co.uk
 });
 assert.equal(spoofedGoogle.ok, false);
 assert.equal(spoofedGoogle.checks.find((check) => check.name === "google-sign-in-start")?.ok, false, "A spoofed Google authorization route passed readiness.");
+assert.equal(spoofedGoogle.checks.find((check) => check.name === "google-provider-registration")?.ok, false, "A spoofed Google route reached provider-registration readiness.");
 
 const exposedPrivateSurfaces = await verifyDomainReadiness("https://tidewaycleaning.co.uk", {
   async resolveAddresses() { return ["93.184.216.34"]; },
@@ -172,4 +213,4 @@ for (const name of ["dns", "tls", "http-redirect", "homepage", "security-headers
   assert.equal(bad.checks.find((check) => check.name === name)?.ok, false, `${name} failure was not detected.`);
 }
 
-console.log("Domain readiness tests passed: exact public origin, public DNS, trusted TLS, canonical redirect, security headers, exact packaged release identity, closed private/local surfaces, truthful authentication discovery and closed/enabled Google/Facebook start-route proof.");
+console.log("Domain readiness tests passed: exact public origin, public DNS, trusted TLS, canonical redirect, security headers, exact packaged release identity, closed private/local surfaces, truthful authentication discovery, Google callback registration and closed/enabled social start-route proof.");
