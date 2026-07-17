@@ -6,7 +6,15 @@ const appPassword = "app-password-that-is-long-and-unique-123";
 const workerPassword = "worker-password-that-is-long-and-unique-456";
 const ownerUrl = "postgresql://homle_migration_owner:owner-secret@private-db.example:5432/homle_marketplace_homle_staging";
 const renderOwnerUrl = "postgresql://homle_migration_owner:owner-secret@dpg-d9csr9b7uimc73f0m8d0-a:5432/homle_marketplace_homle_staging";
-const assets = { ok: true, migrations: ["001_first.sql", "002_second.sql"], grantFiles: ["runtime-role-grants.sql", "worker-role-grants.sql"] };
+const assets = {
+  ok: true,
+  migrations: ["001_first.sql", "002_second.sql"],
+  migrationEntries: [
+    { order: 1, file: "001_first.sql", sha256: "1".repeat(64) },
+    { order: 2, file: "002_second.sql", sha256: "2".repeat(64) }
+  ],
+  grantFiles: ["runtime-role-grants.sql", "worker-role-grants.sql"]
+};
 
 function sqlFor(file) {
   const name = path.basename(file);
@@ -15,8 +23,9 @@ function sqlFor(file) {
   return `BEGIN;\n/* ${name} */ SELECT true;\nCOMMIT;`;
 }
 
-function fakeClient({ objectCount = 0, verification = true, connectError = null, databaseName = "homle_marketplace_homle_staging" } = {}) {
+function fakeClient({ objectCount = 0, verification = true, connectError = null, databaseName = "homle_marketplace_homle_staging", ledgerRows = null } = {}) {
   const calls = [];
+  let ledger = ledgerRows === null ? null : ledgerRows.map((row) => ({ ...row }));
   return {
     calls,
     async connect() { calls.push({ kind: "connect" }); if (connectError) throw connectError; },
@@ -27,6 +36,14 @@ function fakeClient({ objectCount = 0, verification = true, connectError = null,
         return { rows: [{ database_name: databaseName, owner_name: "homle_migration_owner", server_version_num: 160014, owner_can_login: true, owner_superuser: false, owner_bypass_rls: false, application_object_count: objectCount }] };
       }
       if (text.includes("deployment-verification")) return { rows: [{ tideway_deployment_verification: { verified: verification } }] };
+      if (text.includes("to_regclass('tideway_private.schema_migrations')")) return { rows: [{ ledger_name: ledger === null ? null : "tideway_private.schema_migrations" }] };
+      if (text.includes("CREATE TABLE tideway_private.schema_migrations")) { ledger = []; return { rows: [] }; }
+      if (text.includes("SELECT migration_order, filename, sha256, baselined")) return { rows: ledger || [] };
+      if (text.includes("INSERT INTO tideway_private.schema_migrations")) {
+        ledger ||= [];
+        ledger.push({ migration_order: values[0], filename: values[1], sha256: values[2], baselined: values.length > 3 ? values[3] : false });
+        return { rows: [] };
+      }
       return { rows: [] };
     }
   };
@@ -80,11 +97,29 @@ assert.equal(fresh.calls.at(-1).kind, "end");
 assert.equal(fresh.configuration.application_name, "homle-render-staging-bootstrap");
 
 const existing = fakeClient({ objectCount: 52 });
-const existingResult = await bootstrapRenderStagingDatabase(options(existing));
-assert.equal(existingResult.status, "already-verified");
+const existingResult = await bootstrapRenderStagingDatabase(options(existing, { RENDER_STAGING_BASELINE_MIGRATION_COUNT: "1" }));
+assert.equal(existingResult.status, "upgraded");
+assert.equal(existingResult.appliedMigrationCount, 1);
 const existingSql = existing.calls.filter((call) => call.kind === "query").map((call) => call.text);
 assert(existingSql.findIndex((sql) => sql.includes("deployment-verification")) < existingSql.findIndex((sql) => sql.includes("CREATE ROLE tideway_app")), "An existing schema was mutated before it passed verification.");
-assert(!existingSql.some((sql) => sql.includes("001_first.sql")), "An existing verified schema replayed migrations.");
+assert(!existingSql.some((sql) => sql.includes("001_first.sql")), "An existing verified schema replayed a baselined migration.");
+assert(existingSql.some((sql) => sql.includes("002_second.sql")), "The existing schema did not apply its pending locked migration.");
+assert.equal(existingSql.filter((sql) => sql.includes("deployment-verification")).length, 2, "The upgraded schema was not verified after migration.");
+
+const currentLedger = assets.migrationEntries.map((entry) => ({ migration_order: entry.order, filename: entry.file, sha256: entry.sha256, baselined: entry.order === 1 }));
+const current = fakeClient({ objectCount: 53, ledgerRows: currentLedger });
+const currentResult = await bootstrapRenderStagingDatabase(options(current));
+assert.equal(currentResult.status, "already-verified");
+assert.equal(currentResult.appliedMigrationCount, 0);
+assert(!current.calls.some((call) => call.kind === "query" && call.text.includes("001_first.sql")), "A fully migrated schema replayed a migration.");
+
+const missingBaseline = fakeClient({ objectCount: 52 });
+await assert.rejects(bootstrapRenderStagingDatabase(options(missingBaseline)), /requires RENDER_STAGING_BASELINE_MIGRATION_COUNT/);
+assert(!missingBaseline.calls.some((call) => call.kind === "query" && call.text.includes("CREATE TABLE tideway_private.schema_migrations")), "A missing baseline mutated the database before refusal.");
+
+const driftedLedger = fakeClient({ objectCount: 53, ledgerRows: [{ migration_order: 1, filename: "001_first.sql", sha256: "f".repeat(64), baselined: true }] });
+await assert.rejects(bootstrapRenderStagingDatabase(options(driftedLedger)), /does not match locked migration 1/);
+assert(!driftedLedger.calls.some((call) => call.kind === "query" && call.text.includes("002_second.sql")), "A drifted migration ledger applied pending SQL.");
 
 const incomplete = fakeClient({ objectCount: 4, verification: false });
 await assert.rejects(bootstrapRenderStagingDatabase(options(incomplete)), /existing staging schema is incomplete/);

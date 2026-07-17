@@ -11,6 +11,8 @@ const projectRoot = path.resolve(moduleDirectory, "../..");
 const defaultDatabaseDirectory = path.join(projectRoot, "db");
 const stagingDatabasePattern = /_(?:tideway|homle)_staging$/i;
 const passwordPattern = /^.{32,512}$/s;
+const checksumPattern = /^[a-f0-9]{64}$/;
+const migrationFilePattern = /^\d{3}_[a-z0-9_]+\.sql$/;
 const restrictedRoles = Object.freeze(["tideway_app", "tideway_worker"]);
 
 function requiredSecret(value, name) {
@@ -108,6 +110,97 @@ async function loadSql(file, read = readFile) {
   return removePsqlMetaCommands(await read(file, "utf8"));
 }
 
+function lockedMigrationEntries(assets) {
+  const entries = assets?.migrationEntries;
+  if (!Array.isArray(entries) || entries.length !== assets.migrations.length) throw new Error("Locked migration metadata is incomplete.");
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index] || {};
+    if (entry.order !== index + 1 || entry.file !== assets.migrations[index] || !migrationFilePattern.test(entry.file || "") || !checksumPattern.test(entry.sha256 || "")) {
+      throw new Error(`Locked migration metadata is invalid at position ${index + 1}.`);
+    }
+  }
+  return entries;
+}
+
+function migrationBody(sql, file) {
+  const lines = removePsqlMetaCommands(sql).split(/\r?\n/);
+  const executable = lines.map((line, index) => ({ line: line.trim(), index })).filter(({ line }) => line && !line.startsWith("--"));
+  if (executable[0]?.line !== "BEGIN;" || executable.at(-1)?.line !== "COMMIT;") throw new Error(`${file} is not transaction bounded.`);
+  return lines.slice(executable[0].index + 1, executable.at(-1).index).join("\n");
+}
+
+function requestedBaselineCount(env, maximum) {
+  const value = env.RENDER_STAGING_BASELINE_MIGRATION_COUNT;
+  if (!/^\d+$/.test(value || "")) throw new Error("An existing staging database without a migration ledger requires RENDER_STAGING_BASELINE_MIGRATION_COUNT.");
+  const count = Number(value);
+  if (!Number.isSafeInteger(count) || count < 1 || count >= maximum) throw new Error(`RENDER_STAGING_BASELINE_MIGRATION_COUNT must be between 1 and ${maximum - 1}.`);
+  return count;
+}
+
+async function migrationLedger(client) {
+  const exists = await client.query("SELECT to_regclass('tideway_private.schema_migrations')::text AS ledger_name");
+  if (!exists.rows?.[0]?.ledger_name) return null;
+  const result = await client.query("SELECT migration_order, filename, sha256, baselined FROM tideway_private.schema_migrations ORDER BY migration_order");
+  return result.rows || [];
+}
+
+async function createMigrationLedger(client) {
+  await client.query(`
+    CREATE TABLE tideway_private.schema_migrations (
+      migration_order integer PRIMARY KEY CHECK (migration_order > 0),
+      filename text NOT NULL UNIQUE CHECK (filename ~ '^[0-9]{3}_[a-z0-9_]+[.]sql$'),
+      sha256 character(64) NOT NULL CHECK (sha256 ~ '^[a-f0-9]{64}$'),
+      applied_at timestamptz NOT NULL DEFAULT now(),
+      baselined boolean NOT NULL DEFAULT false
+    );
+    REVOKE ALL ON TABLE tideway_private.schema_migrations FROM PUBLIC, tideway_app, tideway_worker;
+  `);
+}
+
+function validateMigrationLedger(rows, entries) {
+  if (!Array.isArray(rows) || rows.length > entries.length) throw new Error("The staging migration ledger contains an unsupported migration count.");
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index] || {};
+    const expected = entries[index];
+    if (Number(row.migration_order) !== expected.order || row.filename !== expected.file || row.sha256 !== expected.sha256) {
+      throw new Error(`The staging migration ledger does not match locked migration ${expected.order}.`);
+    }
+  }
+}
+
+async function recordMigrationHistory(client, entries, baselined) {
+  await client.query("BEGIN");
+  try {
+    for (const entry of entries) {
+      await client.query(
+        "INSERT INTO tideway_private.schema_migrations (migration_order, filename, sha256, baselined) VALUES ($1, $2, $3, $4)",
+        [entry.order, entry.file, entry.sha256, baselined]
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch {}
+    throw error;
+  }
+}
+
+async function applyLockedMigration(client, entry, databaseDirectory, read = readFile) {
+  const source = await read(path.join(databaseDirectory, "migrations", entry.file), "utf8");
+  const body = migrationBody(source, entry.file);
+  await client.query("BEGIN");
+  try {
+    if (body.trim()) await client.query(body);
+    await client.query(
+      "INSERT INTO tideway_private.schema_migrations (migration_order, filename, sha256, baselined) VALUES ($1, $2, $3, false)",
+      [entry.order, entry.file, entry.sha256]
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    try { await client.query("ROLLBACK"); } catch {}
+    throw error;
+  }
+}
+
 export async function bootstrapRenderStagingDatabase(options = {}) {
   const env = options.env || process.env;
   if (env.RENDER_STAGING_BOOTSTRAP_ENABLED !== "true") throw new Error("RENDER_STAGING_BOOTSTRAP_ENABLED must be explicitly true.");
@@ -121,6 +214,7 @@ export async function bootstrapRenderStagingDatabase(options = {}) {
   const verifyAssets = options.verifyAssets || verifyDatabaseAssets;
   const assets = await verifyAssets({ databaseDirectory });
   if (!assets?.ok || !assets.migrations?.length) throw new Error(`Locked database assets are invalid: ${(assets?.errors || ["missing migrations"]).join(" ")}`);
+  const entries = lockedMigrationEntries(assets);
 
   const createClient = options.createClient || ((configuration) => new Client(configuration));
   const transport = postgresTransportSecurity(parsedOwnerUrl.toString(), env);
@@ -140,10 +234,26 @@ export async function bootstrapRenderStagingDatabase(options = {}) {
       if (!verifiedDeployment(verification)) throw new Error("The existing staging schema is incomplete or failed deployment verification; do not continue or retry mutations.");
       await configureRestrictedRole(client, "tideway_app", appPassword);
       await configureRestrictedRole(client, "tideway_worker", workerPassword);
+      let ledger = await migrationLedger(client);
+      if (ledger === null) {
+        const baselineCount = requestedBaselineCount(env, entries.length);
+        await createMigrationLedger(client);
+        await recordMigrationHistory(client, entries.slice(0, baselineCount), true);
+        ledger = entries.slice(0, baselineCount).map((entry) => ({ migration_order: entry.order, filename: entry.file, sha256: entry.sha256, baselined: true }));
+      }
+      validateMigrationLedger(ledger, entries);
+      const pending = entries.slice(ledger.length);
+      for (const entry of pending) await applyLockedMigration(client, entry, databaseDirectory, options.readFile);
+      if (pending.length) {
+        for (const grant of assets.grantFiles) await client.query(await loadSql(path.join(databaseDirectory, grant), options.readFile));
+        const finalVerification = await client.query(await loadSql(verificationPath, options.readFile));
+        if (!verifiedDeployment(finalVerification)) throw new Error("The upgraded staging schema failed deployment verification; do not start the application.");
+      }
       return Object.freeze({
         database: target.database,
-        status: "already-verified",
+        status: pending.length ? "upgraded" : "already-verified",
         migrationCount: assets.migrations.length,
+        appliedMigrationCount: pending.length,
         runtimeUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_app", appPassword, env),
         workerUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_worker", workerPassword, env)
       });
@@ -153,9 +263,9 @@ export async function bootstrapRenderStagingDatabase(options = {}) {
     await configureRestrictedRole(client, "tideway_worker", workerPassword);
     const guardPath = path.join(databaseDirectory, "bootstrap", "assert-empty-staging.sql");
     await client.query(await loadSql(guardPath, options.readFile));
-    for (const migration of assets.migrations) {
-      await client.query(await loadSql(path.join(databaseDirectory, "migrations", migration), options.readFile));
-    }
+    for (const entry of entries) await client.query(await loadSql(path.join(databaseDirectory, "migrations", entry.file), options.readFile));
+    await createMigrationLedger(client);
+    await recordMigrationHistory(client, entries, false);
     for (const grant of assets.grantFiles) {
       await client.query(await loadSql(path.join(databaseDirectory, grant), options.readFile));
     }
@@ -165,6 +275,7 @@ export async function bootstrapRenderStagingDatabase(options = {}) {
       database: target.database,
       status: "bootstrapped",
       migrationCount: assets.migrations.length,
+      appliedMigrationCount: assets.migrations.length,
       runtimeUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_app", appPassword, env),
       workerUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_worker", workerPassword, env)
     });

@@ -100,6 +100,7 @@ export async function verifyDatabaseAssets({ databaseDirectory = defaultDatabase
     errors,
     postgresqlMajor: lock.postgresqlMajor,
     migrations: lockedMigrationNames,
+    migrationEntries: lockedMigrations.map((item) => Object.freeze({ order: item.order, file: item.file, sha256: item.sha256 })),
     grantFiles: grantNames
   };
 }

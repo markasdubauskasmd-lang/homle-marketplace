@@ -46,7 +46,8 @@
     { "order": 42, "file": "042_booking_payment_window_summary.sql", "sha256": "5c747b6ffff502cb773197039dce2f7eedbf802b30c1645d8cdaa0ce5fc2a238" },
     { "order": 43, "file": "043_two_stage_payment_reminders.sql", "sha256": "40f3a1f6a9f46db75ed33f51a9eea6674f216a88c66415f695cbaa5e7a9e3f68" },
     { "order": 44, "file": "044_confirmed_visit_reminders.sql", "sha256": "fd0d290bfa117b1ae88b4c649a0be07212e8767f6294990c98dcafbbecd3d583" },
-    { "order": 45, "file": "045_owner_request_withdrawal.sql", "sha256": "93967db60f0dc597819e4ee011edc5037f314a1f769282f0e3d7e57d6f72db9c" }
+    { "order": 45, "file": "045_owner_request_withdrawal.sql", "sha256": "93967db60f0dc597819e4ee011edc5037f314a1f769282f0e3d7e57d6f72db9c" },
+    { "order": 46, "file": "046_fix_social_identity_column_ambiguity.sql", "sha256": "f74d73d1f88515f1a74defb227065083670edb6d8d31a505766edc68c3042f07" }
   ],
   "grantFiles": [
     { "file": "runtime-role-grants.sql", "sha256": "0b4b4eda80f90d7cf9701f9bc01c3133ad12db3d72038d5f9cf0a7723faa3bd0" },
