@@ -52,6 +52,7 @@ export function validateStagingServiceProbeEnvironment(env = process.env, confir
   if (confirmation !== expectedConfirmation) errors.push(`Set HOMLE_STAGING_SERVICE_PROBE_CONFIRMATION exactly to: ${expectedConfirmation}`);
   if (env.NODE_ENV !== "production") errors.push("NODE_ENV must be production so every managed-service client uses its production TLS boundary.");
   if (exact(env.MARKETPLACE_ENABLED).toLowerCase() !== "true") errors.push("MARKETPLACE_ENABLED must be true for this isolated composition probe.");
+  if (exact(env.STAGING_ACCOUNTS_ONLY).toLowerCase() !== "true") errors.push("STAGING_ACCOUNTS_ONLY must remain true for every managed staging service probe.");
   if (paymentsMode === "disabled" && exact(env.PAYMENTS_ENABLED).toLowerCase() !== "false") errors.push("PAYMENTS_ENABLED must be false; this service probe never contacts a payment provider.");
   if (paymentsMode === "required" && exact(env.PAYMENTS_ENABLED).toLowerCase() !== "true") errors.push("PAYMENTS_ENABLED must be true for the explicit test-payment activation probe.");
   const marketplace = validateMarketplaceEnvironment(env);

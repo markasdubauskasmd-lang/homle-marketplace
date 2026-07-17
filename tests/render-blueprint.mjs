@@ -35,7 +35,7 @@ function environmentEntry(key) {
   return match?.[1] || "";
 }
 
-for (const key of ["PILOT_INTAKE_ENABLED", "AUTHENTICATION_ENABLED", "MARKETPLACE_ENABLED", "MARKETPLACE_WORKER_ENABLED", "WORKER_EMAIL_ENABLED", "WORKER_MEDIA_ENABLED", "WORKER_AUTOMATIC_DISPATCH_ENABLED", "PAYMENTS_ENABLED"]) {
+for (const key of ["PILOT_INTAKE_ENABLED", "AUTHENTICATION_ENABLED", "MARKETPLACE_ENABLED", "PUBLIC_MARKETPLACE_APPROVED", "LEGAL_BUSINESS_READY", "INSURANCE_READY", "CLEANER_SUPPLY_READY", "PRICING_POLICY_APPROVED", "CUSTOMER_SUPPORT_READY", "CUSTOMER_TERMS_READY", "MARKETPLACE_WORKER_ENABLED", "WORKER_EMAIL_ENABLED", "WORKER_MEDIA_ENABLED", "WORKER_AUTOMATIC_DISPATCH_ENABLED", "PAYMENTS_ENABLED", "PUBLIC_PAYMENTS_APPROVED", "PAYMENT_ACCOUNT_VERIFIED", "REFUND_PROCESS_READY"]) {
   assert.equal(environmentEntry(key), "value: \"false\"", `${key} must be explicitly false in the preview Blueprint.`);
 }
 assert.equal(environmentEntry("APP_ORIGIN"), 'value: "https://homle-marketplace-preview.onrender.com"', "APP_ORIGIN must match the assigned HTTPS preview origin without a manual secret step.");

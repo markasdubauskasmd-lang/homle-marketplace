@@ -60,6 +60,20 @@ services:
         value: "false"
       - key: MARKETPLACE_ENABLED
         value: "false"
+      - key: PUBLIC_MARKETPLACE_APPROVED
+        value: "false"
+      - key: LEGAL_BUSINESS_READY
+        value: "false"
+      - key: INSURANCE_READY
+        value: "false"
+      - key: CLEANER_SUPPLY_READY
+        value: "false"
+      - key: PRICING_POLICY_APPROVED
+        value: "false"
+      - key: CUSTOMER_SUPPORT_READY
+        value: "false"
+      - key: CUSTOMER_TERMS_READY
+        value: "false"
       - key: STAGING_ACCOUNTS_ONLY
         value: "true"
       - key: MARKETPLACE_WORKER_ENABLED
@@ -71,6 +85,12 @@ services:
       - key: WORKER_AUTOMATIC_DISPATCH_ENABLED
         value: "false"
       - key: PAYMENTS_ENABLED
+        value: "false"
+      - key: PUBLIC_PAYMENTS_APPROVED
+        value: "false"
+      - key: PAYMENT_ACCOUNT_VERIFIED
+        value: "false"
+      - key: REFUND_PROCESS_READY
         value: "false"
 
 databases:

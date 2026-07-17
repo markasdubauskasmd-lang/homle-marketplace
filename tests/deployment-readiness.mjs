@@ -72,6 +72,8 @@ try {
   assert.equal(pilot.marketplaceEnabled, false);
   assert.equal(pilot.paymentsEnabled, false);
   assert.equal(pilot.pilotIntakeEnabled, false);
+  assert.equal(pilot.checks.publicMarketplaceApproved, false);
+  assert.equal(pilot.checks.publicPaymentsApproved, false);
   assert(!JSON.stringify(pilot).includes(safePilot.ADMIN_KEY), "Production readiness exposed the Administrator secret.");
 
   const renderPilot = validateProductionDeployment({
@@ -115,6 +117,7 @@ try {
   const marketplace = validateProductionDeployment({
     ...safePilot,
     MARKETPLACE_ENABLED: "true",
+    STAGING_ACCOUNTS_ONLY: "true",
     DATABASE_URL: "postgresql://tideway_app:private@db.example.com/tideway",
     REALTIME_DATABASE_URL: "postgresql://tideway_app:private@db-direct.example.com/tideway",
     SESSION_SECRET: "session-secret-with-at-least-32-characters",
@@ -132,6 +135,8 @@ try {
   assert.equal(marketplace.ok, true, marketplace.errors.join("\n"));
   assert.equal(marketplace.mode, "marketplace");
   assert.equal(marketplace.authenticationEnabled, true);
+  assert.equal(marketplace.checks.stagingAccountsRestricted, true);
+  assert.equal(marketplace.checks.publicMarketplaceApproved, false);
 
   const authentication = validateProductionDeployment({
     ...safePilot,
@@ -150,6 +155,7 @@ try {
   const builtInMonitoringEnvironment = {
     ...safePilot,
     MARKETPLACE_ENABLED: "true",
+    STAGING_ACCOUNTS_ONLY: "true",
     DATABASE_URL: "postgresql://tideway_app:private@db.example.com/tideway",
     REALTIME_DATABASE_URL: "postgresql://tideway_app:private@db-direct.example.com/tideway",
     SESSION_SECRET: "session-secret-with-at-least-32-characters",
@@ -168,6 +174,25 @@ try {
   };
   const builtInMonitoring = validateProductionDeployment(builtInMonitoringEnvironment, { projectRoot });
   assert.equal(builtInMonitoring.ok, true, builtInMonitoring.errors.join("\n"));
+  const unapprovedPublicMarketplace = validateProductionDeployment({ ...builtInMonitoringEnvironment, STAGING_ACCOUNTS_ONLY: "false" }, { projectRoot });
+  assert.equal(unapprovedPublicMarketplace.ok, false, "Production preflight opened a public marketplace without founder and business approval.");
+  assert(unapprovedPublicMarketplace.errors.some((error) => error.includes("PUBLIC_MARKETPLACE_APPROVED")));
+  assert(unapprovedPublicMarketplace.errors.some((error) => error.includes("INSURANCE_READY")));
+  const approvedPublicMarketplace = validateProductionDeployment({
+    ...builtInMonitoringEnvironment,
+    STAGING_ACCOUNTS_ONLY: "false",
+    PUBLIC_MARKETPLACE_APPROVED: "true",
+    LEGAL_BUSINESS_READY: "true",
+    INSURANCE_READY: "true",
+    CLEANER_SUPPLY_READY: "true",
+    PRICING_POLICY_APPROVED: "true",
+    CUSTOMER_SUPPORT_READY: "true",
+    CUSTOMER_TERMS_READY: "true"
+  }, { projectRoot });
+  assert.equal(approvedPublicMarketplace.ok, true, approvedPublicMarketplace.errors.join("\n"));
+  assert.equal(approvedPublicMarketplace.checks.stagingAccountsRestricted, false);
+  assert.equal(approvedPublicMarketplace.checks.publicMarketplaceApproved, true);
+  assert.equal(approvedPublicMarketplace.checks.publicPaymentsApproved, false);
   const missingBuiltInMonitoring = validateProductionDeployment({ ...builtInMonitoringEnvironment, MONITORING_WEBHOOK_URL: "", MONITORING_WEBHOOK_TOKEN: "" }, { projectRoot });
   assert.equal(missingBuiltInMonitoring.ok, false);
   assert(missingBuiltInMonitoring.errors.some((error) => error.includes("MONITORING_WEBHOOK_URL")));

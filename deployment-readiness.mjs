@@ -104,7 +104,10 @@ export function validateProductionDeployment(env = process.env, options = {}) {
       privateDataDirectory: Boolean(dataDirectory && path.isAbsolute(dataDirectory) && !inside(projectRoot, dataDirectory) && assessPrivateDataDirectory(dataDirectory, { explicitlyConfigured: true }).safeForPrivatePilot),
       protectedAdmin: enabled(env.ADMIN_REQUIRE_KEY) && safeAdminKey(env.ADMIN_KEY),
       trustedProxy,
-      localNetworkPreviewDisabled: !exact(env.LAN_PORT) || exact(env.LAN_PORT) === "0"
+      localNetworkPreviewDisabled: !exact(env.LAN_PORT) || exact(env.LAN_PORT) === "0",
+      stagingAccountsRestricted: marketplace.launchApproval.stagingAccountsRestricted,
+      publicMarketplaceApproved: marketplace.launchApproval.publicMarketplaceReady,
+      publicPaymentsApproved: marketplace.launchApproval.publicPaymentsReady
     }),
     errors: Object.freeze([...new Set(errors)])
   });

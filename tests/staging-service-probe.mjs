@@ -9,6 +9,7 @@ import {
 const environment = Object.freeze({
   NODE_ENV: "production",
   MARKETPLACE_ENABLED: "true",
+  STAGING_ACCOUNTS_ONLY: "true",
   PAYMENTS_ENABLED: "false",
   DATABASE_URL: "postgresql://tideway_app:private-db-password@db.staging.example:5432/acme_homle_staging?sslmode=verify-full",
   REALTIME_DATABASE_URL: "postgresql://tideway_app:private-db-password@db-direct.staging.example:5432/acme_homle_staging?sslmode=verify-full",
@@ -74,6 +75,7 @@ let guardedAttachmentCalls = 0;
 async function guardedAttachment() { guardedAttachmentCalls += 1; throw new Error("must not run"); }
 for (const [override, confirmation, pattern] of [
   [{}, "wrong", /Set HOMLE_STAGING_SERVICE_PROBE_CONFIRMATION/],
+  [{ STAGING_ACCOUNTS_ONLY: "false" }, stagingServiceProbeConfirmation, /must remain true/],
   [{ PAYMENTS_ENABLED: "true" }, stagingServiceProbeConfirmation, /must be false/],
   [{ DATABASE_URL: environment.DATABASE_URL.replace("tideway_app", "migration_owner") }, stagingServiceProbeConfirmation, /authenticate as tideway_app/],
   [{ DATABASE_URL: environment.DATABASE_URL.replace("acme_homle_staging", "homle_production") }, stagingServiceProbeConfirmation, /must end in/],

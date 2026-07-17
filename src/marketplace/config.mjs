@@ -7,6 +7,21 @@ const providerRequirements = Object.freeze({
   facebook: ["FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET", "FACEBOOK_GRAPH_API_VERSION"]
 });
 const paymentRequirements = Object.freeze(["STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY", "STRIPE_WEBHOOK_SECRET"]);
+const publicMarketplaceApprovalRequirements = Object.freeze({
+  PUBLIC_MARKETPLACE_APPROVED: "PUBLIC_MARKETPLACE_APPROVED must be true before a production marketplace is opened beyond approved staging accounts.",
+  LEGAL_BUSINESS_READY: "LEGAL_BUSINESS_READY must be true only after the legal business identity and customer-facing details have been verified outside source control.",
+  INSURANCE_READY: "INSURANCE_READY must be true only after applicable cleaning-business cover and evidence have been reviewed.",
+  CLEANER_SUPPLY_READY: "CLEANER_SUPPLY_READY must be true only after at least one real eligible Cleaner and the availability process have been verified.",
+  PRICING_POLICY_APPROVED: "PRICING_POLICY_APPROVED must be true only after customer prices, Cleaner pay, costs and target margin have been approved.",
+  CUSTOMER_SUPPORT_READY: "CUSTOMER_SUPPORT_READY must be true only after the public support contact and complaint escalation owner are operational.",
+  CUSTOMER_TERMS_READY: "CUSTOMER_TERMS_READY must be true only after privacy, cancellation, re-clean/refund and marketplace terms have been approved."
+});
+const publicPaymentApprovalRequirements = Object.freeze({
+  PUBLIC_PAYMENTS_APPROVED: "PUBLIC_PAYMENTS_APPROVED must be true before any public payment acceptance is enabled.",
+  PAYMENT_ACCOUNT_VERIFIED: "PAYMENT_ACCOUNT_VERIFIED must be true only after the payment account, payout destination and webhook ownership have been verified.",
+  REFUND_PROCESS_READY: "REFUND_PROCESS_READY must be true only after refund/re-clean authority, reserve and evidence handling have been approved."
+});
+const approvalKeys = Object.freeze([...Object.keys(publicMarketplaceApprovalRequirements), ...Object.keys(publicPaymentApprovalRequirements)]);
 
 function present(env, key) {
   return typeof env[key] === "string" && env[key].trim().length > 0;
@@ -22,6 +37,10 @@ function booleanSetting(env, key) {
   if (!value || value === "false") return false;
   if (value === "true") return true;
   return null;
+}
+
+function approvals(env, requirements) {
+  return Object.fromEntries(Object.keys(requirements).map((key) => [key, booleanSetting(env, key) === true]));
 }
 
 export function marketplaceEnvironment(env = process.env) {
@@ -40,6 +59,8 @@ export function marketplaceEnvironment(env = process.env) {
   const marketplaceRequested = booleanSetting(env, "MARKETPLACE_ENABLED") === true;
   const authenticationRequested = booleanSetting(env, "AUTHENTICATION_ENABLED") === true;
   const stripeConfigured = suppliedPaymentKeys.length === paymentRequirements.length;
+  const publicMarketplaceApprovals = approvals(env, publicMarketplaceApprovalRequirements);
+  const publicPaymentApprovals = approvals(env, publicPaymentApprovalRequirements);
   return {
     production: env.NODE_ENV === "production",
     authentication: { requested: authenticationRequested },
@@ -53,6 +74,11 @@ export function marketplaceEnvironment(env = process.env) {
     appOrigin,
     objectStorageConfigured,
     encryptionConfigured,
+    launchApproval: {
+      stagingAccountsRestricted: booleanSetting(env, "STAGING_ACCOUNTS_ONLY") === true,
+      publicMarketplaceReady: Object.values(publicMarketplaceApprovals).every(Boolean),
+      publicPaymentsReady: Object.values(publicPaymentApprovals).every(Boolean)
+    },
     payments: {
       requested: paymentsRequested,
       stripeConfigured,
@@ -82,6 +108,9 @@ export function validateMarketplaceEnvironment(env = process.env) {
   if (booleanSetting(env, "MARKETPLACE_ENABLED") === null) errors.push("MARKETPLACE_ENABLED must be true or false.");
   if (booleanSetting(env, "AUTHENTICATION_ENABLED") === null) errors.push("AUTHENTICATION_ENABLED must be true or false.");
   if (booleanSetting(env, "PAYMENTS_ENABLED") === null) errors.push("PAYMENTS_ENABLED must be true or false.");
+  for (const key of approvalKeys) {
+    if (present(env, key) && booleanSetting(env, key) === null) errors.push(`${key} must be true or false.`);
+  }
   if (state.payments.requested && !state.marketplace.requested) errors.push("PAYMENTS_ENABLED requires MARKETPLACE_ENABLED=true.");
   if (state.payments.requested && state.appOrigin) {
     try { if (new URL(state.appOrigin).protocol !== "https:") errors.push("PAYMENTS_ENABLED requires an HTTPS APP_ORIGIN for Stripe checkout and Cleaner payout onboarding."); }
@@ -139,6 +168,16 @@ export function validateMarketplaceEnvironment(env = process.env) {
       if (!state.sessionConfigured) errors.push("A 32-character SESSION_SECRET is required when the production marketplace is enabled.");
       if (!state.authTokenConfigured) errors.push("A separate 32-character AUTH_TOKEN_SECRET is required when the production marketplace is enabled.");
       if (!state.encryptionConfigured) errors.push("A 32-character DATA_ENCRYPTION_KEY is required when the production marketplace is enabled.");
+      if (!state.launchApproval.stagingAccountsRestricted) {
+        for (const [key, message] of Object.entries(publicMarketplaceApprovalRequirements)) {
+          if (booleanSetting(env, key) !== true) errors.push(message);
+        }
+      }
+    }
+    if (state.payments.requested && !state.launchApproval.stagingAccountsRestricted) {
+      for (const [key, message] of Object.entries(publicPaymentApprovalRequirements)) {
+        if (booleanSetting(env, key) !== true) errors.push(message);
+      }
     }
   }
   return { ok: errors.length === 0, errors, state };

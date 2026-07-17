@@ -7,6 +7,7 @@ import {
 const environment = Object.freeze({
   NODE_ENV: "production",
   MARKETPLACE_ENABLED: "true",
+  STAGING_ACCOUNTS_ONLY: "true",
   PAYMENTS_ENABLED: "true",
   DATABASE_URL: "postgresql://tideway_app:private-db-password@db.staging.example:5432/acme_homle_staging?sslmode=verify-full",
   REALTIME_DATABASE_URL: "postgresql://tideway_app:private-db-password@db-direct.staging.example:5432/acme_homle_staging?sslmode=verify-full",

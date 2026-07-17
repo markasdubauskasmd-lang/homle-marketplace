@@ -79,6 +79,7 @@ assert(!insecurePayoutOrigin.ok && insecurePayoutOrigin.errors.some((error) => e
 const validProduction = {
   NODE_ENV: "production",
   MARKETPLACE_ENABLED: "true",
+  STAGING_ACCOUNTS_ONLY: "true",
   APP_ORIGIN: "https://tideway.example.com",
   DATABASE_URL: "postgresql://tideway:secret@db.example.com/tideway",
   REALTIME_DATABASE_URL: "postgresql://tideway:secret@db-direct.example.com/tideway",
@@ -91,6 +92,40 @@ const validProduction = {
   GOOGLE_CLIENT_SECRET: "google-secret"
 };
 assert(validateMarketplaceEnvironment(validProduction).ok, "A complete production foundation configuration was rejected.");
+const publicMarketplaceApprovals = {
+  PUBLIC_MARKETPLACE_APPROVED: "true",
+  LEGAL_BUSINESS_READY: "true",
+  INSURANCE_READY: "true",
+  CLEANER_SUPPLY_READY: "true",
+  PRICING_POLICY_APPROVED: "true",
+  CUSTOMER_SUPPORT_READY: "true",
+  CUSTOMER_TERMS_READY: "true"
+};
+const publicPaymentApprovals = {
+  PUBLIC_PAYMENTS_APPROVED: "true",
+  PAYMENT_ACCOUNT_VERIFIED: "true",
+  REFUND_PROCESS_READY: "true"
+};
+const unapprovedPublicMarketplace = validateMarketplaceEnvironment({ ...validProduction, STAGING_ACCOUNTS_ONLY: "false" });
+assert(!unapprovedPublicMarketplace.ok && unapprovedPublicMarketplace.errors.some((error) => error.includes("PUBLIC_MARKETPLACE_APPROVED")) && unapprovedPublicMarketplace.errors.some((error) => error.includes("INSURANCE_READY")) && unapprovedPublicMarketplace.errors.some((error) => error.includes("CUSTOMER_TERMS_READY")), "A public production marketplace opened without explicit business, insurance and customer-terms approval.");
+const approvedPublicMarketplace = validateMarketplaceEnvironment({ ...validProduction, STAGING_ACCOUNTS_ONLY: "false", ...publicMarketplaceApprovals });
+assert(approvedPublicMarketplace.ok && approvedPublicMarketplace.state.launchApproval.publicMarketplaceReady && !approvedPublicMarketplace.state.launchApproval.stagingAccountsRestricted, "An explicitly approved public production marketplace was rejected.");
+const publicPayments = {
+  ...validProduction,
+  STAGING_ACCOUNTS_ONLY: "false",
+  ...publicMarketplaceApprovals,
+  PAYMENTS_ENABLED: "true",
+  STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`,
+  STRIPE_PUBLISHABLE_KEY: `pk_test_${"b".repeat(32)}`,
+  STRIPE_WEBHOOK_SECRET: `whsec_${"c".repeat(32)}`
+};
+const unapprovedPublicPayments = validateMarketplaceEnvironment(publicPayments);
+assert(!unapprovedPublicPayments.ok && unapprovedPublicPayments.errors.some((error) => error.includes("PUBLIC_PAYMENTS_APPROVED")) && unapprovedPublicPayments.errors.some((error) => error.includes("REFUND_PROCESS_READY")), "Public payment acceptance opened without explicit account and refund-process approval.");
+const approvedPublicPayments = validateMarketplaceEnvironment({ ...publicPayments, ...publicPaymentApprovals });
+assert(approvedPublicPayments.ok && approvedPublicPayments.state.launchApproval.publicPaymentsReady, "Explicitly approved public test-payment staging was rejected.");
+const ambiguousLaunchApproval = validateMarketplaceEnvironment({ ...validProduction, STAGING_ACCOUNTS_ONLY: "false", ...publicMarketplaceApprovals, LEGAL_BUSINESS_READY: "yes" });
+assert(!ambiguousLaunchApproval.ok && ambiguousLaunchApproval.errors.some((error) => error.includes("LEGAL_BUSINESS_READY must be true or false")), "An ambiguous legal-readiness attestation was accepted.");
+assert(!JSON.stringify(approvedPublicMarketplace.state.launchApproval).includes("google-secret") && Object.values(approvedPublicMarketplace.state.launchApproval).every((value) => typeof value === "boolean"), "Launch readiness exposed configuration evidence or secrets instead of safe boolean outcomes.");
 assert(publicAuthenticationCapabilities(validProduction).google === false && publicAuthenticationCapabilities(validProduction).emailPassword === false, "Configured credentials were exposed before the HTTP authentication runtime was composed.");
 const publicCapabilities = publicAuthenticationCapabilities(validProduction, { emailPassword: true, passwordReset: true, emailVerification: true });
 assert(publicCapabilities.google === false && publicCapabilities.emailPassword === true && publicCapabilities.passwordReset === true && publicCapabilities.apple === false && !JSON.stringify(publicCapabilities).includes("google-secret") && !JSON.stringify(publicCapabilities).includes("SESSION_SECRET"), "Public authentication capabilities exposed secrets or advertised an unattached provider.");
