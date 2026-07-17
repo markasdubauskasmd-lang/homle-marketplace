@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
   <title>Payment operations · Homle</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260717-73">
@@ -27,16 +28,20 @@
       <aside class="booking-dashboard-next-action admin-payment-boundary" role="note">
         <div><span class="booking-dashboard-next-icon" aria-hidden="true">!</span><div><strong>Every button contacts the configured test payment provider</strong><p>Nothing runs automatically. Capture is available only after completion; Cleaner pay uses the frozen booking amount and provider-verified payout destination. Live Stripe keys remain rejected by this application.</p></div></div>
       </aside>
+      <aside class="booking-dashboard-next-action admin-payment-case-handoff" data-admin-payment-related hidden>
+        <div><span class="booking-dashboard-next-icon" aria-hidden="true">T</span><div><strong>Related payment for <span data-admin-payment-related-reference></span></strong><p>Review the booking case evidence first. This separate screen shows only the exact payment state and never resolves the case or runs a remedy automatically.</p></div></div>
+        <a class="button button-outline button-small" href="/admin/cases">Back to booking cases</a>
+      </aside>
       <dl class="booking-dashboard-stats" aria-label="Payment queue summary">
         <div><dt>Payments loaded</dt><dd data-admin-payments-count>0</dd></div>
         <div><dt>Ready for action</dt><dd data-admin-payments-actionable-count>0</dd></div>
         <div><dt>Waiting for provider</dt><dd data-admin-payments-waiting-count>0</dd></div>
       </dl>
       <section class="booking-dashboard-section admin-payments-section" aria-labelledby="admin-payments-heading">
-        <div class="admin-cases-toolbar"><div><h2 id="admin-payments-heading">Settlement queue</h2><p>References are shortened; customer, Cleaner, property, provider and banking identifiers are not displayed.</p></div><label>Status<select data-admin-payments-filter><option value="actionable">Needs attention</option><option value="authorized">Authorized</option><option value="captured">Captured</option><option value="partially-refunded">Partially refunded</option><option value="refunded">Refunded</option><option value="cancelled">Cancelled</option><option value="processing">Processing</option><option value="authorization-failed">Authorization failed</option></select></label></div>
+        <div class="admin-cases-toolbar" data-admin-payments-queue-controls><div><h2 id="admin-payments-heading">Settlement queue</h2><p>References are shortened; customer, Cleaner, property, provider and banking identifiers are not displayed.</p></div><label>Status<select data-admin-payments-filter><option value="actionable">Needs attention</option><option value="authorized">Authorized</option><option value="captured">Captured</option><option value="partially-refunded">Partially refunded</option><option value="refunded">Refunded</option><option value="cancelled">Cancelled</option><option value="processing">Processing</option><option value="authorization-failed">Authorization failed</option></select></label></div>
         <div class="admin-cases-list" data-admin-payments-list aria-live="polite" aria-busy="true"></div>
         <div class="booking-dashboard-empty" data-admin-payments-empty hidden><strong>No payments in this view</strong><p>Refresh the signed provider status or choose another queue filter.</p></div>
-        <nav class="admin-cases-pagination" aria-label="Payment queue pages"><button class="button button-outline button-small" type="button" data-admin-payments-previous disabled>Previous page</button><span data-admin-payments-page>Page 1</span><button class="button button-outline button-small" type="button" data-admin-payments-next disabled>Next page</button></nav>
+        <nav class="admin-cases-pagination" aria-label="Payment queue pages" data-admin-payments-pagination><button class="button button-outline button-small" type="button" data-admin-payments-previous disabled>Previous page</button><span data-admin-payments-page>Page 1</span><button class="button button-outline button-small" type="button" data-admin-payments-next disabled>Next page</button></nav>
       </section>
       <div class="booking-dashboard-feedback" data-admin-payments-feedback role="status" tabindex="-1" hidden></div>
     </div>

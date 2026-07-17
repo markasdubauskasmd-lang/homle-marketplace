@@ -19,6 +19,12 @@ export function adminPaymentFilter(value) {
   throw new TypeError("Choose a valid payment status.");
 }
 
+export function adminPaymentBookingFilter(value) {
+  if (value == null || value === "") return null;
+  if (!uuidPattern.test(value)) throw new TypeError("The related booking payment link is invalid.");
+  return value.toLowerCase();
+}
+
 export function adminPaymentQueue(value) {
   if (!value || !Array.isArray(value.payments)) throw new Error("The payment queue is unavailable.");
   const limit = integer(Number(value.limit), 1, 100, "Payment page size");
@@ -58,4 +64,9 @@ export function paymentActionLabel(value) {
 export function shortPaymentReference(value) {
   if (!uuidPattern.test(value || "")) return "Payment";
   return `Payment ${value.slice(0, 8).toUpperCase()}`;
+}
+
+export function shortPaymentBookingReference(value) {
+  if (!uuidPattern.test(value || "")) return "Booking";
+  return `BKG-${value.slice(0, 8).toUpperCase()}`;
 }

@@ -2405,6 +2405,8 @@ textarea { resize: vertical; }
 .admin-payment-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .admin-payment-waiting, .admin-payment-warning { margin: 0; padding: .8rem 1rem; border-left: 4px solid #b16f16; background: #fff8e8; color: #684300; }
 .admin-payment-warning { border-color: #b43b2b; background: #fff0ed; color: #8a1c0e; }
+.admin-payment-case-handoff { align-items: center; gap: 1rem; }
+.admin-payment-case-handoff > .button { flex: 0 0 auto; }
 .admin-payment-confirmation-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin: 0; }
 .admin-payment-confirmation-facts div { padding: .75rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--mist); }
 .admin-payment-confirmation-facts dt { color: var(--muted); font-size: .82rem; }
@@ -2413,4 +2415,6 @@ textarea { resize: vertical; }
   .admin-payment-facts, .admin-payment-confirmation-facts { grid-template-columns: 1fr 1fr; }
   .admin-payment-card .booking-summary-actions { display: grid; grid-template-columns: 1fr; }
   .admin-payment-card .booking-summary-actions .button { width: 100%; min-height: 3rem; }
+  .admin-payment-case-handoff { align-items: stretch; }
+  .admin-payment-case-handoff > .button { width: 100%; }
 }

@@ -124,7 +124,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (!payments) return false;
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { roles: ["administrator"] });
-          const page = await payments.listForAdministrator(context.actor, { status: url.searchParams.get("status"), limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
+          const page = await payments.listForAdministrator(context.actor, { bookingId: url.searchParams.get("bookingId"), status: url.searchParams.get("status"), limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
           sendJson(response, 200, { ok: true, ...page });
           return true;
         }

@@ -174,7 +174,7 @@ function normalizedEvent(value, payloadHash) {
 }
 
 export function createPaymentService(repository, provider, options = {}) {
-  const requiredRepository = ["getByBooking", "listForAdministrator", "beginAuthorization", "recordAuthorization", "beginCommand", "recordCommand", "reconcileEvent"];
+  const requiredRepository = ["getByBooking", "listForAdministrator", "getForAdministratorBooking", "beginAuthorization", "recordAuthorization", "beginCommand", "recordCommand", "reconcileEvent"];
   const requiredProvider = ["createAuthorization", "retrieveAuthorization", "capture", "cancel", "refund", "transfer", "verifyWebhook"];
   if (!repository || requiredRepository.some((method) => typeof repository[method] !== "function")) throw new TypeError("A complete payment repository is required.");
   if (!provider || provider.name !== "stripe" || requiredProvider.some((method) => typeof provider[method] !== "function")) throw new TypeError("A complete Stripe payment adapter is required.");
@@ -249,11 +249,14 @@ export function createPaymentService(repository, provider, options = {}) {
     },
     async listForAdministrator(actor, input = {}) {
       requireRole(actor, "administrator");
+      const bookingId = input.bookingId == null || input.bookingId === "" ? null : uuid(String(input.bookingId).trim(), "booking id");
       const status = input.status == null || input.status === "" ? "actionable" : String(input.status).trim().toLowerCase();
       if (status !== "actionable" && !paymentStatuses.has(status)) throw new TypeError("Choose a valid payment queue status.");
       const limit = boundedInteger(input.limit, 1, 100, 50, "Payment page size");
       const offset = boundedInteger(input.offset, 0, 10000, 0, "Payment page offset");
-      const page = object(await repository.listForAdministrator(actor, { status, limit, offset }));
+      const page = bookingId
+        ? { payments: [object(await repository.getForAdministratorBooking(actor, bookingId))].filter(Boolean), limit: 1, offset: 0 }
+        : object(await repository.listForAdministrator(actor, { status, limit, offset }));
       if (!page || !Array.isArray(page.payments)) throw new Error("The payment operations queue is unavailable.");
       return Object.freeze({ payments: Object.freeze(page.payments.map(administratorPaymentOperation)), limit: boundedInteger(page.limit, 1, 100, limit, "Payment page size"), offset: boundedInteger(page.offset, 0, 10000, offset, "Payment page offset"), testMode: true });
     },

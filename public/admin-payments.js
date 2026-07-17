@@ -1,4 +1,4 @@
-import { adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentStatusLabel, shortPaymentReference } from "./admin-payments-model.js";
+import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "./admin-payments-model.js";
 
 const pageSize = 50;
 const gate = document.querySelector("[data-admin-payments-gate]");
@@ -15,12 +15,30 @@ const submit = document.querySelector("[data-admin-payment-submit]");
 const cancel = document.querySelector("[data-admin-payment-cancel]");
 const refundField = document.querySelector("[data-admin-payment-refund-field]");
 const dialogFeedback = document.querySelector("[data-admin-payment-dialog-feedback]");
+const related = document.querySelector("[data-admin-payment-related]");
+const queueControls = document.querySelector("[data-admin-payments-queue-controls]");
+const pagination = document.querySelector("[data-admin-payments-pagination]");
 const uncertainPayments = new Set();
 let queue = { payments: [], limit: pageSize, offset: 0, testMode: false };
 let selected = null;
 let selectedKind = "";
 let loading = false;
 let commanding = false;
+let selectedBookingId = null;
+let bookingLinkError = null;
+
+try { selectedBookingId = adminPaymentBookingFilter(new URLSearchParams(location.search).get("bookingId")); }
+catch (error) { bookingLinkError = error; }
+
+if (selectedBookingId) {
+  related.hidden = false;
+  related.querySelector("[data-admin-payment-related-reference]").textContent = shortPaymentBookingReference(selectedBookingId);
+  queueControls.hidden = true;
+  pagination.hidden = true;
+  document.querySelector("#admin-payments-heading").textContent = "Related payment status";
+  document.querySelector("[data-admin-payments-empty] strong").textContent = "No payment record for this booking";
+  document.querySelector("[data-admin-payments-empty] p").textContent = "Return to the booking case. No payment action is available from this link.";
+}
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 
@@ -171,13 +189,15 @@ function renderQueue() {
   document.querySelector("[data-admin-payments-count]").textContent = String(queue.payments.length);
   document.querySelector("[data-admin-payments-actionable-count]").textContent = String(queue.payments.filter((item) => item.canCapture || item.canCancel || item.canRefund || item.canTransfer).length);
   document.querySelector("[data-admin-payments-waiting-count]").textContent = String(queue.payments.filter((item) => item.awaitingProvider).length);
-  document.querySelector("[data-admin-payments-page]").textContent = `Page ${Math.floor(queue.offset / queue.limit) + 1}`;
+  document.querySelector("[data-admin-payments-page]").textContent = selectedBookingId ? "One related booking" : `Page ${Math.floor(queue.offset / queue.limit) + 1}`;
   previous.disabled = queue.offset === 0;
   next.disabled = queue.payments.length < queue.limit;
 }
 
 async function loadQueue(offset = 0) {
-  const query = new URLSearchParams({ status: adminPaymentFilter(filter.value), limit: String(pageSize), offset: String(offset) });
+  const query = selectedBookingId
+    ? new URLSearchParams({ bookingId: selectedBookingId, limit: "1", offset: "0" })
+    : new URLSearchParams({ status: adminPaymentFilter(filter.value), limit: String(pageSize), offset: String(offset) });
   list.setAttribute("aria-busy", "true");
   const result = await requestJson(`/api/marketplace/admin/payments?${query}`);
   queue = adminPaymentQueue(result);
@@ -193,6 +213,7 @@ async function load() {
   try {
     const account = (await requestJson("/api/marketplace/account")).account;
     if (!account?.roles?.includes("administrator")) return showGate("Administrator account required", "Landlord, Cleaner and unrelated accounts cannot operate booking payments.", { kind: "authentication", signIn: true });
+    if (bookingLinkError) return showGate("Invalid related payment link", "Return to Booking cases and open the payment review from the current case. No payment action was taken.", { kind: "error" });
     gate.hidden = true;
     workspace.hidden = false;
     await loadQueue(0);

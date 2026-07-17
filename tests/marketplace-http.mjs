@@ -241,7 +241,8 @@ const noPaymentRouter = createMarketplaceHttpRouter({ ...dependencies, paymentSe
 const absentWebhookResponse = response();
 assert(await noPaymentRouter.handle(request("POST", "/api/marketplace/payments/webhook", { body: Buffer.from("{}") }), absentWebhookResponse, new URL("http://127.0.0.1:4173/api/marketplace/payments/webhook")) === false && absentWebhookResponse.statusCode === null, "Disabled payments exposed a webhook route.");
 
-const bookingPaymentUrl = "/api/marketplace/bookings/55555555-5555-4555-8555-555555555555/payment";
+const paymentBookingId = "55555555-5555-4555-8555-555555555555";
+const bookingPaymentUrl = `/api/marketplace/bookings/${paymentBookingId}/payment`;
 const paymentConfiguration = await dispatch(router, "GET", "/api/marketplace/payments/config", { headers: { cookie: authHeaders.cookie } });
 assert(paymentConfiguration.response.statusCode === 200 && paymentConfiguration.body.payment.publishableKey.startsWith("pk_test_") && paymentConfiguration.body.payment.testMode === true && calls.at(-1).kind === "payment-config", "Authenticated test checkout could not obtain its bounded publishable configuration.");
 const unauthenticatedPaymentConfiguration = await dispatch(router, "GET", "/api/marketplace/payments/config");
@@ -261,11 +262,14 @@ const absentBookingPaymentResponse = response();
 assert(await noPaymentRouter.handle(request("GET", bookingPaymentUrl), absentBookingPaymentResponse, new URL(`http://127.0.0.1:4173${bookingPaymentUrl}`)) === false && absentBookingPaymentResponse.statusCode === null, "Disabled payments exposed a participant payment route.");
 
 const adminPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments?status=actionable&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
+const relatedPaymentQueue = await dispatch(router, "GET", `/api/marketplace/admin/payments?bookingId=${paymentBookingId}`, { headers: { cookie: administratorAuthHeaders.cookie } });
+const relatedPaymentCall = calls.findLast((call) => call.kind === "payment-admin-list");
 const landlordPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments", { headers: { cookie: authHeaders.cookie } });
 const missingAdminPaymentCsrf = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/capture", { headers: { cookie: administratorAuthHeaders.cookie, origin: administratorAuthHeaders.origin, "content-type": administratorAuthHeaders["content-type"] }, body: { idempotencyKey: "admin_capture_retry_key_123456789012" } });
 const capturedPayment = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/capture", { headers: administratorAuthHeaders, body: { idempotencyKey: "admin_capture_retry_key_123456789012" } });
 const refundedPayment = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/refund", { headers: administratorAuthHeaders, body: { idempotencyKey: "admin_refund_retry_key_1234567890123", amountPence: 1500, destinationAccountId: "acct_browser_attack" } });
 assert(adminPaymentQueue.response.statusCode === 200 && adminPaymentQueue.body.testMode === true && calls.find((call) => call.kind === "payment-admin-list")?.input.status === "actionable" && landlordPaymentQueue.response.statusCode === 403 && missingAdminPaymentCsrf.response.statusCode === 403, "Administrator payment queue lost role isolation, exact filters, test-mode proof or CSRF protection.");
+assert(relatedPaymentQueue.response.statusCode === 200 && relatedPaymentCall.input.bookingId === paymentBookingId && relatedPaymentCall.input.status === null, "The case-payment route lost its exact booking filter or introduced a payment mutation.");
 assert(capturedPayment.response.statusCode === 202 && refundedPayment.response.statusCode === 202 && calls.find((call) => call.kind === "payment-admin-capture")?.input.idempotencyKey === "admin_capture_retry_key_123456789012" && calls.find((call) => call.kind === "payment-admin-refund")?.input.amountPence === 1500 && !Object.hasOwn(calls.find((call) => call.kind === "payment-admin-refund").input, "destinationAccountId"), "Administrator capture/refund routes lost exact payment, retry, amount or server-owned destination boundaries.");
 const absentAdminPaymentResponse = response();
 assert(await noPaymentRouter.handle(request("GET", "/api/marketplace/admin/payments"), absentAdminPaymentResponse, new URL("http://127.0.0.1:4173/api/marketplace/admin/payments")) === false && absentAdminPaymentResponse.statusCode === null, "Disabled payments exposed Administrator settlement operations.");

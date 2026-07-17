@@ -10,7 +10,8 @@ This playbook supports Tideway's `tideway-case-response-v1` review safeguard. It
 4. Keep card, bank, provider-secret, exact-address, access-code, private contact and unrelated identity data out of the case note.
 5. Record which evidence sources were reviewed, what those sources establish, what remains uncertain and why the booking should remain `completed` or become `cancelled`.
 6. Confirm all four decision safeguards. The server rejects a resolution without the current policy version and the evidence, minimisation and no-external-action assurances.
-7. Treat any refund, re-clean, compensation, payment capture/cancellation/transfer, account action, insurance referral, emergency escalation or participant contact as a separate workflow requiring approved authority and policy.
+7. If the case is under review and payment evidence is relevant, use **Review related test payment** to open the exact provider-neutral record. This read does not resolve the case or move money; return to the case before recording the outcome.
+8. Treat any refund, re-clean, compensation, payment capture/cancellation/transfer, account action, insurance referral, emergency escalation or participant contact as a separate workflow requiring approved authority and policy. A test-payment button still requires its own deliberate confirmation and does not create remedy authority.
 
 ## Category routing
 

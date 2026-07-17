@@ -92,7 +92,8 @@ export async function probeMarketplaceDatabase(pool) {
           AND to_regprocedure('tideway_private.attach_my_cleaner_payout_account(uuid,text)') IS NOT NULL
           AND to_regprocedure('tideway_private.sync_my_cleaner_payout_account(text,boolean,boolean,boolean)') IS NOT NULL AS payment_ledger_ready,
         to_regprocedure('tideway_private.read_booking_payment(uuid)') IS NOT NULL
-          AND to_regprocedure('tideway_private.list_administrator_payment_operations(text,integer,integer)') IS NOT NULL AS payment_access_ready,
+          AND to_regprocedure('tideway_private.list_administrator_payment_operations(text,integer,integer)') IS NOT NULL
+          AND to_regprocedure('tideway_private.get_administrator_booking_payment_operation(uuid)') IS NOT NULL AS payment_access_ready,
         to_regprocedure('tideway_private.current_booking_payment_authorized(uuid)') IS NOT NULL AS payment_journey_gate_ready,
         to_regprocedure('tideway_private.add_unexpected_cleaning_task(uuid,text,text,integer,boolean,text)') IS NOT NULL
           AND to_regprocedure('tideway_private.confirm_unexpected_task_frozen_terms(uuid,uuid)') IS NOT NULL AS unexpected_task_terms_ready,
