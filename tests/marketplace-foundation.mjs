@@ -11,6 +11,7 @@ import {
   shouldStopLocationSharing,
   taskStatuses
 } from "../src/marketplace/domain.mjs";
+import "./staging-account-access.mjs";
 import { marketplaceEnvironment, publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "../src/marketplace/config.mjs";
 import { createMarketplaceDatabase, postgresPoolOptions, postgresTransportSecurity, realtimePostgresPoolOptions } from "../src/marketplace/database.mjs";
 import { createAuthenticationRepository, normalizedEmail } from "../src/marketplace/auth-repository.mjs";

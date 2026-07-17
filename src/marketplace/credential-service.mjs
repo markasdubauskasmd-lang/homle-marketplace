@@ -32,6 +32,8 @@ export function createCredentialService(repository, options) {
   const clock = options?.clock || (() => new Date());
   const verificationTtlSeconds = options?.verificationTtlSeconds ?? 86_400;
   const resetTtlSeconds = options?.resetTtlSeconds ?? 3_600;
+  const accountAccess = options?.accountAccess || Object.freeze({ allows: () => true });
+  if (typeof accountAccess.allows !== "function") throw new TypeError("Credential service account access policy is invalid.");
   // A real, process-local scrypt hash keeps unknown-email login work comparable
   // to known-account verification without storing a usable credential.
   const dummyHashPromise = hashPassword(newOpaqueToken());
@@ -40,6 +42,7 @@ export function createCredentialService(repository, options) {
     async register(input) {
       const email = normalizedEmail(input?.email);
       const name = displayName(input?.displayName);
+      if (!accountAccess.allows(email)) return { accepted: true, emailDelivery: null };
       const passwordHash = await hashPassword(input?.password);
       const token = newOpaqueToken();
       const verificationHash = hashPurposeToken(token, "email-verification", tokenSecret);
@@ -64,6 +67,7 @@ export function createCredentialService(repository, options) {
       const verificationExpiresAt = expiry(clock, verificationTtlSeconds, 600, 172_800, "Email verification");
       let email;
       try { email = normalizedEmail(emailValue); } catch { return { accepted: true, emailDelivery: null }; }
+      if (!accountAccess.allows(email)) return { accepted: true, emailDelivery: null };
       const issued = await repository.issueEmailVerification(email, verificationHash, verificationExpiresAt);
       return {
         accepted: true,
@@ -74,6 +78,10 @@ export function createCredentialService(repository, options) {
     async signIn(emailValue, password) {
       let email;
       try { email = normalizedEmail(emailValue); } catch {
+        await verifyPassword(String(password || ""), await dummyHashPromise);
+        return { authenticated: false, reason: "invalid-credentials" };
+      }
+      if (!accountAccess.allows(email)) {
         await verifyPassword(String(password || ""), await dummyHashPromise);
         return { authenticated: false, reason: "invalid-credentials" };
       }
@@ -96,6 +104,7 @@ export function createCredentialService(repository, options) {
       const resetExpiresAt = expiry(clock, resetTtlSeconds, 600, 7_200, "Password reset");
       let email;
       try { email = normalizedEmail(emailValue); } catch { return { accepted: true, emailDelivery: null }; }
+      if (!accountAccess.allows(email)) return { accepted: true, emailDelivery: null };
       const issued = await repository.issuePasswordReset(email, resetHash, resetExpiresAt);
       return {
         accepted: true,

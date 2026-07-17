@@ -64,11 +64,15 @@ export function selectedOnboardingRole(role) {
   return role;
 }
 
-export function createIdentityService(repository) {
+export function createIdentityService(repository, options = {}) {
   if (!repository || ["resolveSocialIdentity", "completeRoleOnboarding", "listConnectedIdentities", "connectSocialIdentity", "verifyConnectedSocialIdentity", "disconnectSocialIdentity"].some((method) => typeof repository[method] !== "function")) throw new TypeError("An authentication repository is required.");
+  const accountAccess = options.accountAccess || Object.freeze({ allows: () => true });
+  if (typeof accountAccess.allows !== "function") throw new TypeError("Social identity account access policy is invalid.");
   return {
     socialSignIn(provider, verifiedClaims) {
-      return repository.resolveSocialIdentity(provider, normalizedVerifiedSocialClaims(provider, verifiedClaims));
+      const normalized = normalizedVerifiedSocialClaims(provider, verifiedClaims);
+      if (!accountAccess.allows(normalized.email)) throw new TypeError("Social sign-in is unavailable for this account.");
+      return repository.resolveSocialIdentity(provider, normalized);
     },
     completeOnboarding(actor, role) {
       if (!actor?.userId) throw new TypeError("An authenticated account is required for onboarding.");

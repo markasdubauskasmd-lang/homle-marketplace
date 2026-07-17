@@ -48,6 +48,7 @@ import { createDisputeRepository } from "./dispute-repository.mjs";
 import { createDisputeService } from "./dispute-service.mjs";
 import { createPrivacyRequestRepository } from "./privacy-request-repository.mjs";
 import { createPrivacyRequestService } from "./privacy-request-service.mjs";
+import { createStagingAccountAccess } from "./staging-account-access.mjs";
 
 export function createMarketplaceRuntime(pool, options = {}) {
   const env = options.env || process.env;
@@ -65,7 +66,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
 
   const database = createMarketplaceDatabase(pool);
   const authenticationRepository = createAuthenticationRepository(database);
-  const identityService = createIdentityService(authenticationRepository);
+  const stagingAccountAccess = createStagingAccountAccess(env);
+  const identityService = createIdentityService(authenticationRepository, { accountAccess: stagingAccountAccess });
   const googleOidcProvider = options.googleOidcProvider || (environment.providers.google.enabled
     ? createGoogleOidcProvider({
       appOrigin: environment.appOrigin,
@@ -85,7 +87,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
       fetch: options.facebookFetch
     })
     : null);
-  const facebookIdentityService = createFacebookIdentityService(authenticationRepository, { tokenSecret: env.AUTH_TOKEN_SECRET });
+  const facebookIdentityService = createFacebookIdentityService(authenticationRepository, { tokenSecret: env.AUTH_TOKEN_SECRET, accountAccess: stagingAccountAccess });
   const facebookDataDeletionRepository = createFacebookDataDeletionRepository(database);
   const facebookDataDeletionService = facebookLoginProvider
     ? createFacebookDataDeletionService(facebookDataDeletionRepository, {
@@ -95,7 +97,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     })
     : null;
   const providerLinkState = createProviderLinkState({ secret: env.AUTH_TOKEN_SECRET, appOrigin: environment.appOrigin });
-  const credentialService = createCredentialService(authenticationRepository, { tokenSecret: env.AUTH_TOKEN_SECRET });
+  const credentialService = createCredentialService(authenticationRepository, { tokenSecret: env.AUTH_TOKEN_SECRET, accountAccess: stagingAccountAccess });
   const accountSessionService = createAccountSessionService(authenticationRepository, { sessionSecret: env.SESSION_SECRET, production: environment.production });
   const security = createAccountSecurity(authenticationRepository, {
     sessionSecret: env.SESSION_SECRET,
@@ -153,6 +155,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   return Object.freeze({
     database,
     authenticationRepository,
+    stagingAccountAccess,
     identityService,
     googleOidcProvider,
     facebookLoginProvider,

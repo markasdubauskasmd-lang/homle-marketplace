@@ -35,9 +35,19 @@ The Docker entrypoint connects over Render's private database reference before s
 
 The Blueprint asks Render to generate independent 256-bit values for `SESSION_SECRET`, `AUTH_TOKEN_SECRET` and `DATA_ENCRYPTION_KEY` only when each variable does not already exist. Their values never enter Git or deployment output. These application secrets are distinct from the generated database-role and Administrator credentials; adding them does not enable the marketplace or payments.
 
+The public Render preview also sets `STAGING_ACCOUNTS_ONLY=true`. With no `STAGING_ACCOUNT_EMAIL_SHA256` value it denies every password, Google and Facebook account creation or sign-in while preserving generic, non-enumerating public responses. Before a controlled test, privately add only the SHA-256 fingerprint of each founder-approved non-customer email to the service environment; multiple fingerprints are comma-separated and the runtime accepts at most 20 unique values. Never put the raw address or its fingerprint in Git, `render.yaml`, logs or a support message. On PowerShell, generate one canonical fingerprint without placing the address in command history:
+
+```powershell
+$StagingEmail = Read-Host "Approved non-customer staging email"
+$StagingEmail | node tools/staging-account-email-hash.mjs
+Remove-Variable StagingEmail
+```
+
+Copy only the resulting 64-character fingerprint into Render's private `STAGING_ACCOUNT_EMAIL_SHA256` variable. Keep this gate enabled for the entire staging rehearsal and remove synthetic accounts before any later public-account launch. The restriction is enforced in the server services before password registration/reset/resend writes, Google account resolution, or Facebook pending-identity writes; hiding the login buttons is not its security boundary.
+
 Render documents that free web services use an ephemeral filesystem, cannot attach a persistent disk, spin down when idle and are not for production applications. A free Render PostgreSQL database is limited to 1 GB, has no backups or managed pooling and expires after 30 days. Render also does not offer a free background-worker instance. This foundation is for time-boxed real mobile testing, not production launch. See Render's [free-instance limits](https://render.com/docs/free) and [current Blueprint specification](https://render.com/docs/blueprint-spec).
 
-Do not enable intake or marketplace capabilities merely because the database bootstrap passes. First record the safe bootstrap result and connect the remaining private services. Before any later sync, review the displayed resources and confirm that no paid resource or domain has been added. A real launch requires the managed PostgreSQL/SMTP/private-object-storage/monitoring promotion described below. The marketplace additionally needs a paid worker; payments remain a later separately approved gate.
+Do not enable intake or marketplace capabilities merely because the database bootstrap passes. The managed bootstrap completed successfully on 17 July 2026 for release `e4945e3`: Render recorded all 45 locked migrations verified, the service became live and the public health endpoint returned the same release with healthy data integrity. Account, intake and payment capabilities remain closed. Next connect the remaining private services and the approved-account fingerprint. Before any later sync, review the displayed resources and confirm that no paid resource or domain has been added. A real launch requires the managed PostgreSQL/email/private-object-storage/monitoring promotion described below. The marketplace additionally needs a paid worker; payments remain a later separately approved gate.
 
 ## Mandatory preflight
 

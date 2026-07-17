@@ -40,6 +40,8 @@ for (const key of ["PILOT_INTAKE_ENABLED", "MARKETPLACE_ENABLED", "MARKETPLACE_W
 }
 assert.equal(environmentEntry("APP_ORIGIN"), 'value: "https://homle-marketplace-preview.onrender.com"', "APP_ORIGIN must match the assigned HTTPS preview origin without a manual secret step.");
 assert.equal(environmentEntry("RENDER_STAGING_BOOTSTRAP_ENABLED"), 'value: "true"', "The staging database bootstrap must require an explicit deployment flag.");
+assert.equal(environmentEntry("STAGING_ACCOUNTS_ONLY"), 'value: "true"', "The public preview must deny all account creation until approved email fingerprints are added privately.");
+assert.equal(environmentEntry("STAGING_ACCOUNT_EMAIL_SHA256"), "", "Approved staging email fingerprints must not be committed to the Blueprint.");
 assert.equal(environmentEntry("ADMIN_KEY"), "generateValue: true", "The preview Administrator key must be generated, not committed.");
 assert.equal(environmentEntry("TIDEWAY_APP_PASSWORD"), "generateValue: true", "The restricted app-role password must be generated, not committed.");
 assert.equal(environmentEntry("TIDEWAY_WORKER_PASSWORD"), "generateValue: true", "The restricted worker-role password must be generated, not committed.");

@@ -43,20 +43,25 @@ export function createFacebookIdentityService(repository, options = {}) {
   const tokenSecret = options.tokenSecret;
   const clock = options.clock || (() => new Date());
   const verificationTtlSeconds = options.verificationTtlSeconds ?? 3600;
+  const accountAccess = options.accountAccess || Object.freeze({ allows: () => true });
+  if (typeof accountAccess.allows !== "function") throw new TypeError("Facebook identity account access policy is invalid.");
 
   return Object.freeze({
     async begin(providerClaims) {
       const selected = claims(providerClaims);
       const existing = await repository.findExistingSocialIdentity("facebook", selected.subject);
-      if (existing) return { authenticated: true, account: publicAccount(existing), emailDelivery: null };
+      if (existing) return accountAccess.allows(existing.email)
+        ? { authenticated: true, account: publicAccount(existing), emailDelivery: null }
+        : { authenticated: false, verificationRequired: false, reason: "staging-access-unavailable", emailDelivery: null };
       if (!selected.email) return { authenticated: false, verificationRequired: false, reason: "facebook-email-unavailable", emailDelivery: null };
+      if (!accountAccess.allows(selected.email)) return { authenticated: false, verificationRequired: false, reason: "staging-access-unavailable", emailDelivery: null };
       const token = newOpaqueToken();
       const verificationHash = hashPurposeToken(token, "facebook-email-verification", tokenSecret);
       const expiresAt = expiry(clock, verificationTtlSeconds);
       const result = await repository.beginPendingSocialIdentity({ provider: "facebook", ...selected, verificationHash, expiresAt });
       if (result === "existing") {
         const raced = await repository.findExistingSocialIdentity("facebook", selected.subject);
-        if (raced) return { authenticated: true, account: publicAccount(raced), emailDelivery: null };
+        if (raced && accountAccess.allows(raced.email)) return { authenticated: true, account: publicAccount(raced), emailDelivery: null };
         throw new Error("facebook-identity-race-unresolved");
       }
       if (result !== "pending") throw new TypeError("Facebook pending identity returned an invalid state.");
@@ -66,7 +71,7 @@ export function createFacebookIdentityService(repository, options = {}) {
       let verificationHash;
       try { verificationHash = hashPurposeToken(token, "facebook-email-verification", tokenSecret); } catch { return { verified: false, reason: "invalid-or-expired" }; }
       const account = await repository.consumePendingSocialIdentity(verificationHash);
-      return account ? { verified: true, account: publicAccount(account) } : { verified: false, reason: "existing-account-requires-sign-in" };
+      return account && accountAccess.allows(account.email) ? { verified: true, account: publicAccount(account) } : { verified: false, reason: "existing-account-requires-sign-in" };
     }
   });
 }

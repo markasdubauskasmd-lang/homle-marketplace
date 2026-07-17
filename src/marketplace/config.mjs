@@ -1,4 +1,5 @@
 import { emailDeliveryEnvironment } from "./email-delivery.mjs";
+import { createStagingAccountAccess } from "./staging-account-access.mjs";
 
 const providerRequirements = Object.freeze({
   google: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
@@ -72,6 +73,7 @@ export function validateMarketplaceEnvironment(env = process.env) {
   const state = marketplaceEnvironment(env);
   const errors = [];
   errors.push(...state.email.errors);
+  try { createStagingAccountAccess(env); } catch (error) { errors.push(error.message); }
   for (const [provider, status] of Object.entries(state.providers)) {
     if (status.partial) errors.push(`${provider} sign-in is partially configured; missing ${status.missing.join(", ")}.`);
   }
