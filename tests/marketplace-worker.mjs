@@ -100,7 +100,10 @@ let poolClosed = 0;
 const disabled = await createMarketplaceWorkerAttachment({ env: { MARKETPLACE_WORKER_ENABLED: "false" }, createPool() { throw new Error("disabled worker created a pool"); } });
 assert.equal(disabled.enabled, false);
 assert.equal(workerPoolEnvironment({ WORKER_DATABASE_URL: "postgresql://tideway_worker@127.0.0.1/test?sslmode=disable" }).DATABASE_POOL_MAX, "5");
-assert.throws(() => workerPoolEnvironment({ NODE_ENV: "production", WORKER_DATABASE_URL: "postgresql://tideway_worker@db.example/test?sslmode=disable" }), /verify-full/);
+assert.throws(() => workerPoolEnvironment({ NODE_ENV: "production", WORKER_DATABASE_URL: "postgresql://tideway_worker@db.example/test?sslmode=disable" }), /verified TLS|verify-full/);
+const renderWorkerPool = workerPoolEnvironment({ NODE_ENV: "production", RENDER: "true", RENDER_SERVICE_TYPE: "worker", WORKER_DATABASE_URL: "postgresql://tideway_worker:private@dpg-cvrdebuuk2gs73bq4m00/homle_marketplace_homle_staging" });
+assert.equal(renderWorkerPool.DATABASE_URL, "postgresql://tideway_worker:private@dpg-cvrdebuuk2gs73bq4m00/homle_marketplace_homle_staging");
+assert.equal(renderWorkerPool.DATABASE_POOL_MAX, "5");
 assert.throws(() => workerPoolEnvironment({ WORKER_DATABASE_URL: "postgresql://tideway_app@127.0.0.1/test" }), /tideway_worker/);
 const fakeSupervisor = { start() { return {}; }, snapshot() { return { jobs: [] }; }, async close() {} };
 const attached = await createMarketplaceWorkerAttachment({

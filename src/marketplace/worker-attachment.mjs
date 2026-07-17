@@ -1,5 +1,5 @@
 import { bookingPricingPolicyFromEnvironment } from "./booking-workflow.mjs";
-import { postgresPoolOptions } from "./database.mjs";
+import { postgresPoolOptions, postgresTransportSecurity } from "./database.mjs";
 import { loadMarketplaceDeploymentAdapters } from "./attachment.mjs";
 import { createS3ObjectStorage } from "./s3-object-storage.mjs";
 import { createTransactionalEmailDelivery, emailDeliveryEnvironment } from "./email-delivery.mjs";
@@ -25,8 +25,11 @@ export function workerPoolEnvironment(env) {
   if (username !== "tideway_worker") throw new TypeError("WORKER_DATABASE_URL must authenticate as tideway_worker.");
   const local = ["127.0.0.1", "localhost", "::1"].includes(parsed.hostname.toLowerCase());
   const sslMode = parsed.searchParams.get("sslmode");
-  if (env.NODE_ENV === "production" && !local && sslMode !== "verify-full") throw new TypeError("A remote production WORKER_DATABASE_URL must use sslmode=verify-full.");
   if (sslMode && !new Set(["disable", "prefer", "require", "verify-ca", "verify-full"]).has(sslMode)) throw new TypeError("WORKER_DATABASE_URL contains an unsupported sslmode.");
+  if (env.NODE_ENV === "production" && !local) {
+    const transport = postgresTransportSecurity(supplied, env);
+    if (transport.mode === "verified-tls" && sslMode !== "verify-full") throw new TypeError("A remote production WORKER_DATABASE_URL outside Render's private network must use sslmode=verify-full.");
+  }
   return { ...env, DATABASE_URL: supplied, DATABASE_POOL_MAX: env.WORKER_DATABASE_POOL_MAX || "5" };
 }
 
