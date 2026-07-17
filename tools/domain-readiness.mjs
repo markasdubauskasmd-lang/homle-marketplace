@@ -3,6 +3,7 @@ import { isIP } from "node:net";
 import tls from "node:tls";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { normalizeExpectedReleaseCommit, packagedReleaseIdentityMatches } from "../release-identity.mjs";
 
 const toolPath = fileURLToPath(import.meta.url);
 const maximumResponseBytes = 128 * 1024;
@@ -21,19 +22,6 @@ function expectedSocialProviders(value = []) {
 function expectedSocialProvidersFromEnvironment(value) {
   const text = String(value || "").trim();
   return text ? text.split(",").map((entry) => entry.trim()) : [];
-}
-
-export function expectedReleaseCommit(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (!/^[0-9a-f]{8}$/.test(normalized)) throw new TypeError("Expected release must be the exact eight-character source commit from the verified package manifest.");
-  return normalized;
-}
-
-function packagedReleaseMatches(value, expectedCommit) {
-  if (!value || value.source !== "packaged" || !/^[0-9a-f]{8}$/.test(value.sourceCommit || "") || !Number.isInteger(value.migrationCount) || value.migrationCount < 1) return false;
-  const builtAt = new Date(value.builtAt || "");
-  if (!Number.isFinite(builtAt.getTime()) || builtAt.toISOString() !== value.builtAt || builtAt.getTime() > Date.now() + 300_000) return false;
-  return !expectedCommit || value.sourceCommit === expectedCommit;
 }
 
 function exactPublicOrigin(value) {
@@ -227,7 +215,7 @@ export async function verifyDomainReadiness(origin, options = {}) {
   const fetchImplementation = options.fetch || globalThis.fetch;
   if (typeof fetchImplementation !== "function") throw new TypeError("A fetch implementation is required.");
   const expectedSocial = expectedSocialProviders(options.expectedSocialProviders);
-  const expectedRelease = options.expectedReleaseCommit ? expectedReleaseCommit(options.expectedReleaseCommit) : null;
+  const expectedRelease = options.expectedReleaseCommit ? normalizeExpectedReleaseCommit(options.expectedReleaseCommit) : null;
   const errors = [];
   const checks = [];
   const record = (name, ok, detail) => { checks.push(Object.freeze({ name, ok, detail })); if (!ok) errors.push(detail); };
@@ -266,7 +254,7 @@ export async function verifyDomainReadiness(origin, options = {}) {
     const healthy = response.status === 200 && health?.ok === true && health?.service === "tideway-marketplace" && health?.dataIntegrity === "healthy" && health?.writesAllowed === true && health?.localDemosEnabled === false;
     record("health", healthy, "Tideway health must be HTTP 200 with healthy integrity, writes allowed and local demos disabled.");
     record("health-cache", /(?:^|,)\s*no-store\b/i.test(response.headers.get("cache-control") || ""), "Health endpoint must use Cache-Control: no-store.");
-    record("release-identity", packagedReleaseMatches(health?.release, expectedRelease), expectedRelease ? `The live Homle runtime must identify verified release ${expectedRelease}.` : "The live Homle runtime must expose a valid packaged release identity.");
+    record("release-identity", packagedReleaseIdentityMatches(health?.release, expectedRelease), expectedRelease ? `The live Homle runtime must identify verified release ${expectedRelease}.` : "The live Homle runtime must expose a valid packaged release identity.");
   } catch (error) { record("health", false, error.message); }
 
   try {

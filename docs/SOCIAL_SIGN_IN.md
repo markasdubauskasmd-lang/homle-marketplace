@@ -65,7 +65,7 @@ https://homle.co.uk/api/marketplace/auth/facebook/callback
 https://homle.co.uk/api/marketplace/auth/facebook/data-deletion
 ```
 
-Before starting managed staging, set `TIDEWAY_EXPECT_SOCIAL_PROVIDERS` to the provider being activated first (for example `google`) and run `pnpm run preflight:authentication`. The resulting JSON contains only booleans, provider names, callback URLs and missing-action text; it never returns credential values. A passing configuration report is not permission to expose the buttons: the report lists the remaining live service probes, external-domain check and two-account staging evidence that must still pass.
+Before starting managed staging, set `TIDEWAY_EXPECT_RELEASE` to the exact eight-character `sourceCommit` in the uploaded package manifest, set `TIDEWAY_EXPECT_SOCIAL_PROVIDERS` to the provider being activated first (for example `google`) and run `pnpm run preflight:authentication`. The command reads the bounded identity embedded in the running package and refuses a missing or different build. Its JSON contains only booleans, expected/running commit IDs, provider names, callback URLs and missing-action text; it never returns credential values. A passing configuration report is not permission to expose the buttons: the report lists the remaining live service probes, external-domain check and two-account staging evidence that must still pass.
 
 ## Facebook security model
 

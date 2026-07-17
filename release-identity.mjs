@@ -3,6 +3,12 @@ import path from "node:path";
 
 export const releaseIdentityFilename = "homle-release.json";
 
+export function normalizeExpectedReleaseCommit(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{8}$/.test(normalized)) throw new TypeError("Expected release must be the exact eight-character source commit from the verified package manifest.");
+  return normalized;
+}
+
 function exactIsoTimestamp(value) {
   if (typeof value !== "string" || value.length < 20 || value.length > 35) return null;
   const parsed = new Date(value);
@@ -12,13 +18,23 @@ function exactIsoTimestamp(value) {
 export function normalizePackagedReleaseIdentity(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Packaged release identity must be an object.");
   if (value.schemaVersion !== 1 || value.application !== "Homle") throw new TypeError("Packaged release identity has an unsupported application or schema.");
-  const sourceCommit = String(value.sourceCommit || "").trim().toLowerCase();
+  let sourceCommit;
+  try { sourceCommit = normalizeExpectedReleaseCommit(value.sourceCommit); } catch { throw new TypeError("Packaged release identity contains invalid build evidence."); }
   const builtAt = exactIsoTimestamp(value.builtAt);
   const migrationCount = Number(value.migrationCount);
-  if (!/^[0-9a-f]{8}$/.test(sourceCommit) || !builtAt || !Number.isInteger(migrationCount) || migrationCount < 1 || migrationCount > 10_000) {
+  if (!builtAt || !Number.isInteger(migrationCount) || migrationCount < 1 || migrationCount > 10_000) {
     throw new TypeError("Packaged release identity contains invalid build evidence.");
   }
   return Object.freeze({ source: "packaged", sourceCommit, builtAt, migrationCount });
+}
+
+export function packagedReleaseIdentityMatches(value, expectedCommit = null, { now = Date.now() } = {}) {
+  let expected = null;
+  try { expected = expectedCommit ? normalizeExpectedReleaseCommit(expectedCommit) : null; } catch { return false; }
+  if (!value || value.source !== "packaged" || !/^[0-9a-f]{8}$/.test(value.sourceCommit || "") || !Number.isInteger(value.migrationCount) || value.migrationCount < 1 || value.migrationCount > 10_000) return false;
+  const builtAt = new Date(value.builtAt || "");
+  if (!Number.isFinite(builtAt.getTime()) || builtAt.toISOString() !== value.builtAt || builtAt.getTime() > Number(now) + 300_000) return false;
+  return !expected || value.sourceCommit === expected;
 }
 
 export async function loadReleaseIdentity({ projectRoot, readFileImplementation = readFile } = {}) {

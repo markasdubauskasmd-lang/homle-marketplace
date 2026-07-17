@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { expectedReleaseCommit, resolvePublicAddresses, verifyDomainReadiness } from "../tools/domain-readiness.mjs";
+import { normalizeExpectedReleaseCommit } from "../release-identity.mjs";
+import { resolvePublicAddresses, verifyDomainReadiness } from "../tools/domain-readiness.mjs";
 
 const securityHeaders = {
   "content-security-policy": "default-src 'self'; img-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
@@ -148,8 +149,8 @@ for (const name of ["health", "anonymous-admin-closed", "local-demo-closed:/trac
 await assert.rejects(verifyDomainReadiness("https://tidewaycleaning.co.uk", { expectedSocialProviders: "google" }), /array/i);
 await assert.rejects(verifyDomainReadiness("https://tidewaycleaning.co.uk", { expectedSocialProviders: ["apple"] }), /google and facebook/i);
 await assert.rejects(verifyDomainReadiness("https://tidewaycleaning.co.uk", { expectedSocialProviders: ["google", "GOOGLE"] }), /duplicates/i);
-assert.equal(expectedReleaseCommit("A92999ED"), "a92999ed");
-assert.throws(() => expectedReleaseCommit("main"), /eight-character source commit/i);
+assert.equal(normalizeExpectedReleaseCommit("A92999ED"), "a92999ed");
+assert.throws(() => normalizeExpectedReleaseCommit("main"), /eight-character source commit/i);
 
 for (const invalid of [
   "http://tidewaycleaning.co.uk", "https://localhost", "https://127.0.0.1", "https://tidewaycleaning.co.uk/path",

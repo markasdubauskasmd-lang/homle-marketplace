@@ -7,6 +7,8 @@ import { authenticationActivationReadiness, expectedAuthenticationProviders } fr
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "homle-authentication-preflight-"));
+const releaseIdentity = Object.freeze({ source: "packaged", sourceCommit: "6466d6e5", builtAt: new Date(Date.now() - 60_000).toISOString(), migrationCount: 40 });
+const readinessOptions = Object.freeze({ projectRoot, releaseIdentity });
 const secrets = Object.freeze({
   admin: "unit-test-admin-secret-with-32-characters",
   database: "postgresql://homle_app:private@db.example.com/homle",
@@ -48,7 +50,8 @@ const configured = {
   FACEBOOK_APP_ID: "123456789012345",
   FACEBOOK_APP_SECRET: secrets.facebook,
   FACEBOOK_GRAPH_API_VERSION: "v99.0",
-  TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google,facebook"
+  TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google,facebook",
+  TIDEWAY_EXPECT_RELEASE: "6466d6e5"
 };
 
 try {
@@ -57,10 +60,11 @@ try {
   assert.throws(() => expectedAuthenticationProviders("google,GOOGLE"), /duplicates/i);
   assert.throws(() => expectedAuthenticationProviders("apple"), /only google and facebook/i);
 
-  const ready = authenticationActivationReadiness(configured, { projectRoot });
+  const ready = authenticationActivationReadiness(configured, readinessOptions);
   assert.equal(ready.ok, true, ready.errors.join("\n"));
   assert.equal(ready.configurationReady, true);
-  assert.deepEqual(ready.checks, { productionDeployment: true, marketplaceCore: true, emailFallback: true, socialProviders: true });
+  assert.deepEqual(ready.checks, { productionDeployment: true, releaseIdentity: true, marketplaceCore: true, emailFallback: true, socialProviders: true });
+  assert.deepEqual(ready.release, { expectedCommit: "6466d6e5", runningCommit: "6466d6e5" });
   assert.equal(ready.callbacks.google, "https://homle.co.uk/api/marketplace/auth/google/callback");
   assert.equal(ready.callbacks.facebook, "https://homle.co.uk/api/marketplace/auth/facebook/callback");
   assert.deepEqual(ready.facebookDataDeletion, {
@@ -71,27 +75,36 @@ try {
   const serialized = JSON.stringify(ready);
   for (const secret of Object.values(secrets)) assert(!serialized.includes(secret), "Authentication preflight exposed a secret value.");
 
-  const partialGoogle = authenticationActivationReadiness({ ...configured, GOOGLE_CLIENT_SECRET: "", TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google" }, { projectRoot });
+  const partialGoogle = authenticationActivationReadiness({ ...configured, GOOGLE_CLIENT_SECRET: "", TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google" }, readinessOptions);
   assert.equal(partialGoogle.ok, false);
   assert.equal(partialGoogle.providers.google.configured, false);
   assert(partialGoogle.errors.some((error) => error.includes("Google sign-in credentials are incomplete")));
 
-  const nonPublicOrigin = authenticationActivationReadiness({ ...configured, APP_ORIGIN: "https://127.0.0.1", TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google" }, { projectRoot });
+  const nonPublicOrigin = authenticationActivationReadiness({ ...configured, APP_ORIGIN: "https://127.0.0.1", TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google" }, readinessOptions);
   assert.equal(nonPublicOrigin.ok, false);
   assert.equal(nonPublicOrigin.origin, null);
   assert.equal(nonPublicOrigin.callbacks.google, null);
   assert.equal(nonPublicOrigin.facebookDataDeletion, null);
 
-  const detached = authenticationActivationReadiness({ ...configured, MARKETPLACE_ENABLED: "false", TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google" }, { projectRoot });
+  const detached = authenticationActivationReadiness({ ...configured, MARKETPLACE_ENABLED: "false", TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google" }, readinessOptions);
   assert.equal(detached.ok, false);
   assert.equal(detached.checks.marketplaceCore, false);
   assert(detached.errors.some((error) => error.includes("MARKETPLACE_ENABLED")));
 
-  const missingSelection = authenticationActivationReadiness({ ...configured, TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "" }, { projectRoot });
+  const mismatchedRelease = authenticationActivationReadiness(configured, { projectRoot, releaseIdentity: { ...releaseIdentity, sourceCommit: "00000000" } });
+  assert.equal(mismatchedRelease.ok, false);
+  assert.equal(mismatchedRelease.checks.releaseIdentity, false);
+  assert(mismatchedRelease.errors.some((error) => error.includes("does not match expected release")));
+
+  const missingExpectedRelease = authenticationActivationReadiness({ ...configured, TIDEWAY_EXPECT_RELEASE: "" }, readinessOptions);
+  assert.equal(missingExpectedRelease.ok, false);
+  assert(missingExpectedRelease.errors.some((error) => error.includes("eight-character source commit")));
+
+  const missingSelection = authenticationActivationReadiness({ ...configured, TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "" }, readinessOptions);
   assert.equal(missingSelection.ok, false);
   assert(missingSelection.errors.some((error) => error.includes("Choose at least one")));
 
-  console.log("Authentication activation readiness tests passed: exact Homle callbacks, complete provider selection, full marketplace prerequisites, staging-evidence boundary and secret-free reports.");
+  console.log("Authentication activation readiness tests passed: exact packaged release, Homle callbacks, complete provider selection, full marketplace prerequisites, staging-evidence boundary and secret-free reports.");
 } finally {
   await rm(fixtureRoot, { recursive: true, force: true });
 }

@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
-import { loadReleaseIdentity, normalizePackagedReleaseIdentity, releaseIdentityFilename } from "../release-identity.mjs";
+import { loadReleaseIdentity, normalizeExpectedReleaseCommit, normalizePackagedReleaseIdentity, packagedReleaseIdentityMatches, releaseIdentityFilename } from "../release-identity.mjs";
 
 const valid = { schemaVersion: 1, application: "Homle", sourceCommit: "A92999ED", builtAt: "2026-07-17T03:00:00.000Z", migrationCount: 40 };
 assert.deepEqual(normalizePackagedReleaseIdentity(valid), { source: "packaged", sourceCommit: "a92999ed", builtAt: valid.builtAt, migrationCount: 40 });
+assert.equal(normalizeExpectedReleaseCommit("A92999ED"), "a92999ed");
+assert.throws(() => normalizeExpectedReleaseCommit("main"), /eight-character source commit/i);
+assert.equal(packagedReleaseIdentityMatches(normalizePackagedReleaseIdentity(valid), "a92999ed", { now: Date.parse("2026-07-17T03:01:00.000Z") }), true);
+assert.equal(packagedReleaseIdentityMatches(normalizePackagedReleaseIdentity(valid), "00000000", { now: Date.parse("2026-07-17T03:01:00.000Z") }), false);
 
 for (const invalid of [
   { ...valid, schemaVersion: 2 },
