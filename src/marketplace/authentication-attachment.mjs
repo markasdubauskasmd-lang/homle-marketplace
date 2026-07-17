@@ -40,7 +40,7 @@ export async function createAuthenticationAttachment(options = {}) {
   if (!environment.authTokenConfigured) required.push("AUTH_TOKEN_SECRET");
   if (!environment.appOrigin) required.push("APP_ORIGIN");
   if (required.length) throw new TypeError(`Authentication attachment requires ${required.join(", ")}.`);
-  if (!environment.emailConfigured) throw new TypeError("Authentication attachment requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
+  if (!environment.emailConfigured && !environment.capabilities.google) throw new TypeError("Authentication attachment requires one configured email provider or a complete Google OAuth client.");
 
   const clientKey = (options.createClientKeyResolver || createTrustedClientKeyResolver)(env);
   const adapters = options.adapters || await (options.loadAdapters || loadMarketplaceDeploymentAdapters)(env);
@@ -51,11 +51,13 @@ export async function createAuthenticationAttachment(options = {}) {
   let pool;
   let runtime;
   try {
-    emailDelivery = await createEmailDelivery(env, { onUnexpectedError: adapters.onUnexpectedError });
-    if (!emailDelivery || typeof emailDelivery.send !== "function" || typeof emailDelivery.verify !== "function" || typeof emailDelivery.close !== "function") throw new TypeError("Authentication email delivery did not compose completely.");
+    if (environment.emailConfigured) {
+      emailDelivery = await createEmailDelivery(env, { onUnexpectedError: adapters.onUnexpectedError });
+      if (!emailDelivery || typeof emailDelivery.send !== "function" || typeof emailDelivery.verify !== "function" || typeof emailDelivery.close !== "function") throw new TypeError("Authentication email delivery did not compose completely.");
+    }
     pool = await createPool(env);
     await (options.probeDatabase || probeMarketplaceDatabase)(pool);
-    await emailDelivery.verify();
+    if (emailDelivery) await emailDelivery.verify();
     const rateLimiter = (options.createRateLimiter || createPostgresRateLimiter)(pool, { secret: env.SESSION_SECRET });
     runtime = (options.createRuntime || createAuthenticationRuntime)(pool, {
       env,
@@ -73,9 +75,9 @@ export async function createAuthenticationAttachment(options = {}) {
   }
 
   const authenticationCapabilities = publicAuthenticationCapabilities(env, {
-    emailPassword: true,
-    passwordReset: true,
-    emailVerification: true,
+    emailPassword: runtime.emailPasswordReady === true,
+    passwordReset: runtime.emailPasswordReady === true,
+    emailVerification: runtime.emailPasswordReady === true,
     google: runtime.googleOidcReady === true,
     apple: false,
     facebook: runtime.facebookLoginReady === true
@@ -91,7 +93,7 @@ export async function createAuthenticationAttachment(options = {}) {
       if (closed) return;
       closed = true;
       const failures = [];
-      try { await emailDelivery.close(); } catch (error) { failures.push(error); }
+      try { await emailDelivery?.close?.(); } catch (error) { failures.push(error); }
       try { await pool.end?.(); } catch (error) { failures.push(error); }
       try { await adapters.close(); } catch (error) { failures.push(error); }
       if (failures.length) throw new AggregateError(failures, "Authentication resources did not close cleanly.");

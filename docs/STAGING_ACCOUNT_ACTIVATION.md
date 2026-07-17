@@ -32,6 +32,8 @@ Choose one reviewed delivery path:
 
 Facebook's first-login mailbox check, password verification and password reset depend on this sender. Homle never advertises those capabilities until delivery verifies successfully.
 
+For a Google-only account rehearsal, the email sender may be omitted. Google sign-in and role onboarding remain available, while email/password, password reset, email verification and Facebook stay unavailable. The full booking marketplace still requires a verified sender for participant notifications before `MARKETPLACE_ENABLED=true`.
+
 ## 3. Approve only the staging test account
 
 Keep `STAGING_ACCOUNTS_ONLY=true`. Generate the canonical fingerprint locally:
@@ -58,6 +60,25 @@ Deploy, then verify `/api/auth/providers`. It must advertise only providers that
 
 ## 5. Evidence and cleanup
 
-Test one approved Landlord and one approved Cleaner onboarding path. Confirm that a different email cannot create an account, request verification, reset a password or sign in. After the rehearsal, delete synthetic accounts, revoke their sessions and set `AUTHENTICATION_ENABLED=false` until the next controlled test.
+Test one approved Landlord and one approved Cleaner onboarding path. Confirm that a different email cannot create an account, request verification, reset a password or sign in. After the rehearsal, set `AUTHENTICATION_ENABLED=false` first.
+
+The repository includes an owner-only account cleanup command that deletes an approved account, its sessions, identities and account-only profile data. It refuses Administrator accounts and refuses any account that has properties, cleaning requests, media, bookings, payments, messages, reviews, disputes, privacy cases or other marketplace activity. This prevents an account rehearsal cleanup from silently destroying business evidence.
+
+Use the migration-owner **external** staging database URL with verified TLS, never the web or worker role. Supply the approved email through the private prompt so it does not enter shell history:
+
+```powershell
+$env:STAGING_ACCOUNT_PURGE_DATABASE_URL = Read-Host "Migration-owner external staging database URL"
+$env:STAGING_ACCOUNT_PURGE_REQUEST_ID = [guid]::NewGuid().ToString()
+$env:STAGING_ACCOUNT_PURGE_REASON = "Remove the completed non-customer account-only staging rehearsal."
+$env:STAGING_ACCOUNT_PURGE_CONFIRMATION = "DELETE APPROVED ACCOUNT-ONLY HOMLE STAGING TEST"
+$env:AUTHENTICATION_ENABLED = "false"
+$env:MARKETPLACE_ENABLED = "false"
+$env:PILOT_INTAKE_ENABLED = "false"
+$env:PAYMENTS_ENABLED = "false"
+pnpm run purge:staging-account
+Remove-Item Env:STAGING_ACCOUNT_PURGE_DATABASE_URL, Env:STAGING_ACCOUNT_PURGE_REQUEST_ID, Env:STAGING_ACCOUNT_PURGE_REASON, Env:STAGING_ACCOUNT_PURGE_CONFIRMATION
+```
+
+Keep the printed random cleanup request reference as evidence. A later full booking rehearsal needs its separate media and transaction retention process; this command deliberately refuses that broader case.
 
 This account-only stage intentionally does not require object storage, live booking actions, a worker or Stripe. Those stay closed until their separate readiness checks pass.

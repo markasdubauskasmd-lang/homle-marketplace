@@ -91,7 +91,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   if (facebook && (!facebookIdentity || typeof facebookIdentity.begin !== "function" || typeof facebookIdentity.verify !== "function")) throw new TypeError("Facebook authentication routes require the pending identity service.");
   if (facebook && (!facebookDataDeletion || typeof facebookDataDeletion.request !== "function" || typeof facebookDataDeletion.status !== "function")) throw new TypeError("Facebook authentication routes require the signed data-deletion service.");
   if (!sessions || ["establish", "rotate", "logout", "logoutAll"].some((method) => typeof sessions[method] !== "function")) throw new TypeError("Authentication HTTP routes require the session service.");
-  if (!emailDelivery || typeof emailDelivery.send !== "function") throw new TypeError("Authentication HTTP routes require a trusted email-delivery adapter.");
+  const emailReady = Boolean(emailDelivery && typeof emailDelivery.send === "function");
   const appOrigin = exactOrigin(options.appOrigin);
   const minimumPublicResponseMs = options.minimumPublicResponseMs ?? 500;
   if (!Number.isInteger(minimumPublicResponseMs) || minimumPublicResponseMs < 0 || minimumPublicResponseMs > 5000) throw new RangeError("Public authentication response delay is outside the supported range.");
@@ -105,6 +105,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
 
   async function privateDelivery(delivery, intent = "") {
     if (!delivery) return;
+    if (!emailReady) throw new TypeError("Email delivery is not available for this authentication stage.");
     await emailDelivery.send({ kind: delivery.kind, recipient: delivery.recipient, link: deliveryLink(appOrigin, delivery, intent), expiresAt: delivery.expiresAt });
   }
 
@@ -348,6 +349,11 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, status: result.status, requestedAt: result.requestedAt, completedAt: result.completedAt });
           return true;
         }
+        const emailOnlyRoute = new Set([
+          `${prefix}signup`, `${prefix}verification/resend`, `${prefix}verification/confirm`,
+          `${prefix}login`, `${prefix}password-reset/request`, `${prefix}password-reset/confirm`
+        ]).has(url.pathname);
+        if (emailOnlyRoute && !emailReady) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
         if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
         security.requireOrigin(request);
         if (url.pathname === `${prefix}signup`) {

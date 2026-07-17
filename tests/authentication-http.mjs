@@ -308,4 +308,26 @@ emailDelivery.send = async () => { throw new Error("private SMTP detail"); };
 const deliveryFailure = await dispatch(router, "POST", "/api/marketplace/auth/password-reset/request", { email: "owner@example.com" }, publicHeaders);
 assert(deliveryFailure.response.statusCode === 500 && deliveryFailure.body.error === "Something went wrong. Please try again." && !deliveryFailure.response.body.includes("SMTP") && unexpectedError?.message === "private SMTP detail", "Delivery failure leaked private provider details or bypassed private monitoring.");
 
+const googleOnlyRouter = createAuthenticationHttpRouter({
+  security,
+  credentialService,
+  identityService,
+  providerLinkState,
+  accountSessionService,
+  rateLimiter,
+  googleOidcProvider
+}, {
+  appOrigin: origin,
+  clientKey: () => "198.51.100.10",
+  minimumPublicResponseMs: 0,
+  now: () => nowValue,
+  async wait() {},
+  onUnexpectedError(error) { unexpectedError = error; }
+});
+const googleOnlyStart = await dispatch(googleOnlyRouter, "GET", "/api/marketplace/auth/google/start?intent=book", undefined, { "user-agent": "Example Browser" });
+const unavailableEmailLogin = await dispatch(googleOnlyRouter, "POST", "/api/marketplace/auth/login", { email: "owner@example.com", password: "secret" }, publicHeaders);
+const unavailableEmailSignup = await dispatch(googleOnlyRouter, "POST", "/api/marketplace/auth/signup", { email: "owner@example.com", password: "secret", displayName: "Owner" }, publicHeaders);
+assert(googleOnlyStart.response.statusCode === 302 && googleOnlyStart.response.headers.Location.startsWith("https://accounts.google.com/"), "Google-only authentication could not start its configured provider.");
+assert(unavailableEmailLogin.response.statusCode === 404 && unavailableEmailLogin.body.code === "not-found" && unavailableEmailSignup.response.statusCode === 404, "Google-only authentication exposed email/password routes without a verified delivery provider.");
+
 console.log("Authentication HTTP tests passed: generic credential lifecycle, social sign-in, password or exact-provider step-up, lockout-safe connection/removal, session revocation, onboarding, limiting and sanitized failures.");

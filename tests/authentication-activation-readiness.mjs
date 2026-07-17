@@ -67,7 +67,7 @@ try {
   const ready = authenticationActivationReadiness(configured, readinessOptions);
   assert.equal(ready.ok, true, ready.errors.join("\n"));
   assert.equal(ready.configurationReady, true);
-  assert.deepEqual(ready.checks, { productionDeployment: true, releaseIdentity: true, authenticationCore: true, emailFallback: true, socialProviders: true });
+  assert.deepEqual(ready.checks, { productionDeployment: true, releaseIdentity: true, authenticationCore: true, accountEntry: true, emailFallback: true, socialProviders: true });
   assert.deepEqual(ready.release, { expectedCommit: "6466d6e5", runningCommit: "6466d6e5" });
   assert.equal(ready.callbacks.google, "https://homle.co.uk/api/marketplace/auth/google/callback");
   assert.equal(ready.callbacks.facebook, "https://homle.co.uk/api/marketplace/auth/facebook/callback");
@@ -83,6 +83,21 @@ try {
   assert.equal(partialGoogle.ok, false);
   assert.equal(partialGoogle.providers.google.configured, false);
   assert(partialGoogle.errors.some((error) => error.includes("Google sign-in credentials are incomplete")));
+
+  const googleOnly = authenticationActivationReadiness({
+    ...configured,
+    SMTP_URL: "",
+    EMAIL_FROM: "",
+    FACEBOOK_APP_ID: "",
+    FACEBOOK_APP_SECRET: "",
+    FACEBOOK_GRAPH_API_VERSION: "",
+    TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google"
+  }, readinessOptions);
+  assert.equal(googleOnly.ok, true, googleOnly.errors.join("\n"));
+  assert.equal(googleOnly.checks.emailFallback, false);
+  assert.equal(googleOnly.checks.accountEntry, true);
+  assert.equal(googleOnly.providers.google.configured, true);
+  assert.equal(googleOnly.providers.facebook.configured, false);
 
   const nonPublicOrigin = authenticationActivationReadiness({ ...configured, APP_ORIGIN: "https://127.0.0.1", TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google" }, readinessOptions);
   assert.equal(nonPublicOrigin.ok, false);

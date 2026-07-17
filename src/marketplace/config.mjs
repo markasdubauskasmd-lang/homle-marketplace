@@ -131,7 +131,7 @@ export function validateMarketplaceEnvironment(env = process.env) {
       if (!state.databaseConfigured) errors.push("DATABASE_URL is required when production authentication is enabled.");
       if (!state.sessionConfigured) errors.push("A 32-character SESSION_SECRET is required when production authentication is enabled.");
       if (!state.authTokenConfigured) errors.push("A separate 32-character AUTH_TOKEN_SECRET is required when production authentication is enabled.");
-      if (!state.emailConfigured) errors.push("A configured email provider and EMAIL_FROM are required when production authentication is enabled.");
+      if (!state.emailConfigured && !state.capabilities.google) errors.push("Production authentication requires a configured email provider or a complete Google OAuth client.");
     }
     if (state.marketplace.requested) {
       if (!state.databaseConfigured) errors.push("DATABASE_URL is required when the production marketplace is enabled.");

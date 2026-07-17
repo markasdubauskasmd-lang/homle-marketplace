@@ -61,7 +61,7 @@ const attachment = await createAuthenticationAttachment({
   async probeDatabase() { probed += 1; },
   createRateLimiter() { return { async consume() { return { allowed: true }; } }; },
   createRuntime() {
-    return { router, authenticationHttpReady: true, googleOidcReady: true, facebookLoginReady: true };
+    return { router, authenticationHttpReady: true, emailPasswordReady: true, googleOidcReady: true, facebookLoginReady: true };
   }
 });
 assert.equal(attachment.enabled, true);
@@ -77,6 +77,36 @@ await attachment.close();
 assert.equal(emailClosed, 1);
 assert.equal(poolClosed, 1);
 assert.equal(adaptersClosed, 1);
+
+const googleOnlyEnvironment = Object.freeze({
+  ...environment,
+  SMTP_URL: "",
+  EMAIL_FROM: "",
+  FACEBOOK_APP_ID: "",
+  FACEBOOK_APP_SECRET: "",
+  FACEBOOK_GRAPH_API_VERSION: ""
+});
+let googleOnlyEmailFactoryCalled = false;
+const googleOnlyAttachment = await createAuthenticationAttachment({
+  env: googleOnlyEnvironment,
+  adapters: { onUnexpectedError() {}, async close() {} },
+  createClientKeyResolver() { return () => "direct:ipv4:198.51.100.10"; },
+  async createEmailDelivery() { googleOnlyEmailFactoryCalled = true; throw new Error("Google-only activation must not compose email delivery."); },
+  async createPool() { return { async end() {} }; },
+  async probeDatabase() {},
+  createRateLimiter() { return { async consume() { return { allowed: true }; } }; },
+  createRuntime() {
+    return { router, authenticationHttpReady: true, emailPasswordReady: false, googleOidcReady: true, facebookLoginReady: false };
+  }
+});
+assert.equal(googleOnlyAttachment.ready, true);
+assert.equal(googleOnlyAttachment.authenticationCapabilities.emailPassword, false);
+assert.equal(googleOnlyAttachment.authenticationCapabilities.passwordReset, false);
+assert.equal(googleOnlyAttachment.authenticationCapabilities.emailVerification, false);
+assert.equal(googleOnlyAttachment.authenticationCapabilities.google, true);
+assert.equal(googleOnlyAttachment.authenticationCapabilities.facebook, false);
+assert.equal(googleOnlyEmailFactoryCalled, false);
+await googleOnlyAttachment.close();
 
 let failedEmailClosed = 0;
 let failedPoolClosed = 0;

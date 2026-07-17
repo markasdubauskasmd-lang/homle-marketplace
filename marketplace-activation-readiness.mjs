@@ -10,9 +10,10 @@ const requirementDefinitions = Object.freeze([
     label: "Account service attachment",
     missing: "Connect and verify account email delivery, sessions and the restricted database",
     complete: (state) => state.authenticationReady === true
-      && state.providers?.emailPassword === true
-      && state.providers?.emailVerification === true
-      && state.providers?.passwordReset === true
+      && ((state.providers?.emailPassword === true
+        && state.providers?.emailVerification === true
+        && state.providers?.passwordReset === true)
+        || state.providers?.google === true)
   },
   {
     key: "socialSignIn",

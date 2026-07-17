@@ -24,9 +24,9 @@ export function createAuthenticationRuntime(pool, options = {}) {
   if (!environment.sessionConfigured) required.push("SESSION_SECRET");
   if (!environment.authTokenConfigured) required.push("AUTH_TOKEN_SECRET");
   if (!environment.appOrigin) required.push("APP_ORIGIN");
-  if (!environment.emailConfigured) required.push("EMAIL_FROM and an email provider");
+  if (!environment.emailConfigured && !environment.capabilities.google) required.push("EMAIL_FROM and an email provider, or a complete Google OAuth client");
   if (required.length) throw new TypeError(`Authentication runtime is unavailable; configure ${required.join(", ")}.`);
-  if (!options.emailDelivery || typeof options.emailDelivery.send !== "function") throw new TypeError("Authentication runtime requires trusted email delivery.");
+  if (environment.emailConfigured && (!options.emailDelivery || typeof options.emailDelivery.send !== "function")) throw new TypeError("Email/password authentication requires trusted email delivery.");
   if (!options.rateLimiter || typeof options.rateLimiter.consume !== "function" || typeof options.clientKey !== "function") throw new TypeError("Authentication runtime requires a shared rate limiter and trusted client-key resolver.");
 
   const database = createMarketplaceDatabase(pool);
@@ -42,7 +42,7 @@ export function createAuthenticationRuntime(pool, options = {}) {
       fetch: options.googleFetch
     })
     : null);
-  const facebookLoginProvider = options.facebookLoginProvider || (environment.providers.facebook.enabled
+  const facebookLoginProvider = options.facebookLoginProvider || (environment.capabilities.facebook
     ? createFacebookLoginProvider({
       appOrigin: environment.appOrigin,
       appId: env.FACEBOOK_APP_ID,
@@ -99,6 +99,7 @@ export function createAuthenticationRuntime(pool, options = {}) {
     security,
     router,
     authenticationHttpReady: true,
+    emailPasswordReady: environment.capabilities.emailPassword && Boolean(options.emailDelivery),
     googleOidcReady: googleOidcProvider !== null,
     facebookLoginReady: facebookLoginProvider !== null && facebookDataDeletionService !== null
   });
