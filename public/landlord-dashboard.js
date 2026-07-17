@@ -1,6 +1,7 @@
 import { checklistFromTranscript } from "./checklist.js";
 import { clearSelectedCleaner, readSelectedCleaner } from "./account-intent.js";
 import { isUkPostcode } from "./contact-validation.js";
+import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
 import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-5";
 import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260717-1";
 
@@ -29,6 +30,7 @@ const propertyFeedback = document.querySelector("[data-property-feedback]");
 const propertyStatus = document.querySelector("[data-property-status]");
 const propertyFormTitle = document.querySelector("[data-property-form-title]");
 const requestFeedback = document.querySelector("[data-request-feedback]");
+const requestRecoveryStatus = document.querySelector("[data-request-recovery-status]");
 const requestStatus = document.querySelector("[data-request-status]");
 const requestWithdrawDialog = document.querySelector("[data-request-withdraw-dialog]");
 const requestWithdrawForm = document.querySelector("[data-request-withdraw-form]");
@@ -63,6 +65,8 @@ let withdrawingRequestId = "";
 let withdrawalPending = false;
 let loading = false;
 let mediaReady = false;
+let requestRecoveryChecked = false;
+let requestRecoveryTimer = null;
 const requestScans = new Map();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
 let selectedCleanerId = "";
@@ -77,6 +81,42 @@ function saveCsrf(token) {
     sessionStorage.setItem("tideway_csrf", token);
     return sessionStorage.getItem("tideway_csrf") === token;
   } catch { return false; }
+}
+
+function requestDraftFields() {
+  return Object.fromEntries(["propertyId", "requestedDate", "requestedTime", "durationMinutes", "cleaningType", "frequency", "budget", "specialInstructions", "transcript", "tasks"].map((name) => [name, requestForm.elements[name]?.value || ""]));
+}
+
+function rememberWorkingRequest() {
+  if (!requestDirty) return;
+  try { saveLandlordRequestDraft(window.sessionStorage, { fields: requestDraftFields() }); } catch {}
+}
+
+function scheduleWorkingRequestRecovery() {
+  window.clearTimeout(requestRecoveryTimer);
+  requestRecoveryTimer = window.setTimeout(rememberWorkingRequest, 250);
+}
+
+function restoreWorkingRequest() {
+  if (requestRecoveryChecked) return;
+  requestRecoveryChecked = true;
+  let draft = null;
+  try { draft = readLandlordRequestDraft(window.sessionStorage); } catch {}
+  if (!draft) return;
+  const propertyAvailable = properties.some((property) => property.propertyId === draft.fields.propertyId);
+  for (const name of ["requestedDate", "requestedTime", "durationMinutes", "cleaningType", "frequency", "budget", "specialInstructions", "transcript", "tasks"]) {
+    const control = requestForm.elements[name];
+    if (control && draft.fields[name]) control.value = draft.fields[name];
+  }
+  if (propertyAvailable) propertySelect.value = draft.fields.propertyId;
+  if (draft.fields.cleaningType) cleaningTypeSelect.dataset.selectionSource = "user";
+  requestForm.elements.scopeReviewed.checked = false;
+  renderTaskPreview();
+  requestDirty = true;
+  requestRecoveryStatus.dataset.kind = "recovered";
+  requestRecoveryStatus.textContent = propertyAvailable || !draft.fields.propertyId
+    ? "Your unfinished room walkthrough was recovered from this tab. Review every bullet before saving."
+    : "Your unfinished walkthrough was recovered, but its saved property is no longer available. Choose a property and review every bullet.";
 }
 
 function element(name, className, text) {
@@ -806,6 +846,7 @@ async function loadWorkspace() {
     mediaReadiness.hidden = mediaReady;
     document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
     renderProperties();
+    restoreWorkingRequest();
     renderRequests();
     renderBookings();
     state.hidden = true;
@@ -894,6 +935,9 @@ async function createRequestDraft(event) {
     requests.unshift(result.cleaningRequest);
     renderRequests();
     requestForm.reset();
+    try { clearLandlordRequestDraft(window.sessionStorage); } catch {}
+    requestRecoveryStatus.removeAttribute("data-kind");
+    requestRecoveryStatus.textContent = "An unfinished walkthrough stays only in this browser tab for up to 30 minutes. Approval and photos are never restored.";
     delete cleaningTypeSelect.dataset.selectionSource;
     initialiseRequestDefaults();
     renderTaskPreview();
@@ -930,6 +974,7 @@ function useSavedChecklist() {
   requestForm.elements.tasks.value = value;
   renderTaskPreview();
   requestDirty = true;
+  scheduleWorkingRequestRecovery();
   showFeedback(requestFeedback, "Saved checklist copied. Review every task against the current room scan before saving.", "success");
 }
 
@@ -942,6 +987,7 @@ function summariseSpeech({ automatic = false } = {}) {
   requestForm.elements.tasks.value = value;
   renderTaskPreview();
   requestDirty = true;
+  scheduleWorkingRequestRecovery();
   showFeedback(requestFeedback, `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} prepared${automatic ? " automatically" : ""}. Review every bullet before confirming.`, "success");
 }
 
@@ -980,6 +1026,7 @@ function configureSpeech() {
       invalidateScopeReview("The spoken walkthrough changed. Summarise again or manually reconcile every room task before confirming.");
       requestForm.elements.transcript.value = `${requestForm.elements.transcript.value.trim()} ${finalText}`.trim().slice(0, 5000);
       speechChangedDuringListen = true;
+      scheduleWorkingRequestRecovery();
     }
     speechStatus.textContent = interimText ? `Listening: ${interimText.slice(0, 160)}` : "Listening…";
     requestDirty = true;
@@ -1025,7 +1072,8 @@ nextButton.addEventListener("click", () => {
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
 propertyForm.addEventListener("input", () => { propertyDirty = true; });
-requestForm.addEventListener("input", () => { requestDirty = true; });
+requestForm.addEventListener("input", () => { requestDirty = true; scheduleWorkingRequestRecovery(); });
+requestForm.addEventListener("change", () => { requestDirty = true; scheduleWorkingRequestRecovery(); });
 propertyForm.addEventListener("submit", saveProperty);
 requestForm.addEventListener("submit", createRequestDraft);
 requestWithdrawForm.addEventListener("submit", withdrawRequest);
@@ -1045,7 +1093,7 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
   requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
-window.addEventListener("beforeunload", (event) => { if (propertyDirty || requestDirty) event.preventDefault(); });
+window.addEventListener("beforeunload", (event) => { rememberWorkingRequest(); if (propertyDirty || requestDirty) event.preventDefault(); });
 document.querySelector("[data-year]").textContent = new Date().getFullYear();
 initialiseRequestDefaults();
 renderTaskPreview();

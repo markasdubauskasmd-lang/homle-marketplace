@@ -85,6 +85,8 @@
     "test:profiles": "node tests/cleaner-profile.mjs",
     "test:profile-ui": "node tests/cleaner-directory-ui.mjs && node tests/cleaner-profile-ui.mjs",
     "test:landlord-ui": "node tests/landlord-dashboard-ui.mjs",
+    "check:landlord-draft": "node --check public/landlord-request-draft.js && node --check tests/landlord-request-draft.mjs",
+    "test:landlord-draft": "node tests/landlord-request-draft.mjs",
     "test:properties": "node tests/property-service.mjs",
     "test:requests": "node tests/cleaning-request-service.mjs",
     "test:bookings": "node tests/booking-workflow.mjs",
