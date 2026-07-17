@@ -16,6 +16,7 @@ const releaseEntryPoints = Object.freeze([
   "tools/domain-readiness.mjs",
   "tools/production-preflight.mjs",
   "tools/authentication-preflight.mjs",
+  "tools/bootstrap-staging-database.mjs",
   "tools/build-hostinger-release.mjs"
 ]);
 const alwaysIncluded = Object.freeze(["package.json", "pnpm-lock.yaml"]);
@@ -23,7 +24,9 @@ const databaseRuntimeFiles = new Set([
   "db/migration-lock.json",
   "db/migration-assets.mjs",
   "db/runtime-role-grants.sql",
-  "db/worker-role-grants.sql"
+  "db/worker-role-grants.sql",
+  "db/bootstrap/assert-empty-staging.sql",
+  "db/integration/deployment-verification.sql"
 ]);
 const excludedRuntimeFiles = new Set([
   "public/tracking-test.html",
@@ -185,10 +188,13 @@ export function validateReleaseEntries(entries, expectedFiles) {
     "db/migration-lock.json",
     "db/runtime-role-grants.sql",
     "db/worker-role-grants.sql",
+    "db/bootstrap/assert-empty-staging.sql",
+    "db/integration/deployment-verification.sql",
     "tools/check-dependency-lock.mjs",
     "tools/domain-readiness.mjs",
     "tools/production-preflight.mjs",
     "tools/authentication-preflight.mjs",
+    "tools/bootstrap-staging-database.mjs",
     "tools/build-hostinger-release.mjs"
   ]) {
     if (!actualFiles.includes(required)) throw new Error(`Release archive omitted required runtime file ${required}.`);

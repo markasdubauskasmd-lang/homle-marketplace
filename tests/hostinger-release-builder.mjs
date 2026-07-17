@@ -23,11 +23,14 @@ for (const required of [
   "db/migrations/038_facebook_data_deletion_callback.sql",
   "db/runtime-role-grants.sql",
   "db/worker-role-grants.sql",
+  "db/bootstrap/assert-empty-staging.sql",
+  "db/integration/deployment-verification.sql",
   "scripts/marketplace-worker.mjs",
   "tools/check-dependency-lock.mjs",
   "tools/domain-readiness.mjs",
   "tools/production-preflight.mjs",
   "tools/authentication-preflight.mjs",
+  "tools/bootstrap-staging-database.mjs",
   "tools/build-hostinger-release.mjs"
 ]) {
   assert(expectedFiles.includes(required), `Release selection omitted ${required}.`);
