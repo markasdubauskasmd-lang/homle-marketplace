@@ -65,7 +65,11 @@ export function activeJobAction(role, tracking = {}, progress = {}) {
 }
 
 export function taskCanBeDecided(role, task) {
-  return role === "landlord" && task?.unexpected === true && task?.landlordApprovalStatus === "pending";
+  return role === "landlord" && task?.unexpected === true && task?.cleanerFrozenTermsConfirmed === true && task?.landlordApprovalStatus === "pending";
+}
+
+export function taskNeedsCleanerTermsConfirmation(role, status, task) {
+  return role === "cleaner" && status === "cleaning-in-progress" && task?.unexpected === true && task?.cleanerFrozenTermsConfirmed !== true && task?.landlordApprovalStatus === "pending";
 }
 
 export function taskCanBeUpdated(role, status) {

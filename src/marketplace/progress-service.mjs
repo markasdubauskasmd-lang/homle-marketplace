@@ -40,7 +40,7 @@ function projection(value) {
     resolvedTasks: Number(record.resolvedTasks) || 0,
     overallPercentage: Number(record.overallPercentage) || 0,
     rooms: list(record.rooms).map((room) => ({ roomName: room.roomName, totalTasks: Number(room.totalTasks), resolvedTasks: Number(room.resolvedTasks), completed: room.completed === true })),
-    tasks: list(record.tasks).map((task) => ({ taskId: task.taskId, roomName: task.roomName, description: task.description, status: task.status, unexpected: task.unexpected === true, unexpectedEstimatedMinutes: task.unexpectedEstimatedMinutes == null ? null : Number(task.unexpectedEstimatedMinutes), landlordApprovalStatus: task.landlordApprovalStatus || null, latestNote: task.latestNote || null, updatedAt: task.updatedAt, updatedBy: task.updatedBy || null })),
+    tasks: list(record.tasks).map((task) => ({ taskId: task.taskId, roomName: task.roomName, description: task.description, status: task.status, unexpected: task.unexpected === true, unexpectedEstimatedMinutes: task.unexpectedEstimatedMinutes == null ? null : Number(task.unexpectedEstimatedMinutes), cleanerFrozenTermsConfirmed: task.cleanerFrozenTermsConfirmed === true, cleanerFrozenTermsConfirmedAt: task.cleanerFrozenTermsConfirmedAt || null, landlordApprovalStatus: task.landlordApprovalStatus || null, latestNote: task.latestNote || null, updatedAt: task.updatedAt, updatedBy: task.updatedBy || null })),
     photos: list(record.photos).map((photo) => ({ photoId: photo.photoId, taskId: photo.taskId || null, photoType: photo.photoType, note: photo.note || null, uploadedBy: photo.uploadedBy, createdAt: photo.createdAt })),
     eventVersion: Number(record.eventVersion) || 0,
     recentEvents: list(record.recentEvents).map((event) => ({ eventId: Number(event.eventId), eventType: event.eventType, actorUserId: event.actorUserId, payload: event.payload || {}, createdAt: event.createdAt }))
@@ -48,7 +48,7 @@ function projection(value) {
 }
 
 export function createProgressService(repository) {
-  const methods = ["getProgress", "startCleaning", "setPause", "updateTask", "addUnexpectedTask", "decideUnexpectedTask", "finishCleaning"];
+  const methods = ["getProgress", "startCleaning", "setPause", "updateTask", "addUnexpectedTask", "confirmUnexpectedTaskTerms", "decideUnexpectedTask", "finishCleaning"];
   if (!repository || !methods.every((method) => typeof repository[method] === "function")) throw new TypeError("A complete cleaning-progress repository is required.");
   function cleaner(actor, action) {
     if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.includes("cleaner")) throw new TypeError(`A Cleaner account is required to ${action}.`);
@@ -78,12 +78,18 @@ export function createProgressService(repository) {
     },
     async addUnexpectedTask(actor, bookingId, input = {}) {
       cleaner(actor, "add an unexpected task");
+      if (input.withinBookedTermsConfirmed !== true) throw new TypeError("Confirm that the task fits the remaining booked time and agreed Cleaner pay.");
       return projection(await repository.addUnexpectedTask(actor, uuid(bookingId, "booking id"), {
         roomName: text(input.roomName, 120, "Room name", 1),
         description: text(input.description, 1000, "Task description", 1),
         estimatedAdditionalMinutes: integer(input.estimatedAdditionalMinutes, 1, 480, "Estimated additional time"),
+        withinBookedTermsConfirmed: true,
         note: text(input.note, 2000, "Task note") || null
       }));
+    },
+    async confirmUnexpectedTaskTerms(actor, bookingId, taskId) {
+      cleaner(actor, "confirm unexpected-task terms");
+      return projection(await repository.confirmUnexpectedTaskTerms(actor, uuid(bookingId, "booking id"), uuid(taskId, "task id")));
     },
     async decideUnexpectedTask(actor, bookingId, taskId, input = {}) {
       if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.includes("landlord")) throw new TypeError("A Landlord account is required to decide an unexpected task.");

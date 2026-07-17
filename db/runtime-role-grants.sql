@@ -59,7 +59,8 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_progress(uuid) TO tideway
 GRANT EXECUTE ON FUNCTION tideway_private.start_booking_cleaning(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.set_booking_cleaning_pause(uuid,boolean,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.update_booking_cleaning_task(uuid,uuid,text,text) TO tideway_app;
-GRANT EXECUTE ON FUNCTION tideway_private.add_unexpected_cleaning_task(uuid,text,text,integer,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.add_unexpected_cleaning_task(uuid,text,text,integer,boolean,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.confirm_unexpected_task_frozen_terms(uuid,uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.decide_unexpected_cleaning_task(uuid,uuid,text,boolean,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.finish_booking_cleaning(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.create_job_photo_upload_intent(uuid,uuid,uuid,text,text,text,text,integer,text,text,timestamptz) TO tideway_app;

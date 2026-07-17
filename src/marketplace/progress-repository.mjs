@@ -9,6 +9,8 @@ function mapProgressError(error) {
     "invalid-task-update": [422, "invalid-task-update", "The cleaning-task update is invalid."],
     "unexpected-task-not-approved": [409, "unexpected-task-not-approved", "The Landlord must approve this unexpected task first."],
     "invalid-unexpected-task": [422, "invalid-unexpected-task", "The unexpected task is invalid."],
+    "unexpected-task-terms-unconfirmed": [409, "unexpected-task-terms-unconfirmed", "The Cleaner must confirm that this task fits the booked time and agreed pay."],
+    "unexpected-task-exceeds-booked-time": [409, "unexpected-task-exceeds-booked-time", "This task no longer fits the remaining booked time. Report it as an issue instead of adding unpaid work."],
     "invalid-task-decision": [422, "invalid-task-decision", "The unexpected-task decision is invalid."],
     "task-decision-final": [409, "task-decision-final", "This unexpected-task decision is already final."],
     "cleaning-not-finishable": [409, "cleaning-not-finishable", "Resume active cleaning before finishing the job."],
@@ -31,7 +33,8 @@ export function createProgressRepository(database) {
     startCleaning(actor, bookingId) { return call(actor, "SELECT tideway_private.start_booking_cleaning($1::uuid) AS snapshot", [bookingId]); },
     setPause(actor, bookingId, input) { return call(actor, "SELECT tideway_private.set_booking_cleaning_pause($1::uuid,$2::boolean,$3::text) AS snapshot", [bookingId, input.paused, input.note]); },
     updateTask(actor, bookingId, taskId, input) { return call(actor, "SELECT tideway_private.update_booking_cleaning_task($1::uuid,$2::uuid,$3::text,$4::text) AS snapshot", [bookingId, taskId, input.status, input.note]); },
-    addUnexpectedTask(actor, bookingId, input) { return call(actor, "SELECT tideway_private.add_unexpected_cleaning_task($1::uuid,$2::text,$3::text,$4::integer,$5::text) AS snapshot", [bookingId, input.roomName, input.description, input.estimatedAdditionalMinutes, input.note]); },
+    addUnexpectedTask(actor, bookingId, input) { return call(actor, "SELECT tideway_private.add_unexpected_cleaning_task($1::uuid,$2::text,$3::text,$4::integer,$5::boolean,$6::text) AS snapshot", [bookingId, input.roomName, input.description, input.estimatedAdditionalMinutes, input.withinBookedTermsConfirmed, input.note]); },
+    confirmUnexpectedTaskTerms(actor, bookingId, taskId) { return call(actor, "SELECT tideway_private.confirm_unexpected_task_frozen_terms($1::uuid,$2::uuid) AS snapshot", [bookingId, taskId]); },
     decideUnexpectedTask(actor, bookingId, taskId, input) { return call(actor, "SELECT tideway_private.decide_unexpected_cleaning_task($1::uuid,$2::uuid,$3::text,$4::boolean,$5::text) AS snapshot", [bookingId, taskId, input.decision, input.priceUnchangedConfirmed, input.note]); },
     finishCleaning(actor, bookingId) { return call(actor, "SELECT tideway_private.finish_booking_cleaning($1::uuid) AS snapshot", [bookingId]); }
   });

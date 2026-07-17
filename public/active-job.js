@@ -21,6 +21,7 @@ import {
   safeDateTime,
   taskCanBeDecided,
   taskCanBeQuickCompleted,
+  taskNeedsCleanerTermsConfirmation,
   taskCanBeUpdated
 } from "./active-job-model.js";
 
@@ -289,6 +290,24 @@ function decisionButtons(task) {
   return wrapper;
 }
 
+function termsConfirmationButton(task) {
+  const button = document.createElement("button");
+  button.className = "button button-outline";
+  button.type = "button";
+  button.textContent = "Confirm it fits current time and pay";
+  button.dataset.pendingLabel = "Confirming terms…";
+  button.addEventListener("click", () => {
+    if (!globalThis.confirm("Confirm that you can complete this task within the remaining booked time and your already agreed pay? If not, report an issue instead.")) return;
+    runMutation(button, async () => {
+      const result = await mutate(`/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks/${task.taskId}/terms-confirmation`, "POST");
+      state.progress = result.progress;
+      render();
+      showFeedback("Current booking time and pay confirmed. The Landlord can now decide.", "success");
+    });
+  });
+  return button;
+}
+
 async function decideUnexpectedTask(task, decision, button) {
   if (decision === "approved" && !globalThis.confirm("Approve this additional task without changing the frozen booking price or Cleaner pay?")) return;
   await runMutation(button, async () => {
@@ -327,9 +346,16 @@ function renderTasks() {
       approval.textContent = `Landlord decision: ${task.landlordApprovalStatus}`;
       article.append(approval);
     }
+    if (task.unexpected && task.cleanerFrozenTermsConfirmed !== true && task.landlordApprovalStatus === "pending") {
+      const boundary = document.createElement("small");
+      boundary.className = "active-task-approval";
+      boundary.textContent = "Not approved work: Cleaner confirmation of current booking time and pay is still required.";
+      article.append(boundary);
+    }
     const updateAllowed = taskCanBeUpdated(state.role, currentStatus()) && (task.unexpected !== true || task.landlordApprovalStatus === "approved");
     if (updateAllowed) article.append(taskControls(task));
     if (taskCanBeDecided(state.role, task)) article.append(decisionButtons(task));
+    if (taskNeedsCleanerTermsConfirmation(state.role, currentStatus(), task)) article.append(termsConfirmationButton(task));
     list.append(article);
   }
 }
@@ -862,6 +888,7 @@ taskForm.addEventListener("submit", (event) => {
   if (!taskForm.reportValidity()) return;
   const body = Object.fromEntries(new FormData(taskForm).entries());
   body.estimatedAdditionalMinutes = Number(body.estimatedAdditionalMinutes);
+  body.withinBookedTermsConfirmed = body.withinBookedTermsConfirmed === "on";
   taskDialog.close();
   runMutation(addTaskAction, async () => {
     const result = await mutate(`/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks`, "POST", body);

@@ -73,6 +73,8 @@ export async function probeMarketplaceDatabase(pool) {
           AND to_regprocedure('tideway_private.sync_my_cleaner_payout_account(text,boolean,boolean,boolean)') IS NOT NULL AS payment_ledger_ready,
         to_regprocedure('tideway_private.read_booking_payment(uuid)') IS NOT NULL AS payment_access_ready,
         to_regprocedure('tideway_private.current_booking_payment_authorized(uuid)') IS NOT NULL AS payment_journey_gate_ready,
+        to_regprocedure('tideway_private.add_unexpected_cleaning_task(uuid,text,text,integer,boolean,text)') IS NOT NULL
+          AND to_regprocedure('tideway_private.confirm_unexpected_task_frozen_terms(uuid,uuid)') IS NOT NULL AS unexpected_task_terms_ready,
         to_regprocedure('tideway_private.request_my_privacy_action(uuid,text)') IS NOT NULL
           AND to_regprocedure('tideway_private.get_my_privacy_requests()') IS NOT NULL AS privacy_request_ready,
         to_regprocedure('tideway_private.request_facebook_data_deletion(uuid,text,bytea,bytea)') IS NOT NULL
@@ -82,7 +84,7 @@ export async function probeMarketplaceDatabase(pool) {
     if (!row || row.database_role !== "tideway_app") throw new Error("Marketplace DATABASE_URL must authenticate as tideway_app.");
     if (Number(row.server_version_num) < 160000) throw new Error("Marketplace PostgreSQL 16 or newer is required.");
     if (row.role_is_safe !== true) throw new Error("Marketplace database role must not be superuser or bypass row-level security.");
-    if (row.lookup_session_ready !== true || row.booking_workflow_ready !== true || row.booking_summaries_ready !== true || row.automatic_dispatch_ready !== true || row.request_room_scan_ready !== true || row.rate_limit_ready !== true || row.facebook_pending_identity_ready !== true || row.provider_connection_ready !== true || row.payment_ledger_ready !== true || row.payment_access_ready !== true || row.payment_journey_gate_ready !== true || row.privacy_request_ready !== true || row.facebook_data_deletion_ready !== true) throw new Error("Marketplace database migrations or runtime grants are incomplete.");
+    if (row.lookup_session_ready !== true || row.booking_workflow_ready !== true || row.booking_summaries_ready !== true || row.automatic_dispatch_ready !== true || row.request_room_scan_ready !== true || row.rate_limit_ready !== true || row.facebook_pending_identity_ready !== true || row.provider_connection_ready !== true || row.payment_ledger_ready !== true || row.payment_access_ready !== true || row.payment_journey_gate_ready !== true || row.unexpected_task_terms_ready !== true || row.privacy_request_ready !== true || row.facebook_data_deletion_ready !== true) throw new Error("Marketplace database migrations or runtime grants are incomplete.");
     return Object.freeze({ databaseRole: row.database_role, postgresqlVersionNumber: Number(row.server_version_num) });
   } finally {
     client.release();

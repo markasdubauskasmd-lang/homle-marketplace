@@ -21,7 +21,7 @@ The Cleaner receives large, one-hand controls appropriate to the current server 
 3. **I have arrived** records arrival and clears the browser watch. The database also deletes the current point and stops sharing.
 4. **Start cleaning** opens the real room checklist.
 5. Every eligible unresolved checklist item leads with one large **Mark task complete** action. Skip, issue, in-progress, correction and optional notes remain under **More options or add note** rather than appearing on every task. Pending/declined unexpected work cannot be completed; approved unexpected work receives the same one-tap control.
-6. The Cleaner can pause/resume and propose an unexpected task for Landlord approval.
+6. The Cleaner can pause/resume and propose an unexpected task for Landlord approval only after confirming it fits the remaining booked time and agreed pay. The server checks that boundary again; anything needing more time or pay is reported as an issue for separate scope review.
 7. **Finish cleaning** stays disabled until every server-projected task is resolved. The server remains authoritative.
 
 Both participants can use the private booking chat from this screen. Messages arrive through the durable booking event stream, older messages use stable cursor pagination and a browser retry reuses the same idempotency key if the server response is lost. Tideway blocks phone numbers, email addresses, links and outside-messaging handles so participants can coordinate without exposing personal contact details.
@@ -34,7 +34,7 @@ All mutations use the opaque session plus the tab-bound CSRF token. Hiding a but
 
 ## Landlord experience
 
-The Landlord receives the assigned Cleaner identity projection, scheduled time, ETA when an approved provider supplies one, last current-location update, arrival state, overall percentage, elapsed time, room tasks, Cleaner notes, issue states, private photo metadata and protected confirmed-property instructions. The Landlord can approve or decline a pending unexpected task; approval explicitly preserves the frozen booking price and Cleaner pay.
+The Landlord receives the assigned Cleaner identity projection, scheduled time, ETA when an approved provider supplies one, last current-location update, arrival state, overall percentage, elapsed time, room tasks, Cleaner notes, issue states, private photo metadata and protected confirmed-property instructions. The Landlord can approve or decline a pending unexpected task only after the Cleaner has explicitly accepted the remaining-time and frozen-pay boundary; approval still preserves the frozen booking price and Cleaner pay.
 
 The page consumes the existing durable authenticated event stream. PostgreSQL commit signals produce participant-safe snapshots, the browser reconnects with SSE semantics and the UI keeps the last verified state during a connection loss. It does not use constant polling.
 

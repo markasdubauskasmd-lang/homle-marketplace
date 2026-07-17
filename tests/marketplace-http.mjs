@@ -105,6 +105,7 @@ const progressService = {
   async setPause(actor, bookingId, input) { calls.push({ kind: "progress-pause", actor, bookingId, input }); return { bookingId, status: "cleaning-in-progress", isPaused: input.paused }; },
   async updateTask(actor, bookingId, taskId, input) { calls.push({ kind: "progress-task", actor, bookingId, taskId, input }); return { bookingId, status: "cleaning-in-progress" }; },
   async addUnexpectedTask(actor, bookingId, input) { calls.push({ kind: "progress-add", actor, bookingId, input }); return { bookingId, status: "cleaning-in-progress" }; },
+  async confirmUnexpectedTaskTerms(actor, bookingId, taskId) { calls.push({ kind: "progress-confirm-terms", actor, bookingId, taskId }); return { bookingId, status: "cleaning-in-progress" }; },
   async decideUnexpectedTask(actor, bookingId, taskId, input) { calls.push({ kind: "progress-decision", actor, bookingId, taskId, input }); return { bookingId, status: "cleaning-in-progress" }; },
   async finishCleaning(actor, bookingId) { calls.push({ kind: "progress-finish", actor, bookingId }); return { bookingId, status: "awaiting-review", overallPercentage: 100 }; }
 };
@@ -367,9 +368,10 @@ assert(journeyStarted.response.statusCode === 200 && journeyUpdated.response.sta
 const cleaningStarted = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/start`, { headers: authHeaders, body: {} });
 const cleaningPaused = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/pause`, { headers: authHeaders, body: { paused: true, note: "Short break" } });
 const cleaningTask = await dispatch(router, "PUT", `/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks/${progressTaskId}`, { headers: authHeaders, body: { status: "completed" } });
-const unexpectedTask = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks`, { headers: authHeaders, body: { roomName: "Hall", description: "Clear packaging", estimatedAdditionalMinutes: 15 } });
+const unexpectedTask = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks`, { headers: authHeaders, body: { roomName: "Hall", description: "Clear packaging", estimatedAdditionalMinutes: 15, withinBookedTermsConfirmed: true } });
+const taskTermsConfirmation = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks/${progressTaskId}/terms-confirmation`, { headers: authHeaders, body: {} });
 const cleaningFinished = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/finish`, { headers: authHeaders, body: {} });
-assert([cleaningStarted, cleaningPaused, cleaningTask, unexpectedTask, cleaningFinished].every((result) => result.response.statusCode < 300) && cleaningFinished.body.progress.status === "awaiting-review" && calls.slice(-5).map((call) => call.kind).join(",") === "progress-start,progress-pause,progress-task,progress-add,progress-finish", "Cleaner progress routes lost start/pause/task/unexpected/finish actions or role binding.");
+assert([cleaningStarted, cleaningPaused, cleaningTask, unexpectedTask, taskTermsConfirmation, cleaningFinished].every((result) => result.response.statusCode < 300) && cleaningFinished.body.progress.status === "awaiting-review" && calls.slice(-6).map((call) => call.kind).join(",") === "progress-start,progress-pause,progress-task,progress-add,progress-confirm-terms,progress-finish", "Cleaner progress routes lost start/pause/task/unexpected/frozen-terms/finish actions or role binding.");
 const photoUploadId = "88888888-8888-4888-8888-888888888888";
 const photoIntent = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/photos/intents`, { headers: authHeaders, body: { photoType: "before", mimeType: "image/jpeg", byteSize: 1234, checksumSha256: "a".repeat(64) } });
 const photoCompletion = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/photos/${photoUploadId}/complete`, { headers: authHeaders, body: {} });

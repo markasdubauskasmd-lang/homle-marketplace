@@ -13,7 +13,7 @@ This Phase 4 checkpoint prepares the transactional active-job checklist shared b
 
 ## Unexpected work and frozen economics
 
-The Cleaner may propose an unexpected task only while active and unpaused, with a room, description and 1–480 minute estimate. It stays blocked in `pending` until the booking Landlord makes one final approval or decline decision.
+The Cleaner may propose an unexpected task only while active and unpaused, with a room, description and 1–480 minute estimate. The Cleaner must explicitly confirm that it fits the remaining booked time and already agreed pay; the database rejects the proposal or a later approval once the estimate no longer fits before the scheduled end. It stays blocked in `pending` until that Cleaner confirmation exists and the booking Landlord makes one final approval or decline decision. A task that needs more time or pay must be reported as an issue for a separately quoted scope review rather than becoming hidden unpaid work. Pre-existing pending tasks without the new confirmation remain locked until the Cleaner deliberately reconciles them.
 
 Approval explicitly confirms that the additional task does **not** change the frozen customer price or Cleaner pay. No browser action changes money, captures payment or silently rewrites booking economics. Work that needs an extra charge or payout must use a future separately quoted change-order workflow; it cannot be approved through this zero-price-change action. A declined task becomes skipped with an audited reason.
 
@@ -23,7 +23,7 @@ Finish cleaning is unavailable while paused, while any standard task is unresolv
 
 ## Security boundary
 
-Mutation routes require exact origin, CSRF, the appropriate role and booking participation. Direct runtime writes to bookings, task state/history, pauses, unexpected decisions, progress events, photos, upload intents, locations and notifications are revoked. The app role must use the restricted actor-aware functions in migrations 013 and 014. An unrelated account receives no snapshot.
+Mutation routes require exact origin, CSRF, the appropriate role and booking participation. Direct runtime writes to bookings, task state/history, pauses, unexpected decisions, progress events, photos, upload intents, locations and notifications are revoked. The app role must use the restricted actor-aware functions in migrations 013, 014 and 039. An unrelated account receives no snapshot.
 
 Before enabling, execute migration 013 in staging and test concurrent pause, repeated updates, issue notes, another booking’s task ID, Cleaner self-approval denial, final-decision replay, unchanged-price confirmation, unresolved finish denial, participant reads and event ordering.
 
