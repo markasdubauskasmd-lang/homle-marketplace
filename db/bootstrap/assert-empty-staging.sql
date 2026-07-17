@@ -16,6 +16,11 @@ BEGIN
   IF current_user IN ('tideway_app', 'tideway_worker') THEN
     RAISE EXCEPTION 'Homle staging bootstrap requires a separate migration-owner account';
   END IF;
+  SELECT rolname, rolcanlogin, rolsuper, rolbypassrls INTO selected_role
+  FROM pg_roles WHERE rolname = current_user;
+  IF NOT FOUND OR NOT selected_role.rolcanlogin OR selected_role.rolsuper OR selected_role.rolbypassrls THEN
+    RAISE EXCEPTION 'Homle staging migration owner must login without superuser or BYPASSRLS';
+  END IF;
 
   FOR selected_role IN
     SELECT rolname, rolcanlogin, rolsuper, rolbypassrls FROM pg_roles

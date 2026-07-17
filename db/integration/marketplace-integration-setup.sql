@@ -16,7 +16,7 @@ INSERT INTO user_roles (user_id, role) VALUES
 
 INSERT INTO authentication_identities (user_id, provider, provider_subject, provider_email, provider_email_verified) VALUES
   ('10000000-0000-4000-8000-000000000001', 'google', 'integration-google-subject', 'integration-landlord@invalid.example', true),
-  ('10000000-0000-4000-8000-000000000001', 'facebook', 'integration-facebook-subject', 'integration-landlord@invalid.example', false),
+  ('10000000-0000-4000-8000-000000000001', 'facebook', '1234567890123456', 'integration-landlord@invalid.example', false),
   ('10000000-0000-4000-8000-000000000001', 'apple', 'integration-disabled-apple-subject', 'integration-landlord@invalid.example', true);
 
 INSERT INTO sessions (id, user_id, token_hash, csrf_secret_hash, expires_at) VALUES

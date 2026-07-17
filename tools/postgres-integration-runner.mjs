@@ -13,6 +13,7 @@ const scripts = Object.freeze({
   administratorBootstrapDenied: "administrator-bootstrap-app-denied.sql",
   administratorBootstrapOwner: "administrator-bootstrap-owner.sql",
   setup: "marketplace-integration-setup.sql",
+  facebookDataDeletion: "facebook-data-deletion-behaviour.sql",
   rls: "marketplace-rls-behaviour.sql",
   acceptA: "accept-booking-a.sql",
   acceptB: "accept-booking-b.sql",
@@ -112,6 +113,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
   try {
     runPsqlSync({ label: "Integration fixture setup", file: scripts.setup, environment: ownerEnvironment, command, execute });
     fixturesCreated = true;
+    runPsqlSync({ label: "Facebook data-deletion behaviour test", file: scripts.facebookDataDeletion, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "RLS behaviour test", file: scripts.rls, environment: appEnvironment, command, execute });
 
     const concurrentResults = await executeConcurrent([
@@ -135,7 +137,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, disputes: true, paymentJourneyGate: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {
@@ -151,7 +153,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
 if (process.argv[1] && path.resolve(process.argv[1]) === toolPath) {
   try {
     const result = await runPostgresMarketplaceIntegration();
-    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, RLS, privacy, social-provider step-up/removal, audited disputes, current-payment journey gating and concurrent overlap protection verified and fixtures removed.`);
+    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, signed-provider deletion persistence, RLS, privacy, social-provider step-up/removal, audited disputes, current-payment journey gating and concurrent overlap protection verified and fixtures removed.`);
   } catch (error) {
     console.error(error.message);
     if (error.integrationOutput) console.error(error.integrationOutput.trim());

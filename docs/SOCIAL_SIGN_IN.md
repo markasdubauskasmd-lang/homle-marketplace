@@ -90,7 +90,7 @@ Data deletion callback: https://homle.co.uk/api/marketplace/auth/facebook/data-d
 Status page base URL:   https://homle.co.uk/facebook-data-deletion
 ```
 
-Migration `038_facebook_data_deletion_callback.sql` adds the private callback/status record, the two reviewed rate-limit scopes and function-only runtime grants. A valid callback creates an honest privacy queue item; it does not claim the deletion has already been fulfilled. Administrator fulfilment, retention exceptions and final deletion evidence remain operational launch requirements.
+Migration `038_facebook_data_deletion_callback.sql` adds the private callback/status record, the two reviewed rate-limit scopes and function-only runtime grants. A valid callback creates an honest privacy queue item; it does not claim the deletion has already been fulfilled. The 17 July 2026 disposable PostgreSQL 16.14 run proved known-subject queueing, opaque retry stability, honest unknown-subject completion, request-ID collision denial, status isolation, private-table denial, one audit event and complete fixture removal. Administrator fulfilment, retention exceptions, managed staging and final deletion evidence remain operational launch requirements.
 
 ## Facebook activation gate
 

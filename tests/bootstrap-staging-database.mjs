@@ -11,6 +11,7 @@ assert.match(emptyStagingGuard, /PostgreSQL 16/);
 assert.match(emptyStagingGuard, /_\(tideway\|homle\)_staging/);
 assert.match(emptyStagingGuard, /rolsuper/);
 assert.match(emptyStagingGuard, /rolbypassrls/);
+assert.match(emptyStagingGuard, /migration owner must login without superuser or BYPASSRLS/);
 assert.match(emptyStagingGuard, /application_table_count/);
 assert.doesNotMatch(guardWithoutMessages, /\b(?:CREATE|ALTER|DROP|TRUNCATE|INSERT|UPDATE|DELETE)\b/i, "The supposedly read-only empty-staging guard contains a mutation.");
 const secret = "owner p@ssword/secret";
