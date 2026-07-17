@@ -62,6 +62,23 @@ export function createCleaningRequestRepository(database) {
           throw Object.assign(new Error(mapped[2]), { statusCode: mapped[0], code: mapped[1], cause: error });
         }
       });
+    },
+    withdrawOwnRequest(actor, requestId, choice) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.withdraw_cleaning_request($1::uuid,$2::text) AS withdrawal", [requestId, choice.reasonCode]);
+          return result.rows[0]?.withdrawal;
+        } catch (error) {
+          const mapped = {
+            "request-not-found": [404, "request-not-found", "The cleaning request was not found."],
+            "request-not-withdrawable": [409, "request-not-withdrawable", "Only a private draft or open request without a live Cleaner invitation can be withdrawn."],
+            "request-live-booking": [409, "request-live-booking", "This request already has a live Cleaner invitation or booking. Open the booking to request a change."],
+            "invalid-request-withdrawal-reason": [400, "invalid-request-withdrawal-reason", "Choose a supported reason for withdrawing this request."]
+          }[error?.message];
+          if (!mapped) throw error;
+          throw Object.assign(new Error(mapped[2]), { statusCode: mapped[0], code: mapped[1], cause: error });
+        }
+      });
     }
   };
 }

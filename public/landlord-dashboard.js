@@ -29,6 +29,12 @@ const propertyFeedback = document.querySelector("[data-property-feedback]");
 const propertyStatus = document.querySelector("[data-property-status]");
 const propertyFormTitle = document.querySelector("[data-property-form-title]");
 const requestFeedback = document.querySelector("[data-request-feedback]");
+const requestStatus = document.querySelector("[data-request-status]");
+const requestWithdrawDialog = document.querySelector("[data-request-withdraw-dialog]");
+const requestWithdrawForm = document.querySelector("[data-request-withdraw-form]");
+const requestWithdrawFeedback = document.querySelector("[data-request-withdraw-feedback]");
+const requestWithdrawCancel = document.querySelector("[data-request-withdraw-cancel]");
+const requestWithdrawConfirm = document.querySelector("[data-request-withdraw-confirm]");
 const propertySave = document.querySelector("[data-save-property]");
 const requestSave = document.querySelector("[data-save-request]");
 const speechButton = document.querySelector("[data-speech-toggle]");
@@ -51,6 +57,8 @@ let speechChangedDuringListen = false;
 let propertyDirty = false;
 let requestDirty = false;
 let editingPropertyId = "";
+let withdrawingRequestId = "";
+let withdrawalPending = false;
 let loading = false;
 const requestScans = new Map();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
@@ -554,8 +562,24 @@ function renderRequests() {
     const start = new Date(request.requestedStartAt);
     const end = new Date(request.requestedEndAt);
     facts.append(propertyFact("Requested", Number.isNaN(start.getTime()) ? "Unavailable" : new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(start)), propertyFact("Duration", Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) ? "Unavailable" : `${Math.round((end - start) / 3_600_000 * 10) / 10} hours`), propertyFact("Tasks", Array.isArray(request.tasks) ? request.tasks.length : 0), propertyFact("Frequency", String(request.frequency || "one-time").replace(/-/g, " ")));
-    const boundary = element("p", "landlord-request-boundary", request.status === "draft" ? "Private draft only — no Cleaner has been invited and no booking or payment exists." : "This request has entered the account workflow.");
+    const boundaryCopy = request.status === "draft"
+      ? "Private draft only — no Cleaner has been invited and no booking or payment exists."
+      : request.status === "searching-for-cleaner"
+      ? "Open for matching — no booking exists until an eligible Cleaner accepts the frozen terms."
+      : request.status === "cancelled"
+      ? "Withdrawn — matching is closed and no booking or payment was changed."
+      : "This request has entered the account workflow.";
+    const boundary = element("p", "landlord-request-boundary", boundaryCopy);
     card.append(heading, facts, boundary, requestScanPanel(request));
+    if (["draft", "searching-for-cleaner"].includes(request.status)) {
+      const actions = element("div", "landlord-request-actions");
+      const withdraw = element("button", "text-button", "Withdraw request");
+      withdraw.type = "button";
+      withdraw.setAttribute("aria-label", `Withdraw cleaning request for ${property?.name || "saved property"}`);
+      withdraw.addEventListener("click", () => openRequestWithdrawal(request.requestId));
+      actions.append(withdraw);
+      card.append(actions);
+    }
     requestList.append(card);
   }
   requestEmpty.hidden = requests.length > 0;
@@ -563,6 +587,48 @@ function renderRequests() {
   const draftCount = requests.filter((request) => request.status === "draft").length;
   document.querySelector("[data-draft-count]").textContent = String(draftCount);
   renderNextAction();
+}
+
+function openRequestWithdrawal(requestId) {
+  const request = requests.find((item) => item.requestId === requestId);
+  if (!request || !["draft", "searching-for-cleaner"].includes(request.status)) return;
+  withdrawingRequestId = requestId;
+  requestWithdrawForm.reset();
+  requestWithdrawFeedback.hidden = true;
+  requestStatus.hidden = true;
+  requestWithdrawDialog.showModal();
+  requestWithdrawForm.elements.reasonCode.focus();
+}
+
+async function withdrawRequest(event) {
+  event.preventDefault();
+  requestWithdrawFeedback.hidden = true;
+  if (withdrawalPending || !requestWithdrawForm.reportValidity()) return;
+  const csrf = storedCsrf();
+  if (!csrf) return showFeedback(requestWithdrawFeedback, "Your secure editing token is missing. Sign in again before withdrawing this request.");
+  const requestId = withdrawingRequestId;
+  if (!requestId) return showFeedback(requestWithdrawFeedback, "The cleaning request is no longer available.");
+  withdrawalPending = true;
+  requestWithdrawCancel.disabled = true;
+  setPending(requestWithdrawConfirm, true, "Withdrawing…");
+  try {
+    const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/withdraw`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ reasonCode: requestWithdrawForm.elements.reasonCode.value })
+    });
+    requests = requests.map((request) => request.requestId === requestId ? { ...request, status: result.withdrawal.status } : request);
+    withdrawingRequestId = "";
+    requestWithdrawDialog.close();
+    renderRequests();
+    showFeedback(requestStatus, "Request withdrawn. Matching is closed and no booking or payment was changed.", "success");
+  } catch (error) {
+    showFeedback(requestWithdrawFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot withdraw this request. Sign in again." : error.message);
+  } finally {
+    withdrawalPending = false;
+    requestWithdrawCancel.disabled = false;
+    setPending(requestWithdrawConfirm, false, "Withdraw request");
+  }
 }
 
 function renderBookingCard(booking) {
@@ -914,6 +980,15 @@ propertyForm.addEventListener("input", () => { propertyDirty = true; });
 requestForm.addEventListener("input", () => { requestDirty = true; });
 propertyForm.addEventListener("submit", saveProperty);
 requestForm.addEventListener("submit", createRequestDraft);
+requestWithdrawForm.addEventListener("submit", withdrawRequest);
+requestWithdrawCancel.addEventListener("click", () => { if (!withdrawalPending) requestWithdrawDialog.close(); });
+requestWithdrawDialog.addEventListener("cancel", (event) => { if (withdrawalPending) event.preventDefault(); });
+requestWithdrawDialog.addEventListener("close", () => {
+  if (withdrawalPending) return;
+  withdrawingRequestId = "";
+  requestWithdrawForm.reset();
+  requestWithdrawFeedback.hidden = true;
+});
 retry.addEventListener("click", loadWorkspace);
 document.querySelector("[data-request-complete-another]").addEventListener("click", () => {
   requestComplete.hidden = true;

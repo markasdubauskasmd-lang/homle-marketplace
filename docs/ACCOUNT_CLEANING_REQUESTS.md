@@ -17,10 +17,12 @@ This Phase 3 checkpoint prepares the transaction that turns a saved Landlord pro
 - Responses are whitelisted and do not return owner IDs, property access instructions, coordinates or persistence internals.
 - `GET /api/marketplace/cleaning-requests` lists at most the authenticated Landlord's latest 100 requests.
 - Creating or submitting a request never implies automatic matching consent. A submitted future request requires a separate authenticated Landlord action with a total one-to-five attempt limit; see [consent-bound automatic dispatch](AUTOMATIC_DISPATCH.md).
+- `POST /api/marketplace/cleaning-requests/:requestId/withdraw` lets only the owning authenticated Landlord withdraw a `draft` or `searching-for-cleaner` request after an explicit reason choice.
+- Withdrawal locks the request, refuses any non-cancelled related booking, revokes pending automatic-dispatch work and records both status history and a private audit event. It cannot cancel an invitation, confirmed booking or payment.
 
 ## Migration safety
 
-Migration `008_account_cleaning_requests.sql` maps earlier draft status labels, backfills fingerprints for any pre-existing rows before adding `NOT NULL`, backfills submitted times and adds owner/admin RLS for request history. New requests use `draft`, `searching-for-cleaner`, `cleaner-invited`, `pending-cleaner-acceptance`, `matched` and `cancelled`.
+Migration `008_account_cleaning_requests.sql` maps earlier draft status labels, backfills fingerprints for any pre-existing rows before adding `NOT NULL`, backfills submitted times and adds owner/admin RLS for request history. New requests use `draft`, `searching-for-cleaner`, `cleaner-invited`, `pending-cleaner-acceptance`, `matched` and `cancelled`. Migration `045_owner_request_withdrawal.sql` adds the function-only owner withdrawal transaction and permits an unsubmitted draft to enter the terminal `cancelled` state without weakening reviewed submission for active states.
 
 ## Later transactions
 

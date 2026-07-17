@@ -9,6 +9,7 @@ const recurrenceRules = Object.freeze({
   fortnightly: "FREQ=WEEKLY;INTERVAL=2",
   "every-four-weeks": "FREQ=WEEKLY;INTERVAL=4"
 });
+const withdrawalReasons = Object.freeze(["no-longer-needed", "date-changed", "created-by-mistake", "other"]);
 
 function boundedText(value, maximum, label, minimum = 0) {
   const normalized = typeof value === "string" ? value.trim().replace(/[\u0000-\u001f\u007f]/g, "") : "";
@@ -164,8 +165,21 @@ function dispatchProjection(record) {
   });
 }
 
+function withdrawalProjection(record) {
+  if (!record || !uuidPattern.test(record.cleaningRequestId || "") || record.status !== "cancelled" || !["draft", "searching-for-cleaner"].includes(record.previousStatus) || !withdrawalReasons.includes(record.reasonCode)) throw new Error("Cleaning-request withdrawal could not be verified.");
+  const withdrawnAt = new Date(record.withdrawnAt);
+  if (Number.isNaN(withdrawnAt.getTime())) throw new Error("Cleaning-request withdrawal could not be verified.");
+  return Object.freeze({
+    cleaningRequestId: record.cleaningRequestId.toLowerCase(),
+    status: "cancelled",
+    previousStatus: record.previousStatus,
+    reasonCode: record.reasonCode,
+    withdrawnAt: withdrawnAt.toISOString()
+  });
+}
+
 export function createCleaningRequestService(repository, options = {}) {
-  if (!repository || typeof repository.createOwnRequest !== "function" || typeof repository.listOwnRequests !== "function" || typeof repository.submitOwnRequest !== "function" || typeof repository.configureAutomaticDispatch !== "function") throw new TypeError("A complete cleaning-request repository is required.");
+  if (!repository || typeof repository.createOwnRequest !== "function" || typeof repository.listOwnRequests !== "function" || typeof repository.submitOwnRequest !== "function" || typeof repository.configureAutomaticDispatch !== "function" || typeof repository.withdrawOwnRequest !== "function") throw new TypeError("A complete cleaning-request repository is required.");
   return {
     async createOwnRequest(actor, input) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to create a cleaning request.");
@@ -197,8 +211,14 @@ export function createCleaningRequestService(repository, options = {}) {
       const attemptLimit = input.enabled ? Number(input.attemptLimit ?? 3) : 3;
       if (!Number.isInteger(attemptLimit) || attemptLimit < 1 || attemptLimit > 5) throw new TypeError("Automatic matching may invite between 1 and 5 Cleaners.");
       return dispatchProjection(await repository.configureAutomaticDispatch(actor, uuid(cleaningRequestId, "cleaning request id"), { enabled: input.enabled, attemptLimit }));
+    },
+    async withdrawOwnRequest(actor, cleaningRequestId, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to withdraw a cleaning request.");
+      const reasonCode = boundedText(input.reasonCode, 40, "Withdrawal reason", 1).toLowerCase();
+      if (!withdrawalReasons.includes(reasonCode)) throw new TypeError("Choose a supported reason for withdrawing this request.");
+      return withdrawalProjection(await repository.withdrawOwnRequest(actor, uuid(cleaningRequestId, "cleaning request id"), { reasonCode }));
     }
   };
 }
 
-export { recurrenceRules };
+export { recurrenceRules, withdrawalReasons };

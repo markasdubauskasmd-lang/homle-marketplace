@@ -61,6 +61,7 @@ export async function probeMarketplaceDatabase(pool) {
         to_regprocedure('tideway_private.list_my_booking_summaries(integer)') IS NOT NULL AS booking_summaries_ready,
         to_regprocedure('tideway_private.configure_automatic_dispatch(uuid,boolean,smallint)') IS NOT NULL AS automatic_dispatch_ready,
         to_regprocedure('tideway_private.submit_cleaning_request(uuid,boolean,boolean)') IS NOT NULL
+          AND to_regprocedure('tideway_private.withdraw_cleaning_request(uuid,text)') IS NOT NULL
           AND to_regprocedure('tideway_private.create_request_photo_upload_intent(uuid,uuid,text,text,text,text,text,integer,text,timestamp with time zone)') IS NOT NULL
           AND to_regprocedure('tideway_private.get_cleaning_request_scan(uuid)') IS NOT NULL AS request_room_scan_ready,
         to_regprocedure('tideway_private.consume_rate_limit(text,bytea)') IS NOT NULL AS rate_limit_ready,

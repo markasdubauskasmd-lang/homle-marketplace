@@ -36,6 +36,7 @@ DECLARE
     'tideway_private.get_cleaning_request_scan(uuid)',
     'tideway_private.get_cleaning_request_photo_object(uuid,uuid)',
     'tideway_private.submit_cleaning_request(uuid,boolean,boolean)',
+    'tideway_private.withdraw_cleaning_request(uuid,text)',
     'tideway_private.start_cleaner_journey(uuid,boolean,numeric,numeric,numeric,timestamp with time zone)',
     'tideway_private.add_unexpected_cleaning_task(uuid,text,text,integer,boolean,text)',
     'tideway_private.confirm_unexpected_task_frozen_terms(uuid,uuid)',
@@ -271,7 +272,7 @@ SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
-  'appFunctionChecks', 45,
+  'appFunctionChecks', 46,
   'workerFunctionChecks', 15
 ) AS tideway_deployment_verification;
 

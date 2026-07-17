@@ -10,6 +10,7 @@
 - Landlords can turn speech into a concise room-by-room checklist, edit every item and create a future cleaning-request draft for one of their properties.
 - The browser always sends `submit: false`. Saving cannot search for, invite, assign or book a Cleaner and cannot take a payment.
 - The workspace lists the signed-in Landlord's active, upcoming and historical booking summaries. Confirmed jobs link to the participant-only active-job screen, while eligible confirmed bookings link to their exact payment-authorization step.
+- Draft and searching requests expose one quiet **Withdraw request** action. Its reason dialog is keyboard accessible, prevents duplicate submission and explains that it cannot cancel a confirmed booking or change a payment; later request states never expose the control.
 - The summary endpoint returns the Landlord's customer total but never Cleaner pay, precise location, access instructions or unrelated bookings.
 - The page starts hidden and fails closed when authentication, the Landlord role, or the PostgreSQL marketplace attachment is unavailable. All account and property data is rendered with text-only DOM APIs.
 
@@ -21,7 +22,7 @@ Successful submission now replaces the workspace with a dedicated authenticated 
 
 These controls remain fail-closed while the marketplace attachment is disabled. Real account capture still requires the managed PostgreSQL, private object-storage, image-sanitation, retention, RLS and HTTPS device gates below; the separate `/request` route remains the working local concierge-pilot path meanwhile.
 
-Saved property edits keep existing map coordinates only when every address field is unchanged. Editing any address field clears stale coordinates until the approved geocoding path supplies a replacement. The owner-bound update route, encryption boundary, address-coordinate rule, unsaved-change warning, accessible success state and full-width phone action are covered by focused tests.
+Saved property edits keep existing map coordinates only when every address field is unchanged. Editing any address field clears stale coordinates until the approved geocoding path supplies a replacement. The owner-bound update route, encryption boundary, address-coordinate rule, unsaved-change warning, accessible success state, withdrawal confirmation and full-width phone actions are covered by focused tests.
 
 ## Activation requirements
 
