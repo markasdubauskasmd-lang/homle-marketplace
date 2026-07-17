@@ -63,11 +63,12 @@ export function notificationEmail(record, appOrigin) {
   const [subject, update] = eventCopy[selected.eventType];
   const safeName = typeof selected.recipientName === "string" ? selected.recipientName.trim().replace(/\s+/g, " ").slice(0, 120) : "";
   const greeting = safeName ? `Hello ${safeName},` : "Hello,";
+  const bookingUrl = `${appOrigin}/bookings/${selected.bookingId.toLowerCase()}`;
   return Object.freeze({
     to: selected.recipientEmail,
     idempotencyKey: selected.notificationId,
     subject: `Homle: ${subject}`,
-    text: `${greeting}\n\n${update}\n\nOpen Homle to see the private booking details: ${appOrigin}\n\nFor privacy, this email does not include an address, access instructions, contact details, photos or live location.`
+    text: `${greeting}\n\n${update}\n\nOpen this private booking update in Homle: ${bookingUrl}\n\nFor privacy, this email does not include an address, access instructions, contact details, photos, case text, messages or live location.`
   });
 }
 

@@ -35,7 +35,7 @@ A separately credentialed `tideway_worker` claims due rows with `FOR UPDATE SKIP
 - sanitize stored error codes and never return recipient details in run statistics;
 - permanently close rows for inactive accounts or unverified email addresses before delivery.
 
-`createEmailNotificationWorker` produces text-only privacy-minimal mail with a trusted HTTPS application origin. It does not accept an insecure public origin. The internal [SMTP adapter](SMTP_EMAIL_DELIVERY.md) converts the supplied `idempotencyKey` into a stable Message-ID and delivery header. Standard SMTP does not guarantee provider-side idempotency, so a provider timeout after accepting a message can still cause an at-least-once duplicate on retry; this must be measured with the chosen provider.
+`createEmailNotificationWorker` produces text-only privacy-minimal mail with a trusted HTTPS application origin. Each message contains one exact same-origin `/bookings/{bookingId}` action using the already validated opaque booking UUID, so a signed-in participant reaches the relevant private update without navigating from the homepage. The link has no query, fragment, tracking token, property detail or participant contact data; the booking route still performs server-side participant authorization. The worker does not accept an insecure public origin. The internal [SMTP adapter](SMTP_EMAIL_DELIVERY.md) converts the supplied `idempotencyKey` into a stable Message-ID and delivery header. Standard SMTP does not guarantee provider-side idempotency, so a provider timeout after accepting a message can still cause an at-least-once duplicate on retry; this must be measured with the chosen provider.
 
 ## Deployment boundary
 
