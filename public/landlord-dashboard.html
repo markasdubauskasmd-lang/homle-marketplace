@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Landlord workspace | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260717-68">
-  <script src="/landlord-dashboard.js?v=20260717-9" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260717-71">
+  <script src="/landlord-dashboard.js?v=20260717-10" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
   <script src="/workspace-switch.js?v=20260717-1" type="module"></script>
 </head>
@@ -65,7 +65,7 @@
       </section>
 
       <section class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
-        <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p><h2 id="landlord-bookings-title">Active and upcoming bookings</h2></div><span class="booking-private-pill">Private to your account</span></div>
+        <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p><h2 id="landlord-bookings-title">Active and upcoming bookings</h2></div><div class="landlord-booking-live"><span data-landlord-booking-live role="status" aria-live="polite">Checking private booking updates…</span><button class="text-button" type="button" data-landlord-booking-refresh>Refresh booking status</button></div></div>
         <div class="booking-dashboard-list" data-landlord-booking-list></div>
         <div class="booking-dashboard-empty" data-landlord-booking-empty><strong>No confirmed marketplace bookings yet.</strong><p>Private request drafts below do not become bookings until a Cleaner accepts the frozen time, scope and price.</p></div>
         <details class="booking-history-section" data-landlord-history-section hidden><summary>Completed and closed bookings <span data-landlord-history-count>0</span></summary><div class="booking-dashboard-list" data-landlord-history-list></div></details>

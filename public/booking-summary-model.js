@@ -19,7 +19,7 @@ export function bookingSummaryBuckets(bookings, role) {
   return Object.freeze({
     pending: Object.freeze(records.filter((booking) => role === "cleaner" && booking.status === "pending-cleaner-acceptance" && booking.canRespond === true)),
     active: Object.freeze(records.filter((booking) => activeStatuses.has(booking.status))),
-    upcoming: Object.freeze(records.filter((booking) => upcomingStatuses.has(booking.status) || role === "landlord" && booking.status === "pending-cleaner-acceptance")),
+    upcoming: Object.freeze(records.filter((booking) => upcomingStatuses.has(booking.status))),
     history: Object.freeze(records.filter((booking) => historyStatuses.has(booking.status) || role === "cleaner" && booking.status === "pending-cleaner-acceptance" && !booking.canRespond))
   });
 }

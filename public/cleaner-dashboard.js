@@ -1,4 +1,4 @@
-import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerInvitationDecisionState, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js";
+import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerInvitationDecisionState, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js?v=20260717-2";
 
 const gate = document.querySelector("[data-cleaner-dashboard-gate]");
 const dashboard = document.querySelector("[data-cleaner-dashboard]");

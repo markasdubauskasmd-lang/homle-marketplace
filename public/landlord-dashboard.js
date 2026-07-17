@@ -4,7 +4,7 @@ import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
 import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
 import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-5";
-import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260717-1";
+import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260717-2";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -53,6 +53,8 @@ const nextLink = document.querySelector("[data-landlord-next-link]");
 const nextButton = document.querySelector("[data-landlord-next-button]");
 const mediaReadiness = document.querySelector("[data-landlord-media-readiness]");
 const networkStatus = document.querySelector("[data-landlord-network-status]");
+const bookingLiveStatus = document.querySelector("[data-landlord-booking-live]");
+const bookingRefresh = document.querySelector("[data-landlord-booking-refresh]");
 let properties = [];
 let requests = [];
 let bookings = [];
@@ -69,6 +71,9 @@ let loading = false;
 let mediaReady = false;
 let requestRecoveryChecked = false;
 let requestRecoveryTimer = null;
+let invitationStream = null;
+let invitationStreamBookingId = "";
+let bookingTransitionRefresh = null;
 const requestScans = new Map();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
 let selectedCleanerId = "";
@@ -738,6 +743,81 @@ function renderRequests() {
   renderNextAction();
 }
 
+function setBookingLiveStatus(message, kind = "info") {
+  bookingLiveStatus.dataset.kind = kind;
+  bookingLiveStatus.textContent = message;
+}
+
+function closeInvitationStream() {
+  invitationStream?.close();
+  invitationStream = null;
+  invitationStreamBookingId = "";
+}
+
+async function refreshBookingTransition({ manual = false } = {}) {
+  if (bookingTransitionRefresh) return bookingTransitionRefresh;
+  const before = new Map(bookings.map((booking) => [booking.bookingId, booking.status]));
+  bookingRefresh.disabled = true;
+  bookingRefresh.textContent = "Refreshing…";
+  bookingTransitionRefresh = (async () => {
+    try {
+      const [bookingResult, requestResult] = await Promise.all([
+        requestJson("/api/marketplace/bookings?limit=50"),
+        requestJson("/api/marketplace/cleaning-requests")
+      ]);
+      bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
+      requests = Array.isArray(requestResult.cleaningRequests) ? requestResult.cleaningRequests : [];
+      const accepted = bookings.find((booking) => before.get(booking.bookingId) === "pending-cleaner-acceptance" && booking.status === "confirmed");
+      const closed = bookings.find((booking) => before.get(booking.bookingId) === "pending-cleaner-acceptance" && booking.status === "cancelled");
+      renderRequests();
+      renderBookings();
+      if (accepted) setBookingLiveStatus(`Cleaner accepted — ${accepted.propertyName || "your clean"} is now a confirmed booking.`, "success");
+      else if (closed) setBookingLiveStatus("That Cleaner could not take the request. Matching has reopened and no payment was taken.", "attention");
+      else if (manual) setBookingLiveStatus("Booking and Cleaner-response status checked just now.", "success");
+      return true;
+    } catch (error) {
+      setBookingLiveStatus(error.code === "browser-offline" ? "You are offline. The last verified booking status remains shown." : "Booking status could not be refreshed. The last verified status remains shown; try again.", "error");
+      return false;
+    }
+  })();
+  try { return await bookingTransitionRefresh; }
+  finally {
+    bookingTransitionRefresh = null;
+    bookingRefresh.disabled = false;
+    bookingRefresh.textContent = "Refresh booking status";
+  }
+}
+
+function syncInvitationStream() {
+  const pending = bookings.find((booking) => booking.participantRole === "landlord" && booking.status === "pending-cleaner-acceptance");
+  if (!pending) {
+    closeInvitationStream();
+    if (bookingLiveStatus.dataset.kind !== "success" && bookingLiveStatus.dataset.kind !== "attention") setBookingLiveStatus("No Cleaner response is currently waiting. Refresh any time.");
+    return;
+  }
+  if (invitationStream && invitationStreamBookingId === pending.bookingId) return;
+  closeInvitationStream();
+  if (typeof EventSource !== "function") {
+    setBookingLiveStatus("Live Cleaner-response updates are unavailable in this browser. Use Refresh booking status.", "attention");
+    return;
+  }
+  const bookingId = pending.bookingId;
+  const stream = new EventSource(`/api/marketplace/bookings/${encodeURIComponent(bookingId)}/events`, { withCredentials: true });
+  invitationStream = stream;
+  invitationStreamBookingId = bookingId;
+  stream.addEventListener("open", () => setBookingLiveStatus("Watching securely for the Cleaner’s response.", "live"));
+  stream.addEventListener("booking-snapshot", (event) => {
+    try {
+      const snapshot = JSON.parse(event.data);
+      if (snapshot.bookingId !== bookingId) throw new Error("Booking mismatch");
+      const current = bookings.find((booking) => booking.bookingId === bookingId);
+      if (snapshot.status && snapshot.status !== current?.status) void refreshBookingTransition();
+    } catch { setBookingLiveStatus("A live update could not be verified. Use Refresh booking status.", "error"); }
+  });
+  stream.addEventListener("stream-error", () => setBookingLiveStatus("Live updates were interrupted. Use Refresh booking status while Homle reconnects.", "attention"));
+  stream.addEventListener("error", () => setBookingLiveStatus("Reconnecting securely for the Cleaner’s response. The last verified status remains shown.", "attention"));
+}
+
 function openRequestWithdrawal(requestId) {
   const request = requests.find((item) => item.requestId === requestId);
   if (!request || !["draft", "searching-for-cleaner"].includes(request.status)) return;
@@ -823,6 +903,7 @@ function renderBookings() {
   document.querySelector("[data-landlord-history-section]").hidden = buckets.history.length === 0;
   document.querySelector("[data-landlord-active-count]").textContent = String(current.length);
   renderNextAction();
+  syncInvitationStream();
 }
 
 function renderNextAction() {
@@ -1151,6 +1232,7 @@ requestWithdrawDialog.addEventListener("close", () => {
   requestWithdrawFeedback.hidden = true;
 });
 retry.addEventListener("click", loadWorkspace);
+bookingRefresh.addEventListener("click", () => { void refreshBookingTransition({ manual: true }); });
 document.querySelector("[data-request-complete-another]").addEventListener("click", () => {
   requestComplete.hidden = true;
   workspace.hidden = false;
@@ -1159,10 +1241,12 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
 window.addEventListener("beforeunload", (event) => { rememberWorkingRequest(); if (propertyDirty || requestDirty) event.preventDefault(); });
+window.addEventListener("pagehide", closeInvitationStream);
 window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", () => {
   updateNetworkStatus();
   if (!state.hidden && state.dataset.kind === "offline") loadWorkspace();
+  else if (!workspace.hidden && bookings.some((booking) => booking.status === "pending-cleaner-acceptance")) void refreshBookingTransition();
 });
 document.querySelector("[data-year]").textContent = new Date().getFullYear();
 initialiseRequestDefaults();
