@@ -144,6 +144,15 @@ async function post(path, body, csrfToken = "") {
   return result;
 }
 
+async function recoverOnboardingCsrf() {
+  const result = await post("/api/marketplace/auth/onboarding-session", {});
+  if (!storeCsrf(result.csrfToken)) {
+    await post("/api/marketplace/auth/logout", {}, result.csrfToken);
+    throw new Error("Secure browser storage is unavailable, so Homle closed the refreshed session. Sign in again in a standard browser window.");
+  }
+  return result.csrfToken;
+}
+
 function setPending(form, pending) {
   const button = form.querySelector('button[type="submit"]');
   if (!button) return;
@@ -318,8 +327,7 @@ async function submitAccountForm(event) {
       form.reset();
       form.querySelector("fieldset").disabled = true;
     } else if (kind === "onboarding") {
-      const csrfToken = storedCsrf();
-      if (!csrfToken) throw new Error("Your secure setup token is missing. Sign in again before choosing a workspace.");
+      const csrfToken = storedCsrf() || await recoverOnboardingCsrf();
       const result = await post("/api/marketplace/onboarding", { role: body.role }, csrfToken);
       if (!storeCsrf(result.csrfToken)) {
         await post("/api/marketplace/auth/logout", {}, result.csrfToken);

@@ -169,6 +169,15 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, workspaceReady, account: { displayName: context.account.displayName, email: context.account.email, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
           return true;
         }
+        if (url.pathname === `${prefix}onboarding-session`) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          security.requireOrigin(request);
+          const context = await security.authenticate(request);
+          if (context.actor.roles.length) throw Object.assign(new Error("This account has already completed onboarding."), { statusCode: 409, code: "onboarding-complete" });
+          const session = await sessions.rotate(context, accountFromOnboarding(context, { selectedRole: null, roles: [] }), metadata(request));
+          sendJson(response, 200, { ok: true, csrfToken: session.csrfToken, expiresAt: session.expiresAt }, { "Set-Cookie": session.setCookie });
+          return true;
+        }
         if (url.pathname === `${prefix}provider-links`) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);

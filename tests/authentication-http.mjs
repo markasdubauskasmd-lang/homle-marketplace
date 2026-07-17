@@ -310,13 +310,18 @@ const accountMutation = await dispatch(router, "POST", "/api/marketplace/account
 const anonymousAccount = await dispatch(router, "GET", "/api/marketplace/account");
 assert(pendingAccount.response.statusCode === 200 && pendingAccount.body.workspaceReady === false && pendingAccount.body.account.displayName === "Property Owner" && pendingAccount.body.account.roles.length === 0 && !Object.hasOwn(pendingAccount.body.account, "userId") && accountMutation.response.statusCode === 405 && anonymousAccount.response.statusCode === 401, "Authentication-only account status was unavailable, writable, unauthenticated or exposed a private account identifier.");
 
+const recoveredOnboardingSession = await dispatch(router, "POST", "/api/marketplace/auth/onboarding-session", {}, { origin, "content-type": "application/json", cookie: privateHeaders.cookie, "user-agent": "Example Browser" });
+const rejectedCrossOriginRecovery = await dispatch(router, "POST", "/api/marketplace/auth/onboarding-session", {}, { origin: "https://attacker.example", "content-type": "application/json", cookie: privateHeaders.cookie });
+assert(recoveredOnboardingSession.response.statusCode === 200 && recoveredOnboardingSession.body.csrfToken === "rotated-csrf-private" && recoveredOnboardingSession.response.headers["Set-Cookie"].includes("rotated") && calls.at(-1).kind === "rotate" && rejectedCrossOriginRecovery.response.statusCode === 403, "A role-pending account could not recover its one-time setup token after refresh or a cross-origin page could rotate it.");
+
 const onboarding = await dispatch(router, "POST", "/api/marketplace/onboarding", { role: "landlord" }, privateHeaders);
 assert(onboarding.response.statusCode === 200 && onboarding.body.account.selectedRole === "landlord" && onboarding.body.csrfToken === "rotated-csrf-private" && onboarding.response.headers["Set-Cookie"].includes("rotated") && calls.at(-1).kind === "rotate" && calls.at(-1).account.email === "owner@example.com", "Role onboarding did not rotate the role-pending session with the existing account identity.");
 currentContext = { ...currentContext, actor: { ...currentContext.actor, roles: ["landlord"] }, account: { ...currentContext.account, selectedRole: "landlord" } };
 const readyAccount = await dispatch(router, "GET", "/api/marketplace/account", undefined, { cookie: privateHeaders.cookie });
 assert(readyAccount.body.account.selectedRole === "landlord" && readyAccount.body.account.roles.join(",") === "landlord" && readyAccount.body.workspaceReady === false, "Role onboarding could not be verified through the authentication-only account projection.");
+const completedRecovery = await dispatch(router, "POST", "/api/marketplace/auth/onboarding-session", {}, { origin, "content-type": "application/json", cookie: privateHeaders.cookie });
 const repeatedOnboarding = await dispatch(router, "POST", "/api/marketplace/onboarding", { role: "cleaner" }, privateHeaders);
-assert(repeatedOnboarding.response.statusCode === 409 && repeatedOnboarding.body.code === "onboarding-complete", "Completed onboarding could be used for a self-service role change.");
+assert(completedRecovery.response.statusCode === 409 && completedRecovery.body.code === "onboarding-complete" && repeatedOnboarding.response.statusCode === 409 && repeatedOnboarding.body.code === "onboarding-complete", "Completed onboarding could recover another setup token or be used for a self-service role change.");
 
 rateLimitedScope = "login";
 const rateLimited = await dispatch(router, "POST", "/api/marketplace/auth/login", { email: "owner@example.com", password: "correct" }, publicHeaders);
