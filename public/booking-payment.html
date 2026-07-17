@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Secure booking payment | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-65">
-  <script src="/booking-payment.js?v=20260716-2" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260717-72">
+  <script src="/booking-payment.js?v=20260717-3" type="module"></script>
 </head>
 <body class="booking-payment-page">
   <a class="skip-link" href="#payment-main">Skip to booking payment</a>
@@ -19,6 +19,8 @@
       <div><p class="eyebrow">Protected booking step</p><h1>Authorize the agreed cleaning total.</h1><p>Payment details stay inside Stripe's secure element. Homle receives a payment status, never your full card number or security code.</p></div>
       <span class="booking-payment-mode">Test mode only</span>
     </section>
+
+    <section class="booking-payment-network" data-payment-network role="status" aria-live="polite" hidden><span aria-hidden="true">!</span><div><strong>You are offline.</strong><p>The last verified total and status remain visible. Homle will not start or repeat a payment action while offline.</p></div></section>
 
     <section class="booking-payment-state" data-payment-state data-kind="checking" role="status" aria-live="polite">
       <span aria-hidden="true">i</span><div><strong data-payment-state-title>Checking secure payment access…</strong><p data-payment-state-copy>This page opens only for the authenticated Landlord on the selected booking.</p><div class="booking-payment-state-actions"><a class="button" href="/login" data-payment-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-payment-retry hidden>Try again</button></div></div>
@@ -31,6 +33,7 @@
       </div>
 
       <div class="booking-payment-message" data-payment-message role="status" aria-live="polite"><strong data-payment-message-title></strong><p data-payment-message-copy></p></div>
+      <button class="text-button booking-payment-refresh" type="button" data-payment-status-refresh hidden>Refresh payment status</button>
       <button class="button booking-payment-prepare" type="button" data-payment-prepare hidden>Enter secure payment details</button>
 
       <form class="booking-payment-form" data-payment-form hidden novalidate>

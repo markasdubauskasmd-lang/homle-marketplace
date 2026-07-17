@@ -1856,6 +1856,11 @@ textarea { resize: vertical; }
 .booking-payment-intro h1 { max-width: 760px; margin: 6px 0 12px; font-size: clamp(2.5rem, 7vw, 5rem); line-height: .96; }
 .booking-payment-intro p:last-child { max-width: 660px; margin: 0; color: var(--muted); }
 .booking-payment-mode { flex: 0 0 auto; padding: .55rem .75rem; color: #7b4300; border: 1px solid #dfb66f; border-radius: 999px; background: #fff7df; font-size: .72rem; font-weight: 850; text-transform: uppercase; }
+.booking-payment-network { position: sticky; z-index: 20; top: 10px; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; max-width: 760px; margin: 0 auto 18px; padding: 13px 16px; color: #70420a; border: 1px solid #d9a55f; border-radius: 13px; background: #fff6df; box-shadow: 0 8px 24px rgba(74,45,10,.12); }
+.booking-payment-network[hidden] { display: none; }
+.booking-payment-network > span { display: grid; width: 32px; height: 32px; place-items: center; color: #fff; border-radius: 50%; background: #8a520c; font-weight: 900; }
+.booking-payment-network strong { display: block; }
+.booking-payment-network p { margin: 3px 0 0; font-size: .78rem; line-height: 1.45; }
 .booking-payment-state, .booking-payment-card { max-width: 760px; margin-inline: auto; border: 1px solid var(--line); border-radius: 24px; background: #fff; box-shadow: 0 18px 50px rgba(16,36,33,.08); }
 .booking-payment-state { display: grid; grid-template-columns: 42px 1fr; gap: 16px; padding: 24px; }
 .booking-payment-state > span { display: grid; width: 40px; height: 40px; place-items: center; color: #fff; border-radius: 50%; background: var(--green); font-weight: 900; }
@@ -1877,6 +1882,7 @@ textarea { resize: vertical; }
 .booking-payment-message { margin: 24px clamp(20px, 5vw, 34px) 0; padding: 16px 18px; border-left: 4px solid var(--orange); border-radius: 0 12px 12px 0; background: #fff9ea; }
 .booking-payment-message strong { color: var(--green-dark); }
 .booking-payment-message p { margin: 4px 0 0; color: var(--muted); }
+.booking-payment-refresh { min-height: 42px; margin: 9px clamp(20px, 5vw, 34px) 0; }
 .booking-payment-prepare { margin: 20px clamp(20px, 5vw, 34px) 0; }
 .booking-payment-form { display: grid; gap: 18px; margin: 22px clamp(20px, 5vw, 34px) 0; padding: 20px; border: 1px solid #b7d8ce; border-radius: 16px; background: #f7fbf9; }
 .booking-payment-element { min-height: 130px; }
