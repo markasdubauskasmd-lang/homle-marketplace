@@ -27,6 +27,8 @@ Before any production process starts, configure the reviewed HTTPS proxy, off-so
 
 After the guarded database bootstrap, the [managed staging service probe](docs/STAGING_SERVICE_PROBE.md) composes the real `tideway_app` database, SMTP authentication, private bucket, monitoring adapter and account runtime without opening a port, sending an email, uploading an object or contacting OAuth/payment providers. It refuses local/production-named databases, insecure TLS, enabled payments and missing exact confirmation; a pass still requires the documented synthetic email, media, monitoring and two-account evidence before activation.
 
+With explicit founder approval and a founder-controlled non-customer mailbox, the [synthetic staging evidence runner](docs/STAGING_EVIDENCE_RUNNER.md) performs the two authentication emails, one checksum-verified private-image round trip with mandatory two-key cleanup and one privacy-minimal monitoring event. It remains payment/OAuth isolated and never creates an account or booking; human receipt, alert and empty-bucket confirmation are still required afterward.
+
 For a phone on the same trusted Wi-Fi, run `npm run start:phone`, find the computer's private IPv4 address, and open `http://<computer-ip>:4174/` on the phone. The main control desk remains on `http://127.0.0.1:4173/admin`; both its HTML shell and data APIs require an admin key through the Wi-Fi address. This is a local-network preview only—do not expose port 4174 through a router or public tunnel.
 
 ## Marketplace design preview

@@ -45,8 +45,7 @@ Do not paste the environment into a terminal command, chat, screenshot or report
 
 ## Evidence still required after a pass
 
-- Deliver one verification and one password-reset message to an approved non-customer staging inbox.
-- Upload, read and delete one synthetic room image through the signed private-media flow and confirm no object remains.
-- Trigger one synthetic error and prove the privacy-minimal monitoring event reaches the assigned operator alert.
+- With explicit founder approval, run the guarded [synthetic staging evidence](STAGING_EVIDENCE_RUNNER.md) command against a founder-controlled non-customer mailbox. It delivers one verification and one password-reset message, performs one signed private-image round trip with mandatory cleanup, and sends one privacy-minimal monitoring event.
+- Confirm the two messages, assigned-operator alert and empty synthetic object keys independently; the command cannot confirm human receipt or provider-console cleanup by itself.
 - Complete the two-account, two-phone request, room scan, acceptance, payment-test, journey, cleaning and review rehearsal.
 - Remove every synthetic account, object, event and booking before enabling real intake.
