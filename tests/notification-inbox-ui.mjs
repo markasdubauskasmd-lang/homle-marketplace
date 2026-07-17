@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { notificationBookingPath, notificationPresentation, notificationUnreadBadge, notificationWorkspacePath } from "../public/notification-inbox-model.js";
+import { notificationActionPath, notificationBookingPath, notificationPresentation, notificationUnreadBadge, notificationWorkspacePath } from "../public/notification-inbox-model.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -9,6 +9,9 @@ assert(notificationPresentation("unexpected-task-approval-requested").descriptio
 assert(notificationPresentation("dispute-opened").action === "Review case" && notificationPresentation("dispute-reviewing").title === "Booking case under review" && notificationPresentation("dispute-resolved").action === "Review outcome", "Private booking-case events do not lead participants to a clear next action.");
 assert(notificationPresentation("not-yet-known").title === "Booking updated", "Unknown events do not fail safely.");
 assert(notificationBookingPath(bookingId) === `/bookings/${bookingId}` && notificationBookingPath("../admin") === null, "Notification booking paths accept an unsafe identifier.");
+assert(notificationActionPath("new-booking-request", bookingId) === "/cleaner/dashboard" && notificationActionPath("cleaner-declined", bookingId) === "/landlord/dashboard", "Invitation and decline updates do not open the role workspace containing the next action.");
+assert(notificationActionPath("cleaner-invitation-expired", bookingId, { matchingReopened: true }) === "/landlord/dashboard" && notificationActionPath("cleaner-invitation-expired", bookingId, {}) === "/cleaner/dashboard", "An expired invitation does not return each participant to the correct workspace.");
+assert(notificationActionPath("booking-confirmed", bookingId) === `/bookings/${bookingId}` && notificationActionPath("new-booking-request", "../admin") === null, "Active updates lost their private booking action or a malformed notification created a dashboard link.");
 assert(notificationWorkspacePath({ selectedRole: "landlord", roles: ["landlord"] }) === "/landlord/dashboard", "Landlords do not return to their workspace.");
 assert(notificationWorkspacePath({ selectedRole: "cleaner", roles: ["cleaner"] }) === "/cleaner/dashboard", "Cleaners do not return to their workspace.");
 assert(notificationWorkspacePath({ selectedRole: "cleaner", roles: ["landlord"] }) === "/login", "A role mismatch does not fail closed.");

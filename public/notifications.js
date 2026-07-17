@@ -1,4 +1,4 @@
-import { notificationBookingPath, notificationPresentation, notificationWorkspacePath } from "./notification-inbox-model.js";
+import { notificationActionPath, notificationPresentation, notificationWorkspacePath } from "./notification-inbox-model.js";
 
 const gate = document.querySelector("[data-notification-gate]");
 const gateTitle = document.querySelector("[data-notification-gate-title]");
@@ -83,7 +83,7 @@ function renderItem(item) {
   time.textContent = formattedTime(item.createdAt);
   body.append(heading, description, time);
   article.append(marker, body);
-  const path = notificationBookingPath(item.bookingId);
+  const path = notificationActionPath(item.eventType, item.bookingId, item.payload);
   if (path) {
     const link = document.createElement("a");
     link.className = "button button-outline notification-action";

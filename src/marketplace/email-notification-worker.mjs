@@ -58,17 +58,24 @@ function trustedOrigin(value) {
   } catch { return null; }
 }
 
+function notificationActionPath(record) {
+  if (record.eventType === "new-booking-request") return "/cleaner/dashboard";
+  if (record.eventType === "cleaner-declined") return "/landlord/dashboard";
+  if (record.eventType === "cleaner-invitation-expired") return record.payload?.matchingReopened === true ? "/landlord/dashboard" : "/cleaner/dashboard";
+  return `/bookings/${record.bookingId.toLowerCase()}`;
+}
+
 export function notificationEmail(record, appOrigin) {
   const selected = deliveryRecord(record);
   const [subject, update] = eventCopy[selected.eventType];
   const safeName = typeof selected.recipientName === "string" ? selected.recipientName.trim().replace(/\s+/g, " ").slice(0, 120) : "";
   const greeting = safeName ? `Hello ${safeName},` : "Hello,";
-  const bookingUrl = `${appOrigin}/bookings/${selected.bookingId.toLowerCase()}`;
+  const actionUrl = `${appOrigin}${notificationActionPath(selected)}`;
   return Object.freeze({
     to: selected.recipientEmail,
     idempotencyKey: selected.notificationId,
     subject: `Homle: ${subject}`,
-    text: `${greeting}\n\n${update}\n\nOpen this private booking update in Homle: ${bookingUrl}\n\nFor privacy, this email does not include an address, access instructions, contact details, photos, case text, messages or live location.`
+    text: `${greeting}\n\n${update}\n\nOpen the next private step in Homle: ${actionUrl}\n\nFor privacy, this email does not include an address, access instructions, contact details, photos, case text, messages or live location.`
   });
 }
 

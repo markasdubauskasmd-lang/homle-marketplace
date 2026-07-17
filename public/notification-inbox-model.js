@@ -36,6 +36,15 @@ export function notificationBookingPath(bookingId) {
     : null;
 }
 
+export function notificationActionPath(eventType, bookingId, payload = {}) {
+  const bookingPath = notificationBookingPath(bookingId);
+  if (!bookingPath) return null;
+  if (eventType === "new-booking-request") return "/cleaner/dashboard";
+  if (eventType === "cleaner-declined") return "/landlord/dashboard";
+  if (eventType === "cleaner-invitation-expired") return payload?.matchingReopened === true ? "/landlord/dashboard" : "/cleaner/dashboard";
+  return bookingPath;
+}
+
 export function notificationWorkspacePath(account) {
   if (account?.selectedRole === "cleaner" && account?.roles?.includes("cleaner")) return "/cleaner/dashboard";
   if (account?.selectedRole === "landlord" && account?.roles?.includes("landlord")) return "/landlord/dashboard";
