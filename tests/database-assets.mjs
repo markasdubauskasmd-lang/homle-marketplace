@@ -29,11 +29,15 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 46);
-  assert.equal(repositoryResult.migrations.at(-1), "046_fix_social_identity_column_ambiguity.sql");
+  assert.equal(repositoryResult.migrations.length, 47);
+  assert.equal(repositoryResult.migrations.at(-1), "047_fix_role_onboarding_column_ambiguity.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
-  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 46\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 47\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
+  const onboardingRepair = await readFile(path.join(sourceDatabaseDirectory, "migrations", "047_fix_role_onboarding_column_ambiguity.sql"), "utf8");
+  assert.match(onboardingRepair, /#variable_conflict error/, "Role onboarding must fail closed if a future PL\/pgSQL variable conflicts with a column.");
+  assert.match(onboardingRepair, /ON CONFLICT ON CONSTRAINT cleaner_profiles_pkey DO NOTHING/, "Cleaner onboarding must name its conflict constraint explicitly.");
+  assert.match(onboardingRepair, /ON CONFLICT ON CONSTRAINT landlord_profiles_pkey DO NOTHING/, "Landlord onboarding must name its conflict constraint explicitly.");
   assert.doesNotMatch(deploymentVerifier, /to_regclass\('tideway_private\.schema_migrations'\) IS NOT NULL\s+AND EXISTS/, "Pre-upgrade verification statically referenced a ledger that may not exist yet.");
   const appBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("app_functions constant"), deploymentVerifier.indexOf("worker_functions constant"));
   const workerBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("worker_functions constant"), deploymentVerifier.indexOf("BEGIN", deploymentVerifier.indexOf("worker_functions constant")));
