@@ -1,4 +1,5 @@
 import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerInvitationDecisionState, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js?v=20260717-2";
+import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
 
 const gate = document.querySelector("[data-cleaner-dashboard-gate]");
 const dashboard = document.querySelector("[data-cleaner-dashboard]");
@@ -412,6 +413,7 @@ async function loadDashboard() {
     document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
     document.querySelector("[data-cleaner-profile-link]").textContent = cleanerProfile?.profileCompletionPercent === 100 ? "Edit profile" : "Complete your profile";
     document.querySelector("[data-cleaner-name]").textContent = account.displayName || "Cleaner";
+    renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl);
     renderBookings();
     showFeedback("");
     gate.hidden = true;

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, cleanerInvitationDecisionState, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "../public/booking-summary-model.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
+function primaryNavigation(page) { const start = page.indexOf('<nav class="directory-nav"'); return page.slice(start, page.indexOf("</nav>", start) + 6); }
 
 const bookingId = "55555555-5555-4555-8555-555555555555";
 const common = { bookingId, scheduledStartAt: "2026-07-20T09:00:00.000Z", scheduledEndAt: "2026-07-20T12:00:00.000Z", pricePence: 7500, propertyArea: "SW1A", taskCount: 4 };
@@ -33,11 +34,12 @@ assert(cleanerInvitationDecisionState({ status: "cancelled" }, "accept") === "di
 
 assert(formatBookingMoment(earlyBooking.paymentStepOpensAt).includes("15 Aug 2026") && formatBookingMoment("bad") === "Date unavailable", "Payment opening time is not presented in the visit timezone or does not fail safely.");
 
-const [cleanerPage, cleanerScript, landlordPage, landlordScript, workspaceSwitch, model, styles, server, authEntry, migration, paymentWindowMigration, grants, packageFile] = await Promise.all([
+const [cleanerPage, cleanerScript, landlordPage, landlordScript, accountAvatar, workspaceSwitch, model, styles, server, authEntry, migration, paymentWindowMigration, grants, packageFile] = await Promise.all([
   readFile(new URL("../public/cleaner-dashboard.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-dashboard.js", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.html", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/account-avatar.js", import.meta.url), "utf8"),
   readFile(new URL("../public/workspace-switch.js", import.meta.url), "utf8"),
   readFile(new URL("../public/booking-summary-model.js", import.meta.url), "utf8"),
   readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
@@ -50,6 +52,8 @@ const [cleanerPage, cleanerScript, landlordPage, landlordScript, workspaceSwitch
 ]);
 
 for (const copy of ["Cleaner dashboard", "Pending requests", "Active jobs", "Upcoming jobs"]) assert(cleanerPage.includes(copy), `The Cleaner dashboard omitted ${copy}.`);
+assert(cleanerPage.includes("Cleaner account") && cleanerPage.includes("cleaner-site-header") && cleanerPage.includes("data-account-avatar") && landlordPage.includes("Landlord account") && landlordPage.includes("landlord-dashboard-identity") && landlordPage.includes("data-account-avatar") && cleanerScript.includes("renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl)") && landlordScript.includes("renderAccountAvatar(account)") && accountAvatar.includes('url.protocol === "https:"') && accountAvatar.includes('referrerPolicy = "no-referrer"'), "Cleaner and Landlord workspaces are not visually separate or cannot show the verified account photo with a safe fallback.");
+assert(!primaryNavigation(cleanerPage).includes('data-target-workspace="landlord"') && !primaryNavigation(landlordPage).includes('data-target-workspace="cleaner"'), "The other role workspace is still presented as primary dashboard navigation instead of an account-menu choice.");
 for (const copy of ["one tap confirms this time, scope and pay", "Decline this request?"]) assert(`${cleanerPage}\n${cleanerScript}`.includes(copy), `The Cleaner dashboard controls omitted ${copy}.`);
 assert(cleanerScript.includes('requestJson("/api/marketplace/bookings?limit=50")') && cleanerScript.includes('requestJson("/api/marketplace/cleaner/profile")') && cleanerScript.includes("/response") && cleanerScript.includes('respondToBooking(booking.bookingId, "accept"') && cleanerScript.includes('respondToBooking(selectedDeclineBookingId, "decline"'), "The Cleaner dashboard is not connected to real profile readiness, participant bookings and invitation decisions.");
 assert(cleanerScript.includes('"X-CSRF-Token"') && cleanerScript.includes("credentials: \"same-origin\"") && cleanerScript.includes("`Accept ${formatBookingMoney(booking.pricePence)} job`") && cleanerScript.includes('respondToBooking(booking.bookingId, "accept"') && !cleanerScript.includes("globalThis.confirm") && !cleanerScript.includes("innerHTML"), "Cleaner decisions lost session/CSRF protection, exact-pay one-tap acceptance or safe rendering.");

@@ -50,7 +50,7 @@
     "test:staging-role-rehearsal": "node tests/verify-staging-role-rehearsal.mjs",
     "check:staging-account-purge": "node --check tools/purge-staging-account.mjs && node --check tests/purge-staging-account.mjs",
     "test:staging-account-purge": "node tests/purge-staging-account.mjs",
-    "check:booking-dashboards": "node --check public/booking-summary-model.js && node --check public/cleaner-dashboard.js && node --check public/cleaner-availability.js && node --check tests/booking-dashboard-ui.mjs && node --check tests/cleaner-availability-ui.mjs",
+    "check:booking-dashboards": "node --check public/account-avatar.js && node --check public/booking-summary-model.js && node --check public/cleaner-dashboard.js && node --check public/cleaner-availability.js && node --check tests/booking-dashboard-ui.mjs && node --check tests/cleaner-availability-ui.mjs",
     "test:booking-dashboards": "node tests/booking-dashboard-ui.mjs && node tests/cleaner-availability-ui.mjs",
     "check:account-settings": "node --check src/marketplace/provider-link-state.mjs && node --check public/settings.js && node --check tests/provider-link-state.mjs && node --check tests/account-settings-ui.mjs",
     "test:account-settings": "node tests/provider-link-state.mjs && node tests/account-settings-ui.mjs",

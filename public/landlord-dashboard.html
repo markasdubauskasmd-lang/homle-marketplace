@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Landlord workspace | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260717-71">
-  <script src="/landlord-dashboard.js?v=20260717-10" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260717-72">
+  <script src="/landlord-dashboard.js?v=20260717-11" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
   <script src="/workspace-switch.js?v=20260717-1" type="module"></script>
 </head>
@@ -16,8 +16,9 @@
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
   <header class="site-header">
     <div class="shell nav-wrap">
-      <a class="brand" href="/" aria-label="Homle home"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a>
-      <nav class="directory-nav" aria-label="Landlord workspace navigation"><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaners">Find a Cleaner</a><button class="workspace-switch" type="button" data-workspace-switch data-target-workspace="cleaner" hidden disabled>Cleaner workspace</button><a href="/login">Account access</a></nav>
+      <div class="workspace-brand"><a class="brand" href="/" aria-label="Homle home"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill">Landlord</span></div>
+      <nav class="directory-nav" aria-label="Landlord workspace navigation"><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaners">Find a Cleaner</a></nav>
+      <details class="account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="/settings">Account settings</a><button class="workspace-switch account-workspace-switch" type="button" data-workspace-switch data-target-workspace="cleaner" hidden disabled>Cleaner workspace</button></div></details>
     </div>
   </header>
 
@@ -49,7 +50,7 @@
       <section class="landlord-network-status" data-landlord-network-status role="status" aria-live="polite" hidden>
         <span aria-hidden="true">!</span><div><strong>You are offline.</strong><p>Your unfinished walkthrough and selected room photos stay in this tab. Reconnect before saving or uploading; Homle will not retry a change automatically.</p></div>
       </section>
-      <section class="landlord-dashboard-heading">
+      <section class="landlord-dashboard-heading landlord-dashboard-identity">
         <div><p class="eyebrow">Landlord workspace</p><h1>Welcome, <span data-landlord-name>Landlord</span>.</h1><p>Save real properties, prepare a room-by-room scope and keep requests private until the photo-and-speech handoff is complete.</p></div>
         <dl class="landlord-dashboard-stats"><div><dt>Properties</dt><dd data-property-count>0</dd></div><div><dt>Request drafts</dt><dd data-draft-count>0</dd></div><div><dt>Active bookings</dt><dd data-landlord-active-count>0</dd><small>Confirmed records only</small></div></dl>
       </section>

@@ -29,8 +29,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 53);
-  assert.equal(repositoryResult.migrations.at(-1), "053_matching_self_exclusion.sql");
+  assert.equal(repositoryResult.migrations.length, 55);
+  assert.equal(repositoryResult.migrations.at(-1), "055_session_avatar_projection.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
@@ -39,6 +39,8 @@ try {
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 51\)'/, "Deployment verification must detect the booking-case payment-handoff migration dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 52\)'/, "Deployment verification must detect the Administrator booking-operations migration dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 53\)'/, "Deployment verification must detect the matching self-exclusion migration dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 54\)'/, "Deployment verification must detect private request live updates dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 55\)'/, "Deployment verification must detect the session-avatar projection dynamically.");
   const migration48VerificationStart = deploymentVerifier.indexOf("IF latest_migration_installed THEN");
   assert(migration48VerificationStart >= 0 && deploymentVerifier.indexOf("conname='bookings_distinct_participants'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its new constraint check until after that locked migration is installed.");
   assert(deploymentVerifier.indexOf("selected_name := 'tideway_private.activate_my_workspace(user_role)'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its workspace-function check until after that locked migration is installed.");
@@ -47,6 +49,7 @@ try {
   assert(deploymentVerifier.includes("get_administrator_booking_payment_operation(uuid)") && deploymentVerifier.includes("payment.booking_id=selected_booking_id") && deploymentVerifier.includes("booking-case payment handoff"), "Migration-51 verification must prove exact-booking scope, restricted execution and provider-reference privacy.");
   assert(deploymentVerifier.includes("list_administrator_booking_operations(text,integer,integer)") && deploymentVerifier.includes("privacy-minimised boundary") && deploymentVerifier.includes("access_instructions"), "Migration-52 verification must prove restricted execution and personal-data minimisation.");
   assert(deploymentVerifier.includes("recommend_cleaners_for_request_v2(uuid,integer)") && deploymentVerifier.includes("candidate.cleaner_id<>request_landlord_id") && deploymentVerifier.includes("Automatic dispatch bypasses"), "Migration-53 verification must prove shared self-exclusion for interactive and automatic matching.");
+  assert(deploymentVerifier.includes("get_cleaning_request_realtime_snapshot(uuid,bigint,integer)") && deploymentVerifier.includes("Cleaning-request live events lack RLS") && deploymentVerifier.includes("lookup_session(bytea)") && deploymentVerifier.includes("avatar_url"), "Migration-54/55 verification must prove the private request stream and account-avatar session projection.");
   const onboardingRepair = await readFile(path.join(sourceDatabaseDirectory, "migrations", "047_fix_role_onboarding_column_ambiguity.sql"), "utf8");
   assert.match(onboardingRepair, /#variable_conflict error/, "Role onboarding must fail closed if a future PL\/pgSQL variable conflicts with a column.");
   assert.match(onboardingRepair, /ON CONFLICT ON CONSTRAINT cleaner_profiles_pkey DO NOTHING/, "Cleaner onboarding must name its conflict constraint explicitly.");

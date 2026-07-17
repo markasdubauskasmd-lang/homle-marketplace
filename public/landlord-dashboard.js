@@ -3,6 +3,7 @@ import { clearSelectedCleaner, readSelectedCleaner } from "./account-intent.js";
 import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
 import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
+import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
 import { landlordDispatchAction, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260717-6";
 import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260717-2";
 
@@ -72,7 +73,7 @@ let mediaReady = false;
 let requestRecoveryChecked = false;
 let requestRecoveryTimer = null;
 let invitationStream = null;
-let invitationStreamBookingId = "";
+let invitationStreamKey = "";
 let bookingTransitionRefresh = null;
 const requestScans = new Map();
 const uncertainDispatchRequests = new Set();
@@ -823,7 +824,7 @@ function setBookingLiveStatus(message, kind = "info") {
 function closeInvitationStream() {
   invitationStream?.close();
   invitationStream = null;
-  invitationStreamBookingId = "";
+  invitationStreamKey = "";
 }
 
 async function refreshBookingTransition({ manual = false } = {}) {
@@ -839,12 +840,14 @@ async function refreshBookingTransition({ manual = false } = {}) {
       ]);
       bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
       requests = Array.isArray(requestResult.cleaningRequests) ? requestResult.cleaningRequests : [];
+      const invited = bookings.find((booking) => !before.has(booking.bookingId) && booking.status === "pending-cleaner-acceptance");
       const accepted = bookings.find((booking) => before.get(booking.bookingId) === "pending-cleaner-acceptance" && booking.status === "confirmed");
       const closed = bookings.find((booking) => before.get(booking.bookingId) === "pending-cleaner-acceptance" && booking.status === "cancelled");
       renderRequests();
       renderBookings();
       if (accepted) setBookingLiveStatus(`Cleaner accepted — ${accepted.propertyName || "your clean"} is now a confirmed booking.`, "success");
       else if (closed) setBookingLiveStatus("That Cleaner could not take the request. Matching has reopened and no payment was taken.", "attention");
+      else if (invited) setBookingLiveStatus("A Cleaner invitation was sent. Homle is now watching securely for their response; no booking is confirmed and no payment was taken.", "live");
       else if (manual) setBookingLiveStatus("Booking and Cleaner-response status checked just now.", "success");
       return true;
     } catch (error) {
@@ -862,29 +865,45 @@ async function refreshBookingTransition({ manual = false } = {}) {
 
 function syncInvitationStream() {
   const pending = bookings.find((booking) => booking.participantRole === "landlord" && booking.status === "pending-cleaner-acceptance");
-  if (!pending) {
+  const matchingRequest = requests.find((request) => request.status === "searching-for-cleaner" && request.automaticDispatch?.enabled === true);
+  if (!pending && !matchingRequest) {
     closeInvitationStream();
     if (bookingLiveStatus.dataset.kind !== "success" && bookingLiveStatus.dataset.kind !== "attention") setBookingLiveStatus("No Cleaner response is currently waiting. Refresh any time.");
     return;
   }
-  if (invitationStream && invitationStreamBookingId === pending.bookingId) return;
+  const streamType = pending ? "booking" : "request";
+  const streamId = pending?.bookingId || matchingRequest.requestId;
+  const streamKey = `${streamType}:${streamId}`;
+  if (invitationStream && invitationStreamKey === streamKey) return;
   closeInvitationStream();
   if (typeof EventSource !== "function") {
     setBookingLiveStatus("Live Cleaner-response updates are unavailable in this browser. Use Refresh booking status.", "attention");
     return;
   }
-  const bookingId = pending.bookingId;
-  const stream = new EventSource(`/api/marketplace/bookings/${encodeURIComponent(bookingId)}/events`, { withCredentials: true });
+  const streamPath = streamType === "booking"
+    ? `/api/marketplace/bookings/${encodeURIComponent(streamId)}/events`
+    : `/api/marketplace/cleaning-requests/${encodeURIComponent(streamId)}/events`;
+  const stream = new EventSource(streamPath, { withCredentials: true });
   invitationStream = stream;
-  invitationStreamBookingId = bookingId;
-  stream.addEventListener("open", () => setBookingLiveStatus("Watching securely for the Cleaner’s response.", "live"));
+  invitationStreamKey = streamKey;
+  stream.addEventListener("open", () => setBookingLiveStatus(streamType === "booking" ? "Watching securely for the Cleaner’s response." : "Finding one eligible Cleaner. This page will update automatically when an invitation is sent.", "live"));
   stream.addEventListener("booking-snapshot", (event) => {
     try {
       const snapshot = JSON.parse(event.data);
-      if (snapshot.bookingId !== bookingId) throw new Error("Booking mismatch");
-      const current = bookings.find((booking) => booking.bookingId === bookingId);
+      if (snapshot.bookingId !== streamId) throw new Error("Booking mismatch");
+      const current = bookings.find((booking) => booking.bookingId === streamId);
       if (snapshot.status && snapshot.status !== current?.status) void refreshBookingTransition();
     } catch { setBookingLiveStatus("A live update could not be verified. Use Refresh booking status.", "error"); }
+  });
+  stream.addEventListener("request-snapshot", (event) => {
+    try {
+      const snapshot = JSON.parse(event.data);
+      if (snapshot.requestId !== streamId) throw new Error("Request mismatch");
+      const current = requests.find((request) => request.requestId === streamId);
+      const dispatch = current?.automaticDispatch || {};
+      const liveDispatch = snapshot.automaticDispatch || {};
+      if (snapshot.status !== current?.status || liveDispatch.lastResult !== dispatch.lastResult || Number(liveDispatch.attemptCount) !== Number(dispatch.attemptCount)) void refreshBookingTransition();
+    } catch { setBookingLiveStatus("A live matching update could not be verified. Use Refresh booking status.", "error"); }
   });
   stream.addEventListener("stream-error", () => setBookingLiveStatus("Live updates were interrupted. Use Refresh booking status while Homle reconnects.", "attention"));
   stream.addEventListener("error", () => setBookingLiveStatus("Reconnecting securely for the Cleaner’s response. The last verified status remains shown.", "attention"));
@@ -1064,6 +1083,7 @@ async function loadWorkspace() {
     mediaReady = healthResult?.marketplace?.mediaReady === true;
     mediaReadiness.hidden = mediaReady;
     document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
+    renderAccountAvatar(account);
     renderProperties();
     restoreWorkingRequest();
     renderRequests();

@@ -74,6 +74,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_job_photo_object(uuid,uuid) TO tid
 GRANT EXECUTE ON FUNCTION tideway_private.send_booking_message(uuid,uuid,uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_messages(uuid,timestamptz,uuid,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_realtime_snapshot(uuid,bigint,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_request_realtime_snapshot(uuid,bigint,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_notifications(timestamptz,uuid,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.mark_my_notification_read(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.mark_all_my_notifications_read(timestamptz) TO tideway_app;
@@ -115,6 +116,7 @@ REVOKE INSERT, UPDATE, DELETE ON disputes FROM tideway_app;
 REVOKE SELECT ON job_photos, job_photo_uploads FROM tideway_app;
 REVOKE SELECT ON conversations, messages FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_realtime_events FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaning_request_realtime_events FROM tideway_app;
 REVOKE SELECT ON notifications FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON reviews FROM tideway_app;
 REVOKE SELECT ON disputes FROM tideway_app;

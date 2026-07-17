@@ -4,6 +4,8 @@
 
 ## Implemented
 
+- The Landlord workspace has its own visual identity, route and primary navigation. Cleaner actions are not mixed into the Landlord navigation. A dual-role account can still switch deliberately from the authenticated account menu without merging either dashboard.
+- The authenticated header shows the verified Google or Facebook profile photo when the provider supplied an HTTPS image. If there is no usable provider photo, it renders safe initials. The menu shows only the signed-in display name and email plus account settings and an optional workspace switch; it never exposes provider subjects, tokens or database IDs.
 - A private self-account route returns only the signed-in user's display name, email, selected role and roles. It never returns session tokens, database identifiers or provider identities.
 - Successful email, Google and Facebook sign-in hand off an established Cleaner to `/cleaner/dashboard` and an established Landlord to `/landlord/dashboard`; accounts that have not selected a role continue to `/onboarding`.
 - Landlords can list, create and reopen their own validated properties through the existing owner-authorised APIs. One clear card action opens the same short form for updating access, parking, preferences, checklist and property details; protected entry instructions are encrypted again on every save.
@@ -12,6 +14,7 @@
 - The workspace lists the signed-in Landlord's active, upcoming and historical booking summaries. Confirmed jobs link to the participant-only active-job screen, while eligible confirmed bookings link to their exact payment-authorization step.
 - Draft and searching requests expose one quiet **Withdraw request** action. Its reason dialog is keyboard accessible, prevents duplicate submission and explains that it cannot cancel a confirmed booking or change a payment; later request states never expose the control.
 - A searching request without an active invitation no longer implies that Homle is contacting Cleaners without consent. **Find my Cleaner** authorizes exactly one additional invitation through the existing owner-only dispatch boundary. The server still chooses from currently eligible, available and profitably priceable matches, a Cleaner must accept, and no payment is taken. The action advances one total attempt at a time up to five; while an authorization is active it cannot be repeated. An uncertain mobile result requires a read-only saved-status refresh before another write becomes available.
+- While matching is active, the page follows a private Landlord-authorised request stream. It refreshes the durable request state when matching changes and automatically changes over to the booking event stream when the invitation exists. Unsupported or interrupted SSE never repeats a write and leaves one explicit read-only refresh action.
 - The summary endpoint returns the Landlord's customer total but never Cleaner pay, precise location, access instructions or unrelated bookings.
 - The page starts hidden and fails closed when authentication, the Landlord role, or the PostgreSQL marketplace attachment is unavailable. All account and property data is rendered with text-only DOM APIs.
 

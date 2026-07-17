@@ -15,6 +15,8 @@ DECLARE
   case_payment_handoff_migration_installed boolean := false;
   booking_operations_migration_installed boolean := false;
   matching_self_exclusion_migration_installed boolean := false;
+  request_realtime_migration_installed boolean := false;
+  session_avatar_migration_installed boolean := false;
   rls_tables constant text[] := ARRAY[
     'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
@@ -191,6 +193,10 @@ BEGIN
       INTO booking_operations_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 53)'
       INTO matching_self_exclusion_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 54)'
+      INTO request_realtime_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 55)'
+      INTO session_avatar_migration_installed;
   END IF;
   IF payment_operations_migration_installed THEN
     selected_name := 'tideway_private.list_administrator_payment_operations(text,integer,integer)';
@@ -260,6 +266,28 @@ BEGIN
     WHERE procedure.oid=to_regprocedure('tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)');
     IF position('recommend_cleaners_for_request_v2' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Automatic dispatch bypasses the shared self-excluding matching candidate boundary';
+    END IF;
+  END IF;
+  IF request_realtime_migration_installed THEN
+    selected_function := to_regprocedure('tideway_private.get_cleaning_request_realtime_snapshot(uuid,bigint,integer)');
+    IF selected_function IS NULL OR NOT EXISTS (
+      SELECT 1 FROM pg_proc procedure WHERE procedure.oid=selected_function AND procedure.prosecdef
+        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+    ) OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('public', selected_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'The private Landlord cleaning-request live snapshot boundary is missing or unsafe';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_class relation WHERE relation.oid='public.cleaning_request_realtime_events'::regclass AND relation.relrowsecurity)
+      OR has_table_privilege('tideway_app','public.cleaning_request_realtime_events','SELECT,INSERT,UPDATE,DELETE') THEN
+      RAISE EXCEPTION 'Cleaning-request live events lack RLS or can be read/forged by the app role';
+    END IF;
+  END IF;
+  IF session_avatar_migration_installed THEN
+    selected_function := to_regprocedure('tideway_private.lookup_session(bytea)');
+    IF selected_function IS NULL OR position('avatar_url' IN pg_get_function_result(selected_function))=0
+      OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('public', selected_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'The authenticated session projection does not expose the stored account avatar safely';
     END IF;
   END IF;
   IF scope_handoff_migration_installed THEN

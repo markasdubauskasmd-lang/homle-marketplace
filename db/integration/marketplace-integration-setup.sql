@@ -2,11 +2,11 @@
 
 BEGIN;
 
-INSERT INTO users (id, email, email_verified_at, display_name, selected_role) VALUES
-  ('10000000-0000-4000-8000-000000000001', 'integration-landlord@invalid.example', now(), 'Integration Landlord', 'landlord'),
-  ('10000000-0000-4000-8000-000000000002', 'integration-cleaner@invalid.example', now(), 'Integration Cleaner', 'cleaner'),
-  ('10000000-0000-4000-8000-000000000003', 'integration-outsider@invalid.example', now(), 'Integration Outsider', 'landlord'),
-  ('10000000-0000-4000-8000-000000000004', 'integration-admin@invalid.example', now(), 'Integration Administrator', NULL);
+INSERT INTO users (id, email, email_verified_at, display_name, avatar_url, selected_role) VALUES
+  ('10000000-0000-4000-8000-000000000001', 'integration-landlord@invalid.example', now(), 'Integration Landlord', 'https://images.invalid.example/integration-landlord.jpg', 'landlord'),
+  ('10000000-0000-4000-8000-000000000002', 'integration-cleaner@invalid.example', now(), 'Integration Cleaner', NULL, 'cleaner'),
+  ('10000000-0000-4000-8000-000000000003', 'integration-outsider@invalid.example', now(), 'Integration Outsider', NULL, 'landlord'),
+  ('10000000-0000-4000-8000-000000000004', 'integration-admin@invalid.example', now(), 'Integration Administrator', NULL, NULL);
 
 INSERT INTO user_roles (user_id, role) VALUES
   ('10000000-0000-4000-8000-000000000001', 'landlord'),

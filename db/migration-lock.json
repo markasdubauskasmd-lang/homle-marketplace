@@ -54,10 +54,12 @@
     { "order": 50, "file": "050_administrator_payment_operations.sql", "sha256": "6ea0a59598a1b4e2547c023611d83f5453139f2c7619fb934c59d4e84bf5da49" },
     { "order": 51, "file": "051_administrator_case_payment_handoff.sql", "sha256": "d2ee0833e268ac1050072b55626daa81e8892167c2e97e0bd279ea04609c3d9e" },
     { "order": 52, "file": "052_administrator_booking_operations.sql", "sha256": "af4b12da2edc377b774f3fe590b304674cfcdf5e5e10cc50dee01d05a24b04ce" },
-    { "order": 53, "file": "053_matching_self_exclusion.sql", "sha256": "cafb6ef53e2e7f24d569620ec6c7f76facb20ef247bf760d60eaa594d34c11f5" }
+    { "order": 53, "file": "053_matching_self_exclusion.sql", "sha256": "cafb6ef53e2e7f24d569620ec6c7f76facb20ef247bf760d60eaa594d34c11f5" },
+    { "order": 54, "file": "054_cleaning_request_realtime_events.sql", "sha256": "47d3cea5bc4a34cb32736ea24e3ca0a72eaab677226ad6126de5ce85d6ea0916" },
+    { "order": 55, "file": "055_session_avatar_projection.sql", "sha256": "00cfa75ddbd10de625e5e3ccd16b6d546e3b589be4a28d59c736030a61c7e502" }
   ],
   "grantFiles": [
-    { "file": "runtime-role-grants.sql", "sha256": "d99a602c5f2ef1f3b3a531312448aabd6648d587112a8a9474bc901449aae8ed" },
+    { "file": "runtime-role-grants.sql", "sha256": "595d86d58563821195e98d952c989cb0efdd35c17cfec75bc9da4605ebd7f829" },
     { "file": "worker-role-grants.sql", "sha256": "61e35fff770941bf21eb1efc017d78b53d122945ae3a92b1b2b073479351eebc" }
   ]
 }

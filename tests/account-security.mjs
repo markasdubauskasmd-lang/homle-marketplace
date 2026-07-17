@@ -18,6 +18,7 @@ const session = {
   email: "cleaner@example.com",
   email_verified_at: "2026-07-15T14:00:00.000Z",
   display_name: "Cleaner Example",
+  avatar_url: "https://images.example.com/cleaner.jpg",
   selected_role: "cleaner",
   roles: ["cleaner"],
   csrf_secret_hash: material.csrfHash,
@@ -32,7 +33,7 @@ assert(await rejected(() => security.authenticate({ headers: { cookie: `${sessio
 assert(await rejected(() => security.authenticate({ headers: { cookie: `${developmentSessionCookieName}=${material.token}` } }), 401, "authentication-required"), "Production accepted the non-secure development cookie name.");
 
 const context = await security.protect(authenticatedRequest, { roles: ["cleaner"] });
-assert(context.actor.userId === session.user_id && context.actor.roles.length === 1 && !Object.hasOwn(context, "token") && !Object.hasOwn(context.account, "password_hash"), "Authenticated context lost role identity or exposed credentials.");
+assert(context.actor.userId === session.user_id && context.actor.roles.length === 1 && context.account.avatarUrl === session.avatar_url && !Object.hasOwn(context, "token") && !Object.hasOwn(context.account, "password_hash"), "Authenticated context lost role identity/provider avatar or exposed credentials.");
 assert(await rejected(() => security.protect(authenticatedRequest, { roles: ["landlord"] }), 403, "role-rejected"), "A cleaner entered a landlord-only route.");
 assert(await rejected(() => security.protect({ headers: { ...authenticatedRequest.headers, origin: "https://attacker.example", "x-csrf-token": material.csrfToken } }, { mutation: true }), 403, "origin-rejected"), "A cross-origin cookie mutation was accepted.");
 assert(await rejected(() => security.protect({ headers: { ...authenticatedRequest.headers, origin: "https://tideway.example.com" } }, { mutation: true }), 403, "csrf-rejected"), "A cookie mutation without CSRF was accepted.");

@@ -138,7 +138,8 @@ const messageService = {
   async listMessages(actor, bookingId, input) { calls.push({ kind: "message-list", actor, bookingId, input }); return { bookingId, messages: [], hasMore: false, nextCursor: null }; }
 };
 const realtimeService = {
-  async openStream(actor, bookingId, request, response, lastEventId) { calls.push({ kind: "realtime-open", actor, bookingId, lastEventId }); response.writeHead(200, { "Content-Type": "text/event-stream" }); response.end(JSON.stringify({ ok: true })); }
+  async openStream(actor, bookingId, request, response, lastEventId) { calls.push({ kind: "realtime-open", actor, bookingId, lastEventId }); response.writeHead(200, { "Content-Type": "text/event-stream" }); response.end(JSON.stringify({ ok: true })); },
+  async openRequestStream(actor, requestId, request, response, lastEventId) { calls.push({ kind: "request-realtime-open", actor, requestId, lastEventId }); response.writeHead(200, { "Content-Type": "text/event-stream" }); response.end(JSON.stringify({ ok: true })); }
 };
 const notificationService = {
   async listNotifications(actor, input) { calls.push({ kind: "notification-list", actor, input }); return { notifications: [], unreadCount: 2, hasMore: false, nextCursor: null }; },
@@ -402,6 +403,8 @@ assert(messageList.response.statusCode === 200 && landlordMessage.response.statu
 const missingRealtimeOrigin = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/events`, { headers: { cookie: authHeaders.cookie } });
 const realtimeStream = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/events?afterEventId=7`, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin } });
 assert(missingRealtimeOrigin.response.statusCode === 403 && missingRealtimeOrigin.body.code === "origin-rejected" && realtimeStream.response.statusCode === 200 && calls.at(-1).kind === "realtime-open" && calls.at(-1).lastEventId === "7", "Real-time booking stream did not require exact origin or preserve its durable reconnect cursor.");
+const requestRealtimeStream = await dispatch(router, "GET", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/events?afterEventId=11", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin } });
+assert(requestRealtimeStream.response.statusCode === 200 && calls.at(-1).kind === "request-realtime-open" && calls.at(-1).requestId === "66666666-6666-4666-8666-666666666666" && calls.at(-1).lastEventId === "11", "The private Landlord request stream lost role, exact-origin, resource or durable cursor binding.");
 const landlordJourneyStart = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/journey/start`, { headers: authHeaders, body: { consentGranted: true, latitude: 51.5, longitude: -0.1 } });
 assert(landlordJourneyStart.response.statusCode === 403 && landlordJourneyStart.body.code === "role-rejected", "A Landlord could start the Cleaner journey.");
 const landlordProgress = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/cleaning-progress`, { headers: { cookie: authHeaders.cookie } });

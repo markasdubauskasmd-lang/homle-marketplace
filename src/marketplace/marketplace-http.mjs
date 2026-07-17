@@ -30,6 +30,7 @@ const jobPhotoCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPat
 const jobPhotoAccessPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/(${uuidPattern})/access$`);
 const bookingMessagesPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/messages$`);
 const bookingEventsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/events$`);
+const requestEventsPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/events$`);
 const notificationReadPath = new RegExp(`^/api/marketplace/notifications/(${uuidPattern})/read$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
 const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
@@ -104,7 +105,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!media || !["createUploadIntent", "completeUpload", "getPhotoAccess"].every((method) => typeof media[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private job-media service.");
   if (!requestMedia || !["createUploadIntent", "completeUpload", "getScan", "getPhotoAccess"].every((method) => typeof requestMedia[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private request-media service.");
   if (!messages || !["sendMessage", "listMessages"].every((method) => typeof messages[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-message service.");
-  if (!realtime || typeof realtime.openStream !== "function") throw new TypeError("Marketplace HTTP routes require the booking real-time service.");
+  if (!realtime || typeof realtime.openStream !== "function" || typeof realtime.openRequestStream !== "function") throw new TypeError("Marketplace HTTP routes require the real-time marketplace service.");
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
   if (!disputes || !["open", "getForBooking", "listForAdministrator", "review"].every((method) => typeof disputes[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-case service.");
@@ -207,7 +208,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         if (pathname === "/api/marketplace/account") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);
-          sendJson(response, 200, { ok: true, account: { displayName: context.account.displayName, email: context.account.email, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
+          sendJson(response, 200, { ok: true, account: { displayName: context.account.displayName, email: context.account.email, avatarUrl: context.account.avatarUrl, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
           return true;
         }
         if (pathname === "/api/marketplace/privacy-requests") {
@@ -511,6 +512,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request);
           security.requireOrigin(request);
           await realtime.openStream(context.actor, selectedEvents[1], request, response, request.headers?.["last-event-id"] || url.searchParams.get("afterEventId") || 0, context.expiresAt);
+          return true;
+        }
+        const selectedRequestEvents = pathname.match(requestEventsPath);
+        if (selectedRequestEvents) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["landlord"] });
+          security.requireOrigin(request);
+          await realtime.openRequestStream(context.actor, selectedRequestEvents[1], request, response, request.headers?.["last-event-id"] || url.searchParams.get("afterEventId") || 0, context.expiresAt);
           return true;
         }
         const selectedJourneyStart = pathname.match(journeyStartPath);
