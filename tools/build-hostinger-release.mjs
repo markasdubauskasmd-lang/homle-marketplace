@@ -6,6 +6,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { verifyDatabaseAssets } from "../db/migration-assets.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const releaseEntryPoints = Object.freeze([
@@ -18,6 +19,12 @@ const releaseEntryPoints = Object.freeze([
   "tools/build-hostinger-release.mjs"
 ]);
 const alwaysIncluded = Object.freeze(["package.json", "pnpm-lock.yaml"]);
+const databaseRuntimeFiles = new Set([
+  "db/migration-lock.json",
+  "db/migration-assets.mjs",
+  "db/runtime-role-grants.sql",
+  "db/worker-role-grants.sql"
+]);
 const excludedRuntimeFiles = new Set([
   "public/tracking-test.html",
   "public/tracking-test.js"
@@ -82,6 +89,7 @@ export async function selectReleaseFiles(root = projectRoot) {
 
   for (const file of tracked) {
     if ((file.startsWith("public/") || file.startsWith("src/")) && !excludedRuntimeFiles.has(file)) selected.add(file);
+    if (file.startsWith("db/migrations/") || databaseRuntimeFiles.has(file)) selected.add(file);
   }
   for (const entry of releaseEntryPoints) selected.add(entry);
 
@@ -174,6 +182,9 @@ export function validateReleaseEntries(entries, expectedFiles) {
     "travel-coverage.mjs",
     "public/index.html",
     "src/marketplace/runtime.mjs",
+    "db/migration-lock.json",
+    "db/runtime-role-grants.sql",
+    "db/worker-role-grants.sql",
     "tools/check-dependency-lock.mjs",
     "tools/domain-readiness.mjs",
     "tools/production-preflight.mjs",
@@ -204,6 +215,8 @@ export async function buildHostingerRelease({
     if (status) throw new Error("Refusing to package a dirty worktree. Commit or remove every pending change first.");
   }
   const commit = cleanCommit(runGit(resolvedRoot, ["rev-parse", "HEAD"]));
+  const databaseAssets = await verifyDatabaseAssets({ databaseDirectory: path.join(resolvedRoot, "db") });
+  if (!databaseAssets.ok) throw new Error(`Refusing to package invalid database assets: ${databaseAssets.errors.join(" ")}`);
   const expectedFiles = await selectReleaseFiles(resolvedRoot);
   const archiveName = `Homle-Hostinger-Node-release-${commit}.zip`;
   const manifestName = `Homle-Hostinger-Node-release-${commit}.manifest.json`;
@@ -233,6 +246,8 @@ export async function buildHostingerRelease({
       directoryCount: counts.directoryCount,
       privateMaterialIncluded: false,
       requiredRuntimeFilesVerified: true,
+      databaseAssetsVerified: true,
+      migrationCount: databaseAssets.migrations.length,
       generatedAt: new Date().toISOString()
     };
     await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { encoding: "utf8", flag: "wx" });

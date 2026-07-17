@@ -41,7 +41,7 @@ Authoritative Hostinger references:
 - supported runtime: Node.js 24
 - start command from the package: `node server.mjs`
 
-This release is built by `pnpm run release:hostinger`. The builder follows committed local imports, includes the whole shipped `public/` and `src/` runtime, verifies the ZIP central directory against its exact allowlist, rejects private/internal paths and records a SHA-256 manifest. It caught that the older manual `9f5ce64` archive omitted the server-imported `travel-coverage.mjs` startup dependency; do not upload that superseded archive.
+This release is built by `pnpm run release:hostinger`. The builder follows committed local imports, includes the whole shipped `public/` and `src/` runtime, verifies the ZIP central directory against its exact allowlist, rejects private/internal paths and records a SHA-256 manifest. It also includes every SHA-256-locked database migration, the migration lock and both least-privilege grant scripts, re-verifies those assets before packaging and records the migration count. Inclusion does not apply a migration automatically: use a separate migration-owner connection against approved managed staging, run the deployment verifier, and keep the Node process restricted to `tideway_app`. The builder caught that the older manual `9f5ce64` archive omitted the server-imported `travel-coverage.mjs` startup dependency; do not upload that superseded archive.
 
 ## Why it is not uploaded through File Manager
 
