@@ -52,10 +52,11 @@ function safeOutput(value) {
   return { byteSize: integer(value.outputByteSize, 1, 15_000_000, "Processed photo size"), checksumSha256, width: integer(value.width, 1, 20_000, "Processed photo width"), height: integer(value.height, 1, 20_000, "Processed photo height") };
 }
 function scanProjection(value) {
-  if (!value || typeof value !== "object" || !Array.isArray(value.photos)) throw unavailable();
+  if (!value || typeof value !== "object" || !Array.isArray(value.tasks) || !Array.isArray(value.photos)) throw unavailable();
   return Object.freeze({
     cleaningRequestId: value.cleaningRequestId,
     status: value.status,
+    tasks: value.tasks.map((task) => Object.freeze({ roomName: String(task.roomName || ""), description: String(task.description || ""), sortOrder: Number(task.sortOrder) || 0 })),
     photos: value.photos.map((photo) => Object.freeze({ photoId: photo.photoId, roomName: photo.roomName, note: photo.note, mimeType: photo.mimeType, byteSize: Number(photo.byteSize), width: Number(photo.width), height: Number(photo.height), createdAt: new Date(photo.createdAt).toISOString() })),
     cleanerPreviewAuthorized: value.cleanerPreviewAuthorized === true,
     scopeConfirmedAt: value.scopeConfirmedAt ? new Date(value.scopeConfirmedAt).toISOString() : null

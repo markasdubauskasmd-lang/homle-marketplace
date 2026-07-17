@@ -49,7 +49,8 @@
     { "order": 45, "file": "045_owner_request_withdrawal.sql", "sha256": "93967db60f0dc597819e4ee011edc5037f314a1f769282f0e3d7e57d6f72db9c" },
     { "order": 46, "file": "046_fix_social_identity_column_ambiguity.sql", "sha256": "f74d73d1f88515f1a74defb227065083670edb6d8d31a505766edc68c3042f07" },
     { "order": 47, "file": "047_fix_role_onboarding_column_ambiguity.sql", "sha256": "e7b7b1a62ae8aca3d6d0e20b0e98d175db937741f334b8b2e58a22fbd9fae8d6" },
-    { "order": 48, "file": "048_multi_workspace_accounts.sql", "sha256": "14ee12cbda2d9dd3c11dce80398c7110b6ae8b936a95c1c0fd710c5b91bdd8e5" }
+    { "order": 48, "file": "048_multi_workspace_accounts.sql", "sha256": "14ee12cbda2d9dd3c11dce80398c7110b6ae8b936a95c1c0fd710c5b91bdd8e5" },
+    { "order": 49, "file": "049_pending_cleaner_scope_handoff.sql", "sha256": "d8fdafd5083b9164e08d864ae60340509b9fe1ac8c9ef87c2b764cd6a09b5058" }
   ],
   "grantFiles": [
     { "file": "runtime-role-grants.sql", "sha256": "c4cef80882e7837460637d721b5cf42187a58a9e62f163c8519d6af8064618aa" },

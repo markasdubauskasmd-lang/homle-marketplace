@@ -10,6 +10,7 @@ DECLARE
   selected_function oid;
   selected_source text;
   latest_migration_installed boolean := false;
+  scope_handoff_migration_installed boolean := false;
   rls_tables constant text[] := ARRAY[
     'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
@@ -176,6 +177,18 @@ BEGIN
   IF to_regclass('tideway_private.schema_migrations') IS NOT NULL THEN
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 48)'
       INTO latest_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 49)'
+      INTO scope_handoff_migration_installed;
+  END IF;
+  IF scope_handoff_migration_installed THEN
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.get_cleaning_request_scan(uuid)');
+    IF position('cleaning_request_tasks' IN COALESCE(selected_source,''))=0
+       OR position('pending-cleaner-acceptance' IN COALESCE(selected_source,''))=0
+       OR position('actor_has_pending_invitation AND request_record.cleaner_preview_authorized' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'The pending-Cleaner checklist and photo-consent handoff is not installed';
+    END IF;
   END IF;
   IF latest_migration_installed THEN
     selected_name := 'tideway_private.activate_my_workspace(user_role)';

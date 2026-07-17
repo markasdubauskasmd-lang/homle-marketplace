@@ -18,7 +18,7 @@ function upload(overrides = {}) {
   return { uploadId, cleaningRequestId: requestId, requestedBy: landlord.userId, roomName: "Kitchen", note: "Grease around the hob", quarantineStorageKey: `quarantine/request-photos/${requestId}/${uploadId}`, finalStorageKey: `request-photos/${requestId}/${uploadId}.jpg`, mimeType: "image/jpeg", byteSize: 1234, checksumSha256: checksum, status: "pending", expiresAt: "2026-07-16T12:10:00.000Z", completedAt: null, ...overrides };
 }
 function scan() {
-  return { cleaningRequestId: requestId, status: "draft", photos: [{ photoId: uploadId, roomName: "Kitchen", note: "Grease around the hob", mimeType: "image/jpeg", byteSize: 987, width: 1200, height: 900, createdAt: "2026-07-16T12:01:00.000Z" }], cleanerPreviewAuthorized: false, scopeConfirmedAt: null };
+  return { cleaningRequestId: requestId, status: "draft", tasks: [{ roomName: "Kitchen", description: "Degrease the hob", sortOrder: 0 }], photos: [{ photoId: uploadId, roomName: "Kitchen", note: "Grease around the hob", mimeType: "image/jpeg", byteSize: 987, width: 1200, height: 900, createdAt: "2026-07-16T12:01:00.000Z" }], cleanerPreviewAuthorized: false, scopeConfirmedAt: null };
 }
 const repository = {
   async createUploadIntent(actor, input) { calls.push({ kind: "create", actor, input }); return upload(input); },
@@ -45,7 +45,7 @@ const completed = await service.completeUpload(landlord, requestId, uploadId);
 assert(completed.photos.length === 1 && calls.find((call) => call.kind === "sanitize").input.stripMetadata === true && calls.some((call) => call.kind === "delete"), "Room photo completion bypassed sanitation, metadata removal or quarantine cleanup.");
 const sharedScan = await service.getScan(cleaner, requestId);
 const access = await service.getPhotoAccess(cleaner, requestId, uploadId);
-assert(sharedScan.photos[0].roomName === "Kitchen" && access.expiresAt === "2026-07-16T12:05:00.000Z" && !Object.hasOwn(access, "storageKey") && !Object.hasOwn(access, "checksumSha256"), "Authorized Cleaner scan access leaked private storage internals or returned a long-lived link.");
+assert(sharedScan.tasks[0].description === "Degrease the hob" && sharedScan.photos[0].roomName === "Kitchen" && access.expiresAt === "2026-07-16T12:05:00.000Z" && !Object.hasOwn(access, "storageKey") && !Object.hasOwn(access, "checksumSha256"), "Authorized Cleaner scope or scan access lost the approved checklist, leaked private storage internals or returned a long-lived link.");
 assert(await rejects(() => service.createUploadIntent(cleaner, requestId, { roomName: "Kitchen", note: "Note", mimeType: "image/jpeg", byteSize: 1234, checksumSha256: checksum }), "Landlord"), "A Cleaner could create a Landlord room-photo upload.");
 assert(await rejects(() => createRequestMediaService(repository).createUploadIntent(landlord, requestId, { roomName: "Kitchen", note: "Note", mimeType: "image/jpeg", byteSize: 1234, checksumSha256: checksum }), "temporarily unavailable"), "Request media did not fail closed without private storage.");
 
@@ -71,12 +71,15 @@ assert(dbCalls.every((call) => !call.queryText.includes(requestId) && !call.quer
 dbFailure = new Error("request-photo-room-not-found");
 assert(await rejects(() => realRepository.createUploadIntent(landlord, { uploadId, cleaningRequestId: requestId }), "room name"), "A photo outside the reviewed checklist did not receive the safe conflict.");
 
-const [migration, grants, workerGrants] = await Promise.all([
+const [migration, cleanerHandoffMigration, grants, workerGrants] = await Promise.all([
   readFile(new URL("../db/migrations/030_private_request_room_scans.sql", import.meta.url), "utf8"),
+  readFile(new URL("../db/migrations/049_pending_cleaner_scope_handoff.sql", import.meta.url), "utf8"),
   readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8"),
   readFile(new URL("../db/worker-role-grants.sql", import.meta.url), "utf8")
 ]);
 for (const required of ["cleaning_request_photo_uploads", "quarantine/request-photos", "request-photos/%s/%s.jpg", "request-photo-room-not-found", "request-photo-limit", "get_cleaning_request_scan", "get_cleaning_request_photo_object", "expire_due_request_photo_uploads", "FOR UPDATE SKIP LOCKED", "sanitized_at"]) assert(migration.includes(required), `Private request-room-scan migration omitted ${required}.`);
+for (const required of ["pending-cleaner-acceptance", "cleaning_request_tasks", "'tasks',tasks", "cleaner_preview_authorized", "actor_has_pending_invitation AND request_record.cleaner_preview_authorized", "request-not-found"]) assert(cleanerHandoffMigration.includes(required), `Pending-Cleaner scope handoff migration omitted ${required}.`);
+for (const forbidden of ["address_line_1", "access_instructions", "contact_name", "budget_pence", "customer_price_pence"]) assert(!cleanerHandoffMigration.includes(forbidden), `Pending-Cleaner scope handoff exposed protected ${forbidden}.`);
 assert(grants.includes("REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaning_request_photos, cleaning_request_photo_uploads") && workerGrants.includes("expire_due_request_photo_uploads"), "Runtime or worker grants permit room-photo key access or bypass expiry.");
 
 console.log("Request media tests passed: owner-only room capture, optional photo notes with safe checklist context, exact signed upload, sanitation, reviewed-room binding, participant-safe reads, function-only storage keys and expiry.");

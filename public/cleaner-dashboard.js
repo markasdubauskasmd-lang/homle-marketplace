@@ -68,20 +68,41 @@ function bookingFacts(booking) {
   return facts;
 }
 
-function requestScanPreview(booking, pending = false) {
+function requestScanPreview(booking, pending = false, onReady = () => {}) {
   const details = element("details", "cleaner-request-scan");
-  details.append(element("summary", "", pending ? "Review private room scan" : "View private room scan"));
+  details.append(element("summary", "", pending ? "Approved room checklist" : "View private room scan"));
   const body = element("div", "cleaner-request-scan-body");
-  body.append(element("p", "", "Loading the Landlord-approved room handoff…"));
+  body.append(element("p", "", "Loading the Landlord-approved room checklist…"));
   details.append(body);
   let loaded = false;
-  details.addEventListener("toggle", async () => {
-    if (!details.open || loaded) return;
-    loaded = true;
+  let loadingScan = false;
+  async function loadScan() {
+    if (loaded || loadingScan) return;
+    loadingScan = true;
     try {
       const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(booking.cleaningRequestId)}/scan`);
+      const tasks = Array.isArray(result.scan?.tasks) ? result.scan.tasks : [];
       const photos = Array.isArray(result.scan?.photos) ? result.scan.photos : [];
+      if (!tasks.length) throw new Error("The approved room checklist is unavailable. Do not accept this request yet.");
       body.replaceChildren(element("p", "cleaner-scan-privacy", "Only room labels, work notes and approved photos are shown here. The Landlord’s identity, exact address and access details remain hidden until confirmation."));
+      const taskHeading = element("h4", "", "Cleaner checklist");
+      const taskList = element("div", "cleaner-request-task-list");
+      const rooms = new Map();
+      for (const task of tasks) {
+        const roomName = String(task.roomName || "Room");
+        if (!rooms.has(roomName)) rooms.set(roomName, []);
+        rooms.get(roomName).push(String(task.description || ""));
+      }
+      for (const [roomName, roomTasks] of rooms) {
+        const room = element("section", "cleaner-request-task-room");
+        room.append(element("strong", "", roomName));
+        const list = element("ul");
+        roomTasks.filter(Boolean).forEach((task) => list.append(element("li", "", task)));
+        room.append(list);
+        taskList.append(room);
+      }
+      body.append(taskHeading, taskList);
+      const photoHeading = element("h4", "", "Room photos");
       const list = element("ul", "cleaner-request-scan-list");
       for (const photo of photos) {
         const item = element("li");
@@ -105,12 +126,24 @@ function requestScanPreview(booking, pending = false) {
         item.append(copy, view);
         list.append(item);
       }
-      body.append(photos.length ? list : element("p", "", "No room photos are available for pre-acceptance review."));
+      body.append(photoHeading, photos.length ? list : element("p", "cleaner-scan-photo-boundary", result.scan?.cleanerPreviewAuthorized === true ? "No approved room photos are attached." : "The Landlord kept photos private until a Cleaner accepts. The exact approved checklist above is still the scope you are deciding on."));
+      loaded = true;
+      onReady({ taskCount: tasks.length, roomCount: rooms.size });
     } catch (error) {
-      body.replaceChildren(element("p", "cleaner-scan-privacy", error.statusCode === 404 ? "The Landlord kept room photos private until a Cleaner accepts. Review the time, area, checklist size and offered pay before deciding." : "The private room scan could not be opened. Try again before accepting."));
-      if (error.statusCode !== 404) loaded = false;
+      body.replaceChildren(element("p", "cleaner-scan-privacy", error.statusCode === 404 ? "The approved checklist is no longer available to this invitation. Do not accept; refresh the dashboard to check its current status." : error.message || "The approved room checklist could not be opened. Try again before accepting."));
+      const retryScope = element("button", "button button-outline", "Try checklist again");
+      retryScope.type = "button";
+      retryScope.addEventListener("click", loadScan);
+      body.append(retryScope);
+    } finally {
+      loadingScan = false;
     }
-  });
+  }
+  details.addEventListener("toggle", () => { if (details.open) loadScan(); });
+  if (pending) {
+    details.open = true;
+    queueMicrotask(loadScan);
+  }
   return details;
 }
 
@@ -126,15 +159,22 @@ function bookingCard(booking, pending = false) {
   if (pending) {
     const deadline = element("p", "booking-response-deadline", booking.responseDeadline ? `Respond by ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(booking.responseDeadline))}` : "Response window unavailable");
     const actions = element("div", "booking-summary-actions");
-    const accept = element("button", "button", `Accept ${formatBookingMoney(booking.pricePence)} job`);
+    const accept = element("button", "button", "Loading checklist…");
     accept.type = "button";
+    accept.disabled = true;
     const decline = element("button", "button button-outline", "Decline");
     decline.type = "button";
     accept.addEventListener("click", () => acceptBooking(booking, accept));
     decline.addEventListener("click", () => openDecline(booking));
     actions.append(accept, decline);
-    if (booking.cleaningRequestId) card.append(requestScanPreview(booking, true));
-    card.append(deadline, element("p", "booking-accept-boundary", "One tap confirms you are available for this exact time and pay. Homle rechecks overlaps before confirming."), actions);
+    const scopeBoundary = element("p", "booking-accept-boundary", "Acceptance unlocks after the exact room checklist loads. Then one tap confirms this time, scope and pay; Homle rechecks overlaps before confirming.");
+    if (booking.cleaningRequestId) card.append(requestScanPreview(booking, true, ({ taskCount, roomCount }) => {
+      accept.disabled = false;
+      accept.textContent = `Accept ${formatBookingMoney(booking.pricePence)} job`;
+      scopeBoundary.textContent = `${taskCount} approved ${taskCount === 1 ? "task" : "tasks"} across ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. One tap confirms this exact time, scope and pay; Homle rechecks overlaps before confirming.`;
+    }));
+    else scopeBoundary.textContent = "The exact room checklist is unavailable. Do not accept this request; refresh the dashboard to verify its status.";
+    card.append(deadline, scopeBoundary, actions);
   } else {
     const action = bookingSummaryPrimaryAction(booking, "cleaner");
     if (action.kind === "active-job") {
