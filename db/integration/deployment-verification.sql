@@ -9,7 +9,7 @@ DECLARE
   selected_table record;
   selected_function oid;
   selected_source text;
-  migration_46_installed boolean := false;
+  latest_migration_installed boolean := false;
   rls_tables constant text[] := ARRAY[
     'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
@@ -174,10 +174,10 @@ BEGIN
   END LOOP;
 
   IF to_regclass('tideway_private.schema_migrations') IS NOT NULL THEN
-    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 46)'
-      INTO migration_46_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 47)'
+      INTO latest_migration_installed;
   END IF;
-  IF migration_46_installed THEN
+  IF latest_migration_installed THEN
     SELECT procedure.prosrc INTO selected_source
     FROM pg_proc procedure
     WHERE procedure.oid = to_regprocedure('tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)');
