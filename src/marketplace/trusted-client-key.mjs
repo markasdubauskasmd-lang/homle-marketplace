@@ -42,23 +42,54 @@ function trustProxyEnabled(value) {
   throw new TypeError("TRUST_PROXY must be true or false.");
 }
 
+function trustedProxyProvider(value) {
+  const selected = String(value || "").trim().toLowerCase();
+  if (!selected) return null;
+  if (selected === "render") return selected;
+  throw new TypeError("TRUST_PROXY_PROVIDER must be blank or render.");
+}
+
+function validateRenderProxyEnvironment(env) {
+  if (env.NODE_ENV !== "production" || String(env.RENDER || "").trim().toLowerCase() !== "true") {
+    throw new TypeError("Render proxy trust is available only in a production Render service.");
+  }
+  if (!/^srv-[a-z0-9]{6,64}$/.test(String(env.RENDER_SERVICE_ID || "").trim().toLowerCase())) {
+    throw new TypeError("Render proxy trust requires the platform-provided RENDER_SERVICE_ID.");
+  }
+  const hostname = String(env.RENDER_EXTERNAL_HOSTNAME || "").trim().toLowerCase();
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.onrender\.com$/.test(hostname)) {
+    throw new TypeError("Render proxy trust requires the platform-provided onrender.com hostname.");
+  }
+  if (String(env.TRUSTED_PROXY_CIDRS || "").trim()) {
+    throw new TypeError("TRUSTED_PROXY_CIDRS must be blank when TRUST_PROXY_PROVIDER=render.");
+  }
+}
+
 function remoteClient(request) {
   return normalizedAddress(request?.socket?.remoteAddress, "Request peer address");
 }
 
-function forwardedClient(request) {
+function forwardedClient(request, { chainAllowed = false } = {}) {
   const header = request?.headers?.["x-forwarded-for"];
-  if (typeof header !== "string" || header.includes(",")) throw new TypeError("The trusted proxy must provide exactly one X-Forwarded-For address.");
-  return normalizedAddress(header, "Forwarded client address");
+  if (typeof header !== "string" || !header || header.length > 1024) throw new TypeError(chainAllowed ? "Render must provide a bounded X-Forwarded-For chain." : "The trusted proxy must provide exactly one X-Forwarded-For address.");
+  const entries = header.split(",").map((entry) => entry.trim());
+  if (!chainAllowed && entries.length !== 1) throw new TypeError("The trusted proxy must provide exactly one X-Forwarded-For address.");
+  if (chainAllowed && (entries.length < 1 || entries.length > 16 || entries.some((entry) => !entry))) throw new TypeError("Render must provide between one and 16 X-Forwarded-For addresses.");
+  const parsed = entries.map((entry) => normalizedAddress(entry, "Forwarded client address"));
+  return parsed[0];
 }
 
 export function createTrustedClientAddressResolver(env = process.env) {
   const proxyEnabled = trustProxyEnabled(env.TRUST_PROXY);
-  const trustedProxies = proxyEnabled ? proxyTrustList(env.TRUSTED_PROXY_CIDRS) : null;
+  const provider = trustedProxyProvider(env.TRUST_PROXY_PROVIDER);
+  if (!proxyEnabled && provider) throw new TypeError("TRUST_PROXY_PROVIDER requires TRUST_PROXY=true.");
+  if (provider === "render") validateRenderProxyEnvironment(env);
+  const trustedProxies = proxyEnabled && !provider ? proxyTrustList(env.TRUSTED_PROXY_CIDRS) : null;
 
   return function trustedClientAddress(request) {
     const peer = remoteClient(request);
     if (!proxyEnabled) return peer.address;
+    if (provider === "render") return forwardedClient(request, { chainAllowed: true }).address;
     const type = peer.family === 4 ? "ipv4" : "ipv6";
     if (!trustedProxies.check(peer.address, type)) throw new TypeError("The request did not arrive from a configured trusted proxy.");
     return forwardedClient(request).address;
@@ -67,9 +98,10 @@ export function createTrustedClientAddressResolver(env = process.env) {
 
 export function createTrustedClientKeyResolver(env = process.env) {
   const proxyEnabled = trustProxyEnabled(env.TRUST_PROXY);
+  const provider = trustedProxyProvider(env.TRUST_PROXY_PROVIDER);
   const resolveAddress = createTrustedClientAddressResolver(env);
   return function trustedClientKey(request) {
     const client = normalizedAddress(resolveAddress(request), "Resolved client address");
-    return `${proxyEnabled ? "proxy" : "direct"}:ipv${client.family}:${client.address}`;
+    return `${proxyEnabled ? provider || "proxy" : "direct"}:ipv${client.family}:${client.address}`;
   };
 }

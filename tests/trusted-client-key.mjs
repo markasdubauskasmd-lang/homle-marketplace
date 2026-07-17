@@ -30,7 +30,32 @@ assert.throws(() => proxied(request("10.20.3.4", "198.51.100.42, 10.20.3.4")), /
 assert.throws(() => proxied(request("10.20.3.4", ["198.51.100.42"])), /exactly one/);
 assert.throws(() => proxied(request("10.20.3.4", "198.51.100.42:443")), /Forwarded client address/);
 
+const rendered = createTrustedClientKeyResolver({
+  NODE_ENV: "production",
+  TRUST_PROXY: "true",
+  TRUST_PROXY_PROVIDER: "render",
+  TRUSTED_PROXY_CIDRS: "",
+  RENDER: "true",
+  RENDER_SERVICE_ID: "srv-abcdef123456",
+  RENDER_EXTERNAL_HOSTNAME: "homle-marketplace.onrender.com"
+});
+assert.equal(rendered(request("10.0.0.8", "198.51.100.71")), "render:ipv4:198.51.100.71");
+assert.equal(rendered(request("10.0.0.8", "2001:db8::71, 172.16.0.4, 10.0.0.8")), "render:ipv6:2001:db8::71");
+assert.throws(() => rendered(request("10.0.0.8")), /Render must provide/);
+assert.throws(() => rendered(request("10.0.0.8", "198.51.100.71,,10.0.0.8")), /between one and 16/);
+assert.throws(() => rendered(request("10.0.0.8", `${"198.51.100.1,".repeat(16)}198.51.100.2`)), /between one and 16/);
+assert.throws(() => rendered(request("10.0.0.8", "198.51.100.71,not-an-ip")), /Forwarded client address/);
+
 assert.throws(() => createTrustedClientKeyResolver({ TRUST_PROXY: "yes" }), /true or false/);
+assert.throws(() => createTrustedClientKeyResolver({ TRUST_PROXY: "false", TRUST_PROXY_PROVIDER: "render" }), /requires TRUST_PROXY/);
+assert.throws(() => createTrustedClientKeyResolver({ TRUST_PROXY: "true", TRUST_PROXY_PROVIDER: "invented" }), /blank or render/);
+for (const invalid of [
+  {},
+  { NODE_ENV: "development", RENDER: "true", RENDER_SERVICE_ID: "srv-abcdef123456", RENDER_EXTERNAL_HOSTNAME: "homle.onrender.com" },
+  { NODE_ENV: "production", RENDER: "true", RENDER_EXTERNAL_HOSTNAME: "homle.onrender.com" },
+  { NODE_ENV: "production", RENDER: "true", RENDER_SERVICE_ID: "srv-abcdef123456", RENDER_EXTERNAL_HOSTNAME: "homle.example.com" },
+  { NODE_ENV: "production", RENDER: "true", RENDER_SERVICE_ID: "srv-abcdef123456", RENDER_EXTERNAL_HOSTNAME: "homle.onrender.com", TRUSTED_PROXY_CIDRS: "10.0.0.0/8" }
+]) assert.throws(() => createTrustedClientKeyResolver({ TRUST_PROXY: "true", TRUST_PROXY_PROVIDER: "render", ...invalid }), /Render|TRUSTED_PROXY_CIDRS/);
 assert.throws(() => createTrustedClientKeyResolver({ TRUST_PROXY: "true" }), /TRUSTED_PROXY_CIDRS is required/);
 assert.throws(() => createTrustedClientKeyResolver({ TRUST_PROXY: "true", TRUSTED_PROXY_CIDRS: "10.0.0.0/33" }), /prefix length/);
 assert.throws(() => createTrustedClientKeyResolver({ TRUST_PROXY: "true", TRUSTED_PROXY_CIDRS: "10.0.0.0/eight" }), /prefix length/);
@@ -39,4 +64,4 @@ assert.throws(() => createTrustedClientKeyResolver({ TRUST_PROXY: "true", TRUSTE
 const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
 assert(serverSource.includes("createTrustedClientAddressResolver") && serverSource.includes("resolveClientAddress(request)") && !serverSource.includes('String(request.headers["x-forwarded-for"] || "").split'), "The pilot server bypassed the reviewed trusted-client resolver.");
 
-console.log("Trusted client-key tests passed: pilot and marketplace direct-header isolation, explicit single-proxy trust, IPv4/IPv6 CIDRs, exact forwarding shape and fail-closed configuration.");
+console.log("Trusted client-key tests passed: direct-header isolation, explicit CIDR proxy trust, Render production binding, bounded forwarding chains and fail-closed configuration.");

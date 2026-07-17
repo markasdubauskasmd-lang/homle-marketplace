@@ -71,6 +71,18 @@ try {
   assert.equal(pilot.paymentsEnabled, false);
   assert(!JSON.stringify(pilot).includes(safePilot.ADMIN_KEY), "Production readiness exposed the Administrator secret.");
 
+  const renderPilot = validateProductionDeployment({
+    ...safePilot,
+    HOST: "0.0.0.0",
+    TRUST_PROXY_PROVIDER: "render",
+    TRUSTED_PROXY_CIDRS: "",
+    RENDER: "true",
+    RENDER_SERVICE_ID: "srv-abcdef123456",
+    RENDER_EXTERNAL_HOSTNAME: "homle-marketplace.onrender.com"
+  }, { projectRoot });
+  assert.equal(renderPilot.ok, true, renderPilot.errors.join("\n"));
+  assert.equal(renderPilot.checks.trustedProxy, true);
+
   for (const [change, evidence] of [
     [{ NODE_ENV: "development" }, "NODE_ENV"],
     [{ APP_ORIGIN: "http://tideway.example.com" }, "HTTPS"],
@@ -81,6 +93,7 @@ try {
     [{ ADMIN_KEY: "short" }, "ADMIN_KEY"],
     [{ TRUST_PROXY: "false" }, "TRUST_PROXY"],
     [{ TRUSTED_PROXY_CIDRS: "not-a-network" }, "valid IP"],
+    [{ TRUST_PROXY_PROVIDER: "render", TRUSTED_PROXY_CIDRS: "", RENDER: "false", RENDER_SERVICE_ID: "srv-abcdef123456", RENDER_EXTERNAL_HOSTNAME: "homle-marketplace.onrender.com" }, "production Render"],
     [{ LAN_PORT: "4174" }, "LAN_PORT"],
     [{ PORT: "0" }, "PORT"],
     [{ MARKETPLACE_ENABLED: "" }, "MARKETPLACE_ENABLED"],

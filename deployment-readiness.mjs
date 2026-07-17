@@ -71,9 +71,10 @@ export function validateProductionDeployment(env = process.env, options = {}) {
 
   if (!enabled(env.ADMIN_REQUIRE_KEY)) errors.push("ADMIN_REQUIRE_KEY must be true in production.");
   if (!safeAdminKey(env.ADMIN_KEY)) errors.push("ADMIN_KEY must be a non-placeholder 32-256 character secret without whitespace.");
+  let trustedProxy = false;
   if (!enabled(env.TRUST_PROXY)) errors.push("TRUST_PROXY must be true behind the required production HTTPS proxy.");
   else {
-    try { createTrustedClientAddressResolver(env); } catch (error) { errors.push(error.message); }
+    try { createTrustedClientAddressResolver(env); trustedProxy = true; } catch (error) { errors.push(error.message); }
   }
 
   errors.push(...marketplaceValidation.errors);
@@ -94,7 +95,7 @@ export function validateProductionDeployment(env = process.env, options = {}) {
       publicHttpsOrigin: publicOrigin(env.APP_ORIGIN),
       privateDataDirectory: Boolean(dataDirectory && path.isAbsolute(dataDirectory) && !inside(projectRoot, dataDirectory) && assessPrivateDataDirectory(dataDirectory, { explicitlyConfigured: true }).safeForPrivatePilot),
       protectedAdmin: enabled(env.ADMIN_REQUIRE_KEY) && safeAdminKey(env.ADMIN_KEY),
-      trustedProxy: enabled(env.TRUST_PROXY),
+      trustedProxy,
       localNetworkPreviewDisabled: !exact(env.LAN_PORT) || exact(env.LAN_PORT) === "0"
     }),
     errors: Object.freeze([...new Set(errors)])
