@@ -38,6 +38,7 @@ async function dispatch(router, method, url, options) {
 const sessionSecret = "marketplace-http-session-secret-over-thirty-two-characters";
 const material = createSessionMaterial(sessionSecret, new Date("2026-07-15T15:00:00.000Z"), 3600);
 const cleanerMaterial = createSessionMaterial(sessionSecret, new Date("2026-07-15T15:00:00.000Z"), 3600);
+const administratorMaterial = createSessionMaterial(sessionSecret, new Date("2026-07-15T15:00:00.000Z"), 3600);
 const sessions = {
   landlord: {
     session_id: "77777777-7777-4777-8777-777777777777",
@@ -60,9 +61,20 @@ const sessions = {
     roles: ["cleaner"],
     csrf_secret_hash: cleanerMaterial.csrfHash,
     expires_at: cleanerMaterial.expiresAt
+  },
+  administrator: {
+    session_id: "99999999-9999-4999-8999-999999999999",
+    user_id: "33333333-3333-4333-8333-333333333333",
+    email: "administrator@example.com",
+    email_verified_at: "2026-07-15T14:00:00.000Z",
+    display_name: "Administrator Example",
+    selected_role: "administrator",
+    roles: ["administrator"],
+    csrf_secret_hash: administratorMaterial.csrfHash,
+    expires_at: administratorMaterial.expiresAt
   }
 };
-const security = createAccountSecurity({ async findSession(hash) { return hash.equals(material.tokenHash) ? sessions.landlord : hash.equals(cleanerMaterial.tokenHash) ? sessions.cleaner : null; } }, { sessionSecret, appOrigin: "http://127.0.0.1:4173", production: false });
+const security = createAccountSecurity({ async findSession(hash) { return hash.equals(material.tokenHash) ? sessions.landlord : hash.equals(cleanerMaterial.tokenHash) ? sessions.cleaner : hash.equals(administratorMaterial.tokenHash) ? sessions.administrator : null; } }, { sessionSecret, appOrigin: "http://127.0.0.1:4173", production: false });
 const calls = [];
 const cleanerProfileService = {
   async searchPublicProfiles(filters) { calls.push({ kind: "search", filters }); return [{ cleanerId: "public-cleaner", displayName: "Public Cleaner" }]; },
@@ -163,6 +175,14 @@ const paymentService = {
     paymentStarted = true;
     return { paymentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId: input.bookingId, status: "requires-customer-action", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: true, clientSecret: "pi_test_client_secret" };
   },
+  async listForAdministrator(actor, input) {
+    calls.push({ kind: "payment-admin-list", actor, input });
+    return { payments: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0, testMode: true };
+  },
+  async capture(actor, input) { calls.push({ kind: "payment-admin-capture", actor, input }); return { commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: input.paymentId, kind: "capture", status: "provider-pending" }; },
+  async cancel(actor, input) { calls.push({ kind: "payment-admin-cancel", actor, input }); return { commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: input.paymentId, kind: "cancel", status: "provider-pending" }; },
+  async refund(actor, input) { calls.push({ kind: "payment-admin-refund", actor, input }); return { commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: input.paymentId, kind: "refund", status: "provider-pending" }; },
+  async transfer(actor, input) { calls.push({ kind: "payment-admin-transfer", actor, input }); return { commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: input.paymentId, kind: "transfer", status: "provider-pending" }; },
   async handleWebhook(body, signature) {
     calls.push({ kind: "payment-webhook", body, signature });
     if (signature === "bad") throw Object.assign(new Error("The payment webhook could not be verified."), { statusCode: 400, code: "invalid-payment-webhook" });
@@ -199,6 +219,12 @@ const cleanerAuthHeaders = {
   "x-csrf-token": cleanerMaterial.csrfToken,
   "content-type": "application/json; charset=utf-8"
 };
+const administratorAuthHeaders = {
+  cookie: `${developmentSessionCookieName}=${administratorMaterial.token}`,
+  origin: "http://127.0.0.1:4173",
+  "x-csrf-token": administratorMaterial.csrfToken,
+  "content-type": "application/json; charset=utf-8"
+};
 
 const unrelated = response();
 assert(await router.handle(request("GET", "/api/health"), unrelated, new URL("http://127.0.0.1:4173/api/health")) === false && unrelated.statusCode === null, "Marketplace router intercepted an existing pilot API route.");
@@ -233,6 +259,16 @@ const paymentStatus = await dispatch(router, "GET", bookingPaymentUrl, { headers
 assert(paymentStatus.response.statusCode === 200 && paymentStatus.body.payment.status === "authorized" && !JSON.stringify(paymentStatus.body).includes("pi_test_client_secret") && calls.at(-1).kind === "payment-get", "Landlord payment status exposed customer-action material or missed its owner-bound service.");
 const absentBookingPaymentResponse = response();
 assert(await noPaymentRouter.handle(request("GET", bookingPaymentUrl), absentBookingPaymentResponse, new URL(`http://127.0.0.1:4173${bookingPaymentUrl}`)) === false && absentBookingPaymentResponse.statusCode === null, "Disabled payments exposed a participant payment route.");
+
+const adminPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments?status=actionable&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
+const landlordPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments", { headers: { cookie: authHeaders.cookie } });
+const missingAdminPaymentCsrf = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/capture", { headers: { cookie: administratorAuthHeaders.cookie, origin: administratorAuthHeaders.origin, "content-type": administratorAuthHeaders["content-type"] }, body: { idempotencyKey: "admin_capture_retry_key_123456789012" } });
+const capturedPayment = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/capture", { headers: administratorAuthHeaders, body: { idempotencyKey: "admin_capture_retry_key_123456789012" } });
+const refundedPayment = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/refund", { headers: administratorAuthHeaders, body: { idempotencyKey: "admin_refund_retry_key_1234567890123", amountPence: 1500, destinationAccountId: "acct_browser_attack" } });
+assert(adminPaymentQueue.response.statusCode === 200 && adminPaymentQueue.body.testMode === true && calls.find((call) => call.kind === "payment-admin-list")?.input.status === "actionable" && landlordPaymentQueue.response.statusCode === 403 && missingAdminPaymentCsrf.response.statusCode === 403, "Administrator payment queue lost role isolation, exact filters, test-mode proof or CSRF protection.");
+assert(capturedPayment.response.statusCode === 202 && refundedPayment.response.statusCode === 202 && calls.find((call) => call.kind === "payment-admin-capture")?.input.idempotencyKey === "admin_capture_retry_key_123456789012" && calls.find((call) => call.kind === "payment-admin-refund")?.input.amountPence === 1500 && !Object.hasOwn(calls.find((call) => call.kind === "payment-admin-refund").input, "destinationAccountId"), "Administrator capture/refund routes lost exact payment, retry, amount or server-owned destination boundaries.");
+const absentAdminPaymentResponse = response();
+assert(await noPaymentRouter.handle(request("GET", "/api/marketplace/admin/payments"), absentAdminPaymentResponse, new URL("http://127.0.0.1:4173/api/marketplace/admin/payments")) === false && absentAdminPaymentResponse.statusCode === null, "Disabled payments exposed Administrator settlement operations.");
 
 const payoutUrl = "/api/marketplace/cleaner/payout-account";
 const landlordPayout = await dispatch(router, "GET", payoutUrl, { headers: { cookie: authHeaders.cookie } });

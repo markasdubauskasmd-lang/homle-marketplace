@@ -38,6 +38,7 @@ const bookingCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPatt
 const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews$`);
 const bookingReviewResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews/response$`);
 const bookingPaymentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/payment$`);
+const adminPaymentCommandPath = new RegExp(`^/api/marketplace/admin/payments/(${uuidPattern})/(capture|cancel|refund|transfer)$`);
 const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
 const bookingDisputePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/dispute$`);
 const adminDisputePath = new RegExp(`^/api/marketplace/admin/disputes/(${uuidPattern})$`);
@@ -92,7 +93,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
   if (!disputes || !["open", "getForBooking", "listForAdministrator", "review"].every((method) => typeof disputes[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-case service.");
   if (!privacyRequests || !["list", "request"].every((method) => typeof privacyRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account privacy-request service.");
-  if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
+  if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration", "listForAdministrator", "capture", "cancel", "refund", "transfer"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
   if (cleanerPayouts && !["getStatus", "refreshStatus", "beginOnboarding"].every((method) => typeof cleanerPayouts[method] === "function")) throw new TypeError("Marketplace Cleaner payout routes require the complete payout service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
   const limitPublicRead = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
@@ -117,6 +118,25 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);
           sendJson(response, 200, { ok: true, payment: payments.getClientConfiguration(context.actor) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/payments") {
+          if (!payments) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const page = await payments.listForAdministrator(context.actor, { status: url.searchParams.get("status"), limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
+          sendJson(response, 200, { ok: true, ...page });
+          return true;
+        }
+        const selectedAdminPaymentCommand = pathname.match(adminPaymentCommandPath);
+        if (selectedAdminPaymentCommand) {
+          if (!payments) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const input = await readJsonObject(request);
+          const kind = selectedAdminPaymentCommand[2];
+          const command = await payments[kind](context.actor, { paymentId: selectedAdminPaymentCommand[1], idempotencyKey: input.idempotencyKey, ...(kind === "refund" ? { amountPence: input.amountPence } : {}) });
+          sendJson(response, 202, { ok: true, command });
           return true;
         }
         if (pathname === "/api/marketplace/cleaner/payout-account") {

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>Payment operations · Homle</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260717-73">
+  <script type="module" src="/admin-payments.js?v=20260717-1"></script>
+</head>
+<body class="booking-dashboard-page admin-payments-page">
+  <a class="skip-link" href="#admin-payments-main">Skip to payment operations</a>
+  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/admin" aria-label="Homle private control desk"><img src="/logo.svg" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator"><a href="/admin/cases">Booking cases</a><a href="/admin">Control desk</a></nav></div></header>
+  <div class="booking-dashboard-network" data-network-status role="status" hidden><strong>You are offline.</strong> The last verified queue remains visible. No payment action can be started until you reconnect.</div>
+  <main id="admin-payments-main" class="booking-dashboard-shell">
+    <section class="booking-dashboard-gate" data-admin-payments-gate>
+      <div class="booking-dashboard-gate-icon" aria-hidden="true">£</div>
+      <div><p class="eyebrow">Protected payment operations</p><h1 data-admin-payments-gate-title>Checking secure Administrator access…</h1><p data-admin-payments-gate-copy>Payment actions open only inside an authenticated Homle Administrator account when test payments are connected.</p><div class="booking-dashboard-actions"><a class="button" href="/login?next=%2Fadmin%2Fpayments" data-admin-payments-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-admin-payments-retry hidden>Try again</button></div></div>
+    </section>
+
+    <div data-admin-payments-workspace hidden>
+      <header class="booking-dashboard-hero">
+        <div><p class="eyebrow">Administrator · test payments only</p><h1>Finish the paid-booking lifecycle</h1><p>Review one server-owned payment state, then take only the next eligible action. Homle never asks for card or bank details here.</p></div>
+        <button class="button button-outline" type="button" data-admin-payments-refresh>Refresh verified status</button>
+      </header>
+      <aside class="booking-dashboard-next-action admin-payment-boundary" role="note">
+        <div><span class="booking-dashboard-next-icon" aria-hidden="true">!</span><div><strong>Every button contacts the configured test payment provider</strong><p>Nothing runs automatically. Capture is available only after completion; Cleaner pay uses the frozen booking amount and provider-verified payout destination. Live Stripe keys remain rejected by this application.</p></div></div>
+      </aside>
+      <dl class="booking-dashboard-stats" aria-label="Payment queue summary">
+        <div><dt>Payments loaded</dt><dd data-admin-payments-count>0</dd></div>
+        <div><dt>Ready for action</dt><dd data-admin-payments-actionable-count>0</dd></div>
+        <div><dt>Waiting for provider</dt><dd data-admin-payments-waiting-count>0</dd></div>
+      </dl>
+      <section class="booking-dashboard-section admin-payments-section" aria-labelledby="admin-payments-heading">
+        <div class="admin-cases-toolbar"><div><h2 id="admin-payments-heading">Settlement queue</h2><p>References are shortened; customer, Cleaner, property, provider and banking identifiers are not displayed.</p></div><label>Status<select data-admin-payments-filter><option value="actionable">Needs attention</option><option value="authorized">Authorized</option><option value="captured">Captured</option><option value="partially-refunded">Partially refunded</option><option value="refunded">Refunded</option><option value="cancelled">Cancelled</option><option value="processing">Processing</option><option value="authorization-failed">Authorization failed</option></select></label></div>
+        <div class="admin-cases-list" data-admin-payments-list aria-live="polite" aria-busy="true"></div>
+        <div class="booking-dashboard-empty" data-admin-payments-empty hidden><strong>No payments in this view</strong><p>Refresh the signed provider status or choose another queue filter.</p></div>
+        <nav class="admin-cases-pagination" aria-label="Payment queue pages"><button class="button button-outline button-small" type="button" data-admin-payments-previous disabled>Previous page</button><span data-admin-payments-page>Page 1</span><button class="button button-outline button-small" type="button" data-admin-payments-next disabled>Next page</button></nav>
+      </section>
+      <div class="booking-dashboard-feedback" data-admin-payments-feedback role="status" tabindex="-1" hidden></div>
+    </div>
+  </main>
+
+  <dialog class="settings-dialog admin-payment-dialog" data-admin-payment-dialog>
+    <form method="dialog" data-admin-payment-form>
+      <div><p class="eyebrow">Deliberate provider action</p><h2 data-admin-payment-dialog-title>Confirm test payment action</h2><p data-admin-payment-dialog-copy></p></div>
+      <dl class="admin-payment-confirmation-facts"><div><dt>Frozen customer total</dt><dd data-admin-payment-dialog-total></dd></div><div><dt>Cleaner pay</dt><dd data-admin-payment-dialog-cleaner-pay></dd></div><div><dt>Already refunded</dt><dd data-admin-payment-dialog-refunded></dd></div></dl>
+      <label data-admin-payment-refund-field hidden>Refund amount (£)<input name="refundAmount" inputmode="decimal" autocomplete="off" placeholder="0.00"></label>
+      <label class="checkbox admin-case-confirmation"><input type="checkbox" name="confirmed" required><span data-admin-payment-confirmation-copy>I reviewed the exact server totals and intend to perform this test provider action once.</span></label>
+      <div class="account-feedback" data-admin-payment-dialog-feedback role="alert" hidden></div>
+      <div class="settings-dialog-actions"><button class="button" type="submit" data-admin-payment-submit>Continue</button><button class="button button-outline" type="button" data-admin-payment-cancel>Go back</button></div>
+    </form>
+  </dialog>
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle</span><span>Private test-payment workspace · <a href="/privacy">Privacy</a></span></div></footer>
+</body>
+</html>

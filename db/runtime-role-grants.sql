@@ -89,6 +89,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.begin_booking_payment_command(uuid,uui
 GRANT EXECUTE ON FUNCTION tideway_private.record_booking_payment_command(uuid,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.read_booking_payment(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_administrator_payment_operations(text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.current_booking_payment_authorized(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.open_booking_dispute(uuid,uuid,uuid,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_dispute(uuid) TO tideway_app;

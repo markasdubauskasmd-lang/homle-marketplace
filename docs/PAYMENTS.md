@@ -46,3 +46,14 @@ Manual card authorizations expire. Stripe documents common online authorization 
 7. Keep live mode disabled until the founder explicitly approves it after legal, insurance, public-domain, Cleaner-supply, pricing, privacy and payment-account launch evidence all pass. This source adapter must be separately reviewed before any future live-mode implementation because it intentionally rejects live keys.
 
 The source checkpoint advances E4 but does not satisfy its definition of done. A genuine test-mode provider cycle and real PostgreSQL evidence are still missing.
+
+## Administrator settlement operations
+
+`/admin/payments` closes the source-level gap between a completed visit and the existing provider-neutral capture, refund and Cleaner-transfer commands. The screen is unavailable unless the marketplace payment adapter is fully composed, proves Stripe test mode and the signed-in account has the `administrator` role.
+
+- `GET /api/marketplace/admin/payments` returns a bounded, privacy-minimal queue from `tideway_private.list_administrator_payment_operations`. It includes shortened booking/payment references, exact frozen amounts, schedule, current ledger state and server-derived eligible actions. It excludes names, email, property/access data, provider object IDs, idempotency hashes and Cleaner payout destinations.
+- Each mutation is a separate CSRF-protected `POST` to the exact payment and action. The browser may provide only a strong retry key and, for a refund, the proposed amount. Capture amount and Cleaner transfer amount/destination are always read from the frozen booking and verified payout record by PostgreSQL.
+- The interface performs no automatic payment action. It requires a final exact-total confirmation, refuses offline writes, bounds provider waits and blocks a possibly repeated action after an uncertain response until an Administrator refreshes the signed ledger status.
+- Migration 050 and the runtime grant were compiled and applied successfully in a fresh disposable local PostgreSQL 16 database. That proves SQL validity and least-privilege function access locally; it is not a genuine Stripe cycle or authorization to enable payments.
+
+Before using this screen against Stripe, retain every E4 prerequisite above and complete the two-account HTTPS rehearsal: authorization, completed job, capture webhook, Cleaner transfer webhook, controlled refund/reversal ordering and cleanup. Live keys remain rejected.

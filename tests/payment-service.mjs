@@ -22,6 +22,10 @@ const repository = {
     calls.push({ kind: "get-payment", actor, selectedBookingId });
     return { paymentId, bookingId: selectedBookingId, status: "authorized", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, providerPaymentId: "pi_test_private" };
   },
+  async listForAdministrator(actor, input) {
+    calls.push({ kind: "list-payment-operations", actor, input });
+    return { payments: [{ paymentId, bookingId, paymentStatus: "authorized", bookingStatus: "completed", scheduledStartAt: "2026-07-20T09:00:00.000Z", scheduledEndAt: "2026-07-20T12:00:00.000Z", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, cleanerPayPence: 7_200, payoutReady: true, canCapture: true, canCancel: false, canRefund: false, canTransfer: false, awaitingProvider: false, captureStatus: null, cancelStatus: null, refundStatus: null, transferStatus: null, updatedAt: "2026-07-20T12:10:00.000Z" }], limit: input.limit, offset: input.offset };
+  },
   async beginAuthorization(actor, input) {
     calls.push({ kind: "begin-authorization", actor, input });
     return { paymentId: input.paymentId, bookingId: input.bookingId, status: "creating", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, providerPaymentId: null };
@@ -83,6 +87,10 @@ assert(paymentStatus.paymentId === paymentId && paymentStatus.bookingId === book
 const unstartedService = createPaymentService({ ...repository, async getByBooking() { return { paymentId: null, bookingId, status: "not-started", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, providerPaymentId: null }; } }, provider, { publishableKey, createId: () => paymentId });
 assert.deepEqual(await unstartedService.getForBooking(landlord, bookingId), { paymentId: null, bookingId, status: "not-started", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: false, clientSecret: null }, "The Landlord cannot see the frozen booking total before a payment authorization exists.");
 await assert.rejects(service.getForBooking(cleaner, bookingId), (error) => error.code === "payment-role-required");
+const operationQueue = await service.listForAdministrator(administrator, { status: "actionable", limit: 25, offset: 0 });
+assert(operationQueue.testMode === true && operationQueue.payments.length === 1 && operationQueue.payments[0].canCapture === true && operationQueue.payments[0].amountPence === 12_000 && !JSON.stringify(operationQueue).includes("pi_test_private") && calls.at(-1).input.status === "actionable", "Administrator payment operations lost exact server economics, actionability, test-mode proof or provider-reference privacy.");
+await assert.rejects(service.listForAdministrator(landlord), (error) => error.code === "payment-role-required");
+await assert.rejects(service.listForAdministrator(administrator, { status: "invented" }), /valid payment queue status/i);
 const authorization = await service.beginAuthorization(landlord, { bookingId, idempotencyKey: "authorization_retry_key_1234567890", amountPence: 1 });
 assert.deepEqual(authorization, { paymentId, bookingId, status: "requires-customer-action", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: true, clientSecret: "pi_secret_private" });
 const preparedAuthorization = calls.find((call) => call.kind === "begin-authorization");

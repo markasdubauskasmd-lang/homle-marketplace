@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { createPaymentRepository } from "../src/marketplace/payment-repository.mjs";
 
 const actor = { userId: "11111111-1111-4111-8111-111111111111", roles: ["landlord"] };
+const administrator = { userId: "55555555-5555-4555-8555-555555555555", roles: ["administrator"] };
 const calls = [];
 let failure = null;
 const rows = [];
@@ -30,6 +31,10 @@ assert(readable.paymentId === paymentId && readable.bookingId === bookingId && r
 rows.push({ id: null, booking_id: bookingId, status: "not-started", amount_pence: 12000, currency: "gbp", amount_captured_pence: 0, amount_refunded_pence: 0 });
 const beforeAuthorization = await repository.getByBooking(actor, bookingId);
 assert(beforeAuthorization.paymentId === null && beforeAuthorization.bookingId === bookingId && beforeAuthorization.status === "not-started" && beforeAuthorization.amountPence === 12000, "The narrow repository lost the frozen total before a payment row exists.");
+
+rows.push({ result: { payments: [], limit: 25, offset: 0 } });
+const operationQueue = await repository.listForAdministrator(administrator, { status: "actionable", limit: 25, offset: 0 });
+assert(operationQueue.payments.length === 0 && calls.at(-1).text.includes("list_administrator_payment_operations") && calls.at(-1).values.join(",") === "actionable,25,0", "Administrator payment operations did not use the narrow actor-bound queue function.");
 
 rows.push({ id: paymentId, booking_id: bookingId, status: "creating", amount_pence: 12000, currency: "gbp", amount_captured_pence: 0, amount_refunded_pence: 0, provider_payment_id: null });
 const begun = await repository.beginAuthorization(actor, { paymentId, bookingId, provider: "stripe", idempotencyKeyHash: hash });
@@ -59,6 +64,7 @@ const paymentStatusMigration = await readFile(new URL("../db/migrations/023_land
 const preAuthorizationMigration = await readFile(new URL("../db/migrations/037_pre_authorization_booking_total.sql", import.meta.url), "utf8");
 const payoutMigration = await readFile(new URL("../db/migrations/036_cleaner_payout_onboarding.sql", import.meta.url), "utf8");
 const orderingMigration = await readFile(new URL("../db/migrations/040_payment_reconciliation_ordering.sql", import.meta.url), "utf8");
+const administratorOperationsMigration = await readFile(new URL("../db/migrations/050_administrator_payment_operations.sql", import.meta.url), "utf8");
 const grants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const runtime = await readFile(new URL("../src/marketplace/runtime.mjs", import.meta.url), "utf8");
 const attachment = await readFile(new URL("../src/marketplace/attachment.mjs", import.meta.url), "utf8");
@@ -77,8 +83,10 @@ for (const required of ["begin_booking_payment_authorization", "reconcile_paymen
 for (const required of ["cleaner_payout_onboarding", "pg_advisory_xact_lock", "payout-account-conflict", "sync_my_cleaner_payout_account", "REVOKE ALL ON TABLE"]) assert(payoutMigration.includes(required), `Cleaner payout migration omitted ${required}.`);
 for (const required of ["read_booking_payment", "booking.landlord_user_id = actor_id", "payment.amount_captured_pence", "REVOKE ALL ON FUNCTION"]) assert(paymentStatusMigration.includes(required), `Landlord payment-status migration omitted ${required}.`);
 for (const required of ["read_booking_payment", "LEFT JOIN booking_payments", "booking.customer_price_pence", "payment-role-required", "REVOKE ALL ON FUNCTION"]) assert(preAuthorizationMigration.includes(required), `Pre-authorization payment-total migration omitted ${required}.`);
+for (const required of ["list_administrator_payment_operations", "administrator-required", "canCapture", "canTransfer", "canRefund", "awaitingProvider", "cleaner_pay_pence", "REVOKE ALL ON FUNCTION"]) assert(administratorOperationsMigration.includes(required), `Administrator payment operations migration omitted ${required}.`);
+assert(!administratorOperationsMigration.includes("provider_payment_id") && !administratorOperationsMigration.includes("destination_account_id") && grants.includes("list_administrator_payment_operations(text,integer,integer)"), "Administrator settlement queue exposed provider identifiers or lacked its narrow runtime grant.");
 assert(!paymentStatusMigration.includes("provider_payment_id") && !paymentStatusMigration.includes("idempotency_key_hash") && grants.includes("read_booking_payment(uuid)"), "Landlord payment status exposed private provider/idempotency material or lacked its narrow grant.");
 assert(runtime.includes("createPaymentRepository(database)") && runtime.includes("options.paymentProvider ? createPaymentService") && runtime.includes("createCleanerPayoutRepository(database)") && runtime.includes("options.paymentProvider ? createCleanerPayoutService") && runtime.includes("paymentReady: paymentService !== null"), "Marketplace runtime did not keep checkout and Cleaner payout composition explicitly detached behind a provider adapter.");
-assert(attachment.includes("payment_ledger_ready") && attachment.includes("payment_access_ready") && attachment.includes("begin_booking_payment_authorization(uuid,uuid,text,bytea)") && attachment.includes("read_booking_payment(uuid)"), "Marketplace startup could attach against a database missing the locked payment ledger or Landlord status projection.");
+assert(attachment.includes("payment_ledger_ready") && attachment.includes("payment_access_ready") && attachment.includes("begin_booking_payment_authorization(uuid,uuid,text,bytea)") && attachment.includes("read_booking_payment(uuid)") && attachment.includes("list_administrator_payment_operations(text,integer,integer)"), "Marketplace startup could attach against a database missing the locked payment ledger, Landlord status projection or Administrator settlement queue.");
 
 console.log("Payment repository tests passed: frozen booking money, function-only mutations, server-owned payout terms, idempotent event ledger, safe error mapping and least-privilege grants.");
