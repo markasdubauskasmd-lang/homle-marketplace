@@ -71,6 +71,11 @@ assert(freshSql.findIndex((sql) => sql.includes("SELECT 'guard'")) < freshSql.fi
 assert(freshSql.findIndex((sql) => sql.includes("001_first.sql")) < freshSql.findIndex((sql) => sql.includes("002_second.sql")));
 assert(freshSql.findIndex((sql) => sql.includes("worker-role-grants.sql")) < freshSql.findIndex((sql) => sql.includes("deployment-verification")));
 assert(freshSql.every((sql) => !sql.includes(appPassword) && !sql.includes(workerPassword) && !sql.includes("owner-secret")), "Database credentials leaked into SQL text.");
+const roleConfigurationSql = freshSql.filter((sql) => sql.includes("CREATE ROLE tideway_app") || sql.includes("CREATE ROLE tideway_worker")).join("\n");
+assert(roleConfigurationSql.includes("CREATE ROLE tideway_app LOGIN NOINHERIT") && roleConfigurationSql.includes("CREATE ROLE tideway_worker LOGIN NOINHERIT"), "Restricted roles were not created with the required login and non-inheriting boundary.");
+for (const capability of ["rolsuper", "rolcreatedb", "rolcreaterole", "rolreplication", "rolbypassrls", "rolinherit"]) assert(roleConfigurationSql.includes(capability), `Restricted-role rotation did not fail closed on ${capability}.`);
+assert(!/ALTER ROLE (?:tideway_app|tideway_worker)\s+LOGIN|ALTER ROLE (?:tideway_app|tideway_worker)[^']*NOSUPERUSER/.test(roleConfigurationSql), "Restricted password rotation attempted a superuser-only role-attribute change.");
+assert(roleConfigurationSql.includes("ALTER ROLE tideway_app PASSWORD") && roleConfigurationSql.includes("ALTER ROLE tideway_worker PASSWORD"), "Restricted-role rotation did not limit the existing-role mutation to its password.");
 assert.equal(fresh.calls.at(-1).kind, "end");
 assert.equal(fresh.configuration.application_name, "homle-render-staging-bootstrap");
 

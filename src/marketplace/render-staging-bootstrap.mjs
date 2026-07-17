@@ -75,8 +75,8 @@ async function targetState(client) {
 
 async function configureRestrictedRole(client, role, password) {
   const roleSql = role === "tideway_app"
-    ? "CREATE ROLE tideway_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT"
-    : "CREATE ROLE tideway_worker LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT";
+    ? "CREATE ROLE tideway_app LOGIN NOINHERIT"
+    : "CREATE ROLE tideway_worker LOGIN NOINHERIT";
   await client.query("BEGIN");
   try {
     await client.query("SELECT set_config('homle.bootstrap_role_password', $1, true)", [password]);
@@ -86,10 +86,14 @@ async function configureRestrictedRole(client, role, password) {
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
           ${roleSql};
         END IF;
-        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}' AND (NOT rolcanlogin OR rolsuper OR rolbypassrls)) THEN
+        IF EXISTS (
+          SELECT 1 FROM pg_roles
+           WHERE rolname = '${role}'
+             AND (NOT rolcanlogin OR rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls OR rolinherit)
+        ) THEN
           RAISE EXCEPTION 'Unsafe pre-existing restricted role: ${role}';
         END IF;
-        EXECUTE format('ALTER ROLE ${role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT PASSWORD %L', current_setting('homle.bootstrap_role_password'));
+        EXECUTE format('ALTER ROLE ${role} PASSWORD %L', current_setting('homle.bootstrap_role_password'));
       END
       $homle_role$;
     `);
