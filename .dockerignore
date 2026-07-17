@@ -12,6 +12,7 @@
 !marketplace-activation-readiness.mjs
 !offer-expiry.mjs
 !pilot-service.mjs
+!release-identity.mjs
 !request-followup-draft.mjs
 !tracking-test-store.mjs
 !travel-coverage.mjs
