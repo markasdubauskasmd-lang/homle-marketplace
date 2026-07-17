@@ -34,6 +34,12 @@ services:
         generateValue: true
       - key: TIDEWAY_WORKER_PASSWORD
         generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: AUTH_TOKEN_SECRET
+        generateValue: true
+      - key: DATA_ENCRYPTION_KEY
+        generateValue: true
       - key: ADMIN_REQUIRE_KEY
         value: "true"
       - key: ADMIN_KEY

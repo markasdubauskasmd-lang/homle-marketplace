@@ -43,12 +43,15 @@ assert.equal(environmentEntry("RENDER_STAGING_BOOTSTRAP_ENABLED"), 'value: "true
 assert.equal(environmentEntry("ADMIN_KEY"), "generateValue: true", "The preview Administrator key must be generated, not committed.");
 assert.equal(environmentEntry("TIDEWAY_APP_PASSWORD"), "generateValue: true", "The restricted app-role password must be generated, not committed.");
 assert.equal(environmentEntry("TIDEWAY_WORKER_PASSWORD"), "generateValue: true", "The restricted worker-role password must be generated, not committed.");
+assert.equal(environmentEntry("SESSION_SECRET"), "generateValue: true", "The preview session secret must be independently generated, not committed or manually copied.");
+assert.equal(environmentEntry("AUTH_TOKEN_SECRET"), "generateValue: true", "The preview authentication-token secret must be independently generated, not committed or manually copied.");
+assert.equal(environmentEntry("DATA_ENCRYPTION_KEY"), "generateValue: true", "The preview property-encryption key must be independently generated, not committed or manually copied.");
 assert.equal(environmentEntry("TRUST_PROXY_PROVIDER"), "value: \"render\"", "Render's verified client-identity mode is not enabled.");
 assert.equal(environmentEntry("TRUSTED_PROXY_CIDRS"), "value: \"\"", "Generic trusted proxy networks must remain blank in Render mode.");
 assert.equal(environmentEntry("MARKETPLACE_ADAPTER_MODULE"), "value: \"homle:render-log-monitoring\"", "The free preview must have privacy-minimal operational monitoring prepared before marketplace activation.");
 assert.equal(environmentEntry("RENDER_LOG_MONITORING_ACKNOWLEDGED"), "value: \"false\"", "The Blueprint must not invent a restricted-log-access acknowledgement on the owner's behalf.");
 
-for (const secret of ["DATABASE_URL", "REALTIME_DATABASE_URL", "SESSION_SECRET", "AUTH_TOKEN_SECRET", "DATA_ENCRYPTION_KEY", "SMTP_URL", "GOOGLE_CLIENT_SECRET", "FACEBOOK_APP_SECRET", "STRIPE_SECRET_KEY", "OBJECT_STORAGE_SECRET_ACCESS_KEY"]) {
+for (const secret of ["DATABASE_URL", "REALTIME_DATABASE_URL", "SMTP_URL", "GOOGLE_CLIENT_SECRET", "FACEBOOK_APP_SECRET", "STRIPE_SECRET_KEY", "OBJECT_STORAGE_SECRET_ACCESS_KEY"]) {
   assert.equal(environmentEntry(secret), "", `Preview Blueprint unexpectedly provisions ${secret}.`);
 }
 assert.match(blueprint, /^\s+- key: DATABASE_BOOTSTRAP_URL\s*\r?\n\s+fromDatabase:\s*\r?\n\s+name: homle-marketplace-staging-db\s*\r?\n\s+property: connectionString\s*$/m, "The guarded bootstrap does not use Render's private database connection reference.");
