@@ -15,6 +15,7 @@ assert(dockerfile.indexOf("node tools/check-dependency-lock.mjs") < dockerfile.i
 assert(dockerfile.includes("pnpm install --frozen-lockfile --prod --ignore-scripts"), "Container install is not frozen, production-only and lifecycle-script-free.");
 assert(dockerfile.includes("ARG RENDER_GIT_COMMIT") && dockerfile.includes("RUN node tools/generate-container-release-identity.mjs"), "Container build does not bind its release identity to Render's exact source commit.");
 assert(dockerfile.includes("COPY db/migration-lock.json ./db/migration-lock.json") && dockerfile.includes("COPY --from=dependencies --chown=node:node /app/homle-release.json ./homle-release.json"), "Container image omits locked migration evidence or the generated release identity.");
+assert(dockerfile.includes("COPY --chown=node:node db ./db") && dockerfile.includes("COPY --chown=node:node scripts ./scripts"), "Container image omits the guarded staging initializer or its locked SQL assets.");
 assert(!/^\s*(?:ADD|COPY)\s+\.\s+/m.test(dockerfile) && !dockerfile.includes("COPY . ."), "Container copies the project indiscriminately instead of using an allowlist.");
 assert(!/(?:COPY|ADD)[^\n]*(?:\.env|data\/|tests\/|docs\/|NEXT_STEPS|RECOVERY|\.git)/i.test(dockerfile), "Container explicitly copies a secret, private-data or non-runtime path.");
 assert(dockerfile.includes("RUN install -d -o node -g node /var/lib/tideway") && dockerfile.includes("USER node"), "Container does not prepare private storage and drop root privileges.");
@@ -26,7 +27,7 @@ const ignoreLines = dockerignore.split(/\r?\n/).map((line) => line.trim()).filte
 assert.equal(ignoreLines[0], "**", "Container context must deny everything before its explicit allowlist.");
 assert(!ignoreLines.some((line) => /^!(?:\.env|data(?:\/|$)|tests(?:\/|$)|docs(?:\/|$)|\.git(?:\/|$)|NEXT_STEPS|RECOVERY)/i.test(line)), "Container context allowlists secrets, private data or non-runtime material.");
 assert(ignoreLines.includes("public/tracking-test.html") && ignoreLines.includes("public/tracking-test.js"), "Production context does not remove the local browser tracking lab.");
-for (const required of ["!package.json", "!pnpm-lock.yaml", "!server.mjs", "!public/**", "!src/**", "!scripts/marketplace-worker.mjs", "!db/migration-lock.json", "!tools/check-dependency-lock.mjs", "!tools/generate-container-release-identity.mjs"]) {
+for (const required of ["!package.json", "!pnpm-lock.yaml", "!server.mjs", "!public/**", "!src/**", "!scripts/marketplace-worker.mjs", "!scripts/render-staging-entrypoint.mjs", "!db/**", "!tools/check-dependency-lock.mjs", "!tools/generate-container-release-identity.mjs"]) {
   assert(ignoreLines.includes(required), `Container context omitted required runtime input ${required}.`);
 }
 
@@ -40,4 +41,4 @@ assert.equal(manifest.private, true, "Deployable package must remain private.");
 assert.equal(manifest.packageManager, "pnpm@11.7.0", "Container package manager drifted from the reviewed manifest.");
 assert.equal(Object.hasOwn(manifest, "devDependencies"), false, "Production package unexpectedly has a development dependency graph.");
 
-console.log("Container deployment tests passed: explicit runtime allowlist, private-data/secret exclusion, locked production dependencies, non-root runtime, fail-closed flags, graceful stop and health contract.");
+console.log("Container deployment tests passed: explicit runtime allowlist, guarded staging SQL assets, private-data/secret exclusion, locked production dependencies, non-root runtime, fail-closed flags, graceful stop and health contract.");

@@ -11,6 +11,7 @@ services:
     autoDeployTrigger: "off"
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    dockerCommand: node scripts/render-staging-entrypoint.mjs
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
@@ -23,6 +24,16 @@ services:
         value: "/var/lib/tideway"
       - key: APP_ORIGIN
         value: "https://homle-marketplace-preview.onrender.com"
+      - key: RENDER_STAGING_BOOTSTRAP_ENABLED
+        value: "true"
+      - key: DATABASE_BOOTSTRAP_URL
+        fromDatabase:
+          name: homle-marketplace-staging-db
+          property: connectionString
+      - key: TIDEWAY_APP_PASSWORD
+        generateValue: true
+      - key: TIDEWAY_WORKER_PASSWORD
+        generateValue: true
       - key: ADMIN_REQUIRE_KEY
         value: "true"
       - key: ADMIN_KEY

@@ -24,8 +24,9 @@ public/tracking-test.js
 !src/**
 !scripts/
 !scripts/marketplace-worker.mjs
+!scripts/render-staging-entrypoint.mjs
 !db/
-!db/migration-lock.json
+!db/**
 !tools/
 !tools/check-dependency-lock.mjs
 !tools/generate-container-release-identity.mjs

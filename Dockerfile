@@ -37,6 +37,7 @@ COPY --chown=node:node business-clock.mjs cleaner-profile-starter.mjs data-direc
 COPY --chown=node:node public ./public
 COPY --chown=node:node src ./src
 COPY --chown=node:node scripts ./scripts
+COPY --chown=node:node db ./db
 
 USER node
 EXPOSE 3000
