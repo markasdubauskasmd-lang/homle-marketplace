@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadMarketplaceDeploymentAdapters } from "../src/marketplace/attachment.mjs";
 import { createS3ObjectStorage } from "../src/marketplace/s3-object-storage.mjs";
-import { createSmtpEmailDelivery } from "../src/marketplace/smtp-email-delivery.mjs";
+import { createTransactionalEmailDelivery } from "../src/marketplace/email-delivery.mjs";
 import {
   sanitizeStagingServiceProbeError,
   stagingServiceProbeConfirmation,
@@ -73,7 +73,7 @@ export async function runStagingEvidence(options = {}) {
   const fetchImplementation = options.fetch || globalThis.fetch;
   if (typeof fetchImplementation !== "function") throw new TypeError("The staging evidence runner requires fetch.");
   const createAdapters = options.loadAdapters || loadMarketplaceDeploymentAdapters;
-  const createEmail = options.createEmail || createSmtpEmailDelivery;
+  const createEmail = options.createEmail || createTransactionalEmailDelivery;
   const createStorage = options.createStorage || createS3ObjectStorage;
   const requestId = uuid();
   const photoId = uuid();

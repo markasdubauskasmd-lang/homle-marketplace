@@ -2,7 +2,7 @@ import { bookingPricingPolicyFromEnvironment } from "./booking-workflow.mjs";
 import { postgresPoolOptions } from "./database.mjs";
 import { loadMarketplaceDeploymentAdapters } from "./attachment.mjs";
 import { createS3ObjectStorage } from "./s3-object-storage.mjs";
-import { createSmtpEmailDelivery } from "./smtp-email-delivery.mjs";
+import { createTransactionalEmailDelivery, emailDeliveryEnvironment } from "./email-delivery.mjs";
 import { createMarketplaceWorkerRuntime } from "./worker-runtime.mjs";
 import { normalizeExpectedReleaseCommit, packagedReleaseIdentityMatches } from "../../release-identity.mjs";
 
@@ -108,8 +108,8 @@ export async function createMarketplaceWorkerAttachment(options = {}) {
   try {
     await (options.probeDatabase || probeMarketplaceWorkerDatabase)(pool);
     if (emailEnabled) {
-      if (!env.SMTP_URL || !env.EMAIL_FROM || !env.APP_ORIGIN) throw new TypeError("Email workers require SMTP_URL, EMAIL_FROM and APP_ORIGIN.");
-      emailDelivery = await (options.createEmailDelivery || createSmtpEmailDelivery)(env, { onUnexpectedError: adapters.onUnexpectedError });
+      if (!emailDeliveryEnvironment(env).configured || !env.APP_ORIGIN) throw new TypeError("Email workers require one configured HTTPS or SMTP provider, EMAIL_FROM and APP_ORIGIN.");
+      emailDelivery = await (options.createEmailDelivery || createTransactionalEmailDelivery)(env, { onUnexpectedError: adapters.onUnexpectedError });
       await emailDelivery.verify();
     }
     if (mediaEnabled) {

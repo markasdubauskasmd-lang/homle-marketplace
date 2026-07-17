@@ -82,7 +82,7 @@ for (const [override, confirmation, pattern] of [
   [{ REALTIME_DATABASE_URL: environment.REALTIME_DATABASE_URL.replace("tideway_app", "migration_owner") }, stagingServiceProbeConfirmation, /authenticate as tideway_app/],
   [{ REALTIME_DATABASE_URL: environment.REALTIME_DATABASE_URL.replace("acme_homle_staging", "other_homle_staging") }, stagingServiceProbeConfirmation, /same managed staging database/],
   [{ REALTIME_DATABASE_URL: environment.REALTIME_DATABASE_URL.replace("verify-full", "require") }, stagingServiceProbeConfirmation, /REALTIME_DATABASE_URL.*verify-full/],
-  [{ SMTP_URL: "" }, stagingServiceProbeConfirmation, /SMTP_URL/]
+  [{ SMTP_URL: "" }, stagingServiceProbeConfirmation, /email provider/]
 ]) {
   await assert.rejects(probeMarketplaceStagingServices({ env: { ...environment, ...override }, confirmation, createAttachment: guardedAttachment }), pattern);
 }

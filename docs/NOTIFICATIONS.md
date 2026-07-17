@@ -43,7 +43,7 @@ A separately credentialed `tideway_worker` claims due rows with `FOR UPDATE SKIP
 2. Reapply `db/runtime-role-grants.sql` and `db/worker-role-grants.sql` after the functions exist.
 3. Give the web process only the `tideway_app` database identity.
 4. Give the separate [worker process](WORKER_OPERATIONS.md) a pool authenticated only as `tideway_worker`; it receives execute rights on claim/complete functions and no direct table rights.
-5. Configure `APP_ORIGIN` with the verified HTTPS host and keep `SMTP_URL`, `EMAIL_FROM` and provider credentials in the deployment secret manager.
+5. Configure `APP_ORIGIN` with the verified HTTPS host and keep exactly one of `RESEND_API_KEY` or `SMTP_URL`, plus `EMAIL_FROM`, in the deployment secret manager.
 6. Run the internal SMTP adapter and one worker instance in staging, and prove provider duplicate behavior, retry classification, lease expiry, inactive/unverified-recipient suppression and no-address/no-location email content.
 7. Monitor pending age, retry count and permanent-failure rate without logging recipient addresses or payloads.
 

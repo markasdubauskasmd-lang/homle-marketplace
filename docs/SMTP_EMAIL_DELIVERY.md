@@ -1,16 +1,33 @@
-# SMTP email delivery
+# Transactional email delivery
+
+## Render-compatible HTTPS delivery
+
+Render free web services block outbound SMTP ports 25, 465 and 587. Homle therefore supports Resend's HTTPS email API without adding an SDK dependency. Select exactly one delivery provider; configuring both credentials is rejected.
+
+```dotenv
+EMAIL_DELIVERY_PROVIDER=resend
+RESEND_API_KEY=re_store_the_real_key_only_in_the_host_secret_manager
+EMAIL_FROM=Homle <onboarding@resend.dev>
+APP_ORIGIN=https://homle-marketplace-preview.onrender.com
+```
+
+The temporary `onboarding@resend.dev` sender is only suitable for a controlled owner-mailbox test. Before public intake, verify the Homle domain with the provider and replace it with a domain-aligned sender.
+
+`src/marketplace/resend-email-delivery.mjs` posts text-only messages to the fixed `https://api.resend.com/emails` endpoint with a bounded timeout, no redirects, a required user agent, and a stable SHA-256 `Idempotency-Key`. Retries of the same logical verification, reset or booking notification therefore use the same provider key. Provider response text, recipients and secrets do not enter public errors or monitoring.
+
+Reference: [Render free-service limits](https://render.com/docs/free) and [Resend send-email API](https://resend.com/docs/api-reference/emails/send-email).
 
 ## Prepared boundary
 
-`src/marketplace/smtp-email-delivery.mjs` is Tideway's internal text-only SMTP adapter for:
+`src/marketplace/smtp-email-delivery.mjs` remains Homle's optional text-only SMTP adapter for paid or non-Render hosting environments:
 
 - account verification;
 - password reset; and
 - privacy-minimal booking notifications produced by the existing outbox worker.
 
-The main marketplace attachment creates this adapter internally only after `MARKETPLACE_ENABLED=true`, verifies the SMTP connection after the restricted PostgreSQL probe succeeds, and closes the transport on failed startup or shutdown. The local pilot does not import Nodemailer dynamically, connect to SMTP or send mail while the marketplace flag is false.
+The main marketplace attachment selects the configured adapter internally only after `MARKETPLACE_ENABLED=true` and closes it on failed startup or shutdown. The local pilot does not contact either provider while the marketplace flag is false.
 
-This is source and isolated dependency evidence, not a verified mail-provider deployment. No SMTP account was contacted and no message was sent for this checkpoint.
+This is source and isolated dependency evidence, not a verified mail-provider deployment. No provider account was contacted and no message was sent for this checkpoint.
 
 ## Transport controls
 

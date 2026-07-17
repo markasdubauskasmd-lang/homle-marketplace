@@ -1,3 +1,5 @@
+import { emailDeliveryEnvironment } from "./email-delivery.mjs";
+
 const providerRequirements = Object.freeze({
   google: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
   apple: ["APPLE_CLIENT_ID", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY"],
@@ -27,7 +29,8 @@ export function marketplaceEnvironment(env = process.env) {
   const realtimeDatabaseConfigured = present(env, "REALTIME_DATABASE_URL");
   const sessionConfigured = present(env, "SESSION_SECRET") && env.SESSION_SECRET.trim().length >= 32;
   const authTokenConfigured = present(env, "AUTH_TOKEN_SECRET") && env.AUTH_TOKEN_SECRET.trim().length >= 32;
-  const emailConfigured = present(env, "SMTP_URL") && present(env, "EMAIL_FROM");
+  const email = emailDeliveryEnvironment(env);
+  const emailConfigured = email.configured;
   const appOrigin = present(env, "APP_ORIGIN") ? env.APP_ORIGIN.trim() : "";
   const objectStorageConfigured = ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_REGION", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"].every((key) => present(env, key));
   const encryptionConfigured = present(env, "DATA_ENCRYPTION_KEY") && env.DATA_ENCRYPTION_KEY.trim().length >= 32;
@@ -42,6 +45,7 @@ export function marketplaceEnvironment(env = process.env) {
     realtimeDatabaseConfigured,
     sessionConfigured,
     authTokenConfigured,
+    email,
     emailConfigured,
     appOrigin,
     objectStorageConfigured,
@@ -67,6 +71,7 @@ export function marketplaceEnvironment(env = process.env) {
 export function validateMarketplaceEnvironment(env = process.env) {
   const state = marketplaceEnvironment(env);
   const errors = [];
+  errors.push(...state.email.errors);
   for (const [provider, status] of Object.entries(state.providers)) {
     if (status.partial) errors.push(`${provider} sign-in is partially configured; missing ${status.missing.join(", ")}.`);
   }

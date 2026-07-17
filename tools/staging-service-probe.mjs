@@ -9,7 +9,7 @@ import { postgresTransportSecurity } from "../src/marketplace/database.mjs";
 const toolPath = fileURLToPath(import.meta.url);
 export const stagingServiceProbeConfirmation = "PROBE HOMLE MANAGED STAGING SERVICES";
 const secretNames = Object.freeze([
-  "DATABASE_URL", "REALTIME_DATABASE_URL", "SESSION_SECRET", "AUTH_TOKEN_SECRET", "DATA_ENCRYPTION_KEY", "SMTP_URL",
+  "DATABASE_URL", "REALTIME_DATABASE_URL", "SESSION_SECRET", "AUTH_TOKEN_SECRET", "DATA_ENCRYPTION_KEY", "SMTP_URL", "RESEND_API_KEY",
   "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY", "MONITORING_WEBHOOK_TOKEN",
   "GOOGLE_CLIENT_SECRET", "FACEBOOK_APP_SECRET", "APPLE_PRIVATE_KEY", "STRIPE_SECRET_KEY",
   "STRIPE_PUBLISHABLE_KEY", "STRIPE_WEBHOOK_SECRET"
@@ -54,7 +54,7 @@ export function validateStagingServiceProbeEnvironment(env = process.env, confir
   errors.push(...marketplace.errors);
   const state = marketplaceEnvironment(env);
   if (!state.databaseConfigured || !state.sessionConfigured || !state.authTokenConfigured || !state.encryptionConfigured) errors.push("Database and three separate 32-character application secrets are required.");
-  if (!state.emailConfigured) errors.push("Complete SMTP_URL and EMAIL_FROM are required.");
+  if (!state.emailConfigured) errors.push("One complete HTTPS or SMTP email provider and EMAIL_FROM are required.");
   if (!state.objectStorageConfigured) errors.push("Complete private object-storage configuration is required.");
   if (!exact(env.MARKETPLACE_ADAPTER_MODULE)) errors.push("A private monitoring adapter is required.");
   let database = null;

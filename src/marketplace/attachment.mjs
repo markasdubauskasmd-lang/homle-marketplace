@@ -7,7 +7,7 @@ import { bookingRealtimeChannel, createPostgresRealtimeSignalSource } from "./re
 import { createMarketplaceRuntime } from "./runtime.mjs";
 import { builtInMonitoringAdapter } from "./monitoring-webhook.mjs";
 import { createS3ObjectStorage } from "./s3-object-storage.mjs";
-import { createSmtpEmailDelivery } from "./smtp-email-delivery.mjs";
+import { createTransactionalEmailDelivery } from "./email-delivery.mjs";
 import { createStripePaymentProvider } from "./stripe-payment-provider.mjs";
 import { createTrustedClientKeyResolver } from "./trusted-client-key.mjs";
 
@@ -158,7 +158,7 @@ export async function createMarketplaceAttachment(options = {}) {
   if (!validation.ok) throw new TypeError(`Marketplace attachment configuration is invalid: ${validation.errors.join(" ")}`);
   const environment = marketplaceEnvironment(env);
   if (!environment.databaseConfigured || !environment.sessionConfigured || !environment.authTokenConfigured || !environment.encryptionConfigured || !environment.appOrigin) throw new TypeError("Marketplace attachment requires database, session, token, encryption and exact-origin configuration.");
-  if (!environment.emailConfigured) throw new TypeError("Marketplace attachment requires SMTP_URL and EMAIL_FROM.");
+  if (!environment.emailConfigured) throw new TypeError("Marketplace attachment requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
   if (!environment.objectStorageConfigured) throw new TypeError("Marketplace attachment requires complete private object-storage configuration.");
 
   const clientKey = (options.createClientKeyResolver || createTrustedClientKeyResolver)(env);
@@ -170,7 +170,7 @@ export async function createMarketplaceAttachment(options = {}) {
   const createPool = options.createPool || createDefaultPostgresPool;
   const createRealtimePool = options.createRealtimePool || createDefaultRealtimePostgresPool;
   const createRealtimeSignalSource = options.createRealtimeSignalSource || createPostgresRealtimeSignalSource;
-  const createEmailDelivery = options.createEmailDelivery || createSmtpEmailDelivery;
+  const createEmailDelivery = options.createEmailDelivery || createTransactionalEmailDelivery;
   const createObjectStorage = options.createObjectStorage || createS3ObjectStorage;
   const createPaymentProvider = options.createPaymentProvider || createStripePaymentProvider;
   let emailDelivery;
@@ -182,7 +182,7 @@ export async function createMarketplaceAttachment(options = {}) {
   let paymentProvider;
   try {
     emailDelivery = await createEmailDelivery(env, { onUnexpectedError: adapters.onUnexpectedError });
-    if (!emailDelivery || typeof emailDelivery.send !== "function" || typeof emailDelivery.verify !== "function" || typeof emailDelivery.close !== "function") throw new TypeError("Marketplace SMTP delivery did not compose completely.");
+    if (!emailDelivery || typeof emailDelivery.send !== "function" || typeof emailDelivery.verify !== "function" || typeof emailDelivery.close !== "function") throw new TypeError("Marketplace email delivery did not compose completely.");
     objectStorage = await createObjectStorage(env, { onUnexpectedError: adapters.onUnexpectedError });
     const storageMethods = ["verify", "createUploadUrl", "headObject", "inspectAndSanitizeImage", "createReadUrl", "deleteObject", "close"];
     if (!objectStorage || !storageMethods.every((method) => typeof objectStorage[method] === "function")) throw new TypeError("Marketplace private object storage did not compose completely.");

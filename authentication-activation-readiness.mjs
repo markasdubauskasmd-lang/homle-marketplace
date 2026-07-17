@@ -86,13 +86,13 @@ export function authenticationActivationReadiness(env = process.env, options = {
   const expectedProvidersConfigured = expected.every((provider) => providerChecks[provider].configured === true);
   const errors = [...deployment.errors];
   if (!state.marketplace.requested) errors.push("MARKETPLACE_ENABLED must be true for authenticated accounts.");
-  if (!emailFallback) errors.push("Email sign-up, verification and password reset require the complete database, session, token, SMTP and HTTPS-origin configuration.");
+  if (!emailFallback) errors.push("Email sign-up, verification and password reset require the complete database, session, token, email-provider and HTTPS-origin configuration.");
   for (const provider of expected) if (!providerChecks[provider].configured) errors.push(`${provider[0].toUpperCase()}${provider.slice(1)} sign-in credentials are incomplete.`);
   if (releaseError) errors.push(releaseError);
   else if (!releaseIdentityReady) errors.push(`The running Homle package does not match expected release ${expectedRelease}.`);
   const configurationReady = releaseIdentityReady && marketplaceCore && emailFallback && expectedProvidersConfigured;
   const nextEvidence = configurationReady ? Object.freeze([
-    "Start the marketplace in managed staging and require its database, SMTP, private-storage and monitoring probes to pass.",
+    "Start the marketplace in managed staging and require its database, email-provider, private-storage and monitoring probes to pass.",
     `Run the external domain verifier with TIDEWAY_EXPECT_RELEASE=${expectedRelease} and TIDEWAY_EXPECT_SOCIAL_PROVIDERS=${expected.join(",")}.`,
     "Complete new-account, repeat-login, role-onboarding, logout and account-collision tests with two non-customer staging accounts.",
     ...(expected.includes("facebook") ? ["Register the signed Facebook data-deletion callback and public status URL in Meta, then prove a non-customer deletion request reaches the private privacy queue."] : []),

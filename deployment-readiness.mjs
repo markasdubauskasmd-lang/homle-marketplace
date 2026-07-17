@@ -81,7 +81,7 @@ export function validateProductionDeployment(env = process.env, options = {}) {
 
   errors.push(...marketplaceValidation.errors);
   if (marketplace.marketplace.requested) {
-    if (!marketplace.emailConfigured) errors.push("The enabled marketplace requires SMTP_URL and EMAIL_FROM.");
+    if (!marketplace.emailConfigured) errors.push("The enabled marketplace requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
     if (!marketplace.objectStorageConfigured) errors.push("The enabled marketplace requires complete private object-storage configuration.");
     if (!deploymentModule(env.MARKETPLACE_ADAPTER_MODULE)) errors.push(`The enabled marketplace requires ${builtInMonitoringAdapter} or an absolute deployment monitoring adapter module.`);
     if (exact(env.MARKETPLACE_ADAPTER_MODULE) === builtInMonitoringAdapter) errors.push(...validateMonitoringWebhookEnvironment(env).errors);
