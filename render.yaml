@@ -1,0 +1,48 @@
+# Safe, review-only Render preview. Creating or syncing this Blueprint is a separate
+# user-approved action. It deliberately creates no database, worker, disk or domain.
+services:
+  - type: web
+    name: homle-marketplace-preview
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    autoDeployTrigger: "off"
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: "production"
+      - key: HOST
+        value: "0.0.0.0"
+      - key: LAN_PORT
+        value: "0"
+      - key: DATA_DIR
+        value: "/var/lib/tideway"
+      - key: APP_ORIGIN
+        sync: false
+      - key: ADMIN_REQUIRE_KEY
+        value: "true"
+      - key: ADMIN_KEY
+        generateValue: true
+      - key: TRUST_PROXY
+        value: "true"
+      - key: TRUST_PROXY_PROVIDER
+        value: "render"
+      - key: TRUSTED_PROXY_CIDRS
+        value: ""
+      - key: PILOT_INTAKE_ENABLED
+        value: "false"
+      - key: MARKETPLACE_ENABLED
+        value: "false"
+      - key: MARKETPLACE_WORKER_ENABLED
+        value: "false"
+      - key: WORKER_EMAIL_ENABLED
+        value: "false"
+      - key: WORKER_MEDIA_ENABLED
+        value: "false"
+      - key: WORKER_AUTOMATIC_DISPATCH_ENABLED
+        value: "false"
+      - key: PAYMENTS_ENABLED
+        value: "false"

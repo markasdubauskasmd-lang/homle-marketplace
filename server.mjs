@@ -56,6 +56,9 @@ const maxProposalAdditionalCosts = 100000;
 const maxOutcomeHours = 100;
 const maxFinancialRecordAmount = 1000000;
 const localDemoEnabled = process.env.NODE_ENV !== "production";
+const pilotIntakeEnabled = process.env.NODE_ENV === "production"
+  ? process.env.PILOT_INTAKE_ENABLED === "true"
+  : process.env.PILOT_INTAKE_ENABLED !== "false";
 let writeQueue = Promise.resolve();
 const rateLimitBuckets = new Map();
 const trackingTestStore = localDemoEnabled ? createTrackingTestStore() : null;
@@ -1200,6 +1203,13 @@ function isDataMutation(request, pathname) {
 
 async function allowDataMutation(request, response, pathname) {
   if (!isDataMutation(request, pathname)) return true;
+  if (!pilotIntakeEnabled) {
+    json(response, 503, {
+      ok: false,
+      error: "Homle is in read-only preview mode. No cleaning request or private record was saved."
+    });
+    return false;
+  }
   const integrity = await refreshDataIntegrity();
   if (integrity.healthy) return true;
   json(response, 503, {
@@ -5211,6 +5221,7 @@ async function handleHttpRequest(request, response) {
         dataIntegrity: dataIntegrityState.healthy ? "healthy" : "degraded",
         writesAllowed: dataIntegrityState.healthy,
         integrityCheckedAt: dataIntegrityState.checkedAt,
+        pilot: { intakeEnabled: pilotIntakeEnabled },
         marketplace: {
           enabled: marketplaceAttachment.enabled,
           ready: marketplaceAttachment.ready,

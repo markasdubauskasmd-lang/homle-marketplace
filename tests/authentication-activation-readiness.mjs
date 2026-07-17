@@ -31,6 +31,7 @@ const configured = {
   ADMIN_KEY: secrets.admin,
   TRUST_PROXY: "true",
   TRUSTED_PROXY_CIDRS: "127.0.0.1/32",
+  PILOT_INTAKE_ENABLED: "false",
   MARKETPLACE_ENABLED: "true",
   PAYMENTS_ENABLED: "false",
   DATABASE_URL: secrets.database,

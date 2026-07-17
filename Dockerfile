@@ -21,6 +21,7 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
     LAN_PORT=0 \
+    PILOT_INTAKE_ENABLED=false \
     DATA_DIR=/var/lib/tideway \
     MARKETPLACE_ENABLED=false \
     PAYMENTS_ENABLED=false

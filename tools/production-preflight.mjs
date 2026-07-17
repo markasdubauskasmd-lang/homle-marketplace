@@ -10,5 +10,5 @@ if (!result.ok) {
   for (const error of result.errors) console.error(`- ${error}`);
   process.exitCode = 1;
 } else {
-  console.log(JSON.stringify({ ok: true, mode: result.mode, marketplaceEnabled: result.marketplaceEnabled, paymentsEnabled: result.paymentsEnabled, checks: result.checks }, null, 2));
+  console.log(JSON.stringify({ ok: true, mode: result.mode, pilotIntakeEnabled: result.pilotIntakeEnabled, marketplaceEnabled: result.marketplaceEnabled, paymentsEnabled: result.paymentsEnabled, checks: result.checks }, null, 2));
 }

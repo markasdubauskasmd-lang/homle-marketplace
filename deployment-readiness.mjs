@@ -52,8 +52,10 @@ export function validateProductionDeployment(env = process.env, options = {}) {
   const marketplace = marketplaceEnvironment(env);
   const marketplaceValidation = validateMarketplaceEnvironment(env);
   if (env.NODE_ENV !== "production") errors.push("NODE_ENV must be production.");
+  if (!["true", "false"].includes(exact(env.PILOT_INTAKE_ENABLED).toLowerCase())) errors.push("PILOT_INTAKE_ENABLED must be explicitly true or false in production.");
   if (!["true", "false"].includes(exact(env.MARKETPLACE_ENABLED).toLowerCase())) errors.push("MARKETPLACE_ENABLED must be explicitly true or false in production.");
   if (!["true", "false"].includes(exact(env.PAYMENTS_ENABLED).toLowerCase())) errors.push("PAYMENTS_ENABLED must be explicitly true or false in production.");
+  if (enabled(env.PILOT_INTAKE_ENABLED) && marketplace.marketplace.requested) errors.push("PILOT_INTAKE_ENABLED must be false when MARKETPLACE_ENABLED=true; production must use one private-data system.");
   if (!publicOrigin(env.APP_ORIGIN)) errors.push("APP_ORIGIN must be the exact public HTTPS domain origin with no path, credentials or IP address.");
 
   const host = exact(env.HOST);
@@ -90,6 +92,7 @@ export function validateProductionDeployment(env = process.env, options = {}) {
     mode: marketplace.marketplace.requested ? "marketplace" : "public-site",
     marketplaceEnabled: marketplace.marketplace.requested,
     paymentsEnabled: marketplace.payments.requested,
+    pilotIntakeEnabled: enabled(env.PILOT_INTAKE_ENABLED),
     checks: Object.freeze({
       production: env.NODE_ENV === "production",
       publicHttpsOrigin: publicOrigin(env.APP_ORIGIN),

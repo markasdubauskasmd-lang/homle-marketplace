@@ -21,6 +21,7 @@ const safePilot = Object.freeze({
   DATA_DIR: dataDirectory,
   ADMIN_REQUIRE_KEY: "true",
   ADMIN_KEY: "unit-test-admin-secret-with-32-characters",
+  PILOT_INTAKE_ENABLED: "false",
   TRUST_PROXY: "true",
   TRUSTED_PROXY_CIDRS: "127.0.0.1/32",
   MARKETPLACE_ENABLED: "false",
@@ -69,6 +70,7 @@ try {
   assert.equal(pilot.mode, "public-site");
   assert.equal(pilot.marketplaceEnabled, false);
   assert.equal(pilot.paymentsEnabled, false);
+  assert.equal(pilot.pilotIntakeEnabled, false);
   assert(!JSON.stringify(pilot).includes(safePilot.ADMIN_KEY), "Production readiness exposed the Administrator secret.");
 
   const renderPilot = validateProductionDeployment({
@@ -91,12 +93,14 @@ try {
     [{ DATA_DIR: path.join(path.parse(projectRoot).root, "OneDrive", "Homle") }, "OneDrive"],
     [{ ADMIN_REQUIRE_KEY: "false" }, "ADMIN_REQUIRE_KEY"],
     [{ ADMIN_KEY: "short" }, "ADMIN_KEY"],
+    [{ PILOT_INTAKE_ENABLED: "" }, "PILOT_INTAKE_ENABLED"],
     [{ TRUST_PROXY: "false" }, "TRUST_PROXY"],
     [{ TRUSTED_PROXY_CIDRS: "not-a-network" }, "valid IP"],
     [{ TRUST_PROXY_PROVIDER: "render", TRUSTED_PROXY_CIDRS: "", RENDER: "false", RENDER_SERVICE_ID: "srv-abcdef123456", RENDER_EXTERNAL_HOSTNAME: "homle-marketplace.onrender.com" }, "production Render"],
     [{ LAN_PORT: "4174" }, "LAN_PORT"],
     [{ PORT: "0" }, "PORT"],
     [{ MARKETPLACE_ENABLED: "" }, "MARKETPLACE_ENABLED"],
+    [{ PILOT_INTAKE_ENABLED: "true", MARKETPLACE_ENABLED: "true" }, "one private-data system"],
     [{ PAYMENTS_ENABLED: "" }, "PAYMENTS_ENABLED"],
     [{ MARKETPLACE_ENABLED: "false", PAYMENTS_ENABLED: "true", STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`, STRIPE_PUBLISHABLE_KEY: `pk_test_${"b".repeat(32)}`, STRIPE_WEBHOOK_SECRET: `whsec_${"c".repeat(32)}` }, "MARKETPLACE_ENABLED"]
   ]) {
@@ -166,6 +170,7 @@ try {
   assert.equal(health.ok, true);
   assert.deepEqual(health.release, { source: "unidentified", sourceCommit: null, builtAt: null, migrationCount: null });
   assert.equal(health.marketplace.enabled, false);
+  assert.equal(health.pilot.intakeEnabled, false);
   assert.equal(health.localDemosEnabled, false);
   assert.equal(response.headers.get("cache-control"), "no-store");
   const productionHomepage = await fetch(`http://127.0.0.1:${port}/`, { headers: { "X-Forwarded-For": "198.51.100.10" } });
@@ -189,6 +194,9 @@ try {
   const canonicalApi = await directRequest("/api/health", { "Host": "tideway.example.com", "X-Forwarded-For": "198.51.100.10" });
   assert.equal(canonicalApi.status, 200);
   assert.equal(JSON.parse(canonicalApi.body).ok, true);
+  const readOnlyMutation = await directRequest("/api/cleaning-requests", { "Host": "tideway.example.com", "Origin": "https://tideway.example.com", "Content-Type": "application/json", "X-Forwarded-For": "198.51.100.10", "X-Forwarded-Proto": "https" }, "POST");
+  assert.equal(readOnlyMutation.status, 503);
+  assert.match(JSON.parse(readOnlyMutation.body).error, /read-only preview/i);
   const providersResponse = await fetch(`http://127.0.0.1:${port}/api/auth/providers`, { headers: { "X-Forwarded-For": "198.51.100.10" } });
   const providers = await providersResponse.json();
   assert.equal(providersResponse.status, 200);
@@ -204,7 +212,7 @@ try {
   child.kill("SIGTERM");
   await exited;
 
-  console.log("Production deployment readiness tests passed: detached public-site start, canonical www redirect, mutation isolation, public HTTPS origin, private data location, protected admin, trusted proxy, disabled local preview and marketplace-specific gates.");
+  console.log("Production deployment readiness tests passed: read-only detached preview, canonical www redirect, mutation isolation, public HTTPS origin, private data location, protected admin, trusted proxy, disabled local preview and marketplace-specific gates.");
 } finally {
   if (serverProcess?.exitCode === null && serverProcess?.signalCode === null) {
     const exited = new Promise((resolve) => serverProcess.once("exit", resolve));

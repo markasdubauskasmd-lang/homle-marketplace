@@ -7,6 +7,8 @@ Homle supports two deliberately separate production modes:
 
 The public-site mode no longer requires placeholder database credentials. It remains detached from marketplace authentication and payments, and `/api/auth/providers` must report every provider as unavailable.
 
+`PILOT_INTAKE_ENABLED` independently controls the legacy file-backed concierge intake. Production must set it explicitly. Keep it `false` for a visual preview or any host with temporary storage. Set it `true` only after an encrypted durable volume is mounted at `DATA_DIR`, retention/backup operations are ready and real intake is separately approved. It must remain `false` when the PostgreSQL marketplace is enabled so one deployment cannot write private records to two unrelated systems.
+
 ## Host-neutral container artifact
 
 `Dockerfile` is the prepared production build boundary. It uses the exact Node 24.17.0 Bookworm-slim tag in two stages, verifies the locked dependency graph before a frozen production-only install, and copies only the runtime files. `.dockerignore` denies the whole workspace first and then allowlists those inputs. It excludes `.env`, private `data`, Git history, tests, launch notes and the browser-facing local tracking-lab assets. The final process runs as the image's unprivileged `node` user, defaults both marketplace and payments off, uses `/var/lib/tideway` outside the application source, handles `SIGTERM`, and checks the public health contract without adding `curl`.
@@ -25,6 +27,14 @@ Record the resolved base/image digest and scan the **built image**, not only the
 
 For runtime, mount an encrypted persistent volume at `/var/lib/tideway`, confirm it is writable by the container's `node` user, keep the root filesystem read-only where the host supports it, drop Linux capabilities, and set `no-new-privileges`. Do not place secrets in build arguments, image layers or an environment file committed beside the source. The real domain, Administrator key and exact immediate-proxy CIDRs must come from the hosting secret/configuration service. The existing production preflight intentionally prevents the image from starting without them.
 
+## Render preview Blueprint
+
+The root `render.yaml` is a deliberately non-launching preparation artifact. It defines one free Docker web preview in Frankfurt, disables automatic deployment, requests the exact `APP_ORIGIN` at setup, generates the Administrator secret and keeps pilot intake, marketplace accounts, every worker capability and payments off. It creates no database, worker, disk, custom domain or mutating deployment hook.
+
+This shape is intentionally read-only. Render documents that free web services use an ephemeral filesystem, cannot attach a persistent disk, spin down when idle and are not for production applications. Render also does not offer a free background-worker instance. Therefore this Blueprint is suitable only for a founder-approved visual preview; it cannot collect real enquiries, room media or Cleaner applications and it cannot run the complete marketplace. See Render's [free-instance limits](https://render.com/docs/free) and [current Blueprint specification](https://render.com/docs/blueprint-spec).
+
+Do not sync the Blueprint yet merely because it validates locally: initial creation still deploys an internet-accessible `onrender.com` service. Before that separate approved action, enter its exact assigned HTTPS origin for `APP_ORIGIN`, review the displayed resources and confirm that no paid resource or domain has been added. A real launch requires either a paid web service with an encrypted persistent disk for the temporary concierge pilot, or the managed PostgreSQL/SMTP/private-object-storage/monitoring marketplace promotion described below. The marketplace additionally needs a paid worker; payments remain a later separately approved gate.
+
 ## Mandatory preflight
 
 Every public production process must provide:
@@ -41,6 +51,7 @@ ADMIN_KEY=<secret-manager value of at least 32 characters>
 TRUST_PROXY=true
 TRUST_PROXY_PROVIDER=render
 TRUSTED_PROXY_CIDRS=
+PILOT_INTAKE_ENABLED=false
 MARKETPLACE_ENABLED=false
 PAYMENTS_ENABLED=false
 ```
@@ -60,10 +71,10 @@ The preflight performs no DNS change, deployment, database connection, email, st
 ## Public-site deployment sequence
 
 1. Select hosting and record its deployment identity, region, persistent-volume behavior, HTTPS proxy behavior and immediate proxy networks.
-2. Put private pilot data on an encrypted persistent volume or access-restricted host directory. Never use the source checkout or an ephemeral filesystem for real submissions.
-3. Configure the mandatory environment through the platform secret manager and keep both marketplace and payments false.
+2. Put private pilot data on an encrypted persistent volume or access-restricted host directory. Never use the source checkout or an ephemeral filesystem for real submissions. Keep `PILOT_INTAKE_ENABLED=false` until this is proven.
+3. Configure the mandatory environment through the platform secret manager and keep marketplace, workers and payments false. Turn pilot intake on only for the separately approved durable concierge deployment.
 4. Run the dependency lock, complete tests and production preflight against the exact release commit. If using the container artifact, also build it on the selected Linux builder, load every native/runtime dependency, record its digest and pass the approved image scan.
-5. Start the process and require `/api/health` to return HTTP 200, `ok: true`, healthy integrity, writes allowed, `marketplace.enabled: false` and `localDemosEnabled: false` with `Cache-Control: no-store`.
+5. Start the process and require `/api/health` to return HTTP 200, `ok: true`, healthy integrity, `marketplace.enabled: false` and `localDemosEnabled: false` with `Cache-Control: no-store`. A read-only preview must additionally report `pilot.intakeEnabled: false` and reject every legacy mutation with HTTP 503. An approved durable concierge deployment must report `pilot.intakeEnabled: true` before accepting its first synthetic submission.
 6. Verify `/api/auth/providers` reports Google, Facebook, Apple and email/password as false.
 7. Verify `/tracking-test`, `/tracking-test.html`, `/tracking-test.js` and `/api/tracking-test/session` all return 404. The real-location simulator is a local development lab, not a public feature.
 8. Connect the approved domain only after external `tools/domain-readiness.mjs` passes. Its read-only probes independently require the production health flag, anonymous `/admin` denial and closed local tracking surfaces without redirects, cacheable responses or cookies. This action still requires founder approval; preparation is not authorization to publish.
