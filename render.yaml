@@ -1,5 +1,6 @@
-# Safe, review-only Render preview. Creating or syncing this Blueprint is a separate
-# user-approved action. It deliberately creates no database, worker, disk or domain.
+# Safe Render staging foundation. The owner approved one free PostgreSQL staging
+# database for real account and mobile-flow testing. Marketplace traffic remains
+# closed until the database is bootstrapped and every private dependency passes.
 services:
   - type: web
     name: homle-marketplace-preview
@@ -46,3 +47,12 @@ services:
         value: "false"
       - key: PAYMENTS_ENABLED
         value: "false"
+
+databases:
+  - name: homle-marketplace-staging-db
+    plan: free
+    region: frankfurt
+    postgresMajorVersion: "16"
+    databaseName: homle_marketplace_homle_staging
+    user: homle_migration_owner
+    ipAllowList: []
