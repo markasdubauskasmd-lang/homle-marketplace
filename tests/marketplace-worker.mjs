@@ -6,6 +6,9 @@ import { createMarketplaceWorkerRuntime } from "../src/marketplace/worker-runtim
 import { createWorkerSupervisor } from "../src/marketplace/worker-supervisor.mjs";
 import { runPostgresWorkerVerification, validateWorkerVerificationTarget, workerVerificationConfirmation } from "../tools/postgres-worker-verification-runner.mjs";
 
+const workerRelease = Object.freeze({ source: "packaged", sourceCommit: "607f0113", builtAt: new Date(Date.now() - 60_000).toISOString(), migrationCount: 40 });
+const workerEnvironment = Object.freeze({ MARKETPLACE_WORKER_ENABLED: "true", TIDEWAY_EXPECT_RELEASE: "607f0113", WORKER_DATABASE_URL: "postgresql://tideway_worker@127.0.0.1/test" });
+
 let now = Date.parse("2026-07-16T09:00:00.000Z");
 const timers = [];
 const monitorCalls = [];
@@ -95,17 +98,22 @@ assert.throws(() => workerPoolEnvironment({ NODE_ENV: "production", WORKER_DATAB
 assert.throws(() => workerPoolEnvironment({ WORKER_DATABASE_URL: "postgresql://tideway_app@127.0.0.1/test" }), /tideway_worker/);
 const fakeSupervisor = { start() { return {}; }, snapshot() { return { jobs: [] }; }, async close() {} };
 const attached = await createMarketplaceWorkerAttachment({
-  env: { MARKETPLACE_WORKER_ENABLED: "true", WORKER_DATABASE_URL: "postgresql://tideway_worker@127.0.0.1/test" },
+  env: workerEnvironment,
+  releaseIdentity: workerRelease,
   adapters: { onUnexpectedError() {}, async close() {} },
   createPool: async () => ({ async end() { poolClosed += 1; } }),
   probeDatabase: async () => ({ databaseRole: "tideway_worker" }),
   createRuntime: () => fakeSupervisor
 });
 assert.deepEqual(attached.capabilities, { email: false, media: false, dispatch: false });
+assert.deepEqual(attached.release, { sourceCommit: "607f0113", builtAt: workerRelease.builtAt, migrationCount: 40 });
+assert.deepEqual(attached.snapshot().release, { sourceCommit: "607f0113", migrationCount: 40 });
 await attached.close();
 await attached.close();
 assert.equal(poolClosed, 1, "Worker attachment did not close its pool exactly once.");
-await assert.rejects(() => createMarketplaceWorkerAttachment({ env: { MARKETPLACE_WORKER_ENABLED: "true", WORKER_AUTOMATIC_DISPATCH_ENABLED: "true" }, adapters: { onUnexpectedError() {}, async close() {} } }), /marketplace runtime/);
+await assert.rejects(() => createMarketplaceWorkerAttachment({ env: { ...workerEnvironment, TIDEWAY_EXPECT_RELEASE: "00000000" }, releaseIdentity: workerRelease }), /does not match expected release/);
+await assert.rejects(() => createMarketplaceWorkerAttachment({ env: { ...workerEnvironment, TIDEWAY_EXPECT_RELEASE: "" }, releaseIdentity: workerRelease }), /eight-character source commit/);
+await assert.rejects(() => createMarketplaceWorkerAttachment({ env: { ...workerEnvironment, WORKER_AUTOMATIC_DISPATCH_ENABLED: "true" }, releaseIdentity: workerRelease, adapters: { onUnexpectedError() {}, async close() {} } }), /marketplace runtime/);
 
 const probePool = { async query(text, values) {
   assert.ok(text.includes("no_public_table_access") && text.includes("to_regprocedure") && values[0].length === requiredWorkerFunctions.length);
@@ -132,4 +140,4 @@ const verification = await runPostgresWorkerVerification({
 assert.deepEqual(verification, { database: "acme_tideway_test", postgresqlVersionNumber: 160014, functionCount: 13, jobs: 5, verified: true });
 assert.equal(verificationPoolClosed, 1);
 
-console.log("Marketplace worker tests passed: restricted maintenance, non-overlap, monitored recovery, privacy-safe health, optional capabilities, clean shutdown and disposable PostgreSQL verification guard.");
+console.log("Marketplace worker tests passed: exact packaged release, restricted maintenance, non-overlap, monitored recovery, privacy-safe health, optional capabilities, clean shutdown and disposable PostgreSQL verification guard.");

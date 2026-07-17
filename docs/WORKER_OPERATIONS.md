@@ -28,13 +28,13 @@ Optional media cleanup runs each minute, email delivery every 15 seconds and aut
 
 ## Startup and shutdown
 
-Production secrets belong in the deployment secret manager. Configure `WORKER_DATABASE_URL` with the restricted worker credential, set `MARKETPLACE_ADAPTER_MODULE=homle:monitoring-webhook` with the approved private monitoring endpoint/token (or use a reviewed absolute custom adapter), and add only the capability-specific provider settings that have passed staging. Then run:
+Production secrets belong in the deployment secret manager. Set `TIDEWAY_EXPECT_RELEASE` to the exact eight-character `sourceCommit` from the uploaded package manifest, configure `WORKER_DATABASE_URL` with the restricted worker credential, set `MARKETPLACE_ADAPTER_MODULE=homle:monitoring-webhook` with the approved private monitoring endpoint/token (or use a reviewed absolute custom adapter), and add only the capability-specific provider settings that have passed staging. Then run:
 
 ```text
 pnpm run start:worker
 ```
 
-The process refuses to start when the worker flag, database credential, monitoring adapter, PostgreSQL version, restricted role or required functions are incomplete. SIGTERM/SIGINT clears future timers, waits for in-flight jobs and closes SMTP, object storage and PostgreSQL resources exactly once.
+The process first loads the bounded release identity embedded in its package and refuses to start if it is missing, malformed or different from `TIDEWAY_EXPECT_RELEASE`. It also refuses when the worker flag, database credential, monitoring adapter, PostgreSQL version, restricted role or required functions are incomplete. Its ready line and private snapshot expose only the source commit and migration count, never paths, repository details or credentials. SIGTERM/SIGINT clears future timers, waits for in-flight jobs and closes SMTP, object storage and PostgreSQL resources exactly once.
 
 The supervisor exposes a programmatic `snapshot()` containing only job names, intervals, run/success/failure counts, timestamps and non-negative numeric/boolean result totals. The deployment adapter may project that snapshot into its private health/alerting system; do not expose raw errors or provider details on a public health route.
 

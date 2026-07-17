@@ -1,3 +1,6 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { loadReleaseIdentity } from "../release-identity.mjs";
 import { createMarketplaceWorkerAttachment } from "../src/marketplace/worker-attachment.mjs";
 
 let attachment;
@@ -11,10 +14,12 @@ async function stop(signal) {
 }
 
 try {
-  attachment = await createMarketplaceWorkerAttachment();
+  const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const releaseIdentity = await loadReleaseIdentity({ projectRoot });
+  attachment = await createMarketplaceWorkerAttachment({ releaseIdentity });
   if (!attachment.enabled || !attachment.ready) throw new Error("Marketplace worker service is not enabled.");
   attachment.start();
-  process.stdout.write(`Tideway marketplace worker ready with ${attachment.snapshot().jobs.length} scheduled jobs.\n`);
+  process.stdout.write(`Homle marketplace worker release ${attachment.release.sourceCommit} ready with ${attachment.snapshot().jobs.length} scheduled jobs.\n`);
   process.once("SIGTERM", () => { void stop("SIGTERM"); });
   process.once("SIGINT", () => { void stop("SIGINT"); });
 } catch (error) {

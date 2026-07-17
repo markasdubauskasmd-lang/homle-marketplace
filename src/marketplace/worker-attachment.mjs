@@ -4,6 +4,7 @@ import { loadMarketplaceDeploymentAdapters } from "./attachment.mjs";
 import { createS3ObjectStorage } from "./s3-object-storage.mjs";
 import { createSmtpEmailDelivery } from "./smtp-email-delivery.mjs";
 import { createMarketplaceWorkerRuntime } from "./worker-runtime.mjs";
+import { normalizeExpectedReleaseCommit, packagedReleaseIdentityMatches } from "../../release-identity.mjs";
 
 function booleanValue(env, name, fallback = false) {
   const supplied = String(env[name] ?? "").trim().toLowerCase();
@@ -85,6 +86,9 @@ function unavailable(reason = "disabled") {
 export async function createMarketplaceWorkerAttachment(options = {}) {
   const env = options.env || process.env;
   if (!booleanValue(env, "MARKETPLACE_WORKER_ENABLED")) return unavailable();
+  const expectedRelease = normalizeExpectedReleaseCommit(env.TIDEWAY_EXPECT_RELEASE);
+  const releaseIdentity = options.releaseIdentity;
+  if (!packagedReleaseIdentityMatches(releaseIdentity, expectedRelease)) throw new TypeError(`Marketplace worker package does not match expected release ${expectedRelease}.`);
   const emailEnabled = booleanValue(env, "WORKER_EMAIL_ENABLED");
   const mediaEnabled = booleanValue(env, "WORKER_MEDIA_ENABLED");
   const dispatchEnabled = booleanValue(env, "WORKER_AUTOMATIC_DISPATCH_ENABLED");
@@ -135,9 +139,10 @@ export async function createMarketplaceWorkerAttachment(options = {}) {
     ready: true,
     reason: "ready",
     capabilities,
+    release: Object.freeze({ sourceCommit: releaseIdentity.sourceCommit, builtAt: releaseIdentity.builtAt, migrationCount: releaseIdentity.migrationCount }),
     supervisor,
     start(input) { return supervisor.start(input); },
-    snapshot() { return Object.freeze({ ...supervisor.snapshot(), capabilities }); },
+    snapshot() { return Object.freeze({ ...supervisor.snapshot(), capabilities, release: Object.freeze({ sourceCommit: releaseIdentity.sourceCommit, migrationCount: releaseIdentity.migrationCount }) }); },
     async close() {
       if (closed) return;
       closed = true;
