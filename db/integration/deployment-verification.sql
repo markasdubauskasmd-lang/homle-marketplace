@@ -8,6 +8,7 @@ DECLARE
   selected_role record;
   selected_table record;
   selected_function oid;
+  selected_source text;
   rls_tables constant text[] := ARRAY[
     'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
@@ -170,6 +171,21 @@ BEGIN
       RAISE EXCEPTION 'Protected function is not SECURITY DEFINER with the trusted search path: %', selected_name;
     END IF;
   END LOOP;
+
+  IF to_regclass('tideway_private.schema_migrations') IS NOT NULL
+     AND EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 46) THEN
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid = to_regprocedure('tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)');
+    IF position('#variable_conflict error' IN COALESCE(selected_source, '')) = 0
+       OR position('UPDATE users AS u' IN COALESCE(selected_source, '')) = 0 THEN
+      RAISE EXCEPTION 'The migration-46 social identity repair is not installed';
+    END IF;
+    IF has_table_privilege('tideway_app', 'tideway_private.schema_migrations', 'SELECT')
+       OR has_table_privilege('tideway_worker', 'tideway_private.schema_migrations', 'SELECT') THEN
+      RAISE EXCEPTION 'A restricted role can read the private migration ledger';
+    END IF;
+  END IF;
 
   FOREACH selected_name IN ARRAY app_functions LOOP
     IF NOT has_function_privilege('tideway_app', selected_name, 'EXECUTE') THEN RAISE EXCEPTION 'App role is missing required function execution: %', selected_name; END IF;

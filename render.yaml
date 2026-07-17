@@ -26,6 +26,8 @@ services:
         value: "https://homle-marketplace-preview.onrender.com"
       - key: RENDER_STAGING_BOOTSTRAP_ENABLED
         value: "true"
+      - key: RENDER_STAGING_BASELINE_MIGRATION_COUNT
+        value: "45"
       - key: DATABASE_BOOTSTRAP_URL
         fromDatabase:
           name: homle-marketplace-staging-db
