@@ -41,6 +41,7 @@ const speechButton = document.querySelector("[data-speech-toggle]");
 const speechStatus = document.querySelector("[data-speech-status]");
 const speechFallback = document.querySelector("[data-speech-fallback]");
 const taskPreview = document.querySelector("[data-task-preview]");
+const taskReviewStatus = document.querySelector("[data-task-review-status]");
 const cleaningTypeSelect = requestForm.elements.cleaningType;
 const cleaningTypeHint = document.querySelector("[data-cleaning-type-hint]");
 const nextTitle = document.querySelector("[data-landlord-next-title]");
@@ -112,6 +113,19 @@ function invalidateScopeReview(message) {
 
 function renderTaskPreview() {
   const lines = String(requestForm.elements.tasks.value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const confirmation = requestForm.elements.scopeReviewed;
+  try {
+    const reviewedTasks = requestTasksFromLines(lines.join("\n"));
+    const roomCount = new Set(reviewedTasks.map((task) => task.roomName.toLowerCase())).size;
+    confirmation.disabled = false;
+    taskReviewStatus.dataset.kind = "ready";
+    taskReviewStatus.textContent = `${reviewedTasks.length} clear ${reviewedTasks.length === 1 ? "task" : "tasks"} across ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. Review the bullets, then confirm.`;
+  } catch (error) {
+    confirmation.checked = false;
+    confirmation.disabled = true;
+    taskReviewStatus.dataset.kind = "needs-attention";
+    taskReviewStatus.textContent = error.message;
+  }
   taskPreview.replaceChildren();
   if (!lines.length) {
     const empty = element("p", "landlord-task-empty", "No tasks yet. Start speaking or type the room walkthrough.");

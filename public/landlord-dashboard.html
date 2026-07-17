@@ -8,7 +8,7 @@
   <title>Landlord workspace | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260717-68">
-  <script src="/landlord-dashboard.js?v=20260717-5" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260717-6" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
   <script src="/workspace-switch.js?v=20260717-1" type="module"></script>
 </head>
@@ -132,7 +132,8 @@
               <div class="landlord-checklist-heading"><div><p class="eyebrow">Cleaner instructions</p><h3 id="request-tasks-title">Review the concise bullets</h3></div><button class="text-button" type="button" data-use-saved-checklist>Use saved checklist</button></div>
               <div class="landlord-task-preview" data-task-preview role="list" aria-live="polite"><p role="listitem">No tasks yet. Start speaking or type the room walkthrough.</p></div>
               <details class="landlord-task-editor"><summary>Edit concise bullets</summary><div><label for="request-tasks">One room-labelled task per line</label><textarea id="request-tasks" name="tasks" rows="8" placeholder="Kitchen: Wipe the worktops&#10;Bathroom: Remove limescale from the shower screen"></textarea></div></details>
-              <label class="checkbox landlord-review-confirmation"><input name="scopeReviewed" type="checkbox" required><span>I reviewed every bullet and confirm this is the work I want quoted.</span></label>
+              <p class="landlord-task-review-status" data-task-review-status role="status">Add at least one room-labelled cleaning action before approval.</p>
+              <label class="checkbox landlord-review-confirmation"><input name="scopeReviewed" type="checkbox" required disabled><span>I reviewed every bullet and confirm this is the work I want quoted.</span></label>
             </section>
             <div class="landlord-form-feedback" data-request-feedback role="status" aria-live="polite" hidden></div>
             <button class="button" type="submit" data-save-request>Save private draft</button>

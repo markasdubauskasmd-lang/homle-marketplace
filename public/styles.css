@@ -1756,7 +1756,10 @@ textarea { resize: vertical; }
 .landlord-task-room { padding: 13px 15px; border-left: 4px solid var(--green); border-radius: 0 11px 11px 0; background: var(--mint-pale); }
 .landlord-task-room strong { color: var(--green-dark); }
 .landlord-task-room ul { display: grid; gap: 6px; margin: 8px 0 0; padding-left: 20px; }
+.landlord-task-review-status { margin: 0; padding: 10px 12px; color: #7b1e17; border-left: 3px solid #c85d52; background: #fff5f3; font-size: .78rem; font-weight: 760; }
+.landlord-task-review-status[data-kind="ready"] { color: var(--green-dark); border-left-color: var(--green); background: var(--mint-pale); }
 .landlord-review-confirmation { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.landlord-review-confirmation:has(input:disabled) { opacity: .58; }
 .landlord-draft-boundary { color: #6b5a46; }
 .landlord-request-card { background: #fff; }
 .landlord-request-boundary { margin: 15px 0 0; padding: 10px 12px; color: #6b5a46; border-left: 3px solid var(--orange); background: #fff9ea; font-size: .75rem; }
