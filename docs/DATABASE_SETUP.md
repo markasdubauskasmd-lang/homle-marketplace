@@ -31,7 +31,26 @@ Before any migration-owner connection is used, verify that the complete ordered 
 node tools/check-database-assets.mjs
 ```
 
-This dependency-free check requires all 37 consecutively numbered migrations, rejects missing or unlocked SQL files, verifies the SHA-256 of every migration and role-grant script, and requires each file to retain its explicit `BEGIN;`/`COMMIT;` boundary. An intentional SQL change must be reviewed and receive an explicit matching lock update in the same commit. This is a source-integrity gate only; it does not replace executing the migrations and security/concurrency tests against a real PostgreSQL database.
+This dependency-free check requires all 38 consecutively numbered migrations, rejects missing or unlocked SQL files, verifies the SHA-256 of every migration and role-grant script, and requires each file to retain its explicit `BEGIN;`/`COMMIT;` boundary. An intentional SQL change must be reviewed and receive an explicit matching lock update in the same commit. This is a source-integrity gate only; it does not replace executing the migrations and security/concurrency tests against a real PostgreSQL database.
+
+For a newly created, empty managed staging database, prefer the guarded bootstrap runner. It refuses production-like database names, the application and worker identities, non-empty schemas, PostgreSQL versions below 16 and a missing exact confirmation. It applies the locked migrations in order, applies both restricted-role grants and runs the read-only deployment verifier. Credentials are passed to `psql` through libpq environment variables rather than process arguments.
+
+PowerShell:
+
+```powershell
+$env:DATABASE_BOOTSTRAP_URL = "postgresql://migration_owner:password@staging-host/acme_homle_staging?sslmode=verify-full"
+$env:HOMLE_DATABASE_BOOTSTRAP_CONFIRMATION = "BOOTSTRAP EMPTY HOMLE STAGING DATABASE"
+node tools/bootstrap-staging-database.mjs
+Remove-Item Env:DATABASE_BOOTSTRAP_URL, Env:HOMLE_DATABASE_BOOTSTRAP_CONFIRMATION
+```
+
+POSIX shell:
+
+```sh
+DATABASE_BOOTSTRAP_URL='postgresql://migration_owner:password@staging-host/acme_homle_staging?sslmode=verify-full' HOMLE_DATABASE_BOOTSTRAP_CONFIRMATION='BOOTSTRAP EMPTY HOMLE STAGING DATABASE' node tools/bootstrap-staging-database.mjs
+```
+
+This command is only for a disposable fresh staging target. If any migration fails after the guard passes, do not rerun it against the partially initialized database: delete and recreate that empty staging database through the approved provider workflow, then investigate and retry from the beginning. The runner never drops or cleans a database.
 
 Create the database and restricted runtime role using administrator tooling, then run these files as the migration owner in this order:
 
@@ -73,6 +92,7 @@ psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/034_bootstrap
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/035_account_privacy_request_intake.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/036_cleaner_payout_onboarding.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/037_pre_authorization_booking_total.sql
+psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/038_facebook_data_deletion_callback.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/runtime-role-grants.sql
 psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/worker-role-grants.sql
 ```

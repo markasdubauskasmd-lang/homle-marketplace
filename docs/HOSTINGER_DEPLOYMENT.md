@@ -35,8 +35,7 @@ Authoritative Hostinger references:
 - evidence manifest `../Homle-Hostinger-Node-release-601f5967.manifest.json`
 - source commit `601f5967`
 - 230 ZIP entries / 223 files / 7 directories; 648,774 bytes; SHA-256 `15A59FBC107F1AF3668DB8BB01DC5C4A9564E7A8BA6A2B1A9C317E10EF2F3E86`
-- SHA-256 `37707FF1D6BC0567B7DBC0AE29BD85D6B6DF0C90CAF471484114226ABAB9CC7B`
-- 182 ZIP entries / 177 files, 548,316 bytes; no `.env`, customer data, tests, documentation, Git history, local tracking lab or local secrets
+- no `.env`, customer data, tests, documentation, Git history, local tracking lab or local secrets
 - Node type: `Other`
 - entry file: `server.mjs`
 - supported runtime: Node.js 24
@@ -65,7 +64,7 @@ Uploading only `public/` would make the site look live while registration, booki
 4. Configure the reviewed production environment in hPanel; never upload a local `.env` into the application files.
 5. Keep marketplace and payments disabled for the first infrastructure probe.
 6. Run `TIDEWAY_PUBLIC_ORIGIN=https://homle.co.uk node tools/domain-readiness.mjs`. Verify `/api/health`, anonymous Administrator denial, closed local tracking lab, the full CSP, one-year HSTS and the `www` 308 to the canonical apex while preserving a test path and query. Do not enable accounts while the security-header check is red.
-7. Attach managed staging services and complete the two-account, two-phone test before enabling accounts or payments.
+7. Create a fresh empty managed staging database and run the guarded bootstrap in `docs/DATABASE_SETUP.md`. It applies all locked migrations, both restricted-role grant files and the read-only deployment verifier, and refuses production-like names, non-empty schemas and application identities. Then attach the remaining managed staging services and complete the two-account, two-phone test before enabling accounts or payments.
 8. Run the external domain verifier, then remove every synthetic staging record before real intake.
 
 For account activation, select the first real provider with `TIDEWAY_EXPECT_SOCIAL_PROVIDERS` and run `pnpm run preflight:authentication` against the reviewed Hostinger environment before changing the marketplace flag. Google uses `https://homle.co.uk/api/marketplace/auth/google/callback`; Facebook uses `https://homle.co.uk/api/marketplace/auth/facebook/callback` and the separate Meta data-deletion callback `https://homle.co.uk/api/marketplace/auth/facebook/data-deletion`, with `https://homle.co.uk/facebook-data-deletion` as its public confirmation page. The preflight reports these exact non-secret URLs plus incomplete database, SMTP, storage, monitoring, email fallback or provider configuration without printing any secret. It deliberately cannot replace the subsequent managed-service probes, Meta callback proof and two-account HTTPS test.

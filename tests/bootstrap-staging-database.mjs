@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bootstrapFreshStagingDatabase, stagingBootstrapConfirmation } from "../tools/bootstrap-staging-database.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const emptyStagingGuard = await readFile(path.join(root, "db", "bootstrap", "assert-empty-staging.sql"), "utf8");
+const guardWithoutMessages = emptyStagingGuard.replace(/'([^']|'')*'/g, "''");
+assert.match(emptyStagingGuard, /PostgreSQL 16/);
+assert.match(emptyStagingGuard, /_\(tideway\|homle\)_staging/);
+assert.match(emptyStagingGuard, /rolsuper/);
+assert.match(emptyStagingGuard, /rolbypassrls/);
+assert.match(emptyStagingGuard, /application_table_count/);
+assert.doesNotMatch(guardWithoutMessages, /\b(?:CREATE|ALTER|DROP|TRUNCATE|INSERT|UPDATE|DELETE)\b/i, "The supposedly read-only empty-staging guard contains a mutation.");
 const secret = "owner p@ssword/secret";
 const connectionUrl = `postgresql://migration_owner:${encodeURIComponent(secret)}@db.example:5432/acme_homle_staging?sslmode=verify-full`;
 const migrations = ["001_first.sql", "002_second.sql", "003_third.sql"];
