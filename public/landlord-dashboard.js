@@ -69,6 +69,13 @@ function storedCsrf() {
   try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
 }
 
+function saveCsrf(token) {
+  try {
+    sessionStorage.setItem("tideway_csrf", token);
+    return sessionStorage.getItem("tideway_csrf") === token;
+  } catch { return false; }
+}
+
 function element(name, className, text) {
   const node = document.createElement(name);
   if (className) node.className = className;
@@ -182,6 +189,19 @@ async function requestJson(path, options = {}) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw Object.assign(new Error(result.error || result.message || "The account action could not be completed."), { statusCode: response.status, code: result.code });
   return result;
+}
+
+async function recoverCsrf(target, action) {
+  const current = storedCsrf();
+  if (current) return current;
+  try {
+    const result = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("This browser could not keep the renewed secure editing token.");
+    return result.csrfToken;
+  } catch {
+    showFeedback(target, `Your secure session could not be recovered. Sign in again before ${action}.`);
+    return "";
+  }
 }
 
 function exactAddress(property) {
@@ -448,8 +468,8 @@ function requestScanPanel(request) {
       feedback.hidden = true;
       if (!form.reportValidity()) return;
       if (!file) return showFeedback(feedback, "Take a current room photo or choose one from this device.");
-      const csrf = storedCsrf();
-      if (!csrf) return showFeedback(feedback, "Your secure editing token is missing. Sign in again before uploading.");
+      const csrf = await recoverCsrf(feedback, "uploading this room photo");
+      if (!csrf) return;
       setPending(upload, true, "Checking and uploading…");
       try {
         const checksumSha256 = await sha256(file);
@@ -510,8 +530,8 @@ function requestScanPanel(request) {
       feedback.hidden = true;
       if (!submitForm.reportValidity()) return;
       if (!(requestScans.get(request.requestId)?.photos?.length > 0)) return showFeedback(feedback, "Upload and finish at least one current room photo before submission.");
-      const csrf = storedCsrf();
-      if (!csrf) return showFeedback(feedback, "Your secure editing token is missing. Sign in again before submitting.");
+      const csrf = await recoverCsrf(feedback, "submitting this cleaning request");
+      if (!csrf) return;
       setPending(submit, true, "Submitting reviewed scan…");
       let submitted = false;
       let submission = null;
@@ -604,8 +624,8 @@ async function withdrawRequest(event) {
   event.preventDefault();
   requestWithdrawFeedback.hidden = true;
   if (withdrawalPending || !requestWithdrawForm.reportValidity()) return;
-  const csrf = storedCsrf();
-  if (!csrf) return showFeedback(requestWithdrawFeedback, "Your secure editing token is missing. Sign in again before withdrawing this request.");
+  const csrf = await recoverCsrf(requestWithdrawFeedback, "withdrawing this request");
+  if (!csrf) return;
   const requestId = withdrawingRequestId;
   if (!requestId) return showFeedback(requestWithdrawFeedback, "The cleaning request is no longer available.");
   withdrawalPending = true;
@@ -786,8 +806,8 @@ async function saveProperty(event) {
   if (!isUkPostcode(postcode)) return showFeedback(propertyFeedback, "Enter a valid UK postcode.");
   let savedChecklist = [];
   try { if (String(data.get("savedChecklist") || "").trim()) savedChecklist = requestTasksFromLines(data.get("savedChecklist")); } catch (error) { return showFeedback(propertyFeedback, error.message); }
-  const csrf = storedCsrf();
-  if (!csrf) return showFeedback(propertyFeedback, "Your secure editing token is missing. Sign in again before saving.");
+  const csrf = await recoverCsrf(propertyFeedback, "saving this property");
+  if (!csrf) return;
   const body = {
     name: String(data.get("name") || ""), propertyType: String(data.get("propertyType") || ""), addressLine1: String(data.get("addressLine1") || ""), addressLine2: String(data.get("addressLine2") || ""), locality: String(data.get("locality") || ""), postcode,
     bedrooms: optionalNumber(data.get("bedrooms")), bathrooms: optionalNumber(data.get("bathrooms")), approximateSizeSqM: optionalNumber(data.get("approximateSizeSqM")),
@@ -836,8 +856,8 @@ async function createRequestDraft(event) {
   const cleaningType = String(data.get("cleaningType") || "");
   const requiredServices = [cleaningType];
   if (data.get("scopeReviewed") !== "on") return showFeedback(requestFeedback, "Review and confirm the concise room checklist before saving this draft.");
-  const csrf = storedCsrf();
-  if (!csrf) return showFeedback(requestFeedback, "Your secure editing token is missing. Sign in again before saving.");
+  const csrf = await recoverCsrf(requestFeedback, "saving this cleaning-request draft");
+  if (!csrf) return;
   const body = { propertyId: String(data.get("propertyId") || ""), ...window, cleaningType, requiredServices, specialInstructions: String(data.get("specialInstructions") || ""), budgetPence, frequency: String(data.get("frequency") || "one-time"), tasks, submit: false };
   setPending(requestSave, true, "Saving draft…");
   try {

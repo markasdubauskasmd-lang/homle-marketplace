@@ -44,6 +44,7 @@ const cleanerIntent = accountIntent === "work";
 let emailFormRevealed = false;
 let activeProviders = Object.freeze({});
 let workspaceReady = false;
+let signedInAccount = null;
 const accountRequestTimeoutMs = 15_000;
 
 if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
@@ -200,13 +201,16 @@ async function openSignedInWorkspace() {
   const response = await accountFetch("/api/marketplace/account", { credentials: "same-origin", headers: { Accept: "application/json" }, cache: "no-store" });
   if (!response.ok) return false;
   const result = await response.json();
+  signedInAccount = result.account || null;
   workspaceReady = result.workspaceReady === true;
   if (accountIntent === "book" && result.account?.roles?.length && !result.account.roles.includes("landlord")) {
-    showFeedback("This account currently has only a Cleaner workspace. Use a Landlord account to book a clean; Homle has not changed your role.", "error");
+    if (selectedMode.form !== "onboarding") location.assign("/onboarding?intent=book");
+    else showFeedback("Your Cleaner workspace stays separate. Confirm below to add a private Landlord workspace to this same verified account.", "info");
     return true;
   }
   if (accountIntent === "work" && result.account?.roles?.length && !result.account.roles.includes("cleaner")) {
-    showFeedback("This account currently has only a Landlord workspace. Use a Cleaner account to build a Cleaner profile; Homle has not changed your role.", "error");
+    if (selectedMode.form !== "onboarding") location.assign("/onboarding?intent=work");
+    else showFeedback("Your Landlord workspace stays separate. Confirm below to add a private Cleaner workspace to this same verified account.", "info");
     return true;
   }
   const destination = workspacePath(result.account);
@@ -288,12 +292,13 @@ async function submitAccountForm(event) {
         location.assign(accountIntent ? `/onboarding?intent=${accountIntent}` : "/onboarding");
         return;
       }
+      signedInAccount = result.account;
       if (bookingIntent && !result.account.roles.includes("landlord")) {
-        showFeedback("This account currently has only a Cleaner workspace. Use a Landlord account to book a clean; Homle has not changed your role.", "error");
+        location.assign("/onboarding?intent=book");
         return;
       }
       if (cleanerIntent && !result.account.roles.includes("cleaner")) {
-        showFeedback("This account currently has only a Landlord workspace. Use a Cleaner account to build a Cleaner profile; Homle has not changed your role.", "error");
+        location.assign("/onboarding?intent=work");
         return;
       }
       const destination = workspacePath(result.account);
@@ -347,7 +352,8 @@ async function submitAccountForm(event) {
       form.querySelector("fieldset").disabled = true;
     } else if (kind === "onboarding") {
       const csrfToken = storedCsrf() || await recoverOnboardingCsrf();
-      const result = await post("/api/marketplace/onboarding", { role: body.role }, csrfToken);
+      const endpoint = signedInAccount?.roles?.length ? "/api/marketplace/auth/workspace" : "/api/marketplace/onboarding";
+      const result = await post(endpoint, { role: body.role }, csrfToken);
       if (!storeCsrf(result.csrfToken)) {
         await post("/api/marketplace/auth/logout", {}, result.csrfToken);
         throw new Error("Secure browser storage is unavailable, so Homle closed the rotated session. Sign in again in a standard browser window.");
