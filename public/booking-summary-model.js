@@ -51,6 +51,16 @@ export function bookingSummaryPrimaryAction(booking, role) {
   return Object.freeze({ kind: "none", label: "No action required" });
 }
 
+const cleanerAcceptedStatuses = new Set(["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "disputed"]);
+
+export function cleanerInvitationDecisionState(booking, decision) {
+  const status = String(booking?.status || "");
+  if (status === "pending-cleaner-acceptance") return "pending";
+  if (decision === "accept" && cleanerAcceptedStatuses.has(status)) return "recorded";
+  if (decision === "decline" && status === "cancelled") return "recorded";
+  return "different-outcome";
+}
+
 export function landlordBookingNextAction(bookings) {
   const buckets = bookingSummaryBuckets(bookings, "landlord");
   const live = buckets.active.find((booking) => booking.activeJobAvailable === true);

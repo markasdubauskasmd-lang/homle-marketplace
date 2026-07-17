@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Cleaner dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260717-69">
-  <script src="/cleaner-dashboard.js?v=20260717-8" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260717-70">
+  <script src="/cleaner-dashboard.js?v=20260717-9" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
   <script src="/workspace-switch.js?v=20260717-1" type="module"></script>
 </head>
@@ -22,6 +22,9 @@
     </section>
 
     <div data-cleaner-dashboard hidden>
+      <section class="cleaner-network-status" data-cleaner-network-status role="status" aria-live="polite" hidden>
+        <span aria-hidden="true">!</span><div><strong>You are offline.</strong><p>Your current requests stay visible, but Homle will not send or automatically retry an accept or decline decision until the connection returns.</p></div>
+      </section>
       <section class="booking-dashboard-heading">
         <div><p class="eyebrow">Cleaner dashboard</p><h1>Good to see you, <span data-cleaner-name>Cleaner</span>.</h1><p>Answer genuine requests, open today’s job and keep every booking update inside Homle.</p></div>
         <a class="button button-outline" href="/cleaner/profile" data-cleaner-profile-link>Complete your profile</a>
