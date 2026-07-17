@@ -31,9 +31,10 @@ Authoritative Hostinger references:
 
 ## Prepared release
 
-- `../Homle-Hostinger-Node-release-90aff9a3.zip`
-- evidence manifest `../Homle-Hostinger-Node-release-90aff9a3.manifest.json`
-- source commit `90aff9a3`
+- `../Homle-Hostinger-Node-release-601f5967.zip`
+- evidence manifest `../Homle-Hostinger-Node-release-601f5967.manifest.json`
+- source commit `601f5967`
+- 230 ZIP entries / 223 files / 7 directories; 648,774 bytes; SHA-256 `15A59FBC107F1AF3668DB8BB01DC5C4A9564E7A8BA6A2B1A9C317E10EF2F3E86`
 - SHA-256 `37707FF1D6BC0567B7DBC0AE29BD85D6B6DF0C90CAF471484114226ABAB9CC7B`
 - 182 ZIP entries / 177 files, 548,316 bytes; no `.env`, customer data, tests, documentation, Git history, local tracking lab or local secrets
 - Node type: `Other`
