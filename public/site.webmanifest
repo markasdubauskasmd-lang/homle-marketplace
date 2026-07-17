@@ -1,9 +1,44 @@
 {
+  "id": "/",
   "name": "Homle Cleaning",
   "short_name": "Homle",
+  "description": "Book a clean, scan each room and share a clear room-by-room checklist with your cleaner.",
+  "lang": "en-GB",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f4f7f4",
   "theme_color": "#0e665b",
-  "icons": []
+  "icons": [
+    {
+      "src": "/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Request a clean",
+      "short_name": "Request clean",
+      "url": "/request"
+    },
+    {
+      "name": "Work as a cleaner",
+      "short_name": "Cleaner signup",
+      "url": "/join"
+    }
+  ]
 }

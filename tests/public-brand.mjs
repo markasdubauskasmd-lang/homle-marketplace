@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -23,7 +23,16 @@ const [home, account, logo, manifest, server, emailWorker] = await Promise.all([
 ]);
 
 assert(home.includes("Homle") && account.includes("Homle") && logo.includes("<title id=\"title\">Homle</title>"), "The homepage, account entry or logo does not use the Homle public brand.");
-assert(JSON.parse(manifest).name === "Homle Cleaning" && JSON.parse(manifest).short_name === "Homle", "The installable web-app name is not Homle.");
+const parsedManifest = JSON.parse(manifest);
+assert(parsedManifest.name === "Homle Cleaning" && parsedManifest.short_name === "Homle", "The installable web-app name is not Homle.");
+assert(parsedManifest.id === "/" && parsedManifest.scope === "/" && parsedManifest.display === "standalone" && parsedManifest.lang === "en-GB", "The installed Homle identity or navigation scope is incomplete.");
+assert(parsedManifest.icons.some((icon) => icon.src === "/app-icon-192.png" && icon.sizes === "192x192") && parsedManifest.icons.some((icon) => icon.src === "/app-icon-512.png" && icon.sizes === "512x512") && parsedManifest.icons.some((icon) => icon.src === "/app-icon-maskable-512.png" && icon.purpose === "maskable"), "The web-app manifest omitted required phone icons or its maskable icon.");
+assert(parsedManifest.shortcuts.some((shortcut) => shortcut.url === "/request") && parsedManifest.shortcuts.some((shortcut) => shortcut.url === "/join"), "The installed app omitted its two safe primary shortcuts.");
+for (const iconName of ["app-icon-192.png", "app-icon-512.png", "app-icon-maskable-512.png", "apple-touch-icon.png"]) {
+  const icon = await stat(new URL(`../public/${iconName}`, import.meta.url));
+  assert(icon.isFile() && icon.size > 1000, `Installed-app icon ${iconName} is missing or empty.`);
+}
+assert(home.includes('name="apple-mobile-web-app-capable" content="yes"') && home.includes('rel="apple-touch-icon" href="/apple-touch-icon.png"'), "The homepage omitted iPhone home-screen metadata.");
 assert(!visibleOldBrand.test(server) && !visibleOldBrand.test(emailWorker) && emailWorker.includes("Homle:"), "Server-generated customer or notification copy still exposes the old public brand.");
 assert(server.includes("TidewayScopeTimeBreakdown") && server.includes("tideway-marketplace"), "The visual rebrand renamed stable internal runtime contracts.");
 
