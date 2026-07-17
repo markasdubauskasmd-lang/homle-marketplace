@@ -66,6 +66,7 @@ let socialSignInError = null;
 const identityService = {
   async socialSignIn(provider, claims) { calls.push({ kind: "social-sign-in", provider, claims }); if (socialSignInError) throw socialSignInError; return { user_id: currentContext.actor.userId, email: claims.email, email_verified_at: "2026-07-15T12:00:00.000Z", display_name: claims.displayName, selected_role: null, roles: [] }; },
   async completeOnboarding(actor, role) { calls.push({ kind: "onboarding", actor, role }); return { user_id: actor.userId, selected_role: role, roles: [role] }; },
+  async activateWorkspace(actor, role) { calls.push({ kind: "workspace", actor, role }); return { selected_role: role, roles: [...new Set([...actor.roles, role])].sort(), profile_created: !actor.roles.includes(role), workspace_added: !actor.roles.includes(role) }; },
   async connectedProviders(actor) { calls.push({ kind: "connected-providers", actor }); return connectedProviders; },
   async connectProvider(actor, provider, claims) { calls.push({ kind: "connect-provider", actor, provider, claims }); connectedProviders.push({ provider, connectedAt: "2026-07-16T12:00:00.000Z", lastUsedAt: null }); return { provider }; },
   async verifyProviderStepUp(actor, provider, claims) { calls.push({ kind: "provider-step-up", actor, provider, claims }); return claims.subject === `${provider}-subject`; },
@@ -322,6 +323,11 @@ assert(readyAccount.body.account.selectedRole === "landlord" && readyAccount.bod
 const completedRecovery = await dispatch(router, "POST", "/api/marketplace/auth/onboarding-session", {}, { origin, "content-type": "application/json", cookie: privateHeaders.cookie });
 const repeatedOnboarding = await dispatch(router, "POST", "/api/marketplace/onboarding", { role: "cleaner" }, privateHeaders);
 assert(completedRecovery.response.statusCode === 409 && completedRecovery.body.code === "onboarding-complete" && repeatedOnboarding.response.statusCode === 409 && repeatedOnboarding.body.code === "onboarding-complete", "Completed onboarding could recover another setup token or be used for a self-service role change.");
+const recoveredWorkspaceSession = await dispatch(router, "POST", "/api/marketplace/auth/session", {}, { origin, "content-type": "application/json", cookie: privateHeaders.cookie, "user-agent": "Example Browser" });
+const addedCleanerWorkspace = await dispatch(router, "POST", "/api/marketplace/auth/workspace", { role: "cleaner" }, privateHeaders);
+assert(recoveredWorkspaceSession.response.statusCode === 200 && recoveredWorkspaceSession.body.csrfToken === "rotated-csrf-private" && addedCleanerWorkspace.response.statusCode === 200 && addedCleanerWorkspace.body.workspaceAdded && addedCleanerWorkspace.body.account.selectedRole === "cleaner" && addedCleanerWorkspace.body.account.roles.join(",") === "cleaner,landlord" && addedCleanerWorkspace.response.headers["Set-Cookie"].includes("rotated") && calls.some((call) => call.kind === "workspace" && call.role === "cleaner"), "A completed account could not recover a tab-local CSRF token or explicitly add and enter its second workspace.");
+const crossOriginWorkspaceSession = await dispatch(router, "POST", "/api/marketplace/auth/session", {}, { origin: "https://attacker.example", "content-type": "application/json", cookie: privateHeaders.cookie });
+assert(crossOriginWorkspaceSession.response.statusCode === 403, "A cross-origin page could rotate a completed Homle session.");
 
 rateLimitedScope = "login";
 const rateLimited = await dispatch(router, "POST", "/api/marketplace/auth/login", { email: "owner@example.com", password: "correct" }, publicHeaders);

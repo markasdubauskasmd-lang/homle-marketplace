@@ -1460,7 +1460,9 @@ textarea { resize: vertical; }
 /* Real Cleaner directory. Results are API-backed and never populated with sample people. */
 .cleaner-directory-page { min-height: 100vh; background: #f3f7f5; }
 .directory-nav { display: flex; gap: 20px; align-items: center; }
-.directory-nav a { color: var(--green-dark); font-size: .88rem; font-weight: 780; text-decoration: none; }
+.directory-nav a, .directory-nav .workspace-switch { color: var(--green-dark); font-size: .88rem; font-weight: 780; text-decoration: none; }
+.directory-nav .workspace-switch { appearance: none; border: 1px solid color-mix(in srgb, var(--green) 45%, transparent); border-radius: 999px; background: var(--mint); padding: 8px 12px; cursor: pointer; font-family: inherit; }
+.directory-nav .workspace-switch:disabled { cursor: wait; opacity: .65; }
 .directory-main { padding: 54px 0 100px; }
 .directory-hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, .55fr); gap: clamp(30px, 7vw, 90px); align-items: end; margin-bottom: 38px; }
 .directory-hero h1 { max-width: 800px; margin: 8px 0 14px; font-size: clamp(2.8rem, 7vw, 5.8rem); }
@@ -2342,8 +2344,9 @@ textarea { resize: vertical; }
 .notification-nav-count { display: inline-grid; min-width: 20px; height: 20px; padding-inline: 5px; place-items: center; border-radius: 999px; background: var(--green); color: #fff; font-size: .68rem; font-weight: 900; line-height: 1; }
 @media (max-width: 680px) {
   .notifications-main { padding-block: 27px 90px; }
-  .cleaner-dashboard-page .directory-nav a, .landlord-dashboard-page .directory-nav a { display: none; }
+  .cleaner-dashboard-page .directory-nav a, .landlord-dashboard-page .directory-nav a, .cleaner-dashboard-page .directory-nav .workspace-switch, .landlord-dashboard-page .directory-nav .workspace-switch { display: none; }
   .cleaner-dashboard-page .directory-nav a:first-child, .cleaner-dashboard-page .directory-nav a:last-child, .landlord-dashboard-page .directory-nav a:first-child, .landlord-dashboard-page .directory-nav a:last-child { display: block; }
+  .cleaner-dashboard-page .directory-nav .workspace-switch, .landlord-dashboard-page .directory-nav .workspace-switch { display: inline-flex; padding: 7px 9px; font-size: .76rem; }
   .notifications-page .directory-nav a { display: block; }
   .notifications-heading { display: grid; align-items: stretch; }
   .notifications-heading .button { width: 100%; }

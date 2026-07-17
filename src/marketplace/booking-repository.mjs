@@ -59,7 +59,7 @@ export function createBookingRepository(database) {
                  FROM cleaner_service_areas area WHERE area.cleaner_user_id=profile.user_id
              ) coverage
              LEFT JOIN cleaner_services service ON service.cleaner_user_id=profile.user_id AND service.is_active
-            WHERE request.id=$1::uuid AND request.landlord_user_id=$3::uuid AND request.status='searching-for-cleaner'
+            WHERE request.id=$1::uuid AND request.landlord_user_id=$3::uuid AND profile.user_id<>request.landlord_user_id AND request.status='searching-for-cleaner'
             GROUP BY request.id, coverage.distance_km`,
           [requestId, cleanerId, actor.userId]
         );

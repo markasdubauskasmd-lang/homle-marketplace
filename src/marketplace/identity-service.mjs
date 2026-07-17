@@ -65,7 +65,7 @@ export function selectedOnboardingRole(role) {
 }
 
 export function createIdentityService(repository, options = {}) {
-  if (!repository || ["resolveSocialIdentity", "completeRoleOnboarding", "listConnectedIdentities", "connectSocialIdentity", "verifyConnectedSocialIdentity", "disconnectSocialIdentity"].some((method) => typeof repository[method] !== "function")) throw new TypeError("An authentication repository is required.");
+  if (!repository || ["resolveSocialIdentity", "completeRoleOnboarding", "activateWorkspace", "listConnectedIdentities", "connectSocialIdentity", "verifyConnectedSocialIdentity", "disconnectSocialIdentity"].some((method) => typeof repository[method] !== "function")) throw new TypeError("An authentication repository is required.");
   const accountAccess = options.accountAccess || Object.freeze({ allows: () => true });
   if (typeof accountAccess.allows !== "function") throw new TypeError("Social identity account access policy is invalid.");
   return {
@@ -77,6 +77,11 @@ export function createIdentityService(repository, options = {}) {
     completeOnboarding(actor, role) {
       if (!actor?.userId) throw new TypeError("An authenticated account is required for onboarding.");
       return repository.completeRoleOnboarding(actor, selectedOnboardingRole(role));
+    },
+    activateWorkspace(actor, role) {
+      if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.length) throw new TypeError("A completed authenticated account is required.");
+      if (actor.roles.includes("administrator")) throw Object.assign(new Error("Administrator accounts cannot enter marketplace workspaces."), { statusCode: 403, code: "administrator-workspace-isolated" });
+      return repository.activateWorkspace(actor, selectedOnboardingRole(role));
     },
     async connectedProviders(actor) {
       if (!actor?.userId) throw new TypeError("An authenticated account is required.");

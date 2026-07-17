@@ -42,7 +42,7 @@ assert.deepEqual(blockedCalls, [], "A disallowed password flow reached the accou
 
 const identityCalls = [];
 const identityRepository = Object.fromEntries([
-  "resolveSocialIdentity", "completeRoleOnboarding", "listConnectedIdentities", "connectSocialIdentity", "verifyConnectedSocialIdentity", "disconnectSocialIdentity"
+  "resolveSocialIdentity", "completeRoleOnboarding", "activateWorkspace", "listConnectedIdentities", "connectSocialIdentity", "verifyConnectedSocialIdentity", "disconnectSocialIdentity"
 ].map((method) => [method, async () => { identityCalls.push(method); throw new Error("blocked identity repository call"); }]));
 const identity = createIdentityService(identityRepository, { accountAccess: restricted });
 assert.throws(() => identity.socialSignIn("google", { subject: "google-unapproved", email: "unapproved@invalid.example", emailVerified: true, displayName: "Unknown" }), (error) => error instanceof TypeError && error.code === "staging-account-access-unavailable" && /unavailable/.test(error.message));

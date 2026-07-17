@@ -221,6 +221,15 @@ export function createAuthenticationRepository(database) {
       });
     },
 
+    async activateWorkspace(actor, role) {
+      if (!actor) throw new TypeError("An authenticated account is required.");
+      if (role !== "cleaner" && role !== "landlord") throw new TypeError("Workspace role must be Cleaner or Landlord.");
+      return database.withAccountTransaction(actor, async (client) => {
+        const result = await client.query("SELECT * FROM tideway_private.activate_my_workspace($1::user_role)", [role]);
+        return accountResult(result.rows[0]);
+      });
+    },
+
     async findPasswordAccount(email) {
       return database.withAuthenticationTransaction(async (client) => {
         const result = await client.query("SELECT * FROM tideway_private.lookup_password_account($1::citext)", [normalizedEmail(email)]);

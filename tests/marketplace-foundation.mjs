@@ -203,6 +203,7 @@ await authenticationRepository.findExistingSocialIdentity("facebook", "facebook-
 await authenticationRepository.beginPendingSocialIdentity({ provider: "facebook", subject: "facebook-subject", email: "landlord@example.com", displayName: "Landlord", avatarUrl: "https://images.example.com/landlord.jpg", profile: {}, verificationHash: sessionMaterial.tokenHash, expiresAt: "2026-07-15T13:00:00.000Z" });
 await authenticationRepository.consumePendingSocialIdentity(sessionMaterial.tokenHash);
 await authenticationRepository.completeRoleOnboarding({ userId: "44444444-4444-4444-8444-444444444444", roles: [] }, "landlord");
+await authenticationRepository.activateWorkspace({ userId: "44444444-4444-4444-8444-444444444444", roles: ["landlord"] }, "cleaner");
 await authenticationRepository.findPasswordAccount(" Landlord@Example.COM ");
 await authenticationRepository.findSession(sessionMaterial.tokenHash);
 await authenticationRepository.findVerifiedAccountByEmail("landlord@example.com");
@@ -211,7 +212,7 @@ await authenticationRepository.createSession(repositoryActor, sessionMaterial);
 await authenticationRepository.revokeSession(repositoryActor, "55555555-5555-4555-8555-555555555555");
 await authenticationRepository.revokeAllSessions(repositoryActor);
 const authenticationFunctionCalls = ["register_password_account", "consume_email_verification", "record_password_attempt", "issue_password_reset", "consume_password_reset", "resolve_social_identity", "lookup_existing_social_identity", "begin_pending_social_identity", "consume_pending_social_identity"];
-assert(repositoryCalls.length === 16 && repositoryCalls.slice(0, 9).every((call) => call.kind === "authentication") && authenticationFunctionCalls.every((name, index) => repositoryCalls[index].text.includes(name)) && repositoryCalls[9].kind === "user" && repositoryCalls[9].text.includes("complete_role_onboarding") && repositoryCalls.slice(10, 13).every((call) => call.kind === "authentication") && repositoryCalls.slice(13).every((call) => call.kind === "user") && repositoryCalls[5].values[0] === "google" && repositoryCalls[10].values[0] === "landlord@example.com" && repositoryCalls.every((call) => call.text.includes("$1")), "Authentication repository bypassed its pre-authenticated/authenticated boundaries or used non-parameterized calls.");
+assert(repositoryCalls.length === 17 && repositoryCalls.slice(0, 9).every((call) => call.kind === "authentication") && authenticationFunctionCalls.every((name, index) => repositoryCalls[index].text.includes(name)) && repositoryCalls[9].kind === "user" && repositoryCalls[9].text.includes("complete_role_onboarding") && repositoryCalls[10].kind === "user" && repositoryCalls[10].text.includes("activate_my_workspace") && repositoryCalls.slice(11, 14).every((call) => call.kind === "authentication") && repositoryCalls.slice(14).every((call) => call.kind === "user") && repositoryCalls[5].values[0] === "google" && repositoryCalls[11].values[0] === "landlord@example.com" && repositoryCalls.every((call) => call.text.includes("$1")), "Authentication repository bypassed its pre-authenticated/authenticated boundaries or used non-parameterized calls.");
 
 const customEnumRoleDatabase = {
   async withAuthenticationTransaction(operation) {
@@ -223,8 +224,10 @@ const customEnumRoleDatabase = {
 };
 const customEnumRoleRepository = createAuthenticationRepository(customEnumRoleDatabase);
 const normalizedOnboardingRoles = await customEnumRoleRepository.completeRoleOnboarding({ userId: "44444444-4444-4444-8444-444444444444", roles: [] }, "cleaner");
+const normalizedWorkspaceRoles = await customEnumRoleRepository.activateWorkspace({ userId: "44444444-4444-4444-8444-444444444444", roles: ["cleaner"] }, "landlord");
 const normalizedSessionRoles = await customEnumRoleRepository.findSession(sessionMaterial.tokenHash);
 nodeAssert.deepEqual(normalizedOnboardingRoles.roles, ["cleaner"]);
+nodeAssert.deepEqual(normalizedWorkspaceRoles.roles, ["cleaner"]);
 nodeAssert.deepEqual(normalizedSessionRoles.roles, ["cleaner", "administrator"], "PostgreSQL custom enum-array text was not normalized at the authentication repository boundary.");
 
 const schemaSql = await readFile(new URL("../db/migrations/001_marketplace_schema.sql", import.meta.url), "utf8");
