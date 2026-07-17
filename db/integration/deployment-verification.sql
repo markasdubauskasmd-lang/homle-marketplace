@@ -27,6 +27,7 @@ DECLARE
   app_functions constant text[] := ARRAY[
     'tideway_private.lookup_session(bytea)',
     'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
+    'tideway_private.activate_my_workspace(user_role)',
     'tideway_private.search_cleaner_directory(text,text,timestamp with time zone,timestamp with time zone,numeric,integer,boolean,numeric,numeric,numeric,integer,integer)',
     'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.list_my_booking_summaries(integer)',
@@ -135,6 +136,9 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.bookings'::regclass AND conname = 'bookings_no_cleaner_overlap' AND contype = 'x') THEN
     RAISE EXCEPTION 'Cleaner overlap exclusion constraint is missing';
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='public.bookings'::regclass AND conname='bookings_distinct_participants' AND contype='c') THEN
+    RAISE EXCEPTION 'Dual-workspace self-booking constraint is missing';
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.reviews'::regclass AND contype = 'u' AND pg_get_constraintdef(oid) = 'UNIQUE (booking_id)') THEN
     RAISE EXCEPTION 'One-review-per-booking unique constraint is missing';
   END IF;
@@ -174,7 +178,7 @@ BEGIN
   END LOOP;
 
   IF to_regclass('tideway_private.schema_migrations') IS NOT NULL THEN
-    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 47)'
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 48)'
       INTO latest_migration_installed;
   END IF;
   IF latest_migration_installed THEN
@@ -292,7 +296,7 @@ SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
-  'appFunctionChecks', 46,
+  'appFunctionChecks', 47,
   'workerFunctionChecks', 15
 ) AS tideway_deployment_verification;
 

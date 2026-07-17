@@ -220,6 +220,7 @@ export function createBookingWorkflowService(repository, options = {}) {
       if (!pricingPolicy || typeof pricingPolicy.quote !== "function") throw Object.assign(new Error("Booking invitations are unavailable until the private pricing policy is configured."), { statusCode: 503, code: "pricing-not-configured" });
       const requestId = uuid(input.cleaningRequestId, "cleaning request id");
       const cleanerId = uuid(input.cleanerId, "cleaner id");
+      if (cleanerId === actor.userId.toLowerCase()) throw Object.assign(new Error("Your Cleaner workspace cannot be invited to your own cleaning request."), { statusCode: 409, code: "self-booking-not-allowed" });
       const candidate = await repository.getInvitationCandidate(actor, requestId, cleanerId);
       if (!candidate) throw Object.assign(new Error("The cleaning request or cleaner was not found."), { statusCode: 404, code: "candidate-not-found" });
       const terms = pricingPolicy.quote(candidate, clock());

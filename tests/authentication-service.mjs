@@ -36,6 +36,13 @@ const repository = {
     onboarding.set(actor.userId, role);
     return { user_id: actor.userId, selected_role: role, roles: [role], profile_created: !previous };
   },
+  async activateWorkspace(actor, role) {
+    const current = new Set(String(onboarding.get(actor.userId) || "").split(",").filter(Boolean));
+    const added = !current.has(role);
+    current.add(role);
+    onboarding.set(actor.userId, [...current].sort().join(","));
+    return { selected_role: role, roles: [...current].sort(), profile_created: added, workspace_added: added };
+  },
   async listConnectedIdentities(actor) {
     return [{ provider: "password", connected_at: "2026-07-16T09:00:00.000Z", last_used_at: null }, ...[...identities.entries()].filter(([, identity]) => identity.user_id === actor.userId).map(([key]) => ({ provider: key.split(":", 1)[0], connected_at: "2026-07-16T10:00:00.000Z", last_used_at: null }))];
   },
@@ -101,19 +108,28 @@ assert(cleanerOnboarding.selected_role === "cleaner" && cleanerOnboarding.profil
 let roleSwitchRejected = false;
 try { await service.completeOnboarding({ userId: firstGoogleLogin.user_id, roles: ["cleaner"] }, "landlord"); } catch { roleSwitchRejected = true; }
 assert(roleSwitchRejected, "A self-service role change bypassed the reviewed account workflow.");
+const landlordWorkspace = await service.activateWorkspace({ userId: firstGoogleLogin.user_id, roles: ["cleaner"] }, "landlord");
+const cleanerWorkspace = await service.activateWorkspace({ userId: firstGoogleLogin.user_id, roles: ["cleaner", "landlord"] }, "cleaner");
+assert(landlordWorkspace.selected_role === "landlord" && landlordWorkspace.roles.join(",") === "cleaner,landlord" && landlordWorkspace.workspace_added && cleanerWorkspace.selected_role === "cleaner" && !cleanerWorkspace.workspace_added, "A completed account could not explicitly add and switch between separate Cleaner and Landlord workspaces.");
+let administratorWorkspaceRejected = false;
+try { await service.activateWorkspace({ userId: firstGoogleLogin.user_id, roles: ["administrator"] }, "landlord"); } catch (error) { administratorWorkspaceRejected = error.code === "administrator-workspace-isolated"; }
+assert(administratorWorkspaceRejected, "An Administrator account could enter an ordinary marketplace workspace.");
 
 const migrationSql = await readFile(new URL("../db/migrations/004_social_identity_and_onboarding.sql", import.meta.url), "utf8");
 const connectionMigration = await readFile(new URL("../db/migrations/027_authenticated_provider_connections.sql", import.meta.url), "utf8");
 const providerSecurityMigration = await readFile(new URL("../db/migrations/032_social_provider_step_up_and_removal.sql", import.meta.url), "utf8");
+const workspaceMigration = await readFile(new URL("../db/migrations/048_multi_workspace_accounts.sql", import.meta.url), "utf8");
 const runtimeGrantsSql = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const unverifiedMergeGuard = migrationSql.indexOf("IF resolved_email_verified_at IS NULL");
 const socialIdentityInsert = migrationSql.indexOf("INSERT INTO authentication_identities (", unverifiedMergeGuard);
 assert(migrationSql.includes("resolve_social_identity") && migrationSql.includes("asserted_email_verified IS DISTINCT FROM true") && (migrationSql.match(/pg_advisory_xact_lock/g) || []).length === 2 && migrationSql.includes("SELECT u.id, u.account_status, u.email_verified_at INTO resolved_user_id, resolved_status, resolved_email_verified_at") && migrationSql.includes("WHERE u.email = normalized_email FOR UPDATE") && migrationSql.includes("ai.provider = 'password'") && migrationSql.includes("resolved_email_verified_at IS NULL OR resolved_has_password_identity") && unverifiedMergeGuard > 0 && socialIdentityInsert > unverifiedMergeGuard && migrationSql.includes("authenticated settings") && migrationSql.includes("UNSUPPORTED_PLACEHOLDER") === false, "Social identity migration lacks the verified-email, password-account step-up, unverified-account takeover, concurrency or deduplication safeguards.");
 assert(migrationSql.includes("complete_role_onboarding") && migrationSql.includes("chosen_role NOT IN ('cleaner', 'landlord')") && migrationSql.includes("ON CONFLICT (user_id) DO NOTHING") && migrationSql.includes("account.role.selected") && (migrationSql.match(/REVOKE ALL ON FUNCTION/g) || []).length === 2, "Role onboarding migration is not idempotent, auditable or restricted.");
 assert(runtimeGrantsSql.includes("resolve_social_identity(authentication_provider, text, citext, boolean, text, text, jsonb)") && runtimeGrantsSql.includes("complete_role_onboarding(user_role)"), "The restricted runtime role cannot execute the social identity or onboarding functions.");
+assert(workspaceMigration.includes("activate_my_workspace") && workspaceMigration.includes("account.workspace.added") && workspaceMigration.includes("account.workspace.selected") && workspaceMigration.includes("administrator-workspace-isolated") && workspaceMigration.includes("bookings_distinct_participants") && workspaceMigration.includes("landlord_user_id<>cleaner_user_id") && workspaceMigration.trimEnd().endsWith("COMMIT;"), "Multi-workspace accounts lack verified-account ownership, audit history, Administrator isolation or self-booking prevention.");
+assert(runtimeGrantsSql.includes("activate_my_workspace(user_role)"), "The runtime role cannot use the account-owned workspace function.");
 assert(connectionMigration.includes("list_my_authentication_identities") && connectionMigration.includes("connect_social_identity") && connectionMigration.includes("tideway_private.current_user_id()") && (connectionMigration.match(/pg_advisory_xact_lock/g) || []).length === 2 && connectionMigration.includes("provider-identity-already-connected") && connectionMigration.includes("account-provider-already-connected") && connectionMigration.includes("authentication-provider-connected") && connectionMigration.trimEnd().endsWith("COMMIT;"), "Authenticated provider connection lacks actor binding, collision locks, audit history or atomic migration boundaries.");
 assert(runtimeGrantsSql.includes("connect_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)") && runtimeGrantsSql.includes("REVOKE SELECT, INSERT, UPDATE, DELETE ON authentication_identities FROM tideway_app"), "Provider connection bypasses the function-only runtime boundary.");
 assert(providerSecurityMigration.includes("verify_my_social_identity") && providerSecurityMigration.includes("provider_subject = asserted_subject") && providerSecurityMigration.includes("disconnect_my_social_identity") && providerSecurityMigration.includes("identity_count <= 1") && providerSecurityMigration.includes("identity.provider IN ('google','facebook')") && providerSecurityMigration.includes("password_credentials credential") && providerSecurityMigration.includes("UPDATE sessions SET revoked_at") && providerSecurityMigration.includes("authentication-provider-disconnected") && providerSecurityMigration.trimEnd().endsWith("COMMIT;"), "Social-only step-up or provider removal lacks exact-subject verification, usable-last-method protection, atomic session revocation, audit history or migration boundaries.");
 assert(runtimeGrantsSql.includes("verify_my_social_identity(authentication_provider,text)") && runtimeGrantsSql.includes("disconnect_my_social_identity(authentication_provider)"), "The runtime role cannot use the function-only provider security boundary.");
 
-console.log("Authentication service tests passed: safe social sign-in, password or exact-subject social step-up, lockout-safe provider removal, collision-locked connection and role onboarding.");
+console.log("Authentication service tests passed: safe social sign-in, explicit audited multi-workspace activation, password or exact-subject social step-up, lockout-safe provider removal, collision-locked connection and role onboarding.");

@@ -103,7 +103,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const providerLink = dependencies?.providerLinkState || null;
   if (!security || typeof security.protect !== "function" || typeof security.requireOrigin !== "function") throw new TypeError("Authentication HTTP routes require account security.");
   if (!credentials || ["register", "requestEmailVerification", "verifyEmail", "signIn", "requestPasswordReset", "resetPassword"].some((method) => typeof credentials[method] !== "function")) throw new TypeError("Authentication HTTP routes require the credential service.");
-  if (!identity || ["completeOnboarding", "connectedProviders", "connectProvider", "verifyProviderStepUp", "disconnectProvider"].some((method) => typeof identity[method] !== "function") || (google && typeof identity.socialSignIn !== "function")) throw new TypeError("Authentication HTTP routes require the identity service.");
+  if (!identity || ["completeOnboarding", "activateWorkspace", "connectedProviders", "connectProvider", "verifyProviderStepUp", "disconnectProvider"].some((method) => typeof identity[method] !== "function") || (google && typeof identity.socialSignIn !== "function")) throw new TypeError("Authentication HTTP routes require the identity service.");
   if (facebook && (!facebookIdentity || typeof facebookIdentity.begin !== "function" || typeof facebookIdentity.verify !== "function")) throw new TypeError("Facebook authentication routes require the pending identity service.");
   if (facebook && (!facebookDataDeletion || typeof facebookDataDeletion.request !== "function" || typeof facebookDataDeletion.status !== "function")) throw new TypeError("Facebook authentication routes require the signed data-deletion service.");
   if (!sessions || ["establish", "rotate", "logout", "logoutAll"].some((method) => typeof sessions[method] !== "function")) throw new TypeError("Authentication HTTP routes require the session service.");
@@ -167,6 +167,16 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);
           sendJson(response, 200, { ok: true, workspaceReady, account: { displayName: context.account.displayName, email: context.account.email, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
+          return true;
+        }
+        if (url.pathname === `${prefix}session`) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          security.requireOrigin(request);
+          await limit(request, "session-recovery");
+          const context = await security.authenticate(request);
+          if (!context.actor.roles.length) throw Object.assign(new Error("Complete account setup before opening a workspace."), { statusCode: 409, code: "onboarding-required" });
+          const session = await sessions.rotate(context, accountFromOnboarding(context, { selectedRole: context.account.selectedRole, roles: context.actor.roles }), metadata(request));
+          sendJson(response, 200, { ok: true, account: session.account, csrfToken: session.csrfToken, expiresAt: session.expiresAt }, { "Set-Cookie": session.setCookie });
           return true;
         }
         if (url.pathname === `${prefix}onboarding-session`) {
@@ -486,6 +496,14 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           const result = await identity.completeOnboarding(context.actor, (await readJsonObject(request)).role);
           const session = await sessions.rotate(context, accountFromOnboarding(context, result), metadata(request));
           sendJson(response, 200, { ok: true, account: session.account, csrfToken: session.csrfToken, expiresAt: session.expiresAt }, { "Set-Cookie": session.setCookie });
+          return true;
+        }
+        if (url.pathname === `${prefix}workspace`) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true });
+          const result = await identity.activateWorkspace(context.actor, (await readJsonObject(request)).role);
+          const session = await sessions.rotate(context, accountFromOnboarding(context, result), metadata(request));
+          sendJson(response, 200, { ok: true, account: session.account, workspaceAdded: result.workspace_added === true || result.workspaceAdded === true, csrfToken: session.csrfToken, expiresAt: session.expiresAt }, { "Set-Cookie": session.setCookie });
           return true;
         }
         sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." });

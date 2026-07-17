@@ -10,19 +10,20 @@
   <link rel="stylesheet" href="/styles.css?v=20260717-68">
   <script src="/landlord-dashboard.js?v=20260717-3" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
+  <script src="/workspace-switch.js?v=20260717-1" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
   <header class="site-header">
     <div class="shell nav-wrap">
       <a class="brand" href="/" aria-label="Homle home"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a>
-      <nav class="directory-nav" aria-label="Landlord workspace navigation"><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaners">Find a Cleaner</a><a href="/login">Account access</a></nav>
+      <nav class="directory-nav" aria-label="Landlord workspace navigation"><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaners">Find a Cleaner</a><button class="workspace-switch" type="button" data-workspace-switch data-target-workspace="cleaner" hidden disabled>Cleaner workspace</button><a href="/login">Account access</a></nav>
     </div>
   </header>
 
   <main id="landlord-main" class="landlord-dashboard-main shell">
     <section class="landlord-dashboard-state" data-landlord-state role="status" aria-live="polite">
-      <span aria-hidden="true">i</span><div><strong data-landlord-state-title>Checking secure Landlord access…</strong><p data-landlord-state-copy>Your properties and drafts open only inside an authenticated Landlord session.</p><div><a class="button" href="/login" data-landlord-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-landlord-retry hidden>Try again</button></div></div>
+      <span aria-hidden="true">i</span><div><strong data-landlord-state-title>Checking secure Landlord access…</strong><p data-landlord-state-copy>Your properties and drafts open only inside an authenticated Landlord session.</p><div><button class="button" type="button" data-workspace-switch data-target-workspace="landlord" hidden disabled>Add Landlord workspace</button><a class="button" href="/login" data-landlord-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-landlord-retry hidden>Try again</button></div></div>
     </section>
 
     <section class="brief-complete-card landlord-request-complete" data-request-complete hidden aria-labelledby="request-complete-title" tabindex="-1">
