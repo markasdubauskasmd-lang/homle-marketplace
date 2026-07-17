@@ -52,6 +52,16 @@ const builtInAdapters = await loadMarketplaceDeploymentAdapters({
 assert.equal(typeof builtInAdapters.onUnexpectedError, "function");
 assert.equal(typeof builtInAdapters.close, "function");
 await builtInAdapters.close();
+const renderLogAdapters = await loadMarketplaceDeploymentAdapters({
+  MARKETPLACE_ADAPTER_MODULE: "homle:render-log-monitoring",
+  NODE_ENV: "production",
+  RENDER: "true",
+  RENDER_SERVICE_TYPE: "web",
+  RENDER_LOG_MONITORING_ACKNOWLEDGED: "true"
+});
+assert.equal(typeof renderLogAdapters.onUnexpectedError, "function");
+assert.equal(typeof renderLogAdapters.close, "function");
+await renderLogAdapters.close();
 
 let invalidProxyLoadedAdapters = false;
 await assert.rejects(createMarketplaceAttachment({

@@ -44,6 +44,10 @@ services:
         value: "render"
       - key: TRUSTED_PROXY_CIDRS
         value: ""
+      - key: MARKETPLACE_ADAPTER_MODULE
+        value: "homle:render-log-monitoring"
+      - key: RENDER_LOG_MONITORING_ACKNOWLEDGED
+        value: "false"
       - key: PILOT_INTAKE_ENABLED
         value: "false"
       - key: MARKETPLACE_ENABLED

@@ -45,6 +45,8 @@ assert.equal(environmentEntry("TIDEWAY_APP_PASSWORD"), "generateValue: true", "T
 assert.equal(environmentEntry("TIDEWAY_WORKER_PASSWORD"), "generateValue: true", "The restricted worker-role password must be generated, not committed.");
 assert.equal(environmentEntry("TRUST_PROXY_PROVIDER"), "value: \"render\"", "Render's verified client-identity mode is not enabled.");
 assert.equal(environmentEntry("TRUSTED_PROXY_CIDRS"), "value: \"\"", "Generic trusted proxy networks must remain blank in Render mode.");
+assert.equal(environmentEntry("MARKETPLACE_ADAPTER_MODULE"), "value: \"homle:render-log-monitoring\"", "The free preview must have privacy-minimal operational monitoring prepared before marketplace activation.");
+assert.equal(environmentEntry("RENDER_LOG_MONITORING_ACKNOWLEDGED"), "value: \"false\"", "The Blueprint must not invent a restricted-log-access acknowledgement on the owner's behalf.");
 
 for (const secret of ["DATABASE_URL", "REALTIME_DATABASE_URL", "SESSION_SECRET", "AUTH_TOKEN_SECRET", "DATA_ENCRYPTION_KEY", "SMTP_URL", "GOOGLE_CLIENT_SECRET", "FACEBOOK_APP_SECRET", "STRIPE_SECRET_KEY", "OBJECT_STORAGE_SECRET_ACCESS_KEY"]) {
   assert.equal(environmentEntry(secret), "", `Preview Blueprint unexpectedly provisions ${secret}.`);

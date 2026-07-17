@@ -6,6 +6,7 @@ import { createPostgresRateLimiter } from "./postgres-rate-limiter.mjs";
 import { bookingRealtimeChannel, createPostgresRealtimeSignalSource } from "./realtime-signal-source.mjs";
 import { createMarketplaceRuntime } from "./runtime.mjs";
 import { builtInMonitoringAdapter } from "./monitoring-webhook.mjs";
+import { builtInRenderLogMonitoringAdapter } from "./render-log-monitoring.mjs";
 import { createS3ObjectStorage } from "./s3-object-storage.mjs";
 import { createTransactionalEmailDelivery } from "./email-delivery.mjs";
 import { createStripePaymentProvider } from "./stripe-payment-provider.mjs";
@@ -22,6 +23,7 @@ function deploymentModuleSpecifier(value) {
   const supplied = String(value || "").trim();
   if (!supplied) throw new TypeError("MARKETPLACE_ADAPTER_MODULE is required when the marketplace is enabled.");
   if (supplied === builtInMonitoringAdapter) return new URL("./monitoring-webhook.mjs", import.meta.url).href;
+  if (supplied === builtInRenderLogMonitoringAdapter) return new URL("./render-log-monitoring.mjs", import.meta.url).href;
   if (supplied.startsWith("file:")) return new URL(supplied).href;
   if (!path.isAbsolute(supplied)) throw new TypeError("MARKETPLACE_ADAPTER_MODULE must be an absolute file path or file URL.");
   return pathToFileURL(supplied).href;

@@ -152,6 +152,20 @@ try {
   const missingBuiltInMonitoring = validateProductionDeployment({ ...builtInMonitoringEnvironment, MONITORING_WEBHOOK_URL: "", MONITORING_WEBHOOK_TOKEN: "" }, { projectRoot });
   assert.equal(missingBuiltInMonitoring.ok, false);
   assert(missingBuiltInMonitoring.errors.some((error) => error.includes("MONITORING_WEBHOOK_URL")));
+  const renderLogEnvironment = {
+    ...builtInMonitoringEnvironment,
+    MARKETPLACE_ADAPTER_MODULE: "homle:render-log-monitoring",
+    MONITORING_WEBHOOK_URL: "",
+    MONITORING_WEBHOOK_TOKEN: "",
+    RENDER: "true",
+    RENDER_SERVICE_TYPE: "web",
+    RENDER_LOG_MONITORING_ACKNOWLEDGED: "true"
+  };
+  const renderLogMonitoring = validateProductionDeployment(renderLogEnvironment, { projectRoot });
+  assert.equal(renderLogMonitoring.ok, true, renderLogMonitoring.errors.join("\n"));
+  const unacknowledgedRenderLogs = validateProductionDeployment({ ...renderLogEnvironment, RENDER_LOG_MONITORING_ACKNOWLEDGED: "false" }, { projectRoot });
+  assert.equal(unacknowledgedRenderLogs.ok, false);
+  assert(unacknowledgedRenderLogs.errors.some((error) => error.includes("RENDER_LOG_MONITORING_ACKNOWLEDGED")));
 
   const child = spawn(process.execPath, ["server.mjs"], {
     cwd: projectRoot,

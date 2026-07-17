@@ -11,6 +11,19 @@ MONITORING_WEBHOOK_TIMEOUT_MS=5000
 
 Store all values in the host's secret manager. The endpoint must use trusted HTTPS and cannot contain credentials, a query string or fragment. The collector must accept an authenticated JSON `POST` using `Authorization: Bearer <token>`. Use a monitoring-only token; never reuse the Administrator, session, authentication, database, SMTP, storage, OAuth or payment secret.
 
+## Zero-cost Render staging
+
+The closed Render preview may use its access-controlled platform logs for the first non-customer staging rehearsal:
+
+```text
+MARKETPLACE_ADAPTER_MODULE=homle:render-log-monitoring
+RENDER_LOG_MONITORING_ACKNOWLEDGED=true
+```
+
+This adapter is accepted only when `NODE_ENV=production`, Render supplies `RENDER=true`, and the process is a recognized Render web, worker, private or cron service. The explicit acknowledgement records that workspace log access has been reviewed and restricted. It emits the same privacy-minimal event schema directly as one JSON log line and never prints the raw error, message, stack, request, email, address, token, object key or arbitrary context field.
+
+Render log monitoring removes the external collector dependency during controlled staging, but it does not prove an operator alert route. Before public customer intake, either attach the authenticated webhook collector above or document and test a Render-native alert workflow, access ownership and retention.
+
 ## Privacy boundary
 
 The adapter never sends the raw error message, stack trace, request body, URL, account/customer/Cleaner identifier, email, phone number, address, booking reference, database URL, object key or provider response. Each event contains only:

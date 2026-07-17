@@ -73,6 +73,13 @@ function privateEvent(error, context, options) {
   return Object.freeze(payload);
 }
 
+export function privacySafeMonitoringEvent(error, context = {}, options = {}) {
+  return privateEvent(error, context, {
+    now: typeof options.now === "function" ? options.now : () => new Date(),
+    eventId: typeof options.eventId === "function" ? options.eventId : randomUUID
+  });
+}
+
 export function validateMonitoringWebhookEnvironment(env = process.env) {
   const errors = [];
   try { exactHttpsEndpoint(env.MONITORING_WEBHOOK_URL); } catch (error) { errors.push(error.message); }
@@ -108,7 +115,7 @@ export function createMonitoringWebhook(options = {}) {
       }
       return Promise.resolve(false);
     }
-    const event = privateEvent(error, context, { now, eventId });
+    const event = privacySafeMonitoringEvent(error, context, { now, eventId });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     timer.unref?.();
