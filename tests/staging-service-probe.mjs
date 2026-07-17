@@ -31,8 +31,17 @@ const environment = Object.freeze({
 });
 
 const validated = validateStagingServiceProbeEnvironment(environment, stagingServiceProbeConfirmation);
-assert.deepEqual(validated.database, { database: "acme_homle_staging", role: "tideway_app", tls: "verify-full" });
+assert.deepEqual(validated.database, { database: "acme_homle_staging", role: "tideway_app", tls: "verified-tls" });
 assert.deepEqual(validated.providersConfigured, { google: true, facebook: false });
+
+const renderInternalEnvironment = {
+  ...environment,
+  RENDER: "true",
+  RENDER_SERVICE_TYPE: "web",
+  DATABASE_URL: "postgresql://tideway_app:private-db-password@dpg-d9csr9b7uimc73f0m8d0-a:5432/acme_homle_staging",
+  REALTIME_DATABASE_URL: "postgresql://tideway_app:private-db-password@dpg-d9csr9b7uimc73f0m8d0-a:5432/acme_homle_staging"
+};
+assert.deepEqual(validateStagingServiceProbeEnvironment(renderInternalEnvironment, stagingServiceProbeConfirmation).database, { database: "acme_homle_staging", role: "tideway_app", tls: "render-private-network" });
 
 let attachmentCalls = 0;
 let closeCalls = 0;
@@ -72,7 +81,7 @@ for (const [override, confirmation, pattern] of [
   [{ DATABASE_URL: environment.DATABASE_URL.replace("db.staging.example", "127.0.0.1") }, stagingServiceProbeConfirmation, /refuses a local/],
   [{ REALTIME_DATABASE_URL: environment.REALTIME_DATABASE_URL.replace("tideway_app", "migration_owner") }, stagingServiceProbeConfirmation, /authenticate as tideway_app/],
   [{ REALTIME_DATABASE_URL: environment.REALTIME_DATABASE_URL.replace("acme_homle_staging", "other_homle_staging") }, stagingServiceProbeConfirmation, /same managed staging database/],
-  [{ REALTIME_DATABASE_URL: environment.REALTIME_DATABASE_URL.replace("verify-full", "require") }, stagingServiceProbeConfirmation, /REALTIME_DATABASE_URL must use sslmode=verify-full/],
+  [{ REALTIME_DATABASE_URL: environment.REALTIME_DATABASE_URL.replace("verify-full", "require") }, stagingServiceProbeConfirmation, /REALTIME_DATABASE_URL.*verify-full/],
   [{ SMTP_URL: "" }, stagingServiceProbeConfirmation, /SMTP_URL/]
 ]) {
   await assert.rejects(probeMarketplaceStagingServices({ env: { ...environment, ...override }, confirmation, createAttachment: guardedAttachment }), pattern);
@@ -94,4 +103,4 @@ const sanitized = sanitizeStagingServiceProbeError(unsafe, environment);
 assert(!sanitized.includes("private-db-password") && !sanitized.includes("private-mail-password") && !sanitized.includes(environment.OBJECT_STORAGE_SECRET_ACCESS_KEY));
 assert.match(sanitized, /redacted/);
 
-console.log("Managed staging service probe tests passed: exact confirmation, production TLS, staging-only database, tideway_app identity, payment isolation, complete composition, deterministic close and secret-safe evidence.");
+console.log("Managed staging service probe tests passed: exact confirmation, verified external TLS or trusted Render private transport, staging-only database, tideway_app identity, payment isolation, complete composition, deterministic close and secret-safe evidence.");

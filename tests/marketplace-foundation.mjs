@@ -12,10 +12,11 @@ import {
   taskStatuses
 } from "../src/marketplace/domain.mjs";
 import { marketplaceEnvironment, publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "../src/marketplace/config.mjs";
-import { createMarketplaceDatabase, postgresPoolOptions, realtimePostgresPoolOptions } from "../src/marketplace/database.mjs";
+import { createMarketplaceDatabase, postgresPoolOptions, postgresTransportSecurity, realtimePostgresPoolOptions } from "../src/marketplace/database.mjs";
 import { createAuthenticationRepository, normalizedEmail } from "../src/marketplace/auth-repository.mjs";
 import { clearSessionCookie, createSessionMaterial, csrfMatches, hashPassword, hashPurposeToken, parseCookies, sessionCookie, sessionTokenFromRequest, verifyPassword } from "../src/marketplace/session.mjs";
 import { readFile } from "node:fs/promises";
+import nodeAssert from "node:assert/strict";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -137,6 +138,12 @@ try {
 assert(rolledBack && failingPool.calls.map((call) => call.text).includes("ROLLBACK") && failingPool.calls.at(-1).text === "RELEASE" && !failingPool.calls.map((call) => call.text).includes("COMMIT"), "A failed authenticated database operation was not rolled back and released.");
 assert(postgresPoolOptions({}) === null && postgresPoolOptions({ DATABASE_URL: "postgresql://localhost/tideway", DATABASE_POOL_MAX: "100", NODE_ENV: "production" }).max === 50 && postgresPoolOptions({ DATABASE_URL: "postgresql://localhost/tideway", NODE_ENV: "production" }).ssl.rejectUnauthorized === true, "PostgreSQL pool configuration was not disabled when absent or safely bounded for production.");
 assert(realtimePostgresPoolOptions({}) === null && realtimePostgresPoolOptions({ REALTIME_DATABASE_URL: "postgresql://localhost/tideway", NODE_ENV: "production" }).max === 1 && realtimePostgresPoolOptions({ REALTIME_DATABASE_URL: "postgresql://localhost/tideway", NODE_ENV: "production" }).ssl.rejectUnauthorized === true, "The dedicated real-time PostgreSQL pool was absent, unbounded or missing production TLS.");
+const renderPrivateDatabaseEnvironment = { NODE_ENV: "production", RENDER: "true", RENDER_SERVICE_TYPE: "web" };
+const renderPrivateDatabaseUrl = "postgresql://tideway_app:private@dpg-d9csr9b7uimc73f0m8d0-a:5432/acme_homle_staging";
+assert(JSON.stringify(postgresTransportSecurity(renderPrivateDatabaseUrl, renderPrivateDatabaseEnvironment)) === JSON.stringify({ mode: "render-private-network", ssl: false }), "A same-platform Render internal database did not select its documented private-network transport.");
+nodeAssert.equal(postgresPoolOptions({ ...renderPrivateDatabaseEnvironment, DATABASE_URL: renderPrivateDatabaseUrl }).ssl, false);
+nodeAssert.throws(() => postgresTransportSecurity("postgresql://tideway_app:private@database.example/acme_homle_staging?sslmode=disable", { NODE_ENV: "production" }), /requires verified TLS/);
+nodeAssert.equal(postgresTransportSecurity("postgresql://tideway_app:private@dpg-d9csr9b7uimc73f0m8d0-a/acme_homle_staging", { NODE_ENV: "production" }).mode, "verified-tls", "An arbitrary non-Render runtime claimed the private transport exemption.");
 
 const repositoryCalls = [];
 const repositoryDatabase = {

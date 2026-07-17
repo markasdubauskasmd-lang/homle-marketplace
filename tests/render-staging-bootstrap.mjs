@@ -5,6 +5,7 @@ import { bootstrapRenderStagingDatabase, removePsqlMetaCommands, restrictedDatab
 const appPassword = "app-password-that-is-long-and-unique-123";
 const workerPassword = "worker-password-that-is-long-and-unique-456";
 const ownerUrl = "postgresql://homle_migration_owner:owner-secret@private-db.example:5432/homle_marketplace_homle_staging";
+const renderOwnerUrl = "postgresql://homle_migration_owner:owner-secret@dpg-d9csr9b7uimc73f0m8d0-a:5432/homle_marketplace_homle_staging";
 const assets = { ok: true, migrations: ["001_first.sql", "002_second.sql"], grantFiles: ["runtime-role-grants.sql", "worker-role-grants.sql"] };
 
 function sqlFor(file) {
@@ -47,6 +48,16 @@ const appUrl = new URL(restrictedDatabaseUrl(ownerUrl, "tideway_app", appPasswor
 assert.equal(appUrl.username, "tideway_app");
 assert.equal(appUrl.password, appPassword);
 assert.equal(appUrl.searchParams.get("sslmode"), "verify-full");
+
+const renderPrivate = fakeClient();
+const renderPrivateResult = await bootstrapRenderStagingDatabase(options(renderPrivate, {
+  RENDER: "true",
+  RENDER_SERVICE_TYPE: "web",
+  DATABASE_BOOTSTRAP_URL: renderOwnerUrl
+}));
+assert.equal(renderPrivate.configuration.ssl, false, "The trusted Render-internal PostgreSQL URL incorrectly attempted public-certificate verification.");
+assert.equal(new URL(renderPrivateResult.runtimeUrl).hostname, "dpg-d9csr9b7uimc73f0m8d0-a");
+assert.equal(new URL(renderPrivateResult.runtimeUrl).searchParams.has("sslmode"), false, "The restricted Render-internal URL re-enabled the failing public TLS mode.");
 
 const fresh = fakeClient();
 const freshResult = await bootstrapRenderStagingDatabase(options(fresh));

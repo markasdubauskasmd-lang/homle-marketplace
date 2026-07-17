@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createMarketplaceAttachment } from "../src/marketplace/attachment.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "../src/marketplace/config.mjs";
+import { postgresTransportSecurity } from "../src/marketplace/database.mjs";
 
 const toolPath = fileURLToPath(import.meta.url);
 export const stagingServiceProbeConfirmation = "PROBE HOMLE MANAGED STAGING SERVICES";
@@ -18,7 +19,7 @@ function exact(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function stagingDatabaseTarget(value, name = "DATABASE_URL") {
+function stagingDatabaseTarget(value, name = "DATABASE_URL", env = process.env) {
   let url;
   try { url = new URL(exact(value)); } catch { throw new TypeError(`${name} must be a valid managed PostgreSQL staging URL.`); }
   if (!["postgres:", "postgresql:"].includes(url.protocol) || !url.hostname || !url.username || !url.password || !url.pathname || url.pathname === "/") {
@@ -33,8 +34,10 @@ function stagingDatabaseTarget(value, name = "DATABASE_URL") {
   if (user !== "tideway_app") throw new TypeError("The staging service probe must authenticate as tideway_app.");
   if (!/_(?:tideway|homle)_staging$/i.test(database)) throw new TypeError("The staging service probe database name must end in _tideway_staging or _homle_staging.");
   if (["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase())) throw new TypeError("The managed staging service probe refuses a local database endpoint.");
-  if (url.searchParams.get("sslmode") !== "verify-full") throw new TypeError(`Managed staging ${name} must use sslmode=verify-full.`);
-  return Object.freeze({ database, role: user, tls: "verify-full" });
+  const transport = postgresTransportSecurity(url.toString(), env);
+  if (transport.mode === "verified-tls" && url.searchParams.get("sslmode") !== "verify-full") throw new TypeError(`Managed staging ${name} outside Render's private network must use sslmode=verify-full.`);
+  if (!new Set(["verified-tls", "render-private-network"]).has(transport.mode)) throw new TypeError(`Managed staging ${name} must use production database transport.`);
+  return Object.freeze({ database, role: user, tls: transport.mode });
 }
 
 function validationError(errors) {
@@ -56,8 +59,8 @@ export function validateStagingServiceProbeEnvironment(env = process.env, confir
   if (!exact(env.MARKETPLACE_ADAPTER_MODULE)) errors.push("A private monitoring adapter is required.");
   let database = null;
   let realtimeDatabase = null;
-  try { database = stagingDatabaseTarget(env.DATABASE_URL); } catch (error) { errors.push(error.message); }
-  try { realtimeDatabase = stagingDatabaseTarget(env.REALTIME_DATABASE_URL, "REALTIME_DATABASE_URL"); } catch (error) { errors.push(error.message); }
+  try { database = stagingDatabaseTarget(env.DATABASE_URL, "DATABASE_URL", env); } catch (error) { errors.push(error.message); }
+  try { realtimeDatabase = stagingDatabaseTarget(env.REALTIME_DATABASE_URL, "REALTIME_DATABASE_URL", env); } catch (error) { errors.push(error.message); }
   if (database && realtimeDatabase && database.database !== realtimeDatabase.database) errors.push("DATABASE_URL and REALTIME_DATABASE_URL must target the same managed staging database.");
   if (errors.length) throw validationError(errors);
   return Object.freeze({ database, providersConfigured: Object.freeze({ google: state.providers.google.enabled, facebook: state.providers.facebook.enabled }) });

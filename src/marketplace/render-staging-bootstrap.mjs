@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { verifyDatabaseAssets } from "../../db/migration-assets.mjs";
+import { postgresTransportSecurity } from "./database.mjs";
 
 const { Client } = pg;
 const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -24,12 +25,14 @@ function parsePostgresUrl(value, name) {
   return parsed;
 }
 
-export function restrictedDatabaseUrl(ownerConnectionUrl, role, password) {
+export function restrictedDatabaseUrl(ownerConnectionUrl, role, password, env = process.env) {
   if (!restrictedRoles.includes(role)) throw new TypeError("Only a Homle restricted database role may be selected.");
   const parsed = parsePostgresUrl(ownerConnectionUrl, "DATABASE_BOOTSTRAP_URL");
   parsed.username = role;
   parsed.password = requiredSecret(password, `${role} password`);
-  if (!parsed.searchParams.has("sslmode")) parsed.searchParams.set("sslmode", "verify-full");
+  const transport = postgresTransportSecurity(parsed.toString(), env);
+  if (transport.mode === "render-private-network") parsed.searchParams.delete("sslmode");
+  else if (!parsed.searchParams.has("sslmode")) parsed.searchParams.set("sslmode", "verify-full");
   return parsed.toString();
 }
 
@@ -116,9 +119,10 @@ export async function bootstrapRenderStagingDatabase(options = {}) {
   if (!assets?.ok || !assets.migrations?.length) throw new Error(`Locked database assets are invalid: ${(assets?.errors || ["missing migrations"]).join(" ")}`);
 
   const createClient = options.createClient || ((configuration) => new Client(configuration));
+  const transport = postgresTransportSecurity(parsedOwnerUrl.toString(), env);
   const client = createClient({
     connectionString: parsedOwnerUrl.toString(),
-    ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: true } : undefined,
+    ssl: transport.ssl,
     application_name: "homle-render-staging-bootstrap"
   });
   let connected = false;
@@ -136,8 +140,8 @@ export async function bootstrapRenderStagingDatabase(options = {}) {
         database: target.database,
         status: "already-verified",
         migrationCount: assets.migrations.length,
-        runtimeUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_app", appPassword),
-        workerUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_worker", workerPassword)
+        runtimeUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_app", appPassword, env),
+        workerUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_worker", workerPassword, env)
       });
     }
 
@@ -157,8 +161,8 @@ export async function bootstrapRenderStagingDatabase(options = {}) {
       database: target.database,
       status: "bootstrapped",
       migrationCount: assets.migrations.length,
-      runtimeUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_app", appPassword),
-      workerUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_worker", workerPassword)
+      runtimeUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_app", appPassword, env),
+      workerUrl: restrictedDatabaseUrl(ownerConnectionUrl, "tideway_worker", workerPassword, env)
     });
   } catch (error) {
     const wrapped = new Error(connected ? `Render staging database bootstrap failed: ${error.message}` : "Render staging database connection failed.");
