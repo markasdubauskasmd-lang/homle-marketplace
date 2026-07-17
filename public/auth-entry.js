@@ -44,6 +44,7 @@ const cleanerIntent = accountIntent === "work";
 let emailFormRevealed = false;
 let activeProviders = Object.freeze({});
 let workspaceReady = false;
+const accountRequestTimeoutMs = 15_000;
 
 if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
 document.title = `${selectedMode.title} — Homle`;
@@ -134,10 +135,23 @@ function formBody(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+async function accountFetch(path, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), accountRequestTimeoutMs);
+  try {
+    return await fetch(path, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("Homle is taking too long to respond. Your account may still have been saved; refresh this page once to continue.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function post(path, body, csrfToken = "") {
   const headers = { Accept: "application/json", "Content-Type": "application/json" };
   if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
-  const response = await fetch(path, { method: "POST", credentials: "same-origin", cache: "no-store", headers, body: JSON.stringify(body) });
+  const response = await accountFetch(path, { method: "POST", credentials: "same-origin", cache: "no-store", headers, body: JSON.stringify(body) });
   let result = null;
   try { result = await response.json(); } catch {}
   if (!response.ok) throw new Error(result?.error || "The account action could not be completed. Please try again.");
@@ -183,7 +197,7 @@ function workspacePath(account) {
 }
 
 async function openSignedInWorkspace() {
-  const response = await fetch("/api/marketplace/account", { credentials: "same-origin", headers: { Accept: "application/json" }, cache: "no-store" });
+  const response = await accountFetch("/api/marketplace/account", { credentials: "same-origin", headers: { Accept: "application/json" }, cache: "no-store" });
   if (!response.ok) return false;
   const result = await response.json();
   workspaceReady = result.workspaceReady === true;
@@ -241,6 +255,11 @@ async function logoutReadyAccount() {
     clearCompletedIntent();
     location.assign("/");
   } catch (error) {
+    if (kind === "onboarding") {
+      try {
+        if (await openSignedInWorkspace()) return;
+      } catch {}
+    }
     showFeedback(error.message, "error");
     accountReadyLogout.disabled = false;
   }
@@ -385,6 +404,8 @@ try {
     activateForm(providers);
     if (selectedMode.form === "ready") {
       await loadAccountReady();
+    } else if (selectedMode.form === "onboarding" && await openSignedInWorkspace()) {
+      // A previous role-save may have completed even if its browser navigation was interrupted.
     } else if (socialResult === "google" && socialCsrfToken) {
       if (storeCsrf(socialCsrfToken)) {
         const opened = location.pathname !== "/onboarding" && await openSignedInWorkspace();
