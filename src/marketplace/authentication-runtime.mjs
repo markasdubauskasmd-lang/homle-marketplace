@@ -81,7 +81,7 @@ export function createAuthenticationRuntime(pool, options = {}) {
     rateLimiter: options.rateLimiter,
     googleOidcProvider,
     facebookLoginProvider
-  }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: options.workspaceReady === true });
 
   return Object.freeze({
     database,

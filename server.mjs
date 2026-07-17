@@ -78,7 +78,7 @@ const objectStorageOrigins = (() => {
 const marketplaceAttachment = await createMarketplaceAttachment({ env: process.env });
 const standaloneAuthenticationAttachment = marketplaceAttachment.authenticationHttpReady
   ? null
-  : await createAuthenticationAttachment({ env: process.env });
+  : await createAuthenticationAttachment({ env: process.env, workspaceReady: marketplaceAttachment.ready === true });
 const accountAttachment = marketplaceAttachment.authenticationHttpReady
   ? marketplaceAttachment
   : standaloneAuthenticationAttachment;
@@ -5347,6 +5347,8 @@ async function handleHttpRequest(request, response) {
           enabled: marketplaceAttachment.enabled,
           ready: marketplaceAttachment.ready,
           authenticationReady: accountAttachment.authenticationHttpReady,
+          emailReady: marketplaceAttachment.emailReady === true,
+          mediaReady: marketplaceAttachment.mediaReady === true,
           paymentsReady: marketplaceAttachment.paymentsReady === true
         },
         localDemosEnabled: localDemoEnabled

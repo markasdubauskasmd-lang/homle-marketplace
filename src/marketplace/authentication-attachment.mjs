@@ -64,6 +64,7 @@ export async function createAuthenticationAttachment(options = {}) {
       emailDelivery,
       rateLimiter,
       clientKey,
+      workspaceReady: options.workspaceReady === true,
       onUnexpectedError: adapters.onUnexpectedError
     });
     if (!runtime?.router || typeof runtime.router.handle !== "function" || runtime.authenticationHttpReady !== true) throw new TypeError("Authentication runtime did not compose its router completely.");
