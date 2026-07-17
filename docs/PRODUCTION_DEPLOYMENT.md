@@ -1,6 +1,6 @@
 # Production deployment gate
 
-Tideway supports two deliberately separate production modes:
+Homle supports two deliberately separate production modes:
 
 - **Public site:** the reviewed independent website and concierge pilot, with `MARKETPLACE_ENABLED=false` and `PAYMENTS_ENABLED=false`.
 - **Marketplace:** authenticated PostgreSQL accounts, private media and live booking workflows, enabled only after every managed staging dependency passes.
@@ -11,12 +11,14 @@ The public-site mode no longer requires placeholder database credentials. It rem
 
 `Dockerfile` is the prepared production build boundary. It uses the exact Node 24.17.0 Bookworm-slim tag in two stages, verifies the locked dependency graph before a frozen production-only install, and copies only the runtime files. `.dockerignore` denies the whole workspace first and then allowlists those inputs. It excludes `.env`, private `data`, Git history, tests, launch notes and the browser-facing local tracking-lab assets. The final process runs as the image's unprivileged `node` user, defaults both marketplace and payments off, uses `/var/lib/tideway` outside the application source, handles `SIGTERM`, and checks the public health contract without adding `curl`.
 
+The Docker build also requires Render's non-secret `RENDER_GIT_COMMIT` build argument. Render provides the exact commit SHA at build time and translates service environment values into Docker build arguments. The build validates that full 40-character SHA, validates the ordered migration lock, then creates a no-overwrite `homle-release.json` inside the image. The web process and worker therefore expose and enforce the same eight-character release identity. A missing, malformed or mismatched commit fails the image build instead of producing an unidentified deployment. Do not manually set `RENDER_GIT_COMMIT` in the Render Dashboard; use Render's platform-provided value.
+
 Docker is not installed on the current development computer, so the repository test proves the source contract but **not** a successful image build, native Sharp load, image vulnerability state or hosting behavior. On the selected host/build service, record the exact release commit and run:
 
 ```text
-docker build --pull --tag tideway:<release-commit> .
-docker run --rm --entrypoint node tideway:<release-commit> --version
-docker run --rm --entrypoint node tideway:<release-commit> -e "Promise.all([import('pg'),import('sharp'),import('nodemailer'),import('@aws-sdk/client-s3'),import('stripe')]).then(()=>console.log('runtime dependencies load')).catch(error=>{console.error(error.message);process.exit(1)})"
+docker build --pull --build-arg RENDER_GIT_COMMIT=<full-40-character-release-commit> --tag homle:<eight-character-release-commit> .
+docker run --rm --entrypoint node homle:<eight-character-release-commit> --version
+docker run --rm --entrypoint node homle:<eight-character-release-commit> -e "Promise.all([import('pg'),import('sharp'),import('nodemailer'),import('@aws-sdk/client-s3'),import('stripe')]).then(()=>console.log('runtime dependencies load')).catch(error=>{console.error(error.message);process.exit(1)})"
 ```
 
 Record the resolved base/image digest and scan the **built image**, not only the JavaScript lockfile, with the approved host scanner before deployment. Do not launch with an unresolved critical/high finding merely because `pnpm audit` is green; base operating-system and bundled-tool findings are a separate boundary. Review and rebuild after any base-tag change.
