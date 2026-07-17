@@ -53,11 +53,11 @@ services:
       - key: MARKETPLACE_ADAPTER_MODULE
         value: "homle:render-log-monitoring"
       - key: RENDER_LOG_MONITORING_ACKNOWLEDGED
-        value: "false"
+        value: "true"
       - key: PILOT_INTAKE_ENABLED
         value: "false"
       - key: AUTHENTICATION_ENABLED
-        value: "false"
+        value: "true"
       - key: MARKETPLACE_ENABLED
         value: "false"
       - key: PUBLIC_MARKETPLACE_APPROVED

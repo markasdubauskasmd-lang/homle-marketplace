@@ -35,9 +35,10 @@ function environmentEntry(key) {
   return match?.[1] || "";
 }
 
-for (const key of ["PILOT_INTAKE_ENABLED", "AUTHENTICATION_ENABLED", "MARKETPLACE_ENABLED", "PUBLIC_MARKETPLACE_APPROVED", "LEGAL_BUSINESS_READY", "INSURANCE_READY", "CLEANER_SUPPLY_READY", "PRICING_POLICY_APPROVED", "CUSTOMER_SUPPORT_READY", "CUSTOMER_TERMS_READY", "MARKETPLACE_WORKER_ENABLED", "WORKER_EMAIL_ENABLED", "WORKER_MEDIA_ENABLED", "WORKER_AUTOMATIC_DISPATCH_ENABLED", "PAYMENTS_ENABLED", "PUBLIC_PAYMENTS_APPROVED", "PAYMENT_ACCOUNT_VERIFIED", "REFUND_PROCESS_READY"]) {
+for (const key of ["PILOT_INTAKE_ENABLED", "MARKETPLACE_ENABLED", "PUBLIC_MARKETPLACE_APPROVED", "LEGAL_BUSINESS_READY", "INSURANCE_READY", "CLEANER_SUPPLY_READY", "PRICING_POLICY_APPROVED", "CUSTOMER_SUPPORT_READY", "CUSTOMER_TERMS_READY", "MARKETPLACE_WORKER_ENABLED", "WORKER_EMAIL_ENABLED", "WORKER_MEDIA_ENABLED", "WORKER_AUTOMATIC_DISPATCH_ENABLED", "PAYMENTS_ENABLED", "PUBLIC_PAYMENTS_APPROVED", "PAYMENT_ACCOUNT_VERIFIED", "REFUND_PROCESS_READY"]) {
   assert.equal(environmentEntry(key), "value: \"false\"", `${key} must be explicitly false in the preview Blueprint.`);
 }
+assert.equal(environmentEntry("AUTHENTICATION_ENABLED"), 'value: "true"', "Approved staging accounts must be able to create and access private profiles in the preview.");
 assert.equal(environmentEntry("APP_ORIGIN"), 'value: "https://homle-marketplace-preview.onrender.com"', "APP_ORIGIN must match the assigned HTTPS preview origin without a manual secret step.");
 assert.equal(environmentEntry("RENDER_STAGING_BOOTSTRAP_ENABLED"), 'value: "true"', "The staging database bootstrap must require an explicit deployment flag.");
 assert.equal(environmentEntry("STAGING_ACCOUNTS_ONLY"), 'value: "true"', "The public preview must deny all account creation until approved email fingerprints are added privately.");
@@ -51,7 +52,7 @@ assert.equal(environmentEntry("DATA_ENCRYPTION_KEY"), "generateValue: true", "Th
 assert.equal(environmentEntry("TRUST_PROXY_PROVIDER"), "value: \"render\"", "Render's verified client-identity mode is not enabled.");
 assert.equal(environmentEntry("TRUSTED_PROXY_CIDRS"), "value: \"\"", "Generic trusted proxy networks must remain blank in Render mode.");
 assert.equal(environmentEntry("MARKETPLACE_ADAPTER_MODULE"), "value: \"homle:render-log-monitoring\"", "The free preview must have privacy-minimal operational monitoring prepared before marketplace activation.");
-assert.equal(environmentEntry("RENDER_LOG_MONITORING_ACKNOWLEDGED"), "value: \"false\"", "The Blueprint must not invent a restricted-log-access acknowledgement on the owner's behalf.");
+assert.equal(environmentEntry("RENDER_LOG_MONITORING_ACKNOWLEDGED"), "value: \"true\"", "Authentication requires the owner-confirmed restricted Render log-access boundary.");
 
 for (const secret of ["DATABASE_URL", "REALTIME_DATABASE_URL", "SMTP_URL", "GOOGLE_CLIENT_SECRET", "FACEBOOK_APP_SECRET", "STRIPE_SECRET_KEY", "OBJECT_STORAGE_SECRET_ACCESS_KEY"]) {
   assert.equal(environmentEntry(secret), "", `Preview Blueprint unexpectedly provisions ${secret}.`);
