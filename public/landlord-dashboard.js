@@ -1,4 +1,5 @@
 import { checklistFromTranscript } from "./checklist.js";
+import { clearSelectedCleaner, readSelectedCleaner } from "./account-intent.js";
 import { isUkPostcode } from "./contact-validation.js";
 import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-5";
 import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260716-1";
@@ -49,6 +50,8 @@ let dirty = false;
 let loading = false;
 const requestScans = new Map();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
+let selectedCleanerId = "";
+try { if (bookingStart) selectedCleanerId = readSelectedCleaner(localStorage); } catch {}
 
 function storedCsrf() {
   try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
@@ -114,13 +117,15 @@ function renderTaskPreview() {
   }
 }
 
-function showRequestCompletion(submission, { automaticDispatch = false, warning = "" } = {}) {
+function showRequestCompletion(submission, { automaticDispatch = false, selectedCleanerInvited = false, warning = "" } = {}) {
   const photos = Number(submission?.photoCount);
   const tasks = Number(submission?.taskCount);
   requestCompleteReference.textContent = submission?.cleaningRequestId || "Recorded privately";
   requestCompleteCounts.textContent = `${Number.isInteger(photos) ? photos : 0} room ${photos === 1 ? "photo" : "photos"} · ${Number.isInteger(tasks) ? tasks : 0} concise Cleaner ${tasks === 1 ? "task" : "tasks"}`;
   requestCompleteLead.textContent = warning
     ? "Your reviewed scan is submitted for matching. No booking or payment exists yet."
+    : selectedCleanerInvited
+    ? "Your reviewed scan is submitted and the selected Cleaner has been invited. This becomes a booking only if they accept."
     : automaticDispatch
     ? "Your reviewed scan is submitted and Homle is authorised to invite an eligible profitable match within your chosen attempt limit."
     : "Your reviewed scan is submitted for matching. No Cleaner has been invited automatically.";
@@ -131,6 +136,11 @@ function showRequestCompletion(submission, { automaticDispatch = false, warning 
   requestComplete.hidden = false;
   history.replaceState(null, "", "/landlord/dashboard");
   requestComplete.focus();
+}
+
+function clearCleanerSelection() {
+  try { clearSelectedCleaner(localStorage); } catch {}
+  selectedCleanerId = "";
 }
 
 function selectWorkspaceTab(name) {
@@ -419,6 +429,12 @@ function requestScanPanel(request) {
     auto.type = "checkbox";
     auto.name = "automaticDispatch";
     autoLabel.append(auto, element("span", "", "After submission, automatically invite the best eligible profitable match. No booking exists until a Cleaner accepts."));
+    const preferredLabel = element("label", "checkbox landlord-preferred-cleaner");
+    const preferred = element("input");
+    preferred.type = "checkbox";
+    preferred.name = "selectedCleanerInvitation";
+    preferred.checked = Boolean(selectedCleanerId);
+    preferredLabel.append(preferred, element("span", "", "Invite the Cleaner I selected from the directory first. Homle will recheck the room scan, availability, service fit and profitable price before sending anything. If they cannot be invited, this request stays open for matching."));
     const attemptsLabel = element("label", "landlord-attempt-limit", "Maximum Cleaner invitations");
     const attempts = element("select");
     attempts.name = "attemptLimit";
@@ -428,7 +444,7 @@ function requestScanPanel(request) {
     auto.addEventListener("change", () => { attempts.disabled = !auto.checked; });
     const submit = element("button", "button", "Submit cleaning request");
     submit.type = "submit";
-    submitForm.append(confirmLabel, previewLabel, autoLabel, attemptsLabel, submit);
+    submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerId ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
     submitForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       feedback.hidden = true;
@@ -439,6 +455,7 @@ function requestScanPanel(request) {
       setPending(submit, true, "Submitting reviewed scan…");
       let submitted = false;
       let submission = null;
+      let selectedCleanerInvited = false;
       try {
         const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/submit`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ scopeReviewed: true, cleanerPreviewAuthorized: preview.checked }) });
         submission = result.submission;
@@ -446,13 +463,22 @@ function requestScanPanel(request) {
         if (!submitted) throw new Error("The submitted request could not be verified.");
         const index = requests.findIndex((item) => item.requestId === request.requestId);
         if (index >= 0) requests[index] = { ...requests[index], status: "searching-for-cleaner", submittedAt: submission.submittedAt, cleanerPreviewAuthorized: preview.checked };
-        if (auto.checked) await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/automatic-dispatch`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ enabled: true, attemptLimit: Number(attempts.value) }) });
+        if (selectedCleanerId && preferred.checked) {
+          await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/invitations`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ cleanerId: selectedCleanerId }) });
+          selectedCleanerInvited = true;
+          if (index >= 0) requests[index] = { ...requests[index], status: "cleaner-invited" };
+        } else if (auto.checked) await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/automatic-dispatch`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ enabled: true, attemptLimit: Number(attempts.value) }) });
+        clearCleanerSelection();
         renderRequests();
-        showRequestCompletion(submission, { automaticDispatch: auto.checked });
+        showRequestCompletion(submission, { automaticDispatch: auto.checked, selectedCleanerInvited });
       } catch (error) {
         if (submitted) {
+          const selectedInvitationFailed = Boolean(selectedCleanerId && preferred.checked);
+          clearCleanerSelection();
           renderRequests();
-          showRequestCompletion(submission, { warning: `The room scan is safely submitted, but Homle could not verify automatic invitation authorisation: ${error.message} Check the request before retrying.` });
+          showRequestCompletion(submission, { warning: selectedInvitationFailed
+            ? `The room scan is safely submitted, but the selected Cleaner could not be invited: ${error.message} The request remains open for matching and no booking or payment exists.`
+            : `The room scan is safely submitted, but Homle could not verify automatic invitation authorisation: ${error.message} Check the request before retrying.` });
         } else showFeedback(requestFeedback, error.message);
       } finally { setPending(submit, false, "Submit cleaning request"); }
     });

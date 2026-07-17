@@ -1,3 +1,5 @@
+import { accountEntryPath } from "./account-intent.js";
+
 const form = document.querySelector("[data-directory-form]");
 const results = document.querySelector("[data-cleaner-results]");
 const state = document.querySelector("[data-directory-state]");
@@ -109,7 +111,8 @@ function cleanerCard(cleaner) {
   const boundary = element("p", "directory-profile-boundary", "Requesting a Cleaner does not confirm a booking. Homle must recheck the room checklist, date, price and availability.");
   details.append(summary, facts, boundary);
   const requestLink = element("a", "button directory-cleaner-action", "Start a cleaning request");
-  requestLink.href = "/signup?intent=book";
+  requestLink.href = accountEntryPath("book", cleaner.cleanerId);
+  requestLink.setAttribute("aria-label", `Start a cleaning request with ${name}`);
   card.append(identity, metrics, biography, chips, details, requestLink);
   return card;
 }

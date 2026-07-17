@@ -1,4 +1,4 @@
-import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent } from "./account-intent.js";
+import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent, saveSelectedCleaner, selectedCleanerFromSearch } from "./account-intent.js";
 
 const modes = Object.freeze({
   "/login": { form: "login", title: "Sign in to Homle", lead: "Use your verified account to open the correct private workspace." },
@@ -28,6 +28,8 @@ const socialCsrfToken = fragment.get("csrfToken") || "";
 const fragmentIntent = normalizeAccountIntent(fragment.get("intent"));
 let accountIntent = accountIntentFromSearch(location.search) || fragmentIntent;
 try {
+  const selectedCleaner = accountIntent === "book" ? selectedCleanerFromSearch(location.search) : "";
+  if (selectedCleaner) saveSelectedCleaner(localStorage, selectedCleaner);
   if (accountIntent) saveAccountIntent(sessionStorage, accountIntent);
   else accountIntent = readAccountIntent(sessionStorage);
 } catch { accountIntent = ""; }
