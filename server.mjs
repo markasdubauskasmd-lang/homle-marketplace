@@ -1034,16 +1034,18 @@ async function auditDataIntegrity() {
 
   if (configStatus === "ok" && parsedConfig) {
     const numericFields = ["customerHourlyRate", "cleanerHourlyPay", "labourOnCostPercent", "minimumHours", "minimumContributionMarginPercent", "paymentFeePercent", "paymentFeeFixed", "travelCostPerJob", "suppliesCostPerJob", "riskContingencyPercent", "customerQuoteValidityHours", "cleanerOpportunityValidityHours", "inactiveMediaRetentionDays", "completedMediaRetentionDays"];
+    const minimumContributionPounds = parsedConfig.minimumContributionPounds ?? 0;
     const travelCostPerKm = parsedConfig.travelCostPerKm ?? 0;
     const travelDistanceMultiplier = parsedConfig.travelDistanceMultiplier ?? 1;
     const pricingTravelDistanceKm = parsedConfig.pricingTravelDistanceKm ?? 0;
     const valid = numericFields.every((field) => hasFiniteNumber(parsedConfig, field))
-      && [travelCostPerKm, travelDistanceMultiplier, pricingTravelDistanceKm].every((value) => typeof value === "number" && Number.isFinite(value))
+      && [minimumContributionPounds, travelCostPerKm, travelDistanceMultiplier, pricingTravelDistanceKm].every((value) => typeof value === "number" && Number.isFinite(value))
       && parsedConfig.customerHourlyRate >= 0 && parsedConfig.customerHourlyRate <= maxProposalHourlyRate
       && parsedConfig.cleanerHourlyPay >= 0 && parsedConfig.cleanerHourlyPay <= maxProposalHourlyRate
       && parsedConfig.labourOnCostPercent >= 0 && parsedConfig.labourOnCostPercent <= 100
       && parsedConfig.minimumHours >= 0 && parsedConfig.minimumHours <= maxProposalHours
       && parsedConfig.minimumContributionMarginPercent >= 0 && parsedConfig.minimumContributionMarginPercent < 100
+      && minimumContributionPounds >= 0 && minimumContributionPounds <= maxProposalAdditionalCosts
       && parsedConfig.paymentFeePercent >= 0 && parsedConfig.paymentFeePercent <= 20
       && parsedConfig.paymentFeeFixed >= 0 && parsedConfig.paymentFeeFixed <= 20
       && parsedConfig.travelCostPerJob >= 0 && parsedConfig.travelCostPerJob <= 200
@@ -1097,6 +1099,8 @@ async function auditDataIntegrity() {
     const amountFields = ["plannedCustomerTotal", "plannedCleanerPay", "plannedLabourOnCosts", "plannedContribution", "plannedPaymentFees", "plannedTravelCosts", "plannedSuppliesCosts", "plannedRiskContingency", "plannedAdditionalCosts", "plannedNonCleanerCosts"];
     for (const { record, line } of bookingFile.records) {
       const numericValid = hasFiniteNumber(record, "estimatedHours") && amountFields.every((field) => hasFiniteNumber(record, field)) && hasFiniteNumber(record.paymentEvidence, "amount");
+      const targetFieldsValid = (record.targetMarginPercent === undefined || (hasFiniteNumber(record, "targetMarginPercent") && record.targetMarginPercent > 0 && record.targetMarginPercent < 100))
+        && (record.targetContribution === undefined || (hasFiniteNumber(record, "targetContribution") && record.targetContribution > 0 && record.targetContribution <= maxProposalAdditionalCosts));
       const plannedCosts = moneyValue(Number(record.plannedLabourOnCosts) + Number(record.plannedPaymentFees) + Number(record.plannedTravelCosts) + Number(record.plannedSuppliesCosts) + Number(record.plannedRiskContingency) + Number(record.plannedAdditionalCosts));
       const plannedContribution = moneyValue(Number(record.plannedCustomerTotal) - Number(record.plannedCleanerPay) - Number(record.plannedNonCleanerCosts));
       const consistent = numericValid
@@ -1109,7 +1113,7 @@ async function auditDataIntegrity() {
         && record.plannedCleanerPay > 0 && record.plannedCleanerPay <= maxProposalHours * maxProposalHourlyRate
         && record.plannedAdditionalCosts >= 0 && record.plannedAdditionalCosts <= maxProposalAdditionalCosts
         && record.plannedContribution > 0;
-      if (!numericValid || !consistent || !withinLimits) financialIssue("bookings.ndjson", line, record, "This booking has invalid, unsupported or inconsistent frozen economics.");
+      if (!numericValid || !targetFieldsValid || !consistent || !withinLimits) financialIssue("bookings.ndjson", line, record, "This booking has invalid, unsupported or inconsistent frozen economics.");
     }
   }
 
@@ -1119,6 +1123,7 @@ async function auditDataIntegrity() {
     for (const { record, line } of outcomeFile.records) {
       const numericFields = ["actualHours", ...amountFields, "totalDirectCosts", "contribution", "marginPercent", "targetMarginPercent"];
       const numericValid = numericFields.every((field) => hasFiniteNumber(record, field)) && hasFiniteNumber(record.settlementEvidence, "customerCollected") && hasFiniteNumber(record.settlementEvidence, "cleanerPaid");
+      const targetContributionValid = record.targetContribution === undefined || (hasFiniteNumber(record, "targetContribution") && record.targetContribution >= 0 && record.targetContribution <= maxProposalAdditionalCosts);
       const totalDirectCosts = moneyValue(Number(record.labourOnCosts) + Number(record.paymentFees) + Number(record.travelCosts) + Number(record.suppliesCosts) + Number(record.otherCosts));
       const contribution = moneyValue(Number(record.customerCollected) - Number(record.cleanerPaid) - totalDirectCosts - Number(record.refundAmount));
       const marginPercent = Number(record.customerCollected) > 0 ? (contribution / Number(record.customerCollected)) * 100 : NaN;
@@ -1132,7 +1137,7 @@ async function auditDataIntegrity() {
         && record.actualHours > 0 && record.actualHours <= maxOutcomeHours
         && record.customerCollected > 0
         && amountFields.every((field) => record[field] >= 0 && record[field] <= maxFinancialRecordAmount);
-      if (!numericValid || !consistent || !withinLimits) financialIssue("job-outcomes.ndjson", line, record, "This completed-job record has invalid, unsupported or inconsistent economics.");
+      if (!numericValid || !targetContributionValid || !consistent || !withinLimits) financialIssue("job-outcomes.ndjson", line, record, "This completed-job record has invalid, unsupported or inconsistent economics.");
     }
   }
 
@@ -1601,6 +1606,7 @@ function adjustedJobOutcome(outcome, allAdjustments = []) {
     marginPercent,
     profitable: contribution > 0,
     metTargetMargin: Number(outcome.targetMarginPercent) > 0 && marginPercent >= Number(outcome.targetMarginPercent),
+    metTargetContribution: Number(outcome.targetContribution) > 0 && contribution >= Number(outcome.targetContribution),
     adjusted: adjustments.length > 0,
     adjustmentCount: adjustments.length,
     adjustments: adjustments.slice().reverse(),
@@ -1615,7 +1621,8 @@ function adjustedJobOutcome(outcome, allAdjustments = []) {
       contribution: Number(outcome.contribution || 0),
       marginPercent: Number(outcome.marginPercent || 0),
       profitable: outcome.profitable === true,
-      metTargetMargin: outcome.metTargetMargin === true
+      metTargetMargin: outcome.metTargetMargin === true,
+      metTargetContribution: outcome.metTargetContribution === true
     }
   };
 }
@@ -1672,6 +1679,7 @@ function launchEconomicsRehearsal(config) {
   const configuredCustomerRate = Number(config.customerHourlyRate);
   const cleanerHourlyPay = Number(config.cleanerHourlyPay);
   const targetMarginPercent = Number(config.minimumContributionMarginPercent);
+  const targetContribution = Number(config.minimumContributionPounds);
   const pricingTravelDistanceKm = Number(config.pricingTravelDistanceKm) || 0;
   const assumptions = costAssumptionsFromConfig(config);
   const targetFactor = 1 - ((assumptions.paymentFeePercent + assumptions.riskContingencyPercent + targetMarginPercent) / 100);
@@ -1686,7 +1694,7 @@ function launchEconomicsRehearsal(config) {
     && (assumptions.travelCostPerKm === 0 || (pricingTravelDistanceKm > 0 && pricingTravelDistanceKm <= 500))
     && assumptions.suppliesCostPerJob <= 200
     && assumptions.riskContingencyPercent <= 50;
-  const inputsAvailable = [minimumHours, configuredCustomerRate, cleanerHourlyPay, targetMarginPercent].every(Number.isFinite)
+  const inputsAvailable = [minimumHours, configuredCustomerRate, cleanerHourlyPay, targetMarginPercent, targetContribution].every(Number.isFinite)
     && minimumHours > 0
     && minimumHours <= maxProposalHours
     && configuredCustomerRate > 0
@@ -1695,6 +1703,8 @@ function launchEconomicsRehearsal(config) {
     && cleanerHourlyPay <= maxProposalHourlyRate
     && targetMarginPercent > 0
     && targetMarginPercent < 100
+    && targetContribution > 0
+    && targetContribution <= maxProposalAdditionalCosts
     && assumptionsSupported
     && targetFactor > 0;
   if (!inputsAvailable) {
@@ -1702,7 +1712,8 @@ function launchEconomicsRehearsal(config) {
       available: false,
       costAssumptionsConfirmed: costAssumptionsConfirmed(config),
       configuredMeetsTarget: false,
-      targetMarginPercent: Number.isFinite(targetMarginPercent) ? targetMarginPercent : 0
+      targetMarginPercent: Number.isFinite(targetMarginPercent) ? targetMarginPercent : 0,
+      targetContribution: Number.isFinite(targetContribution) ? targetContribution : 0
     };
   }
 
@@ -1712,6 +1723,7 @@ function launchEconomicsRehearsal(config) {
     cleanerRate: cleanerHourlyPay,
     travelDistanceKm: pricingTravelDistanceKm,
     targetMarginPercent,
+    targetContribution,
     assumptions
   });
   if (!safeRate.available) {
@@ -1719,13 +1731,14 @@ function launchEconomicsRehearsal(config) {
       available: false,
       costAssumptionsConfirmed: costAssumptionsConfirmed(config),
       configuredMeetsTarget: false,
-      targetMarginPercent
+      targetMarginPercent,
+      targetContribution
     };
   }
   const targetSafeCustomerRate = safeRate.customerRate;
   const targetSafe = safeRate.economics;
   const targetRateSupported = targetSafeCustomerRate <= maxProposalHourlyRate;
-  const configuredMeetsTarget = configured.contribution > 0 && configured.marginPercent >= targetMarginPercent;
+  const configuredMeetsTarget = configured.contribution >= targetContribution && configured.marginPercent >= targetMarginPercent;
   return {
     available: true,
     costAssumptionsConfirmed: costAssumptionsConfirmed(config),
@@ -1734,6 +1747,7 @@ function launchEconomicsRehearsal(config) {
     cleanerHourlyPay,
     pricingTravelDistanceKm,
     targetMarginPercent,
+    targetContribution,
     configured: {
       customerTotal: configured.customerTotal,
       cleanerPay: configured.cleanerPay,
@@ -1900,7 +1914,8 @@ function launchReadiness(config) {
   const publicSite = publicSiteVerification(config);
   const configuredBaseEconomics = calculateProposalEconomics(Number(config.minimumHours) || 0, Number(config.customerHourlyRate) || 0, Number(config.cleanerHourlyPay) || 0, 0, config, Number(config.pricingTravelDistanceKm) || 0);
   const configuredBaseEconomicsViable = costAssumptionsConfirmed(config)
-    && configuredBaseEconomics.contribution > 0
+    && Number(config.minimumContributionPounds) > 0
+    && configuredBaseEconomics.contribution >= Number(config.minimumContributionPounds)
     && configuredBaseEconomics.marginPercent >= Number(config.minimumContributionMarginPercent);
   const requirements = {
     identity: [
@@ -1924,10 +1939,11 @@ function launchReadiness(config) {
       { label: "positive cleaner hourly pay", complete: Number(config.cleanerHourlyPay) > 0 },
       { label: "founder minimum booking hours", complete: Number(config.minimumHours) > 0 },
       { label: "founder contribution-margin floor", complete: Number(config.minimumContributionMarginPercent) > 0 && Number(config.minimumContributionMarginPercent) < 100 },
+      { label: "founder minimum contribution per booking", complete: Number(config.minimumContributionPounds) > 0 && Number(config.minimumContributionPounds) <= maxProposalAdditionalCosts },
       { label: "customer rate above cleaner pay", complete: Number(config.customerHourlyRate) > Number(config.cleanerHourlyPay) && Number(config.cleanerHourlyPay) > 0 },
       { label: "reviewed labour on-cost, payment, travel, supplies and risk assumptions", complete: costAssumptionsConfirmed(config) },
       { label: "conservative travel distance for distance-based pricing", complete: Number(config.travelCostPerKm) === 0 || (Number(config.pricingTravelDistanceKm) > 0 && Number(config.pricingTravelDistanceKm) <= 500) },
-      { label: "configured minimum job meets the contribution-margin floor", complete: configuredBaseEconomicsViable },
+      { label: "configured minimum job meets both contribution floors", complete: configuredBaseEconomicsViable },
       { label: "viable margin and percentage-cost stack", complete: Number(config.minimumContributionMarginPercent) + Number(config.paymentFeePercent) + Number(config.riskContingencyPercent) < 100 }
     ],
     insurance: [
@@ -1988,6 +2004,7 @@ function dispatchActionsForRecord({ kind, status, createdAt, preferredDate = "",
     else if (!outcome && booking.proposedDate < today && !booking.jobProgress?.cleanerCompletedAt) add("visit-progress-overdue", "high", "booking", "Visit progress is overdue", "The scheduled date has passed without a cleaner completion event. Review the booking and any incident before recording an outcome.");
     else if (outcome && !outcome.profitable) add("loss-review", "high", "profit", "Adjusted job outcome is loss-making", "Review the recorded refund, re-clean and later-cost evidence before using this job to change pricing or repeat the offer.");
     else if (outcome && !outcome.metTargetMargin) add("margin-review", "high", "profit", "Adjusted job outcome is below the margin floor", "Review the append-only adjustment history and revise future pricing or cost assumptions before repeating this job shape.");
+    else if (outcome && !outcome.metTargetContribution) add("contribution-review", "high", "profit", "Adjusted job outcome is below the per-booking contribution floor", "Review the append-only adjustment history and revise future pricing, scope or cost assumptions before repeating this job shape.");
     return actions;
   }
 
@@ -2153,7 +2170,7 @@ function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, pr
   const bookedRequestIds = new Set(bookings.map((booking) => booking.requestId));
   const completedOutcomes = outcomes.map((outcome) => ({ outcome, requestId: bookingRequestIds.get(outcome.bookingId) })).filter((entry) => entry.requestId);
   const completedRequestIds = new Set(completedOutcomes.map((entry) => entry.requestId));
-  const profitablePaidOutcomes = completedOutcomes.filter(({ outcome }) => outcome.settlementEvidence?.confirmedExternally === true && outcome.settlementEvidence.customerReceiptReference && outcome.settlementEvidence.cleanerPayoutReference && moneyValue(outcome.settlementEvidence.customerCollected) === moneyValue(outcome.original?.customerCollected ?? outcome.customerCollected) && moneyValue(outcome.settlementEvidence.cleanerPaid) === moneyValue(outcome.original?.cleanerPaid ?? outcome.cleanerPaid) && Number(outcome.customerCollected) > 0 && outcome.profitable === true && outcome.metTargetMargin === true && Number(outcome.contribution) > 0);
+  const profitablePaidOutcomes = completedOutcomes.filter(({ outcome }) => outcome.settlementEvidence?.confirmedExternally === true && outcome.settlementEvidence.customerReceiptReference && outcome.settlementEvidence.cleanerPayoutReference && moneyValue(outcome.settlementEvidence.customerCollected) === moneyValue(outcome.original?.customerCollected ?? outcome.customerCollected) && moneyValue(outcome.settlementEvidence.cleanerPaid) === moneyValue(outcome.original?.cleanerPaid ?? outcome.cleanerPaid) && Number(outcome.customerCollected) > 0 && outcome.profitable === true && outcome.metTargetMargin === true && outcome.metTargetContribution === true && Number(outcome.contribution) > 0);
   const profitableRequestIds = new Set(profitablePaidOutcomes.map((entry) => entry.requestId));
   const dispatchReadyCleanerIds = new Set(cleaners.filter((cleaner) => {
     const status = latestStatuses.get(cleaner.id) || cleaner.status || "new";
@@ -2173,11 +2190,11 @@ function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, pr
     { key: "accepted", label: "Both sides accepted", count: twoSidedAcceptedRequestIds.size, detail: "Current proposal accepted by customer and cleaner" },
     { key: "bookings", label: "Bookings confirmed", count: bookedRequestIds.size, detail: "Protected final visit pack recorded" },
     { key: "completed", label: "Outcomes recorded", count: completedRequestIds.size, detail: "Job timeline and actual costs complete" },
-    { key: "profitable", label: "Profitable target met", count: profitableRequestIds.size, detail: "Positive receipt and founder margin floor recorded" }
+    { key: "profitable", label: "Profitable target met", count: profitableRequestIds.size, detail: "Verified receipt plus founder percentage and per-booking contribution floors" }
   ];
   let operationalBottleneck = { key: "profitable-outcome", title: "First profitable booking outcome recorded", detail: "Protect fulfilment quality and repeat the same audited process before expanding." };
   if (!profitableRequestIds.size) {
-    if (completedRequestIds.size) operationalBottleneck = { key: "actual-economics", title: "Resolve the completed job economics", detail: "A completed outcome has not yet recorded both positive contribution and the founder-approved margin floor." };
+    if (completedRequestIds.size) operationalBottleneck = { key: "actual-economics", title: "Resolve the completed job economics", detail: "A completed outcome has not yet met both founder-approved contribution floors with verified settlement evidence." };
     else if (bookedRequestIds.size) operationalBottleneck = { key: "job-completion", title: "Complete the confirmed visit safely", detail: "Record safe arrival, cleaner completion and customer acknowledgement before actual economics." };
     else if (twoSidedAcceptedRequestIds.size) operationalBottleneck = { key: "booking-confirmation", title: "Complete the final booking checks", detail: "Confirm address, access, emergency instructions and external payment authorisation before recording the booking pack." };
     else if (liveOfferRequestIds.size) operationalBottleneck = { key: "two-sided-acceptance", title: "Obtain a current two-sided acceptance", detail: "The named customer and proposed cleaner must decide independently through their private links before the deadlines." };
@@ -2583,6 +2600,10 @@ async function updateAdminProposalStatus(request, response) {
     const proposalMargin = Number.isFinite(proposal.marginPercent) ? `${proposal.marginPercent.toFixed(1)}%` : "unrecorded";
     return json(response, 422, { ok: false, error: `This proposal's ${proposalMargin} contribution margin is below the ${config.minimumContributionMarginPercent.toFixed(1)}% minimum.` });
   }
+  if (["ready", "sent", "accepted"].includes(status) && (!Number.isFinite(proposal.contribution) || Number(config.minimumContributionPounds) <= 0 || proposal.contribution < Number(config.minimumContributionPounds))) {
+    const proposalContribution = Number.isFinite(proposal.contribution) ? `£${proposal.contribution.toFixed(2)}` : "unrecorded";
+    return json(response, 422, { ok: false, error: `This proposal's ${proposalContribution} contribution is below the £${Number(config.minimumContributionPounds || 0).toFixed(2)} per-booking minimum.` });
+  }
   if (["ready", "sent"].includes(status) && !proposalCostModelCurrent(proposal, config)) {
     return json(response, 422, { ok: false, error: "The founder cost assumptions changed after this proposal was calculated. Prepare a new proposal with the current payment, travel, supplies and risk costs." });
   }
@@ -2724,6 +2745,7 @@ async function getQuoteContext(token) {
     scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
+    contributionFloorMet: Number(config.minimumContributionPounds) > 0 && proposal.contribution >= Number(config.minimumContributionPounds),
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
     scheduleConflictFree: !findCleanerScheduleConflict(proposal, proposals, proposalUpdates, cleanerDecisions, bookings)
   };
@@ -2937,6 +2959,7 @@ async function getCleanerOpportunityContext(token) {
     scanHoursCovered: Boolean(latestBrief && Number.isFinite(latestBrief.scopeEstimateHours) && proposal.estimatedHours >= latestBrief.scopeEstimateHours),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
+    contributionFloorMet: Number(config.minimumContributionPounds) > 0 && proposal.contribution >= Number(config.minimumContributionPounds),
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
     scheduleConflictFree: !findCleanerScheduleConflict(proposal, proposals, proposalUpdates, decisions, bookings)
   };
@@ -3407,6 +3430,7 @@ async function buildBookingAudit(proposalId) {
     costModelCurrent: proposalCostModelCurrent(proposal, config),
     profitable: proposal.contribution > 0,
     marginFloorMet: config.minimumContributionMarginPercent > 0 && proposal.marginPercent >= config.minimumContributionMarginPercent,
+    contributionFloorMet: Number(config.minimumContributionPounds) > 0 && proposal.contribution >= Number(config.minimumContributionPounds),
     minimumHoursMet: config.minimumHours > 0 && proposal.estimatedHours >= config.minimumHours,
     briefReviewed: Boolean(latestBrief && latestBrief.status === "reviewed"),
     reviewEvidenceConfirmed: latestBrief?.reviewEvidenceConfirmed === true,
@@ -3515,6 +3539,8 @@ async function createAdminBooking(request, response) {
     plannedRiskContingency: audit.proposal.riskContingency,
     plannedAdditionalCosts: audit.proposal.otherCosts,
     plannedNonCleanerCosts: audit.proposal.nonCleanerCosts,
+    targetMarginPercent: Number(audit.config.minimumContributionMarginPercent) || 0,
+    targetContribution: Number(audit.config.minimumContributionPounds) || 0,
     costAssumptions: audit.proposal.costAssumptions,
     roomScanBriefId: audit.latestBrief.id,
     publicSiteUrl: audit.publicSiteUrl,
@@ -4318,6 +4344,8 @@ async function createAdminJobOutcome(request, response) {
   if ([totalDirectCosts, contribution, marginPercent].some((value) => !Number.isFinite(value))) {
     return json(response, 422, { ok: false, error: "The completed-job economics could not be represented safely. Use smaller finite financial inputs." });
   }
+  const targetMarginPercent = Number.isFinite(Number(booking.targetMarginPercent)) ? Number(booking.targetMarginPercent) : Number(config.minimumContributionMarginPercent) || 0;
+  const targetContribution = Number.isFinite(Number(booking.targetContribution)) ? Number(booking.targetContribution) : Number(config.minimumContributionPounds) || 0;
   const outcome = {
     id: `JOB-${randomUUID().slice(0, 8).toUpperCase()}`,
     bookingId,
@@ -4336,8 +4364,10 @@ async function createAdminJobOutcome(request, response) {
     contribution,
     marginPercent,
     profitable: contribution > 0,
-    targetMarginPercent: config.minimumContributionMarginPercent || 0,
-    metTargetMargin: config.minimumContributionMarginPercent > 0 && marginPercent >= config.minimumContributionMarginPercent,
+    targetMarginPercent,
+    targetContribution,
+    metTargetMargin: targetMarginPercent > 0 && marginPercent >= targetMarginPercent,
+    metTargetContribution: targetContribution > 0 && contribution >= targetContribution,
     settlementEvidence: {
       providerName: settlementProviderName,
       customerReceiptReference,
@@ -4495,6 +4525,9 @@ async function createAdminProposal(request, response) {
   if (contribution <= 0) return json(response, 422, { ok: false, error: "This proposal loses money before overheads. Change the price, pay or scope." });
   if (config.minimumContributionMarginPercent > 0 && marginPercent < config.minimumContributionMarginPercent) {
     return json(response, 422, { ok: false, error: `This proposal's ${marginPercent.toFixed(1)}% contribution margin is below the ${config.minimumContributionMarginPercent.toFixed(1)}% minimum.` });
+  }
+  if (Number(config.minimumContributionPounds) <= 0 || contribution < Number(config.minimumContributionPounds)) {
+    return json(response, 422, { ok: false, error: `This proposal's £${contribution.toFixed(2)} contribution is below the founder-set £${Number(config.minimumContributionPounds || 0).toFixed(2)} per-booking minimum.` });
   }
   const previousProposals = proposals.filter((record) => record.requestId === requestId).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   const previousProposal = previousProposals[0] || null;
@@ -4753,6 +4786,7 @@ function evaluateAdminConfigInput(input) {
     labourOnCostPercent: Math.max(0, Number(input.labourOnCostPercent) || 0),
     minimumHours: Math.max(0, Number(input.minimumHours) || 0),
     minimumContributionMarginPercent: Math.max(0, Number(input.minimumContributionMarginPercent) || 0),
+    minimumContributionPounds: Math.max(0, Number(input.minimumContributionPounds) || 0),
     paymentFeePercent: Math.max(0, Number(input.paymentFeePercent) || 0),
     paymentFeeFixed: Math.max(0, Number(input.paymentFeeFixed) || 0),
     travelCostPerJob: Math.max(0, Number(input.travelCostPerJob) || 0),
@@ -4771,7 +4805,7 @@ function evaluateAdminConfigInput(input) {
     updatedAt: new Date().toISOString()
   };
   const errors = [];
-  const numericConfigValues = [config.customerHourlyRate, config.cleanerHourlyPay, config.labourOnCostPercent, config.minimumHours, config.minimumContributionMarginPercent, config.paymentFeePercent, config.paymentFeeFixed, config.travelCostPerJob, config.travelCostPerKm, config.travelDistanceMultiplier, config.pricingTravelDistanceKm, config.suppliesCostPerJob, config.riskContingencyPercent, config.customerQuoteValidityHours, config.cleanerOpportunityValidityHours, config.inactiveMediaRetentionDays, config.completedMediaRetentionDays];
+  const numericConfigValues = [config.customerHourlyRate, config.cleanerHourlyPay, config.labourOnCostPercent, config.minimumHours, config.minimumContributionMarginPercent, config.minimumContributionPounds, config.paymentFeePercent, config.paymentFeeFixed, config.travelCostPerJob, config.travelCostPerKm, config.travelDistanceMultiplier, config.pricingTravelDistanceKm, config.suppliesCostPerJob, config.riskContingencyPercent, config.customerQuoteValidityHours, config.cleanerOpportunityValidityHours, config.inactiveMediaRetentionDays, config.completedMediaRetentionDays];
   if (numericConfigValues.some((value) => !Number.isFinite(value))) errors.push("Pricing, cost, response-window and retention values must be finite numbers.");
   if (config.supportEmail && !isEmail(config.supportEmail)) errors.push("Enter a valid support email.");
   if (config.supportPhone && !isPhone(config.supportPhone)) errors.push("Enter a valid support phone number.");
@@ -4788,6 +4822,7 @@ function evaluateAdminConfigInput(input) {
   if (config.minimumHours > maxProposalHours) errors.push(`Minimum hours must not exceed the ${maxProposalHours}-hour proposal limit.`);
   if (config.customerHourlyRate > 0 && config.cleanerHourlyPay > 0 && config.customerHourlyRate <= config.cleanerHourlyPay) errors.push("Customer rate must be higher than cleaner pay before other costs.");
   if (config.minimumContributionMarginPercent >= 100) errors.push("Minimum contribution margin must be below 100%.");
+  if (config.minimumContributionPounds > maxProposalAdditionalCosts) errors.push(`Minimum contribution per booking must be between £0 and £${maxProposalAdditionalCosts.toLocaleString("en-GB")}.`);
   if (config.paymentFeePercent > 20) errors.push("Payment fee percentage must be between 0% and 20%.");
   if (config.paymentFeeFixed > 20) errors.push("Fixed payment fee must be between £0 and £20.");
   if (config.travelCostPerJob > 200 || config.suppliesCostPerJob > 200) errors.push("Travel and supplies assumptions must each be between £0 and £200 per job.");

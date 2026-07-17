@@ -53,6 +53,11 @@ const distanceSafe = economics.minimumSafeCustomerRate({ hours: 2, cleanerRate: 
 const zeroDistanceSafe = economics.minimumSafeCustomerRate({ hours: 2, cleanerRate: 16, travelDistanceKm: 0, targetMarginPercent: 20, assumptions: distanceAssumptions });
 assert(distanceSafe.available && zeroDistanceSafe.available && distanceSafe.customerRate > zeroDistanceSafe.customerRate, "The target-safe customer rate must rise when verified Cleaner travel rises.");
 
+const contributionSafe = economics.minimumSafeCustomerRate({ hours: 2, cleanerRate: 16, travelDistanceKm: 10, targetMarginPercent: 20, targetContribution: 25, assumptions: distanceAssumptions });
+assert(contributionSafe.available && contributionSafe.economics.contribution >= 25 && contributionSafe.economics.marginPercent >= 20, "The target-safe rate must meet both the percentage and absolute contribution floors.");
+const contributionPreceding = economics.calculateProposalEconomics({ hours: 2, customerRate: contributionSafe.customerRate - 0.01, cleanerRate: 16, travelDistanceKm: 10, assumptions: distanceAssumptions });
+assert(contributionPreceding.contribution < 25 || contributionPreceding.marginPercent < 20, "The joint-floor solver must return the smallest passing penny rate.");
+
 const impossible = economics.minimumSafeCustomerRate({
   hours: 2,
   cleanerRate: 15,

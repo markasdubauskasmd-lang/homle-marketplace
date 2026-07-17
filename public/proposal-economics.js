@@ -61,23 +61,27 @@
     };
   }
 
-  function minimumSafeCustomerRate({ hours, cleanerRate, additionalCosts = 0, travelDistanceKm = 0, targetMarginPercent, assumptions = {} } = {}) {
+  function minimumSafeCustomerRate({ hours, cleanerRate, additionalCosts = 0, travelDistanceKm = 0, targetMarginPercent, targetContribution = 0, assumptions = {} } = {}) {
     const safeHours = finiteNumber(hours);
     const safeCleanerRate = finiteNumber(cleanerRate);
     const safeAdditionalCosts = finiteNumber(additionalCosts);
     const safeTravelDistanceKm = finiteNumber(travelDistanceKm);
     const safeTargetMargin = finiteNumber(targetMarginPercent);
+    const safeTargetContribution = finiteNumber(targetContribution);
     const costAssumptions = normaliseAssumptions(assumptions);
     const percentageCosts = (costAssumptions.paymentFeePercent + costAssumptions.riskContingencyPercent) / 100;
     const targetFactor = 1 - percentageCosts - safeTargetMargin / 100;
+    const contributionFactor = 1 - percentageCosts;
     const inputsValid = safeHours > 0
       && safeCleanerRate > 0
       && safeAdditionalCosts >= 0
       && safeTravelDistanceKm >= 0
+      && safeTargetContribution >= 0
       && safeTargetMargin > 0
       && safeTargetMargin < 100
-      && targetFactor > 0;
-    if (!inputsValid) return { available: false, reason: "invalid-inputs", targetFactor };
+      && targetFactor > 0
+      && contributionFactor > 0;
+    if (!inputsValid) return { available: false, reason: "invalid-inputs", targetFactor, contributionFactor };
 
     const zeroRevenue = calculateProposalEconomics({
       hours: safeHours,
@@ -93,7 +97,9 @@
       + zeroRevenue.travelCosts
       + zeroRevenue.suppliesCosts
       + zeroRevenue.otherCosts;
-    let candidatePence = Math.max(1, Math.ceil((((fixedCosts / targetFactor) / safeHours) * 100) - 1e-9));
+    const marginRatePence = Math.ceil((((fixedCosts / targetFactor) / safeHours) * 100) - 1e-9);
+    const contributionRatePence = Math.ceil(((((fixedCosts + safeTargetContribution) / contributionFactor) / safeHours) * 100) - 1e-9);
+    let candidatePence = Math.max(1, marginRatePence, contributionRatePence);
 
     // The algebraic candidate is close, but every real component is rounded to pennies.
     // Verify the exact result and move up by pennies until the enforced margin truly passes.
@@ -107,11 +113,11 @@
         travelDistanceKm: safeTravelDistanceKm,
         assumptions: costAssumptions
       });
-      if (economics.contribution > 0 && economics.marginPercent + 1e-9 >= safeTargetMargin) {
-        return { available: true, customerRate, customerTotal: economics.customerTotal, economics, targetFactor };
+      if (economics.contribution > 0 && economics.contribution + 1e-9 >= safeTargetContribution && economics.marginPercent + 1e-9 >= safeTargetMargin) {
+        return { available: true, customerRate, customerTotal: economics.customerTotal, economics, targetFactor, contributionFactor, targetContribution: safeTargetContribution };
       }
     }
-    return { available: false, reason: "safe-rate-not-found", targetFactor };
+    return { available: false, reason: "safe-rate-not-found", targetFactor, contributionFactor };
   }
 
   globalObject.TidewayProposalEconomics = Object.freeze({
