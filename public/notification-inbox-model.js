@@ -5,6 +5,8 @@ const copy = Object.freeze({
   "cleaner-invitation-expired": ["Invitation expired", "The Cleaner invitation expired without a response.", "View request"],
   "payment-window-opened": ["Payment is now open", "You can now authorize the exact total for your confirmed clean.", "Authorize booking total"],
   "payment-action-required": ["Payment step needed", "Confirm payment authorisation before the clean so the Cleaner can start on time.", "Complete payment step"],
+  "booking-reminder": ["Your clean is coming up", "The confirmed clean starts within 24 hours.", "Review booking"],
+  "cleaner-start-journey": ["Your clean starts soon", "Payment is ready. Open the job when you are ready to set off.", "Open active job"],
   "cleaner-started-travelling": ["Cleaner is on the way", "Live journey updates are now available for this booking.", "Track arrival"],
   "cleaner-nearby": ["Cleaner is nearby", "The Cleaner is close to the property.", "Track arrival"],
   "cleaner-arrived": ["Cleaner arrived", "The Cleaner recorded their arrival at the property.", "Open live job"],

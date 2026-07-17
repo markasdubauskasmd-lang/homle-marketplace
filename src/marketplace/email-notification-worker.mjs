@@ -9,6 +9,8 @@ const eventCopy = Object.freeze({
   "cleaner-invitation-expired": ["Cleaning invitation expired", "The Cleaner invitation expired without a response."],
   "payment-window-opened": ["Payment is now open for your clean", "You can now confirm payment authorization for the exact booking total in Homle."],
   "payment-action-required": ["Payment step needed before your clean", "Confirm payment authorisation in Homle before the clean so the Cleaner can start on time. You will review the exact total before continuing."],
+  "booking-reminder": ["Your confirmed clean is coming up", "The confirmed clean starts within 24 hours. Review the private booking in Homle."],
+  "cleaner-start-journey": ["Your confirmed clean starts soon", "The booking is payment-ready. Open Homle when you are ready to set off and share only your current journey location."],
   "cleaner-started-travelling": ["Cleaner started travelling", "The Cleaner started their journey for the confirmed booking."],
   "cleaner-nearby": ["Cleaner is nearby", "The Cleaner is near the property for the confirmed booking."],
   "cleaner-arrived": ["Cleaner arrived", "The Cleaner recorded their arrival for the confirmed booking."],

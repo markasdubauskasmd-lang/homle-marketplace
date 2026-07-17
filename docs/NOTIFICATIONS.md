@@ -24,7 +24,7 @@ Inbox payloads are allowlisted twice, in PostgreSQL and in the service. Only boo
 
 Migration `017_notification_inbox_and_outbox.sql` creates an email outbox row automatically after supported in-app lifecycle events. The derived row uses a channel-prefixed unique key, so transaction retries cannot create duplicate email work.
 
-Supported events cover invitation, response, confirmation, journey start/nearby/arrival, cleaning start/pause/resume/progress, issues and photos, unexpected-task decisions, completion/review, booking messages and the opened/reviewing/resolved private booking-case lifecycle. Email rows contain only the minimal allowlisted payload and never copy a case description, resolution note, message body, address, access instructions, contact details, payment detail, photo data or coordinates. The worker's executable copy map is regression-checked against the latest database email allowlist so a newly queued event cannot silently become a permanent delivery failure.
+Supported events cover invitation, response, confirmation, payment timing, a payment-ready confirmed-visit reminder, the Cleaner's payment-ready journey prompt, journey start/nearby/arrival, cleaning start/pause/resume/progress, issues and photos, unexpected-task decisions, completion/review, booking messages and the opened/reviewing/resolved private booking-case lifecycle. Migration 044 queues the visit reminder once per participant and exact schedule only inside 24 hours, then a separate Cleaner-only prompt inside two hours; both require the exact authorization to remain valid at the scheduled start. Email rows contain only the minimal allowlisted payload and never copy a case description, resolution note, message body, address, access instructions, contact details, payment detail, photo data or coordinates. The worker's executable copy map is regression-checked against the latest database email allowlist so a newly queued event cannot silently become a permanent delivery failure.
 
 A separately credentialed `tideway_worker` claims due rows with `FOR UPDATE SKIP LOCKED`, a UUID lease and a bounded batch. Delivery attempts:
 
@@ -39,7 +39,7 @@ A separately credentialed `tideway_worker` claims due rows with `FOR UPDATE SKIP
 
 ## Deployment boundary
 
-1. Apply every locked migration through the current migration lock using the migration owner. Migration 017 creates the outbox and migration 033 extends it for private booking-case events.
+1. Apply every locked migration through the current migration lock using the migration owner. Migration 017 creates the outbox, migration 033 extends it for private booking-case events and migration 044 adds the payment-ready visit schedule.
 2. Reapply `db/runtime-role-grants.sql` and `db/worker-role-grants.sql` after the functions exist.
 3. Give the web process only the `tideway_app` database identity.
 4. Give the separate [worker process](WORKER_OPERATIONS.md) a pool authenticated only as `tideway_worker`; it receives execute rights on claim/complete functions and no direct table rights.

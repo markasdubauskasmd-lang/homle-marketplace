@@ -40,6 +40,10 @@ export function createMaintenanceRepository(pool) {
       const selected = boundedLimit(limit, 500, "Payment-readiness reminder batch limit");
       return rowsResult(await pool.query("SELECT * FROM tideway_private.queue_due_booking_payment_reminders($1::integer)", [selected]), selected);
     },
+    async queueBookingVisitReminders(limit) {
+      const selected = boundedLimit(limit, 500, "Booking-visit reminder batch limit");
+      return rowsResult(await pool.query("SELECT * FROM tideway_private.queue_due_booking_visit_reminders($1::integer)", [selected]), selected);
+    },
     async purgeLocations(limit) {
       const selected = boundedLimit(limit, 1000, "Location purge batch limit");
       return rowsResult(await pool.query("SELECT * FROM tideway_private.purge_expired_cleaner_locations($1::integer)", [selected]), selected);

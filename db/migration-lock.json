@@ -44,10 +44,11 @@
     { "order": 40, "file": "040_payment_reconciliation_ordering.sql", "sha256": "cc0ae9d455945ca054b3230ef0f09b11dacdaa56a4c2b7ef569b597990e0e7ad" },
     { "order": 41, "file": "041_due_payment_readiness_notifications.sql", "sha256": "889c3c2630a9dd69aaf8ffe959b13919988c8615ec8d79f55056a9cb00235083" },
     { "order": 42, "file": "042_booking_payment_window_summary.sql", "sha256": "5c747b6ffff502cb773197039dce2f7eedbf802b30c1645d8cdaa0ce5fc2a238" },
-    { "order": 43, "file": "043_two_stage_payment_reminders.sql", "sha256": "40f3a1f6a9f46db75ed33f51a9eea6674f216a88c66415f695cbaa5e7a9e3f68" }
+    { "order": 43, "file": "043_two_stage_payment_reminders.sql", "sha256": "40f3a1f6a9f46db75ed33f51a9eea6674f216a88c66415f695cbaa5e7a9e3f68" },
+    { "order": 44, "file": "044_confirmed_visit_reminders.sql", "sha256": "fd0d290bfa117b1ae88b4c649a0be07212e8767f6294990c98dcafbbecd3d583" }
   ],
   "grantFiles": [
     { "file": "runtime-role-grants.sql", "sha256": "f3cfb7be17953e74bd8c86b19e412bc65da0700fce16ab5e988852146a1e4060" },
-    { "file": "worker-role-grants.sql", "sha256": "89dd7822a4c16a34871c626de8b67a1c996a7b604571c78a91dc5a7ac593cb80" }
+    { "file": "worker-role-grants.sql", "sha256": "61e35fff770941bf21eb1efc017d78b53d122945ae3a92b1b2b073479351eebc" }
   ]
 }

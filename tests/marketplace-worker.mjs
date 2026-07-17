@@ -6,7 +6,7 @@ import { createMarketplaceWorkerRuntime } from "../src/marketplace/worker-runtim
 import { createWorkerSupervisor } from "../src/marketplace/worker-supervisor.mjs";
 import { runPostgresWorkerVerification, validateWorkerVerificationTarget, workerVerificationConfirmation } from "../tools/postgres-worker-verification-runner.mjs";
 
-const workerRelease = Object.freeze({ source: "packaged", sourceCommit: "607f0113", builtAt: new Date(Date.now() - 60_000).toISOString(), migrationCount: 43 });
+const workerRelease = Object.freeze({ source: "packaged", sourceCommit: "607f0113", builtAt: new Date(Date.now() - 60_000).toISOString(), migrationCount: 44 });
 const workerEnvironment = Object.freeze({ MARKETPLACE_WORKER_ENABLED: "true", TIDEWAY_EXPECT_RELEASE: "607f0113", WORKER_DATABASE_URL: "postgresql://tideway_worker@127.0.0.1/test" });
 
 let now = Date.parse("2026-07-16T09:00:00.000Z");
@@ -57,6 +57,7 @@ const repository = createMaintenanceRepository({ async query(text, values) {
   queries.push({ text, values });
   if (text.includes("expire_due_cleaner_invitations")) return { rows: [{ id: "a" }, { id: "b" }] };
   if (text.includes("queue_due_booking_payment_reminders")) return { rows: [{ booking_id: "booking" }] };
+  if (text.includes("queue_due_booking_visit_reminders")) return { rows: [{ notification_id: "notification" }] };
   if (text.includes("purge_expired_cleaner_locations")) return { rows: [] };
   if (text.includes("purge_expired_sessions")) return { rows: [{ deleted_count: 1, batch_full: false }] };
   if (text.includes("purge_expired_rate_limits")) return { rows: [{ processed_count: 3 }] };
@@ -65,6 +66,7 @@ const repository = createMaintenanceRepository({ async query(text, values) {
 } });
 assert.deepEqual(await repository.expireInvitations(100), { processedCount: 2, batchFull: false });
 assert.deepEqual(await repository.queuePaymentReadinessReminders(100), { processedCount: 1, batchFull: false });
+assert.deepEqual(await repository.queueBookingVisitReminders(100), { processedCount: 1, batchFull: false });
 assert.deepEqual(await repository.purgeLocations(500), { processedCount: 0, batchFull: false });
 assert.deepEqual(await repository.purgeSessions(500), { processedCount: 1, batchFull: false });
 assert.deepEqual(await repository.purgeRateLimits(1000), { processedCount: 3, batchFull: false });
@@ -76,6 +78,7 @@ const deletedObjects = [];
 const maintenanceJobs = createMarketplaceMaintenanceJobs({
   async expireInvitations() { return drainBatches.shift(); },
   async queuePaymentReadinessReminders() { return { processedCount: 0, batchFull: false }; },
+  async queueBookingVisitReminders() { return { processedCount: 0, batchFull: false }; },
   async purgeLocations() { return { processedCount: 0, batchFull: false }; },
   async purgeSessions() { return { processedCount: 0, batchFull: false }; },
   async purgeRateLimits() { return { processedCount: 0, batchFull: false }; },
@@ -83,14 +86,14 @@ const maintenanceJobs = createMarketplaceMaintenanceJobs({
   async expireJobPhotoUploads() { return { processedCount: 1, batchFull: false, uploads: [{ quarantineStorageKey: "q/job", finalStorageKey: "f/job" }] }; },
   async expireRequestPhotoUploads() { return { processedCount: 0, batchFull: false, uploads: [] }; }
 }, { objectStorage: { async deleteObject(key) { deletedObjects.push(key); } } });
-assert.equal(maintenanceJobs.length, 8);
+assert.equal(maintenanceJobs.length, 9);
 assert.deepEqual(await maintenanceJobs.find((job) => job.name === "invitation-expiry").runOnce(), { batches: 2, processed: 100, moreMayRemain: false });
 assert.deepEqual(await maintenanceJobs.find((job) => job.name === "job-photo-upload-expiry").runOnce(), { batches: 1, processed: 1, objectsDeleted: 2, moreMayRemain: false });
 assert.deepEqual(deletedObjects, ["q/job", "f/job"]);
 
-const zeroRepository = Object.fromEntries(["expireInvitations", "queuePaymentReadinessReminders", "purgeLocations", "purgeSessions", "purgeRateLimits", "purgePendingSocialIdentities"].map((name) => [name, async () => ({ processedCount: 0, batchFull: false })]));
+const zeroRepository = Object.fromEntries(["expireInvitations", "queuePaymentReadinessReminders", "queueBookingVisitReminders", "purgeLocations", "purgeSessions", "purgeRateLimits", "purgePendingSocialIdentities"].map((name) => [name, async () => ({ processedCount: 0, batchFull: false })]));
 const runtime = createMarketplaceWorkerRuntime({ query() {} }, { createMaintenanceRepository: () => zeroRepository, onUnexpectedError() {} });
-assert.deepEqual(runtime.snapshot().jobs.map((job) => job.name), ["invitation-expiry", "location-expiry", "payment-readiness-reminders", "session-expiry", "rate-limit-retention", "social-identity-retention"]);
+assert.deepEqual(runtime.snapshot().jobs.map((job) => job.name), ["invitation-expiry", "location-expiry", "payment-readiness-reminders", "booking-visit-reminders", "session-expiry", "rate-limit-retention", "social-identity-retention"]);
 await runtime.close();
 
 let poolClosed = 0;
@@ -109,8 +112,8 @@ const attached = await createMarketplaceWorkerAttachment({
   createRuntime: () => fakeSupervisor
 });
 assert.deepEqual(attached.capabilities, { email: false, media: false, dispatch: false });
-assert.deepEqual(attached.release, { sourceCommit: "607f0113", builtAt: workerRelease.builtAt, migrationCount: 43 });
-assert.deepEqual(attached.snapshot().release, { sourceCommit: "607f0113", migrationCount: 43 });
+assert.deepEqual(attached.release, { sourceCommit: "607f0113", builtAt: workerRelease.builtAt, migrationCount: 44 });
+assert.deepEqual(attached.snapshot().release, { sourceCommit: "607f0113", migrationCount: 44 });
 await attached.close();
 await attached.close();
 assert.equal(poolClosed, 1, "Worker attachment did not close its pool exactly once.");
@@ -137,10 +140,10 @@ const verification = await runPostgresWorkerVerification({
   connectionUrl: "postgresql://tideway_worker@127.0.0.1/acme_tideway_test?sslmode=disable",
   confirmation: workerVerificationConfirmation,
   createPool: async () => ({ async end() { verificationPoolClosed += 1; } }),
-  probeDatabase: async () => ({ postgresqlVersionNumber: 160014, functionCount: 14 }),
+  probeDatabase: async () => ({ postgresqlVersionNumber: 160014, functionCount: 15 }),
   createRuntime: () => ({ async runNow() { return { ran: true, ok: true }; }, async close() {} })
 });
-assert.deepEqual(verification, { database: "acme_tideway_test", postgresqlVersionNumber: 160014, functionCount: 14, jobs: 6, verified: true });
+assert.deepEqual(verification, { database: "acme_tideway_test", postgresqlVersionNumber: 160014, functionCount: 15, jobs: 7, verified: true });
 assert.equal(verificationPoolClosed, 1);
 
 console.log("Marketplace worker tests passed: exact packaged release, restricted maintenance, non-overlap, monitored recovery, privacy-safe health, optional capabilities, clean shutdown and disposable PostgreSQL verification guard.");

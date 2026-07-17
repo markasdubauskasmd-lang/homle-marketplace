@@ -8,6 +8,8 @@ assert(notificationPresentation("cleaner-started-travelling").action === "Track 
 assert(notificationPresentation("unexpected-task-approval-requested").description.includes("No price changes automatically"), "Unexpected tasks lost their no-automatic-price promise.");
 assert(notificationPresentation("payment-action-required").action === "Complete payment step", "Payment readiness does not identify the next action.");
 assert(notificationPresentation("payment-window-opened").action === "Authorize booking total", "The calm payment-opening update does not identify the next action.");
+assert(notificationPresentation("booking-reminder").action === "Review booking" && notificationPresentation("booking-reminder").description.includes("within 24 hours"), "The confirmed-visit reminder does not identify its private next step.");
+assert(notificationPresentation("cleaner-start-journey").action === "Open active job" && notificationPresentation("cleaner-start-journey").description.includes("Payment is ready"), "The Cleaner journey prompt does not state its payment-ready next action.");
 assert(notificationPresentation("dispute-opened").action === "Review case" && notificationPresentation("dispute-reviewing").title === "Booking case under review" && notificationPresentation("dispute-resolved").action === "Review outcome", "Private booking-case events do not lead participants to a clear next action.");
 assert(notificationPresentation("not-yet-known").title === "Booking updated", "Unknown events do not fail safely.");
 assert(notificationBookingPath(bookingId) === `/bookings/${bookingId}` && notificationBookingPath("../admin") === null, "Notification booking paths accept an unsafe identifier.");

@@ -29,8 +29,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 43);
-  assert.equal(repositoryResult.migrations.at(-1), "043_two_stage_payment_reminders.sql");
+  assert.equal(repositoryResult.migrations.length, 44);
+  assert.equal(repositoryResult.migrations.at(-1), "044_confirmed_visit_reminders.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const appBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("app_functions constant"), deploymentVerifier.indexOf("worker_functions constant"));
