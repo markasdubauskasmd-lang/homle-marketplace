@@ -13,8 +13,12 @@ const fixtureRoot = path.join(tempBase, `tideway-relocation-test-${randomUUID()}
 const source = path.join(fixtureRoot, "source");
 const destination = path.join(fixtureRoot, "private-destination");
 
+// Windows PowerShell on the founder machine; PowerShell Core (pwsh) elsewhere,
+// including Linux CI, so the relocation guard rails are proven on every push.
+const powershellCommand = process.platform === "win32" ? "powershell.exe" : "pwsh";
+
 function powershell(args) {
-  return spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, ...args], {
+  return spawnSync(powershellCommand, ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, ...args], {
     cwd: projectRoot,
     encoding: "utf8",
     windowsHide: true
