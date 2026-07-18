@@ -1,11 +1,11 @@
 import { checklistFromTranscript } from "./checklist.js";
-import { clearSelectedCleaner, readSelectedCleaner, saveSelectedCleaner } from "./account-intent.js";
+import { clearSelectedCleaner, clearSelectedProperty, readSelectedCleaner, readSelectedProperty, saveSelectedCleaner, saveSelectedProperty } from "./account-intent.js?v=20260718-2";
 import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
 import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
 import { landlordDispatchAction, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260717-6";
-import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-2";
+import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-3";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -85,7 +85,9 @@ const requestScans = new Map();
 const uncertainDispatchRequests = new Set();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
 let selectedCleanerId = "";
+let selectedPropertyId = "";
 try { if (bookingStart) selectedCleanerId = readSelectedCleaner(localStorage); } catch {}
+try { if (bookingStart) selectedPropertyId = readSelectedProperty(sessionStorage); } catch {}
 
 function browserOffline() {
   return navigator.onLine === false;
@@ -238,7 +240,9 @@ function showRequestCompletion(submission, { automaticDispatch = false, selected
 
 function clearCleanerSelection() {
   try { clearSelectedCleaner(localStorage); } catch {}
+  try { clearSelectedProperty(sessionStorage); } catch {}
   selectedCleanerId = "";
+  selectedPropertyId = "";
 }
 
 function selectWorkspaceTab(name) {
@@ -257,7 +261,13 @@ function continueBookingStart() {
     return;
   }
   selectWorkspaceTab("requests");
-  if (properties.length === 1) propertySelect.value = properties[0].propertyId;
+  if (selectedPropertyId && properties.some((property) => property.propertyId === selectedPropertyId)) propertySelect.value = selectedPropertyId;
+  else {
+    try { clearSelectedProperty(sessionStorage); } catch {}
+    selectedPropertyId = "";
+    if (properties.length === 1) propertySelect.value = properties[0].propertyId;
+  }
+  applySuggestedCleaningType();
   requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 }
@@ -1017,9 +1027,23 @@ function renderLandlordHistory(summary) {
     const copy = element("div");
     copy.append(element("strong", "", cleaner.displayName), element("small", "", formatBookingMoment(cleaner.scheduledStartAt)));
     identity.append(element("span", "landlord-previous-avatar", cleaner.displayName.slice(0, 1).toLocaleUpperCase("en-GB")), copy);
+    const actions = element("div", "landlord-previous-actions");
     const link = element("a", "text-button", "View latest clean");
     link.href = `/bookings/${cleaner.bookingId}`;
-    card.append(identity, link);
+    actions.append(link);
+    if (cleaner.cleanerId && cleaner.propertyId) {
+      const repeat = element("button", "button", "Book again");
+      repeat.type = "button";
+      repeat.addEventListener("click", () => {
+        try {
+          saveSelectedCleaner(localStorage, cleaner.cleanerId);
+          saveSelectedProperty(sessionStorage, cleaner.propertyId);
+        } catch {}
+        location.assign("/landlord/dashboard?start=booking");
+      });
+      actions.append(repeat);
+    }
+    card.append(identity, actions);
     return card;
   }));
   list.hidden = summary.previousCleanerVisits.length === 0;

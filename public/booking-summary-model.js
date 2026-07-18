@@ -88,6 +88,8 @@ export function landlordDashboardSummary(bookings) {
   const previousCleanerVisits = completed.map((booking) => ({
     displayName: typeof booking.counterpartyName === "string" ? booking.counterpartyName.trim() : "",
     bookingId: booking.bookingId,
+    cleanerId: booking.cleanerId,
+    propertyId: booking.propertyId,
     scheduledStartAt: booking.scheduledStartAt,
     scheduledAt: Date.parse(booking.scheduledStartAt || "")
   })).filter((visit) => visit.displayName && visit.displayName !== "Assigned Cleaner" && Number.isFinite(visit.scheduledAt))

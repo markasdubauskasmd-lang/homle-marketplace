@@ -11,6 +11,7 @@ const landlord = { userId: "11111111-1111-4111-8111-111111111111", roles: ["land
 const cleaner = { userId: "22222222-2222-4222-8222-222222222222", roles: ["cleaner"] };
 const requestId = "66666666-6666-4666-8666-666666666666";
 const bookingId = "55555555-5555-4555-8555-555555555555";
+const propertyId = "33333333-3333-4333-8333-333333333333";
 const candidate = {
   id: requestId,
   requested_start_at: "2026-07-20T09:00:00.000Z",
@@ -90,6 +91,12 @@ const workflow = createBookingWorkflowService(fakeRepository, { pricingPolicy: p
 const [landlordBookings, cleanerBookings] = await Promise.all([workflow.listParticipantBookings(landlord), workflow.listParticipantBookings(cleaner, { limit: "25" })]);
 assert(landlordBookings[0].pricePence === quote.customerPricePence && landlordBookings[0].pricePerspective === "customer-total" && landlordBookings[0].paymentStepAvailable === true, "The Landlord booking list lost the customer total or payment action.");
 assert(cleanerBookings[0].pricePence === quote.cleanerPayPence && cleanerBookings[0].pricePerspective === "cleaner-pay" && !Object.hasOwn(cleanerBookings[0], "paymentStepAvailable") && !Object.hasOwn(cleanerBookings[0], "paymentAuthorizationReady") && !Object.hasOwn(cleanerBookings[0], "paymentStepOpensAt") && JSON.stringify(cleanerBookings).includes(String(quote.customerPricePence)) === false, "The Cleaner booking list exposed the customer total, Landlord payment state or lost the offered pay.");
+const repeatWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], status: "completed", propertyId, cleanerId: cleaner.userId, paymentStepAvailable: false }]; } }, { pricingPolicy: policy });
+const [repeatBooking] = await repeatWorkflow.listParticipantBookings(landlord);
+assert(repeatBooking.propertyId === propertyId && repeatBooking.cleanerId === cleaner.userId, "A completed Landlord booking lost its owner-authorized repeat-booking identifiers.");
+const cleanerPrivacyWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...cleanerBookings[0], status: "completed", propertyId, cleanerId: cleaner.userId }]; } }, { pricingPolicy: policy });
+const [cleanerPrivacyBooking] = await cleanerPrivacyWorkflow.listParticipantBookings(cleaner);
+assert(!Object.hasOwn(cleanerPrivacyBooking, "propertyId") && !Object.hasOwn(cleanerPrivacyBooking, "cleanerId"), "The Cleaner summary received Landlord-only repeat-booking identifiers.");
 const paymentOpensAt = "2026-07-25T09:00:00.000Z";
 const earlyPaymentWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], paymentStepAvailable: false, paymentAuthorizationReady: false, paymentStepOpensAt: paymentOpensAt }]; } }, { pricingPolicy: policy });
 const [earlyPaymentBooking] = await earlyPaymentWorkflow.listParticipantBookings(landlord);
@@ -120,6 +127,18 @@ await repository.inviteCleaner(landlord, { bookingId, requestId, cleanerId: clea
 await repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null });
 assert(selectedCandidate.distance_km === "4.20" && sqlCalls[0].text.includes("JOIN properties property") && sqlCalls[0].text.includes("cleaner_service_areas") && sqlCalls[0].text.includes("coverage.distance_km") && sqlCalls[0].text.includes("profile.user_id<>request.landlord_user_id") && sqlCalls[0].values[1] === cleaner.userId, "Direct Cleaner invitation pricing did not bind the selected Cleaner to the property distance evidence or exclude a Landlord's own Cleaner profile.");
 assert(sqlCalls[1].text.includes("list_my_booking_summaries") && sqlCalls[1].values[0] === 50 && sqlCalls[2].text.includes("tideway_private.invite_cleaner") && sqlCalls[2].values.length === 13 && sqlCalls[2].values[12] === 1800 && sqlCalls[3].text.includes("respond_to_cleaner_invitation") && sqlCalls[3].actor.userId === cleaner.userId, "Booking repository bypassed participant-safe summaries, actor-bound audited transitions or both parameterized profit targets.");
+const repeatSqlCalls = [];
+const repeatRepository = createBookingRepository({
+  async withUserTransaction(actor, operation) {
+    return operation({ async query(text, values) {
+      repeatSqlCalls.push({ actor, text, values });
+      if (text.includes("list_my_booking_summaries")) return { rows: [{ bookings: [{ bookingId, participantRole: "landlord", status: "completed" }] }] };
+      return { rows: [{ id: bookingId, property_id: propertyId, cleaner_user_id: cleaner.userId }] };
+    } });
+  }
+});
+const [repeatRepositoryBooking] = await repeatRepository.listParticipantBookings(landlord, 50);
+assert(repeatRepositoryBooking.propertyId === propertyId && repeatRepositoryBooking.cleanerId === cleaner.userId && repeatSqlCalls[1].text.includes("landlord_user_id=$1::uuid") && repeatSqlCalls[1].text.includes("status='completed'") && repeatSqlCalls[1].values[0] === landlord.userId, "Repeat-booking identifiers were not loaded through a completed, owner-bound Landlord query.");
 failure = Object.assign(new Error("duplicate overlap"), { code: "23P01" });
 assert(await rejects(() => repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null }), "overlaps"), "Concurrent exclusion violations were not mapped to a safe schedule conflict.");
 for (const [databaseMessage, publicMessage] of [

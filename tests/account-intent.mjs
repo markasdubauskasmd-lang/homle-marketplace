@@ -5,12 +5,16 @@ import {
   accountIntentLifetimeMs,
   clearAccountIntent,
   clearSelectedCleaner,
+  clearSelectedProperty,
   normalizeAccountIntent,
   normalizeSelectedCleaner,
+  normalizeSelectedProperty,
   readAccountIntent,
   readSelectedCleaner,
+  readSelectedProperty,
   saveAccountIntent,
   saveSelectedCleaner,
+  saveSelectedProperty,
   selectedCleanerFromSearch
 } from "../public/account-intent.js";
 
@@ -26,6 +30,7 @@ function memoryStorage() {
 const now = Date.UTC(2026, 6, 16, 15, 0, 0);
 const storage = memoryStorage();
 const cleanerId = "22222222-2222-4222-8222-222222222222";
+const propertyId = "33333333-3333-4333-8333-333333333333";
 
 assert.equal(normalizeAccountIntent("book"), "book");
 assert.equal(normalizeAccountIntent("work"), "work");
@@ -40,6 +45,8 @@ assert.equal(accountEntryPath("work", cleanerId), "/signup?intent=work");
 assert.equal(accountEntryPath("javascript:alert(1)"), "/signup");
 assert.equal(normalizeSelectedCleaner(cleanerId.toUpperCase()), cleanerId);
 assert.equal(normalizeSelectedCleaner("not-a-cleaner"), "");
+assert.equal(normalizeSelectedProperty(propertyId.toUpperCase()), propertyId);
+assert.equal(normalizeSelectedProperty("/properties/private"), "");
 assert.equal(selectedCleanerFromSearch(`?intent=book&cleaner=${cleanerId}`), cleanerId);
 assert.equal(selectedCleanerFromSearch(`?cleaner=${cleanerId}&cleaner=${cleanerId}`), "");
 
@@ -62,10 +69,20 @@ saveSelectedCleaner(storage, cleanerId, now);
 clearSelectedCleaner(storage);
 assert.equal(readSelectedCleaner(storage, now), "");
 
+assert.equal(saveSelectedProperty(storage, propertyId, now), propertyId);
+assert.equal(readSelectedProperty(storage, now + accountIntentLifetimeMs - 1), propertyId);
+assert.equal(readSelectedProperty(storage, now + accountIntentLifetimeMs), "");
+saveSelectedProperty(storage, propertyId, now);
+clearSelectedProperty(storage);
+assert.equal(readSelectedProperty(storage, now), "");
+
 storage.setItem("tidewaySelectedCleanerV1", JSON.stringify({ version: 1, cleanerId: "https://attacker.example", savedAt: now, expiresAt: now + accountIntentLifetimeMs }));
 assert.equal(readSelectedCleaner(storage, now), "");
+
+storage.setItem("tidewaySelectedPropertyV1", JSON.stringify({ version: 1, propertyId: "https://attacker.example", savedAt: now, expiresAt: now + accountIntentLifetimeMs }));
+assert.equal(readSelectedProperty(storage, now), "");
 
 storage.setItem("tideway_account_intent", JSON.stringify({ version: 1, intent: "https://attacker.example", savedAt: now, expiresAt: now + accountIntentLifetimeMs }));
 assert.equal(readAccountIntent(storage, now), "");
 
-console.log("Account intent tests passed: fixed booking action, bounded selected-Cleaner handoff, expiry, cleanup and open-redirect rejection.");
+console.log("Account intent tests passed: fixed booking action, bounded Cleaner/property handoff, expiry, cleanup and open-redirect rejection.");

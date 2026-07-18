@@ -33,7 +33,23 @@ export function createBookingRepository(database) {
       return database.withUserTransaction(actor, async (client) => {
         try {
           const result = await client.query("SELECT tideway_private.list_my_booking_summaries($1::integer) AS bookings", [maximumResults]);
-          return result.rows[0]?.bookings ?? [];
+          const raw = result.rows[0]?.bookings ?? [];
+          const summaries = Array.isArray(raw) ? raw : typeof raw === "string" ? JSON.parse(raw) : raw;
+          if (!Array.isArray(summaries) || !actor.roles.includes("landlord")) return summaries;
+          const completedLandlordBookingIds = summaries
+            .filter((summary) => summary?.participantRole === "landlord" && summary?.status === "completed")
+            .map((summary) => summary.bookingId)
+            .filter(Boolean);
+          if (!completedLandlordBookingIds.length) return summaries;
+          const repeatResult = await client.query(
+            "SELECT id, property_id, cleaner_user_id FROM bookings WHERE landlord_user_id=$1::uuid AND status='completed' AND id=ANY($2::uuid[])",
+            [actor.userId, completedLandlordBookingIds]
+          );
+          const repeatByBooking = new Map(repeatResult.rows.map((row) => [String(row.id), row]));
+          return summaries.map((summary) => {
+            const repeat = repeatByBooking.get(String(summary?.bookingId || ""));
+            return repeat ? { ...summary, propertyId: repeat.property_id, cleanerId: repeat.cleaner_user_id } : summary;
+          });
         } catch (error) { throw mappedDatabaseError(error); }
       });
     },

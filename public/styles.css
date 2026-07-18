@@ -2374,6 +2374,8 @@ textarea { resize: vertical; }
 .landlord-previous-cleaner > div { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .landlord-previous-cleaner > div > div { display: grid; min-width: 0; }
 .landlord-previous-cleaner small { color: var(--muted); }
+.landlord-previous-cleaner > .landlord-previous-actions { display: flex; gap: 10px; align-items: center; justify-content: end; }
+.landlord-previous-actions .button { min-height: 42px; padding: .65rem .9rem; }
 .landlord-previous-avatar { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: #d8eee6; color: var(--green-dark); font-weight: 900; }
 .landlord-favourite-cleaners { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
 .landlord-favourite-heading { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
@@ -2491,6 +2493,8 @@ textarea { resize: vertical; }
   .booking-summary-actions { display: grid; }
   .booking-summary-actions .button, .booking-summary-card > .button { width: 100%; }
   .landlord-history-heading, .landlord-previous-cleaner { align-items: stretch; flex-direction: column; }
+  .landlord-previous-cleaner > .landlord-previous-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .landlord-previous-actions .button, .landlord-previous-actions .text-button { width: 100%; text-align: center; }
   .landlord-history-overview { padding: 16px 12px; }
   .landlord-history-stats { grid-template-columns: 1fr; }
   .landlord-history-stats div { display: grid; grid-template-columns: 1fr auto; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); }

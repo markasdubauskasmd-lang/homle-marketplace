@@ -1,7 +1,8 @@
 const storageKey = "tidewayAccountIntentV1";
 const cleanerStorageKey = "tidewaySelectedCleanerV1";
+const propertyStorageKey = "tidewaySelectedPropertyV1";
 const version = 1;
-const cleanerIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const resourceIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const accountIntentLifetimeMs = 30 * 60 * 1000;
 
@@ -18,7 +19,12 @@ export function accountIntentFromSearch(search = "") {
 
 export function normalizeSelectedCleaner(value) {
   const selected = String(value || "").trim().toLowerCase();
-  return cleanerIdPattern.test(selected) ? selected : "";
+  return resourceIdPattern.test(selected) ? selected : "";
+}
+
+export function normalizeSelectedProperty(value) {
+  const selected = String(value || "").trim().toLowerCase();
+  return resourceIdPattern.test(selected) ? selected : "";
 }
 
 export function selectedCleanerFromSearch(search = "") {
@@ -90,6 +96,39 @@ export function readSelectedCleaner(storage, now = Date.now()) {
 
 export function clearSelectedCleaner(storage) {
   storage?.removeItem?.(cleanerStorageKey);
+}
+
+export function saveSelectedProperty(storage, propertyId, now = Date.now()) {
+  const selected = normalizeSelectedProperty(propertyId);
+  if (!selected || !storage?.setItem) return "";
+  const savedAt = Number.isFinite(now) ? now : Date.now();
+  storage.setItem(propertyStorageKey, JSON.stringify({ version, propertyId: selected, savedAt, expiresAt: savedAt + accountIntentLifetimeMs }));
+  return selected;
+}
+
+export function readSelectedProperty(storage, now = Date.now()) {
+  if (!storage?.getItem) return "";
+  try {
+    const stored = JSON.parse(storage.getItem(propertyStorageKey) || "null");
+    const savedAt = Number(stored?.savedAt);
+    const expiresAt = Number(stored?.expiresAt);
+    const valid = stored?.version === version
+      && normalizeSelectedProperty(stored?.propertyId) === stored.propertyId
+      && Number.isFinite(savedAt)
+      && Number.isFinite(expiresAt)
+      && expiresAt === savedAt + accountIntentLifetimeMs
+      && now >= savedAt - 5 * 60 * 1000
+      && now < expiresAt;
+    if (!valid) throw new Error("invalid");
+    return stored.propertyId;
+  } catch {
+    storage.removeItem?.(propertyStorageKey);
+    return "";
+  }
+}
+
+export function clearSelectedProperty(storage) {
+  storage?.removeItem?.(propertyStorageKey);
 }
 
 export function accountEntryPath(intent, cleanerId = "") {

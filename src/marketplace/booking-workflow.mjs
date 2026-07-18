@@ -112,6 +112,9 @@ function participantBookingProjection(record, actor) {
   const paymentAuthorizationReady = participantRole === "landlord" && status === "confirmed" && (record.paymentAuthorizationReady === true || record.payment_authorization_ready === true);
   const paymentStepAvailable = participantRole === "landlord" && status === "confirmed" && (record.paymentStepAvailable === true || record.payment_step_available === true);
   const paymentStepOpensAt = participantRole === "landlord" && status === "confirmed" ? optionalIso(record.paymentStepOpensAt ?? record.payment_step_opens_at, "payment opening time") : null;
+  const repeatBookingIdentifiers = participantRole === "landlord" && status === "completed" && (record.propertyId ?? record.property_id) && (record.cleanerId ?? record.cleaner_id)
+    ? { propertyId: uuid(record.propertyId ?? record.property_id, "repeat-booking property id"), cleanerId: uuid(record.cleanerId ?? record.cleaner_id, "repeat-booking Cleaner id") }
+    : {};
   if ((paymentAuthorizationReady && paymentStepAvailable) || (paymentStepOpensAt && (paymentAuthorizationReady || paymentStepAvailable))) throw new Error("Booking payment timing is inconsistent.");
   return Object.freeze({
     bookingId,
@@ -129,6 +132,7 @@ function participantBookingProjection(record, actor) {
     counterpartyName: summaryText(record.counterpartyName ?? record.counterparty_name, 160, participantRole === "cleaner" ? "Landlord" : "Assigned Cleaner"),
     canRespond: participantRole === "cleaner" && status === "pending-cleaner-acceptance" && (record.canRespond === true || record.can_respond === true),
     activeJobAvailable: ["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "disputed"].includes(status) && (record.activeJobAvailable === true || record.active_job_available === true),
+    ...repeatBookingIdentifiers,
     ...(participantRole === "landlord" ? { paymentAuthorizationReady, paymentStepAvailable, paymentStepOpensAt } : {}),
     respondedAt: optionalIso(record.respondedAt ?? record.responded_at, "response time"),
     confirmedAt: optionalIso(record.confirmedAt ?? record.confirmed_at, "confirmation time")
