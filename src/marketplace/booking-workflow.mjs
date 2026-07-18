@@ -2,6 +2,20 @@ import { randomUUID } from "node:crypto";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export const bookingPricingEnvironmentRules = Object.freeze([
+  Object.freeze({ property: "targetMarginBasisPoints", key: "BOOKING_TARGET_MARGIN_BPS", minimum: 1, maximum: 9000 }),
+  Object.freeze({ property: "minimumContributionPence", key: "BOOKING_MINIMUM_CONTRIBUTION_PENCE", minimum: 1, maximum: 10_000_000 }),
+  Object.freeze({ property: "labourOnCostBasisPoints", key: "BOOKING_LABOUR_ON_COST_BPS", minimum: 0, maximum: 5000 }),
+  Object.freeze({ property: "paymentFeeBasisPoints", key: "BOOKING_PAYMENT_FEE_BPS", minimum: 0, maximum: 2000 }),
+  Object.freeze({ property: "paymentFeeFixedPence", key: "BOOKING_PAYMENT_FEE_FIXED_PENCE", minimum: 0, maximum: 10_000 }),
+  Object.freeze({ property: "travelCostPence", key: "BOOKING_TRAVEL_COST_PENCE", minimum: 0, maximum: 1_000_000 }),
+  Object.freeze({ property: "travelCostPerKmPence", key: "BOOKING_TRAVEL_COST_PER_KM_PENCE", minimum: 0, maximum: 100_000 }),
+  Object.freeze({ property: "travelDistanceMultiplierBasisPoints", key: "BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS", minimum: 1, maximum: 50_000 }),
+  Object.freeze({ property: "suppliesCostPence", key: "BOOKING_SUPPLIES_COST_PENCE", minimum: 0, maximum: 1_000_000 }),
+  Object.freeze({ property: "otherCostPence", key: "BOOKING_OTHER_COST_PENCE", minimum: 0, maximum: 1_000_000 }),
+  Object.freeze({ property: "invitationTtlMinutes", key: "BOOKING_INVITATION_TTL_MINUTES", minimum: 15, maximum: 1440 })
+]);
+
 function uuid(value, label) {
   if (!uuidPattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
   return value.toLowerCase();
@@ -186,23 +200,10 @@ export function createBookingPricingPolicy(configuration = {}) {
 }
 
 export function bookingPricingPolicyFromEnvironment(env = process.env) {
-  const mapping = {
-    targetMarginBasisPoints: "BOOKING_TARGET_MARGIN_BPS",
-    minimumContributionPence: "BOOKING_MINIMUM_CONTRIBUTION_PENCE",
-    labourOnCostBasisPoints: "BOOKING_LABOUR_ON_COST_BPS",
-    paymentFeeBasisPoints: "BOOKING_PAYMENT_FEE_BPS",
-    paymentFeeFixedPence: "BOOKING_PAYMENT_FEE_FIXED_PENCE",
-    travelCostPence: "BOOKING_TRAVEL_COST_PENCE",
-    travelCostPerKmPence: "BOOKING_TRAVEL_COST_PER_KM_PENCE",
-    travelDistanceMultiplierBasisPoints: "BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS",
-    suppliesCostPence: "BOOKING_SUPPLIES_COST_PENCE",
-    otherCostPence: "BOOKING_OTHER_COST_PENCE",
-    invitationTtlMinutes: "BOOKING_INVITATION_TTL_MINUTES"
-  };
-  const present = Object.values(mapping).filter((name) => String(env[name] ?? "").trim() !== "");
+  const present = bookingPricingEnvironmentRules.filter(({ key }) => String(env[key] ?? "").trim() !== "");
   if (!present.length) return null;
-  if (present.length !== Object.keys(mapping).length) throw new TypeError("Booking pricing configuration must provide the complete private BOOKING_* variable set.");
-  return createBookingPricingPolicy(Object.fromEntries(Object.entries(mapping).map(([key, name]) => [key, Number(env[name])])));
+  if (present.length !== bookingPricingEnvironmentRules.length) throw new TypeError("Booking pricing configuration must provide the complete private BOOKING_* variable set.");
+  return createBookingPricingPolicy(Object.fromEntries(bookingPricingEnvironmentRules.map(({ property, key }) => [property, Number(env[key])])));
 }
 
 export function createBookingWorkflowService(repository, options = {}) {

@@ -3,6 +3,8 @@ import { listRenderServiceEnvironment, renderEnvironmentActivationReport } from 
 
 const privateValues = Object.freeze({
   database: "postgresql://owner:private@dpg-example.internal/homle_staging",
+  runtimeDatabase: "postgresql://tideway_app:private@dpg-example-pooler.internal/homle_staging",
+  realtimeDatabase: "postgresql://tideway_app:private@dpg-example.internal/homle_staging",
   appPassword: "app-password-never-print-more-than-thirty-two-characters",
   workerPassword: "worker-password-never-print-more-than-thirty-two-characters",
   session: "session-secret-never-print-more-than-thirty-two-characters",
@@ -47,6 +49,22 @@ const safeAccountEnvironment = {
   WORKER_AUTOMATIC_DISPATCH_ENABLED: "false"
 };
 
+const marketplaceRuntimeEnvironment = Object.freeze({
+  DATABASE_URL: privateValues.runtimeDatabase,
+  REALTIME_DATABASE_URL: privateValues.realtimeDatabase,
+  BOOKING_TARGET_MARGIN_BPS: "2000",
+  BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1800",
+  BOOKING_LABOUR_ON_COST_BPS: "1000",
+  BOOKING_PAYMENT_FEE_BPS: "300",
+  BOOKING_PAYMENT_FEE_FIXED_PENCE: "20",
+  BOOKING_TRAVEL_COST_PENCE: "500",
+  BOOKING_TRAVEL_COST_PER_KM_PENCE: "35",
+  BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS: "20000",
+  BOOKING_SUPPLIES_COST_PENCE: "250",
+  BOOKING_OTHER_COST_PENCE: "0",
+  BOOKING_INVITATION_TTL_MINUTES: "180"
+});
+
 const account = renderEnvironmentActivationReport(entriesFrom(safeAccountEnvironment));
 assert.equal(account.ok, true);
 assert.equal(account.mode, "restricted-account-preview");
@@ -54,10 +72,12 @@ assert.equal(account.activation.accounts, true);
 assert.equal(account.activation.marketplaceDependencies, false);
 assert.deepEqual(account.missing.transactionalEmail, ["RESEND_API_KEY or SMTP_URL", "EMAIL_FROM"]);
 assert.deepEqual(account.missing.privateMedia, ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_REGION", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"]);
+assert.equal(account.checks.marketplaceRuntimeConfigured, false);
+assert(account.missing.marketplaceRuntime.includes("DATABASE_URL") && account.missing.marketplaceRuntime.includes("REALTIME_DATABASE_URL") && account.missing.marketplaceRuntime.includes("BOOKING_MINIMUM_CONTRIBUTION_PENCE"));
 assert.equal(account.next.key, "transactional-email");
 for (const secret of Object.values(privateValues)) assert(!JSON.stringify(account).includes(secret), "Render environment readiness exposed a private value.");
 
-const marketplaceDependencies = renderEnvironmentActivationReport(entriesFrom({
+const mediaAndEmailOnly = renderEnvironmentActivationReport(entriesFrom({
   ...safeAccountEnvironment,
   RESEND_API_KEY: privateValues.resend,
   EMAIL_FROM: "Homle <test@homle.example>",
@@ -67,11 +87,27 @@ const marketplaceDependencies = renderEnvironmentActivationReport(entriesFrom({
   OBJECT_STORAGE_ACCESS_KEY_ID: "storage-access-key",
   OBJECT_STORAGE_SECRET_ACCESS_KEY: privateValues.storage
 }));
+assert.equal(mediaAndEmailOnly.activation.marketplaceDependencies, false);
+assert.equal(mediaAndEmailOnly.next.key, "marketplace-runtime");
+
+const marketplaceDependencies = renderEnvironmentActivationReport(entriesFrom({
+  ...safeAccountEnvironment,
+  ...marketplaceRuntimeEnvironment,
+  RESEND_API_KEY: privateValues.resend,
+  EMAIL_FROM: "Homle <test@homle.example>",
+  OBJECT_STORAGE_ENDPOINT: "https://objects.example.com",
+  OBJECT_STORAGE_BUCKET: "homle-private-media",
+  OBJECT_STORAGE_REGION: "auto",
+  OBJECT_STORAGE_ACCESS_KEY_ID: "storage-access-key",
+  OBJECT_STORAGE_SECRET_ACCESS_KEY: privateValues.storage
+}));
 assert.equal(marketplaceDependencies.activation.marketplaceDependencies, true);
+assert.equal(marketplaceDependencies.checks.marketplaceRuntimeConfigured, true);
 assert.equal(marketplaceDependencies.next.key, "test-payments");
 
 const allDependencies = renderEnvironmentActivationReport(entriesFrom({
   ...safeAccountEnvironment,
+  ...marketplaceRuntimeEnvironment,
   RESEND_API_KEY: privateValues.resend,
   EMAIL_FROM: "Homle <test@homle.example>",
   OBJECT_STORAGE_ENDPOINT: "https://objects.example.com",
@@ -86,6 +122,37 @@ const allDependencies = renderEnvironmentActivationReport(entriesFrom({
 assert.equal(allDependencies.activation.marketplaceDependencies, true);
 assert.equal(allDependencies.activation.testPaymentDependencies, true);
 assert.equal(allDependencies.next.key, "managed-staging-proof");
+
+const partialPricing = renderEnvironmentActivationReport(entriesFrom({
+  ...safeAccountEnvironment,
+  ...marketplaceRuntimeEnvironment,
+  BOOKING_MINIMUM_CONTRIBUTION_PENCE: ""
+}));
+assert.equal(partialPricing.checks.marketplaceRuntimeConfigured, false);
+assert(partialPricing.missing.marketplaceRuntime.includes("BOOKING_MINIMUM_CONTRIBUTION_PENCE"));
+
+const invalidPricing = renderEnvironmentActivationReport(entriesFrom({
+  ...safeAccountEnvironment,
+  ...marketplaceRuntimeEnvironment,
+  BOOKING_TARGET_MARGIN_BPS: "9001",
+  BOOKING_MINIMUM_CONTRIBUTION_PENCE: "0",
+  BOOKING_OTHER_COST_PENCE: "1.5"
+}));
+assert.equal(invalidPricing.checks.marketplaceRuntimeConfigured, false);
+assert.deepEqual(invalidPricing.missing.marketplaceRuntime.filter((key) => key.startsWith("valid BOOKING_")), [
+  "valid BOOKING_TARGET_MARGIN_BPS",
+  "valid BOOKING_MINIMUM_CONTRIBUTION_PENCE",
+  "valid BOOKING_OTHER_COST_PENCE"
+]);
+assert(!JSON.stringify(invalidPricing).includes("9001") && !JSON.stringify(invalidPricing).includes("1.5"), "Render readiness exposed private pricing values.");
+
+const invalidRuntimeDatabase = renderEnvironmentActivationReport(entriesFrom({
+  ...safeAccountEnvironment,
+  ...marketplaceRuntimeEnvironment,
+  DATABASE_URL: "not-a-database-url"
+}));
+assert(invalidRuntimeDatabase.missing.marketplaceRuntime.includes("valid DATABASE_URL"));
+assert(!JSON.stringify(invalidRuntimeDatabase).includes("not-a-database-url"));
 
 const unsafe = renderEnvironmentActivationReport(entriesFrom({ ...safeAccountEnvironment, STAGING_ACCOUNTS_ONLY: "false", MARKETPLACE_ENABLED: "true", PAYMENTS_ENABLED: "true" }));
 assert.equal(unsafe.ok, false);
