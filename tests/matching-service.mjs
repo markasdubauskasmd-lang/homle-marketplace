@@ -37,7 +37,7 @@ const candidates = [
 ];
 const calls = [];
 const repository = { async recommendForRequest(actor, suppliedRequestId, limit) { calls.push({ actor, suppliedRequestId, limit }); return candidates; } };
-const pricingPolicy = createBookingPricingPolicy({ targetMarginBasisPoints: 2000, labourOnCostBasisPoints: 1000, paymentFeeBasisPoints: 300, paymentFeeFixedPence: 20, travelCostPence: 500, travelCostPerKmPence: 35, travelDistanceMultiplierBasisPoints: 20000, suppliesCostPence: 250, otherCostPence: 0, invitationTtlMinutes: 180 });
+const pricingPolicy = createBookingPricingPolicy({ targetMarginBasisPoints: 2000, minimumContributionPence: 1800, labourOnCostBasisPoints: 1000, paymentFeeBasisPoints: 300, paymentFeeFixedPence: 20, travelCostPence: 500, travelCostPerKmPence: 35, travelDistanceMultiplierBasisPoints: 20000, suppliesCostPence: 250, otherCostPence: 0, invitationTtlMinutes: 180 });
 const service = createMatchingService(repository, { pricingPolicy, clock: () => new Date(now) });
 const result = await service.recommendForRequest(landlord, requestId);
 assert(calls[0].actor.userId === landlord.userId && calls[0].suppliedRequestId === requestId && calls[0].limit === 25, "Matching did not bind the authenticated Landlord and bounded request query.");

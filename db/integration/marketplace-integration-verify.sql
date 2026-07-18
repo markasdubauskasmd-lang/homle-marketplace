@@ -5,6 +5,8 @@ BEGIN TRANSACTION READ ONLY;
 DO $verification$
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 3 THEN RAISE EXCEPTION 'Integration bookings are missing'; END IF;
+  IF (SELECT count(*) FROM bookings WHERE id='40000000-0000-4000-8000-000000000001' AND target_contribution_pence=1200 AND planned_contribution_pence>=target_contribution_pence) <> 1 THEN RAISE EXCEPTION 'Participant invitation did not freeze and satisfy its minimum contribution'; END IF;
+  IF EXISTS (SELECT 1 FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%' AND planned_contribution_pence<target_contribution_pence) THEN RAISE EXCEPTION 'An integration booking violates its frozen minimum contribution'; END IF;
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%' AND status = 'confirmed') <> 0 THEN RAISE EXCEPTION 'Participant rehearsal left a confirmed booking unfinished'; END IF;
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%' AND status = 'completed') <> 1 THEN RAISE EXCEPTION 'Participant rehearsal did not produce one completed booking'; END IF;
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%' AND status = 'pending-cleaner-acceptance') <> 1 THEN RAISE EXCEPTION 'Losing overlapping invitation did not remain pending'; END IF;

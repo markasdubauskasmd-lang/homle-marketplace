@@ -27,7 +27,7 @@ BEGIN
   SELECT tideway_private.complete_automatic_dispatch(
     '30000000-0000-4000-8000-000000000004',selected_lease,
     '40000000-0000-4000-8000-000000000004','10000000-0000-4000-8000-000000000002',
-    now()+interval '30 minutes',9000,5000,500,300,200,100,100,1000
+    now()+interval '30 minutes',9000,5000,500,300,200,100,100,1000,1800
   ) INTO result;
   IF result->>'bookingId'<>'40000000-0000-4000-8000-000000000004'
      OR result->>'cleanerId'<>'10000000-0000-4000-8000-000000000002'

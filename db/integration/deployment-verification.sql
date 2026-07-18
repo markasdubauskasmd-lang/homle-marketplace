@@ -17,6 +17,7 @@ DECLARE
   matching_self_exclusion_migration_installed boolean := false;
   request_realtime_migration_installed boolean := false;
   session_avatar_migration_installed boolean := false;
+  minimum_contribution_migration_installed boolean := false;
   rls_tables constant text[] := ARRAY[
     'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
@@ -35,7 +36,7 @@ DECLARE
     'tideway_private.lookup_session(bytea)',
     'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
     'tideway_private.search_cleaner_directory(text,text,timestamp with time zone,timestamp with time zone,numeric,integer,boolean,numeric,numeric,numeric,integer,integer)',
-    'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
+    'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.list_my_booking_summaries(integer)',
     'tideway_private.configure_automatic_dispatch(uuid,boolean,smallint)',
     'tideway_private.create_request_photo_upload_intent(uuid,uuid,text,text,text,text,text,integer,text,timestamp with time zone)',
@@ -93,7 +94,7 @@ DECLARE
     'tideway_private.purge_expired_pending_social_identities(integer)',
     'tideway_private.claim_due_automatic_dispatch(uuid,integer,integer)',
     'tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)',
-    'tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
+    'tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.release_automatic_dispatch_lease(uuid,uuid,text,timestamp with time zone)'
   ];
 BEGIN
@@ -197,6 +198,8 @@ BEGIN
       INTO request_realtime_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 55)'
       INTO session_avatar_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 56)'
+      INTO minimum_contribution_migration_installed;
   END IF;
   IF payment_operations_migration_installed THEN
     selected_name := 'tideway_private.list_administrator_payment_operations(text,integer,integer)';
@@ -290,6 +293,31 @@ BEGIN
       RAISE EXCEPTION 'The authenticated session projection does not expose the stored account avatar safely';
     END IF;
   END IF;
+  IF minimum_contribution_migration_installed THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_attribute attribute
+      WHERE attribute.attrelid='public.bookings'::regclass AND attribute.attname='target_contribution_pence'
+        AND attribute.attnotnull AND NOT attribute.attisdropped
+    ) OR NOT EXISTS (
+      SELECT 1 FROM pg_constraint constraint_record
+      WHERE constraint_record.conrelid='public.bookings'::regclass AND constraint_record.conname='bookings_target_contribution_check'
+    ) THEN RAISE EXCEPTION 'Bookings do not freeze and constrain the minimum contribution target'; END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)');
+    IF position('planned_contribution<proposed_target_contribution_pence' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Direct Cleaner invitations do not enforce the minimum contribution target';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)');
+    IF position('planned_contribution<proposed_target_contribution_pence' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Automatic dispatch does not enforce the minimum contribution target';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.list_administrator_booking_operations(text,integer,integer)');
+    IF position('targetContributionPence' IN COALESCE(selected_source,''))=0 OR position('target_contribution_pence' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Administrator booking operations omit the frozen minimum contribution target';
+    END IF;
+  END IF;
   IF scope_handoff_migration_installed THEN
     SELECT procedure.prosrc INTO selected_source
     FROM pg_proc procedure
@@ -334,9 +362,11 @@ BEGIN
     IF NOT has_function_privilege('tideway_app', selected_name, 'EXECUTE') THEN RAISE EXCEPTION 'App role is missing required function execution: %', selected_name; END IF;
   END LOOP;
   FOREACH selected_name IN ARRAY ARRAY[
+    'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.invite_cleaner_before_eligibility_hardening(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.respond_to_cleaner_invitation_before_eligibility_hardening(uuid,text,text)',
-    'tideway_private.respond_to_cleaner_invitation_core(uuid,text,text)'
+    'tideway_private.respond_to_cleaner_invitation_core(uuid,text,text)',
+    'tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)'
   ] LOOP
     IF to_regprocedure(selected_name) IS NULL THEN RAISE EXCEPTION 'Superseded booking function is missing: %', selected_name; END IF;
     IF has_function_privilege('tideway_app', selected_name, 'EXECUTE') OR has_function_privilege('tideway_worker', selected_name, 'EXECUTE') THEN

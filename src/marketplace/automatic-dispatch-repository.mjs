@@ -52,8 +52,8 @@ export function createAutomaticDispatchRepository(pool) {
     async complete(input) {
       try {
         const result = await pool.query(
-          "SELECT tideway_private.complete_automatic_dispatch($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::timestamptz,$6::integer,$7::integer,$8::integer,$9::integer,$10::integer,$11::integer,$12::integer,$13::integer) AS dispatch",
-          [input.cleaningRequestId, input.leaseToken, input.bookingId, input.cleanerId, input.responseDeadline, input.customerPricePence, input.cleanerPayPence, input.labourOnCostPence, input.paymentFeePence, input.travelCostPence, input.suppliesCostPence, input.otherCostPence, input.targetMarginBasisPoints]
+          "SELECT tideway_private.complete_automatic_dispatch($1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::timestamptz,$6::integer,$7::integer,$8::integer,$9::integer,$10::integer,$11::integer,$12::integer,$13::integer,$14::integer) AS dispatch",
+          [input.cleaningRequestId, input.leaseToken, input.bookingId, input.cleanerId, input.responseDeadline, input.customerPricePence, input.cleanerPayPence, input.labourOnCostPence, input.paymentFeePence, input.travelCostPence, input.suppliesCostPence, input.otherCostPence, input.targetMarginBasisPoints, input.targetContributionPence]
         );
         const value = jsonValue(result?.rows?.[0], "dispatch");
         if (!value || typeof value !== "object" || !uuidPattern.test(value.bookingId || "")) throw new Error("Automatic matching returned an invalid invitation.");

@@ -124,6 +124,7 @@ function participantBookingProjection(record, actor) {
 export function createBookingPricingPolicy(configuration = {}) {
   const config = {
     targetMarginBasisPoints: integer(configuration.targetMarginBasisPoints, 1, 9000, "Target margin"),
+    minimumContributionPence: integer(configuration.minimumContributionPence, 1, 10_000_000, "Minimum booking contribution"),
     labourOnCostBasisPoints: integer(configuration.labourOnCostBasisPoints ?? 0, 0, 5000, "Labour on-cost"),
     paymentFeeBasisPoints: integer(configuration.paymentFeeBasisPoints ?? 0, 0, 2000, "Payment fee"),
     paymentFeeFixedPence: integer(configuration.paymentFeeFixedPence ?? 0, 0, 10000, "Fixed payment fee"),
@@ -160,12 +161,12 @@ export function createBookingPricingPolicy(configuration = {}) {
         const proposed = Math.floor((low + high) / 2);
         const fee = config.paymentFeeFixedPence + Math.ceil(proposed * config.paymentFeeBasisPoints / 10000);
         const contribution = proposed - cleanerPayPence - labourOnCostPence - fee - travelCostPence - config.suppliesCostPence - config.otherCostPence;
-        if (contribution * 10000 >= proposed * config.targetMarginBasisPoints) high = proposed;
+        if (contribution >= config.minimumContributionPence && contribution * 10000 >= proposed * config.targetMarginBasisPoints) high = proposed;
         else low = proposed + 1;
       }
       const paymentFeePence = config.paymentFeeFixedPence + Math.ceil(low * config.paymentFeeBasisPoints / 10000);
       const finalContribution = low - cleanerPayPence - labourOnCostPence - paymentFeePence - travelCostPence - config.suppliesCostPence - config.otherCostPence;
-      if (low > 10_000_000 || cleanerPayPence > 10_000_000 || finalContribution <= 0 || finalContribution * 10000 < low * config.targetMarginBasisPoints) throw Object.assign(new Error("The selected scope cannot be priced inside the supported safe range."), { statusCode: 409, code: "request-not-priceable" });
+      if (low > 10_000_000 || cleanerPayPence > 10_000_000 || finalContribution < config.minimumContributionPence || finalContribution * 10000 < low * config.targetMarginBasisPoints) throw Object.assign(new Error("The selected scope cannot be priced inside the supported safe range."), { statusCode: 409, code: "request-not-priceable" });
       const responseDeadline = new Date(Math.min(start.getTime(), now.getTime() + config.invitationTtlMinutes * 60000));
       if (responseDeadline.getTime() <= now.getTime()) throw Object.assign(new Error("The requested start time is too close to invite a cleaner."), { statusCode: 409, code: "request-too-soon" });
       return {
@@ -177,6 +178,7 @@ export function createBookingPricingPolicy(configuration = {}) {
         suppliesCostPence: config.suppliesCostPence,
         otherCostPence: config.otherCostPence,
         targetMarginBasisPoints: config.targetMarginBasisPoints,
+        targetContributionPence: config.minimumContributionPence,
         responseDeadline: responseDeadline.toISOString()
       };
     }
@@ -186,6 +188,7 @@ export function createBookingPricingPolicy(configuration = {}) {
 export function bookingPricingPolicyFromEnvironment(env = process.env) {
   const mapping = {
     targetMarginBasisPoints: "BOOKING_TARGET_MARGIN_BPS",
+    minimumContributionPence: "BOOKING_MINIMUM_CONTRIBUTION_PENCE",
     labourOnCostBasisPoints: "BOOKING_LABOUR_ON_COST_BPS",
     paymentFeeBasisPoints: "BOOKING_PAYMENT_FEE_BPS",
     paymentFeeFixedPence: "BOOKING_PAYMENT_FEE_FIXED_PENCE",

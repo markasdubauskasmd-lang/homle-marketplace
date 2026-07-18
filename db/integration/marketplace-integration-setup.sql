@@ -93,7 +93,7 @@ SELECT tideway_private.submit_cleaning_request('30000000-0000-4000-8000-00000000
 SELECT id FROM tideway_private.invite_cleaner(
   '40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001',
   '10000000-0000-4000-8000-000000000002', now() + interval '24 hours',
-  8000, 5000, 500, 300, 200, 100, 100, 1000
+  8000, 5000, 500, 300, 200, 100, 100, 1000, 1200
 );
 -- Use the migration-owner-only superseded function for the second invitation to create a
 -- legacy/race fixture. The runtime role cannot call it, while the final exclusion constraint

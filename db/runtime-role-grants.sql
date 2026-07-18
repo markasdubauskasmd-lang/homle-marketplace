@@ -40,7 +40,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.record_password_attempt(uuid, boolean)
 GRANT EXECUTE ON FUNCTION tideway_private.issue_password_reset(citext, bytea, timestamptz) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.consume_password_reset(bytea, text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.search_cleaner_directory(text, text, timestamptz, timestamptz, numeric, integer, boolean, numeric, numeric, numeric, integer, integer) TO tideway_app;
-GRANT EXECUTE ON FUNCTION tideway_private.invite_cleaner(uuid, uuid, uuid, timestamptz, integer, integer, integer, integer, integer, integer, integer, integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.invite_cleaner(uuid, uuid, uuid, timestamptz, integer, integer, integer, integer, integer, integer, integer, integer, integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.respond_to_cleaner_invitation(uuid, text, text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_my_booking_summaries(integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.recommend_cleaners_for_request(uuid, integer) TO tideway_app;

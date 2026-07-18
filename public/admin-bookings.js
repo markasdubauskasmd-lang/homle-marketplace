@@ -36,7 +36,9 @@ function operationCard(record) {
   facts.append(fact("Window", `${date(record.scheduledStartAt)} – ${date(record.scheduledEndAt)}`), fact("Tasks", `${record.completedTaskCount} of ${record.taskCount} complete`));
   if (record.bookingId) {
     const margin = plannedMarginPercent(record);
-    facts.append(fact("Customer total", moneyPence(record.customerPricePence)), fact("Cleaner pay", moneyPence(record.cleanerPayPence)), fact("Planned direct costs", moneyPence(record.plannedCostsPence)), fact("Planned contribution", `${moneyPence(record.plannedContributionPence)}${margin == null ? "" : ` (${margin.toFixed(1)}%)`}`), fact("Payment", record.paymentStatus || "Not started"), fact("Case", record.caseStatus || "None"));
+    const marginTarget = Number.isInteger(record.targetMarginBasisPoints) ? `${(record.targetMarginBasisPoints / 100).toFixed(1)}%` : "Unavailable";
+    const contributionTarget = Number.isInteger(record.targetContributionPence) ? moneyPence(record.targetContributionPence) : "Unavailable";
+    facts.append(fact("Customer total", moneyPence(record.customerPricePence)), fact("Cleaner pay", moneyPence(record.cleanerPayPence)), fact("Planned direct costs", moneyPence(record.plannedCostsPence)), fact("Planned contribution", `${moneyPence(record.plannedContributionPence)}${margin == null ? "" : ` (${margin.toFixed(1)}%)`}`), fact("Approved profit floors", `${contributionTarget} and ${marginTarget}`), fact("Payment", record.paymentStatus || "Not started"), fact("Case", record.caseStatus || "None"));
   }
   card.append(heading, nextAction, facts);
   const actions = node("div", "booking-summary-actions");

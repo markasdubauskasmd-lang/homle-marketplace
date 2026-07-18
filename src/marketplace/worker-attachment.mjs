@@ -55,7 +55,7 @@ const requiredWorkerFunctions = Object.freeze([
   "purge_expired_pending_social_identities(integer)",
   "claim_due_automatic_dispatch(uuid,integer,integer)",
   "get_automatic_dispatch_candidates(uuid,uuid,integer)",
-  "complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)",
+  "complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)",
   "release_automatic_dispatch_lease(uuid,uuid,text,timestamp with time zone)"
 ]);
 

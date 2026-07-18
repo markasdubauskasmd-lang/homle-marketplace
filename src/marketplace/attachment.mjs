@@ -75,7 +75,7 @@ export async function probeMarketplaceDatabase(pool) {
         current_setting('server_version_num')::integer AS server_version_num,
         COALESCE((SELECT NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname = current_user), false) AS role_is_safe,
         to_regprocedure('tideway_private.lookup_session(bytea)') IS NOT NULL AS lookup_session_ready,
-        to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL
+        to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL
           AND to_regprocedure('tideway_private.recommend_cleaners_for_request_v2(uuid,integer)') IS NOT NULL AS booking_workflow_ready,
         to_regprocedure('tideway_private.list_my_booking_summaries(integer)') IS NOT NULL AS booking_summaries_ready,
         to_regprocedure('tideway_private.configure_automatic_dispatch(uuid,boolean,smallint)') IS NOT NULL AS automatic_dispatch_ready,
