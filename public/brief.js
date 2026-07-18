@@ -670,10 +670,13 @@ if (SpeechRecognition) {
       : "Voice capture stopped. Speak again or type the instructions below.";
   };
   recognition.onerror = (event) => {
+    listening = false;
+    voiceButton.textContent = "Start speaking";
     voiceErrorMessage = event.error === "not-allowed"
       ? "Microphone access was not allowed. Type the instructions instead."
       : "Voice capture stopped. You can continue by typing.";
     voiceStatus.textContent = voiceErrorMessage;
+    renderReadiness();
   };
   recognition.onresult = (event) => {
     let finalText = "";
