@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createTrustedClientAddressResolver, createTrustedClientKeyResolver } from "../src/marketplace/trusted-client-key.mjs";
 
-function request(remoteAddress, forwardedFor) {
+function request(remoteAddress, forwardedFor, trueClientIp) {
   const headers = {};
   if (forwardedFor !== undefined) headers["x-forwarded-for"] = forwardedFor;
+  if (trueClientIp !== undefined) headers["true-client-ip"] = trueClientIp;
   return { socket: { remoteAddress }, headers };
 }
 
@@ -39,12 +40,27 @@ const rendered = createTrustedClientKeyResolver({
   RENDER_SERVICE_ID: "srv-abcdef123456",
   RENDER_EXTERNAL_HOSTNAME: "homle-marketplace.onrender.com"
 });
-assert.equal(rendered(request("10.0.0.8", "198.51.100.71")), "render:ipv4:198.51.100.71");
-assert.equal(rendered(request("10.0.0.8", "2001:db8::71, 172.16.0.4, 10.0.0.8")), "render:ipv6:2001:db8::71");
+assert.equal(rendered(request("10.0.0.8", "198.51.100.71", "198.51.100.71")), "render:ipv4:198.51.100.71");
+assert.equal(rendered(request("10.0.0.8", "2001:db8::71, 172.16.0.4, 10.0.0.8", "2001:db8::71")), "render:ipv6:2001:db8::71");
+assert.equal(
+  rendered(request("10.0.0.8", "203.0.113.99, 198.51.100.71, 172.71.195.1, 10.0.0.8", "198.51.100.71")),
+  "render:ipv4:198.51.100.71",
+  "A browser-forged leftmost X-Forwarded-For entry displaced the Cloudflare-verified client identity."
+);
+assert.equal(rendered(request("10.0.0.8", "198.51.100.71, 10.0.0.8", "::ffff:198.51.100.71")), "render:ipv4:198.51.100.71");
+assert.equal(
+  rendered(request("10.0.0.8", "2001:0db8:0:0:0:0:0:71, 10.0.0.8", "2001:DB8::71")),
+  "render:ipv6:2001:db8::71",
+  "Equivalent IPv6 spellings for True-Client-IP and its X-Forwarded-For entry were not reconciled to one canonical identity."
+);
+assert.equal(directAddress(request("2001:0DB8:0:0:0:0:0:8")), "2001:db8::8", "IPv6 client identity was not canonicalised for a stable limiter key.");
+assert.throws(() => rendered(request("10.0.0.8", "198.51.100.71")), /True-Client-IP/, "Render mode identified a client without the Cloudflare-verified header.");
+assert.throws(() => rendered(request("10.0.0.8", "203.0.113.99, 10.0.0.8", "198.51.100.71")), /must appear in its X-Forwarded-For chain/, "A True-Client-IP outside the validated chain was accepted.");
+assert.throws(() => rendered(request("10.0.0.8", "198.51.100.71, 10.0.0.8", "not-an-ip")), /True-Client-IP/);
 assert.throws(() => rendered(request("10.0.0.8")), /Render must provide/);
-assert.throws(() => rendered(request("10.0.0.8", "198.51.100.71,,10.0.0.8")), /between one and 16/);
-assert.throws(() => rendered(request("10.0.0.8", `${"198.51.100.1,".repeat(16)}198.51.100.2`)), /between one and 16/);
-assert.throws(() => rendered(request("10.0.0.8", "198.51.100.71,not-an-ip")), /Forwarded client address/);
+assert.throws(() => rendered(request("10.0.0.8", "198.51.100.71,,10.0.0.8", "198.51.100.71")), /between one and 16/);
+assert.throws(() => rendered(request("10.0.0.8", `${"198.51.100.1,".repeat(16)}198.51.100.2`, "198.51.100.1")), /between one and 16/);
+assert.throws(() => rendered(request("10.0.0.8", "198.51.100.71,not-an-ip", "198.51.100.71")), /Forwarded client address/);
 
 assert.throws(() => createTrustedClientKeyResolver({ TRUST_PROXY: "yes" }), /true or false/);
 assert.throws(() => createTrustedClientKeyResolver({ TRUST_PROXY: "false", TRUST_PROXY_PROVIDER: "render" }), /requires TRUST_PROXY/);

@@ -1,12 +1,24 @@
 import { BlockList, isIP } from "node:net";
 
+// WHATWG URL canonicalises an IPv6 literal (compresses zero-runs, lowercases),
+// so two spellings of the same address compare equal and produce one stable
+// limiter identity. IPv4 (including dotted IPv4-mapped, unwrapped in
+// normalizedAddress) needs no change.
+function canonicalIpv6(address) {
+  try {
+    return new URL(`http://[${address}]`).hostname.replace(/^\[|\]$/g, "");
+  } catch {
+    return address;
+  }
+}
+
 function normalizedAddress(value, label) {
   const address = typeof value === "string" ? value.trim() : "";
   if (!address || address.length > 64 || /[\u0000-\u0020\u007f]/.test(address)) throw new TypeError(`${label} is not a valid IP address.`);
   const mapped = address.toLowerCase().startsWith("::ffff:") ? address.slice(7) : address;
   const family = isIP(mapped);
   if (!family) throw new TypeError(`${label} is not a valid IP address.`);
-  return { address: mapped, family };
+  return { address: family === 6 ? canonicalIpv6(mapped) : mapped, family };
 }
 
 function proxyTrustList(value) {
@@ -69,14 +81,31 @@ function remoteClient(request) {
   return normalizedAddress(request?.socket?.remoteAddress, "Request peer address");
 }
 
-function forwardedClient(request, { chainAllowed = false } = {}) {
+function forwardedEntries(request, { chainAllowed = false } = {}) {
   const header = request?.headers?.["x-forwarded-for"];
   if (typeof header !== "string" || !header || header.length > 1024) throw new TypeError(chainAllowed ? "Render must provide a bounded X-Forwarded-For chain." : "The trusted proxy must provide exactly one X-Forwarded-For address.");
   const entries = header.split(",").map((entry) => entry.trim());
   if (!chainAllowed && entries.length !== 1) throw new TypeError("The trusted proxy must provide exactly one X-Forwarded-For address.");
   if (chainAllowed && (entries.length < 1 || entries.length > 16 || entries.some((entry) => !entry))) throw new TypeError("Render must provide between one and 16 X-Forwarded-For addresses.");
-  const parsed = entries.map((entry) => normalizedAddress(entry, "Forwarded client address"));
-  return parsed[0];
+  return entries.map((entry) => normalizedAddress(entry, "Forwarded client address"));
+}
+
+function forwardedClient(request) {
+  return forwardedEntries(request)[0];
+}
+
+// Render appends to any browser-supplied X-Forwarded-For instead of clearing it,
+// so the leftmost chain entry is attacker-controlled and must never identify the
+// client. Render fronts every service with Cloudflare, which sets True-Client-IP
+// to the verified connecting address; require that header and cross-check it
+// against the validated bounded chain, failing closed on any mismatch.
+function renderForwardedClient(request) {
+  const chain = forwardedEntries(request, { chainAllowed: true });
+  const trueClient = normalizedAddress(request?.headers?.["true-client-ip"], "Render True-Client-IP");
+  if (!chain.some((entry) => entry.address === trueClient.address && entry.family === trueClient.family)) {
+    throw new TypeError("Render True-Client-IP must appear in its X-Forwarded-For chain.");
+  }
+  return trueClient;
 }
 
 export function createTrustedClientAddressResolver(env = process.env) {
@@ -89,7 +118,7 @@ export function createTrustedClientAddressResolver(env = process.env) {
   return function trustedClientAddress(request) {
     const peer = remoteClient(request);
     if (!proxyEnabled) return peer.address;
-    if (provider === "render") return forwardedClient(request, { chainAllowed: true }).address;
+    if (provider === "render") return renderForwardedClient(request).address;
     const type = peer.family === 4 ? "ipv4" : "ipv6";
     if (!trustedProxies.check(peer.address, type)) throw new TypeError("The request did not arrive from a configured trusted proxy.");
     return forwardedClient(request).address;

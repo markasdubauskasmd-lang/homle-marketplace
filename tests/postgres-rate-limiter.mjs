@@ -37,9 +37,13 @@ databaseDecision = { allowed: false, retry_after_seconds: 0 };
 await assert.rejects(() => limiter.consume({ scope: "login", key: "trusted:client" }), /invalid retry time/);
 assert.throws(() => createPostgresRateLimiter({}, { secret }), /query-capable pool/);
 assert.throws(() => createPostgresRateLimiter(pool, { secret: "short" }), /32-character secret/);
-assert.equal(postgresRateLimitScopes.length, 15);
+assert.equal(postgresRateLimitScopes.length, 19);
 
-const migration = `${await readFile(new URL("../db/migrations/020_shared_rate_limits.sql", import.meta.url), "utf8")}\n${await readFile(new URL("../db/migrations/021_facebook_pending_identity.sql", import.meta.url), "utf8")}\n${await readFile(new URL("../db/migrations/038_facebook_data_deletion_callback.sql", import.meta.url), "utf8")}`;
+const latestScopeMigration = await readFile(new URL("../db/migrations/061_fix_missing_rate_limit_scopes.sql", import.meta.url), "utf8");
+const migration = `${await readFile(new URL("../db/migrations/020_shared_rate_limits.sql", import.meta.url), "utf8")}\n${await readFile(new URL("../db/migrations/021_facebook_pending_identity.sql", import.meta.url), "utf8")}\n${await readFile(new URL("../db/migrations/038_facebook_data_deletion_callback.sql", import.meta.url), "utf8")}\n${await readFile(new URL("../db/migrations/060_apple_sign_in_provider.sql", import.meta.url), "utf8")}\n${latestScopeMigration}`;
+// The latest scope migration must itself carry every reviewed scope so the
+// application allow-list and the database policy cannot drift again.
+for (const scope of postgresRateLimitScopes) assert.ok(latestScopeMigration.includes(`'${scope}'`), `The latest PostgreSQL rate-limit policy migration omitted ${scope}.`);
 const runtimeGrants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const workerGrants = await readFile(new URL("../db/worker-role-grants.sql", import.meta.url), "utf8");
 const deploymentVerification = await readFile(new URL("../db/integration/deployment-verification.sql", import.meta.url), "utf8");
