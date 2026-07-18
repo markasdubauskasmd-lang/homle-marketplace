@@ -711,6 +711,9 @@ function requestScanPanel(request) {
     let uploadPending = false;
     const upload = element("button", "button", "Upload private room photos");
     upload.type = "submit";
+    function setUploadEditorLocked(locked) {
+      for (const control of [room, note, cameraButton, libraryButton, cameraInput, libraryInput]) control.disabled = locked || !mediaReady;
+    }
     function renderSelection() {
       if (!files.length) {
         selected.textContent = "No photos selected";
@@ -728,6 +731,7 @@ function requestScanPanel(request) {
       upload.textContent = `Upload ${files.length} private ${files.length === 1 ? "photo" : "photos"}`;
     }
     function choose(event) {
+      if (uploadPending) { event.target.value = ""; return; }
       const candidates = event.target.files;
       event.target.value = "";
       if (!candidates?.length) return;
@@ -759,6 +763,7 @@ function requestScanPanel(request) {
       const queuedCount = files.length;
       let uploadedCount = 0;
       uploadPending = true;
+      setUploadEditorLocked(true);
       setPending(upload, true, `Checking photo 1 of ${queuedCount}…`);
       try {
         const csrf = await recoverCsrf(feedback, "uploading this room photo");
@@ -814,6 +819,7 @@ function requestScanPanel(request) {
       }
       finally {
         uploadPending = false;
+        setUploadEditorLocked(false);
         setPending(upload, false, files.length ? `Upload ${files.length} remaining ${files.length === 1 ? "photo" : "photos"}` : "Upload private room photos");
         renderSelection();
       }
