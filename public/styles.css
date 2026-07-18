@@ -2561,6 +2561,9 @@ textarea { resize: vertical; }
 .notification-empty .button { margin-top: 10px; }
 .notification-feedback { margin-top: 16px; }
 .notification-load-more { display: block; margin: 20px auto 0; }
+.workspace-role-nav[hidden] { display: none !important; }
+.notifications-page .workspace-identity-pill { color: #24584f; border-color: #aed6ca; background: #edf8f5; }
+.notifications-page.cleaner-workspace-page .workspace-identity-pill { color: #073e38; border-color: #8ee7d8; background: #a9f0e3; }
 .directory-nav a[data-notification-link] { display: inline-flex; gap: 6px; align-items: center; }
 .notification-nav-count { display: inline-grid; min-width: 20px; height: 20px; padding-inline: 5px; place-items: center; border-radius: 999px; background: var(--green); color: #fff; font-size: .68rem; font-weight: 900; line-height: 1; }
 @media (max-width: 680px) {

@@ -3,6 +3,7 @@ import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 const buttons = [...document.querySelectorAll("[data-account-sign-out]")];
 const accountMenus = [...document.querySelectorAll("[data-account-menu]")];
 const signInLinks = [...document.querySelectorAll("[data-account-sign-in]")];
+let signedInAccountRequest;
 
 function savedCsrf() {
   try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
@@ -42,10 +43,20 @@ function workspaceFor(account) {
     : { role: "", label: "Account", href: "/onboarding" };
 }
 
+export function readSignedInAccount() {
+  if (!signedInAccountRequest) {
+    signedInAccountRequest = requestJson("/api/marketplace/account", {}, 10_000).catch((error) => {
+      signedInAccountRequest = null;
+      throw error;
+    });
+  }
+  return signedInAccountRequest;
+}
+
 async function hydrateAccountMenu() {
   if (!accountMenus.length && !signInLinks.length) return;
   try {
-    const result = await requestJson("/api/marketplace/account", {}, 10_000);
+    const result = await readSignedInAccount();
     const workspace = workspaceFor(result.account);
     renderAccountAvatar(result.account);
     for (const link of signInLinks) link.hidden = true;
@@ -57,12 +68,14 @@ async function hydrateAccountMenu() {
     }
     document.documentElement.dataset.accountState = "signed-in";
     window.dispatchEvent(new CustomEvent("homle:account-ready", { detail: { account: result.account, workspace } }));
+    return result;
   } catch (error) {
     if (error?.status === 401) {
       for (const menu of accountMenus) menu.hidden = true;
       for (const link of signInLinks) link.hidden = false;
       document.documentElement.dataset.accountState = "signed-out";
     }
+    return null;
   }
 }
 

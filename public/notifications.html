@@ -7,18 +7,18 @@
   <meta name="theme-color" content="#0e665b">
   <title>Updates | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-69">
-  <script src="/notifications.js?v=20260716-1" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260718-81">
+  <script src="/notifications.js?v=20260718-2" type="module"></script>
 </head>
 <body class="booking-dashboard-page notifications-page">
   <a class="skip-link" href="#notifications-main">Skip to updates</a>
-  <header class="site-header"><div class="shell nav-wrap"><a class="brand" href="/" aria-label="Homle home"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><nav class="directory-nav" aria-label="Account navigation"><a href="/login" data-workspace-link>Workspace</a><a href="/settings">Settings</a></nav></div></header>
+  <header class="site-header" data-workspace-header><div class="shell nav-wrap"><div class="workspace-brand"><a class="brand" href="/login" aria-label="Homle account" data-workspace-brand><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill" data-workspace-pill>Account</span></div><nav class="directory-nav cleaner-dashboard-nav workspace-role-nav" aria-label="Cleaner navigation" data-workspace-nav="cleaner" hidden><a href="/cleaner/dashboard">Jobs</a><a href="/notifications" aria-current="page">Updates</a><a href="/cleaner/availability">Availability</a><a href="/cleaner/profile">Profile</a></nav><nav class="directory-nav landlord-dashboard-nav workspace-role-nav" aria-label="Landlord navigation" data-workspace-nav="landlord" hidden><a href="/landlord/dashboard">Dashboard</a><a href="/landlord/dashboard#landlord-properties">Properties</a><a href="/notifications" aria-current="page">Updates</a><a href="/cleaners">Find a Cleaner</a></nav><details class="account-menu" data-account-menu hidden><summary aria-label="Open Homle account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Signed in · <span data-account-role>Account</span></p><strong data-account-name>Your account</strong><small data-account-email></small><a href="/login" data-account-dashboard data-workspace-link>Open workspace</a><a href="/settings">Sign-in and privacy</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details></div></header>
   <main id="notifications-main" class="notifications-main shell">
     <section class="booking-dashboard-gate" data-notification-gate role="status" aria-live="polite">
       <span aria-hidden="true">i</span><div><strong data-notification-gate-title>Checking your private updates…</strong><p data-notification-gate-copy>Only updates for your signed-in account can appear here.</p><div><a class="button" href="/login" data-notification-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-notification-retry hidden>Try again</button></div></div>
     </section>
     <div data-notification-content hidden>
-      <section class="notifications-heading"><div><p class="eyebrow">Your account</p><h1>Updates</h1><p>Booking requests, arrival, cleaning progress and messages — in one place.</p></div><button class="button button-outline" type="button" data-mark-all-read disabled>Mark all read</button></section>
+      <section class="notifications-heading"><div><p class="eyebrow">Private workspace</p><h1 data-workspace-heading>Your updates</h1><p>Booking requests, arrival, cleaning progress and messages — in one place.</p></div><button class="button button-outline" type="button" data-mark-all-read disabled>Mark all read</button></section>
       <div class="notifications-summary" aria-live="polite"><strong data-unread-count>0 unread</strong><span>Private to your Homle account</span></div>
       <div class="notification-list" data-notification-list></div>
       <section class="booking-dashboard-empty notification-empty" data-notification-empty hidden><strong>You are all caught up.</strong><p>New booking and cleaning updates will appear here automatically.</p><a class="button" href="/login" data-empty-workspace-link>Return to workspace</a></section>

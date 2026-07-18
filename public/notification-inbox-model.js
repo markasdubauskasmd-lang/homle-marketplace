@@ -50,10 +50,14 @@ export function notificationActionPath(eventType, bookingId, payload = {}) {
   return bookingPath;
 }
 
+export function notificationWorkspace(account) {
+  if (account?.selectedRole === "cleaner" && account?.roles?.includes("cleaner")) return Object.freeze({ role: "cleaner", label: "Cleaner", path: "/cleaner/dashboard" });
+  if (account?.selectedRole === "landlord" && account?.roles?.includes("landlord")) return Object.freeze({ role: "landlord", label: "Landlord", path: "/landlord/dashboard" });
+  return Object.freeze({ role: "", label: "Account", path: "/login" });
+}
+
 export function notificationWorkspacePath(account) {
-  if (account?.selectedRole === "cleaner" && account?.roles?.includes("cleaner")) return "/cleaner/dashboard";
-  if (account?.selectedRole === "landlord" && account?.roles?.includes("landlord")) return "/landlord/dashboard";
-  return "/login";
+  return notificationWorkspace(account).path;
 }
 
 export function notificationUnreadBadge(value) {
