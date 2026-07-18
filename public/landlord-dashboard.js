@@ -696,6 +696,7 @@ function requestScanPanel(request) {
     libraryInput.hidden = true;
     const selected = element("span", "landlord-scan-selected", "No photos selected");
     let files = [];
+    let uploadPending = false;
     const upload = element("button", "button", "Upload private room photos");
     upload.type = "submit";
     function renderSelection() {
@@ -733,15 +734,17 @@ function requestScanPanel(request) {
     form.append(roomLabel, noteLabel, pickerActions, selected, upload);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (uploadPending) return;
       feedback.hidden = true;
       if (!form.reportValidity()) return;
       if (!files.length) return showFeedback(feedback, "Take a current room photo or choose photos from this device.");
-      const csrf = await recoverCsrf(feedback, "uploading this room photo");
-      if (!csrf) return;
       const queuedCount = files.length;
       let uploadedCount = 0;
+      uploadPending = true;
       setPending(upload, true, `Checking photo 1 of ${queuedCount}…`);
       try {
+        const csrf = await recoverCsrf(feedback, "uploading this room photo");
+        if (!csrf) return;
         while (files.length) {
           if (browserOffline()) throw Object.assign(new Error("You are offline. The remaining selected photos are still here; reconnect, then continue the upload."), { code: "browser-offline" });
           const candidate = files[0];
@@ -778,7 +781,10 @@ function requestScanPanel(request) {
         renderSelection();
         showFeedback(feedback, `${uploadedCount ? `${uploadedCount} ${uploadedCount === 1 ? "photo was" : "photos were"} attached. ` : ""}${error.message}`);
       }
-      finally { setPending(upload, false, files.length ? `Upload ${files.length} remaining ${files.length === 1 ? "photo" : "photos"}` : "Upload private room photos"); }
+      finally {
+        uploadPending = false;
+        setPending(upload, false, files.length ? `Upload ${files.length} remaining ${files.length === 1 ? "photo" : "photos"}` : "Upload private room photos");
+      }
     });
     panel.append(form);
 
