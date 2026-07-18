@@ -12,8 +12,9 @@
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260716-62">
+  <link rel="stylesheet" href="/styles.css?v=20260718-80">
   <script src="/app.js?v=20260718-58" type="module"></script>
+  <script src="/account-menu.js?v=20260718-2" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -33,6 +34,19 @@
         <a class="button button-small button-outline" href="/join">Join as a cleaner</a>
         <a class="button button-small" href="/request#request-cleaning">Book a clean</a>
       </nav>
+      <a class="header-sign-in" href="/login" data-account-sign-in>Sign in</a>
+      <details class="account-menu public-account-menu" data-account-menu hidden>
+        <summary aria-label="Open signed-in Homle account"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary>
+        <div class="account-menu-panel">
+          <p class="eyebrow">Signed in · <span data-account-role>Account</span></p>
+          <strong data-account-name>Your account</strong>
+          <small data-account-email></small>
+          <a href="/onboarding" data-account-dashboard>Open dashboard</a>
+          <a href="/settings">Account settings</a>
+          <button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/">Sign out</button>
+          <small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small>
+        </div>
+      </details>
     </div>
   </header>
 

@@ -36,6 +36,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .main-nav > a:not(.button) { font-size: .94rem; font-weight: 650; text-decoration: none; }
 .main-nav > a:not(.button):hover { color: var(--green); }
 .menu-toggle { display: none; margin-left: auto; padding: .55rem .8rem; color: var(--ink); border: 1px solid var(--line); border-radius: 9px; background: #fff; font-weight: 700; }
+.header-sign-in { margin-left: auto; color: var(--green-dark); font-size: .9rem; font-weight: 850; text-decoration: none; }
+.main-nav + .header-sign-in, .main-nav + .header-sign-in + .account-menu { margin-left: 0; }
 
 .button { display: inline-flex; justify-content: center; align-items: center; min-height: 48px; padding: .76rem 1.25rem; border: 2px solid var(--green); border-radius: 11px; color: #fff; background: var(--green); box-shadow: 0 6px 18px rgba(14, 102, 91, .15); font-weight: 750; text-decoration: none; cursor: pointer; transition: transform .18s ease, background .18s ease, border-color .18s ease; }
 .button:hover { background: var(--green-dark); border-color: var(--green-dark); transform: translateY(-1px); }
@@ -1594,7 +1596,7 @@ textarea { resize: vertical; }
 }
 
 @media (max-width: 680px) {
-  .directory-nav a:first-child { display: none; }
+  .cleaner-directory-page .directory-nav a:first-child { display: none; }
   .directory-main { padding: 32px 0 76px; }
   .directory-hero h1 { font-size: clamp(2.55rem, 14vw, 4rem); }
   .directory-filters, .directory-state, .directory-cleaner-card { border-radius: 18px; }
@@ -1638,7 +1640,7 @@ textarea { resize: vertical; }
 .cleaner-profile-next h2 { margin: 3px 0 4px; color: var(--green-dark); font-size: clamp(1.25rem, 3vw, 1.65rem); }
 .cleaner-profile-next p:last-child { margin: 0; color: var(--muted); }
 .cleaner-profile-next .button { min-width: 170px; white-space: nowrap; }
-.cleaner-profile-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 6px; border: 1px solid var(--line); border-radius: 17px; background: #e8efec; }
+.cleaner-profile-steps { position: sticky; z-index: 11; top: 88px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 6px; border: 1px solid var(--line); border-radius: 17px; background: rgba(232,239,236,.97); box-shadow: 0 8px 24px rgba(16,36,33,.08); backdrop-filter: blur(12px); }
 .cleaner-profile-steps button { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 8px; align-items: center; min-width: 0; min-height: 58px; padding: 9px; color: var(--muted); border: 0; border-radius: 12px; background: transparent; text-align: left; cursor: pointer; }
 .cleaner-profile-steps button > span { display: grid; grid-row: 1 / 3; width: 29px; height: 29px; place-items: center; color: var(--green-dark); border-radius: 9px; background: #d7e6e1; font-weight: 900; }
 .cleaner-profile-steps button strong, .cleaner-profile-steps button small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1741,7 +1743,7 @@ textarea { resize: vertical; }
 .landlord-capability-note > span { display: grid; width: 34px; height: 34px; place-items: center; color: #fff; border-radius: 50%; background: #9a6a16; font-weight: 900; }
 .landlord-capability-note strong { display: block; margin: 1px 0 4px; }
 .landlord-capability-note p { margin: 0; font-size: .84rem; }
-.landlord-workspace-tabs { display: grid; grid-template-columns: repeat(3, 1fr); max-width: 680px; margin: 0 0 18px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: #e8efec; }
+.landlord-workspace-tabs { position: sticky; z-index: 12; top: 88px; display: grid; grid-template-columns: repeat(3, 1fr); max-width: 680px; margin: 0 0 18px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: rgba(232,239,236,.97); box-shadow: 0 8px 24px rgba(16,36,33,.08); backdrop-filter: blur(12px); }
 .landlord-workspace-tabs button { min-height: 46px; padding: .65rem 1rem; color: var(--muted); border: 0; border-radius: 10px; background: transparent; font-weight: 830; cursor: pointer; }
 .landlord-workspace-tabs button.current { color: var(--green-dark); background: #fff; box-shadow: 0 4px 16px rgba(16,36,33,.09); }
 .landlord-workspace-panel { min-height: 380px; padding: clamp(22px, 4vw, 34px); border: 1px solid var(--line); border-radius: 24px; background: #fff; box-shadow: 0 14px 42px rgba(16,36,33,.055); }
@@ -2572,9 +2574,11 @@ textarea { resize: vertical; }
   .account-avatar { width: 34px; height: 34px; }
   .account-menu-panel { position: fixed; top: 72px; right: 12px; left: 12px; min-width: 0; }
   .notifications-main { padding-block: 27px 90px; }
-  .cleaner-dashboard-page .directory-nav a, .landlord-dashboard-page .directory-nav a, .cleaner-dashboard-page .directory-nav .workspace-switch, .landlord-dashboard-page .directory-nav .workspace-switch { display: none; }
-  .cleaner-dashboard-page .directory-nav a:first-child, .cleaner-dashboard-page .directory-nav a:last-child, .landlord-dashboard-page .directory-nav a:first-child, .landlord-dashboard-page .directory-nav a:last-child { display: block; }
-  .cleaner-dashboard-page .directory-nav .workspace-switch, .landlord-dashboard-page .directory-nav .workspace-switch { display: inline-flex; padding: 7px 9px; font-size: .76rem; }
+  .cleaner-workspace-page .nav-wrap, .landlord-dashboard-page .nav-wrap { flex-wrap: wrap; gap: 10px 14px; padding-block: 8px; }
+  .cleaner-workspace-page .directory-nav, .landlord-dashboard-page .directory-nav { order: 3; width: 100%; gap: 18px; padding: 4px 2px 7px; overflow-x: auto; scrollbar-width: thin; }
+  .cleaner-workspace-page .directory-nav a, .landlord-dashboard-page .directory-nav a { display: inline-flex; flex: 0 0 auto; min-height: 32px; align-items: center; }
+  .cleaner-workspace-page .account-menu, .landlord-dashboard-page .account-menu { margin-left: auto; }
+  .cleaner-profile-steps, .landlord-workspace-tabs { top: 132px; }
   .notifications-page .directory-nav a { display: block; }
   .notifications-heading { display: grid; align-items: stretch; }
   .notifications-heading .button { width: 100%; }

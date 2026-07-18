@@ -7,9 +7,9 @@
   <meta name="theme-color" content="#0e665b">
   <title>Landlord dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260718-79">
+  <link rel="stylesheet" href="/styles.css?v=20260718-80">
   <script src="/landlord-dashboard.js?v=20260718-30" type="module"></script>
-  <script src="/account-menu.js?v=20260718-1" type="module"></script>
+  <script src="/account-menu.js?v=20260718-2" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
@@ -88,9 +88,9 @@
         <span aria-hidden="true">01</span><div><p class="eyebrow">Room scan is the core booking input</p><h2 id="scan-boundary-title">Speak, save, photograph, then submit.</h2><p>First create a private request draft from your spoken room walkthrough. Then add at least one private room photo, check the concise Cleaner instructions and deliberately open the request for matching.</p></div><button class="button" type="button" data-open-request-tab>Prepare a room scan</button>
       </section>
 
-      <nav class="landlord-workspace-tabs" aria-label="Landlord workspace sections"><button type="button" class="current" data-landlord-tab="properties" aria-selected="true">Properties</button><button type="button" data-landlord-tab="requests" aria-selected="false">Request drafts</button><button type="button" data-landlord-tab="account" aria-selected="false">Account</button></nav>
+      <nav class="landlord-workspace-tabs" role="tablist" aria-label="Landlord workspace sections"><button type="button" class="current" role="tab" data-landlord-tab="properties" aria-controls="landlord-panel-properties" aria-selected="true">Properties</button><button type="button" role="tab" data-landlord-tab="requests" aria-controls="landlord-panel-requests" aria-selected="false" tabindex="-1">Request drafts</button><button type="button" role="tab" data-landlord-tab="account" aria-controls="landlord-panel-account" aria-selected="false" tabindex="-1">Account</button></nav>
 
-      <section data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title">
+      <section id="landlord-panel-properties" role="tabpanel" data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title">
         <div class="landlord-panel-heading"><div><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your properties</h2></div><button class="button button-outline" type="button" data-toggle-property-form>Add property</button></div>
         <div class="landlord-empty-card" data-property-empty><strong>No account properties yet.</strong><p>Add a property to prepare a private request draft. Nothing is published to Cleaner search.</p></div>
         <div class="landlord-property-grid" data-property-list hidden></div>
@@ -120,7 +120,7 @@
         </form>
       </section>
 
-      <section data-landlord-panel="account" class="landlord-workspace-panel" aria-labelledby="landlord-account-title" hidden>
+      <section id="landlord-panel-account" role="tabpanel" data-landlord-panel="account" class="landlord-workspace-panel" aria-labelledby="landlord-account-title" hidden>
         <div class="landlord-panel-heading"><div><p class="eyebrow">Private Landlord profile</p><h2 id="landlord-account-title">Your account details</h2><p>These details help Homle understand who manages the properties. They are not shown to Cleaners as personal contact information.</p></div><span class="landlord-private-pill">Private account</span></div>
         <form class="landlord-record-form landlord-profile-form" data-landlord-profile-form novalidate>
           <fieldset data-landlord-profile-controls>
@@ -134,7 +134,7 @@
         <aside class="landlord-account-security"><div><p class="eyebrow">Account security</p><h3>Sign-in methods and privacy</h3><p>Connect Google or Facebook, review privacy requests and manage secure access separately from property and Cleaner information.</p></div><a class="button button-outline" href="/settings">Open account security</a></aside>
       </section>
 
-      <section data-landlord-panel="requests" class="landlord-workspace-panel" aria-labelledby="requests-title" hidden>
+      <section id="landlord-panel-requests" role="tabpanel" data-landlord-panel="requests" class="landlord-workspace-panel" aria-labelledby="requests-title" hidden>
         <div class="landlord-panel-heading"><div><p class="eyebrow">Not sent for matching</p><h2 id="requests-title">Cleaning request drafts</h2></div><span class="landlord-private-pill">Private drafts only</span></div>
 
         <form class="landlord-record-form landlord-request-form" data-request-form novalidate>

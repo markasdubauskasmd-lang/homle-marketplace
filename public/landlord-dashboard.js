@@ -385,13 +385,21 @@ async function refreshSelectedCleanerProfile() {
   renderRequests();
 }
 
-function selectWorkspaceTab(name) {
+function workspaceTabFromHash() {
+  const match = /^#landlord-(properties|requests|account)$/.exec(location.hash);
+  return match?.[1] || "";
+}
+
+function selectWorkspaceTab(name, { historyMode = "" } = {}) {
+  const selected = ["properties", "requests", "account"].includes(name) ? name : "properties";
   document.querySelectorAll("[data-landlord-tab]").forEach((button) => {
-    const active = button.dataset.landlordTab === name;
+    const active = button.dataset.landlordTab === selected;
     button.classList.toggle("current", active);
     button.setAttribute("aria-selected", String(active));
+    button.tabIndex = active ? 0 : -1;
   });
-  document.querySelectorAll("[data-landlord-panel]").forEach((panel) => { panel.hidden = panel.dataset.landlordPanel !== name; });
+  document.querySelectorAll("[data-landlord-panel]").forEach((panel) => { panel.hidden = panel.dataset.landlordPanel !== selected; });
+  if (historyMode === "push") history.pushState({ landlordTab: selected }, "", `#landlord-${selected}`);
 }
 
 function continueBookingStart() {
@@ -1758,7 +1766,9 @@ function configureSpeech() {
   speechStatus.textContent = "Speech is available. Your browser may use its own speech-to-text service.";
 }
 
-document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addEventListener("click", () => { selectWorkspaceTab(button.dataset.landlordTab); }));
+document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addEventListener("click", () => { selectWorkspaceTab(button.dataset.landlordTab, { historyMode: "push" }); }));
+window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "properties"));
+selectWorkspaceTab(workspaceTabFromHash() || "properties");
 document.querySelector("[data-open-account-tab]").addEventListener("click", () => {
   selectWorkspaceTab("account");
   document.querySelector("[data-account-menu]").open = false;

@@ -107,7 +107,12 @@ function updateServiceRow(row) {
   row.classList.toggle("is-enabled", enabled);
 }
 
-function selectProfileSection(key, { focus = true } = {}) {
+function profileSectionFromHash() {
+  const match = /^#profile-(introduction|services|boundaries|review)$/.exec(location.hash);
+  return match?.[1] || "";
+}
+
+function selectProfileSection(key, { focus = true, historyMode = "" } = {}) {
   const selected = profileSectionOrder.includes(key) ? key : "introduction";
   for (const section of profileSections) section.hidden = section.dataset.profileSection !== selected;
   for (const button of profileStepButtons) {
@@ -117,6 +122,7 @@ function selectProfileSection(key, { focus = true } = {}) {
     else button.removeAttribute("aria-current");
   }
   const section = profileSections.find((item) => item.dataset.profileSection === selected);
+  if (historyMode === "push") history.pushState({ profileSection: selected }, "", `#profile-${selected}`);
   if (focus && section) {
     section.focus({ preventScroll: true });
     section.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -184,7 +190,7 @@ function populate(profile) {
   }
   publicControl.checked = profile.isPublic === true;
   const completion = updateCompletion();
-  selectProfileSection(completion.sections.find((section) => !section.complete)?.key || "review", { focus: false });
+  selectProfileSection(profileSectionFromHash() || completion.sections.find((section) => !section.complete)?.key || "review", { focus: false });
   dirty = false;
   saveState.textContent = "Profile loaded securely.";
 }
@@ -261,9 +267,13 @@ for (const row of serviceRows) {
   row.querySelector("[data-service-pricing]").addEventListener("change", () => updateServiceRow(row));
   updateServiceRow(row);
 }
-for (const button of profileStepButtons) button.addEventListener("click", () => selectProfileSection(button.dataset.profileStepTarget));
-for (const button of document.querySelectorAll("[data-profile-continue]")) button.addEventListener("click", () => selectProfileSection(button.dataset.profileContinue));
-profileNextAction.addEventListener("click", () => selectProfileSection(profileNextAction.dataset.profileTarget));
+for (const button of profileStepButtons) button.addEventListener("click", () => selectProfileSection(button.dataset.profileStepTarget, { historyMode: "push" }));
+for (const button of document.querySelectorAll("[data-profile-continue]")) button.addEventListener("click", () => selectProfileSection(button.dataset.profileContinue, { historyMode: "push" }));
+profileNextAction.addEventListener("click", () => selectProfileSection(profileNextAction.dataset.profileTarget, { historyMode: "push" }));
+window.addEventListener("popstate", () => {
+  const section = profileSectionFromHash();
+  if (section) selectProfileSection(section);
+});
 form.addEventListener("input", () => { dirty = true; saveState.textContent = "Unsaved changes."; updateCompletion(); });
 form.addEventListener("change", () => { dirty = true; saveState.textContent = "Unsaved changes."; updateCompletion(); });
 form.addEventListener("submit", saveProfile);
