@@ -455,8 +455,6 @@ async function respondToBooking(bookingId, decision, reason, button) {
     await refreshExpiredInvitations();
     return false;
   }
-  const csrf = await recoverCsrf();
-  if (!csrf) return false;
   responding = true;
   const originalLabel = button.textContent;
   button.disabled = true;
@@ -465,6 +463,8 @@ async function respondToBooking(bookingId, decision, reason, button) {
   button.textContent = decision === "accept" ? "Accepting…" : "Declining…";
   showFeedback("");
   try {
+    const csrf = await recoverCsrf();
+    if (!csrf) return false;
     const result = await requestJson(`/api/marketplace/bookings/${encodeURIComponent(bookingId)}/response`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ decision, reason }) });
     if (decision === "accept" && Object.hasOwn(result.booking || {}, "customerPricePence")) throw new Error("Homle withheld this response because private marketplace pricing was exposed.");
     try {
