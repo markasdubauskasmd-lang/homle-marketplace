@@ -1,12 +1,24 @@
 import { BlockList, isIP } from "node:net";
 
+// WHATWG URL canonicalises an IPv6 literal (compresses zero-runs, lowercases),
+// so two spellings of the same address compare equal and produce one stable
+// limiter identity. IPv4 (including dotted IPv4-mapped, unwrapped in
+// normalizedAddress) needs no change.
+function canonicalIpv6(address) {
+  try {
+    return new URL(`http://[${address}]`).hostname.replace(/^\[|\]$/g, "");
+  } catch {
+    return address;
+  }
+}
+
 function normalizedAddress(value, label) {
   const address = typeof value === "string" ? value.trim() : "";
   if (!address || address.length > 64 || /[\u0000-\u0020\u007f]/.test(address)) throw new TypeError(`${label} is not a valid IP address.`);
   const mapped = address.toLowerCase().startsWith("::ffff:") ? address.slice(7) : address;
   const family = isIP(mapped);
   if (!family) throw new TypeError(`${label} is not a valid IP address.`);
-  return { address: mapped, family };
+  return { address: family === 6 ? canonicalIpv6(mapped) : mapped, family };
 }
 
 function proxyTrustList(value) {

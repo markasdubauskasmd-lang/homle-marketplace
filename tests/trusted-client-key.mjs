@@ -48,6 +48,12 @@ assert.equal(
   "A browser-forged leftmost X-Forwarded-For entry displaced the Cloudflare-verified client identity."
 );
 assert.equal(rendered(request("10.0.0.8", "198.51.100.71, 10.0.0.8", "::ffff:198.51.100.71")), "render:ipv4:198.51.100.71");
+assert.equal(
+  rendered(request("10.0.0.8", "2001:0db8:0:0:0:0:0:71, 10.0.0.8", "2001:DB8::71")),
+  "render:ipv6:2001:db8::71",
+  "Equivalent IPv6 spellings for True-Client-IP and its X-Forwarded-For entry were not reconciled to one canonical identity."
+);
+assert.equal(directAddress(request("2001:0DB8:0:0:0:0:0:8")), "2001:db8::8", "IPv6 client identity was not canonicalised for a stable limiter key.");
 assert.throws(() => rendered(request("10.0.0.8", "198.51.100.71")), /True-Client-IP/, "Render mode identified a client without the Cloudflare-verified header.");
 assert.throws(() => rendered(request("10.0.0.8", "203.0.113.99, 10.0.0.8", "198.51.100.71")), /must appear in its X-Forwarded-For chain/, "A True-Client-IP outside the validated chain was accepted.");
 assert.throws(() => rendered(request("10.0.0.8", "198.51.100.71, 10.0.0.8", "not-an-ip")), /True-Client-IP/);

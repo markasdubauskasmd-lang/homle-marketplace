@@ -87,7 +87,7 @@ MARKETPLACE_ENABLED=false
 PAYMENTS_ENABLED=false
 ```
 
-`HOST` may be `127.0.0.1` when a same-host reverse proxy is the only caller, or a reviewed interface binding such as `0.0.0.0` inside an isolated container network. Render mode additionally requires the platform-provided `RENDER=true`, `RENDER_SERVICE_ID` and `RENDER_EXTERNAL_HOSTNAME` runtime values and accepts a bounded forwarding chain using Render's documented first-address client identity. Do not manually set those platform values. For a different host, leave `TRUST_PROXY_PROVIDER` blank, configure the actual immediate proxy networks in `TRUSTED_PROXY_CIDRS`, and require that proxy to replace forwarding input with exactly one address.
+`HOST` may be `127.0.0.1` when a same-host reverse proxy is the only caller, or a reviewed interface binding such as `0.0.0.0` inside an isolated container network. Render mode additionally requires the platform-provided `RENDER=true`, `RENDER_SERVICE_ID` and `RENDER_EXTERNAL_HOSTNAME` runtime values and, because Render appends to rather than replaces a client-supplied `X-Forwarded-For`, identifies the client from the Cloudflare-verified `True-Client-IP` header after confirming it appears in the bounded forwarding chain; it never trusts the forgeable first `X-Forwarded-For` entry. Do not manually set those platform values. For a different host, leave `TRUST_PROXY_PROVIDER` blank, configure the actual immediate proxy networks in `TRUSTED_PROXY_CIDRS`, and require that proxy to replace forwarding input with exactly one address.
 
 Store `ADMIN_KEY` and every future provider credential in the hosting secret manager. Do not place them in `.env`, source control, build logs, screenshots or chat.
 
