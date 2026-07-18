@@ -57,6 +57,8 @@ const nextLink = document.querySelector("[data-landlord-next-link]");
 const nextButton = document.querySelector("[data-landlord-next-button]");
 const mediaReadiness = document.querySelector("[data-landlord-media-readiness]");
 const networkStatus = document.querySelector("[data-landlord-network-status]");
+const loadStatus = document.querySelector("[data-landlord-load-status]");
+const loadRetry = document.querySelector("[data-landlord-load-retry]");
 const bookingLiveStatus = document.querySelector("[data-landlord-booking-live]");
 const bookingRefresh = document.querySelector("[data-landlord-booking-refresh]");
 let properties = [];
@@ -1193,34 +1195,42 @@ async function loadWorkspace() {
   loading = true;
   showState("Checking secure Landlord access…", "Your properties and drafts open only inside an authenticated Landlord session.");
   try {
-    const [accountResult, profileResult, propertyResult, requestResult, bookingResult, healthResult] = await Promise.all([
-      requestJson("/api/marketplace/account"),
+    const accountResult = await requestJson("/api/marketplace/account");
+    const account = accountResult.account;
+    if (account?.selectedRole !== "landlord" || !account?.roles?.includes("landlord")) return showState("This is not a Landlord account.", "Use the workspace selected during onboarding or sign in with a Landlord/Property Manager account.", { kind: "authentication", allowSignIn: true });
+    document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
+    renderAccountAvatar(account);
+    state.hidden = true;
+    workspace.hidden = false;
+    workspace.setAttribute("aria-busy", "true");
+    loadStatus.hidden = true;
+
+    const [profileResult, propertyResult, requestResult, bookingResult, healthResult] = await Promise.allSettled([
       requestJson("/api/marketplace/landlord/profile"),
       requestJson("/api/marketplace/properties"),
       requestJson("/api/marketplace/cleaning-requests"),
       requestJson("/api/marketplace/bookings?limit=50"),
       requestJson("/api/health")
     ]);
-    const account = accountResult.account;
-    if (account?.selectedRole !== "landlord" || !account?.roles?.includes("landlord")) return showState("This is not a Landlord account.", "Use the workspace selected during onboarding or sign in with a Landlord/Property Manager account.", { kind: "authentication", allowSignIn: true });
-    properties = Array.isArray(propertyResult.properties) ? propertyResult.properties : [];
-    requests = Array.isArray(requestResult.cleaningRequests) ? requestResult.cleaningRequests : [];
-    bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
-    landlordProfile = profileResult.profile || { organisationName: null, biography: "" };
+    const results = [profileResult, propertyResult, requestResult, bookingResult, healthResult];
+    const failures = results.filter((result) => result.status === "rejected");
+    const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
+    if (authorizationFailure) throw authorizationFailure.reason;
+    if (propertyResult.status === "fulfilled") properties = Array.isArray(propertyResult.value.properties) ? propertyResult.value.properties : [];
+    if (requestResult.status === "fulfilled") requests = Array.isArray(requestResult.value.cleaningRequests) ? requestResult.value.cleaningRequests : [];
+    if (bookingResult.status === "fulfilled") bookings = Array.isArray(bookingResult.value.bookings) ? bookingResult.value.bookings : [];
+    landlordProfile = profileResult.status === "fulfilled" ? (profileResult.value.profile || { organisationName: null, biography: "" }) : { organisationName: null, biography: "" };
     landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";
     landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
     landlordProfileDirty = false;
-    mediaReady = healthResult?.marketplace?.mediaReady === true;
+    mediaReady = healthResult.status === "fulfilled" && healthResult.value?.marketplace?.mediaReady === true;
     mediaReadiness.hidden = mediaReady;
-    document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
-    renderAccountAvatar(account);
     renderProperties();
     restoreWorkingRequest();
     renderRequests();
     renderBookings();
-    state.hidden = true;
-    workspace.hidden = false;
     await refreshFavouriteCleaners();
+    loadStatus.hidden = failures.length === 0;
     if (location.hash === "#landlord-account-title") selectWorkspaceTab("account");
     continueBookingStart();
   } catch (error) {
@@ -1230,9 +1240,12 @@ async function loadWorkspace() {
     else if (error.statusCode === 404 || error.statusCode === 503) showState("Landlord accounts are not connected yet.", "The workspace is ready but remains closed until Homle's secure marketplace database and account runtime are activated.", { kind: "unavailable", allowRetry: true });
     else showState("The Landlord workspace is temporarily unavailable.", "No property or request was changed. Check the connection and try again.", { kind: "error", allowRetry: true });
   } finally {
+    workspace.removeAttribute("aria-busy");
     loading = false;
   }
 }
+
+loadRetry.addEventListener("click", loadWorkspace);
 
 function optionalNumber(value) {
   return String(value || "").trim() === "" ? null : Number(value);

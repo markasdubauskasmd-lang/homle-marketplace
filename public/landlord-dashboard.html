@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Landlord dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260718-76">
-  <script src="/landlord-dashboard.js?v=20260718-16" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260718-77">
+  <script src="/landlord-dashboard.js?v=20260718-17" type="module"></script>
   <script src="/account-menu.js?v=20260718-1" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
@@ -49,6 +49,9 @@
     <div data-landlord-workspace hidden>
       <section class="landlord-network-status" data-landlord-network-status role="status" aria-live="polite" hidden>
         <span aria-hidden="true">!</span><div><strong>You are offline.</strong><p>Your unfinished walkthrough and selected room photos stay in this tab. Reconnect before saving or uploading; Homle will not retry a change automatically.</p></div>
+      </section>
+      <section class="dashboard-partial-status" data-landlord-load-status role="status" aria-live="polite" hidden>
+        <span aria-hidden="true">!</span><div><strong>Your Landlord account is open, but some information could not be refreshed.</strong><p>No property, request or booking was changed. Try again to load the complete dashboard.</p></div><button class="button button-outline" type="button" data-landlord-load-retry>Try again</button>
       </section>
       <section class="landlord-dashboard-heading landlord-dashboard-identity">
         <div class="role-dashboard-person landlord-dashboard-person"><span class="role-account-avatar landlord-role-avatar" data-account-avatar aria-hidden="true">H</span><div><p class="eyebrow">Signed in as Landlord</p><strong data-account-name>Your account</strong><small data-account-email></small></div></div>

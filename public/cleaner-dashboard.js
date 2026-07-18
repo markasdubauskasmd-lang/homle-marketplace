@@ -428,28 +428,43 @@ async function loadDashboard() {
   loading = true;
   showGate("Checking secure Cleaner access…", "Requests and jobs open only inside the assigned Cleaner account.");
   try {
-    const [accountResult, bookingResult, profileResult, payoutResult, availabilityResult] = await Promise.all([requestJson("/api/marketplace/account"), requestJson("/api/marketplace/bookings?limit=50"), requestJson("/api/marketplace/cleaner/profile"), loadOptionalPayoutStatus(), requestJson("/api/marketplace/cleaner/availability")]);
+    const accountResult = await requestJson("/api/marketplace/account");
     const account = accountResult.account;
     if (account?.selectedRole !== "cleaner" || !account?.roles?.includes("cleaner")) return showGate("This is not a Cleaner account.", "Use the Cleaner workspace selected during onboarding.", { kind: "authentication", allowSignIn: true });
-    bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
-    cleanerProfile = profileResult.profile && typeof profileResult.profile === "object" ? profileResult.profile : null;
-    payoutStatus = payoutResult;
-    availabilityWindows = Array.isArray(availabilityResult.availability) ? availabilityResult.availability : [];
-    document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
-    document.querySelector("[data-cleaner-profile-link]").textContent = cleanerProfile?.profileCompletionPercent === 100 ? "Edit profile" : "Complete your profile";
     document.querySelector("[data-cleaner-name]").textContent = account.displayName || "Cleaner";
-    renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl);
-    renderBookings();
-    showFeedback("");
+    renderAccountAvatar(account);
     gate.hidden = true;
     dashboard.hidden = false;
+    dashboard.setAttribute("aria-busy", "true");
+
+    const [bookingResult, profileResult, payoutResult, availabilityResult] = await Promise.allSettled([
+      requestJson("/api/marketplace/bookings?limit=50"),
+      requestJson("/api/marketplace/cleaner/profile"),
+      loadOptionalPayoutStatus(),
+      requestJson("/api/marketplace/cleaner/availability")
+    ]);
+    const failures = [bookingResult, profileResult, availabilityResult].filter((result) => result.status === "rejected");
+    const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
+    if (authorizationFailure) throw authorizationFailure.reason;
+    if (bookingResult.status === "fulfilled") bookings = Array.isArray(bookingResult.value.bookings) ? bookingResult.value.bookings : [];
+    if (profileResult.status === "fulfilled") cleanerProfile = profileResult.value.profile && typeof profileResult.value.profile === "object" ? profileResult.value.profile : null;
+    if (payoutResult.status === "fulfilled") payoutStatus = payoutResult.value;
+    if (availabilityResult.status === "fulfilled") availabilityWindows = Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability : [];
+    document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
+    document.querySelector("[data-cleaner-profile-link]").textContent = cleanerProfile?.profileCompletionPercent === 100 ? "Edit profile" : "Complete your profile";
+    renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl);
+    renderBookings();
+    showFeedback(failures.length ? "Your Cleaner account is open, but some job or profile details could not be refreshed. Nothing was accepted, declined or changed. Try again to load the complete dashboard." : "", failures.length ? "error" : "info");
   } catch (error) {
     if (error.code === "browser-offline") showGate("You are offline.", "Reconnect to securely load your current requests and jobs. No decision was sent.", { kind: "offline", allowRetry: true });
     else if (error.statusCode === 401) showGate("Sign in as a Cleaner to open this dashboard.", "Requests and jobs are private to the assigned Cleaner account.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 403) showGate("This account cannot open the Cleaner dashboard.", "Use a Cleaner account selected during onboarding.", { kind: "authentication", allowSignIn: true });
     else if ([404, 503].includes(error.statusCode)) showGate("Cleaner accounts are not connected yet.", "The dashboard is ready but remains closed until Homle’s protected marketplace database and HTTPS runtime pass staging.", { kind: "unavailable", allowRetry: true });
     else showGate("The Cleaner dashboard is temporarily unavailable.", "No request was accepted or declined. Check the connection and try again.", { kind: "error", allowRetry: true });
-  } finally { loading = false; }
+  } finally {
+    dashboard.removeAttribute("aria-busy");
+    loading = false;
+  }
 }
 
 retry.addEventListener("click", loadDashboard);
