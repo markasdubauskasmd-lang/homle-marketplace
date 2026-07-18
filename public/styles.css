@@ -1730,7 +1730,7 @@ textarea { resize: vertical; }
 .landlord-capability-note > span { display: grid; width: 34px; height: 34px; place-items: center; color: #fff; border-radius: 50%; background: #9a6a16; font-weight: 900; }
 .landlord-capability-note strong { display: block; margin: 1px 0 4px; }
 .landlord-capability-note p { margin: 0; font-size: .84rem; }
-.landlord-workspace-tabs { display: grid; grid-template-columns: 1fr 1fr; max-width: 520px; margin: 0 0 18px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: #e8efec; }
+.landlord-workspace-tabs { display: grid; grid-template-columns: repeat(3, 1fr); max-width: 680px; margin: 0 0 18px; padding: 5px; border: 1px solid var(--line); border-radius: 14px; background: #e8efec; }
 .landlord-workspace-tabs button { min-height: 46px; padding: .65rem 1rem; color: var(--muted); border: 0; border-radius: 10px; background: transparent; font-weight: 830; cursor: pointer; }
 .landlord-workspace-tabs button.current { color: var(--green-dark); background: #fff; box-shadow: 0 4px 16px rgba(16,36,33,.09); }
 .landlord-workspace-panel { min-height: 380px; padding: clamp(22px, 4vw, 34px); border: 1px solid var(--line); border-radius: 24px; background: #fff; box-shadow: 0 14px 42px rgba(16,36,33,.055); }
@@ -1768,6 +1768,13 @@ textarea { resize: vertical; }
 .landlord-form-feedback[data-kind="success"] { color: var(--green-dark); border-color: #9bcdbf; background: var(--mint-pale); }
 .landlord-record-form .button[type="submit"] { justify-self: start; min-width: 190px; }
 .landlord-record-form .button[aria-busy="true"] { cursor: progress; opacity: .7; }
+.landlord-profile-form { max-width: 780px; }
+.landlord-profile-identity { color: var(--green-dark); border-color: #a9cfc4; background: #eaf7f3; }
+.landlord-profile-identity > div > span { display: block; margin-top: 5px; color: var(--muted); font-size: .72rem; font-weight: 750; }
+.landlord-account-security { display: flex; justify-content: space-between; gap: 22px; align-items: center; margin-top: 20px; padding: 20px; border: 1px solid var(--line); border-radius: 17px; background: #f8faf9; }
+.landlord-account-security h3 { margin: 3px 0 5px; color: var(--green-dark); }
+.landlord-account-security p:last-child { margin: 0; color: var(--muted); font-size: .84rem; }
+.landlord-account-security .button { flex: 0 0 auto; white-space: nowrap; }
 .dashboard-next-action { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 18px; align-items: center; margin: 0 0 24px; padding: 22px; border: 1px solid #7fc9b7; border-radius: 22px; background: linear-gradient(145deg, #e8faf4, #fff); box-shadow: 0 14px 36px rgba(16,72,63,.09); }
 .dashboard-next-mark { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 16px; background: var(--green); color: #fff; font-size: 1.5rem; font-weight: 900; }
 .dashboard-next-action h2 { margin: 3px 0 4px; color: var(--green-dark); font-size: clamp(1.35rem, 3vw, 1.75rem); }
@@ -1891,6 +1898,8 @@ textarea { resize: vertical; }
   .landlord-speech-heading .button, .landlord-checklist-heading .text-button { width: 100%; }
   .landlord-speech-heading .button { min-height: 54px; font-size: 1rem; }
   .landlord-record-form .button[type="submit"] { width: 100%; }
+  .landlord-account-security { display: grid; padding: 17px 14px; }
+  .landlord-account-security .button { width: 100%; white-space: normal; }
   .dashboard-next-action { grid-template-columns: 42px 1fr; padding: 18px 15px; }
   .dashboard-next-mark { width: 40px; height: 40px; border-radius: 13px; }
   .dashboard-next-action .button { grid-column: 1 / -1; width: 100%; min-width: 0; }

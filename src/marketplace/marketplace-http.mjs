@@ -95,7 +95,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const cleanerPayouts = dependencies?.cleanerPayoutService || null;
   const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
-  if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
+  if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof cleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaner profile service.");
   if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
@@ -274,9 +274,12 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           return true;
         }
         if (pathname === "/api/marketplace/landlord/profile") {
-          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
-          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
-          const profile = await properties.saveLandlordProfile(context.actor, await readJsonObject(request));
+          if (request.method !== "GET" && request.method !== "PUT") return methodNotAllowed(response, ["GET", "PUT"]), true;
+          const mutation = request.method === "PUT";
+          const context = await security.protect(request, { mutation, roles: ["landlord"] });
+          const profile = mutation
+            ? await properties.saveLandlordProfile(context.actor, await readJsonObject(request))
+            : await properties.getLandlordProfile(context.actor);
           sendJson(response, 200, { ok: true, profile });
           return true;
         }

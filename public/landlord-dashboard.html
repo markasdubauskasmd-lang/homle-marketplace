@@ -8,7 +8,7 @@
   <title>Landlord dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260718-74">
-  <script src="/landlord-dashboard.js?v=20260718-12" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260718-13" type="module"></script>
   <script src="/account-menu.js?v=20260718-1" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
@@ -18,7 +18,7 @@
     <div class="shell nav-wrap">
       <div class="workspace-brand"><a class="brand" href="/landlord/dashboard" aria-label="Homle Landlord dashboard"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill landlord-workspace-pill">Landlord</span></div>
       <nav class="directory-nav landlord-dashboard-nav" aria-label="Landlord dashboard navigation"><a href="/landlord/dashboard" aria-current="page">Dashboard</a><a href="#properties-title">Properties</a><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaners">Find a Cleaner</a></nav>
-      <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="#properties-title">Manage properties</a><a href="/settings">Account settings</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details>
+      <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="#landlord-account-title" data-open-account-tab>Landlord profile</a><a href="#properties-title">Manage properties</a><a href="/settings">Sign-in and privacy</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details>
     </div>
   </header>
 
@@ -78,7 +78,7 @@
         <span aria-hidden="true">01</span><div><p class="eyebrow">Room scan is the core booking input</p><h2 id="scan-boundary-title">Speak, save, photograph, then submit.</h2><p>First create a private request draft from your spoken room walkthrough. Then add at least one private room photo, check the concise Cleaner instructions and deliberately open the request for matching.</p></div><button class="button" type="button" data-open-request-tab>Prepare a room scan</button>
       </section>
 
-      <nav class="landlord-workspace-tabs" aria-label="Landlord workspace sections"><button type="button" class="current" data-landlord-tab="properties" aria-selected="true">Properties</button><button type="button" data-landlord-tab="requests" aria-selected="false">Request drafts</button></nav>
+      <nav class="landlord-workspace-tabs" aria-label="Landlord workspace sections"><button type="button" class="current" data-landlord-tab="properties" aria-selected="true">Properties</button><button type="button" data-landlord-tab="requests" aria-selected="false">Request drafts</button><button type="button" data-landlord-tab="account" aria-selected="false">Account</button></nav>
 
       <section data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title">
         <div class="landlord-panel-heading"><div><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your properties</h2></div><button class="button button-outline" type="button" data-toggle-property-form>Add property</button></div>
@@ -108,6 +108,20 @@
             <button class="button" type="submit" data-save-property>Save property privately</button>
           </fieldset>
         </form>
+      </section>
+
+      <section data-landlord-panel="account" class="landlord-workspace-panel" aria-labelledby="landlord-account-title" hidden>
+        <div class="landlord-panel-heading"><div><p class="eyebrow">Private Landlord profile</p><h2 id="landlord-account-title">Your account details</h2><p>These details help Homle understand who manages the properties. They are not shown to Cleaners as personal contact information.</p></div><span class="landlord-private-pill">Private account</span></div>
+        <form class="landlord-record-form landlord-profile-form" data-landlord-profile-form novalidate>
+          <fieldset data-landlord-profile-controls>
+            <div class="role-dashboard-person landlord-profile-identity"><span class="role-account-avatar landlord-role-avatar" data-account-avatar aria-hidden="true">H</span><div><strong data-account-name>Your account</strong><small data-account-email></small><span>Verified sign-in identity</span></div></div>
+            <label>Organisation or portfolio name <span>(optional)</span><input name="organisationName" autocomplete="organization" maxlength="160" placeholder="For example: Riverside Property Management"></label>
+            <label>Short Landlord introduction <span>(optional)</span><textarea name="biography" rows="4" maxlength="1200" placeholder="Describe the homes or workplaces you manage and the kind of cleaning support you need."></textarea><small>Do not include access codes, personal phone numbers or tenant information.</small></label>
+            <div class="landlord-form-feedback" data-landlord-profile-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
+            <button class="button" type="submit" data-save-landlord-profile>Save Landlord details</button>
+          </fieldset>
+        </form>
+        <aside class="landlord-account-security"><div><p class="eyebrow">Account security</p><h3>Sign-in methods and privacy</h3><p>Connect Google or Facebook, review privacy requests and manage secure access separately from property and Cleaner information.</p></div><a class="button button-outline" href="/settings">Open account security</a></aside>
       </section>
 
       <section data-landlord-panel="requests" class="landlord-workspace-panel" aria-labelledby="requests-title" hidden>

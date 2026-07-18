@@ -85,6 +85,7 @@ const cleanerProfileService = {
   async withdrawOwnAvailability(actor, availabilityId) { calls.push({ kind: "availability-withdraw", actor, availabilityId }); return { availabilityId, startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T17:00:00.000Z", status: "withdrawn" }; }
 };
 const propertyService = {
+  async getLandlordProfile(actor) { calls.push({ kind: "landlord-get", actor }); return { organisationName: "Example PM", biography: "Local portfolio" }; },
   async saveLandlordProfile(actor, input) { calls.push({ kind: "landlord-save", actor, input }); return { organisationName: input.organisationName || null, biography: input.biography || "" }; },
   async createProperty(actor, input) { calls.push({ kind: "property-create", actor, input }); return { propertyId: "44444444-4444-4444-8444-444444444444", name: input.name }; },
   async updateOwnProperty(actor, input) { calls.push({ kind: "property-update", actor, input }); return { propertyId: input.id, name: input.name }; },
@@ -354,6 +355,10 @@ const notificationId = "77777777-7777-4777-8777-777777777777";
 const notificationRead = await dispatch(router, "POST", `/api/marketplace/notifications/${notificationId}/read`, { headers: authHeaders, body: {} });
 const notificationReadAll = await dispatch(router, "POST", "/api/marketplace/notifications/read-all", { headers: authHeaders, body: { cutoffCreatedAt: "2026-07-15T18:10:00.000Z" } });
 assert(notificationList.response.statusCode === 200 && notificationList.body.unreadCount === 2 && notificationRead.response.statusCode === 200 && notificationReadAll.response.statusCode === 200 && calls.slice(-3).map((call) => call.kind).join(",") === "notification-list,notification-read,notification-read-all" && calls.at(-3).input.limit === "15" && calls.at(-2).notificationId === notificationId, "Notification inbox routes lost account authorization, pagination or CSRF-protected read actions.");
+const profileRead = await dispatch(router, "GET", "/api/marketplace/landlord/profile", { headers: { cookie: authHeaders.cookie } });
+assert(profileRead.response.statusCode === 200 && profileRead.body.profile.organisationName === "Example PM" && calls.at(-1).kind === "landlord-get" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Landlord profile read was not bound to the authenticated Landlord.");
+const cleanerProfileRead = await dispatch(router, "GET", "/api/marketplace/landlord/profile", { headers: { cookie: cleanerAuthHeaders.cookie } });
+assert(cleanerProfileRead.response.statusCode === 403 && calls.at(-1).kind === "landlord-get", "A Cleaner account could read the separate private Landlord profile.");
 const profile = await dispatch(router, "PUT", "/api/marketplace/landlord/profile", { headers: authHeaders, body: { organisationName: "Example PM", biography: "Local portfolio", userId: "33333333-3333-4333-8333-333333333333" } });
 assert(profile.response.statusCode === 200 && calls.at(-1).actor.userId === sessions.landlord.user_id && calls.at(-1).input.userId !== calls.at(-1).actor.userId, "Landlord profile routing trusted a submitted owner identifier.");
 const created = await dispatch(router, "POST", "/api/marketplace/properties", { headers: authHeaders, body: { name: "Canal View", landlordUserId: "33333333-3333-4333-8333-333333333333" } });

@@ -20,6 +20,9 @@ const requestCompleteCounts = document.querySelector("[data-request-complete-cou
 const requestCompleteWarning = document.querySelector("[data-request-complete-warning]");
 const propertyForm = document.querySelector("[data-property-form]");
 const requestForm = document.querySelector("[data-request-form]");
+const landlordProfileForm = document.querySelector("[data-landlord-profile-form]");
+const landlordProfileFeedback = document.querySelector("[data-landlord-profile-feedback]");
+const landlordProfileSave = document.querySelector("[data-save-landlord-profile]");
 const propertyList = document.querySelector("[data-property-list]");
 const propertyEmpty = document.querySelector("[data-property-empty]");
 const requestList = document.querySelector("[data-request-list]");
@@ -59,12 +62,14 @@ const bookingRefresh = document.querySelector("[data-landlord-booking-refresh]")
 let properties = [];
 let requests = [];
 let bookings = [];
+let landlordProfile = null;
 let recognition = null;
 let listening = false;
 let speechFailed = false;
 let speechChangedDuringListen = false;
 let propertyDirty = false;
 let requestDirty = false;
+let landlordProfileDirty = false;
 let editingPropertyId = "";
 let withdrawingRequestId = "";
 let withdrawalPending = false;
@@ -1068,8 +1073,9 @@ async function loadWorkspace() {
   loading = true;
   showState("Checking secure Landlord access…", "Your properties and drafts open only inside an authenticated Landlord session.");
   try {
-    const [accountResult, propertyResult, requestResult, bookingResult, healthResult] = await Promise.all([
+    const [accountResult, profileResult, propertyResult, requestResult, bookingResult, healthResult] = await Promise.all([
       requestJson("/api/marketplace/account"),
+      requestJson("/api/marketplace/landlord/profile"),
       requestJson("/api/marketplace/properties"),
       requestJson("/api/marketplace/cleaning-requests"),
       requestJson("/api/marketplace/bookings?limit=50"),
@@ -1080,6 +1086,10 @@ async function loadWorkspace() {
     properties = Array.isArray(propertyResult.properties) ? propertyResult.properties : [];
     requests = Array.isArray(requestResult.cleaningRequests) ? requestResult.cleaningRequests : [];
     bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
+    landlordProfile = profileResult.profile || { organisationName: null, biography: "" };
+    landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";
+    landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
+    landlordProfileDirty = false;
     mediaReady = healthResult?.marketplace?.mediaReady === true;
     mediaReadiness.hidden = mediaReady;
     document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
@@ -1090,6 +1100,7 @@ async function loadWorkspace() {
     renderBookings();
     state.hidden = true;
     workspace.hidden = false;
+    if (location.hash === "#landlord-account-title") selectWorkspaceTab("account");
     continueBookingStart();
   } catch (error) {
     if (error.code === "browser-offline") showState("You are offline.", "Your unfinished room walkthrough stays in this tab. Reconnect and Homle will safely reopen the private workspace; no change will be retried automatically.", { kind: "offline", allowRetry: true });
@@ -1104,6 +1115,32 @@ async function loadWorkspace() {
 
 function optionalNumber(value) {
   return String(value || "").trim() === "" ? null : Number(value);
+}
+
+async function saveLandlordProfile(event) {
+  event.preventDefault();
+  landlordProfileFeedback.hidden = true;
+  if (!landlordProfileForm.reportValidity()) return;
+  const csrf = await recoverCsrf(landlordProfileFeedback, "saving your Landlord details");
+  if (!csrf) return;
+  const data = new FormData(landlordProfileForm);
+  const body = {
+    organisationName: String(data.get("organisationName") || ""),
+    biography: String(data.get("biography") || "")
+  };
+  setPending(landlordProfileSave, true, "Saving…");
+  try {
+    const result = await requestJson("/api/marketplace/landlord/profile", { method: "PUT", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
+    landlordProfile = result.profile;
+    landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";
+    landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
+    landlordProfileDirty = false;
+    showFeedback(landlordProfileFeedback, "Landlord account details saved privately.", "success");
+  } catch (error) {
+    showFeedback(landlordProfileFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this Landlord profile. Sign in again." : error.message);
+  } finally {
+    setPending(landlordProfileSave, false, "Save Landlord details");
+  }
 }
 
 async function saveProperty(event) {
@@ -1275,6 +1312,11 @@ function configureSpeech() {
 }
 
 document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addEventListener("click", () => { selectWorkspaceTab(button.dataset.landlordTab); }));
+document.querySelector("[data-open-account-tab]").addEventListener("click", () => {
+  selectWorkspaceTab("account");
+  document.querySelector("[data-account-menu]").open = false;
+  document.querySelector("[data-landlord-panel=\"account\"]").scrollIntoView({ behavior: "smooth", block: "start" });
+});
 document.querySelector("[data-open-request-tab]").addEventListener("click", () => {
   document.querySelector('[data-landlord-tab="requests"]').click();
   document.querySelector('[data-landlord-panel="requests"]').scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1318,9 +1360,11 @@ nextButton.addEventListener("click", () => {
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
 propertyForm.addEventListener("input", () => { propertyDirty = true; });
+landlordProfileForm.addEventListener("input", () => { landlordProfileDirty = true; });
 requestForm.addEventListener("input", () => { requestDirty = true; scheduleWorkingRequestRecovery(); });
 requestForm.addEventListener("change", () => { requestDirty = true; scheduleWorkingRequestRecovery(); });
 propertyForm.addEventListener("submit", saveProperty);
+landlordProfileForm.addEventListener("submit", saveLandlordProfile);
 requestForm.addEventListener("submit", createRequestDraft);
 requestWithdrawForm.addEventListener("submit", withdrawRequest);
 requestWithdrawCancel.addEventListener("click", () => { if (!withdrawalPending) requestWithdrawDialog.close(); });
@@ -1340,7 +1384,7 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
   requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
-window.addEventListener("beforeunload", (event) => { rememberWorkingRequest(); if (propertyDirty || requestDirty) event.preventDefault(); });
+window.addEventListener("beforeunload", (event) => { rememberWorkingRequest(); if (propertyDirty || requestDirty || landlordProfileDirty) event.preventDefault(); });
 window.addEventListener("pagehide", closeInvitationStream);
 window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", () => {

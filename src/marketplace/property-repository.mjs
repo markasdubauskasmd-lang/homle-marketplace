@@ -1,6 +1,15 @@
 export function createPropertyRepository(database) {
   if (!database || typeof database.withUserTransaction !== "function") throw new TypeError("The marketplace database boundary is required.");
   return {
+    getLandlordProfile(actor) {
+      return database.withUserTransaction(actor, async (client) => {
+        const result = await client.query(
+          "SELECT user_id, organisation_name, biography, updated_at FROM landlord_profiles WHERE user_id=$1::uuid LIMIT 1",
+          [actor.userId]
+        );
+        return result.rows[0] || null;
+      });
+    },
     saveLandlordProfile(actor, profile) {
       return database.withUserTransaction(actor, async (client) => {
         const result = await client.query(
