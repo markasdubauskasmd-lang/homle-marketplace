@@ -707,6 +707,7 @@ function requestScanPanel(request) {
     libraryInput.hidden = true;
     const selected = element("span", "landlord-scan-selected", "No photos selected");
     let files = [];
+    const pendingPhotoCompletions = new WeakMap();
     let uploadPending = false;
     const upload = element("button", "button", "Upload private room photos");
     upload.type = "submit";
@@ -717,7 +718,13 @@ function requestScanPanel(request) {
         return;
       }
       const totalBytes = files.reduce((sum, item) => sum + item.byteSize, 0);
+      const awaitingVerification = files.filter((item) => pendingPhotoCompletions.has(item)).length;
       selected.textContent = files.length === 1 ? `${files[0].name} · ${humanFileSize(files[0].byteSize)}` : `${files.length} photos selected · ${humanFileSize(totalBytes)} total`;
+      if (awaitingVerification) {
+        selected.textContent += ` · ${awaitingVerification} securely uploaded, awaiting verification`;
+        upload.textContent = awaitingVerification === files.length ? `Verify ${awaitingVerification} uploaded ${awaitingVerification === 1 ? "photo" : "photos"}` : "Verify uploaded photos and continue";
+        return;
+      }
       upload.textContent = `Upload ${files.length} private ${files.length === 1 ? "photo" : "photos"}`;
     }
     function choose(event) {
@@ -759,27 +766,40 @@ function requestScanPanel(request) {
         while (files.length) {
           if (browserOffline()) throw Object.assign(new Error("You are offline. The remaining selected photos are still here; reconnect, then continue the upload."), { code: "browser-offline" });
           const candidate = files[0];
-          setPending(upload, true, `Checking photo ${uploadedCount + 1} of ${queuedCount}…`);
-          const checksumSha256 = await sha256(candidate.file);
-          const intent = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/intents`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ roomName: room.value, note: note.value, mimeType: candidate.mimeType, byteSize: candidate.byteSize, checksumSha256 }) });
-          const signed = intent.upload;
-          if (signed?.method !== "PUT" || !signed.uploadId || !signed.uploadUrl || !signed.requiredHeaders || Object.keys(signed.requiredHeaders).length !== 4) throw new Error("The secure upload instructions were incomplete.");
-          const destination = new URL(signed.uploadUrl);
-          if (destination.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(destination.hostname)) throw new Error("The secure upload destination was unsafe.");
-          const uploadController = new AbortController();
-          const uploadTimer = window.setTimeout(() => uploadController.abort(), 120_000);
-          try {
-            checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: candidate.file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer", signal: uploadController.signal }));
-          } catch (error) {
-            if (browserOffline()) throw Object.assign(new Error("You went offline during the private upload. The remaining selected photos are still here; reconnect, then continue."), { code: "browser-offline" });
-            if (error?.name === "AbortError") throw new Error("The private photo upload took too long. The remaining selected photos are still here; check the connection and try again.");
-            throw error;
-          } finally {
-            window.clearTimeout(uploadTimer);
+          let uploadId = pendingPhotoCompletions.get(candidate);
+          if (!uploadId) {
+            setPending(upload, true, `Checking photo ${uploadedCount + 1} of ${queuedCount}…`);
+            const checksumSha256 = await sha256(candidate.file);
+            const intent = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/intents`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ roomName: room.value, note: note.value, mimeType: candidate.mimeType, byteSize: candidate.byteSize, checksumSha256 }) });
+            const signed = intent.upload;
+            if (signed?.method !== "PUT" || !signed.uploadId || !signed.uploadUrl || !signed.requiredHeaders || Object.keys(signed.requiredHeaders).length !== 4) throw new Error("The secure upload instructions were incomplete.");
+            const destination = new URL(signed.uploadUrl);
+            if (destination.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(destination.hostname)) throw new Error("The secure upload destination was unsafe.");
+            const uploadController = new AbortController();
+            const uploadTimer = window.setTimeout(() => uploadController.abort(), 120_000);
+            try {
+              checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: candidate.file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer", signal: uploadController.signal }));
+            } catch (error) {
+              if (browserOffline()) throw Object.assign(new Error("You went offline during the private upload. The remaining selected photos are still here; reconnect, then continue."), { code: "browser-offline" });
+              if (error?.name === "AbortError") throw new Error("The private photo upload took too long. The remaining selected photos are still here; check the connection and try again.");
+              throw error;
+            } finally {
+              window.clearTimeout(uploadTimer);
+            }
+            uploadId = signed.uploadId;
+            pendingPhotoCompletions.set(candidate, uploadId);
           }
-          const completed = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/${encodeURIComponent(signed.uploadId)}/complete`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}" });
+          setPending(upload, true, `Verifying photo ${uploadedCount + 1} of ${queuedCount}…`);
+          let completed;
+          try {
+            completed = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/${encodeURIComponent(uploadId)}/complete`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}" });
+          } catch (error) {
+            if (["request-photo-upload-expired", "request-photo-upload-not-found", "request-photo-mismatch", "unsafe-request-photo", "request-photo-upload-not-allowed"].includes(error?.code)) pendingPhotoCompletions.delete(candidate);
+            throw error;
+          }
           requestScans.set(request.requestId, completed.scan);
           renderScanPhotos(request.requestId, completed.scan, list, count);
+          pendingPhotoCompletions.delete(candidate);
           files.shift();
           uploadedCount += 1;
           renderSelection();
@@ -795,6 +815,7 @@ function requestScanPanel(request) {
       finally {
         uploadPending = false;
         setPending(upload, false, files.length ? `Upload ${files.length} remaining ${files.length === 1 ? "photo" : "photos"}` : "Upload private room photos");
+        renderSelection();
       }
     });
     panel.append(form);
