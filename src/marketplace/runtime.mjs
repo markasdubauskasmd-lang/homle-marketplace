@@ -184,6 +184,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     cleaningRequestService,
     bookingRepository,
     bookingWorkflowService,
+    matchingReady: bookingPricingPolicy !== null,
     paymentRepository,
     paymentService,
     cleanerPayoutRepository,

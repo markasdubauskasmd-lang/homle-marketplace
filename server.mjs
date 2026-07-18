@@ -5352,6 +5352,7 @@ async function handleHttpRequest(request, response) {
           authenticationReady: accountAttachment.authenticationHttpReady,
           emailReady: marketplaceAttachment.emailReady === true,
           mediaReady: marketplaceAttachment.mediaReady === true,
+          matchingReady: marketplaceAttachment.matchingReady === true,
           paymentsReady: marketplaceAttachment.paymentsReady === true
         },
         localDemosEnabled: localDemoEnabled

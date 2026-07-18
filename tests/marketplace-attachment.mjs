@@ -38,6 +38,7 @@ assert.equal(disabled.enabled, false);
 assert.equal(disabled.ready, false);
 assert.equal(disabled.router, null);
 assert.equal(disabled.paymentsReady, false);
+assert.equal(disabled.matchingReady, false);
 assert.equal(adapterLoaded, false);
 assert.ok(Object.values(disabled.authenticationCapabilities).filter((value) => value === true).length === 0);
 
@@ -155,7 +156,8 @@ const attachment = await createMarketplaceAttachment({
       router,
       authenticationHttpReady: true,
       googleOidcReady: true,
-      facebookLoginReady: true
+      facebookLoginReady: true,
+      matchingReady: true
     };
   }
 });
@@ -178,6 +180,7 @@ assert.equal(attachment.authenticationCapabilities.facebook, true, "A configured
 assert.equal(attachment.paymentsReady, false, "Payments appeared attached without the explicit payment switch.");
 assert.equal(attachment.emailReady, true);
 assert.equal(attachment.mediaReady, true);
+assert.equal(attachment.matchingReady, true);
 await attachment.close();
 await attachment.close();
 assert.equal(realtimeClosed, 1);
@@ -213,7 +216,7 @@ const restrictedCore = await createMarketplaceAttachment({
   createRuntime(selectedPool, options) {
     assert.equal(options.emailDelivery, undefined);
     assert.equal(options.objectStorage, undefined);
-    return { router, authenticationHttpReady: false, googleOidcReady: false, facebookLoginReady: false };
+    return { router, authenticationHttpReady: false, googleOidcReady: false, facebookLoginReady: false, matchingReady: false };
   }
 });
 assert.equal(restrictedCore.enabled, true);
@@ -221,6 +224,7 @@ assert.equal(restrictedCore.ready, true);
 assert.equal(restrictedCore.authenticationHttpReady, false);
 assert.equal(restrictedCore.emailReady, false);
 assert.equal(restrictedCore.mediaReady, false);
+assert.equal(restrictedCore.matchingReady, false);
 await restrictedCore.close();
 assert.equal(restrictedCoreClosed, 1);
 
@@ -251,7 +255,7 @@ const paymentAttachment = await createMarketplaceAttachment({
   },
   createRuntime(selectedPool, options) {
     assert.equal(options.paymentProvider.name, "stripe");
-    return { router, authenticationHttpReady: true, googleOidcReady: true, facebookLoginReady: true, paymentReady: true };
+    return { router, authenticationHttpReady: true, googleOidcReady: true, facebookLoginReady: true, paymentReady: true, matchingReady: true };
   }
 });
 assert.equal(paymentAttachment.paymentsReady, true);

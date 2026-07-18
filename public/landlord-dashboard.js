@@ -66,6 +66,8 @@ const nextCopy = document.querySelector("[data-landlord-next-copy]");
 const nextLink = document.querySelector("[data-landlord-next-link]");
 const nextButton = document.querySelector("[data-landlord-next-button]");
 const mediaReadiness = document.querySelector("[data-landlord-media-readiness]");
+const capabilityTitle = document.querySelector("[data-landlord-capability-title]");
+const capabilityCopy = document.querySelector("[data-landlord-capability-copy]");
 const networkStatus = document.querySelector("[data-landlord-network-status]");
 const loadStatus = document.querySelector("[data-landlord-load-status]");
 const loadRetry = document.querySelector("[data-landlord-load-retry]");
@@ -94,6 +96,7 @@ let withdrawingRequestId = "";
 let withdrawalPending = false;
 let loading = false;
 let mediaReady = false;
+let matchingReady = false;
 let requestRecoveryChecked = false;
 let requestRecoveryTimer = null;
 let invitationStream = null;
@@ -859,8 +862,8 @@ function requestScanPanel(request) {
     preferred.type = "checkbox";
     preferred.name = "selectedCleanerInvitation";
     const selectedCleanerReady = Boolean(selectedCleanerId && selectedCleanerProfile && selectedCleanerVerificationState === "ready");
-    preferred.checked = selectedCleanerReady;
-    preferredLabel.append(preferred, element("span", "", selectedCleanerReady ? `Invite ${selectedCleanerProfile.displayName} first. Homle will recheck the room scan, availability and service fit, then show your exact total for one approval before sending anything. If they cannot be invited, this request stays open for matching.` : "Use normal matching to find the best currently eligible and profitable Cleaner."));
+    preferred.checked = selectedCleanerReady && matchingReady;
+    preferredLabel.append(preferred, element("span", "", selectedCleanerReady ? (matchingReady ? `Invite ${selectedCleanerProfile.displayName} first. Homle will recheck the room scan, availability and service fit, then show your exact total for one approval before sending anything. If they cannot be invited, this request stays open for matching.` : `${selectedCleanerProfile.displayName} stays saved to this request. Cleaner invitations unlock only after Homle's private pricing and matching checks are connected.`) : "Use normal matching to find the best currently eligible and profitable Cleaner."));
     const attemptsLabel = element("label", "landlord-attempt-limit", "Maximum Cleaner invitations");
     const attempts = element("select");
     attempts.name = "attemptLimit";
@@ -870,8 +873,9 @@ function requestScanPanel(request) {
     auto.addEventListener("change", () => { attempts.disabled = !auto.checked; });
     const submit = element("button", "button", "Submit cleaning request");
     submit.type = "submit";
-    for (const control of [confirm, preview, auto, preferred, attempts, submit]) control.disabled = !mediaReady || control === attempts;
-    if (automaticMaximumPricePence == null) auto.disabled = true;
+    for (const control of [confirm, preview, submit]) control.disabled = !mediaReady;
+    for (const control of [auto, preferred, attempts]) control.disabled = !mediaReady || !matchingReady || control === attempts;
+    if (automaticMaximumPricePence == null || !matchingReady) auto.disabled = true;
     if (!mediaReady) submit.textContent = "Room photos required before submission";
     submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerReady ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
     submitForm.addEventListener("submit", async (event) => {
@@ -1466,17 +1470,18 @@ function renderNextAction() {
     const waitingForCleaner = ["cleaner-invited", "pending-cleaner-acceptance"].includes(activeRequest.status);
     const dispatchAction = landlordDispatchAction(activeRequest);
     const needsAuthorization = ["authorize", "retry"].includes(dispatchAction.kind);
-    nextTitle.textContent = needsAuthorization ? (dispatchAction.kind === "authorize" ? "Find your Cleaner" : "Try one more eligible Cleaner") : waitingForCleaner ? "A Cleaner is reviewing your request" : activeRequest.status === "matched" ? "Your Cleaner is matched" : "Homle is looking for your Cleaner";
-    nextCopy.textContent = needsAuthorization ? "Authorize exactly one next invitation. Homle still rechecks availability, service fit and profitable pricing before anything is sent." : `${requestStatusLabel(activeRequest.status)} · Review the submitted rooms, tasks and current status in one place.`;
-    nextButton.textContent = needsAuthorization ? (dispatchAction.kind === "authorize" ? "Find my Cleaner" : "Review next Cleaner attempt") : "View request status";
-    nextButton.dataset.nextAction = needsAuthorization ? "dispatch" : "submitted";
+    const matchingUnavailable = needsAuthorization && !matchingReady;
+    nextTitle.textContent = matchingUnavailable ? "Your request is saved safely" : needsAuthorization ? (dispatchAction.kind === "authorize" ? "Find your Cleaner" : "Try one more eligible Cleaner") : waitingForCleaner ? "A Cleaner is reviewing your request" : activeRequest.status === "matched" ? "Your Cleaner is matched" : "Homle is looking for your Cleaner";
+    nextCopy.textContent = matchingUnavailable ? "Private pricing and matching are not connected yet. Review the submitted room scan now; Homle will not send an invitation or create a booking." : needsAuthorization ? "Authorize exactly one next invitation. Homle still rechecks availability, service fit and profitable pricing before anything is sent." : `${requestStatusLabel(activeRequest.status)} · Review the submitted rooms, tasks and current status in one place.`;
+    nextButton.textContent = matchingUnavailable ? "Review saved request" : needsAuthorization ? (dispatchAction.kind === "authorize" ? "Find my Cleaner" : "Review next Cleaner attempt") : "View request status";
+    nextButton.dataset.nextAction = matchingUnavailable ? "submitted" : needsAuthorization ? "dispatch" : "submitted";
     nextButton.dataset.nextRequestId = activeRequest.requestId;
     nextButton.hidden = false;
     return;
   }
   if (requests.some((request) => request.status === "draft")) {
     nextTitle.textContent = mediaReady ? "Finish your room scan" : "Review your spoken room checklist";
-    nextCopy.textContent = mediaReady ? "Add room photos, check the spoken-note summary and submit the private request." : "Your draft is safe. Photo upload and matching will unlock only after private storage is verified.";
+    nextCopy.textContent = mediaReady ? (matchingReady ? "Add room photos, check the spoken-note summary and submit the private request." : "Add room photos and submit the reviewed scan. It will stay safely saved until private pricing and matching are connected.") : "Your draft is safe. Photo upload and matching will unlock only after private storage is verified.";
     nextButton.textContent = "Continue room scan";
     nextButton.dataset.nextAction = "draft";
     nextButton.hidden = false;
@@ -1526,7 +1531,15 @@ async function loadWorkspace() {
     landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
     landlordProfileDirty = false;
     mediaReady = healthResult.status === "fulfilled" && healthResult.value?.marketplace?.mediaReady === true;
-    mediaReadiness.hidden = mediaReady;
+    matchingReady = healthResult.status === "fulfilled" && healthResult.value?.marketplace?.matchingReady === true;
+    mediaReadiness.hidden = mediaReady && matchingReady;
+    if (!mediaReady) {
+      capabilityTitle.textContent = "Private room-photo storage is being connected.";
+      capabilityCopy.textContent = "You can save the property, speak naturally and review the concise room checklist now. Camera upload and matching submission stay locked until Homle can store every photo privately.";
+    } else if (!matchingReady) {
+      capabilityTitle.textContent = "Private pricing and Cleaner matching are being connected.";
+      capabilityCopy.textContent = "You can complete and submit the private room scan now. Homle will keep it safely saved and will not invite a Cleaner or create a booking until the approved pricing checks are ready.";
+    }
     renderProperties();
     restoreWorkingRequest();
     renderRequests();

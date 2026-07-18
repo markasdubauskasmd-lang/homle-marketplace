@@ -153,6 +153,7 @@ function unavailableAttachment(env, reason = "disabled") {
     authenticationCapabilities,
     emailReady: false,
     mediaReady: false,
+    matchingReady: false,
     paymentsReady: false,
     router: null,
     async close() {}
@@ -257,6 +258,7 @@ export async function createMarketplaceAttachment(options = {}) {
     authenticationCapabilities,
     emailReady: Boolean(emailDelivery),
     mediaReady: Boolean(objectStorage),
+    matchingReady: runtime.matchingReady === true,
     paymentsReady: environment.payments.requested && runtime.paymentReady === true,
     router: runtime.router,
     async close() {

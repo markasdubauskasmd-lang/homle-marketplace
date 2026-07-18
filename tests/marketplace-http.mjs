@@ -509,7 +509,7 @@ const baseEnvironment = {
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtimeAbuseControl = { rateLimiter: { async consume() { return { allowed: true }; } }, clientKey: () => "test-client" };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.disputeService && runtime.disputeRepository && runtime.privacyRequestService && runtime.privacyRequestRepository && runtime.cleanerPayoutRepository && runtime.cleanerPayoutService === null && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews, disputes, privacy requests, payout repository and HTTP layers or safely keep incomplete provider delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.matchingReady === false && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.disputeService && runtime.disputeRepository && runtime.privacyRequestService && runtime.privacyRequestRepository && runtime.cleanerPayoutRepository && runtime.cleanerPayoutService === null && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews, disputes, privacy requests, payout repository and HTTP layers or safely keep incomplete provider delivery detached.");
 let unconfiguredEmailRejected = false;
 assert(runtime.requestMediaService && runtime.requestMediaRepository, "Marketplace runtime did not compose private cleaning-request room media.");
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl, emailDelivery: { send() {} } }); } catch (error) { unconfiguredEmailRejected = error.message.includes("requires one configured HTTPS or SMTP email provider and EMAIL_FROM"); }
@@ -524,6 +524,25 @@ const enabledRuntime = createMarketplaceRuntime(pool, {
   ...runtimeAbuseControl
 });
 assert(enabledRuntime.authenticationHttpReady && enabledRuntime.authenticationRouter && enabledRuntime.router !== enabledRuntime.marketplaceRouter, "A complete trusted email/rate/client boundary did not compose the isolated authentication controller into the runtime chain.");
+const pricedRuntime = createMarketplaceRuntime(pool, {
+  env: {
+    ...enabledEnvironment,
+    BOOKING_TARGET_MARGIN_BPS: "2000",
+    BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1000",
+    BOOKING_LABOUR_ON_COST_BPS: "1500",
+    BOOKING_PAYMENT_FEE_BPS: "200",
+    BOOKING_PAYMENT_FEE_FIXED_PENCE: "20",
+    BOOKING_TRAVEL_COST_PENCE: "500",
+    BOOKING_TRAVEL_COST_PER_KM_PENCE: "50",
+    BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS: "10000",
+    BOOKING_SUPPLIES_COST_PENCE: "300",
+    BOOKING_OTHER_COST_PENCE: "0",
+    BOOKING_INVITATION_TTL_MINUTES: "60"
+  },
+  emailDelivery: { async send() {} },
+  ...runtimeAbuseControl
+});
+assert(pricedRuntime.matchingReady === true, "A complete private booking-pricing policy was not exposed as matching-ready.");
 const googleRuntime = createMarketplaceRuntime(pool, {
   env: { ...enabledEnvironment, GOOGLE_CLIENT_ID: "google-client.apps.googleusercontent.com", GOOGLE_CLIENT_SECRET: "google-client-secret" },
   emailDelivery: { async send() {} },
