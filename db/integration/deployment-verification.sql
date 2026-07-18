@@ -18,6 +18,7 @@ DECLARE
   request_realtime_migration_installed boolean := false;
   session_avatar_migration_installed boolean := false;
   minimum_contribution_migration_installed boolean := false;
+  public_cleaner_lookup_migration_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -188,6 +189,8 @@ BEGIN
       INTO session_avatar_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 56)'
       INTO minimum_contribution_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 57)'
+      INTO public_cleaner_lookup_migration_installed;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -327,6 +330,22 @@ BEGIN
       WHERE procedure.oid=to_regprocedure('tideway_private.list_administrator_booking_operations(text,integer,integer)');
     IF position('targetContributionPence' IN COALESCE(selected_source,''))=0 OR position('target_contribution_pence' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Administrator booking operations omit the frozen minimum contribution target';
+    END IF;
+  END IF;
+  IF public_cleaner_lookup_migration_installed THEN
+    selected_function := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)');
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF selected_function IS NULL OR NOT EXISTS (
+      SELECT 1 FROM pg_proc procedure WHERE procedure.oid=selected_function AND procedure.prosecdef
+        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+    ) OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('public', selected_function, 'EXECUTE')
+      OR position('account.account_status = ''active''' IN COALESCE(selected_source,''))=0
+      OR position('profile.is_public' IN COALESCE(selected_source,''))=0
+      OR position('profile.profile_completion_percent = 100' IN COALESCE(selected_source,''))=0
+      OR position('account.email' IN COALESCE(selected_source,''))>0
+      OR position('phone' IN COALESCE(selected_source,''))>0 THEN
+      RAISE EXCEPTION 'Direct public Cleaner lookup is missing, unsafe or overexposed';
     END IF;
   END IF;
   IF scope_handoff_migration_installed THEN

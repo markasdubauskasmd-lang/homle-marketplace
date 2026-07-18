@@ -226,7 +226,7 @@ export function editableAvailabilityProjection(record = {}) {
 }
 
 export function createCleanerProfileService(repository, options = {}) {
-  if (!repository || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof repository[method] === "function")) throw new TypeError("A complete cleaner profile repository is required.");
+  if (!repository || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "getPublicProfile", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof repository[method] === "function")) throw new TypeError("A complete cleaner profile repository is required.");
   const now = typeof options.now === "function" ? options.now : () => new Date();
   function requireCleaner(actor, action) {
     if (!actor?.userId || !actor.roles?.includes("cleaner")) throw new TypeError(`A Cleaner account is required to ${action}.`);
@@ -264,6 +264,12 @@ export function createCleanerProfileService(repository, options = {}) {
     async searchPublicProfiles(filters) {
       const rows = await repository.searchPublicProfiles(normalizedCleanerSearch(filters));
       return rows.map(publicCleanerProjection);
+    },
+    async getPublicProfile(cleanerId) {
+      if (!uuidPattern.test(cleanerId || "")) throw new TypeError("A valid Cleaner profile is required.");
+      const record = await repository.getPublicProfile(cleanerId.toLowerCase());
+      if (!record) throw Object.assign(new Error("This Cleaner profile is no longer publicly available."), { statusCode: 404, code: "cleaner-profile-unavailable" });
+      return publicCleanerProjection(record);
     }
   };
 }

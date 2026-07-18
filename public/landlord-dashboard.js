@@ -61,6 +61,12 @@ const loadStatus = document.querySelector("[data-landlord-load-status]");
 const loadRetry = document.querySelector("[data-landlord-load-retry]");
 const bookingLiveStatus = document.querySelector("[data-landlord-booking-live]");
 const bookingRefresh = document.querySelector("[data-landlord-booking-refresh]");
+const selectedCleanerSummary = document.querySelector("[data-landlord-selected-cleaner]");
+const selectedCleanerAvatar = document.querySelector("[data-landlord-selected-cleaner-avatar]");
+const selectedCleanerName = document.querySelector("[data-landlord-selected-cleaner-name]");
+const selectedCleanerEvidence = document.querySelector("[data-landlord-selected-cleaner-evidence]");
+const selectedCleanerStatus = document.querySelector("[data-landlord-selected-cleaner-status]");
+const selectedCleanerClear = document.querySelector("[data-landlord-selected-cleaner-clear]");
 let properties = [];
 let requests = [];
 let bookings = [];
@@ -88,6 +94,8 @@ const uncertainDispatchRequests = new Set();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
 let selectedCleanerId = "";
 let selectedPropertyId = "";
+let selectedCleanerProfile = null;
+let selectedCleanerVerificationState = "none";
 try { if (bookingStart) selectedCleanerId = readSelectedCleaner(localStorage); } catch {}
 try { if (bookingStart) selectedPropertyId = readSelectedProperty(sessionStorage); } catch {}
 
@@ -240,11 +248,88 @@ function showRequestCompletion(submission, { automaticDispatch = false, selected
   requestComplete.focus();
 }
 
-function clearCleanerSelection() {
+function selectedCleanerInitials(name) {
+  const parts = String(name || "Cleaner").trim().split(/\s+/).filter(Boolean);
+  return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : parts[0]?.slice(0, 2) || "C").toLocaleUpperCase("en-GB");
+}
+
+function safePublicPhoto(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "https:" && !url.username && !url.password ? url.toString() : "";
+  } catch { return ""; }
+}
+
+function renderSelectedCleaner() {
+  const visible = Boolean(selectedCleanerId) || ["unavailable", "error"].includes(selectedCleanerVerificationState);
+  selectedCleanerSummary.hidden = !visible;
+  if (!visible) return;
+  const ready = selectedCleanerVerificationState === "ready" && selectedCleanerProfile;
+  const displayName = ready ? selectedCleanerProfile.displayName : selectedCleanerVerificationState === "unavailable" ? "Cleaner no longer available" : selectedCleanerVerificationState === "error" ? "Selection not verified" : "Checking current public profile…";
+  selectedCleanerName.textContent = displayName;
+  selectedCleanerAvatar.replaceChildren(document.createTextNode(selectedCleanerInitials(displayName)));
+  if (ready) {
+    const photo = safePublicPhoto(selectedCleanerProfile.profilePhotoUrl);
+    if (photo) {
+      const image = document.createElement("img");
+      image.src = photo;
+      image.alt = "";
+      image.width = 56;
+      image.height = 56;
+      image.decoding = "async";
+      image.referrerPolicy = "no-referrer";
+      image.addEventListener("error", () => selectedCleanerAvatar.replaceChildren(document.createTextNode(selectedCleanerInitials(displayName))), { once: true });
+      selectedCleanerAvatar.replaceChildren(image);
+    }
+    const rating = Number(selectedCleanerProfile.averageRating);
+    const reviews = Number(selectedCleanerProfile.reviewCount);
+    const reputation = Number.isFinite(rating) && reviews > 0 ? `${rating.toFixed(1)} stars from ${reviews} completed-job ${reviews === 1 ? "review" : "reviews"}` : "No completed-job reviews yet";
+    selectedCleanerEvidence.textContent = `${reputation} · ${Array.isArray(selectedCleanerProfile.services) ? selectedCleanerProfile.services.length : 0} active ${selectedCleanerProfile.services?.length === 1 ? "service" : "services"}`;
+    selectedCleanerStatus.textContent = "Verified from the Cleaner’s current public profile. This is still not a booking or invitation.";
+  } else if (selectedCleanerVerificationState === "unavailable") {
+    selectedCleanerEvidence.textContent = "The profile is no longer public and has been removed from this request. Homle will use normal matching instead.";
+    selectedCleanerStatus.textContent = "No Cleaner was invited and no booking or payment was created.";
+  } else if (selectedCleanerVerificationState === "error") {
+    selectedCleanerEvidence.textContent = "Homle could not verify the current public profile. Direct invitation stays disabled until a fresh verification succeeds.";
+    selectedCleanerStatus.textContent = "Refresh this dashboard, change Cleaner, or use the best eligible match instead.";
+  } else {
+    selectedCleanerEvidence.textContent = "Homle is verifying this selection before it can be invited.";
+    selectedCleanerStatus.textContent = "Private contact details and exact location are never loaded here.";
+  }
+}
+
+function clearSelectedCleanerChoice({ keepNotice = false } = {}) {
   try { clearSelectedCleaner(localStorage); } catch {}
-  try { clearSelectedProperty(sessionStorage); } catch {}
   selectedCleanerId = "";
+  selectedCleanerProfile = null;
+  if (!keepNotice) selectedCleanerVerificationState = "none";
+  renderSelectedCleaner();
+}
+
+function clearCleanerSelection() {
+  clearSelectedCleanerChoice();
+  try { clearSelectedProperty(sessionStorage); } catch {}
   selectedPropertyId = "";
+}
+
+async function refreshSelectedCleanerProfile() {
+  if (!selectedCleanerId) return renderSelectedCleaner();
+  selectedCleanerVerificationState = "loading";
+  selectedCleanerProfile = null;
+  renderSelectedCleaner();
+  try {
+    const result = await requestJson(`/api/marketplace/cleaners/${encodeURIComponent(selectedCleanerId)}`);
+    if (!result.cleaner || result.cleaner.cleanerId !== selectedCleanerId) throw new Error("Homle returned a different Cleaner profile.");
+    selectedCleanerProfile = result.cleaner;
+    selectedCleanerVerificationState = "ready";
+  } catch (error) {
+    if (error.statusCode === 404) {
+      selectedCleanerVerificationState = "unavailable";
+      clearSelectedCleanerChoice({ keepNotice: true });
+    } else selectedCleanerVerificationState = "error";
+  }
+  renderSelectedCleaner();
+  renderRequests();
 }
 
 function selectWorkspaceTab(name) {
@@ -665,8 +750,9 @@ function requestScanPanel(request) {
     const preferred = element("input");
     preferred.type = "checkbox";
     preferred.name = "selectedCleanerInvitation";
-    preferred.checked = Boolean(selectedCleanerId);
-    preferredLabel.append(preferred, element("span", "", "Invite the Cleaner I selected from the directory first. Homle will recheck the room scan, availability, service fit and profitable price before sending anything. If they cannot be invited, this request stays open for matching."));
+    const selectedCleanerReady = Boolean(selectedCleanerId && selectedCleanerProfile && selectedCleanerVerificationState === "ready");
+    preferred.checked = selectedCleanerReady;
+    preferredLabel.append(preferred, element("span", "", selectedCleanerReady ? `Invite ${selectedCleanerProfile.displayName} first. Homle verified the current public profile and will still recheck the room scan, availability, service fit and profitable price before sending anything. If they cannot be invited, this request stays open for matching.` : "Use normal matching to find the best currently eligible and profitable Cleaner."));
     const attemptsLabel = element("label", "landlord-attempt-limit", "Maximum Cleaner invitations");
     const attempts = element("select");
     attempts.name = "attemptLimit";
@@ -678,7 +764,7 @@ function requestScanPanel(request) {
     submit.type = "submit";
     for (const control of [confirm, preview, auto, preferred, attempts, submit]) control.disabled = !mediaReady || control === attempts;
     if (!mediaReady) submit.textContent = "Room photos required before submission";
-    submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerId ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
+    submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerReady ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
     submitForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       feedback.hidden = true;
@@ -697,7 +783,7 @@ function requestScanPanel(request) {
         if (!submitted) throw new Error("The submitted request could not be verified.");
         const index = requests.findIndex((item) => item.requestId === request.requestId);
         if (index >= 0) requests[index] = { ...requests[index], status: "searching-for-cleaner", submittedAt: submission.submittedAt, cleanerPreviewAuthorized: preview.checked };
-        if (selectedCleanerId && preferred.checked) {
+        if (selectedCleanerReady && preferred.checked) {
           await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/invitations`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ cleanerId: selectedCleanerId }) });
           selectedCleanerInvited = true;
           if (index >= 0) requests[index] = { ...requests[index], status: "cleaner-invited" };
@@ -707,7 +793,7 @@ function requestScanPanel(request) {
         showRequestCompletion(submission, { automaticDispatch: auto.checked, selectedCleanerInvited });
       } catch (error) {
         if (submitted) {
-          const selectedInvitationFailed = Boolean(selectedCleanerId && preferred.checked);
+          const selectedInvitationFailed = Boolean(selectedCleanerReady && preferred.checked);
           clearCleanerSelection();
           renderRequests();
           showRequestCompletion(submission, { warning: selectedInvitationFailed
@@ -1233,6 +1319,7 @@ async function loadWorkspace() {
     loadStatus.hidden = failures.length === 0;
     if (location.hash === "#landlord-account-title") selectWorkspaceTab("account");
     continueBookingStart();
+    void refreshSelectedCleanerProfile();
   } catch (error) {
     if (error.code === "browser-offline") showState("You are offline.", "Your unfinished room walkthrough stays in this tab. Reconnect and Homle will safely reopen the private workspace; no change will be retried automatically.", { kind: "offline", allowRetry: true });
     else if (error.statusCode === 401) showState("Sign in as a Landlord to open this workspace.", "Your properties and request drafts are private to your verified account.", { kind: "authentication", allowSignIn: true });
@@ -1246,6 +1333,10 @@ async function loadWorkspace() {
 }
 
 loadRetry.addEventListener("click", loadWorkspace);
+selectedCleanerClear.addEventListener("click", () => {
+  clearSelectedCleanerChoice();
+  renderRequests();
+});
 
 function optionalNumber(value) {
   return String(value || "").trim() === "" ? null : Number(value);

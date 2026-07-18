@@ -78,6 +78,7 @@ const security = createAccountSecurity({ async findSession(hash) { return hash.e
 const calls = [];
 const cleanerProfileService = {
   async searchPublicProfiles(filters) { calls.push({ kind: "search", filters }); return [{ cleanerId: "public-cleaner", displayName: "Public Cleaner" }]; },
+  async getPublicProfile(cleanerId) { calls.push({ kind: "cleaner-public", cleanerId }); return { cleanerId, displayName: "Public Cleaner", profilePhotoUrl: null, services: [] }; },
   async getOwnProfile(actor) { calls.push({ kind: "cleaner-get", actor }); return { cleanerId: actor.userId, biography: "Careful cleaner", profileCompletionPercent: 60, isPublic: false, services: [], serviceAreas: [] }; },
   async saveOwnProfile(actor, input) { calls.push({ kind: "cleaner-save", actor, input }); return { profileCompletionPercent: 100 }; },
   async listOwnAvailability(actor) { calls.push({ kind: "availability-list", actor }); return [{ availabilityId: "33333333-3333-4333-8333-333333333333", startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T17:00:00.000Z", status: "available" }]; },
@@ -311,9 +312,11 @@ const directory = await dispatch(router, "GET", "/api/marketplace/cleaners?outwa
 assert(directory.handled && directory.response.statusCode === 200 && directory.body.cleaners.length === 1 && calls.at(-1).filters.outwardPostcode === "SW1A" && calls.at(-1).filters.verifiedOnly === true && calls.at(-1).filters.limit === "10", "Public cleaner discovery did not parse its bounded service filters.");
 const badBoolean = await dispatch(router, "GET", "/api/marketplace/cleaners?verifiedOnly=yes");
 assert(badBoolean.response.statusCode === 422 && badBoolean.body.code === "validation-failed", "Cleaner discovery accepted an ambiguous boolean filter.");
+const publicCleanerProfile = await dispatch(router, "GET", "/api/marketplace/cleaners/22222222-2222-4222-8222-222222222222");
+assert(publicCleanerProfile.response.statusCode === 200 && publicCleanerProfile.body.cleaner.cleanerId === "22222222-2222-4222-8222-222222222222" && publicCleanerProfile.body.cleaner.displayName === "Public Cleaner" && calls.at(-1).kind === "cleaner-public", "Direct public Cleaner profile routing lost the exact safe Cleaner identifier or public projection.");
 const publicReviews = await dispatch(router, "GET", "/api/marketplace/cleaners/22222222-2222-4222-8222-222222222222/reviews?limit=10");
 assert(publicReviews.response.statusCode === 200 && publicReviews.body.reviews.length === 0 && calls.at(-1).kind === "review-public" && calls.at(-1).input.limit === "10", "Public approved-review routing lost its safe Cleaner ID or cursor.");
-assert(calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-directory" && call.input.key === trustedClientKey) && calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-reviews" && call.input.key === trustedClientKey), "Public marketplace reads did not use separate trusted shared-limiter scopes.");
+assert(calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-directory" && call.input.key === trustedClientKey) && calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-profile" && call.input.key === trustedClientKey) && calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-reviews" && call.input.key === trustedClientKey), "Public marketplace reads did not use separate trusted shared-limiter scopes.");
 
 const searchesBeforeThrottle = calls.filter((call) => call.kind === "search").length;
 rateLimitedScope = "marketplace-public:cleaner-directory";

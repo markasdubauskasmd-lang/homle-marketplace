@@ -57,10 +57,11 @@
     { "order": 53, "file": "053_matching_self_exclusion.sql", "sha256": "cafb6ef53e2e7f24d569620ec6c7f76facb20ef247bf760d60eaa594d34c11f5" },
     { "order": 54, "file": "054_cleaning_request_realtime_events.sql", "sha256": "47d3cea5bc4a34cb32736ea24e3ca0a72eaab677226ad6126de5ce85d6ea0916" },
     { "order": 55, "file": "055_session_avatar_projection.sql", "sha256": "00cfa75ddbd10de625e5e3ccd16b6d546e3b589be4a28d59c736030a61c7e502" },
-    { "order": 56, "file": "056_booking_minimum_contribution.sql", "sha256": "d85e17656d977bf24564a685973d0cd0e0c9d3bdd69d8387e7a3fdf6ae5442ad" }
+    { "order": 56, "file": "056_booking_minimum_contribution.sql", "sha256": "d85e17656d977bf24564a685973d0cd0e0c9d3bdd69d8387e7a3fdf6ae5442ad" },
+    { "order": 57, "file": "057_public_cleaner_profile_lookup.sql", "sha256": "b0d3e11c9a739a118985ab4e0c38da18e947cfdeed4bb4928162654bd3b9f24f" }
   ],
   "grantFiles": [
-    { "file": "runtime-role-grants.sql", "sha256": "578259911b3c2238cd36bb3c00d9aa1cb919720988f37bdc6bcffaf1f3c3c932" },
+    { "file": "runtime-role-grants.sql", "sha256": "a83007829805f709aaa5a6ad4da83eaacbdfd08a46a7a0baaa1c042709c37b2b" },
     { "file": "worker-role-grants.sql", "sha256": "c0e6047e87d173bc9988058dd4a8df2b5b3dc083daa5e1adbba5c4902bbf40fe" }
   ]
 }

@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0e665b">
   <title>Landlord dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260718-77">
-  <script src="/landlord-dashboard.js?v=20260718-17" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260718-78">
+  <script src="/landlord-dashboard.js?v=20260718-18" type="module"></script>
   <script src="/account-menu.js?v=20260718-1" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
@@ -139,6 +139,11 @@
         <form class="landlord-record-form landlord-request-form" data-request-form novalidate>
           <fieldset data-request-controls>
             <div class="landlord-form-title"><div><p class="eyebrow">Prepare scope</p><h3>Save a cleaning request draft</h3></div><span>Matching stays off</span></div>
+            <section class="landlord-selected-cleaner" data-landlord-selected-cleaner hidden aria-labelledby="selected-cleaner-title">
+              <span class="landlord-selected-cleaner-avatar" data-landlord-selected-cleaner-avatar aria-hidden="true">C</span>
+              <div><p class="eyebrow">Selected Cleaner</p><h4 id="selected-cleaner-title" data-landlord-selected-cleaner-name>Checking current public profile…</h4><p data-landlord-selected-cleaner-evidence>Homle is verifying this selection before it can be invited.</p><small data-landlord-selected-cleaner-status role="status" aria-live="polite"></small></div>
+              <div class="landlord-selected-cleaner-actions"><a class="text-button" href="/cleaners">Change Cleaner</a><button class="text-button" type="button" data-landlord-selected-cleaner-clear>Use best match instead</button></div>
+            </section>
             <div class="landlord-sole-property" data-sole-property hidden><span>Cleaning property</span><strong data-sole-property-name></strong><small>Your only saved property is selected automatically.</small></div>
             <label data-property-select-label>Property<select name="propertyId" required data-property-select><option value="">Add a property first</option></select></label>
             <div class="field-row"><label>Date<input name="requestedDate" type="date" required></label><label>Start time<input name="requestedTime" type="time" required></label></div>

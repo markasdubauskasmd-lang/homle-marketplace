@@ -29,8 +29,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 56);
-  assert.equal(repositoryResult.migrations.at(-1), "056_booking_minimum_contribution.sql");
+  assert.equal(repositoryResult.migrations.length, 57);
+  assert.equal(repositoryResult.migrations.at(-1), "057_public_cleaner_profile_lookup.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
@@ -42,6 +42,7 @@ try {
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 54\)'/, "Deployment verification must detect private request live updates dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 55\)'/, "Deployment verification must detect the session-avatar projection dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 56\)'/, "Deployment verification must detect the booking minimum-contribution migration dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 57\)'/, "Deployment verification must detect the safe public Cleaner lookup migration dynamically.");
   const migration48VerificationStart = deploymentVerifier.indexOf("IF latest_migration_installed THEN");
   assert(migration48VerificationStart >= 0 && deploymentVerifier.indexOf("conname='bookings_distinct_participants'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its new constraint check until after that locked migration is installed.");
   assert(deploymentVerifier.indexOf("selected_name := 'tideway_private.activate_my_workspace(user_role)'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its workspace-function check until after that locked migration is installed.");
@@ -52,6 +53,7 @@ try {
   assert(deploymentVerifier.includes("recommend_cleaners_for_request_v2(uuid,integer)") && deploymentVerifier.includes("candidate.cleaner_id<>request_landlord_id") && deploymentVerifier.includes("Automatic dispatch bypasses"), "Migration-53 verification must prove shared self-exclusion for interactive and automatic matching.");
   assert(deploymentVerifier.includes("get_cleaning_request_realtime_snapshot(uuid,bigint,integer)") && deploymentVerifier.includes("Cleaning-request live events lack RLS") && deploymentVerifier.includes("lookup_session(bytea)") && deploymentVerifier.includes("avatar_url"), "Migration-54/55 verification must prove the private request stream and account-avatar session projection.");
   assert(deploymentVerifier.includes("target_contribution_pence") && deploymentVerifier.includes("planned_contribution<proposed_target_contribution_pence"), "Migration-56 verification must prove the frozen minimum-contribution boundary.");
+  assert(deploymentVerifier.includes("get_public_cleaner_profile(uuid)") && deploymentVerifier.includes("Direct public Cleaner lookup is missing, unsafe or overexposed"), "Migration-57 verification must prove the privacy-safe public Cleaner lookup and restricted execution boundary.");
   assert(deploymentVerifier.includes("active_invite_function := CASE WHEN minimum_contribution_migration_installed") && deploymentVerifier.includes("active_dispatch_function := CASE WHEN minimum_contribution_migration_installed"), "Pre-upgrade verification must select the booking function signatures installed at the current migration level.");
   assert(deploymentVerifier.includes("app_functions || ARRAY[active_invite_function]") && deploymentVerifier.includes("worker_functions || ARRAY[active_dispatch_function]"), "Runtime privilege verification must follow the migration-aware booking function signatures.");
   assert(deploymentVerifier.includes("IF minimum_contribution_migration_installed THEN") && deploymentVerifier.includes("Superseded minimum-contribution function is missing"), "Post-migration verification must still prove that the older booking signatures are revoked.");

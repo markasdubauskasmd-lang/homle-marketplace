@@ -1807,6 +1807,15 @@ textarea { resize: vertical; }
 .cleaner-payout-action { width: 100%; min-height: 3.25rem; }
 .cleaner-payout-note { margin: 1rem 0 0; font-size: .9rem; color: #52625f; }
 .landlord-request-form { margin-top: 0; margin-bottom: 22px; }
+.landlord-selected-cleaner { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 17px; border: 1px solid #85c8b7; border-radius: 16px; background: linear-gradient(135deg, #eaf9f5, #fff); }
+.landlord-selected-cleaner[hidden] { display: none; }
+.landlord-selected-cleaner-avatar { display: grid; width: 58px; height: 58px; overflow: hidden; place-items: center; color: #fff; border: 3px solid #a9f0e3; border-radius: 18px; background: linear-gradient(145deg, var(--green), #2e8b7c); font-weight: 900; }
+.landlord-selected-cleaner-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.landlord-selected-cleaner h4 { margin: 3px 0 4px; color: var(--green-dark); font-size: 1.05rem; }
+.landlord-selected-cleaner p, .landlord-selected-cleaner small { display: block; margin: 0; color: var(--muted); line-height: 1.45; }
+.landlord-selected-cleaner small { margin-top: 4px; font-size: .69rem; }
+.landlord-selected-cleaner-actions { display: grid; gap: 7px; justify-items: end; }
+.landlord-selected-cleaner-actions .text-button { min-height: 40px; white-space: nowrap; }
 .landlord-sole-property { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 14px; padding: 14px 16px; border: 1px solid #9fcfc2; border-radius: 13px; background: var(--mint-pale); }
 .landlord-sole-property > span { color: var(--muted); font-size: .7rem; font-weight: 850; text-transform: uppercase; }
 .landlord-sole-property > strong { grid-row: 1 / 3; grid-column: 2; align-self: center; color: var(--green-dark); overflow-wrap: anywhere; }
@@ -1893,6 +1902,10 @@ textarea { resize: vertical; }
   .landlord-dashboard-stats dd { grid-row: 1 / 3; grid-column: 2; }
   .landlord-scan-boundary { grid-template-columns: 1fr; padding: 20px 16px; border-radius: 18px; }
   .landlord-scan-boundary .button { grid-column: 1; width: 100%; }
+  .landlord-selected-cleaner { grid-template-columns: 52px minmax(0, 1fr); padding: 15px; }
+  .landlord-selected-cleaner-avatar { width: 48px; height: 48px; border-radius: 15px; }
+  .landlord-selected-cleaner-actions { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; justify-items: stretch; }
+  .landlord-selected-cleaner-actions .text-button { width: 100%; text-align: center; }
   .landlord-workspace-tabs { max-width: none; }
   .landlord-workspace-panel { padding: 20px 14px; border-radius: 18px; }
   .landlord-panel-heading { align-items: end; }
