@@ -14,13 +14,32 @@ export const bookingSummaryStatusLabels = Object.freeze({
   disputed: "Under review"
 });
 
-export function bookingSummaryBuckets(bookings, role) {
+function deadlineNow(value) {
+  if (value instanceof Date) {
+    const milliseconds = value.getTime();
+    return Number.isFinite(milliseconds) ? milliseconds : Date.now();
+  }
+  const milliseconds = Number(value);
+  return Number.isFinite(milliseconds) ? milliseconds : Date.now();
+}
+
+export function cleanerInvitationDeadlineState(booking, now = Date.now()) {
+  if (booking?.status !== "pending-cleaner-acceptance" || booking?.canRespond !== true) return Object.freeze({ kind: "closed", remainingMs: 0 });
+  const deadline = Date.parse(booking.responseDeadline || "");
+  if (!Number.isFinite(deadline)) return Object.freeze({ kind: "unavailable", remainingMs: 0 });
+  const remainingMs = deadline - deadlineNow(now);
+  if (remainingMs <= 0) return Object.freeze({ kind: "expired", remainingMs: 0 });
+  return Object.freeze({ kind: remainingMs <= 60 * 60_000 ? "urgent" : "open", remainingMs });
+}
+
+export function bookingSummaryBuckets(bookings, role, now = Date.now()) {
   const records = Array.isArray(bookings) ? bookings.filter((booking) => booking?.participantRole === role) : [];
+  const invitationOpen = (booking) => ["open", "urgent"].includes(cleanerInvitationDeadlineState(booking, now).kind);
   return Object.freeze({
-    pending: Object.freeze(records.filter((booking) => role === "cleaner" && booking.status === "pending-cleaner-acceptance" && booking.canRespond === true)),
+    pending: Object.freeze(records.filter((booking) => role === "cleaner" && invitationOpen(booking))),
     active: Object.freeze(records.filter((booking) => activeStatuses.has(booking.status))),
     upcoming: Object.freeze(records.filter((booking) => upcomingStatuses.has(booking.status))),
-    history: Object.freeze(records.filter((booking) => historyStatuses.has(booking.status) || role === "cleaner" && booking.status === "pending-cleaner-acceptance" && !booking.canRespond))
+    history: Object.freeze(records.filter((booking) => historyStatuses.has(booking.status) || role === "cleaner" && booking.status === "pending-cleaner-acceptance" && !invitationOpen(booking)))
   });
 }
 
@@ -44,8 +63,8 @@ export function formatBookingMoment(value) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(date);
 }
 
-export function bookingSummaryPrimaryAction(booking, role) {
-  if (role === "cleaner" && booking?.canRespond === true && booking.status === "pending-cleaner-acceptance") return Object.freeze({ kind: "respond", label: "Review request" });
+export function bookingSummaryPrimaryAction(booking, role, now = Date.now()) {
+  if (role === "cleaner" && ["open", "urgent"].includes(cleanerInvitationDeadlineState(booking, now).kind)) return Object.freeze({ kind: "respond", label: "Review request" });
   if (booking?.activeJobAvailable === true) return Object.freeze({ kind: "active-job", label: ["awaiting-review", "completed"].includes(booking.status) ? "View job record" : "Open active job" });
   if (role === "landlord" && booking?.paymentStepAvailable === true) return Object.freeze({ kind: "payment", label: "Authorize booking total" });
   return Object.freeze({ kind: "none", label: "No action required" });
@@ -104,9 +123,9 @@ export function landlordDashboardSummary(bookings) {
   });
 }
 
-export function cleanerInvitationDecisionState(booking, decision) {
+export function cleanerInvitationDecisionState(booking, decision, now = Date.now()) {
   const status = String(booking?.status || "");
-  if (status === "pending-cleaner-acceptance") return "pending";
+  if (["open", "urgent"].includes(cleanerInvitationDeadlineState(booking, now).kind)) return "pending";
   if (decision === "accept" && cleanerAcceptedStatuses.has(status)) return "recorded";
   if (decision === "decline" && status === "cancelled") return "recorded";
   return "different-outcome";

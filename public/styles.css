@@ -2366,6 +2366,9 @@ textarea { resize: vertical; }
 .booking-summary-facts dt { color: var(--muted); font-size: .57rem; font-weight: 800; text-transform: uppercase; }
 .booking-summary-facts dd { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--green-dark); font-size: .7rem; font-weight: 780; }
 .booking-response-deadline { margin: 0; color: #7c4a0b; font-size: .7rem; font-weight: 800; }
+.booking-summary-card[data-deadline-state="urgent"] { border-color: #d7831d; box-shadow: 0 0 0 3px rgba(215,131,29,.12); }
+.booking-response-deadline[data-kind="urgent"] { padding: 10px 12px; border-radius: 10px; background: #fff1d8; font-size: .78rem; }
+.booking-response-deadline[data-kind="expired"], .booking-response-deadline[data-kind="unavailable"], .booking-response-deadline[data-kind="closed"] { padding: 10px 12px; color: #8b2118; border-radius: 10px; background: #fff0ee; font-size: .78rem; }
 .booking-accept-boundary { margin: 0; padding: 10px 12px; color: #31534d; border-left: 3px solid var(--green); background: var(--mint-pale); font-size: .72rem; line-height: 1.45; }
 .booking-summary-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: auto; }
 .booking-summary-actions .button, .booking-summary-card > .button { min-height: 46px; }

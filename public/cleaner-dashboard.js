@@ -1,4 +1,4 @@
-import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDecisionState, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js?v=20260718-1";
+import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, formatBookingMoment, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js?v=20260718-2";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
 
 const gate = document.querySelector("[data-cleaner-dashboard-gate]");
@@ -17,6 +17,9 @@ let responding = false;
 let payoutStatus = null;
 let availabilityWindows = [];
 let cleanerProfile = null;
+let invitationDeadlineTimer = null;
+let refreshingExpiredInvitations = false;
+let expiredInvitationRefreshNeeded = false;
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 
@@ -110,6 +113,75 @@ function bookingFacts(booking) {
   return facts;
 }
 
+function invitationTimeRemaining(milliseconds) {
+  const minutes = Math.max(1, Math.ceil(milliseconds / 60_000));
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return `${hours} ${hours === 1 ? "hour" : "hours"}${remainder ? ` ${remainder} min` : ""}`;
+}
+
+function updateInvitationDeadlineCard(card, booking) {
+  const state = cleanerInvitationDeadlineState(booking);
+  const deadline = card.querySelector("[data-response-deadline]");
+  const accept = card.querySelector('[data-invitation-decision="accept"]');
+  const decline = card.querySelector('[data-invitation-decision="decline"]');
+  const boundary = card.querySelector("[data-invitation-scope-boundary]");
+  card.dataset.deadlineState = state.kind;
+  if (deadline) {
+    deadline.dataset.kind = state.kind;
+    deadline.textContent = state.kind === "expired"
+      ? "Offer window ended. Checking the current request status…"
+      : state.kind === "unavailable"
+        ? "Response deadline unavailable. Do not accept this request."
+        : state.kind === "closed"
+          ? "This offer is no longer open for a response."
+          : `Respond within ${invitationTimeRemaining(state.remainingMs)} · by ${formatBookingMoment(booking.responseDeadline)}`;
+  }
+  const responseOpen = ["open", "urgent"].includes(state.kind);
+  if (accept) accept.disabled = !responseOpen || accept.dataset.checklistReady !== "true";
+  if (decline) decline.disabled = !responseOpen;
+  if (!responseOpen && boundary) boundary.textContent = state.kind === "expired"
+    ? "The response window has ended. Homle will refresh this read-only status; no accept or decline decision will be sent."
+    : "This invitation cannot be answered safely. Refresh the dashboard before taking another action.";
+  return state;
+}
+
+async function refreshExpiredInvitations() {
+  if (refreshingExpiredInvitations || !expiredInvitationRefreshNeeded || browserOffline()) return;
+  refreshingExpiredInvitations = true;
+  showFeedback("An offer window ended. Homle is checking the current status without sending a decision.");
+  try {
+    await refreshBookings();
+    expiredInvitationRefreshNeeded = false;
+    showFeedback("Offer status refreshed. No expired accept or decline decision was sent.", "success");
+  } catch {
+    showFeedback("The offer window ended, but Homle could not refresh its server status. The decision buttons remain locked; reconnect and refresh before taking another action.", "error");
+  } finally {
+    refreshingExpiredInvitations = false;
+  }
+}
+
+function updateInvitationDeadlines() {
+  window.clearTimeout(invitationDeadlineTimer);
+  invitationDeadlineTimer = null;
+  let nextUpdateMs = Number.POSITIVE_INFINITY;
+  let expired = false;
+  for (const card of document.querySelectorAll("[data-invitation-booking-id]")) {
+    const booking = bookings.find((record) => record.bookingId === card.dataset.invitationBookingId);
+    if (!booking) continue;
+    const state = updateInvitationDeadlineCard(card, booking);
+    if (state.kind === "expired") expired = true;
+    else if (["open", "urgent"].includes(state.kind)) nextUpdateMs = Math.min(nextUpdateMs, state.remainingMs, 60_000);
+  }
+  if (expired) {
+    expiredInvitationRefreshNeeded = true;
+    queueMicrotask(refreshExpiredInvitations);
+    return;
+  }
+  if (Number.isFinite(nextUpdateMs)) invitationDeadlineTimer = window.setTimeout(updateInvitationDeadlines, Math.max(1_000, nextUpdateMs + 250));
+}
+
 function requestScanPreview(booking, pending = false, onReady = () => {}) {
   const details = element("details", "cleaner-request-scan");
   details.append(element("summary", "", pending ? "Approved room checklist" : "View private room scan"));
@@ -193,30 +265,43 @@ function bookingCard(booking, pending = false) {
   const card = element("article", "booking-summary-card");
   const heading = element("div", "booking-summary-heading");
   const title = element("div");
-  title.append(element("span", "booking-status-pill", bookingSummaryStatusLabels[booking.status] || "Booking"), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Cleaning property"} · ${booking.counterpartyName || "Landlord"}`));
+  const invitationState = cleanerInvitationDeadlineState(booking);
+  const statusLabel = booking.status === "pending-cleaner-acceptance" && !["open", "urgent"].includes(invitationState.kind)
+    ? invitationState.kind === "expired" ? "Offer window ended" : "Offer closed"
+    : bookingSummaryStatusLabels[booking.status] || "Booking";
+  title.append(element("span", "booking-status-pill", statusLabel), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Cleaning property"} · ${booking.counterpartyName || "Landlord"}`));
   const pay = element("div", "booking-summary-price");
   pay.append(element("small", "", bookingSummaryPriceLabel("cleaner")), element("strong", "", formatBookingMoney(booking.pricePence)));
   heading.append(title, pay);
   card.append(heading, bookingFacts(booking));
   if (pending) {
-    const deadline = element("p", "booking-response-deadline", booking.responseDeadline ? `Respond by ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(booking.responseDeadline))}` : "Response window unavailable");
+    card.dataset.invitationBookingId = booking.bookingId;
+    const deadline = element("p", "booking-response-deadline");
+    deadline.dataset.responseDeadline = "";
+    deadline.setAttribute("role", "status");
     const actions = element("div", "booking-summary-actions");
     const accept = element("button", "button", "Loading checklist…");
     accept.type = "button";
     accept.disabled = true;
+    accept.dataset.invitationDecision = "accept";
+    accept.dataset.checklistReady = "false";
     const decline = element("button", "button button-outline", "Decline");
     decline.type = "button";
+    decline.dataset.invitationDecision = "decline";
     accept.addEventListener("click", () => acceptBooking(booking, accept));
     decline.addEventListener("click", () => openDecline(booking));
     actions.append(accept, decline);
     const scopeBoundary = element("p", "booking-accept-boundary", "Acceptance unlocks after the exact room checklist loads. Then one tap confirms this time, scope and pay; Homle rechecks overlaps before confirming.");
+    scopeBoundary.dataset.invitationScopeBoundary = "";
     if (booking.cleaningRequestId) card.append(requestScanPreview(booking, true, ({ taskCount, roomCount }) => {
-      accept.disabled = false;
+      accept.dataset.checklistReady = "true";
       accept.textContent = `Accept ${formatBookingMoney(booking.pricePence)} job`;
       scopeBoundary.textContent = `${taskCount} approved ${taskCount === 1 ? "task" : "tasks"} across ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. One tap confirms this exact time, scope and pay; Homle rechecks overlaps before confirming.`;
+      updateInvitationDeadlineCard(card, booking);
     }));
     else scopeBoundary.textContent = "The exact room checklist is unavailable. Do not accept this request; refresh the dashboard to verify its status.";
     card.append(deadline, scopeBoundary, actions);
+    updateInvitationDeadlineCard(card, booking);
   } else {
     const action = bookingSummaryPrimaryAction(booking, "cleaner");
     if (action.kind === "active-job") {
@@ -224,7 +309,7 @@ function bookingCard(booking, pending = false) {
       link.href = `/bookings/${booking.bookingId}`;
       card.append(link);
     }
-    if (booking.cleaningRequestId && !["cancelled", "expired"].includes(booking.status)) card.append(requestScanPreview(booking));
+    if (booking.cleaningRequestId && booking.status !== "pending-cleaner-acceptance" && !["cancelled", "expired"].includes(booking.status)) card.append(requestScanPreview(booking));
   }
   return card;
 }
@@ -248,6 +333,7 @@ function renderBookings() {
   document.querySelector("[data-cleaner-history-count]").textContent = String(buckets.history.length);
   renderWorkOverview(cleanerDashboardSummary(cleanerProfile, availabilityWindows, bookings, payoutStatus));
   renderNextAction(buckets, cleanerProfile, payoutStatus, availabilityWindows);
+  updateInvitationDeadlines();
 }
 
 function dashboardMoney(pence) {
@@ -362,6 +448,14 @@ async function reconcileDecision(bookingId, decision) {
 
 async function respondToBooking(bookingId, decision, reason, button) {
   if (responding) return false;
+  const currentInvitation = bookings.find((booking) => booking.bookingId === bookingId);
+  if (!currentInvitation || !["open", "urgent"].includes(cleanerInvitationDeadlineState(currentInvitation).kind)) {
+    if (decision === "decline" && declineDialog.open) declineDialog.close();
+    expiredInvitationRefreshNeeded = true;
+    updateInvitationDeadlines();
+    await refreshExpiredInvitations();
+    return false;
+  }
   const csrf = await recoverCsrf();
   if (!csrf) return false;
   responding = true;
@@ -472,6 +566,8 @@ window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", () => {
   updateNetworkStatus();
   if (!gate.hidden && gate.dataset.kind === "offline") loadDashboard();
+  else if (expiredInvitationRefreshNeeded) refreshExpiredInvitations();
 });
+window.addEventListener("pagehide", () => window.clearTimeout(invitationDeadlineTimer));
 updateNetworkStatus();
 loadDashboard();
