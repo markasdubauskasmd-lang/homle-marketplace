@@ -80,6 +80,28 @@ export function cleanerDashboardSummary(profile, availability, bookings, payout)
   });
 }
 
+export function landlordDashboardSummary(bookings) {
+  if (!Array.isArray(bookings)) throw new TypeError("Landlord dashboard records are unavailable.");
+  const records = bookings.filter((booking) => booking?.participantRole === "landlord");
+  const completed = records.filter((booking) => booking.status === "completed");
+  const awaitingConfirmation = records.filter((booking) => booking.status === "awaiting-review");
+  const previousCleanerVisits = completed.map((booking) => ({
+    displayName: typeof booking.counterpartyName === "string" ? booking.counterpartyName.trim() : "",
+    bookingId: booking.bookingId,
+    scheduledStartAt: booking.scheduledStartAt,
+    scheduledAt: Date.parse(booking.scheduledStartAt || "")
+  })).filter((visit) => visit.displayName && visit.displayName !== "Assigned Cleaner" && Number.isFinite(visit.scheduledAt))
+    .sort((left, right) => right.scheduledAt - left.scheduledAt)
+    .map(({ scheduledAt: _scheduledAt, ...visit }) => Object.freeze(visit));
+  return Object.freeze({
+    completedCleanCount: completed.length,
+    awaitingConfirmationCount: awaitingConfirmation.length,
+    completedBookingValuePence: completed.reduce((total, booking) => total + safeMoney(booking.pricePence), 0),
+    previousCleanerVisitCount: previousCleanerVisits.length,
+    previousCleanerVisits: Object.freeze(previousCleanerVisits)
+  });
+}
+
 export function cleanerInvitationDecisionState(booking, decision) {
   const status = String(booking?.status || "");
   if (status === "pending-cleaner-acceptance") return "pending";

@@ -2351,6 +2351,23 @@ textarea { resize: vertical; }
 .booking-dashboard-feedback { position: sticky; bottom: 14px; margin-top: 18px; padding: 13px 16px; border: 1px solid #b7d8ce; border-radius: 12px; background: #eff9f5; color: var(--green-dark); box-shadow: 0 10px 30px rgba(16,36,33,.14); font-weight: 750; }
 .booking-dashboard-feedback[data-kind="error"] { color: #782119; border-color: #dfa9a2; background: #fff2ef; }
 .landlord-booking-section { margin-bottom: 24px; }
+.landlord-history-overview { margin-top: 22px; padding: 20px; border: 1px solid #cce1d9; border-radius: 18px; background: #f6fbf8; }
+.landlord-history-heading { display: flex; justify-content: space-between; gap: 20px; align-items: end; }
+.landlord-history-heading h3 { margin: 4px 0 0; color: var(--green-dark); font-size: clamp(1.25rem, 3vw, 1.7rem); }
+.landlord-history-heading > p { max-width: 330px; margin: 0; color: var(--muted); font-size: .82rem; }
+.landlord-history-stats { display: grid; grid-template-columns: repeat(4, 1fr); margin: 18px 0; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.landlord-history-stats div { padding: 14px; border-right: 1px solid var(--line); }
+.landlord-history-stats div:last-child { border-right: 0; }
+.landlord-history-stats dt { color: var(--muted); font-size: .66rem; font-weight: 850; text-transform: uppercase; }
+.landlord-history-stats dd { margin: 5px 0 0; color: var(--green-dark); font-size: 1.35rem; font-weight: 900; }
+.landlord-previous-cleaners > strong { color: var(--green-dark); }
+.landlord-previous-cleaners > p { margin-bottom: 0; color: var(--muted); font-size: .82rem; }
+.landlord-previous-cleaner-list { display: grid; gap: 8px; margin-top: 10px; }
+.landlord-previous-cleaner { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
+.landlord-previous-cleaner > div { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.landlord-previous-cleaner > div > div { display: grid; min-width: 0; }
+.landlord-previous-cleaner small { color: var(--muted); }
+.landlord-previous-avatar { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: #d8eee6; color: var(--green-dark); font-weight: 900; }
 .landlord-booking-live { display: grid; justify-items: end; gap: 7px; max-width: 310px; color: var(--muted); font-size: .7rem; text-align: right; }
 .landlord-booking-live span::before { display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: #82938e; content: ""; }
 .landlord-booking-live span[data-kind="live"]::before, .landlord-booking-live span[data-kind="success"]::before { background: #138471; }
@@ -2412,6 +2429,9 @@ textarea { resize: vertical; }
   .booking-dashboard-list { grid-template-columns: 1fr; }
   .booking-dashboard-heading { display: grid; gap: 18px; }
   .landlord-booking-live { justify-items: start; max-width: none; text-align: left; }
+  .landlord-history-stats { grid-template-columns: 1fr 1fr; }
+  .landlord-history-stats div:nth-child(2) { border-right: 0; }
+  .landlord-history-stats div:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .booking-dashboard-heading .button { justify-self: start; }
 }
 
@@ -2452,6 +2472,13 @@ textarea { resize: vertical; }
   .booking-summary-facts { grid-template-columns: 1fr; }
   .booking-summary-actions { display: grid; }
   .booking-summary-actions .button, .booking-summary-card > .button { width: 100%; }
+  .landlord-history-heading, .landlord-previous-cleaner { align-items: stretch; flex-direction: column; }
+  .landlord-history-overview { padding: 16px 12px; }
+  .landlord-history-stats { grid-template-columns: 1fr; }
+  .landlord-history-stats div { display: grid; grid-template-columns: 1fr auto; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); }
+  .landlord-history-stats div:nth-child(2) { border-bottom: 1px solid var(--line); }
+  .landlord-history-stats div:last-child { border-bottom: 0; }
+  .landlord-history-stats dd { margin: 0; }
 }
 
 /* Private account update inbox */

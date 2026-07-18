@@ -1,5 +1,7 @@
 # Tideway — Build Brief & Work Queue (for the coding agent)
 
+- **The separate Landlord dashboard now has a private cleaning-history overview:** it derives completed-clean count, work awaiting Landlord confirmation, completed booking value and a visit-by-visit record of previously booked Cleaners only from the existing participant-authorised booking projection. Every completed visit links to its protected job record and no email, phone, home address or provider identity is exposed. Empty and 390 px mobile states remain useful without inventing bookings or reviews; no favourite, contact, payment or deployment action was added.
+
 **Audience:** the coding agent (Codex) working in this repo (`tideway-marketplace/`).
 **Companion audit:** `../TIDEWAY_AUDIT_2026-07-15.md` (full findings, evidence, line refs). Finding IDs below (F1–F21) map to that audit.
 **Last updated:** 18 July 2026.

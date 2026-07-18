@@ -5,7 +5,7 @@ import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordReques
 import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
 import { landlordDispatchAction, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260717-6";
-import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260717-2";
+import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-2";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -988,6 +988,7 @@ function renderBookingCard(booking) {
 
 function renderBookings() {
   const buckets = bookingSummaryBuckets(bookings, "landlord");
+  const historySummary = landlordDashboardSummary(bookings);
   const current = [...buckets.active, ...buckets.upcoming];
   const list = document.querySelector("[data-landlord-booking-list]");
   list.replaceChildren(...current.map(renderBookingCard));
@@ -998,8 +999,30 @@ function renderBookings() {
   document.querySelector("[data-landlord-history-count]").textContent = String(buckets.history.length);
   document.querySelector("[data-landlord-history-section]").hidden = buckets.history.length === 0;
   document.querySelector("[data-landlord-active-count]").textContent = String(current.length);
+  renderLandlordHistory(historySummary);
   renderNextAction();
   syncInvitationStream();
+}
+
+function renderLandlordHistory(summary) {
+  document.querySelector("[data-landlord-completed-count]").textContent = String(summary.completedCleanCount);
+  document.querySelector("[data-landlord-awaiting-count]").textContent = String(summary.awaitingConfirmationCount);
+  document.querySelector("[data-landlord-completed-value]").textContent = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(summary.completedBookingValuePence / 100);
+  document.querySelector("[data-landlord-previous-count]").textContent = String(summary.previousCleanerVisitCount);
+  const list = document.querySelector("[data-landlord-previous-cleaners]");
+  list.replaceChildren(...summary.previousCleanerVisits.map((cleaner) => {
+    const card = element("article", "landlord-previous-cleaner");
+    const identity = element("div");
+    const copy = element("div");
+    copy.append(element("strong", "", cleaner.displayName), element("small", "", formatBookingMoment(cleaner.scheduledStartAt)));
+    identity.append(element("span", "landlord-previous-avatar", cleaner.displayName.slice(0, 1).toLocaleUpperCase("en-GB")), copy);
+    const link = element("a", "text-button", "View latest clean");
+    link.href = `/bookings/${cleaner.bookingId}`;
+    card.append(identity, link);
+    return card;
+  }));
+  list.hidden = summary.previousCleanerVisits.length === 0;
+  document.querySelector("[data-landlord-previous-empty]").hidden = summary.previousCleanerVisits.length > 0;
 }
 
 function renderNextAction() {
