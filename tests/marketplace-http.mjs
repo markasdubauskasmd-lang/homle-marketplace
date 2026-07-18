@@ -84,6 +84,16 @@ const cleanerProfileService = {
   async createOwnAvailability(actor, input) { calls.push({ kind: "availability-create", actor, input }); return { availabilityId: "44444444-4444-4444-8444-444444444444", ...input, status: "available" }; },
   async withdrawOwnAvailability(actor, availabilityId) { calls.push({ kind: "availability-withdraw", actor, availabilityId }); return { availabilityId, startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T17:00:00.000Z", status: "withdrawn" }; }
 };
+const favouriteCleanerService = {
+  async listOwn(actor) {
+    calls.push({ kind: "favourite-cleaner-list", actor });
+    return [{ cleanerId: "22222222-2222-4222-8222-222222222222", displayName: "Cleaner Example", profilePhotoUrl: null, currentAvailabilityStatus: "available", averageRating: 4.8, reviewCount: 12, completedJobCount: 20, services: [], savedAt: "2026-07-16T12:00:00.000Z" }];
+  },
+  async setOwn(actor, cleanerId, input) {
+    calls.push({ kind: "favourite-cleaner-set", actor, cleanerId, input });
+    return { cleanerId, favourite: input.favourite === true };
+  }
+};
 const propertyService = {
   async getLandlordProfile(actor) { calls.push({ kind: "landlord-get", actor }); return { organisationName: "Example PM", biography: "Local portfolio" }; },
   async saveLandlordProfile(actor, input) { calls.push({ kind: "landlord-save", actor, input }); return { organisationName: input.organisationName || null, biography: input.biography || "" }; },
@@ -210,7 +220,7 @@ const rateLimiter = {
 const administratorBookingService = {
   async list(actor, input) { calls.push({ kind: "administrator-booking-list", actor, input }); return { operations: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; }
 };
-const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const dependencies = { security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -327,6 +337,13 @@ const noSession = await dispatch(router, "GET", "/api/marketplace/properties");
 assert(noSession.response.statusCode === 401 && noSession.body.code === "authentication-required" && noSession.response.headers["Cache-Control"] === "no-store", "Private property listing accepted a missing session or allowed caching.");
 const privateAccount = await dispatch(router, "GET", "/api/marketplace/account", { headers: { cookie: authHeaders.cookie } });
 assert(privateAccount.response.statusCode === 200 && privateAccount.body.account.displayName === "Landlord Example" && privateAccount.body.account.email === "landlord@example.com" && privateAccount.body.account.selectedRole === "landlord" && privateAccount.body.account.roles.join(",") === "landlord" && !JSON.stringify(privateAccount.body).includes(sessions.landlord.session_id) && !JSON.stringify(privateAccount.body).includes("csrf"), "The private self-account route omitted role context or exposed session material.");
+const favouriteCleanerId = "22222222-2222-4222-8222-222222222222";
+const favouriteCleanerList = await dispatch(router, "GET", "/api/marketplace/landlord/favourite-cleaners", { headers: { cookie: authHeaders.cookie } });
+const cleanerFavouriteList = await dispatch(router, "GET", "/api/marketplace/landlord/favourite-cleaners", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const missingFavouriteCsrf = await dispatch(router, "POST", `/api/marketplace/landlord/favourite-cleaners/${favouriteCleanerId}`, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { favourite: true } });
+const savedFavourite = await dispatch(router, "POST", `/api/marketplace/landlord/favourite-cleaners/${favouriteCleanerId}`, { headers: authHeaders, body: { favourite: true } });
+const removedFavourite = await dispatch(router, "POST", `/api/marketplace/landlord/favourite-cleaners/${favouriteCleanerId}`, { headers: authHeaders, body: { favourite: false } });
+assert(favouriteCleanerList.response.statusCode === 200 && favouriteCleanerList.body.cleaners[0].displayName === "Cleaner Example" && cleanerFavouriteList.response.statusCode === 403 && missingFavouriteCsrf.response.statusCode === 403 && savedFavourite.body.favourite.favourite === true && removedFavourite.body.favourite.favourite === false && calls.slice(-3).map((call) => call.kind).join(",") === "favourite-cleaner-list,favourite-cleaner-set,favourite-cleaner-set" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Favourite Cleaner routes lost Landlord ownership, role isolation, CSRF protection or exact saved state.");
 const privacyList = await dispatch(router, "GET", "/api/marketplace/privacy-requests", { headers: { cookie: authHeaders.cookie } });
 const missingPrivacyCsrf = await dispatch(router, "POST", "/api/marketplace/privacy-requests", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { requestId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", requestType: "deletion" } });
 const privacyRequest = await dispatch(router, "POST", "/api/marketplace/privacy-requests", { headers: authHeaders, body: { requestId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", requestType: "deletion" } });

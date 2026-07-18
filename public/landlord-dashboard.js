@@ -1,5 +1,5 @@
 import { checklistFromTranscript } from "./checklist.js";
-import { clearSelectedCleaner, readSelectedCleaner } from "./account-intent.js";
+import { clearSelectedCleaner, readSelectedCleaner, saveSelectedCleaner } from "./account-intent.js";
 import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
 import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
@@ -62,6 +62,7 @@ const bookingRefresh = document.querySelector("[data-landlord-booking-refresh]")
 let properties = [];
 let requests = [];
 let bookings = [];
+let favouriteCleaners = [];
 let landlordProfile = null;
 let recognition = null;
 let listening = false;
@@ -1025,6 +1026,78 @@ function renderLandlordHistory(summary) {
   document.querySelector("[data-landlord-previous-empty]").hidden = summary.previousCleanerVisits.length > 0;
 }
 
+function renderFavouriteCleaners() {
+  const list = document.querySelector("[data-landlord-favourite-cleaners]");
+  list.replaceChildren(...favouriteCleaners.map((cleaner) => {
+    const card = element("article", "landlord-favourite-cleaner");
+    const identity = element("div", "landlord-favourite-identity");
+    const displayName = String(cleaner.displayName || "Cleaner profile");
+    const copy = element("div");
+    const evidence = Number(cleaner.reviewCount) > 0
+      ? `${Number(cleaner.averageRating).toFixed(1)} stars from ${Number(cleaner.reviewCount)} completed-job reviews`
+      : "No completed-job reviews yet";
+    copy.append(element("strong", "", displayName), element("small", "", evidence));
+    identity.append(element("span", "landlord-previous-avatar", displayName.slice(0, 1).toLocaleUpperCase("en-GB")), copy);
+    const actions = element("div", "landlord-favourite-actions");
+    const request = element("button", "button", "Start request");
+    request.type = "button";
+    request.addEventListener("click", () => {
+      try { saveSelectedCleaner(localStorage, cleaner.cleanerId); } catch {}
+      location.assign("/landlord/dashboard?start=booking");
+    });
+    const remove = element("button", "text-button", "Remove");
+    remove.type = "button";
+    remove.addEventListener("click", () => removeFavouriteCleaner(cleaner.cleanerId, remove));
+    actions.append(request, remove);
+    card.append(identity, actions);
+    return card;
+  }));
+  document.querySelector("[data-landlord-favourite-empty]").hidden = favouriteCleaners.length > 0;
+}
+
+async function refreshFavouriteCleaners({ quiet = false } = {}) {
+  const feedback = document.querySelector("[data-landlord-favourite-feedback]");
+  try {
+    const result = await requestJson("/api/marketplace/landlord/favourite-cleaners");
+    favouriteCleaners = Array.isArray(result.cleaners) ? result.cleaners : [];
+    renderFavouriteCleaners();
+    if (quiet) return true;
+    feedback.hidden = true;
+    feedback.textContent = "";
+    return true;
+  } catch {
+    if (!quiet) {
+      feedback.textContent = "Saved Cleaners are temporarily unavailable. Your other Landlord records are unaffected.";
+      feedback.hidden = false;
+    }
+    return false;
+  }
+}
+
+async function removeFavouriteCleaner(cleanerId, button) {
+  if (button.disabled) return;
+  const feedback = document.querySelector("[data-landlord-favourite-feedback]");
+  const csrf = await recoverCsrf(feedback, "changing your saved Cleaners");
+  if (!csrf) return;
+  button.disabled = true;
+  feedback.textContent = "Removing saved Cleaner...";
+  feedback.hidden = false;
+  try {
+    const result = await requestJson(`/api/marketplace/landlord/favourite-cleaners/${encodeURIComponent(cleanerId)}`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ favourite: false }) });
+    if (result.favourite?.favourite !== false) throw new Error("Homle did not confirm the saved Cleaner change.");
+    favouriteCleaners = favouriteCleaners.filter((cleaner) => cleaner.cleanerId !== cleanerId);
+    renderFavouriteCleaners();
+    feedback.textContent = "Cleaner removed from your private saved list.";
+  } catch (error) {
+    const reconciled = await refreshFavouriteCleaners({ quiet: true });
+    feedback.textContent = reconciled && !favouriteCleaners.some((cleaner) => cleaner.cleanerId === cleanerId)
+      ? "Cleaner removed from your private saved list."
+      : (error?.message || "Homle could not confirm the change. No removal will be retried automatically.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function renderNextAction() {
   const bookingAction = landlordBookingNextAction(bookings);
   const booking = bookingAction.booking;
@@ -1123,6 +1196,7 @@ async function loadWorkspace() {
     renderBookings();
     state.hidden = true;
     workspace.hidden = false;
+    await refreshFavouriteCleaners();
     if (location.hash === "#landlord-account-title") selectWorkspaceTab("account");
     continueBookingStart();
   } catch (error) {

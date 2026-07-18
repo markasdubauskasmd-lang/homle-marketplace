@@ -35,6 +35,7 @@ const notificationReadPath = new RegExp(`^/api/marketplace/notifications/(${uuid
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
 const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
 const cleanerAvailabilityPath = new RegExp(`^/api/marketplace/cleaner/availability/(${uuidPattern})$`);
+const favouriteCleanerPath = new RegExp(`^/api/marketplace/landlord/favourite-cleaners/(${uuidPattern})$`);
 const bookingCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/completion$`);
 const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews$`);
 const bookingReviewResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews/response$`);
@@ -77,6 +78,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const security = dependencies?.security;
   const properties = dependencies?.propertyService;
   const cleaners = dependencies?.cleanerProfileService;
+  const favouriteCleaners = dependencies?.favouriteCleanerService;
   const cleaningRequests = dependencies?.cleaningRequestService;
   const bookings = dependencies?.bookingWorkflowService;
   const matching = dependencies?.matchingService;
@@ -97,6 +99,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof cleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaner profile service.");
+  if (!favouriteCleaners || !["listOwn", "setOwn"].every((method) => typeof favouriteCleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the favourite-Cleaner service.");
   if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
   if (!matching || typeof matching.recommendForRequest !== "function") throw new TypeError("Marketplace HTTP routes require the request matching service.");
@@ -515,6 +518,20 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request);
           security.requireOrigin(request);
           await realtime.openStream(context.actor, selectedEvents[1], request, response, request.headers?.["last-event-id"] || url.searchParams.get("afterEventId") || 0, context.expiresAt);
+          return true;
+        }
+        if (pathname === "/api/marketplace/landlord/favourite-cleaners") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["landlord"] });
+          sendJson(response, 200, { ok: true, cleaners: await favouriteCleaners.listOwn(context.actor) });
+          return true;
+        }
+        const selectedFavouriteCleaner = pathname.match(favouriteCleanerPath);
+        if (selectedFavouriteCleaner) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const favourite = await favouriteCleaners.setOwn(context.actor, selectedFavouriteCleaner[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, favourite });
           return true;
         }
         const selectedRequestEvents = pathname.match(requestEventsPath);

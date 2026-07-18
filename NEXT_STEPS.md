@@ -1,5 +1,7 @@
 # Tideway — Build Brief & Work Queue (for the coding agent)
 
+- **Landlords can now save public Cleaner profiles for a faster repeat request:** the public directory shows an accessible **Save Cleaner** control only to an authenticated Landlord workspace, while anonymous visitors and Cleaner accounts retain the single booking action. The private Landlord dashboard lists saved Cleaners, starts the existing selected-Cleaner request handoff in one tap and supports deliberate removal. Every mutation is Landlord-only, CSRF-protected, owner-bound by row-level security and exposes no Cleaner email, phone number or home address. A timed-out change is reconciled with a read-only server snapshot and is never retried blindly. Focused service, routing, directory and dashboard regressions pass locally; no Cleaner was contacted, no booking or payment was created and this local change was not deployed.
+
 - **The separate Landlord dashboard now has a private cleaning-history overview:** it derives completed-clean count, work awaiting Landlord confirmation, completed booking value and a visit-by-visit record of previously booked Cleaners only from the existing participant-authorised booking projection. Every completed visit links to its protected job record and no email, phone, home address or provider identity is exposed. Empty and 390 px mobile states remain useful without inventing bookings or reviews; no favourite, contact, payment or deployment action was added.
 
 **Audience:** the coding agent (Codex) working in this repo (`tideway-marketplace/`).
