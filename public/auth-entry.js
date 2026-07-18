@@ -292,11 +292,6 @@ async function logoutReadyAccount() {
     clearCompletedIntent();
     location.assign("/");
   } catch (error) {
-    if (kind === "onboarding") {
-      try {
-        if (await openSignedInWorkspace()) return;
-      } catch {}
-    }
     showFeedback(error.message, "error");
     accountReadyLogout.disabled = false;
   }
@@ -401,6 +396,11 @@ async function submitAccountForm(event) {
       form.querySelector("fieldset").disabled = true;
     }
   } catch (error) {
+    if (kind === "onboarding") {
+      try {
+        if (await openSignedInWorkspace()) return;
+      } catch {}
+    }
     showFeedback(error.message, "error");
   } finally {
     setPending(form, false);
