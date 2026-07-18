@@ -8,7 +8,7 @@
   <title>Homle account access</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260716-64">
-  <script src="/auth-entry.js?v=20260717-4" type="module"></script>
+  <script src="/auth-entry.js?v=20260718-5" type="module"></script>
 </head>
 <body class="account-page">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -122,8 +122,12 @@
             <p class="eyebrow">Private staging account</p>
             <h2 id="account-ready-title" data-account-ready-title>Your Homle profile is ready.</h2>
             <p data-account-ready-copy>Your role and secure account have been saved.</p>
+            <div class="account-ready-person">
+              <span class="role-account-avatar" data-account-avatar aria-hidden="true">H</span>
+              <div><strong data-account-name>Your account</strong><small data-account-email></small></div>
+            </div>
             <div class="account-actions">
-              <a class="button" href="/" data-account-ready-home>Return to Homle</a>
+              <a class="button" href="/" data-account-ready-dashboard>Open your dashboard</a>
               <button class="button button-outline" type="button" data-account-ready-logout>Sign out</button>
             </div>
           </section>
@@ -136,15 +140,15 @@
         <noscript><p class="account-noscript">Account access is not enabled. JavaScript is not required to use the working request or cleaner application routes above.</p></noscript>
       </article>
 
-      <aside class="account-side" aria-labelledby="pilot-title">
+      <aside class="account-side" aria-labelledby="pilot-title" data-account-side>
         <p class="eyebrow light">Working private pilot</p>
-        <h2 id="pilot-title">Keep the booking path simple.</h2>
+        <h2 id="pilot-title" data-account-side-title>Keep the booking path simple.</h2>
         <ol class="account-steps">
-          <li><span>1</span><div><strong>Request the clean</strong><small>Share the property, timing and contact details.</small></div></li>
-          <li><span>2</span><div><strong>Scan and speak</strong><small>Add room photos and turn natural notes into concise tasks.</small></div></li>
-          <li><span>3</span><div><strong>Review before matching</strong><small>Homle checks scope, coverage and real availability before any quote.</small></div></li>
+          <li><span>1</span><div><strong data-account-step-title="1">Request the clean</strong><small data-account-step-copy="1">Share the property, timing and contact details.</small></div></li>
+          <li><span>2</span><div><strong data-account-step-title="2">Scan and speak</strong><small data-account-step-copy="2">Add room photos and turn natural notes into concise tasks.</small></div></li>
+          <li><span>3</span><div><strong data-account-step-title="3">Review before matching</strong><small data-account-step-copy="3">Homle checks scope, coverage and real availability before any quote.</small></div></li>
         </ol>
-        <p class="account-side-note">No payment is collected and no cleaner is promised from this account page.</p>
+        <p class="account-side-note" data-account-side-note>No payment is collected and no cleaner is promised from this account page.</p>
       </aside>
     </section>
   </main>

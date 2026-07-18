@@ -1503,6 +1503,10 @@ textarea { resize: vertical; }
 .role-dashboard-person strong, .role-dashboard-person small { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .role-dashboard-person small { margin-top: 3px; color: inherit; opacity: .78; font-size: .75rem; }
 .role-dashboard-boundary { margin: 0; padding-top: 12px; border-top: 1px solid currentColor; opacity: .78; font-size: .78rem; }
+.account-ready-person { display: flex; gap: 14px; align-items: center; margin: 20px 0; padding: 15px; border: 1px solid #9bcdbf; border-radius: 17px; background: var(--mint-pale); }
+.account-ready-person .role-account-avatar { width: 58px; height: 58px; flex-basis: 58px; border-radius: 18px; }
+.account-ready-person strong, .account-ready-person small { display: block; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-ready-person small { margin-top: 3px; color: var(--muted); font-size: .78rem; }
 .directory-main { padding: 54px 0 100px; }
 .directory-hero { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(260px, .55fr); gap: clamp(30px, 7vw, 90px); align-items: end; margin-bottom: 38px; }
 .directory-hero h1 { max-width: 800px; margin: 8px 0 14px; font-size: clamp(2.8rem, 7vw, 5.8rem); }
