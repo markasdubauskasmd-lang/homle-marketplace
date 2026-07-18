@@ -523,6 +523,7 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
       const controller = new AbortController();
       const requestTimer = setTimeout(() => controller.abort(), 30000);
       let response;
+      let result;
       try {
         response = await fetch(form.action, {
           method: "POST",
@@ -530,13 +531,13 @@ document.querySelectorAll("[data-api-form]").forEach((form) => {
           body: submissionBody,
           signal: controller.signal
         });
+        result = await response.json();
       } catch (error) {
         if (error.name === "AbortError") throw new Error("The connection took too long. Your entries are still protected in this tab.");
         throw error;
       } finally {
         clearTimeout(requestTimer);
       }
-      const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "We could not send this form.");
 
       cleanerDraftControls.get(form)?.complete();
