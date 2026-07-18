@@ -583,7 +583,18 @@ function humanFileSize(value) {
 
 async function sha256(file) {
   if (!crypto?.subtle || typeof file?.arrayBuffer !== "function") throw new Error("This browser cannot verify the photo securely. Try a current mobile browser.");
-  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()))].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  let timer;
+  try {
+    const digest = await Promise.race([
+      file.arrayBuffer().then((buffer) => crypto.subtle.digest("SHA-256", buffer)),
+      new Promise((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error("This photo took too long to check securely. It is still selected; try again or choose a smaller photo.")), 15_000);
+      })
+    ]);
+    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 function checkedUploadResponse(response) {
