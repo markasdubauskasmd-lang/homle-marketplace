@@ -27,15 +27,17 @@ const policy = createBookingPricingPolicy({
   labourOnCostBasisPoints: 1000,
   paymentFeeBasisPoints: 300,
   paymentFeeFixedPence: 20,
+  riskContingencyBasisPoints: 500,
   travelCostPence: 500,
   suppliesCostPence: 250,
   invitationTtlMinutes: 180
 });
 const quote = policy.quote(candidate, now);
 const costs = quote.cleanerPayPence + quote.labourOnCostPence + quote.paymentFeePence + quote.travelCostPence + quote.suppliesCostPence + quote.otherCostPence;
-assert(quote.cleanerPayPence === 7500 && quote.customerPricePence > costs && quote.customerPricePence - costs >= 1800 && (quote.customerPricePence - costs) * 10000 >= quote.customerPricePence * 2000 && quote.targetContributionPence === 1800 && quote.responseDeadline === "2026-07-15T13:00:00.000Z", "Private pricing did not cover cleaner pay, costs, both profit floors and a bounded response window.");
+assert(quote.cleanerPayPence === 7500 && quote.riskContingencyPence > 0 && quote.otherCostPence === quote.riskContingencyPence && quote.customerPricePence > costs && quote.customerPricePence - costs >= 1800 && (quote.customerPricePence - costs) * 10000 >= quote.customerPricePence * 2000 && quote.targetContributionPence === 1800 && quote.responseDeadline === "2026-07-15T13:00:00.000Z", "Private pricing did not cover cleaner pay, the frozen risk allowance, costs, both profit floors and a bounded response window.");
 assert(await rejects(() => Promise.resolve(createBookingPricingPolicy({ targetMarginBasisPoints: 0 })), "Target margin"), "A zero-margin policy was accepted.");
 assert(await rejects(() => Promise.resolve(createBookingPricingPolicy({ targetMarginBasisPoints: 2000 })), "Minimum booking contribution"), "A missing pounds-per-booking floor was accepted.");
+assert(await rejects(() => Promise.resolve(createBookingPricingPolicy({ targetMarginBasisPoints: 7000, minimumContributionPence: 1, paymentFeeBasisPoints: 1000, riskContingencyBasisPoints: 2000 })), "must leave room"), "An impossible combined margin, fee and contingency policy was accepted.");
 assert(await rejects(() => Promise.resolve(policy.quote({ ...candidate, services: [{ serviceCode: "regular-domestic", pricingModel: "quote", pricePence: null }] }, now)), "manual quote"), "A manual-quote service was silently priced.");
 const distancePolicy = createBookingPricingPolicy({
   targetMarginBasisPoints: 2000,
@@ -43,6 +45,7 @@ const distancePolicy = createBookingPricingPolicy({
   labourOnCostBasisPoints: 1000,
   paymentFeeBasisPoints: 300,
   paymentFeeFixedPence: 20,
+  riskContingencyBasisPoints: 500,
   travelCostPence: 500,
   travelCostPerKmPence: 35,
   travelDistanceMultiplierBasisPoints: 20000,
@@ -58,7 +61,7 @@ for (const suppliedDistance of [null, "", "not-a-distance", "-1", "500.01"]) {
 const excessiveTravelPolicy = createBookingPricingPolicy({ targetMarginBasisPoints: 2000, minimumContributionPence: 1, travelCostPence: 999999, travelCostPerKmPence: 100000, travelDistanceMultiplierBasisPoints: 50000 });
 assert(await rejectsCode(() => Promise.resolve(excessiveTravelPolicy.quote({ ...candidate, distance_km: "500" }, now)), "request-not-priceable"), "An excessive distance cost escaped the supported frozen travel-cost ceiling.");
 assert(bookingPricingPolicyFromEnvironment({}) === null && await rejects(() => Promise.resolve(bookingPricingPolicyFromEnvironment({ BOOKING_TARGET_MARGIN_BPS: "2000" })), "complete private"), "Missing or partial booking economics did not fail closed.");
-const previousEnvironmentPolicy = { BOOKING_TARGET_MARGIN_BPS: "2000", BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1800", BOOKING_LABOUR_ON_COST_BPS: "1000", BOOKING_PAYMENT_FEE_BPS: "300", BOOKING_PAYMENT_FEE_FIXED_PENCE: "20", BOOKING_TRAVEL_COST_PENCE: "500", BOOKING_SUPPLIES_COST_PENCE: "250", BOOKING_OTHER_COST_PENCE: "0", BOOKING_INVITATION_TTL_MINUTES: "180" };
+const previousEnvironmentPolicy = { BOOKING_TARGET_MARGIN_BPS: "2000", BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1800", BOOKING_LABOUR_ON_COST_BPS: "1000", BOOKING_PAYMENT_FEE_BPS: "300", BOOKING_PAYMENT_FEE_FIXED_PENCE: "20", BOOKING_RISK_CONTINGENCY_BPS: "500", BOOKING_TRAVEL_COST_PENCE: "500", BOOKING_SUPPLIES_COST_PENCE: "250", BOOKING_OTHER_COST_PENCE: "0", BOOKING_INVITATION_TTL_MINUTES: "180" };
 assert(await rejects(() => Promise.resolve(bookingPricingPolicyFromEnvironment(previousEnvironmentPolicy)), "complete private"), "The previous fixed-only environment silently activated without an explicit distance rate and distance multiplier.");
 const configuredPolicy = bookingPricingPolicyFromEnvironment({ ...previousEnvironmentPolicy, BOOKING_TRAVEL_COST_PER_KM_PENCE: "35", BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS: "20000" });
 assert(configuredPolicy.quote(candidate, now).customerPricePence === distanceQuote.customerPricePence, "Complete private distance-aware environment pricing did not compose deterministically.");

@@ -8,6 +8,7 @@ export const bookingPricingEnvironmentRules = Object.freeze([
   Object.freeze({ property: "labourOnCostBasisPoints", key: "BOOKING_LABOUR_ON_COST_BPS", minimum: 0, maximum: 5000 }),
   Object.freeze({ property: "paymentFeeBasisPoints", key: "BOOKING_PAYMENT_FEE_BPS", minimum: 0, maximum: 2000 }),
   Object.freeze({ property: "paymentFeeFixedPence", key: "BOOKING_PAYMENT_FEE_FIXED_PENCE", minimum: 0, maximum: 10_000 }),
+  Object.freeze({ property: "riskContingencyBasisPoints", key: "BOOKING_RISK_CONTINGENCY_BPS", minimum: 0, maximum: 5000 }),
   Object.freeze({ property: "travelCostPence", key: "BOOKING_TRAVEL_COST_PENCE", minimum: 0, maximum: 1_000_000 }),
   Object.freeze({ property: "travelCostPerKmPence", key: "BOOKING_TRAVEL_COST_PER_KM_PENCE", minimum: 0, maximum: 100_000 }),
   Object.freeze({ property: "travelDistanceMultiplierBasisPoints", key: "BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS", minimum: 1, maximum: 50_000 }),
@@ -146,6 +147,7 @@ export function createBookingPricingPolicy(configuration = {}) {
     labourOnCostBasisPoints: integer(configuration.labourOnCostBasisPoints ?? 0, 0, 5000, "Labour on-cost"),
     paymentFeeBasisPoints: integer(configuration.paymentFeeBasisPoints ?? 0, 0, 2000, "Payment fee"),
     paymentFeeFixedPence: integer(configuration.paymentFeeFixedPence ?? 0, 0, 10000, "Fixed payment fee"),
+    riskContingencyBasisPoints: integer(configuration.riskContingencyBasisPoints ?? 0, 0, 5000, "Risk contingency"),
     travelCostPence: integer(configuration.travelCostPence ?? 0, 0, 1000000, "Travel cost"),
     travelCostPerKmPence: integer(configuration.travelCostPerKmPence ?? 0, 0, 100000, "Travel cost per kilometre"),
     travelDistanceMultiplierBasisPoints: integer(configuration.travelDistanceMultiplierBasisPoints ?? 10000, 1, 50000, "Travel distance multiplier"),
@@ -153,6 +155,9 @@ export function createBookingPricingPolicy(configuration = {}) {
     otherCostPence: integer(configuration.otherCostPence ?? 0, 0, 1000000, "Other cost"),
     invitationTtlMinutes: integer(configuration.invitationTtlMinutes ?? 180, 15, 1440, "Invitation lifetime")
   };
+  if (config.targetMarginBasisPoints + config.paymentFeeBasisPoints + config.riskContingencyBasisPoints >= 10000) {
+    throw new TypeError("Target margin, payment fee and risk contingency must leave room to cover the cleaning costs.");
+  }
   return Object.freeze({
     quote(candidate, now = new Date()) {
       const start = new Date(candidate.requested_start_at);
@@ -178,12 +183,15 @@ export function createBookingPricingPolicy(configuration = {}) {
       while (low < high) {
         const proposed = Math.floor((low + high) / 2);
         const fee = config.paymentFeeFixedPence + Math.ceil(proposed * config.paymentFeeBasisPoints / 10000);
-        const contribution = proposed - cleanerPayPence - labourOnCostPence - fee - travelCostPence - config.suppliesCostPence - config.otherCostPence;
+        const riskContingencyPence = Math.ceil(proposed * config.riskContingencyBasisPoints / 10000);
+        const contribution = proposed - cleanerPayPence - labourOnCostPence - fee - riskContingencyPence - travelCostPence - config.suppliesCostPence - config.otherCostPence;
         if (contribution >= config.minimumContributionPence && contribution * 10000 >= proposed * config.targetMarginBasisPoints) high = proposed;
         else low = proposed + 1;
       }
       const paymentFeePence = config.paymentFeeFixedPence + Math.ceil(low * config.paymentFeeBasisPoints / 10000);
-      const finalContribution = low - cleanerPayPence - labourOnCostPence - paymentFeePence - travelCostPence - config.suppliesCostPence - config.otherCostPence;
+      const riskContingencyPence = Math.ceil(low * config.riskContingencyBasisPoints / 10000);
+      const frozenOtherCostPence = config.otherCostPence + riskContingencyPence;
+      const finalContribution = low - cleanerPayPence - labourOnCostPence - paymentFeePence - frozenOtherCostPence - travelCostPence - config.suppliesCostPence;
       if (low > 10_000_000 || cleanerPayPence > 10_000_000 || finalContribution < config.minimumContributionPence || finalContribution * 10000 < low * config.targetMarginBasisPoints) throw Object.assign(new Error("The selected scope cannot be priced inside the supported safe range."), { statusCode: 409, code: "request-not-priceable" });
       const responseDeadline = new Date(Math.min(start.getTime(), now.getTime() + config.invitationTtlMinutes * 60000));
       if (responseDeadline.getTime() <= now.getTime()) throw Object.assign(new Error("The requested start time is too close to invite a cleaner."), { statusCode: 409, code: "request-too-soon" });
@@ -192,9 +200,10 @@ export function createBookingPricingPolicy(configuration = {}) {
         cleanerPayPence,
         labourOnCostPence,
         paymentFeePence,
+        riskContingencyPence,
         travelCostPence,
         suppliesCostPence: config.suppliesCostPence,
-        otherCostPence: config.otherCostPence,
+        otherCostPence: frozenOtherCostPence,
         targetMarginBasisPoints: config.targetMarginBasisPoints,
         targetContributionPence: config.minimumContributionPence,
         responseDeadline: responseDeadline.toISOString()
