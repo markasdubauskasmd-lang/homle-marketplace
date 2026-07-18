@@ -13,7 +13,7 @@ const toolPath = fileURLToPath(import.meta.url);
 const controlCharacters = /[\u0000-\u001f\u007f]/;
 const restrictedDatabaseUsers = new Set(["tideway_app", "tideway_worker"]);
 const stagingDatabasePattern = /_(?:tideway|homle)_staging$/i;
-const supportedProviders = new Set(["google", "facebook", "password"]);
+const supportedProviders = new Set(["google", "apple", "facebook", "password"]);
 export const stagingRoleRehearsalConfirmation = "VERIFY TWO APPROVED HOMLE STAGING ROLE PROFILES";
 
 function exact(value) {
@@ -51,7 +51,7 @@ export function prepareStagingRoleRehearsal(input = {}, baseEnvironment = proces
   const access = createStagingAccountAccess({ STAGING_ACCOUNTS_ONLY: "true", STAGING_ACCOUNT_EMAIL_SHA256: input.approvedEmailSha256 });
   if (!access.allows(landlordEmail) || !access.allows(cleanerEmail)) throw new TypeError("Both rehearsal accounts must be on the approved staging-account fingerprint list.");
   const expectedProvider = bounded(input.expectedProvider || "google", 1, 20, "Expected staging sign-in provider").toLowerCase();
-  if (!supportedProviders.has(expectedProvider)) throw new TypeError("Expected staging sign-in provider must be google, facebook or password.");
+  if (!supportedProviders.has(expectedProvider)) throw new TypeError("Expected staging sign-in provider must be google, apple, facebook or password.");
   return Object.freeze({ connectionUrl, landlordEmail, cleanerEmail, expectedProvider, database: database.summary });
 }
 

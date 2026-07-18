@@ -68,7 +68,7 @@ export function validateStagingServiceProbeEnvironment(env = process.env, confir
   try { realtimeDatabase = stagingDatabaseTarget(env.REALTIME_DATABASE_URL, "REALTIME_DATABASE_URL", env); } catch (error) { errors.push(error.message); }
   if (database && realtimeDatabase && database.database !== realtimeDatabase.database) errors.push("DATABASE_URL and REALTIME_DATABASE_URL must target the same managed staging database.");
   if (errors.length) throw validationError(errors);
-  return Object.freeze({ database, providersConfigured: Object.freeze({ google: state.providers.google.enabled, facebook: state.providers.facebook.enabled }) });
+  return Object.freeze({ database, providersConfigured: Object.freeze({ google: state.providers.google.enabled, apple: state.providers.apple.enabled, facebook: state.providers.facebook.enabled }) });
 }
 
 export function sanitizeStagingServiceProbeError(error, env = process.env) {
@@ -108,7 +108,7 @@ export async function probeMarketplaceStagingServices(options = {}) {
         authenticationRuntime: true,
         paymentsContacted: false
       }),
-      providers: Object.freeze({ google: capabilities.google === true, facebook: capabilities.facebook === true, apple: false }),
+      providers: Object.freeze({ google: capabilities.google === true, apple: capabilities.apple === true, facebook: capabilities.facebook === true }),
       nextEvidence: Object.freeze([
         "Deliver one verification and one password-reset message to an approved non-customer staging inbox.",
         "Upload, read and delete one synthetic room image through the signed private-media flow, then confirm no object remains.",

@@ -24,6 +24,7 @@ const prepared = prepareStagingRoleRehearsal(input, { PATH: "safe-path" });
 assert.equal(prepared.database.database, "homle_marketplace_homle_staging");
 assert.equal(prepared.expectedProvider, "google");
 assert(!JSON.stringify(prepared.database).includes("private-password") && !JSON.stringify(prepared.database).includes("postgresql://"), "Role-rehearsal preparation exposed database credentials.");
+assert.equal(prepareStagingRoleRehearsal({ ...input, expectedProvider: "apple" }, { PATH: "safe-path" }).expectedProvider, "apple");
 
 for (const invalid of [
   { confirmation: "yes" },
@@ -33,7 +34,7 @@ for (const invalid of [
   { connectionUrl: connectionUrl.replace("verify-full", "require") },
   { cleanerEmail: landlordEmail },
   { approvedEmailSha256: stagingAccountEmailSha256(landlordEmail) },
-  { expectedProvider: "apple" },
+  { expectedProvider: "microsoft" },
   { stagingAccountsOnly: "false" },
   { authenticationEnabled: "false" },
   { marketplaceEnabled: "true" },

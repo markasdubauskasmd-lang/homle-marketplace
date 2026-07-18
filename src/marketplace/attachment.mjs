@@ -248,7 +248,7 @@ export async function createMarketplaceAttachment(options = {}) {
     passwordReset: true,
     emailVerification: true,
     google: runtime.googleOidcReady === true,
-    apple: false,
+    apple: runtime.appleSignInReady === true,
     facebook: runtime.facebookLoginReady === true
   });
   let closed = false;

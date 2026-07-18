@@ -19,6 +19,7 @@ import { createCredentialService } from "./credential-service.mjs";
 import { createMarketplaceDatabase } from "./database.mjs";
 import { createIdentityService } from "./identity-service.mjs";
 import { createGoogleOidcProvider } from "./google-oidc.mjs";
+import { createAppleSignInProvider } from "./apple-sign-in.mjs";
 import { createFacebookLoginProvider } from "./facebook-login.mjs";
 import { createFacebookIdentityService } from "./facebook-identity-service.mjs";
 import { createFacebookDataDeletionRepository } from "./facebook-data-deletion-repository.mjs";
@@ -79,6 +80,17 @@ export function createMarketplaceRuntime(pool, options = {}) {
       clientSecret: env.GOOGLE_CLIENT_SECRET,
       stateSecret: env.AUTH_TOKEN_SECRET,
       fetch: options.googleFetch
+    })
+    : null);
+  const appleSignInProvider = options.appleSignInProvider || (environment.providers.apple.enabled
+    ? createAppleSignInProvider({
+      appOrigin: environment.appOrigin,
+      clientId: env.APPLE_CLIENT_ID,
+      teamId: env.APPLE_TEAM_ID,
+      keyId: env.APPLE_KEY_ID,
+      privateKey: env.APPLE_PRIVATE_KEY,
+      stateSecret: env.AUTH_TOKEN_SECRET,
+      fetch: options.appleFetch
     })
     : null);
   const facebookLoginProvider = options.facebookLoginProvider || (environment.providers.facebook.enabled
@@ -150,8 +162,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
   const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
-  const authenticationRouter = options.emailDelivery
-    ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: true })
+  const authenticationRouter = options.emailDelivery || googleOidcProvider || appleSignInProvider
+    ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, appleSignInProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: true })
     : null;
   const router = authenticationRouter ? {
     async handle(request, response, url) {
@@ -166,6 +178,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     stagingAccountAccess,
     identityService,
     googleOidcProvider,
+    appleSignInProvider,
     facebookLoginProvider,
     facebookIdentityService,
     facebookDataDeletionRepository,
@@ -218,6 +231,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     authenticationRouter,
     authenticationHttpReady: authenticationRouter !== null,
     googleOidcReady: authenticationRouter !== null && googleOidcProvider !== null,
+    appleSignInReady: authenticationRouter !== null && appleSignInProvider !== null,
     facebookLoginReady: authenticationRouter !== null && facebookLoginProvider !== null && facebookDataDeletionService !== null,
     marketplaceRouter,
     router

@@ -2,19 +2,21 @@
 
 ## Current status
 
+Apple sign-in is implemented in source and remains capability-gated. It is exposed only when an exact HTTPS `APP_ORIGIN`, complete Apple Services ID credentials, database/session/token dependencies and the attached Apple provider all agree. No Apple key, authorization code, ID token or provider token is stored in browser code or the Homle database.
+
 Google OpenID Connect is implemented in source and connected to the detached marketplace runtime. It is disabled on the current local pilot because the required PostgreSQL runtime, HTTPS domain and real Google Web OAuth credentials are not configured. The account page never reveals the Google control unless `/api/auth/providers` truthfully reports `google: true`.
 
 Facebook Login is now implemented in detached source but remains disabled on the local pilot. Tideway validates the provider identity and App ID, but deliberately treats Facebook's `email` field as unverified. A first-time Facebook subject receives a separate Tideway mailbox-verification link before an account or identity is created. Existing password accounts are never auto-linked by this pre-authenticated flow; they use the authenticated `/settings` connection journey described below.
 
 ## Account-first booking journey
 
-Every public **Book a clean** action opens `/signup?intent=book`. If a configured Google or Facebook control is selected, Tideway puts only the allowlisted `book` value into the provider's signed, ten-minute flow state. The callback automatically creates or safely reuses the verified Tideway account, retains the booking action and continues a role-pending user to Landlord onboarding. Once the user confirms Landlord, the browser opens the private Landlord dashboard. Email/password remains the fallback.
+Every public **Book a clean** action opens `/signup?intent=book`. If a configured Google, Apple or Facebook control is selected, Tideway puts only the allowlisted `book` value into the provider's signed, ten-minute flow state. The callback automatically creates or safely reuses the verified Tideway account, retains the booking action and continues a role-pending user to Landlord onboarding. Once the user confirms Landlord, the browser opens the private Landlord dashboard. Email/password remains the fallback.
 
-This is deliberately not a general `next` URL. The server rejects unknown or repeated intent values, connection/step-up flows cannot carry booking intent, and the browser retains only the allowlisted action for 30 minutes. Existing Cleaner-only accounts are not silently upgraded; they are told to use a Landlord account. Google/Facebook buttons still remain hidden until their full activation gates below pass.
+This is deliberately not a general `next` URL. The server rejects unknown or repeated intent values, connection/step-up flows cannot carry booking intent, and the browser retains only the allowlisted action for 30 minutes. Existing Cleaner-only accounts are not silently upgraded; they are told to use a Landlord account. Google/Apple/Facebook buttons still remain hidden until their full activation gates below pass.
 
 ## Authenticated connection from Settings
 
-An existing verified password account can connect Google or Facebook without relying on an email match:
+An existing verified password account can connect Google, Apple or Facebook without relying on an email match:
 
 1. `/settings` reads only provider names and connection timestamps through an actor-bound function; provider subjects and emails are not returned.
 2. The account submits its current Tideway password over the same-origin, session and CSRF-protected connection route. The normal persistent password-attempt lock is reused.
@@ -39,6 +41,20 @@ The server uses Google's authorization-code flow and requests only `openid email
 
 The callback immediately redirects and renders no third-party resources, preventing the authorization code from leaking through page scripts or a referrer. Rate limits cover both start and callback routes. Errors use a generic browser result while unexpected internal failures go only to the private monitoring hook.
 
+## Apple security model
+
+Apple uses its web authorization-code flow through a Services ID:
+
+1. `GET /api/marketplace/auth/apple/start` creates independent random state and nonce values in a signed ten-minute flow cookie.
+2. First sign-in requests only `name email` and therefore uses Apple's required `response_mode=form_post`. The host-only flow cookie is `Secure`, `HttpOnly` and `SameSite=None` so the cross-site POST can be validated without exposing state to page code.
+3. Homle creates a five-minute ES256 client-secret JWT from the deployment-held P-256 key and exchanges the one-time code only from the server.
+4. The returned RS256 identity token is checked against Apple's bounded JWKS cache plus exact issuer, Services-ID audience, expiry, issued-at time, nonce, subject and verified email. The token email—not the first-authorisation `user` form—is authoritative.
+5. Apple supplies the person's name only on first authorisation. Homle accepts only a bounded Unicode human-name character set and ignores invalid components; the existing account fallback remains safe when no name is returned.
+6. Authenticated provider connection and step-up omit scopes and use `response_mode=query`, allowing Homle's existing same-site session and provider-binding cookies to accompany the callback. Collision-locked database functions and final-method protection are shared with Google and Facebook.
+7. Migration `060_apple_sign_in_provider.sql` adds the two shared rate-limit scopes and extends provider connection, exact-subject step-up, audited removal and identity ordering without exposing provider subjects to the browser.
+
+Apple activation requires a Sign in with Apple-enabled primary App ID, an associated Services ID, a registered HTTPS domain and the exact return URL `${APP_ORIGIN}/api/marketplace/auth/apple/callback`. Store `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID` and `APPLE_PRIVATE_KEY` only in the deployment secret manager. Apple's official setup guidance is at <https://developer.apple.com/help/account/capabilities/configure-sign-in-with-apple-for-the-web> and its token guidance is at <https://developer.apple.com/documentation/signinwithapplerestapi/generate-and-validate-tokens>.
+
 ## Founder setup after the domain is chosen
 
 Do not add credentials to source control or `.env.example`.
@@ -61,6 +77,7 @@ For Homle, the canonical callbacks are:
 
 ```text
 https://homle.co.uk/api/marketplace/auth/google/callback
+https://homle.co.uk/api/marketplace/auth/apple/callback
 https://homle.co.uk/api/marketplace/auth/facebook/callback
 https://homle.co.uk/api/marketplace/auth/facebook/data-deletion
 ```

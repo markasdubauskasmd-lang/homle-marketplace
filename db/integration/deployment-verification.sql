@@ -21,6 +21,7 @@ DECLARE
   public_cleaner_lookup_migration_installed boolean := false;
   automatic_dispatch_customer_cap_installed boolean := false;
   participant_response_deadline_installed boolean := false;
+  apple_sign_in_migration_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -197,6 +198,8 @@ BEGIN
       INTO automatic_dispatch_customer_cap_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 59)'
       INTO participant_response_deadline_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 60)'
+      INTO apple_sign_in_migration_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -229,6 +232,11 @@ BEGIN
       WHERE procedure.oid=to_regprocedure('tideway_private.list_my_booking_summaries(integer)')
         AND position('participant-response-deadline-v1' IN procedure.prosrc)>0
     ) INTO participant_response_deadline_installed;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.connect_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)')
+        AND position('google'',''apple'',''facebook' IN replace(procedure.prosrc, ' ', ''))>0
+    ) INTO apple_sign_in_migration_installed;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -405,6 +413,38 @@ BEGIN
        OR position('access_instructions' IN COALESCE(selected_source,''))>0
        OR position('property.address' IN COALESCE(selected_source,''))>0 THEN
       RAISE EXCEPTION 'Participant booking summaries do not expose the pending response deadline safely';
+    END IF;
+  END IF;
+  IF apple_sign_in_migration_installed THEN
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.consume_rate_limit(text,bytea)');
+    IF position('(''apple-start'',20,900)' IN replace(COALESCE(selected_source,''), ' ', ''))=0
+       OR position('(''apple-callback'',30,900)' IN replace(COALESCE(selected_source,''), ' ', ''))=0
+       OR NOT EXISTS (
+         SELECT 1 FROM pg_constraint constraint_record
+         WHERE constraint_record.conrelid='tideway_private.request_rate_limits'::regclass
+           AND constraint_record.conname='request_rate_limits_scope_check'
+           AND position('apple-start' IN pg_get_constraintdef(constraint_record.oid))>0
+           AND position('apple-callback' IN pg_get_constraintdef(constraint_record.oid))>0
+       ) THEN
+      RAISE EXCEPTION 'Apple sign-in rate limits are missing or unsafe';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.connect_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)');
+    IF position('asserted_provider NOT IN (''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0
+       OR position('asserted_provider IN (''google'',''apple'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
+      RAISE EXCEPTION 'Apple provider connection does not require a verified provider email';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.verify_my_social_identity(authentication_provider,text)');
+    IF position('asserted_provider NOT IN (''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
+      RAISE EXCEPTION 'Apple provider step-up is not installed';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.disconnect_my_social_identity(authentication_provider)');
+    IF position('selected_provider NOT IN (''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0
+       OR position('identity.provider IN (''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
+      RAISE EXCEPTION 'Apple provider removal or last-method protection is not installed';
     END IF;
   END IF;
   IF scope_handoff_migration_installed THEN

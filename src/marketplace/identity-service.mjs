@@ -43,7 +43,7 @@ export function normalizedVerifiedSocialClaims(provider, claims) {
 }
 
 export function normalizedProviderConnectionClaims(provider, claims) {
-  if (provider === "google") return normalizedVerifiedSocialClaims(provider, claims);
+  if (provider === "google" || provider === "apple") return normalizedVerifiedSocialClaims(provider, claims);
   if (provider !== "facebook" || !claims || claims.emailVerified !== false) throw new TypeError("A verified provider connection response is required.");
   const subject = cleanText(claims.subject, 255, "Provider subject", true);
   const suppliedEmail = cleanText(claims.email, 254, "Provider email");
@@ -114,6 +114,6 @@ export function createIdentityService(repository, options = {}) {
   };
 }
 
-const connectableSocialProviders = Object.freeze(["google", "facebook"]);
+const connectableSocialProviders = Object.freeze(["google", "apple", "facebook"]);
 
 export { connectableSocialProviders, selectableOnboardingRoles, supportedSocialProviders };

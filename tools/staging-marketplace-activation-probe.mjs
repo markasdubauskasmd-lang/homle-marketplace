@@ -42,8 +42,8 @@ export async function probeMarketplaceStagingActivation(options = {}) {
       }),
       providers: Object.freeze({
         google: capabilities.google === true,
+        apple: capabilities.apple === true,
         facebook: capabilities.facebook === true,
-        apple: false,
         stripe: Object.freeze({ ready: true, testMode: true })
       }),
       nextEvidence: Object.freeze([

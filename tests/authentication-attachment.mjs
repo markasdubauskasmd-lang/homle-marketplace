@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import { createAuthenticationAttachment } from "../src/marketplace/authentication-attachment.mjs";
 import { createAuthenticationRuntime } from "../src/marketplace/authentication-runtime.mjs";
 
+const applePrivateKey = generateKeyPairSync("ec", { namedCurve: "prime256v1" }).privateKey.export({ type: "pkcs8", format: "pem" });
 const environment = Object.freeze({
   NODE_ENV: "production",
   AUTHENTICATION_ENABLED: "true",
@@ -15,6 +17,10 @@ const environment = Object.freeze({
   EMAIL_FROM: "Homle <test@invalid.example>",
   GOOGLE_CLIENT_ID: "homle-test.apps.googleusercontent.com",
   GOOGLE_CLIENT_SECRET: "google-test-secret-never-log-this",
+  APPLE_CLIENT_ID: "uk.co.homle.web",
+  APPLE_TEAM_ID: "TEAMID1234",
+  APPLE_KEY_ID: "KEYID12345",
+  APPLE_PRIVATE_KEY: applePrivateKey,
   FACEBOOK_APP_ID: "123456789012345",
   FACEBOOK_APP_SECRET: "abcdef0123456789abcdef0123456789",
   FACEBOOK_GRAPH_API_VERSION: "v99.0"
@@ -40,6 +46,7 @@ const actualRuntime = createAuthenticationRuntime({ connect() { throw new Error(
 });
 assert.equal(actualRuntime.authenticationHttpReady, true);
 assert.equal(actualRuntime.googleOidcReady, true);
+assert.equal(actualRuntime.appleSignInReady, true);
 assert.equal(actualRuntime.facebookLoginReady, true);
 assert.equal(actualRuntime.router && typeof actualRuntime.router.handle, "function");
 assert.equal("objectStorage" in actualRuntime, false, "Authentication-only runtime unexpectedly acquired private media storage.");
@@ -63,7 +70,7 @@ const attachment = await createAuthenticationAttachment({
   createRateLimiter() { return { async consume() { return { allowed: true }; } }; },
   createRuntime(selectedPool, options) {
     assert.equal(options.workspaceReady, true);
-    return { router, authenticationHttpReady: true, emailPasswordReady: true, googleOidcReady: true, facebookLoginReady: true };
+    return { router, authenticationHttpReady: true, emailPasswordReady: true, googleOidcReady: true, appleSignInReady: true, facebookLoginReady: true };
   }
 });
 assert.equal(attachment.enabled, true);
@@ -71,6 +78,7 @@ assert.equal(attachment.ready, true);
 assert.equal(attachment.router, router);
 assert.equal(attachment.authenticationCapabilities.emailPassword, true);
 assert.equal(attachment.authenticationCapabilities.google, true);
+assert.equal(attachment.authenticationCapabilities.apple, true);
 assert.equal(attachment.authenticationCapabilities.facebook, true);
 assert.equal(probed, 1);
 assert.equal(verified, 1);
@@ -86,7 +94,11 @@ const googleOnlyEnvironment = Object.freeze({
   EMAIL_FROM: "",
   FACEBOOK_APP_ID: "",
   FACEBOOK_APP_SECRET: "",
-  FACEBOOK_GRAPH_API_VERSION: ""
+  FACEBOOK_GRAPH_API_VERSION: "",
+  APPLE_CLIENT_ID: "",
+  APPLE_TEAM_ID: "",
+  APPLE_KEY_ID: "",
+  APPLE_PRIVATE_KEY: ""
 });
 let googleOnlyEmailFactoryCalled = false;
 const googleOnlyAttachment = await createAuthenticationAttachment({
@@ -98,7 +110,7 @@ const googleOnlyAttachment = await createAuthenticationAttachment({
   async probeDatabase() {},
   createRateLimiter() { return { async consume() { return { allowed: true }; } }; },
   createRuntime() {
-    return { router, authenticationHttpReady: true, emailPasswordReady: false, googleOidcReady: true, facebookLoginReady: false };
+    return { router, authenticationHttpReady: true, emailPasswordReady: false, googleOidcReady: true, appleSignInReady: false, facebookLoginReady: false };
   }
 });
 assert.equal(googleOnlyAttachment.ready, true);
@@ -106,6 +118,7 @@ assert.equal(googleOnlyAttachment.authenticationCapabilities.emailPassword, fals
 assert.equal(googleOnlyAttachment.authenticationCapabilities.passwordReset, false);
 assert.equal(googleOnlyAttachment.authenticationCapabilities.emailVerification, false);
 assert.equal(googleOnlyAttachment.authenticationCapabilities.google, true);
+assert.equal(googleOnlyAttachment.authenticationCapabilities.apple, false);
 assert.equal(googleOnlyAttachment.authenticationCapabilities.facebook, false);
 assert.equal(googleOnlyEmailFactoryCalled, false);
 await googleOnlyAttachment.close();

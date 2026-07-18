@@ -105,6 +105,19 @@ const googleOidcProvider = {
     return { subject: "google-subject", email: "owner@example.com", emailVerified: true, displayName: "Property Owner", avatarUrl: "", locale: "en-GB", flowPurpose: googlePurpose, flowIntent: googleIntent };
   }
 };
+let appleCompletionError = null;
+let applePurpose = "sign-in";
+let appleIntent = "";
+const appleSignInProvider = {
+  name: "apple",
+  clearCookie: "__Host-tideway_apple_flow=; Max-Age=0; HttpOnly; SameSite=None; Secure",
+  begin(options = {}) { applePurpose = options.purpose || "sign-in"; appleIntent = options.intent || ""; calls.push({ kind: "apple-start", purpose: applePurpose, intent: appleIntent }); return { location: `https://appleid.apple.com/auth/authorize?response_type=code&response_mode=${applePurpose === "sign-in" ? "form_post" : "query"}&redirect_uri=https%3A%2F%2Ftideway.example.com%2Fapi%2Fmarketplace%2Fauth%2Fapple%2Fcallback&state=opaque`, setCookie: "__Host-tideway_apple_flow=signed; HttpOnly; SameSite=None; Secure" }; },
+  async complete(form, cookie) {
+    calls.push({ kind: "apple-complete", state: form.get("state"), cookie });
+    if (appleCompletionError) throw appleCompletionError;
+    return { subject: "apple-subject", email: "owner@privaterelay.appleid.com", emailVerified: true, displayName: "Property Owner", avatarUrl: "", locale: "", flowPurpose: applePurpose, flowIntent: appleIntent };
+  }
+};
 let facebookCompletionError = null;
 let facebookPurpose = "sign-in";
 let facebookIntent = "";
@@ -154,12 +167,12 @@ const providerLinkState = {
   },
   completeStepUp(context, provider) { calls.push({ kind: "provider-step-up-complete", context, provider }); return `__Host-tideway_provider_step_up_recent=${provider}-signed; HttpOnly; SameSite=Strict; Secure`; },
   verifyRecentStepUp(cookie, context) {
-    const match = String(cookie || "").match(/__Host-tideway_provider_step_up_recent=(google|facebook)-signed/);
+    const match = String(cookie || "").match(/__Host-tideway_provider_step_up_recent=(google|apple|facebook)-signed/);
     if (!match) throw new TypeError("The recent provider security check is missing or expired.");
     return { provider: match[1], userId: context.actor.userId, sessionId: context.sessionId };
   }
 };
-const router = createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery, rateLimiter, googleOidcProvider, facebookLoginProvider }, {
+const router = createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery, rateLimiter, googleOidcProvider, appleSignInProvider, facebookLoginProvider }, {
   appOrigin: origin,
   workspaceReady: false,
   clientKey: () => "198.51.100.10",
@@ -196,6 +209,15 @@ const failedGoogleCallback = await dispatch(router, "GET", "/api/marketplace/aut
 assert(failedGoogleCallback.response.statusCode === 303 && failedGoogleCallback.response.headers.Location === "/login#social=google-failed&reason=provider-failed" && failedGoogleCallback.response.headers["Set-Cookie"][0].includes("Max-Age=0") && !failedGoogleCallback.response.headers.Location.includes("private provider rejection") && unexpectedError?.code === "google-provider-failed" && !unexpectedError.message.includes("private provider rejection"), "Rejected Google callback leaked provider details, retained its one-time flow cookie or bypassed privacy-safe stage monitoring.");
 googleCompletionError = null;
 
+const invalidAppleMethod = await dispatch(router, "PUT", "/api/marketplace/auth/apple/callback", undefined, { "user-agent": "Example Browser" });
+assert(invalidAppleMethod.response.statusCode === 405 && invalidAppleMethod.response.headers.Allow === "GET, POST", "Apple callback accepted an unsupported method.");
+const appleStart = await dispatch(router, "GET", "/api/marketplace/auth/apple/start?intent=book", undefined, { "user-agent": "Example Browser" });
+assert(appleStart.response.statusCode === 302 && appleStart.response.headers.Location.startsWith("https://appleid.apple.com/auth/authorize?") && appleStart.response.headers.Location.includes("response_mode=form_post") && calls.some((call) => call.kind === "apple-start" && call.intent === "book"), "Apple account-first booking did not start through the exact secure authorization endpoint.");
+const appleCallback = await dispatch(router, "POST", "/api/marketplace/auth/apple/callback", "code=private-code&state=opaque", { cookie: "__Host-tideway_apple_flow=signed", "content-type": "application/x-www-form-urlencoded", "user-agent": "Example Browser" });
+assert(appleCallback.response.statusCode === 303 && appleCallback.response.headers.Location.startsWith("/onboarding#social=apple&csrfToken=") && appleCallback.response.headers.Location.endsWith("&intent=book") && appleCallback.response.headers["Set-Cookie"].length === 2 && calls.some((call) => call.kind === "social-sign-in" && call.provider === "apple"), "Verified Apple form-post callback did not create/reuse the Homle identity, preserve booking intent and establish a session.");
+const invalidAppleForm = await dispatch(router, "POST", "/api/marketplace/auth/apple/callback", "code=x&state=opaque", { cookie: "__Host-tideway_apple_flow=signed", "content-type": "application/json" });
+assert(invalidAppleForm.response.statusCode === 303 && invalidAppleForm.response.headers.Location === "/login#social=apple-failed&reason=provider-failed", "Apple callback accepted a non-form provider response or leaked its failure.");
+
 const duplicateFacebookIntent = await dispatch(router, "GET", "/api/marketplace/auth/facebook/start?intent=book&intent=book", undefined, { "user-agent": "Example Browser" });
 assert(duplicateFacebookIntent.response.statusCode === 400 && duplicateFacebookIntent.body.code === "invalid-account-intent", "Facebook sign-in accepted an ambiguous duplicated account action.");
 const facebookStart = await dispatch(router, "GET", "/api/marketplace/auth/facebook/start?intent=book", undefined, { "user-agent": "Example Browser" });
@@ -229,7 +251,7 @@ assert(deletionCallback.response.statusCode === 200 && deletionCallback.body.con
 assert(deletionStatus.response.statusCode === 200 && deletionStatus.body.status === "processing" && deletionStatus.response.headers["Cache-Control"] === "no-store" && missingDeletionStatus.response.statusCode === 404, "Facebook deletion status leaked or failed to return the narrow no-store status projection.");
 
 const providerList = await dispatch(router, "GET", "/api/marketplace/auth/provider-links", undefined, privateHeaders);
-assert(providerList.response.statusCode === 200 && providerList.body.connected.length === 1 && providerList.body.connected[0].provider === "password" && providerList.body.available.google === true && providerList.body.available.facebook === true && providerList.body.available.apple === false && providerList.body.recentStepUp === null, "Authenticated settings did not return the narrow connected/available provider projection.");
+assert(providerList.response.statusCode === 200 && providerList.body.connected.length === 1 && providerList.body.connected[0].provider === "password" && providerList.body.available.google === true && providerList.body.available.facebook === true && providerList.body.available.apple === true && providerList.body.recentStepUp === null, "Authenticated settings did not return the narrow connected/available provider projection.");
 const failedLinkStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/google/start", { password: "wrong" }, privateHeaders);
 assert(failedLinkStart.response.statusCode === 401 && failedLinkStart.body.code === "step-up-failed" && !failedLinkStart.response.headers["Set-Cookie"], "Provider connection began without current-password step-up.");
 signInResult = { authenticated: true, account: { userId: currentContext.actor.userId, email: "owner@example.com", emailVerifiedAt: "2026-07-15T12:00:00.000Z", displayName: "Property Owner", selectedRole: null, roles: [] } };
@@ -242,6 +264,10 @@ const missingLinkState = await dispatch(router, "GET", "/api/marketplace/auth/go
 assert(missingLinkState.response.headers.Location === "/login#social=google-failed&reason=provider-failed" && calls.filter((call) => call.kind === "social-sign-in").length === socialSignInsBeforeMissingLinkState, "A signed provider-link callback without its session binding downgraded into ordinary social sign-in.");
 const duplicateGoogleLink = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/google/start", { password: "correct" }, privateHeaders);
 assert(duplicateGoogleLink.response.statusCode === 409 && duplicateGoogleLink.body.code === "provider-already-connected", "An already-connected provider started a replacement flow.");
+const appleLinkStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/apple/start", { password: "correct" }, privateHeaders);
+assert(appleLinkStart.response.statusCode === 200 && appleLinkStart.body.location.startsWith("https://appleid.apple.com/auth/authorize?") && appleLinkStart.body.location.includes("response_mode=query") && calls.some((call) => call.kind === "apple-start" && call.purpose === "link"), "Apple connection did not use the session-preserving query callback for an authenticated account.");
+const appleLinkCallback = await dispatch(router, "GET", "/api/marketplace/auth/apple/callback?code=link&state=opaque", undefined, { cookie: "__Host-tideway_session=opaque; __Host-tideway_apple_flow=signed; __Host-tideway_provider_link=apple-signed" });
+assert(appleLinkCallback.response.headers.Location === "/settings#provider=apple-connected" && calls.some((call) => call.kind === "connect-provider" && call.provider === "apple"), "Apple provider callback did not connect only to the authenticated session.");
 const facebookLinkStart = await dispatch(router, "POST", "/api/marketplace/auth/provider-links/facebook/start", { password: "correct" }, privateHeaders);
 assert(facebookLinkStart.response.statusCode === 200 && facebookLinkStart.body.location.startsWith("https://www.facebook.com/") && calls.some((call) => call.kind === "facebook-start" && call.purpose === "link"), "Facebook connection did not preserve the authenticated link purpose.");
 const facebookIdentityCallsBeforeLink = calls.filter((call) => call.kind === "facebook-identity-begin").length;

@@ -9,12 +9,12 @@ const toolPath = fileURLToPath(import.meta.url);
 const maximumResponseBytes = 128 * 1024;
 const requiredCspDirectives = Object.freeze(["default-src 'self'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"]);
 const authenticationNames = Object.freeze(["emailPassword", "passwordReset", "emailVerification", "google", "apple", "facebook"]);
-const verifiableSocialProviders = Object.freeze(["google", "facebook"]);
+const verifiableSocialProviders = Object.freeze(["google", "apple", "facebook"]);
 
 function expectedSocialProviders(value = []) {
   if (!Array.isArray(value)) throw new TypeError("Expected social providers must be an array.");
   const normalized = value.map((entry) => String(entry || "").trim().toLowerCase());
-  if (normalized.some((entry) => !verifiableSocialProviders.includes(entry))) throw new TypeError("Expected social providers may contain only google and facebook.");
+  if (normalized.some((entry) => !verifiableSocialProviders.includes(entry))) throw new TypeError("Expected social providers may contain only google, apple and facebook.");
   if (new Set(normalized).size !== normalized.length) throw new TypeError("Expected social providers must not contain duplicates.");
   return Object.freeze(new Set(normalized));
 }
@@ -179,7 +179,7 @@ function secureFlowCookie(headers, provider) {
     && /;\s*Path=\//i.test(cookie)
     && /;\s*HttpOnly(?:;|$)/i.test(cookie)
     && /;\s*Secure(?:;|$)/i.test(cookie)
-    && /;\s*SameSite=Lax(?:;|$)/i.test(cookie)
+    && new RegExp(`;\\s*SameSite=${provider === "apple" ? "None" : "Lax"}(?:;|$)`, "i").test(cookie)
     && !/;\s*Domain=/i.test(cookie);
 }
 
@@ -203,6 +203,14 @@ function validSocialStartLocation(value, provider, origin) {
       && location.searchParams.get("code_challenge_method") === "S256"
       && /^[A-Za-z0-9_-]{32,128}$/.test(location.searchParams.get("nonce") || "")
       && /^[A-Za-z0-9_-]{43,128}$/.test(location.searchParams.get("code_challenge") || "");
+  }
+  if (provider === "apple") {
+    const scopes = new Set((location.searchParams.get("scope") || "").split(/\s+/).filter(Boolean));
+    return location.hostname === "appleid.apple.com"
+      && location.pathname === "/auth/authorize"
+      && location.searchParams.get("response_mode") === "form_post"
+      && ["name", "email"].every((scope) => scopes.has(scope))
+      && /^[A-Za-z0-9_-]{32,128}$/.test(location.searchParams.get("nonce") || "");
   }
   return provider === "facebook"
     && location.hostname === "www.facebook.com"
@@ -308,7 +316,7 @@ export async function verifyDomainReadiness(origin, options = {}) {
     const marketplaceAuthReady = health?.marketplace?.authenticationReady === true;
     const emailStates = ["emailPassword", "passwordReset", "emailVerification"].map((name) => providers?.[name]);
     const emailStateValid = emailStates.every((value) => value === emailStates[0]) && (emailStates[0] === false || marketplaceAuthReady);
-    const socialStateValid = ["google", "facebook"].every((name) => providers?.[name] === expectedSocial.has(name)) && providers?.apple === false;
+    const socialStateValid = verifiableSocialProviders.every((name) => providers?.[name] === expectedSocial.has(name));
     const expectedStatePossible = expectedSocial.size === 0 || marketplaceAuthReady;
     const typesValid = authenticationNames.every((name) => typeof providers?.[name] === "boolean");
     const expectation = expectedSocial.size ? [...expectedSocial].join(" and ") : "no social provider";

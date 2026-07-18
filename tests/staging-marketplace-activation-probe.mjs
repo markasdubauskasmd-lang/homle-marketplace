@@ -45,7 +45,7 @@ const result = await probeMarketplaceStagingActivation({
       ready: true,
       authenticationHttpReady: true,
       paymentsReady: true,
-      authenticationCapabilities: { emailPassword: true, emailVerification: true, passwordReset: true, google: true, facebook: false },
+      authenticationCapabilities: { emailPassword: true, emailVerification: true, passwordReset: true, google: true, apple: false, facebook: false },
       async close() { closeCalls += 1; }
     };
   }

@@ -130,16 +130,16 @@ function activateForm(providers) {
   lead.textContent = selectedMode.lead;
   if (bookingIntent && selectedMode.form === "signup") {
     title.textContent = "Create an account to book a clean";
-    lead.textContent = "Continue with Google or Facebook for the quickest setup. Homle automatically creates your account when the verified provider is new, then asks you to confirm the Landlord workspace.";
+    lead.textContent = "Continue with Google, Apple or Facebook for the quickest setup. Homle automatically creates your account when the verified provider is new, then asks you to confirm the Landlord workspace.";
   } else if (bookingIntent && selectedMode.form === "login") {
     title.textContent = "Sign in to book a clean";
-    lead.textContent = "Use Google, Facebook or your verified email account, then continue to your private Landlord workspace.";
+    lead.textContent = "Use Google, Apple, Facebook or your verified email account, then continue to your private Landlord workspace.";
   } else if (bookingIntent && selectedMode.form === "onboarding") {
     title.textContent = "Confirm your booking workspace";
     lead.textContent = "Continue as a Landlord or Property Manager to add the property, scan rooms and request the clean.";
   } else if (cleanerIntent && selectedMode.form === "signup") {
     title.textContent = "Create your Cleaner profile";
-    lead.textContent = "Continue with Google or Facebook. Homle creates your account automatically, then opens the Cleaner workspace setup.";
+    lead.textContent = "Continue with Google, Apple or Facebook. Homle creates your account automatically, then opens the Cleaner workspace setup.";
   } else if (cleanerIntent && selectedMode.form === "login") {
     title.textContent = "Sign in to work as a Cleaner";
     lead.textContent = "Use your existing secure account and continue to the Cleaner workspace.";
@@ -436,7 +436,7 @@ try {
   const health = healthResponse?.ok ? await healthResponse.json().catch(() => null) : null;
   workspaceReady = health?.marketplace?.enabled === true && health?.marketplace?.ready === true;
   const providers = result?.providers || {};
-  const authenticationReady = providers.emailPassword === true || providers.google === true || providers.facebook === true;
+  const authenticationReady = providers.emailPassword === true || providers.google === true || providers.apple === true || providers.facebook === true;
   if (authenticationReady) {
     stateTitle.textContent = "Secure account access is ready.";
     stateCopy.textContent = "Available sign-in methods use rate limits, secure sessions and server-side role checks.";
@@ -462,6 +462,23 @@ try {
         "account-save-failed": "Google verified the account, but Homle could not safely save the account or session. The technical stage has been recorded for repair."
       };
       showFeedback(googleFailureMessages[socialFailureReason] || "Google sign-in could not be completed. No Homle session was created; please try again.", "error");
+    } else if (socialResult === "apple" && socialCsrfToken) {
+      if (storeCsrf(socialCsrfToken)) {
+        const opened = await openSignedInWorkspace();
+        if (!opened) showFeedback(location.pathname === "/onboarding" ? (bookingIntent ? "Apple sign-in succeeded. Confirm the booking workspace below." : cleanerIntent ? "Apple sign-in succeeded. Confirm the Cleaner workspace below." : "Apple sign-in succeeded. Choose how you will use Homle.") : "Apple sign-in succeeded. Your secure Homle session is ready.", "success");
+      } else {
+        await fetch("/api/marketplace/auth/logout", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json", "X-CSRF-Token": socialCsrfToken }, body: "{}" }).catch(() => {});
+        showFeedback("Secure browser storage is unavailable, so Homle closed the Apple session. Try a standard browser window.", "error");
+      }
+    } else if (socialResult === "apple-failed") {
+      const appleFailureMessages = {
+        "access-denied": "Apple did not approve this sign-in. Choose Continue with Apple and try again.",
+        "attempt-expired": "The secure Apple sign-in attempt expired or its browser cookie was unavailable. Start again from this Homle sign-in page in the same browser.",
+        "handoff-rejected": "Apple rejected the secure account handoff. Homle has recorded the exact stage so the Apple Services ID setup can be corrected.",
+        "identity-unverified": "Apple returned an account response Homle could not verify. Try once more; if it repeats, the technical stage has been recorded.",
+        "account-save-failed": "Apple verified the account, but Homle could not safely save the account or session. The technical stage has been recorded for repair."
+      };
+      showFeedback(appleFailureMessages[socialFailureReason] || "Apple sign-in could not be completed. No Homle session was created; please try again.", "error");
     } else if (socialResult === "facebook" && socialCsrfToken) {
       if (storeCsrf(socialCsrfToken)) {
         const opened = location.pathname !== "/onboarding" && await openSignedInWorkspace();

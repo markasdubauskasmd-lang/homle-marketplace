@@ -40,14 +40,14 @@ The first run deliberately expects Google and Facebook to be closed. After Postg
 ```powershell
 $env:TIDEWAY_PUBLIC_ORIGIN = "https://your-domain.example"
 $env:TIDEWAY_EXPECT_RELEASE = "1234abcd"
-$env:TIDEWAY_EXPECT_SOCIAL_PROVIDERS = "google,facebook"
+$env:TIDEWAY_EXPECT_SOCIAL_PROVIDERS = "google,apple,facebook"
 node tools/domain-readiness.mjs
 Remove-Item Env:TIDEWAY_EXPECT_SOCIAL_PROVIDERS
 $env:TIDEWAY_EXPECT_RELEASE = $null
 Remove-Item Env:TIDEWAY_PUBLIC_ORIGIN
 ```
 
-Use `google` alone if Facebook has not completed its operational review. The expectation accepts only `google` and `facebook`, rejects duplicates and never accepts Apple because Apple sign-in has not been implemented. Do not set an expected provider merely to make the report pass: the value must describe the provider buttons intentionally approved for that deployment.
+Use only the providers whose real external configuration has passed staging—for example `google` alone while Apple or Facebook approval is incomplete. The expectation accepts only `google`, `apple` and `facebook` and rejects duplicates. Do not set an expected provider merely to make the report pass: the value must describe the provider buttons intentionally approved for that deployment.
 
 The command performs no DNS or hosting changes. It requires:
 
@@ -62,8 +62,8 @@ The command performs no DNS or hosting changes. It requires:
 - `Cache-Control: no-store` on health/authentication discovery;
 - a read-only anonymous request to `/admin` that returns JSON 401 with `Cache-Control: no-store`, no redirect and no cookie;
 - read-only requests to `/tracking-test`, `/tracking-test.html`, `/tracking-test.js` and `/api/tracking-test/snapshot` that each return JSON 404 with `Cache-Control: no-store`, no redirect and no cookie;
-- role-safe, secret-free authentication capability discovery matching the exact expected Google/Facebook state while keeping Apple closed;
-- a manual, non-following request to each Google/Facebook start route: disabled providers must return 404 without a cookie or redirect, while enabled providers must return the exact external HTTPS provider route, canonical Homle callback, secure host-only flow cookie and `Cache-Control: no-store`;
+- role-safe, secret-free authentication capability discovery matching the exact expected Google/Apple/Facebook state;
+- a manual, non-following request to each Google/Apple/Facebook start route: disabled providers must return 404 without a cookie or redirect, while enabled providers must return the exact external HTTPS provider route, canonical Homle callback, secure host-only flow cookie and `Cache-Control: no-store`;
 - for an expected Google provider, one anonymous request to that validated `accounts.google.com` authorization URL with redirects still disabled. An immediate `/signin/oauth/error` continuation fails readiness and reports the exact Authorized redirect URI that must be saved in Google Cloud. A normal Google sign-in page or trusted Google sign-in continuation passes this registration check.
 
 The verifier never completes a provider redirect, sends an Administrator key, starts a tracking session, exchanges an authorization code or creates an account. Its Google registration check is anonymous, sends no Homle cookie or credential, stores no Google cookie and stops before login or consent. It reports only pass/fail evidence rather than response bodies, client IDs, state values, cookies or redirect URLs. The exposed release identity contains only the packaged source commit, build time and migration count—never a repository URL, branch, credential or private path.
