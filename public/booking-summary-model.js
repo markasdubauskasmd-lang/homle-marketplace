@@ -37,6 +37,16 @@ export function cleanerInvitationDeadlineState(booking, now = Date.now()) {
   return bookingInvitationDeadlineState(booking, now);
 }
 
+export function formatInvitationTimeRemaining(milliseconds) {
+  const value = Number(milliseconds);
+  if (!Number.isFinite(value) || value <= 0) return "less than 1 minute";
+  const minutes = Math.max(1, Math.ceil(value / 60_000));
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return `${hours} ${hours === 1 ? "hour" : "hours"}${remainder ? ` ${remainder} min` : ""}`;
+}
+
 export function bookingSummaryBuckets(bookings, role, now = Date.now()) {
   const records = Array.isArray(bookings) ? bookings.filter((booking) => booking?.participantRole === role) : [];
   const invitationOpen = (booking) => ["open", "urgent"].includes(cleanerInvitationDeadlineState(booking, now).kind);

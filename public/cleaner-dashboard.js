@@ -1,4 +1,4 @@
-import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, formatBookingMoment, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js?v=20260718-4";
+import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260718-5";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 
@@ -120,14 +120,6 @@ function bookingFacts(booking) {
   return facts;
 }
 
-function invitationTimeRemaining(milliseconds) {
-  const minutes = Math.max(1, Math.ceil(milliseconds / 60_000));
-  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return `${hours} ${hours === 1 ? "hour" : "hours"}${remainder ? ` ${remainder} min` : ""}`;
-}
-
 function updateInvitationDeadlineCard(card, booking) {
   const state = cleanerInvitationDeadlineState(booking);
   const deadline = card.querySelector("[data-response-deadline]");
@@ -143,7 +135,7 @@ function updateInvitationDeadlineCard(card, booking) {
         ? "Response deadline unavailable. Do not accept this request."
         : state.kind === "closed"
           ? "This offer is no longer open for a response."
-          : `Respond within ${invitationTimeRemaining(state.remainingMs)} · by ${formatBookingMoment(booking.responseDeadline)}`;
+          : `Respond within ${formatInvitationTimeRemaining(state.remainingMs)} · by ${formatBookingMoment(booking.responseDeadline)}`;
   }
   const responseOpen = ["open", "urgent"].includes(state.kind);
   if (accept) accept.disabled = !responseOpen || accept.dataset.checklistReady !== "true";

@@ -6,7 +6,7 @@ import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { landlordDispatchAction, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260717-6";
-import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-4";
+import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-5";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -99,6 +99,9 @@ let requestRecoveryTimer = null;
 let invitationStream = null;
 let invitationStreamKey = "";
 let bookingTransitionRefresh = null;
+let landlordInvitationDeadlineTimer = null;
+let expiredWaitingRefreshNeeded = false;
+let refreshingExpiredWaiting = false;
 const requestScans = new Map();
 const uncertainDispatchRequests = new Set();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
@@ -1006,6 +1009,11 @@ function closeInvitationStream() {
   invitationStreamKey = "";
 }
 
+function clearLandlordInvitationDeadlineTimer() {
+  window.clearTimeout(landlordInvitationDeadlineTimer);
+  landlordInvitationDeadlineTimer = null;
+}
+
 async function refreshBookingTransition({ manual = false } = {}) {
   if (bookingTransitionRefresh) return bookingTransitionRefresh;
   const before = new Map(bookings.map((booking) => [booking.bookingId, booking.status]));
@@ -1132,7 +1140,10 @@ async function withdrawRequest(event) {
 
 function renderBookingCard(booking) {
   const card = element("article", "booking-summary-card");
-  if (booking.status === "pending-cleaner-acceptance") card.classList.add("landlord-waiting-card");
+  if (booking.status === "pending-cleaner-acceptance") {
+    card.classList.add("landlord-waiting-card");
+    card.dataset.landlordWaitingBookingId = booking.bookingId;
+  }
   const heading = element("div", "booking-summary-heading");
   const title = element("div");
   title.append(element("span", "booking-status-pill", bookingSummaryStatusLabels[booking.status] || "Booking"), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Saved property"} · ${booking.counterpartyName || "Assigned Cleaner"}`));
@@ -1158,6 +1169,8 @@ function renderBookingCard(booking) {
   if (booking.status === "pending-cleaner-acceptance") {
     const deadline = bookingInvitationDeadlineState(booking);
     const boundary = element("p", "landlord-waiting-deadline");
+    boundary.dataset.landlordWaitingDeadline = "";
+    boundary.setAttribute("role", "status");
     boundary.dataset.kind = deadline.kind;
     boundary.textContent = deadline.kind === "expired"
       ? "The Cleaner response window has ended. Homle is updating the request before matching can continue."
@@ -1169,6 +1182,56 @@ function renderBookingCard(booking) {
   else if (booking.paymentStepOpensAt) card.append(element("p", "landlord-request-boundary", `Payment opens ${formatBookingMoment(booking.paymentStepOpensAt)}. No action is needed yet.`));
   if (actions.childElementCount) card.append(actions);
   return card;
+}
+
+function updateLandlordWaitingDeadlineCard(card, booking) {
+  const deadline = bookingInvitationDeadlineState(booking);
+  const boundary = card.querySelector("[data-landlord-waiting-deadline]");
+  if (!boundary) return deadline;
+  boundary.dataset.kind = deadline.kind;
+  boundary.textContent = deadline.kind === "expired"
+    ? "The Cleaner response window has ended. Homle is checking the current request without sending or repeating any action."
+    : deadline.kind === "unavailable"
+      ? "The Cleaner response deadline is being verified. No booking or payment has been created."
+      : deadline.kind === "closed"
+        ? "This Cleaner invitation is no longer awaiting a response."
+        : `Cleaner replies within ${formatInvitationTimeRemaining(deadline.remainingMs)} · by ${formatBookingMoment(booking.responseDeadline)}. If they do not accept, this invitation closes and matching can reopen.`;
+  return deadline;
+}
+
+async function refreshExpiredLandlordWaiting() {
+  if (refreshingExpiredWaiting || !expiredWaitingRefreshNeeded || browserOffline()) return;
+  refreshingExpiredWaiting = true;
+  setBookingLiveStatus("A Cleaner response window ended. Homle is checking the current status without sending any action.", "attention");
+  try {
+    const refreshed = await refreshBookingTransition();
+    expiredWaitingRefreshNeeded = false;
+    if (refreshed && bookings.some((booking) => booking.status === "pending-cleaner-acceptance" && bookingInvitationDeadlineState(booking).kind === "expired")) {
+      setBookingLiveStatus("The response window has ended. Homle is waiting for the server to reopen matching; no booking or payment was created.", "attention");
+    }
+  } finally {
+    refreshingExpiredWaiting = false;
+  }
+}
+
+function updateLandlordWaitingDeadlines() {
+  clearLandlordInvitationDeadlineTimer();
+  let nextUpdateMs = Number.POSITIVE_INFINITY;
+  let expired = false;
+  for (const card of document.querySelectorAll("[data-landlord-waiting-booking-id]")) {
+    const booking = bookings.find((record) => record.bookingId === card.dataset.landlordWaitingBookingId);
+    if (!booking) continue;
+    const deadline = updateLandlordWaitingDeadlineCard(card, booking);
+    if (deadline.kind === "expired") expired = true;
+    else if (["open", "urgent"].includes(deadline.kind)) nextUpdateMs = Math.min(nextUpdateMs, deadline.remainingMs, 60_000);
+  }
+  if (expired) {
+    expiredWaitingRefreshNeeded = true;
+    queueMicrotask(refreshExpiredLandlordWaiting);
+    return;
+  }
+  expiredWaitingRefreshNeeded = false;
+  if (Number.isFinite(nextUpdateMs)) landlordInvitationDeadlineTimer = window.setTimeout(updateLandlordWaitingDeadlines, Math.max(1_000, nextUpdateMs + 250));
 }
 
 function renderBookings() {
@@ -1184,6 +1247,7 @@ function renderBookings() {
   waitingList.replaceChildren(...buckets.waiting.map(renderBookingCard));
   waitingSection.hidden = buckets.waiting.length === 0;
   document.querySelector("[data-landlord-waiting-count]").textContent = String(buckets.waiting.length);
+  updateLandlordWaitingDeadlines();
   const historyList = document.querySelector("[data-landlord-history-list]");
   historyList.replaceChildren(...buckets.history.map(renderBookingCard));
   document.querySelector("[data-landlord-history-count]").textContent = String(buckets.history.length);
@@ -1704,7 +1768,7 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
 window.addEventListener("beforeunload", (event) => { rememberWorkingRequest(); if (propertyDirty || requestDirty || landlordProfileDirty) event.preventDefault(); });
-window.addEventListener("pagehide", closeInvitationStream);
+window.addEventListener("pagehide", () => { closeInvitationStream(); clearLandlordInvitationDeadlineTimer(); });
 window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", () => {
   updateNetworkStatus();
