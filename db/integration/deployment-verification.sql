@@ -191,6 +191,28 @@ BEGIN
       INTO minimum_contribution_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 57)'
       INTO public_cleaner_lookup_migration_installed;
+  ELSE
+    -- A fully manual fresh install has no private migration ledger. Detect each
+    -- optional schema level from the exact object introduced by that migration
+    -- so it is not mistaken for the supported historical migration-45 baseline.
+    latest_migration_installed := to_regprocedure('tideway_private.activate_my_workspace(user_role)') IS NOT NULL;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.get_cleaning_request_scan(uuid)')
+        AND position('actor_has_pending_invitation' IN procedure.prosrc)>0
+    ) INTO scope_handoff_migration_installed;
+    payment_operations_migration_installed := to_regprocedure('tideway_private.list_administrator_payment_operations(text,integer,integer)') IS NOT NULL;
+    case_payment_handoff_migration_installed := to_regprocedure('tideway_private.get_administrator_booking_payment_operation(uuid)') IS NOT NULL;
+    booking_operations_migration_installed := to_regprocedure('tideway_private.list_administrator_booking_operations(text,integer,integer)') IS NOT NULL;
+    matching_self_exclusion_migration_installed := to_regprocedure('tideway_private.recommend_cleaners_for_request_v2(uuid,integer)') IS NOT NULL;
+    request_realtime_migration_installed := to_regclass('public.cleaning_request_realtime_events') IS NOT NULL;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.lookup_session(bytea)')
+        AND position('avatar_url' IN pg_get_function_result(procedure.oid))>0
+    ) INTO session_avatar_migration_installed;
+    minimum_contribution_migration_installed := to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL;
+    public_cleaner_lookup_migration_installed := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)') IS NOT NULL;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -382,8 +404,8 @@ BEGIN
        OR position('UPDATE users AS u' IN COALESCE(selected_source, '')) = 0 THEN
       RAISE EXCEPTION 'The migration-46 social identity repair is not installed';
     END IF;
-    IF has_table_privilege('tideway_app', 'tideway_private.schema_migrations', 'SELECT')
-       OR has_table_privilege('tideway_worker', 'tideway_private.schema_migrations', 'SELECT') THEN
+    IF has_table_privilege('tideway_app', to_regclass('tideway_private.schema_migrations'), 'SELECT') IS TRUE
+       OR has_table_privilege('tideway_worker', to_regclass('tideway_private.schema_migrations'), 'SELECT') IS TRUE THEN
       RAISE EXCEPTION 'A restricted role can read the private migration ledger';
     END IF;
   END IF;
