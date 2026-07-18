@@ -38,15 +38,6 @@ jobs:
   database:
     name: Real PostgreSQL integration and RLS
     runs-on: ubuntu-latest
-    # TEMPORARY: this job runs the full real-database suite on every change and
-    # reports its result, but is non-blocking while it surfaces one PRE-EXISTING
-    # failure it caught on first run — the account "last sign-in method" removal
-    # fixture (db/integration/marketplace-rls-behaviour.sql) removes a landlord's
-    # last usable sign-in provider instead of failing closed. The behaviour
-    # contradicts the SHA-locked source in migration 032 and needs a local
-    # PostgreSQL to root-cause. Remove continue-on-error once that is fixed so a
-    # future database/RLS regression blocks merges. Tracking: see PR discussion.
-    continue-on-error: true
     services:
       postgres:
         image: postgres:16
