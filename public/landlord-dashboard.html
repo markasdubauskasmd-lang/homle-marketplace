@@ -7,8 +7,9 @@
   <meta name="theme-color" content="#0e665b">
   <title>Landlord dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260718-73">
+  <link rel="stylesheet" href="/styles.css?v=20260718-74">
   <script src="/landlord-dashboard.js?v=20260718-12" type="module"></script>
+  <script src="/account-menu.js?v=20260718-1" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
@@ -17,7 +18,7 @@
     <div class="shell nav-wrap">
       <div class="workspace-brand"><a class="brand" href="/landlord/dashboard" aria-label="Homle Landlord dashboard"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill landlord-workspace-pill">Landlord</span></div>
       <nav class="directory-nav landlord-dashboard-nav" aria-label="Landlord dashboard navigation"><a href="/landlord/dashboard" aria-current="page">Dashboard</a><a href="#properties-title">Properties</a><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaners">Find a Cleaner</a></nav>
-      <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="#properties-title">Manage properties</a><a href="/settings">Account settings</a></div></details>
+      <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="#properties-title">Manage properties</a><a href="/settings">Account settings</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details>
     </div>
   </header>
 

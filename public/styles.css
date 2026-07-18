@@ -1482,7 +1482,10 @@ textarea { resize: vertical; }
 .account-menu-panel .eyebrow { margin: 0; color: var(--green); }
 .account-menu-panel strong, .account-menu-panel small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-menu-panel small { color: var(--muted); }
-.account-menu-panel a, .account-menu-panel .account-workspace-switch { margin-top: 7px; padding-top: 11px; color: var(--green-dark); border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; text-align: left; text-decoration: none; font: inherit; font-size: .84rem; font-weight: 850; cursor: pointer; }
+.account-menu-panel a, .account-menu-panel .account-workspace-switch, .account-menu-panel .account-sign-out { margin-top: 7px; padding-top: 11px; color: var(--green-dark); border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; text-align: left; text-decoration: none; font: inherit; font-size: .84rem; font-weight: 850; cursor: pointer; }
+.account-menu-panel .account-sign-out { width: 100%; color: #8b2118; }
+.account-menu-panel .account-sign-out:disabled { cursor: wait; opacity: .65; }
+.account-menu-status { display: block; margin-top: 8px; color: #8b2118; font-size: .72rem; line-height: 1.35; }
 .cleaner-dashboard-page { min-height: 100vh; background: linear-gradient(180deg,#0b5149 0,#0b5149 180px,#f3f7f5 420px); }
 .cleaner-dashboard-page .booking-dashboard-main { position: relative; }
 .cleaner-dashboard-page .booking-dashboard-heading { grid-template-columns: minmax(220px,.55fr) minmax(0,1fr) auto; padding: clamp(22px,4vw,34px); color: #fff; border: 1px solid #39897d; border-radius: 24px; background: linear-gradient(135deg,#0d675c,#093f39); box-shadow: 0 22px 55px rgba(7,62,56,.22); }

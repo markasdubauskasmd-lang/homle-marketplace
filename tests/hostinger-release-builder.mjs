@@ -19,6 +19,7 @@ for (const required of [
   "travel-coverage.mjs",
   "authentication-activation-readiness.mjs",
   "public/index.html",
+  "public/account-menu.js",
   "src/marketplace/runtime.mjs",
   "db/migration-lock.json",
   "db/migrations/038_facebook_data_deletion_callback.sql",
@@ -93,6 +94,7 @@ try {
   const archive = await readFile(release.archivePath);
   const entries = inspectZipEntries(archive);
   assert.equal(entries.some((entry) => entry.name === "homle-release.json"), true, "Built release omitted its runtime deployment identity.");
+  assert.equal(entries.some((entry) => entry.name === "public/account-menu.js"), true, "Built release omitted secure dashboard sign-out.");
   const identity = JSON.parse(readZipEntry(archive, "homle-release.json").toString("utf8"));
   assert.deepEqual(identity, { schemaVersion: 1, application: "Homle", sourceCommit: release.sourceCommit, builtAt: release.generatedAt, migrationCount: 56 });
   assert.equal(entries.some((entry) => entry.name === "travel-coverage.mjs"), true, "Built release omitted the server's travel coverage dependency.");

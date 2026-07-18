@@ -34,12 +34,13 @@ assert(cleanerInvitationDecisionState({ status: "cancelled" }, "accept") === "di
 
 assert(formatBookingMoment(earlyBooking.paymentStepOpensAt).includes("15 Aug 2026") && formatBookingMoment("bad") === "Date unavailable", "Payment opening time is not presented in the visit timezone or does not fail safely.");
 
-const [cleanerPage, cleanerScript, landlordPage, landlordScript, accountAvatar, workspaceSwitch, model, styles, server, authEntry, migration, paymentWindowMigration, grants, packageFile] = await Promise.all([
+const [cleanerPage, cleanerScript, landlordPage, landlordScript, accountAvatar, accountMenu, workspaceSwitch, model, styles, server, authEntry, migration, paymentWindowMigration, grants, packageFile] = await Promise.all([
   readFile(new URL("../public/cleaner-dashboard.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-dashboard.js", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.html", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8"),
   readFile(new URL("../public/account-avatar.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/account-menu.js", import.meta.url), "utf8"),
   readFile(new URL("../public/workspace-switch.js", import.meta.url), "utf8"),
   readFile(new URL("../public/booking-summary-model.js", import.meta.url), "utf8"),
   readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
@@ -53,6 +54,9 @@ const [cleanerPage, cleanerScript, landlordPage, landlordScript, accountAvatar, 
 
 for (const copy of ["Cleaner dashboard", "Pending requests", "Active jobs", "Upcoming jobs"]) assert(cleanerPage.includes(copy), `The Cleaner dashboard omitted ${copy}.`);
 assert((cleanerPage.match(/data-account-avatar/g) || []).length >= 2 && (landlordPage.match(/data-account-avatar/g) || []).length >= 2 && cleanerPage.includes("Signed in as Cleaner") && cleanerPage.includes("cleaner-site-header") && landlordPage.includes("Signed in as Landlord") && landlordPage.includes("landlord-dashboard-identity") && cleanerScript.includes("renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl)") && landlordScript.includes("renderAccountAvatar(account)") && accountAvatar.includes('url.protocol === "https:"') && accountAvatar.includes('referrerPolicy = "no-referrer"'), "Cleaner and Landlord dashboards are not visually separate or cannot show the verified account photo prominently with a safe fallback.");
+assert(cleanerPage.includes('data-sign-out-destination="/login?intent=work"') && landlordPage.includes('data-sign-out-destination="/login?intent=book"') && cleanerPage.includes('/account-menu.js?') && landlordPage.includes('/account-menu.js?'), "The role-specific account menus cannot sign out to the correct next entry point.");
+assert(accountMenu.includes('requestJson("/api/marketplace/auth/session"') && accountMenu.includes('requestJson("/api/marketplace/auth/logout"') && accountMenu.includes('"X-CSRF-Token": csrf') && accountMenu.includes('credentials: "same-origin"') && accountMenu.includes("15_000") && accountMenu.includes("navigator.onLine") && accountMenu.includes("It may have completed") && !accountMenu.includes("innerHTML"), "Dashboard sign-out lacks session recovery, CSRF protection, a bounded request, offline handling or safe rendering.");
+assert(styles.includes(".account-menu-panel .account-sign-out") && styles.includes(".account-menu-status"), "The profile-picture account menu lacks readable sign-out and failure states.");
 assert(!primaryNavigation(cleanerPage).includes('data-target-workspace="landlord"') && !primaryNavigation(landlordPage).includes('data-target-workspace="cleaner"'), "The other role workspace is still presented as primary dashboard navigation instead of an account-menu choice.");
 for (const copy of ["one tap confirms this time, scope and pay", "Decline this request?"]) assert(`${cleanerPage}\n${cleanerScript}`.includes(copy), `The Cleaner dashboard controls omitted ${copy}.`);
 assert(cleanerScript.includes('requestJson("/api/marketplace/bookings?limit=50")') && cleanerScript.includes('requestJson("/api/marketplace/cleaner/profile")') && cleanerScript.includes("/response") && cleanerScript.includes('respondToBooking(booking.bookingId, "accept"') && cleanerScript.includes('respondToBooking(selectedDeclineBookingId, "decline"'), "The Cleaner dashboard is not connected to real profile readiness, participant bookings and invitation decisions.");
