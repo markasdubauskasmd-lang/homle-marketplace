@@ -3,7 +3,8 @@ import { clearSelectedCleaner, clearSelectedProperty, readSelectedCleaner, readS
 import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
 import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
-import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
+import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
+import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { landlordDispatchAction, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260717-6";
 import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-3";
 
@@ -11,6 +12,7 @@ const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
 const stateCopy = document.querySelector("[data-landlord-state-copy]");
 const signIn = document.querySelector("[data-landlord-sign-in]");
+const workspaceLink = document.querySelector("[data-landlord-workspace-link]");
 const retry = document.querySelector("[data-landlord-retry]");
 const workspace = document.querySelector("[data-landlord-workspace]");
 const requestComplete = document.querySelector("[data-request-complete]");
@@ -169,13 +171,18 @@ function element(name, className, text) {
   return node;
 }
 
-function showState(title, copy, { kind = "info", allowSignIn = false, allowRetry = false } = {}) {
+function showState(title, copy, { kind = "info", allowSignIn = false, allowRetry = false, workspaceDestination = "", workspaceLabel = "" } = {}) {
   state.dataset.kind = kind;
   state.hidden = false;
   stateTitle.textContent = title;
   stateCopy.textContent = copy;
   signIn.hidden = !allowSignIn;
   retry.hidden = !allowRetry;
+  workspaceLink.hidden = !workspaceDestination;
+  if (workspaceDestination) {
+    workspaceLink.href = workspaceDestination;
+    workspaceLink.textContent = `Open ${workspaceLabel} dashboard`;
+  }
   workspace.hidden = true;
   requestComplete.hidden = true;
 }
@@ -1351,7 +1358,10 @@ async function loadWorkspace() {
   try {
     const accountResult = await requestJson("/api/marketplace/account");
     const account = accountResult.account;
-    if (account?.selectedRole !== "landlord" || !account?.roles?.includes("landlord")) return showState("This is not a Landlord account.", "Use the workspace selected during onboarding or sign in with a Landlord/Property Manager account.", { kind: "authentication", allowSignIn: true });
+    const access = dashboardWorkspaceAccess(account, "landlord");
+    if (!access.ready) return access.reason === "different-workspace"
+      ? showState(`Your ${access.label} workspace is active.`, "Properties, room scans and cleaning requests remain in a separate private Landlord dashboard.", { kind: "authentication", workspaceDestination: access.destination, workspaceLabel: access.label })
+      : showState("This account has no Landlord workspace.", "Sign in through Book a clean to create the separate property workspace.", { kind: "authentication", allowSignIn: true });
     document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
     renderAccountAvatar(account);
     state.hidden = true;

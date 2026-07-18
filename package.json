@@ -50,7 +50,7 @@
     "test:staging-role-rehearsal": "node tests/verify-staging-role-rehearsal.mjs",
     "check:staging-account-purge": "node --check tools/purge-staging-account.mjs && node --check tests/purge-staging-account.mjs",
     "test:staging-account-purge": "node tests/purge-staging-account.mjs",
-    "check:booking-dashboards": "node --check public/account-avatar.js && node --check public/account-menu.js && node --check public/booking-summary-model.js && node --check public/cleaner-dashboard.js && node --check public/cleaner-availability.js && node --check tests/booking-dashboard-ui.mjs && node --check tests/cleaner-availability-ui.mjs",
+    "check:booking-dashboards": "node --check public/account-avatar.js && node --check public/account-menu.js && node --check public/workspace-access.js && node --check public/booking-summary-model.js && node --check public/cleaner-dashboard.js && node --check public/cleaner-availability.js && node --check tests/booking-dashboard-ui.mjs && node --check tests/cleaner-availability-ui.mjs",
     "test:booking-dashboards": "node tests/booking-dashboard-ui.mjs && node tests/cleaner-availability-ui.mjs",
     "check:favourite-cleaners": "node --check src/marketplace/favourite-cleaner-repository.mjs && node --check src/marketplace/favourite-cleaner-service.mjs && node --check public/cleaners.js && node --check public/landlord-dashboard.js && node --check tests/favourite-cleaner-service.mjs && node --check tests/cleaner-directory-ui.mjs && node --check tests/landlord-dashboard-ui.mjs",
     "test:favourite-cleaners": "node tests/favourite-cleaner-service.mjs && node tests/cleaner-directory-ui.mjs && node tests/landlord-dashboard-ui.mjs",

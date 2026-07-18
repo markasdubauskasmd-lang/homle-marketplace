@@ -8,7 +8,7 @@
   <title>Landlord dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260718-78">
-  <script src="/landlord-dashboard.js?v=20260718-20" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260718-21" type="module"></script>
   <script src="/account-menu.js?v=20260718-1" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
@@ -24,7 +24,7 @@
 
   <main id="landlord-main" class="landlord-dashboard-main shell">
     <section class="landlord-dashboard-state" data-landlord-state role="status" aria-live="polite">
-      <span aria-hidden="true">i</span><div><strong data-landlord-state-title>Checking secure Landlord access…</strong><p data-landlord-state-copy>Your properties and drafts open only inside an authenticated Landlord session.</p><div><a class="button" href="/login?intent=book" data-landlord-sign-in hidden>Sign in as a Landlord</a><button class="button button-outline" type="button" data-landlord-retry hidden>Try again</button></div></div>
+      <span aria-hidden="true">i</span><div><strong data-landlord-state-title>Checking secure Landlord access…</strong><p data-landlord-state-copy>Your properties and drafts open only inside an authenticated Landlord session.</p><div><a class="button" href="/login?intent=book" data-landlord-sign-in hidden>Sign in as a Landlord</a><a class="button button-outline" href="/landlord/dashboard" data-landlord-workspace-link hidden>Open dashboard</a><button class="button button-outline" type="button" data-landlord-retry hidden>Try again</button></div></div>
     </section>
 
     <section class="brief-complete-card landlord-request-complete" data-request-complete hidden aria-labelledby="request-complete-title" tabindex="-1">

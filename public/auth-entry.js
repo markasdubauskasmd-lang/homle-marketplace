@@ -1,5 +1,5 @@
 import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent, saveSelectedCleaner, selectedCleanerFromSearch } from "./account-intent.js";
-import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
+import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 
 const modes = Object.freeze({
   "/login": { form: "login", title: "Sign in to Homle", lead: "Use your verified account to open the correct private workspace." },

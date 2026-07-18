@@ -1,10 +1,12 @@
 import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, formatBookingMoment, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js?v=20260718-2";
-import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
+import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
+import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 
 const gate = document.querySelector("[data-cleaner-dashboard-gate]");
 const dashboard = document.querySelector("[data-cleaner-dashboard]");
 const retry = document.querySelector("[data-cleaner-retry]");
 const signIn = document.querySelector("[data-cleaner-sign-in]");
+const workspaceLink = document.querySelector("[data-cleaner-workspace-link]");
 const feedback = document.querySelector("[data-cleaner-dashboard-feedback]");
 const declineDialog = document.querySelector("[data-decline-dialog]");
 const declineForm = document.querySelector("[data-decline-form]");
@@ -46,13 +48,18 @@ function element(name, className, text) {
   return node;
 }
 
-function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry = false } = {}) {
+function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry = false, workspaceDestination = "", workspaceLabel = "" } = {}) {
   gate.hidden = false;
   gate.dataset.kind = kind;
   document.querySelector("[data-cleaner-gate-title]").textContent = title;
   document.querySelector("[data-cleaner-gate-copy]").textContent = copy;
   signIn.hidden = !allowSignIn;
   retry.hidden = !allowRetry;
+  workspaceLink.hidden = !workspaceDestination;
+  if (workspaceDestination) {
+    workspaceLink.href = workspaceDestination;
+    workspaceLink.textContent = `Open ${workspaceLabel} dashboard`;
+  }
   dashboard.hidden = true;
 }
 
@@ -524,7 +531,10 @@ async function loadDashboard() {
   try {
     const accountResult = await requestJson("/api/marketplace/account");
     const account = accountResult.account;
-    if (account?.selectedRole !== "cleaner" || !account?.roles?.includes("cleaner")) return showGate("This is not a Cleaner account.", "Use the Cleaner workspace selected during onboarding.", { kind: "authentication", allowSignIn: true });
+    const access = dashboardWorkspaceAccess(account, "cleaner");
+    if (!access.ready) return access.reason === "different-workspace"
+      ? showGate(`Your ${access.label} workspace is active.`, "Cleaner jobs and professional controls remain in a separate private dashboard.", { kind: "authentication", workspaceDestination: access.destination, workspaceLabel: access.label })
+      : showGate("This account has no Cleaner workspace.", "Sign in through Work as a Cleaner to create the separate professional workspace.", { kind: "authentication", allowSignIn: true });
     document.querySelector("[data-cleaner-name]").textContent = account.displayName || "Cleaner";
     renderAccountAvatar(account);
     gate.hidden = true;

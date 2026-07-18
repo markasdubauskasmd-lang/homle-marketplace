@@ -3,16 +3,24 @@ function initials(value) {
   return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : parts[0]?.slice(0, 2) || "H").toUpperCase();
 }
 
-function securePhoto(value) {
+const trustedAvatarHosts = Object.freeze([
+  "googleusercontent.com",
+  "fbcdn.net",
+  "platform-lookaside.fbsbx.com"
+]);
+
+export function trustedAccountPhoto(value) {
   try {
     const url = new URL(String(value || ""));
-    return url.protocol === "https:" && !url.username && !url.password ? url.toString() : "";
+    const hostname = url.hostname.toLowerCase();
+    const trustedHost = trustedAvatarHosts.some((allowed) => hostname === allowed || hostname.endsWith(`.${allowed}`));
+    return url.protocol === "https:" && !url.username && !url.password && trustedHost ? url.toString() : "";
   } catch { return ""; }
 }
 
 export function renderAccountAvatar(account, preferredPhotoUrl = "") {
   const name = String(account?.displayName || "Homle account").trim();
-  const photo = securePhoto(preferredPhotoUrl) || securePhoto(account?.avatarUrl);
+  const photo = trustedAccountPhoto(preferredPhotoUrl) || trustedAccountPhoto(account?.avatarUrl);
   for (const node of document.querySelectorAll("[data-account-name]")) node.textContent = name;
   for (const node of document.querySelectorAll("[data-account-email]")) node.textContent = String(account?.email || "");
   for (const menu of document.querySelectorAll("[data-account-menu]")) menu.hidden = false;
