@@ -16,9 +16,13 @@ await Promise.all([
 
 const maskableLogo = Buffer.from(`
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-    <rect width="512" height="512" fill="#0e665b"/>
-    <path d="M160 136h62v92h68v-92h62v240h-62v-92h-68v92h-62z" fill="#fff"/>
-    <path d="M128 404c43-35 85 35 128 0s85 35 128 0" fill="none" stroke="#8ee3d2" stroke-width="22" stroke-linecap="round"/>
+    <rect width="512" height="512" fill="#d7182a"/>
+    <g transform="translate(64 64) scale(6)">
+      <rect x="15" y="27" width="34" height="30" rx="11" fill="#ffffff"/>
+      <path d="M32 6 L44 18 L32 30 L20 18 Z" fill="none" stroke="#141114" stroke-width="5.4" stroke-linejoin="round"/>
+      <circle cx="32" cy="42" r="6.4" fill="none" stroke="#d7182a" stroke-width="3.2"/>
+      <circle cx="32" cy="42" r="2.5" fill="#d7182a"/>
+    </g>
   </svg>
 `);
 await sharp(maskableLogo).png().toFile(path.join(publicRoot, "app-icon-maskable-512.png"));

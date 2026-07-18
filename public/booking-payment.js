@@ -169,7 +169,7 @@ async function openPaymentForm(payment) {
   const Stripe = await loadStripe();
   stripe = Stripe(configuration.payment.publishableKey);
   destroyPaymentElement();
-  elements = stripe.elements({ clientSecret: payment.clientSecret, appearance: { theme: "stripe", variables: { colorPrimary: "#0e665b", colorText: "#102421", borderRadius: "10px", fontFamily: "Inter, system-ui, sans-serif" } } });
+  elements = stripe.elements({ clientSecret: payment.clientSecret, appearance: { theme: "stripe", variables: { colorPrimary: "#d7182a", colorText: "#141114", borderRadius: "10px", fontFamily: "Inter, system-ui, sans-serif" } } });
   elements.create("payment", { layout: "accordion" }).mount("[data-payment-element]");
   prepare.hidden = true;
   statusRefresh.hidden = true;

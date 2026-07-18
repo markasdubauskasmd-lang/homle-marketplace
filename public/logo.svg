@@ -1,6 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
   <title id="title">Homle</title>
-  <rect width="48" height="48" rx="14" fill="#0e665b"/>
-  <path d="M12 11h7v10h10V11h7v26h-7V27H19v10h-7z" fill="#fff"/>
-  <path d="M9 40c5-4 10 4 15 0s10 4 15 0" fill="none" stroke="#8ee3d2" stroke-width="2.5" stroke-linecap="round"/>
+  <rect x="15" y="27" width="34" height="30" rx="11" fill="#141114"/>
+  <path d="M32 6 L44 18 L32 30 L20 18 Z" fill="none" stroke="#d7182a" stroke-width="5.4" stroke-linejoin="round"/>
+  <circle cx="32" cy="42" r="6.4" fill="none" stroke="#ffffff" stroke-width="3.2"/>
+  <circle cx="32" cy="42" r="2.5" fill="#d7182a"/>
 </svg>
