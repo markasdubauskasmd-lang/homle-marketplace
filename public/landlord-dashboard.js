@@ -828,9 +828,12 @@ function requestScanPanel(request) {
       if (!submitForm.reportValidity()) return;
       if (!(requestScans.get(request.requestId)?.photos?.length > 0)) return showFeedback(feedback, "Upload and finish at least one current room photo before submission.");
       if (auto.checked && !(await approveAutomaticDispatchPrice(automaticMaximumPricePence, Number(attempts.value)))) return;
-      const csrf = await recoverCsrf(feedback, "submitting this cleaning request");
-      if (!csrf) return;
       setPending(submit, true, "Submitting reviewed scan…");
+      const csrf = await recoverCsrf(feedback, "submitting this cleaning request");
+      if (!csrf) {
+        setPending(submit, false, "Submit cleaning request");
+        return;
+      }
       let submitted = false;
       let submission = null;
       let selectedCleanerInvited = false;
