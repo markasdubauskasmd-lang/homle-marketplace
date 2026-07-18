@@ -30,6 +30,7 @@ import { createJourneyService } from "./journey-service.mjs";
 import { createMarketplaceHttpRouter } from "./marketplace-http.mjs";
 import { createPropertyRepository } from "./property-repository.mjs";
 import { createPropertyService } from "./property-service.mjs";
+import { geocoderFromEnvironment } from "./postcode-geocoder.mjs";
 import { createProgressRepository } from "./progress-repository.mjs";
 import { createProgressService } from "./progress-service.mjs";
 import { createMediaRepository } from "./media-repository.mjs";
@@ -125,7 +126,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const favouriteCleanerRepository = createFavouriteCleanerRepository(database);
   const favouriteCleanerService = createFavouriteCleanerService(favouriteCleanerRepository);
   const propertyRepository = createPropertyRepository(database);
-  const propertyService = createPropertyService(propertyRepository, { dataEncryptionSecret: env.DATA_ENCRYPTION_KEY });
+  const geocoder = options.geocoder || geocoderFromEnvironment(env);
+  const propertyService = createPropertyService(propertyRepository, { dataEncryptionSecret: env.DATA_ENCRYPTION_KEY, geocoder });
   const cleaningRequestRepository = createCleaningRequestRepository(database);
   const cleaningRequestService = createCleaningRequestService(cleaningRequestRepository);
   const bookingRepository = createBookingRepository(database);

@@ -132,6 +132,17 @@ export function createPropertyService(repository, options) {
   if (!repository || typeof repository.getLandlordProfile !== "function" || typeof repository.saveLandlordProfile !== "function" || typeof repository.createProperty !== "function" || typeof repository.updateOwnProperty !== "function" || typeof repository.listOwnProperties !== "function" || typeof repository.getBookingProperty !== "function") throw new TypeError("A complete property repository is required.");
   const dataEncryptionSecret = options?.dataEncryptionSecret;
   assertPropertyEncryptionSecret(dataEncryptionSecret);
+  const geocoder = options?.geocoder && typeof options.geocoder.geocodePostcode === "function" ? options.geocoder : null;
+
+  // Fill coordinates from the postcode when the Landlord did not supply them and
+  // a geocoder is configured. Best-effort only: an unresolved postcode leaves
+  // coordinates null and matching falls back to outward-postcode membership.
+  async function geocoded(property) {
+    if (!geocoder || property.latitude != null || property.longitude != null) return property;
+    const coordinates = await geocoder.geocodePostcode(property.postcode);
+    return coordinates ? { ...property, latitude: coordinates.latitude, longitude: coordinates.longitude } : property;
+  }
+
   return {
     async getLandlordProfile(actor) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required.");
@@ -143,12 +154,12 @@ export function createPropertyService(repository, options) {
     },
     async createProperty(actor, input) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required.");
-      const saved = await repository.createProperty(actor, normalizedProperty(input, dataEncryptionSecret));
+      const saved = await repository.createProperty(actor, await geocoded(normalizedProperty(input, dataEncryptionSecret)));
       return propertyProjection(saved, true, dataEncryptionSecret);
     },
     async updateOwnProperty(actor, input) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required.");
-      const saved = await repository.updateOwnProperty(actor, normalizedProperty(input, dataEncryptionSecret, input?.id));
+      const saved = await repository.updateOwnProperty(actor, await geocoded(normalizedProperty(input, dataEncryptionSecret, input?.id)));
       if (!saved) throw Object.assign(new Error("Property was not found."), { statusCode: 404 });
       return propertyProjection(saved, true, dataEncryptionSecret);
     },
