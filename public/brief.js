@@ -704,8 +704,13 @@ if (SpeechRecognition) {
         captureRoomSelect.focus();
         return;
       }
-      appendCurrentRoomMarker();
-      recognition.start();
+      try {
+        recognition.start();
+        appendCurrentRoomMarker();
+      } catch {
+        voiceStatus.textContent = "Speech is already starting or stopping. Wait a moment, then try again; your room notes were not changed.";
+        renderReadiness();
+      }
     }
   });
 } else {
