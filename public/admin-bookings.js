@@ -1,4 +1,4 @@
-import { adminBookingQueue, adminBookingView, adminMatchingReadiness, operationStatusLabel, plannedMarginPercent, shortOperationReference } from "./admin-bookings-model.js";
+import { adminBookingQueue, adminBookingView, adminMatchingReadiness, adminProfitGuardSummary, operationStatusLabel, plannedMarginPercent, plannedProfitFloor, shortOperationReference } from "./admin-bookings-model.js";
 
 const pageSize = 50;
 const gate = document.querySelector("[data-admin-bookings-gate]");
@@ -36,9 +36,10 @@ function operationCard(record) {
   facts.append(fact("Window", `${date(record.scheduledStartAt)} – ${date(record.scheduledEndAt)}`), fact("Tasks", `${record.completedTaskCount} of ${record.taskCount} complete`));
   if (record.bookingId) {
     const margin = plannedMarginPercent(record);
+    const profitFloor = plannedProfitFloor(record);
     const marginTarget = Number.isInteger(record.targetMarginBasisPoints) ? `${(record.targetMarginBasisPoints / 100).toFixed(1)}%` : "Unavailable";
     const contributionTarget = Number.isInteger(record.targetContributionPence) ? moneyPence(record.targetContributionPence) : "Unavailable";
-    facts.append(fact("Customer total", moneyPence(record.customerPricePence)), fact("Cleaner pay", moneyPence(record.cleanerPayPence)), fact("Planned direct costs", moneyPence(record.plannedCostsPence)), fact("Planned contribution", `${moneyPence(record.plannedContributionPence)}${margin == null ? "" : ` (${margin.toFixed(1)}%)`}`), fact("Approved profit floors", `${contributionTarget} and ${marginTarget}`), fact("Payment", record.paymentStatus || "Not started"), fact("Case", record.caseStatus || "None"));
+    facts.append(fact("Customer total", moneyPence(record.customerPricePence)), fact("Cleaner pay", moneyPence(record.cleanerPayPence)), fact("Planned direct costs", moneyPence(record.plannedCostsPence)), fact("Planned contribution", `${moneyPence(record.plannedContributionPence)}${margin == null ? "" : ` (${margin.toFixed(1)}%)`}`), fact("Approved profit floors", `${contributionTarget} and ${marginTarget}`), fact("Profit guard", profitFloor?.protected ? "Both frozen floors cleared" : "Blocked"), fact("Payment", record.paymentStatus || "Not started"), fact("Case", record.caseStatus || "None"));
   }
   card.append(heading, nextAction, facts);
   const actions = node("div", "booking-summary-actions");
@@ -67,9 +68,16 @@ function operationCard(record) {
 
 function render() {
   list.replaceChildren(...queue.operations.map(operationCard)); list.hidden = queue.operations.length === 0; empty.hidden = queue.operations.length > 0; list.setAttribute("aria-busy", "false");
+  const profit = adminProfitGuardSummary(queue.operations);
   document.querySelector("[data-admin-bookings-count]").textContent = String(queue.operations.length);
   document.querySelector("[data-admin-bookings-attention]").textContent = String(queue.operations.filter((item) => item.needsAttention).length);
+  document.querySelector("[data-admin-bookings-protected]").textContent = String(profit.protectedCount);
   document.querySelector("[data-admin-bookings-active]").textContent = String(queue.operations.filter((item) => ["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review"].includes(item.status)).length);
+  const profitTitle = document.querySelector("[data-admin-profit-title]");
+  const profitCopy = document.querySelector("[data-admin-profit-copy]");
+  profitTitle.textContent = profit.bookingCount === 0 ? "No booking has frozen profitable terms yet" : `${profit.protectedCount} of ${profit.bookingCount} loaded booking${profit.bookingCount === 1 ? "" : "s"} clear both frozen profit floors`;
+  const nextAction = profit.next ? `${shortOperationReference(profit.next)}: ${profit.next.nextAction}` : "No reviewed request or booking is waiting in this view.";
+  profitCopy.textContent = `${profit.unpricedRequestCount} submitted request${profit.unpricedRequestCount === 1 ? "" : "s"} still have no frozen booking price. Next: ${nextAction}`;
   document.querySelector("[data-admin-bookings-page]").textContent = `Page ${Math.floor(queue.offset / queue.limit) + 1}`; previous.disabled = queue.offset === 0; next.disabled = queue.operations.length < queue.limit;
 }
 

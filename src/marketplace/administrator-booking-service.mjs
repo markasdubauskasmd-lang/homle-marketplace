@@ -38,8 +38,9 @@ function operation(value) {
   const cleanerPayPence = optionalInteger(value.cleanerPayPence, 1, 10_000_000, "Cleaner pay");
   const plannedCostsPence = optionalInteger(value.plannedCostsPence, 0, 10_000_000, "Planned costs");
   const plannedContributionPence = optionalInteger(value.plannedContributionPence, 1, 10_000_000, "Planned contribution");
+  const targetMarginBasisPoints = optionalInteger(value.targetMarginBasisPoints, 0, 10000, "Target margin");
   const targetContributionPence = optionalInteger(value.targetContributionPence, 1, 10_000_000, "Target contribution");
-  if (isBooking && (customerPricePence == null || cleanerPayPence == null || plannedCostsPence == null || plannedContributionPence == null || targetContributionPence == null || customerPricePence !== cleanerPayPence + plannedCostsPence + plannedContributionPence || plannedContributionPence < targetContributionPence)) throw new Error("The booking operation economics are unavailable.");
+  if (isBooking && (customerPricePence == null || cleanerPayPence == null || plannedCostsPence == null || plannedContributionPence == null || targetMarginBasisPoints == null || targetContributionPence == null || customerPricePence !== cleanerPayPence + plannedCostsPence + plannedContributionPence || plannedContributionPence < targetContributionPence || plannedContributionPence * 10000 < customerPricePence * targetMarginBasisPoints)) throw new Error("The booking operation economics are unavailable.");
   return Object.freeze({
     operationKind: value.operationKind,
     requestId: uuid(value.requestId, "Request id", isBooking && value.requestId == null),
@@ -55,7 +56,7 @@ function operation(value) {
     cleanerPayPence,
     plannedCostsPence,
     plannedContributionPence,
-    targetMarginBasisPoints: optionalInteger(value.targetMarginBasisPoints, 0, 10000, "Target margin"),
+    targetMarginBasisPoints,
     targetContributionPence,
     paymentStatus: value.paymentStatus == null ? null : paymentStatuses.has(value.paymentStatus) ? value.paymentStatus : (() => { throw new Error("The payment status is unavailable."); })(),
     caseStatus: value.caseStatus == null ? null : caseStatuses.has(value.caseStatus) ? value.caseStatus : (() => { throw new Error("The case status is unavailable."); })(),

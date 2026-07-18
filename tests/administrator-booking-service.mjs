@@ -15,4 +15,8 @@ const badService = createAdministratorBookingService({ async list() { return { o
 await assert.rejects(badService.list(administrator), /economics are unavailable/);
 const belowFloorService = createAdministratorBookingService({ async list() { return { operations: [{ ...result.operations[0], targetContributionPence: 3600 }], limit: 50, offset: 0 }; } });
 await assert.rejects(belowFloorService.list(administrator), /economics are unavailable/);
-console.log("Administrator booking service tests passed: role isolation, filters and exact frozen economics.");
+const belowMarginService = createAdministratorBookingService({ async list() { return { operations: [{ ...result.operations[0], targetMarginBasisPoints: 3000 }], limit: 50, offset: 0 }; } });
+await assert.rejects(belowMarginService.list(administrator), /economics are unavailable/);
+const missingMarginService = createAdministratorBookingService({ async list() { return { operations: [{ ...result.operations[0], targetMarginBasisPoints: null }], limit: 50, offset: 0 }; } });
+await assert.rejects(missingMarginService.list(administrator), /economics are unavailable/);
+console.log("Administrator booking service tests passed: role isolation, filters and exact two-floor frozen economics.");

@@ -23,6 +23,23 @@ export function plannedMarginPercent(record) {
   return Math.round(record.plannedContributionPence * 1000 / record.customerPricePence) / 10;
 }
 
+export function plannedProfitFloor(record) {
+  const marginPercent = plannedMarginPercent(record);
+  if (!record?.bookingId || marginPercent == null || !Number.isInteger(record.targetMarginBasisPoints) || !Number.isInteger(record.targetContributionPence)) return null;
+  const marginMet = record.plannedContributionPence * 10000 >= record.customerPricePence * record.targetMarginBasisPoints;
+  const contributionMet = record.plannedContributionPence >= record.targetContributionPence;
+  return Object.freeze({ protected: marginMet && contributionMet, marginMet, contributionMet, marginPercent, targetMarginPercent: record.targetMarginBasisPoints / 100 });
+}
+
+export function adminProfitGuardSummary(operations) {
+  if (!Array.isArray(operations)) throw new TypeError("Booking operations are unavailable.");
+  const bookings = operations.filter((record) => record?.bookingId);
+  const protectedBookings = bookings.filter((record) => plannedProfitFloor(record)?.protected === true);
+  const unpricedRequests = operations.filter((record) => record?.operationKind === "request").length;
+  const next = operations.find((record) => record?.needsAttention) || operations[0] || null;
+  return Object.freeze({ bookingCount: bookings.length, protectedCount: protectedBookings.length, unpricedRequestCount: unpricedRequests, next });
+}
+
 export function adminBookingQueue(value) {
   if (!value || !Array.isArray(value.operations) || !Number.isInteger(value.limit) || !Number.isInteger(value.offset)) throw new Error("The booking operations queue is unavailable.");
   return { operations: value.operations, limit: value.limit, offset: value.offset };
