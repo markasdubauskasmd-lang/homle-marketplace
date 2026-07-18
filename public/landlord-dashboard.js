@@ -2,7 +2,8 @@ import { checklistFromTranscript } from "./checklist.js";
 import { clearSelectedCleaner, clearSelectedProperty, readSelectedCleaner, readSelectedProperty, saveSelectedCleaner, saveSelectedProperty } from "./account-intent.js?v=20260718-2";
 import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
-import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
+import { maximumRoomPhotos, validatedRoomPhotoSelection } from "./room-photo-selection.js";
+import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { landlordDispatchAction, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260717-6";
@@ -55,6 +56,7 @@ const requestWithdrawConfirm = document.querySelector("[data-request-withdraw-co
 const propertySave = document.querySelector("[data-save-property]");
 const requestSave = document.querySelector("[data-save-request]");
 const speechButton = document.querySelector("[data-speech-toggle]");
+const scanPropertyStatus = document.querySelector("[data-scan-property-status]");
 const speechStatus = document.querySelector("[data-speech-status]");
 const speechFallback = document.querySelector("[data-speech-fallback]");
 const taskPreview = document.querySelector("[data-task-preview]");
@@ -551,7 +553,10 @@ function renderProperties() {
   applySuggestedCleaningType();
   propertyEmpty.hidden = properties.length > 0;
   propertyList.hidden = properties.length === 0;
-  requestForm.querySelector("[data-request-controls]").disabled = properties.length === 0;
+  scanPropertyStatus.dataset.kind = properties.length ? "ready" : "attention";
+  scanPropertyStatus.textContent = properties.length
+    ? "Your room scan can be saved to the selected private property."
+    : "Start speaking now. Add a property before saving the request; your unfinished walkthrough stays in this tab.";
   document.querySelector("[data-property-count]").textContent = String(properties.length);
   renderNextAction();
 }
@@ -656,7 +661,7 @@ function requestScanPanel(request) {
   const summary = element("summary", "", request.status === "draft" ? "Add room photos and submit" : "View reviewed room scan");
   details.append(summary);
   const panel = element("div", "landlord-request-scan-body");
-  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? (mediaReady ? "Choose the checklist room and take a current photo. Add a photo note only when the checklist needs extra visual context. Homle strips metadata and keeps the sanitized image private." : "Your spoken room checklist is saved. Private photo storage is not connected yet, so camera upload and matching submission remain safely locked.") : "This is the reviewed room-scan handoff attached to the request.");
+  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? (mediaReady ? "Choose the checklist room and take a current photo or short room video. Homle turns video into private still frames on this device, strips image metadata and keeps only sanitized JPEGs." : "Your spoken room checklist is saved. Private photo storage is not connected yet, so camera upload and matching submission remain safely locked.") : "This is the reviewed room-scan handoff attached to the request.");
   const feedback = element("div", "landlord-form-feedback");
   feedback.hidden = true;
   feedback.tabIndex = -1;
@@ -705,7 +710,8 @@ function requestScanPanel(request) {
     const pickerActions = element("div", "landlord-scan-picker-actions");
     const cameraButton = element("button", "button", "Open rear camera");
     const libraryButton = element("button", "button button-outline", "Choose existing photos");
-    cameraButton.type = libraryButton.type = "button";
+    const videoButton = element("button", "button button-outline", "Record short room video");
+    cameraButton.type = libraryButton.type = videoButton.type = "button";
     const cameraInput = element("input");
     cameraInput.type = "file";
     cameraInput.accept = "image/*";
@@ -716,7 +722,13 @@ function requestScanPanel(request) {
     libraryInput.accept = "image/jpeg,image/png,image/webp,image/heic,.heic";
     libraryInput.multiple = true;
     libraryInput.hidden = true;
-    const selected = element("span", "landlord-scan-selected", "No photos selected");
+    const videoInput = element("input");
+    videoInput.type = "file";
+    videoInput.accept = "video/mp4,video/quicktime,video/webm,video/*";
+    videoInput.setAttribute("capture", "environment");
+    videoInput.hidden = true;
+    const videoPrivacy = element("small", "landlord-scan-video-privacy", "A short video becomes up to three still frames. The raw video and audio never leave this device.");
+    const selected = element("span", "landlord-scan-selected", "No room visuals selected");
     const selectionPreview = element("div", "landlord-scan-selection-preview");
     selectionPreview.setAttribute("role", "list");
     selectionPreview.setAttribute("aria-label", "Photos selected for private upload");
@@ -725,10 +737,11 @@ function requestScanPanel(request) {
     let previewUrls = [];
     const pendingPhotoCompletions = new WeakMap();
     let uploadPending = false;
+    let videoProcessing = false;
     const upload = element("button", "button", "Upload private room photos");
     upload.type = "submit";
     function setUploadEditorLocked(locked) {
-      for (const control of [room, note, cameraButton, libraryButton, cameraInput, libraryInput]) control.disabled = locked || !mediaReady;
+      for (const control of [room, note, cameraButton, libraryButton, videoButton, cameraInput, libraryInput, videoInput]) control.disabled = locked || !mediaReady;
     }
     function clearSelectionPreviews() {
       for (const url of previewUrls) URL.revokeObjectURL(url);
@@ -739,7 +752,7 @@ function requestScanPanel(request) {
     function renderSelection() {
       clearSelectionPreviews();
       if (!files.length) {
-        selected.textContent = "No photos selected";
+        selected.textContent = "No room visuals selected";
         upload.textContent = "Upload private room photos";
         return;
       }
@@ -781,7 +794,7 @@ function requestScanPanel(request) {
       }
     }
     function choose(event) {
-      if (uploadPending) { event.target.value = ""; return; }
+      if (uploadPending || videoProcessing) { event.target.value = ""; return; }
       const candidates = event.target.files;
       event.target.value = "";
       if (!candidates?.length) return;
@@ -798,17 +811,46 @@ function requestScanPanel(request) {
     }
     cameraInput.addEventListener("change", choose);
     libraryInput.addEventListener("change", choose);
+    videoInput.addEventListener("change", async (event) => {
+      if (uploadPending || videoProcessing || !mediaReady) { event.target.value = ""; return; }
+      const candidate = event.target.files?.[0];
+      event.target.value = "";
+      if (!candidate) return;
+      feedback.hidden = true;
+      videoProcessing = true;
+      setUploadEditorLocked(true);
+      setPending(videoButton, true, "Preparing private stills…");
+      try {
+        const existingPhotoCount = Array.isArray(requestScans.get(request.requestId)?.photos) ? requestScans.get(request.requestId).photos.length : 0;
+        const remaining = maximumRoomPhotos - existingPhotoCount;
+        if (remaining < 1) throw new TypeError(`This request already has ${maximumRoomPhotos} room photos.`);
+        const frames = await extractRoomVideoFrames(candidate, { frameCount: Math.min(maximumRoomVideoFrames, remaining) });
+        files = validatedRoomPhotoSelection(frames, { existingPhotoCount });
+        renderSelection();
+        showFeedback(feedback, `${files.length} private still ${files.length === 1 ? "frame was" : "frames were"} prepared from the room video. The raw video and audio stayed on this device. Review the frames, then upload.`, "success");
+      } catch (error) {
+        files = [];
+        renderSelection();
+        showFeedback(feedback, error.message);
+      } finally {
+        videoProcessing = false;
+        setUploadEditorLocked(false);
+        setPending(videoButton, false, "Record short room video");
+        videoButton.disabled = !mediaReady;
+      }
+    });
     room.addEventListener("change", () => { if (files.length) renderSelection(); });
     cameraButton.addEventListener("click", () => cameraInput.click());
     libraryButton.addEventListener("click", () => libraryInput.click());
+    videoButton.addEventListener("click", () => videoInput.click());
     window.addEventListener("pagehide", clearSelectionPreviews, { once: true });
-    pickerActions.append(cameraButton, libraryButton, cameraInput, libraryInput);
-    for (const control of [room, note, cameraButton, libraryButton, cameraInput, libraryInput, upload]) control.disabled = !mediaReady;
+    pickerActions.append(cameraButton, videoButton, libraryButton, cameraInput, videoInput, libraryInput);
+    for (const control of [room, note, cameraButton, videoButton, libraryButton, cameraInput, videoInput, libraryInput, upload]) control.disabled = !mediaReady;
     if (!mediaReady) selected.textContent = "Photo capture unlocks after secure storage is verified";
-    form.append(roomLabel, noteLabel, pickerActions, selected, selectionPreview, upload);
+    form.append(roomLabel, noteLabel, pickerActions, videoPrivacy, selected, selectionPreview, upload);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (uploadPending) return;
+      if (uploadPending || videoProcessing) return;
       feedback.hidden = true;
       if (!form.reportValidity()) return;
       if (!files.length) return showFeedback(feedback, "Take a current room photo or choose photos from this device.");
@@ -1832,8 +1874,15 @@ document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link
   document.querySelector(`[data-landlord-panel="${selected}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }));
 document.querySelector("[data-open-request-tab]").addEventListener("click", () => {
-  document.querySelector('[data-landlord-tab="requests"]').click();
-  document.querySelector('[data-landlord-panel="requests"]').scrollIntoView({ behavior: "smooth", block: "start" });
+  selectWorkspaceTab("requests", { historyMode: "push" });
+  const speechSection = document.querySelector(".landlord-speech-scope");
+  speechSection.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (recognition && !listening) {
+    speechButton.click();
+    return;
+  }
+  speechFallback.open = true;
+  requestForm.elements.transcript.focus({ preventScroll: true });
 });
 document.querySelector("[data-toggle-property-form]").addEventListener("click", () => openPropertyEditor());
 document.querySelector("[data-close-property-form]").addEventListener("click", closePropertyEditor);

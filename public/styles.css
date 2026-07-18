@@ -1825,6 +1825,9 @@ textarea { resize: vertical; }
 .landlord-sole-property > small { color: var(--muted); }
 .landlord-required-services { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .landlord-speech-scope { display: grid; gap: 14px; padding: 18px; border: 1px solid #b7d8ce; border-radius: 15px; background: var(--mint-pale); }
+.landlord-scan-property-status { margin: 0; padding: 10px 12px; border-radius: 10px; background: #fff; color: var(--green-dark); font-size: .76rem; font-weight: 780; }
+.landlord-scan-property-status[data-kind="attention"] { color: #7b4a08; border-left: 4px solid #c88820; background: #fff8e8; }
+.landlord-scan-property-status[data-kind="ready"] { border-left: 4px solid var(--green); }
 .landlord-speech-heading { display: flex; justify-content: space-between; gap: 20px; align-items: center; }
 .landlord-speech-heading h3 { margin: 4px 0 0; font-size: 1.3rem; }
 .landlord-speech-scope > p { margin: 0; color: var(--muted); font-size: .78rem; }
@@ -1862,6 +1865,7 @@ textarea { resize: vertical; }
 .landlord-scan-upload-form, .landlord-request-submit-form { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .landlord-scan-upload-form label, .landlord-attempt-limit { display: grid; gap: 6px; font-size: .78rem; font-weight: 800; }
 .landlord-scan-picker-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.landlord-scan-video-privacy { color: var(--muted); font-size: .72rem; line-height: 1.45; }
 .landlord-scan-selected { color: var(--muted); font-size: .72rem; overflow-wrap: anywhere; }
 .landlord-scan-selection-preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
 .landlord-scan-selection-card { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 10px; align-items: center; min-width: 0; padding: 9px; border: 1px solid #b9d9d1; border-radius: 12px; background: #fff; }

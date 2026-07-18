@@ -85,7 +85,7 @@
       </section>
 
       <section class="landlord-scan-boundary" aria-labelledby="scan-boundary-title">
-        <span aria-hidden="true">01</span><div><p class="eyebrow">Room scan is the core booking input</p><h2 id="scan-boundary-title">Speak, save, photograph, then submit.</h2><p>First create a private request draft from your spoken room walkthrough. Then add at least one private room photo, check the concise Cleaner instructions and deliberately open the request for matching.</p></div><button class="button" type="button" data-open-request-tab>Prepare a room scan</button>
+        <span aria-hidden="true">01</span><div><p class="eyebrow">Room scan is the core booking input</p><h2 id="scan-boundary-title">Speak first. Homle makes the checklist.</h2><p>Start the room walkthrough immediately, even before adding a property. Homle turns the spoken notes into concise Cleaner tasks; timing, private photos and deliberate submission follow.</p></div><button class="button" type="button" data-open-request-tab>Start speaking room scan</button>
       </section>
 
       <nav class="landlord-workspace-tabs" role="tablist" aria-label="Landlord workspace sections"><button type="button" class="current" role="tab" data-landlord-tab="properties" aria-controls="landlord-panel-properties" aria-selected="true">Properties</button><button type="button" role="tab" data-landlord-tab="requests" aria-controls="landlord-panel-requests" aria-selected="false" tabindex="-1">Request drafts</button><button type="button" role="tab" data-landlord-tab="account" aria-controls="landlord-panel-account" aria-selected="false" tabindex="-1">Account</button></nav>
@@ -153,6 +153,7 @@
             <details class="dashboard-optional-fields"><summary>Add budget or recurring preference <span>Optional</span></summary><div><div class="field-row"><label>Frequency<select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select></label><label>Budget (£) <span>(optional)</span><input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01"></label></div><label>Special instructions <span>(optional)</span><textarea name="specialInstructions" rows="3" maxlength="5000"></textarea></label></div></details>
 
             <section class="landlord-speech-scope" aria-labelledby="speech-scope-title">
+              <p class="landlord-scan-property-status" data-scan-property-status role="status">You can start speaking before adding a property.</p>
               <div class="landlord-speech-heading"><div><p class="eyebrow">Speech to concise bullets</p><h3 id="speech-scope-title">Walk through each room naturally.</h3></div><button class="button button-outline" type="button" data-speech-toggle>Start speaking</button></div>
               <p data-speech-status role="status">Checking speech support…</p>
               <p class="landlord-speech-prompt"><strong>Speak once.</strong> Name the room, then say what needs cleaning. Homle updates the Cleaner bullets when you stop.</p>

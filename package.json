@@ -91,7 +91,7 @@
     "test:landlord-ui": "node tests/landlord-dashboard-ui.mjs",
     "check:landlord-draft": "node --check public/landlord-request-draft.js && node --check tests/landlord-request-draft.mjs",
     "test:landlord-draft": "node tests/landlord-request-draft.mjs",
-    "check:room-photo-selection": "node --check public/room-photo-selection.js && node --check tests/room-photo-selection.mjs",
+    "check:room-photo-selection": "node --check public/room-photo-selection.js && node --check public/room-video-frames.js && node --check tests/room-photo-selection.mjs",
     "test:room-photo-selection": "node tests/room-photo-selection.mjs",
     "test:properties": "node tests/property-service.mjs",
     "test:requests": "node tests/cleaning-request-service.mjs",
