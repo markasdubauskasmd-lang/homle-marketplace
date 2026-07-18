@@ -107,6 +107,12 @@ export function createCleanerProfileRepository(database) {
         );
         return result.rows;
       });
+    },
+    getPublicProfile(cleanerId) {
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query("SELECT * FROM tideway_private.get_public_cleaner_profile($1::uuid)", [cleanerId]);
+        return result.rows[0] || null;
+      });
     }
   };
 }

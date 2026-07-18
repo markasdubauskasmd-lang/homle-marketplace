@@ -11,6 +11,7 @@ const landlord = { userId: "11111111-1111-4111-8111-111111111111", roles: ["land
 const cleaner = { userId: "22222222-2222-4222-8222-222222222222", roles: ["cleaner"] };
 const requestId = "66666666-6666-4666-8666-666666666666";
 const bookingId = "55555555-5555-4555-8555-555555555555";
+const propertyId = "33333333-3333-4333-8333-333333333333";
 const candidate = {
   id: requestId,
   requested_start_at: "2026-07-20T09:00:00.000Z",
@@ -90,14 +91,24 @@ const workflow = createBookingWorkflowService(fakeRepository, { pricingPolicy: p
 const [landlordBookings, cleanerBookings] = await Promise.all([workflow.listParticipantBookings(landlord), workflow.listParticipantBookings(cleaner, { limit: "25" })]);
 assert(landlordBookings[0].pricePence === quote.customerPricePence && landlordBookings[0].pricePerspective === "customer-total" && landlordBookings[0].paymentStepAvailable === true, "The Landlord booking list lost the customer total or payment action.");
 assert(cleanerBookings[0].pricePence === quote.cleanerPayPence && cleanerBookings[0].pricePerspective === "cleaner-pay" && !Object.hasOwn(cleanerBookings[0], "paymentStepAvailable") && !Object.hasOwn(cleanerBookings[0], "paymentAuthorizationReady") && !Object.hasOwn(cleanerBookings[0], "paymentStepOpensAt") && JSON.stringify(cleanerBookings).includes(String(quote.customerPricePence)) === false, "The Cleaner booking list exposed the customer total, Landlord payment state or lost the offered pay.");
+const repeatWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], status: "completed", propertyId, cleanerId: cleaner.userId, paymentStepAvailable: false }]; } }, { pricingPolicy: policy });
+const [repeatBooking] = await repeatWorkflow.listParticipantBookings(landlord);
+assert(repeatBooking.propertyId === propertyId && repeatBooking.cleanerId === cleaner.userId, "A completed Landlord booking lost its owner-authorized repeat-booking identifiers.");
+const cleanerPrivacyWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...cleanerBookings[0], status: "completed", propertyId, cleanerId: cleaner.userId }]; } }, { pricingPolicy: policy });
+const [cleanerPrivacyBooking] = await cleanerPrivacyWorkflow.listParticipantBookings(cleaner);
+assert(!Object.hasOwn(cleanerPrivacyBooking, "propertyId") && !Object.hasOwn(cleanerPrivacyBooking, "cleanerId"), "The Cleaner summary received Landlord-only repeat-booking identifiers.");
 const paymentOpensAt = "2026-07-25T09:00:00.000Z";
 const earlyPaymentWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], paymentStepAvailable: false, paymentAuthorizationReady: false, paymentStepOpensAt: paymentOpensAt }]; } }, { pricingPolicy: policy });
 const [earlyPaymentBooking] = await earlyPaymentWorkflow.listParticipantBookings(landlord);
 assert(earlyPaymentBooking.paymentStepAvailable === false && earlyPaymentBooking.paymentAuthorizationReady === false && earlyPaymentBooking.paymentStepOpensAt === paymentOpensAt, "The participant projection lost the server-owned payment opening time.");
 const inconsistentPaymentWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], paymentAuthorizationReady: true, paymentStepAvailable: true }]; } }, { pricingPolicy: policy });
 assert(await rejects(() => inconsistentPaymentWorkflow.listParticipantBookings(landlord), "timing is inconsistent"), "Contradictory payment readiness escaped into the dashboard.");
-const invitation = await workflow.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId, customerPricePence: 1, cleanerPayPence: 1 });
-assert(calls.find((call) => call.kind === "invite").invitation.customerPricePence === quote.customerPricePence && calls.find((call) => call.kind === "invite").invitation.cleanerPayPence === quote.cleanerPayPence && invitation.status === "pending-cleaner-acceptance" && !Object.hasOwn(invitation, "cleanerPayPence"), "Browser economics reached the booking or private Cleaner pay leaked to a Landlord.");
+const invitationPreview = await workflow.previewInvitation(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId, customerPricePence: 1, cleanerPayPence: 1 });
+assert(invitationPreview.customerPricePence === quote.customerPricePence && invitationPreview.cleaningRequestId === requestId && invitationPreview.cleanerId === cleaner.userId && !Object.hasOwn(invitationPreview, "cleanerPayPence") && calls.filter((call) => call.kind === "invite").length === 0, "The read-only Landlord preview changed booking state, trusted browser economics or exposed private Cleaner pay.");
+assert(await rejectsCode(() => workflow.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId, approvedCustomerPricePence: quote.customerPricePence - 1 }), "invitation-price-changed"), "A Landlord could invite a Cleaner after approving a different customer total.");
+assert(await rejects(() => workflow.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId }), "Approved customer total"), "A direct Cleaner invitation did not require an explicit Landlord price approval.");
+const invitation = await workflow.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId, approvedCustomerPricePence: quote.customerPricePence, customerPricePence: 1, cleanerPayPence: 1 });
+assert(calls.find((call) => call.kind === "invite").invitation.customerPricePence === quote.customerPricePence && calls.find((call) => call.kind === "invite").invitation.cleanerPayPence === quote.cleanerPayPence && invitation.status === "pending-cleaner-acceptance" && invitation.customerPricePence === quote.customerPricePence && !Object.hasOwn(invitation, "cleanerPayPence"), "Approved server economics did not reach the booking or private Cleaner pay leaked to a Landlord.");
 const accepted = await workflow.respondToInvitation(cleaner, bookingId, { decision: "accept", cleanerPayPence: 1 });
 assert(accepted.status === "confirmed" && accepted.cleanerPayPence === quote.cleanerPayPence && !Object.hasOwn(accepted, "customerPricePence") && calls.at(-1).response.decision === "accept" && !Object.hasOwn(calls.at(-1).response, "cleanerPayPence"), "Cleaner response trusted submitted terms, lost the frozen offer or exposed Homle's customer total.");
 const expiredWorkflow = createBookingWorkflowService({ ...fakeRepository, async respondToInvitation() { return { id: bookingId, cleaning_request_id: requestId, status: "cancelled", scheduled_start_at: candidate.requested_start_at, scheduled_end_at: candidate.requested_end_at, cleaner_response_deadline: quote.responseDeadline, customer_price_pence: quote.customerPricePence, cleaner_pay_pence: quote.cleanerPayPence, scope_fingerprint: "a".repeat(64), terms_fingerprint: "b".repeat(64), scope_snapshot: { tasks: [] }, responded_at: null, confirmed_at: null, expired_at: now.toISOString() }; } }, { pricingPolicy: policy, clock: () => new Date(now) });
@@ -105,7 +116,7 @@ const expired = await expiredWorkflow.respondToInvitation(cleaner, bookingId, { 
 assert(expired.status === "cancelled" && expired.expiredAt === now.toISOString() && expired.respondedAt === null, "An expired invitation did not return its terminal timestamp without fabricating a Cleaner response.");
 assert(await rejects(() => workflow.inviteCleaner(cleaner, { cleaningRequestId: requestId, cleanerId: cleaner.userId }), "Landlord"), "A Cleaner could create an invitation.");
 const dualRoleActor = { userId: landlord.userId, roles: ["cleaner", "landlord"] };
-assert(await rejects(() => workflow.inviteCleaner(dualRoleActor, { cleaningRequestId: requestId, cleanerId: landlord.userId }), "cannot be invited to your own"), "A dual-workspace account could invite its own Cleaner profile.");
+assert(await rejects(() => workflow.previewInvitation(dualRoleActor, { cleaningRequestId: requestId, cleanerId: landlord.userId }), "cannot be invited to your own"), "A dual-workspace account could preview an invitation to its own Cleaner profile.");
 assert(await rejects(() => workflow.respondToInvitation(landlord, bookingId, { decision: "accept" }), "Cleaner"), "A Landlord could answer a Cleaner invitation.");
 const disabled = createBookingWorkflowService(fakeRepository);
 assert(await rejects(() => disabled.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId }), "pricing policy"), "Invitations did not fail closed without private pricing configuration.");
@@ -120,6 +131,18 @@ await repository.inviteCleaner(landlord, { bookingId, requestId, cleanerId: clea
 await repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null });
 assert(selectedCandidate.distance_km === "4.20" && sqlCalls[0].text.includes("JOIN properties property") && sqlCalls[0].text.includes("cleaner_service_areas") && sqlCalls[0].text.includes("coverage.distance_km") && sqlCalls[0].text.includes("profile.user_id<>request.landlord_user_id") && sqlCalls[0].values[1] === cleaner.userId, "Direct Cleaner invitation pricing did not bind the selected Cleaner to the property distance evidence or exclude a Landlord's own Cleaner profile.");
 assert(sqlCalls[1].text.includes("list_my_booking_summaries") && sqlCalls[1].values[0] === 50 && sqlCalls[2].text.includes("tideway_private.invite_cleaner") && sqlCalls[2].values.length === 13 && sqlCalls[2].values[12] === 1800 && sqlCalls[3].text.includes("respond_to_cleaner_invitation") && sqlCalls[3].actor.userId === cleaner.userId, "Booking repository bypassed participant-safe summaries, actor-bound audited transitions or both parameterized profit targets.");
+const repeatSqlCalls = [];
+const repeatRepository = createBookingRepository({
+  async withUserTransaction(actor, operation) {
+    return operation({ async query(text, values) {
+      repeatSqlCalls.push({ actor, text, values });
+      if (text.includes("list_my_booking_summaries")) return { rows: [{ bookings: [{ bookingId, participantRole: "landlord", status: "completed" }] }] };
+      return { rows: [{ id: bookingId, property_id: propertyId, cleaner_user_id: cleaner.userId }] };
+    } });
+  }
+});
+const [repeatRepositoryBooking] = await repeatRepository.listParticipantBookings(landlord, 50);
+assert(repeatRepositoryBooking.propertyId === propertyId && repeatRepositoryBooking.cleanerId === cleaner.userId && repeatSqlCalls[1].text.includes("landlord_user_id=$1::uuid") && repeatSqlCalls[1].text.includes("status='completed'") && repeatSqlCalls[1].values[0] === landlord.userId, "Repeat-booking identifiers were not loaded through a completed, owner-bound Landlord query.");
 failure = Object.assign(new Error("duplicate overlap"), { code: "23P01" });
 assert(await rejects(() => repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null }), "overlaps"), "Concurrent exclusion violations were not mapped to a safe schedule conflict.");
 for (const [databaseMessage, publicMessage] of [

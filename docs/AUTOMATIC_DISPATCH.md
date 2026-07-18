@@ -4,7 +4,7 @@ Tideway's automatic matching remains behind the default-off authenticated market
 
 ## Landlord control
 
-Automatic dispatch is never inferred from creating or submitting a cleaning request. The authenticated Landlord must explicitly call the request-scoped automatic-dispatch action and choose a total attempt limit from one to five. They may revoke consent while the request is still configurable. Every authorization or revocation is written to the audit log. The web role cannot update or delete a cleaning request directly; it receives only the narrow consent function.
+Automatic dispatch is never inferred from creating or submitting a cleaning request. The authenticated Landlord must explicitly call the request-scoped automatic-dispatch action, approve the exact saved maximum customer total and choose a total attempt limit from one to five. The server locks the owner-bound request and requires that approval to equal its persisted budget before consent is enabled. A request without a maximum cannot enter automatic matching. The Landlord may revoke consent while the request is still configurable. Every authorization or revocation is written to the audit log. The web role cannot update or delete a cleaning request directly; it receives only the narrow consent function.
 
 The attempt count includes every preserved invitation for the request, including a manual attempt. This prevents switching between manual and automatic paths from exceeding the Landlord's total chosen limit. A Cleaner who has already been attempted for that request is never selected again.
 
@@ -14,8 +14,8 @@ The attempt count includes every preserved invitation for the request, including
 
 1. Claim a bounded set of due, submitted, future requests with a UUID lease and `FOR UPDATE SKIP LOCKED`.
 2. Read candidates only while the worker owns an unexpired lease and while Landlord consent is still active.
-3. Apply the same private pricing policy used by manual invitations. Manual-quote and over-budget candidates are excluded; the best profitable match is attempted first.
-4. Call the hardened final invitation transaction. It independently rechecks account/profile status, property preference, exact current pay, full availability, declared coverage and overlapping work while serialising invitations for that Cleaner.
+3. Apply the same private pricing policy used by manual invitations. Manual-quote, uncapped and over-maximum candidates are excluded; the best profitable match is attempted first.
+4. Call the hardened final invitation transaction. It independently rechecks the persisted Landlord maximum plus account/profile status, property preference, exact current pay, full availability, declared coverage and overlapping work while serialising invitations for that Cleaner. Migration 058 rejects a missing cap or a proposed total above it inside the worker-only database function and adds the approved maximum to private audit evidence.
 5. If a candidate became stale, try the next ranked candidate. If none remain, release the lease with a bounded retry time. One request can have only one live invitation.
 
 The invitation and request histories are system-attributed but retain private evidence that the Landlord authorized dispatch. Existing invitation expiry or Cleaner decline returns the request to searching; the still-active consent permits a later bounded attempt until the chosen limit is reached.
@@ -24,7 +24,7 @@ The invitation and request histories are system-attributed but retain private ev
 
 Before scheduling this worker:
 
-- apply and verify all 38 locked migrations and both restricted-role grant files on PostgreSQL 16;
+- apply and verify all 59 locked migrations and both restricted-role grant files on PostgreSQL 16;
 - pass the real multi-account RLS and two-worker concurrency harness;
 - configure and approve every private `BOOKING_*` cost and margin input;
 - include the approved fixed travel cost, per-kilometre cost and one-way/return distance multiplier so farther candidates cannot inherit a nearby job's travel allowance;

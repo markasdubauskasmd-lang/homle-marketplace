@@ -3,7 +3,7 @@ import { rankRequestCandidates } from "./matching-service.mjs";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const staleCandidateCodes = new Set(["candidate-stale", "cleaner-already-tried"]);
-const closedRequestCodes = new Set(["dispatch-lease-lost", "dispatch-attempt-limit", "request-not-matchable"]);
+const closedRequestCodes = new Set(["dispatch-lease-lost", "dispatch-attempt-limit", "dispatch-price-cap-required", "request-not-matchable"]);
 
 function integer(value, minimum, maximum, fallback, label) {
   if (value == null) return fallback;
@@ -47,7 +47,7 @@ export function createAutomaticDispatchWorker(repository, pricingPolicy, options
         }
         let ranked;
         try {
-          ranked = rankRequestCandidates(await repository.getCandidates(claim.cleaningRequestId, leaseToken, candidateLimit), pricingPolicy, now);
+          ranked = rankRequestCandidates(await repository.getCandidates(claim.cleaningRequestId, leaseToken, candidateLimit), pricingPolicy, now, { requireApprovedMaximum: true });
         } catch (error) {
           if (!closedRequestCodes.has(error?.code)) await release(claim, leaseToken, "transient-failure", now);
           result.deferred += 1;

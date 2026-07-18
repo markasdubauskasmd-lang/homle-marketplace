@@ -51,7 +51,7 @@ function publicCandidate(record, quote, rank) {
   };
 }
 
-export function rankRequestCandidates(records, pricingPolicy, now) {
+export function rankRequestCandidates(records, pricingPolicy, now, options = {}) {
   if (!Array.isArray(records)) throw new TypeError("Matching candidates must be an array.");
   if (!pricingPolicy || typeof pricingPolicy.quote !== "function") throw Object.assign(new Error("Cleaner matching is unavailable until the private pricing policy is configured."), { statusCode: 503, code: "pricing-not-configured" });
   if (!(now instanceof Date) || Number.isNaN(now.getTime())) throw new TypeError("Matching clock must return a valid Date.");
@@ -60,6 +60,7 @@ export function rankRequestCandidates(records, pricingPolicy, now) {
     try {
       const quote = pricingPolicy.quote(record, now);
       const budget = record.budget_pence == null ? null : Number(record.budget_pence);
+      if (options.requireApprovedMaximum === true && (!Number.isInteger(budget) || budget < 1 || budget > 10_000_000)) continue;
       if (budget != null && quote.customerPricePence > budget) continue;
       priced.push({ record, quote });
     } catch (error) {

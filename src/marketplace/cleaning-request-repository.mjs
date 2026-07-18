@@ -50,13 +50,20 @@ export function createCleaningRequestRepository(database) {
     configureAutomaticDispatch(actor, requestId, choice) {
       return database.withUserTransaction(actor, async (client) => {
         try {
+          if (choice.enabled) {
+            const approval = await client.query("SELECT budget_pence FROM cleaning_requests WHERE id=$1::uuid AND landlord_user_id=$2::uuid FOR UPDATE", [requestId, actor.userId]);
+            if (!approval.rows[0]) throw Object.assign(new Error("request-not-found"), { code: "P0002" });
+            const savedMaximum = approval.rows[0].budget_pence == null ? null : Number(approval.rows[0].budget_pence);
+            if (!Number.isInteger(savedMaximum) || savedMaximum !== choice.approvedMaximumPricePence) throw Object.assign(new Error("automatic-dispatch-price-approval-mismatch"), { code: "P0001" });
+          }
           const result = await client.query("SELECT tideway_private.configure_automatic_dispatch($1::uuid,$2::boolean,$3::smallint) AS dispatch", [requestId, choice.enabled, choice.attemptLimit]);
-          return result.rows[0]?.dispatch;
+          return result.rows[0]?.dispatch ? { ...result.rows[0].dispatch, maximumCustomerPricePence: choice.enabled ? choice.approvedMaximumPricePence : null } : null;
         } catch (error) {
           const mapped = {
             "request-not-found": [404, "request-not-found", "The cleaning request was not found."],
             "request-not-dispatch-configurable": [409, "request-not-dispatch-configurable", "Automatic matching can only be changed for an open future request."],
-            "invalid-automatic-dispatch-choice": [400, "invalid-automatic-dispatch-choice", "Choose a valid automatic-matching option."]
+            "invalid-automatic-dispatch-choice": [400, "invalid-automatic-dispatch-choice", "Choose a valid automatic-matching option."],
+            "automatic-dispatch-price-approval-mismatch": [409, "automatic-dispatch-price-approval-mismatch", "The approved maximum does not match this request. Review the saved maximum before authorizing matching."]
           }[error?.message];
           if (!mapped) throw error;
           throw Object.assign(new Error(mapped[2]), { statusCode: mapped[0], code: mapped[1], cause: error });

@@ -1,4 +1,5 @@
-import { notificationActionPath, notificationPresentation, notificationWorkspacePath } from "./notification-inbox-model.js";
+import { readSignedInAccount } from "./account-menu.js?v=20260718-3";
+import { notificationActionPath, notificationPresentation, notificationWorkspace } from "./notification-inbox-model.js";
 
 const gate = document.querySelector("[data-notification-gate]");
 const gateTitle = document.querySelector("[data-notification-gate-title]");
@@ -13,6 +14,11 @@ const unread = document.querySelector("[data-unread-count]");
 const markAll = document.querySelector("[data-mark-all-read]");
 const loadMore = document.querySelector("[data-load-more]");
 const workspaceLinks = [...document.querySelectorAll("[data-workspace-link], [data-empty-workspace-link]")];
+const workspaceNavigations = [...document.querySelectorAll("[data-workspace-nav]")];
+const workspaceBrand = document.querySelector("[data-workspace-brand]");
+const workspacePill = document.querySelector("[data-workspace-pill]");
+const workspaceHeading = document.querySelector("[data-workspace-heading]");
+const workspaceHeader = document.querySelector("[data-workspace-header]");
 
 let notifications = [];
 let unreadCount = 0;
@@ -47,6 +53,21 @@ function showFeedback(message, kind = "error") {
   feedback.textContent = message;
   feedback.dataset.kind = kind;
   feedback.hidden = !message;
+}
+
+function showWorkspace(account) {
+  const workspace = notificationWorkspace(account);
+  for (const link of workspaceLinks) link.href = workspace.path;
+  for (const navigation of workspaceNavigations) navigation.hidden = navigation.dataset.workspaceNav !== workspace.role;
+  if (workspaceBrand) {
+    workspaceBrand.href = workspace.path;
+    workspaceBrand.setAttribute("aria-label", `Homle ${workspace.label} dashboard`);
+  }
+  if (workspacePill) workspacePill.textContent = workspace.label;
+  if (workspaceHeading) workspaceHeading.textContent = `${workspace.label} updates`;
+  document.body.classList.toggle("cleaner-workspace-page", workspace.role === "cleaner");
+  document.body.classList.toggle("landlord-dashboard-page", workspace.role === "landlord");
+  workspaceHeader?.classList.toggle("cleaner-site-header", workspace.role === "cleaner");
 }
 
 function formattedTime(value) {
@@ -130,13 +151,12 @@ async function load(initial = true) {
       query.set("beforeNotificationId", nextCursor.beforeNotificationId);
     }
     const [accountResult, notificationResult] = await Promise.all([
-      initial ? requestJson("/api/marketplace/account") : Promise.resolve(null),
+      initial ? readSignedInAccount() : Promise.resolve(null),
       requestJson(`/api/marketplace/notifications?${query}`)
     ]);
     if (initial) {
       notifications = [];
-      const workspacePath = notificationWorkspacePath(accountResult.account);
-      for (const link of workspaceLinks) link.href = workspacePath;
+      showWorkspace(accountResult.account);
     }
     appendPage(notificationResult);
     gate.hidden = true;

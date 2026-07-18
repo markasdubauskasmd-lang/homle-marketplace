@@ -1,3 +1,5 @@
+import { roomScanSummary } from "./request-status-model.js";
+
 const token = location.hash.slice(1);
 if (token) history.replaceState(null, "", location.pathname);
 
@@ -103,10 +105,7 @@ function renderStatus(result) {
 
   const scanSection = document.querySelector("[data-scan-summary]");
   if (result.roomScan) {
-    const reviewed = result.roomScan.status === "reviewed";
-    setText("[data-scan-detail]", reviewed
-      ? `${result.roomScan.photoCount} photos · ${result.roomScan.taskCount} cleaner tasks · ${result.roomScan.reviewedHours} reviewed hours · ${result.roomScan.confidence} confidence`
-      : `${result.roomScan.photoCount} photos · ${result.roomScan.taskCount} cleaner tasks · ${result.roomScan.status}`);
+    setText("[data-scan-detail]", roomScanSummary(result.roomScan));
     const confirmedExtras = document.querySelector("[data-confirmed-extras]");
     confirmedExtras.hidden = !result.roomScan.confirmedExtras?.length;
     confirmedExtras.textContent = result.roomScan.confirmedExtras?.length ? `Included in the reviewed time: ${result.roomScan.confirmedExtras.join(", ")}.` : "";

@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { notificationActionPath, notificationBookingPath, notificationPresentation, notificationUnreadBadge, notificationWorkspacePath } from "../public/notification-inbox-model.js";
+import { notificationActionPath, notificationBookingPath, notificationPresentation, notificationUnreadBadge, notificationWorkspace, notificationWorkspacePath } from "../public/notification-inbox-model.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -21,12 +21,14 @@ assert(notificationActionPath("booking-confirmed", bookingId) === `/bookings/${b
 assert(notificationWorkspacePath({ selectedRole: "landlord", roles: ["landlord"] }) === "/landlord/dashboard", "Landlords do not return to their workspace.");
 assert(notificationWorkspacePath({ selectedRole: "cleaner", roles: ["cleaner"] }) === "/cleaner/dashboard", "Cleaners do not return to their workspace.");
 assert(notificationWorkspacePath({ selectedRole: "cleaner", roles: ["landlord"] }) === "/login", "A role mismatch does not fail closed.");
+assert(notificationWorkspace({ selectedRole: "landlord", roles: ["landlord"] }).label === "Landlord" && notificationWorkspace({ selectedRole: "cleaner", roles: ["cleaner"] }).label === "Cleaner", "The inbox cannot present the active role as a distinct workspace.");
 assert(notificationUnreadBadge(3).visible && notificationUnreadBadge(3).label === "3" && notificationUnreadBadge(100).label === "99+", "Unread counts are not presented compactly.");
 assert(!notificationUnreadBadge(0).visible && !notificationUnreadBadge(-1).visible && !notificationUnreadBadge("not-a-count").visible, "Invalid or empty unread counts create a badge.");
 
-const [page, script, badgeScript, model, styles, server, cleanerDashboard, landlordDashboard, packageFile] = await Promise.all([
+const [page, script, accountMenu, badgeScript, model, styles, server, cleanerDashboard, landlordDashboard, packageFile] = await Promise.all([
   readFile(new URL("../public/notifications.html", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/account-menu.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notification-badge.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notification-inbox-model.js", import.meta.url), "utf8"),
   readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
@@ -38,7 +40,10 @@ const [page, script, badgeScript, model, styles, server, cleanerDashboard, landl
 
 for (const selectedCopy of ["Updates", "Mark all read", "You are all caught up.", "Load earlier updates"]) assert(page.includes(selectedCopy), `The inbox omitted ${selectedCopy}.`);
 assert(page.includes('role="status"') && page.includes('aria-live="polite"') && page.includes('data-notification-retry'), "The inbox lacks accessible loading, retry or update states.");
+assert(page.includes('data-workspace-nav="cleaner"') && page.includes('data-workspace-nav="landlord"') && page.includes('aria-label="Cleaner navigation"') && page.includes('aria-label="Landlord navigation"') && page.includes('data-account-menu') && page.includes('data-account-avatar'), "Updates do not retain separate Cleaner and Landlord navigation or the signed-in account picture.");
 assert(script.includes('/api/marketplace/notifications?') && script.includes('/api/marketplace/notifications/read-all') && script.includes('/read`'), "The inbox is not connected to list and read APIs.");
+assert(script.includes('readSignedInAccount()') && script.includes('showWorkspace(accountResult.account)') && script.includes('workspace.role === "cleaner"') && script.includes('workspace.role === "landlord"'), "The Updates page does not restore the exact signed-in workspace without a second account request.");
+assert(accountMenu.includes("export function readSignedInAccount()") && accountMenu.includes("signedInAccountRequest = null") && accountMenu.includes('requestJson("/api/marketplace/account"'), "Shared account hydration cannot recover after a temporary account-read failure.");
 assert(script.includes('"X-CSRF-Token"') && script.includes('credentials: "same-origin"') && script.includes("keepalive: true"), "Read mutations lost session, CSRF or navigation-safe delivery.");
 assert(script.includes("replaceChildren") && script.includes("textContent") && !script.includes("innerHTML"), "Notification content is not rendered with safe DOM operations.");
 assert(script.includes("inboxCutoff") && script.includes("cutoffCreatedAt"), "Mark-all-read is not protected by a race-safe cutoff.");
@@ -47,7 +52,7 @@ assert(server.includes('"/notifications": "notifications.html"') && cleanerDashb
 assert(cleanerDashboard.includes("data-notification-link") && cleanerDashboard.includes("data-notification-count") && cleanerDashboard.includes("notification-badge.js") && landlordDashboard.includes("data-notification-link") && landlordDashboard.includes("data-notification-count") && landlordDashboard.includes("notification-badge.js"), "Unread updates are not visible from both role dashboards.");
 assert(badgeScript.includes('/api/marketplace/notifications?limit=1') && badgeScript.includes('credentials: "same-origin"') && badgeScript.includes('cache: "no-store"') && badgeScript.includes("event.persisted") && badgeScript.includes('document.visibilityState === "visible"'), "The dashboard badge is not private, bounded or refreshed after returning to the page.");
 assert(badgeScript.includes("textContent") && !badgeScript.includes("innerHTML") && !badgeScript.includes("setInterval"), "The dashboard badge uses unsafe rendering or constant polling.");
-assert(styles.includes(".cleaner-dashboard-page .directory-nav a:first-child") && styles.includes(".landlord-dashboard-page .directory-nav a:first-child") && styles.includes(".notifications-page .directory-nav a"), "Mobile navigation can hide the Updates or workspace return action.");
+assert(styles.includes(".cleaner-workspace-page .directory-nav, .landlord-dashboard-page .directory-nav") && styles.includes(".cleaner-workspace-page .directory-nav a, .landlord-dashboard-page .directory-nav a") && styles.includes(".notifications-page .directory-nav a") && styles.includes(".workspace-role-nav[hidden]"), "Mobile navigation can hide the Updates or workspace return action.");
 assert(packageFile.includes("tests/notification-inbox-ui.mjs"), "Notification inbox verification is not part of the project gate.");
 
 console.log("Notification inbox UI tests passed: private role return, safe event copy, pagination, read controls, mobile states and booking actions.");

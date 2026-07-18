@@ -7,9 +7,9 @@
   <meta name="theme-color" content="#0e665b">
   <title>Landlord dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260718-74">
-  <script src="/landlord-dashboard.js?v=20260718-14" type="module"></script>
-  <script src="/account-menu.js?v=20260718-1" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260718-80">
+  <script src="/landlord-dashboard.js?v=20260718-31" type="module"></script>
+  <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
@@ -17,14 +17,14 @@
   <header class="site-header">
     <div class="shell nav-wrap">
       <div class="workspace-brand"><a class="brand" href="/landlord/dashboard" aria-label="Homle Landlord dashboard"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill landlord-workspace-pill">Landlord</span></div>
-      <nav class="directory-nav landlord-dashboard-nav" aria-label="Landlord dashboard navigation"><a href="/landlord/dashboard" aria-current="page">Dashboard</a><a href="#properties-title">Properties</a><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaners">Find a Cleaner</a></nav>
-      <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="#landlord-account-title" data-open-account-tab>Landlord profile</a><a href="#properties-title">Manage properties</a><a href="/settings">Sign-in and privacy</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details>
+      <nav class="directory-nav landlord-dashboard-nav" aria-label="Landlord dashboard navigation"><a href="/landlord/dashboard" aria-current="page">Dashboard</a><a href="#landlord-properties" data-open-landlord-section="properties">Properties</a><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaners">Find a Cleaner</a></nav>
+      <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="#landlord-account" data-open-landlord-section="account">Landlord profile</a><a href="#landlord-properties" data-open-landlord-section="properties">Manage properties</a><a href="/settings">Sign-in and privacy</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details>
     </div>
   </header>
 
   <main id="landlord-main" class="landlord-dashboard-main shell">
     <section class="landlord-dashboard-state" data-landlord-state role="status" aria-live="polite">
-      <span aria-hidden="true">i</span><div><strong data-landlord-state-title>Checking secure Landlord access…</strong><p data-landlord-state-copy>Your properties and drafts open only inside an authenticated Landlord session.</p><div><a class="button" href="/login?intent=book" data-landlord-sign-in hidden>Sign in as a Landlord</a><button class="button button-outline" type="button" data-landlord-retry hidden>Try again</button></div></div>
+      <span aria-hidden="true">i</span><div><strong data-landlord-state-title>Checking secure Landlord access…</strong><p data-landlord-state-copy>Your properties and drafts open only inside an authenticated Landlord session.</p><div><a class="button" href="/login?intent=book" data-landlord-sign-in hidden>Sign in as a Landlord</a><a class="button button-outline" href="/landlord/dashboard" data-landlord-workspace-link hidden>Open dashboard</a><button class="button button-outline" type="button" data-landlord-retry hidden>Try again</button></div></div>
     </section>
 
     <section class="brief-complete-card landlord-request-complete" data-request-complete hidden aria-labelledby="request-complete-title" tabindex="-1">
@@ -50,6 +50,9 @@
       <section class="landlord-network-status" data-landlord-network-status role="status" aria-live="polite" hidden>
         <span aria-hidden="true">!</span><div><strong>You are offline.</strong><p>Your unfinished walkthrough and selected room photos stay in this tab. Reconnect before saving or uploading; Homle will not retry a change automatically.</p></div>
       </section>
+      <section class="dashboard-partial-status" data-landlord-load-status role="status" aria-live="polite" hidden>
+        <span aria-hidden="true">!</span><div><strong>Your Landlord account is open, but some information could not be refreshed.</strong><p>No property, request or booking was changed. Try again to load the complete dashboard.</p></div><button class="button button-outline" type="button" data-landlord-load-retry>Try again</button>
+      </section>
       <section class="landlord-dashboard-heading landlord-dashboard-identity">
         <div class="role-dashboard-person landlord-dashboard-person"><span class="role-account-avatar landlord-role-avatar" data-account-avatar aria-hidden="true">H</span><div><p class="eyebrow">Signed in as Landlord</p><strong data-account-name>Your account</strong><small data-account-email></small></div></div>
         <div class="role-dashboard-welcome"><p class="eyebrow">Landlord dashboard</p><h1>Welcome, <span data-landlord-name>Landlord</span>.</h1><p>Manage properties, scan rooms, book a Cleaner and track every confirmed clean from one private account.</p></div>
@@ -69,6 +72,7 @@
 
       <section class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
         <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p><h2 id="landlord-bookings-title">Active and upcoming bookings</h2></div><div class="landlord-booking-live"><span data-landlord-booking-live role="status" aria-live="polite">Checking private booking updates…</span><button class="text-button" type="button" data-landlord-booking-refresh>Refresh booking status</button></div></div>
+        <section class="landlord-waiting-section" data-landlord-waiting-section aria-labelledby="landlord-waiting-title" hidden><div><p class="eyebrow">Cleaner decision pending</p><h3 id="landlord-waiting-title">Waiting for a Cleaner response <span data-landlord-waiting-count>0</span></h3><p>The exact deadline below is private booking state shared with you. Homle updates this page when the Cleaner responds.</p></div><div class="booking-dashboard-list landlord-waiting-list" data-landlord-waiting-list></div></section>
         <div class="booking-dashboard-list" data-landlord-booking-list></div>
         <div class="booking-dashboard-empty" data-landlord-booking-empty><strong>No confirmed marketplace bookings yet.</strong><p>Private request drafts below do not become bookings until a Cleaner accepts the frozen time, scope and price.</p></div>
         <details class="booking-history-section" data-landlord-history-section hidden><summary>Completed and closed bookings <span data-landlord-history-count>0</span></summary><div class="booking-dashboard-list" data-landlord-history-list></div></details>
@@ -76,6 +80,7 @@
           <div class="landlord-history-heading"><div><p class="eyebrow">Your cleaning history</p><h3 id="landlord-history-overview-title">A clear record of completed work.</h3></div><p>Only booking information from this Landlord account appears here.</p></div>
           <dl class="landlord-history-stats"><div><dt>Completed cleans</dt><dd data-landlord-completed-count>0</dd></div><div><dt>Awaiting your confirmation</dt><dd data-landlord-awaiting-count>0</dd></div><div><dt>Completed booking value</dt><dd data-landlord-completed-value>&pound;0.00</dd></div><div><dt>Cleaner visits</dt><dd data-landlord-previous-count>0</dd></div></dl>
           <div class="landlord-previous-cleaners"><strong>Cleaners you have booked before</strong><div class="landlord-previous-cleaner-list" data-landlord-previous-cleaners></div><p data-landlord-previous-empty>Previous Cleaners appear here after a completed clean. Their personal contact details are never shown.</p></div>
+          <div class="landlord-favourite-cleaners"><div class="landlord-favourite-heading"><div><strong>Favourite Cleaners</strong><p>Save public profiles for a quicker future cleaning request.</p></div><a class="text-button" href="/cleaners">Find a Cleaner</a></div><div class="landlord-favourite-list" data-landlord-favourite-cleaners></div><p data-landlord-favourite-empty>No saved Cleaners yet. Saving a Cleaner never creates a booking or shares private contact details.</p><div class="landlord-form-feedback" data-landlord-favourite-feedback role="status" aria-live="polite" hidden></div></div>
         </section>
       </section>
 
@@ -83,9 +88,9 @@
         <span aria-hidden="true">01</span><div><p class="eyebrow">Room scan is the core booking input</p><h2 id="scan-boundary-title">Speak, save, photograph, then submit.</h2><p>First create a private request draft from your spoken room walkthrough. Then add at least one private room photo, check the concise Cleaner instructions and deliberately open the request for matching.</p></div><button class="button" type="button" data-open-request-tab>Prepare a room scan</button>
       </section>
 
-      <nav class="landlord-workspace-tabs" aria-label="Landlord workspace sections"><button type="button" class="current" data-landlord-tab="properties" aria-selected="true">Properties</button><button type="button" data-landlord-tab="requests" aria-selected="false">Request drafts</button><button type="button" data-landlord-tab="account" aria-selected="false">Account</button></nav>
+      <nav class="landlord-workspace-tabs" role="tablist" aria-label="Landlord workspace sections"><button type="button" class="current" role="tab" data-landlord-tab="properties" aria-controls="landlord-panel-properties" aria-selected="true">Properties</button><button type="button" role="tab" data-landlord-tab="requests" aria-controls="landlord-panel-requests" aria-selected="false" tabindex="-1">Request drafts</button><button type="button" role="tab" data-landlord-tab="account" aria-controls="landlord-panel-account" aria-selected="false" tabindex="-1">Account</button></nav>
 
-      <section data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title">
+      <section id="landlord-panel-properties" role="tabpanel" data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title">
         <div class="landlord-panel-heading"><div><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your properties</h2></div><button class="button button-outline" type="button" data-toggle-property-form>Add property</button></div>
         <div class="landlord-empty-card" data-property-empty><strong>No account properties yet.</strong><p>Add a property to prepare a private request draft. Nothing is published to Cleaner search.</p></div>
         <div class="landlord-property-grid" data-property-list hidden></div>
@@ -115,7 +120,7 @@
         </form>
       </section>
 
-      <section data-landlord-panel="account" class="landlord-workspace-panel" aria-labelledby="landlord-account-title" hidden>
+      <section id="landlord-panel-account" role="tabpanel" data-landlord-panel="account" class="landlord-workspace-panel" aria-labelledby="landlord-account-title" hidden>
         <div class="landlord-panel-heading"><div><p class="eyebrow">Private Landlord profile</p><h2 id="landlord-account-title">Your account details</h2><p>These details help Homle understand who manages the properties. They are not shown to Cleaners as personal contact information.</p></div><span class="landlord-private-pill">Private account</span></div>
         <form class="landlord-record-form landlord-profile-form" data-landlord-profile-form novalidate>
           <fieldset data-landlord-profile-controls>
@@ -129,12 +134,17 @@
         <aside class="landlord-account-security"><div><p class="eyebrow">Account security</p><h3>Sign-in methods and privacy</h3><p>Connect Google or Facebook, review privacy requests and manage secure access separately from property and Cleaner information.</p></div><a class="button button-outline" href="/settings">Open account security</a></aside>
       </section>
 
-      <section data-landlord-panel="requests" class="landlord-workspace-panel" aria-labelledby="requests-title" hidden>
+      <section id="landlord-panel-requests" role="tabpanel" data-landlord-panel="requests" class="landlord-workspace-panel" aria-labelledby="requests-title" hidden>
         <div class="landlord-panel-heading"><div><p class="eyebrow">Not sent for matching</p><h2 id="requests-title">Cleaning request drafts</h2></div><span class="landlord-private-pill">Private drafts only</span></div>
 
         <form class="landlord-record-form landlord-request-form" data-request-form novalidate>
           <fieldset data-request-controls>
             <div class="landlord-form-title"><div><p class="eyebrow">Prepare scope</p><h3>Save a cleaning request draft</h3></div><span>Matching stays off</span></div>
+            <section class="landlord-selected-cleaner" data-landlord-selected-cleaner hidden aria-labelledby="selected-cleaner-title">
+              <span class="landlord-selected-cleaner-avatar" data-landlord-selected-cleaner-avatar aria-hidden="true">C</span>
+              <div><p class="eyebrow">Selected Cleaner</p><h4 id="selected-cleaner-title" data-landlord-selected-cleaner-name>Checking current public profile…</h4><p data-landlord-selected-cleaner-evidence>Homle is verifying this selection before it can be invited.</p><small data-landlord-selected-cleaner-status role="status" aria-live="polite"></small></div>
+              <div class="landlord-selected-cleaner-actions"><a class="text-button" href="/cleaners">Change Cleaner</a><button class="text-button" type="button" data-landlord-selected-cleaner-clear>Use best match instead</button></div>
+            </section>
             <div class="landlord-sole-property" data-sole-property hidden><span>Cleaning property</span><strong data-sole-property-name></strong><small>Your only saved property is selected automatically.</small></div>
             <label data-property-select-label>Property<select name="propertyId" required data-property-select><option value="">Add a property first</option></select></label>
             <div class="field-row"><label>Date<input name="requestedDate" type="date" required></label><label>Start time<input name="requestedTime" type="time" required></label></div>
@@ -173,6 +183,25 @@
       </section>
     </div>
   </main>
+
+  <dialog class="active-job-dialog landlord-invitation-quote-dialog" data-invitation-quote-dialog aria-labelledby="invitation-quote-title">
+    <form method="dialog">
+      <div><p class="eyebrow">One price approval</p><h2 id="invitation-quote-title">Review the exact total</h2><p>Homle calculated this from the reviewed rooms, booked time and the Cleaner’s current service price.</p></div>
+      <div class="landlord-invitation-quote-person"><span>Cleaner</span><strong data-invitation-quote-cleaner>Selected Cleaner</strong></div>
+      <div class="landlord-invitation-quote-total"><span>Your exact booking total</span><strong data-invitation-quote-price>&pound;0.00</strong></div>
+      <p>No payment is taken now. If the Cleaner accepts, this total is frozen for the agreed checklist and time.</p>
+      <div><button class="button button-outline" type="submit" value="cancel">Keep request open</button><button class="button" type="submit" value="approve" data-invitation-quote-approve>Invite at this price</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="active-job-dialog landlord-invitation-quote-dialog" data-dispatch-price-dialog aria-labelledby="dispatch-price-title">
+    <form method="dialog">
+      <div><p class="eyebrow">One spending limit</p><h2 id="dispatch-price-title">Approve your maximum</h2><p>Homle may invite only an eligible Cleaner whose exact total is at or below this saved limit.</p></div>
+      <div class="landlord-invitation-quote-total"><span>Maximum total for this clean</span><strong data-dispatch-price-maximum>&pound;0.00</strong></div>
+      <p data-dispatch-price-attempts>Homle will authorize one Cleaner invitation. No payment is taken now, and a Cleaner must still accept.</p>
+      <div><button class="button button-outline" type="submit" value="cancel">Not now</button><button class="button" type="submit" value="approve" data-dispatch-price-approve>Approve this maximum</button></div>
+    </form>
+  </dialog>
 
   <dialog class="active-job-dialog landlord-withdraw-dialog" data-request-withdraw-dialog>
     <form method="dialog" data-request-withdraw-form>

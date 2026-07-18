@@ -1,16 +1,18 @@
 import { checklistFromTranscript } from "./checklist.js";
-import { clearSelectedCleaner, readSelectedCleaner } from "./account-intent.js";
+import { clearSelectedCleaner, clearSelectedProperty, readSelectedCleaner, readSelectedProperty, saveSelectedCleaner, saveSelectedProperty } from "./account-intent.js?v=20260718-2";
 import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
 import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
-import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
+import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
+import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { landlordDispatchAction, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260717-6";
-import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-2";
+import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-5";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
 const stateCopy = document.querySelector("[data-landlord-state-copy]");
 const signIn = document.querySelector("[data-landlord-sign-in]");
+const workspaceLink = document.querySelector("[data-landlord-workspace-link]");
 const retry = document.querySelector("[data-landlord-retry]");
 const workspace = document.querySelector("[data-landlord-workspace]");
 const requestComplete = document.querySelector("[data-request-complete]");
@@ -37,6 +39,14 @@ const propertyFormTitle = document.querySelector("[data-property-form-title]");
 const requestFeedback = document.querySelector("[data-request-feedback]");
 const requestRecoveryStatus = document.querySelector("[data-request-recovery-status]");
 const requestStatus = document.querySelector("[data-request-status]");
+const invitationQuoteDialog = document.querySelector("[data-invitation-quote-dialog]");
+const invitationQuoteCleaner = document.querySelector("[data-invitation-quote-cleaner]");
+const invitationQuotePrice = document.querySelector("[data-invitation-quote-price]");
+const invitationQuoteApprove = document.querySelector("[data-invitation-quote-approve]");
+const dispatchPriceDialog = document.querySelector("[data-dispatch-price-dialog]");
+const dispatchPriceMaximum = document.querySelector("[data-dispatch-price-maximum]");
+const dispatchPriceAttempts = document.querySelector("[data-dispatch-price-attempts]");
+const dispatchPriceApprove = document.querySelector("[data-dispatch-price-approve]");
 const requestWithdrawDialog = document.querySelector("[data-request-withdraw-dialog]");
 const requestWithdrawForm = document.querySelector("[data-request-withdraw-form]");
 const requestWithdrawFeedback = document.querySelector("[data-request-withdraw-feedback]");
@@ -57,11 +67,20 @@ const nextLink = document.querySelector("[data-landlord-next-link]");
 const nextButton = document.querySelector("[data-landlord-next-button]");
 const mediaReadiness = document.querySelector("[data-landlord-media-readiness]");
 const networkStatus = document.querySelector("[data-landlord-network-status]");
+const loadStatus = document.querySelector("[data-landlord-load-status]");
+const loadRetry = document.querySelector("[data-landlord-load-retry]");
 const bookingLiveStatus = document.querySelector("[data-landlord-booking-live]");
 const bookingRefresh = document.querySelector("[data-landlord-booking-refresh]");
+const selectedCleanerSummary = document.querySelector("[data-landlord-selected-cleaner]");
+const selectedCleanerAvatar = document.querySelector("[data-landlord-selected-cleaner-avatar]");
+const selectedCleanerName = document.querySelector("[data-landlord-selected-cleaner-name]");
+const selectedCleanerEvidence = document.querySelector("[data-landlord-selected-cleaner-evidence]");
+const selectedCleanerStatus = document.querySelector("[data-landlord-selected-cleaner-status]");
+const selectedCleanerClear = document.querySelector("[data-landlord-selected-cleaner-clear]");
 let properties = [];
 let requests = [];
 let bookings = [];
+let favouriteCleaners = [];
 let landlordProfile = null;
 let recognition = null;
 let listening = false;
@@ -80,11 +99,18 @@ let requestRecoveryTimer = null;
 let invitationStream = null;
 let invitationStreamKey = "";
 let bookingTransitionRefresh = null;
+let landlordInvitationDeadlineTimer = null;
+let expiredWaitingRefreshNeeded = false;
+let refreshingExpiredWaiting = false;
 const requestScans = new Map();
 const uncertainDispatchRequests = new Set();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
 let selectedCleanerId = "";
+let selectedPropertyId = "";
+let selectedCleanerProfile = null;
+let selectedCleanerVerificationState = "none";
 try { if (bookingStart) selectedCleanerId = readSelectedCleaner(localStorage); } catch {}
+try { if (bookingStart) selectedPropertyId = readSelectedProperty(sessionStorage); } catch {}
 
 function browserOffline() {
   return navigator.onLine === false;
@@ -148,13 +174,18 @@ function element(name, className, text) {
   return node;
 }
 
-function showState(title, copy, { kind = "info", allowSignIn = false, allowRetry = false } = {}) {
+function showState(title, copy, { kind = "info", allowSignIn = false, allowRetry = false, workspaceDestination = "", workspaceLabel = "" } = {}) {
   state.dataset.kind = kind;
   state.hidden = false;
   stateTitle.textContent = title;
   stateCopy.textContent = copy;
   signIn.hidden = !allowSignIn;
   retry.hidden = !allowRetry;
+  workspaceLink.hidden = !workspaceDestination;
+  if (workspaceDestination) {
+    workspaceLink.href = workspaceDestination;
+    workspaceLink.textContent = `Open ${workspaceLabel} dashboard`;
+  }
   workspace.hidden = true;
   requestComplete.hidden = true;
 }
@@ -214,7 +245,7 @@ function renderTaskPreview() {
   }
 }
 
-function showRequestCompletion(submission, { automaticDispatch = false, selectedCleanerInvited = false, warning = "" } = {}) {
+function showRequestCompletion(submission, { automaticDispatch = false, automaticMaximumPricePence = null, selectedCleanerInvited = false, selectedCleanerPricePence = null, warning = "" } = {}) {
   const photos = Number(submission?.photoCount);
   const tasks = Number(submission?.taskCount);
   requestCompleteReference.textContent = submission?.cleaningRequestId || "Recorded privately";
@@ -222,9 +253,9 @@ function showRequestCompletion(submission, { automaticDispatch = false, selected
   requestCompleteLead.textContent = warning
     ? "Your reviewed scan is submitted for matching. No booking or payment exists yet."
     : selectedCleanerInvited
-    ? "Your reviewed scan is submitted and the selected Cleaner has been invited. This becomes a booking only if they accept."
+    ? `Your reviewed scan is submitted and the selected Cleaner has been invited at ${formatBookingMoney(selectedCleanerPricePence)}. This becomes a booking only if they accept.`
     : automaticDispatch
-    ? "Your reviewed scan is submitted and Homle is authorised to invite an eligible profitable match within your chosen attempt limit."
+    ? `Your reviewed scan is submitted and Homle is authorised to invite an eligible profitable match costing no more than ${formatBookingMoney(automaticMaximumPricePence)} within your chosen attempt limit.`
     : "Your reviewed scan is submitted for matching. No Cleaner has been invited automatically.";
   requestCompleteWarning.textContent = warning;
   requestCompleteWarning.hidden = !warning;
@@ -235,18 +266,140 @@ function showRequestCompletion(submission, { automaticDispatch = false, selected
   requestComplete.focus();
 }
 
-function clearCleanerSelection() {
-  try { clearSelectedCleaner(localStorage); } catch {}
-  selectedCleanerId = "";
+function approveInvitationQuote(quote, cleanerName) {
+  const pricePence = Number(quote?.customerPricePence);
+  if (!Number.isInteger(pricePence) || pricePence < 1 || pricePence > 10_000_000) throw new Error("The exact booking total could not be verified.");
+  const formattedPrice = formatBookingMoney(pricePence);
+  invitationQuoteCleaner.textContent = cleanerName || "Selected Cleaner";
+  invitationQuotePrice.textContent = formattedPrice;
+  invitationQuoteApprove.textContent = `Invite for ${formattedPrice}`;
+  if (typeof invitationQuoteDialog.showModal !== "function") return Promise.resolve(window.confirm(`Invite ${cleanerName || "this Cleaner"} for the exact total ${formattedPrice}? No payment is taken now.`));
+  invitationQuoteDialog.returnValue = "";
+  return new Promise((resolve) => {
+    invitationQuoteDialog.addEventListener("close", () => resolve(invitationQuoteDialog.returnValue === "approve"), { once: true });
+    invitationQuoteDialog.showModal();
+  });
 }
 
-function selectWorkspaceTab(name) {
+function automaticMaximumPrice(request) {
+  const value = Number(request?.budgetPence);
+  return Number.isInteger(value) && value >= 1 && value <= 10_000_000 ? value : null;
+}
+
+function approveAutomaticDispatchPrice(maximumPricePence, attemptLimit) {
+  if (!Number.isInteger(maximumPricePence) || maximumPricePence < 1 || maximumPricePence > 10_000_000) throw new Error("Add a maximum booking total before authorizing automatic matching.");
+  const formattedPrice = formatBookingMoney(maximumPricePence);
+  const boundedAttempts = Number(attemptLimit);
+  dispatchPriceMaximum.textContent = formattedPrice;
+  dispatchPriceAttempts.textContent = `Homle may make ${boundedAttempts === 1 ? "one invitation attempt" : `up to ${boundedAttempts} invitation attempts`} for this one clean, but no quoted total may exceed ${formattedPrice}. No payment is taken now, and a Cleaner must still accept.`;
+  dispatchPriceApprove.textContent = `Approve maximum ${formattedPrice}`;
+  if (typeof dispatchPriceDialog.showModal !== "function") return Promise.resolve(window.confirm(`Allow Cleaner matching only when the exact total is ${formattedPrice} or less? No payment is taken now.`));
+  dispatchPriceDialog.returnValue = "";
+  return new Promise((resolve) => {
+    dispatchPriceDialog.addEventListener("close", () => resolve(dispatchPriceDialog.returnValue === "approve"), { once: true });
+    dispatchPriceDialog.showModal();
+  });
+}
+
+function selectedCleanerInitials(name) {
+  const parts = String(name || "Cleaner").trim().split(/\s+/).filter(Boolean);
+  return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : parts[0]?.slice(0, 2) || "C").toLocaleUpperCase("en-GB");
+}
+
+function safePublicPhoto(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "https:" && !url.username && !url.password ? url.toString() : "";
+  } catch { return ""; }
+}
+
+function renderSelectedCleaner() {
+  const visible = Boolean(selectedCleanerId) || ["unavailable", "error"].includes(selectedCleanerVerificationState);
+  selectedCleanerSummary.hidden = !visible;
+  if (!visible) return;
+  const ready = selectedCleanerVerificationState === "ready" && selectedCleanerProfile;
+  const displayName = ready ? selectedCleanerProfile.displayName : selectedCleanerVerificationState === "unavailable" ? "Cleaner no longer available" : selectedCleanerVerificationState === "error" ? "Selection not verified" : "Checking current public profile…";
+  selectedCleanerName.textContent = displayName;
+  selectedCleanerAvatar.replaceChildren(document.createTextNode(selectedCleanerInitials(displayName)));
+  if (ready) {
+    const photo = safePublicPhoto(selectedCleanerProfile.profilePhotoUrl);
+    if (photo) {
+      const image = document.createElement("img");
+      image.src = photo;
+      image.alt = "";
+      image.width = 56;
+      image.height = 56;
+      image.decoding = "async";
+      image.referrerPolicy = "no-referrer";
+      image.addEventListener("error", () => selectedCleanerAvatar.replaceChildren(document.createTextNode(selectedCleanerInitials(displayName))), { once: true });
+      selectedCleanerAvatar.replaceChildren(image);
+    }
+    const rating = Number(selectedCleanerProfile.averageRating);
+    const reviews = Number(selectedCleanerProfile.reviewCount);
+    const reputation = Number.isFinite(rating) && reviews > 0 ? `${rating.toFixed(1)} stars from ${reviews} completed-job ${reviews === 1 ? "review" : "reviews"}` : "No completed-job reviews yet";
+    selectedCleanerEvidence.textContent = `${reputation} · ${Array.isArray(selectedCleanerProfile.services) ? selectedCleanerProfile.services.length : 0} active ${selectedCleanerProfile.services?.length === 1 ? "service" : "services"}`;
+    selectedCleanerStatus.textContent = "Verified from the Cleaner’s current public profile. This is still not a booking or invitation.";
+  } else if (selectedCleanerVerificationState === "unavailable") {
+    selectedCleanerEvidence.textContent = "The profile is no longer public and has been removed from this request. Homle will use normal matching instead.";
+    selectedCleanerStatus.textContent = "No Cleaner was invited and no booking or payment was created.";
+  } else if (selectedCleanerVerificationState === "error") {
+    selectedCleanerEvidence.textContent = "Homle could not verify the current public profile. Direct invitation stays disabled until a fresh verification succeeds.";
+    selectedCleanerStatus.textContent = "Refresh this dashboard, change Cleaner, or use the best eligible match instead.";
+  } else {
+    selectedCleanerEvidence.textContent = "Homle is verifying this selection before it can be invited.";
+    selectedCleanerStatus.textContent = "Private contact details and exact location are never loaded here.";
+  }
+}
+
+function clearSelectedCleanerChoice({ keepNotice = false } = {}) {
+  try { clearSelectedCleaner(localStorage); } catch {}
+  selectedCleanerId = "";
+  selectedCleanerProfile = null;
+  if (!keepNotice) selectedCleanerVerificationState = "none";
+  renderSelectedCleaner();
+}
+
+function clearCleanerSelection() {
+  clearSelectedCleanerChoice();
+  try { clearSelectedProperty(sessionStorage); } catch {}
+  selectedPropertyId = "";
+}
+
+async function refreshSelectedCleanerProfile() {
+  if (!selectedCleanerId) return renderSelectedCleaner();
+  selectedCleanerVerificationState = "loading";
+  selectedCleanerProfile = null;
+  renderSelectedCleaner();
+  try {
+    const result = await requestJson(`/api/marketplace/cleaners/${encodeURIComponent(selectedCleanerId)}`);
+    if (!result.cleaner || result.cleaner.cleanerId !== selectedCleanerId) throw new Error("Homle returned a different Cleaner profile.");
+    selectedCleanerProfile = result.cleaner;
+    selectedCleanerVerificationState = "ready";
+  } catch (error) {
+    if (error.statusCode === 404) {
+      selectedCleanerVerificationState = "unavailable";
+      clearSelectedCleanerChoice({ keepNotice: true });
+    } else selectedCleanerVerificationState = "error";
+  }
+  renderSelectedCleaner();
+  renderRequests();
+}
+
+function workspaceTabFromHash() {
+  const match = /^#landlord-(properties|requests|account)$/.exec(location.hash);
+  return match?.[1] || "";
+}
+
+function selectWorkspaceTab(name, { historyMode = "" } = {}) {
+  const selected = ["properties", "requests", "account"].includes(name) ? name : "properties";
   document.querySelectorAll("[data-landlord-tab]").forEach((button) => {
-    const active = button.dataset.landlordTab === name;
+    const active = button.dataset.landlordTab === selected;
     button.classList.toggle("current", active);
     button.setAttribute("aria-selected", String(active));
+    button.tabIndex = active ? 0 : -1;
   });
-  document.querySelectorAll("[data-landlord-panel]").forEach((panel) => { panel.hidden = panel.dataset.landlordPanel !== name; });
+  document.querySelectorAll("[data-landlord-panel]").forEach((panel) => { panel.hidden = panel.dataset.landlordPanel !== selected; });
+  if (historyMode === "push") history.pushState({ landlordTab: selected }, "", `#landlord-${selected}`);
 }
 
 function continueBookingStart() {
@@ -256,7 +409,13 @@ function continueBookingStart() {
     return;
   }
   selectWorkspaceTab("requests");
-  if (properties.length === 1) propertySelect.value = properties[0].propertyId;
+  if (selectedPropertyId && properties.some((property) => property.propertyId === selectedPropertyId)) propertySelect.value = selectedPropertyId;
+  else {
+    try { clearSelectedProperty(sessionStorage); } catch {}
+    selectedPropertyId = "";
+    if (properties.length === 1) propertySelect.value = properties[0].propertyId;
+  }
+  applySuggestedCleaningType();
   requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 }
@@ -432,7 +591,18 @@ function humanFileSize(value) {
 
 async function sha256(file) {
   if (!crypto?.subtle || typeof file?.arrayBuffer !== "function") throw new Error("This browser cannot verify the photo securely. Try a current mobile browser.");
-  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()))].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  let timer;
+  try {
+    const digest = await Promise.race([
+      file.arrayBuffer().then((buffer) => crypto.subtle.digest("SHA-256", buffer)),
+      new Promise((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error("This photo took too long to check securely. It is still selected; try again or choose a smaller photo.")), 15_000);
+      })
+    ]);
+    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 function checkedUploadResponse(response) {
@@ -545,8 +715,13 @@ function requestScanPanel(request) {
     libraryInput.hidden = true;
     const selected = element("span", "landlord-scan-selected", "No photos selected");
     let files = [];
+    const pendingPhotoCompletions = new WeakMap();
+    let uploadPending = false;
     const upload = element("button", "button", "Upload private room photos");
     upload.type = "submit";
+    function setUploadEditorLocked(locked) {
+      for (const control of [room, note, cameraButton, libraryButton, cameraInput, libraryInput]) control.disabled = locked || !mediaReady;
+    }
     function renderSelection() {
       if (!files.length) {
         selected.textContent = "No photos selected";
@@ -554,10 +729,17 @@ function requestScanPanel(request) {
         return;
       }
       const totalBytes = files.reduce((sum, item) => sum + item.byteSize, 0);
+      const awaitingVerification = files.filter((item) => pendingPhotoCompletions.has(item)).length;
       selected.textContent = files.length === 1 ? `${files[0].name} · ${humanFileSize(files[0].byteSize)}` : `${files.length} photos selected · ${humanFileSize(totalBytes)} total`;
+      if (awaitingVerification) {
+        selected.textContent += ` · ${awaitingVerification} securely uploaded, awaiting verification`;
+        upload.textContent = awaitingVerification === files.length ? `Verify ${awaitingVerification} uploaded ${awaitingVerification === 1 ? "photo" : "photos"}` : "Verify uploaded photos and continue";
+        return;
+      }
       upload.textContent = `Upload ${files.length} private ${files.length === 1 ? "photo" : "photos"}`;
     }
     function choose(event) {
+      if (uploadPending) { event.target.value = ""; return; }
       const candidates = event.target.files;
       event.target.value = "";
       if (!candidates?.length) return;
@@ -582,39 +764,55 @@ function requestScanPanel(request) {
     form.append(roomLabel, noteLabel, pickerActions, selected, upload);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (uploadPending) return;
       feedback.hidden = true;
       if (!form.reportValidity()) return;
       if (!files.length) return showFeedback(feedback, "Take a current room photo or choose photos from this device.");
-      const csrf = await recoverCsrf(feedback, "uploading this room photo");
-      if (!csrf) return;
       const queuedCount = files.length;
       let uploadedCount = 0;
+      uploadPending = true;
+      setUploadEditorLocked(true);
       setPending(upload, true, `Checking photo 1 of ${queuedCount}…`);
       try {
+        const csrf = await recoverCsrf(feedback, "uploading this room photo");
+        if (!csrf) return;
         while (files.length) {
           if (browserOffline()) throw Object.assign(new Error("You are offline. The remaining selected photos are still here; reconnect, then continue the upload."), { code: "browser-offline" });
           const candidate = files[0];
-          setPending(upload, true, `Checking photo ${uploadedCount + 1} of ${queuedCount}…`);
-          const checksumSha256 = await sha256(candidate.file);
-          const intent = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/intents`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ roomName: room.value, note: note.value, mimeType: candidate.mimeType, byteSize: candidate.byteSize, checksumSha256 }) });
-          const signed = intent.upload;
-          if (signed?.method !== "PUT" || !signed.uploadId || !signed.uploadUrl || !signed.requiredHeaders || Object.keys(signed.requiredHeaders).length !== 4) throw new Error("The secure upload instructions were incomplete.");
-          const destination = new URL(signed.uploadUrl);
-          if (destination.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(destination.hostname)) throw new Error("The secure upload destination was unsafe.");
-          const uploadController = new AbortController();
-          const uploadTimer = window.setTimeout(() => uploadController.abort(), 120_000);
-          try {
-            checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: candidate.file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer", signal: uploadController.signal }));
-          } catch (error) {
-            if (browserOffline()) throw Object.assign(new Error("You went offline during the private upload. The remaining selected photos are still here; reconnect, then continue."), { code: "browser-offline" });
-            if (error?.name === "AbortError") throw new Error("The private photo upload took too long. The remaining selected photos are still here; check the connection and try again.");
-            throw error;
-          } finally {
-            window.clearTimeout(uploadTimer);
+          let uploadId = pendingPhotoCompletions.get(candidate);
+          if (!uploadId) {
+            setPending(upload, true, `Checking photo ${uploadedCount + 1} of ${queuedCount}…`);
+            const checksumSha256 = await sha256(candidate.file);
+            const intent = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/intents`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ roomName: room.value, note: note.value, mimeType: candidate.mimeType, byteSize: candidate.byteSize, checksumSha256 }) });
+            const signed = intent.upload;
+            if (signed?.method !== "PUT" || !signed.uploadId || !signed.uploadUrl || !signed.requiredHeaders || Object.keys(signed.requiredHeaders).length !== 4) throw new Error("The secure upload instructions were incomplete.");
+            const destination = new URL(signed.uploadUrl);
+            if (destination.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(destination.hostname)) throw new Error("The secure upload destination was unsafe.");
+            const uploadController = new AbortController();
+            const uploadTimer = window.setTimeout(() => uploadController.abort(), 120_000);
+            try {
+              checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: candidate.file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer", signal: uploadController.signal }));
+            } catch (error) {
+              if (browserOffline()) throw Object.assign(new Error("You went offline during the private upload. The remaining selected photos are still here; reconnect, then continue."), { code: "browser-offline" });
+              if (error?.name === "AbortError") throw new Error("The private photo upload took too long. The remaining selected photos are still here; check the connection and try again.");
+              throw error;
+            } finally {
+              window.clearTimeout(uploadTimer);
+            }
+            uploadId = signed.uploadId;
+            pendingPhotoCompletions.set(candidate, uploadId);
           }
-          const completed = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/${encodeURIComponent(signed.uploadId)}/complete`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}" });
+          setPending(upload, true, `Verifying photo ${uploadedCount + 1} of ${queuedCount}…`);
+          let completed;
+          try {
+            completed = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/${encodeURIComponent(uploadId)}/complete`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}" });
+          } catch (error) {
+            if (["request-photo-upload-expired", "request-photo-upload-not-found", "request-photo-mismatch", "unsafe-request-photo", "request-photo-upload-not-allowed"].includes(error?.code)) pendingPhotoCompletions.delete(candidate);
+            throw error;
+          }
           requestScans.set(request.requestId, completed.scan);
           renderScanPhotos(request.requestId, completed.scan, list, count);
+          pendingPhotoCompletions.delete(candidate);
           files.shift();
           uploadedCount += 1;
           renderSelection();
@@ -627,7 +825,12 @@ function requestScanPanel(request) {
         renderSelection();
         showFeedback(feedback, `${uploadedCount ? `${uploadedCount} ${uploadedCount === 1 ? "photo was" : "photos were"} attached. ` : ""}${error.message}`);
       }
-      finally { setPending(upload, false, files.length ? `Upload ${files.length} remaining ${files.length === 1 ? "photo" : "photos"}` : "Upload private room photos"); }
+      finally {
+        uploadPending = false;
+        setUploadEditorLocked(false);
+        setPending(upload, false, files.length ? `Upload ${files.length} remaining ${files.length === 1 ? "photo" : "photos"}` : "Upload private room photos");
+        renderSelection();
+      }
     });
     panel.append(form);
 
@@ -647,13 +850,17 @@ function requestScanPanel(request) {
     const auto = element("input");
     auto.type = "checkbox";
     auto.name = "automaticDispatch";
-    autoLabel.append(auto, element("span", "", "After submission, automatically invite the best eligible profitable match. No booking exists until a Cleaner accepts."));
+    const automaticMaximumPricePence = automaticMaximumPrice(request);
+    autoLabel.append(auto, element("span", "", automaticMaximumPricePence == null
+      ? "Automatic matching needs a maximum booking total. Keep this request open and choose a Cleaner directly, or create a new request with a maximum."
+      : `After submission, invite the best eligible profitable match only when the exact total is ${formatBookingMoney(automaticMaximumPricePence)} or less. No booking exists until a Cleaner accepts.`));
     const preferredLabel = element("label", "checkbox landlord-preferred-cleaner");
     const preferred = element("input");
     preferred.type = "checkbox";
     preferred.name = "selectedCleanerInvitation";
-    preferred.checked = Boolean(selectedCleanerId);
-    preferredLabel.append(preferred, element("span", "", "Invite the Cleaner I selected from the directory first. Homle will recheck the room scan, availability, service fit and profitable price before sending anything. If they cannot be invited, this request stays open for matching."));
+    const selectedCleanerReady = Boolean(selectedCleanerId && selectedCleanerProfile && selectedCleanerVerificationState === "ready");
+    preferred.checked = selectedCleanerReady;
+    preferredLabel.append(preferred, element("span", "", selectedCleanerReady ? `Invite ${selectedCleanerProfile.displayName} first. Homle will recheck the room scan, availability and service fit, then show your exact total for one approval before sending anything. If they cannot be invited, this request stays open for matching.` : "Use normal matching to find the best currently eligible and profitable Cleaner."));
     const attemptsLabel = element("label", "landlord-attempt-limit", "Maximum Cleaner invitations");
     const attempts = element("select");
     attempts.name = "attemptLimit";
@@ -664,19 +871,25 @@ function requestScanPanel(request) {
     const submit = element("button", "button", "Submit cleaning request");
     submit.type = "submit";
     for (const control of [confirm, preview, auto, preferred, attempts, submit]) control.disabled = !mediaReady || control === attempts;
+    if (automaticMaximumPricePence == null) auto.disabled = true;
     if (!mediaReady) submit.textContent = "Room photos required before submission";
-    submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerId ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
+    submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerReady ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
     submitForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       feedback.hidden = true;
       if (!submitForm.reportValidity()) return;
       if (!(requestScans.get(request.requestId)?.photos?.length > 0)) return showFeedback(feedback, "Upload and finish at least one current room photo before submission.");
-      const csrf = await recoverCsrf(feedback, "submitting this cleaning request");
-      if (!csrf) return;
+      if (auto.checked && !(await approveAutomaticDispatchPrice(automaticMaximumPricePence, Number(attempts.value)))) return;
       setPending(submit, true, "Submitting reviewed scan…");
+      const csrf = await recoverCsrf(feedback, "submitting this cleaning request");
+      if (!csrf) {
+        setPending(submit, false, "Submit cleaning request");
+        return;
+      }
       let submitted = false;
       let submission = null;
       let selectedCleanerInvited = false;
+      let selectedCleanerPricePence = null;
       try {
         const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/submit`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ scopeReviewed: true, cleanerPreviewAuthorized: preview.checked }) });
         submission = result.submission;
@@ -684,21 +897,31 @@ function requestScanPanel(request) {
         if (!submitted) throw new Error("The submitted request could not be verified.");
         const index = requests.findIndex((item) => item.requestId === request.requestId);
         if (index >= 0) requests[index] = { ...requests[index], status: "searching-for-cleaner", submittedAt: submission.submittedAt, cleanerPreviewAuthorized: preview.checked };
-        if (selectedCleanerId && preferred.checked) {
-          await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/invitations`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ cleanerId: selectedCleanerId }) });
+        if (selectedCleanerReady && preferred.checked) {
+          const quoted = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/invitation-quote`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ cleanerId: selectedCleanerId }) });
+          const approved = await approveInvitationQuote(quoted.quote, selectedCleanerProfile.displayName);
+          if (!approved) {
+            clearCleanerSelection();
+            renderRequests();
+            showRequestCompletion(submission, { warning: "You kept the request open without inviting the selected Cleaner. No booking or payment exists. You can track the request and choose matching when ready." });
+            return;
+          }
+          selectedCleanerPricePence = Number(quoted.quote.customerPricePence);
+          const invited = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/invitations`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ cleanerId: selectedCleanerId, approvedCustomerPricePence: selectedCleanerPricePence }) });
+          if (Number(invited.booking?.customerPricePence) !== selectedCleanerPricePence) throw new Error("The saved invitation total could not be verified. Refresh the request before taking another action.");
           selectedCleanerInvited = true;
           if (index >= 0) requests[index] = { ...requests[index], status: "cleaner-invited" };
-        } else if (auto.checked) await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/automatic-dispatch`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ enabled: true, attemptLimit: Number(attempts.value) }) });
+        } else if (auto.checked) await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/automatic-dispatch`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ enabled: true, attemptLimit: Number(attempts.value), approvedMaximumPricePence: automaticMaximumPricePence }) });
         clearCleanerSelection();
         renderRequests();
-        showRequestCompletion(submission, { automaticDispatch: auto.checked, selectedCleanerInvited });
+        showRequestCompletion(submission, { automaticDispatch: auto.checked, automaticMaximumPricePence, selectedCleanerInvited, selectedCleanerPricePence });
       } catch (error) {
         if (submitted) {
-          const selectedInvitationFailed = Boolean(selectedCleanerId && preferred.checked);
+          const selectedInvitationFailed = Boolean(selectedCleanerReady && preferred.checked);
           clearCleanerSelection();
           renderRequests();
           showRequestCompletion(submission, { warning: selectedInvitationFailed
-            ? `The room scan is safely submitted, but the selected Cleaner could not be invited: ${error.message} The request remains open for matching and no booking or payment exists.`
+            ? `The room scan is safely submitted, but Homle could not verify the selected-Cleaner invitation: ${error.message} Track the saved request before taking another action; Homle will not repeat an invitation automatically.`
             : `The room scan is safely submitted, but Homle could not verify automatic invitation authorisation: ${error.message} Check the request before retrying.` });
         } else showFeedback(requestFeedback, error.message);
       } finally { setPending(submit, false, "Submit cleaning request"); }
@@ -746,14 +969,19 @@ function renderRequests() {
         refresh.addEventListener("click", () => refreshDispatchAuthorization(request.requestId, refresh, dispatchFeedback));
         dispatchPanel.append(refresh, dispatchFeedback);
       } else if (dispatchAction.kind === "waiting") {
-        dispatchPanel.append(element("strong", "", "Finding one eligible Cleaner"), element("p", "", `You authorised ${dispatchAction.attemptLimit === 1 ? "one Cleaner invitation" : `up to ${dispatchAction.attemptLimit} total invitations`}. Homle is checking service fit, exact availability and profitable pricing. No booking or charge exists until a Cleaner accepts and you authorise payment.`));
+        const maximum = automaticMaximumPrice(request);
+        dispatchPanel.append(element("strong", "", "Finding one eligible Cleaner"), element("p", "", maximum == null
+          ? "Matching authorization exists on this older request, but its maximum total cannot be displayed. Homle will not offer another authorization; review the saved request before continuing."
+          : `You authorised ${dispatchAction.attemptLimit === 1 ? "one Cleaner invitation" : `up to ${dispatchAction.attemptLimit} total invitations`} at no more than ${formatBookingMoney(maximum)}. Homle is checking service fit, exact availability and profitable pricing. No booking or charge exists until a Cleaner accepts and you authorise payment.`));
       } else if (dispatchAction.kind === "exhausted") {
         dispatchPanel.append(element("strong", "", "Matching needs review"), element("p", "", "Five Cleaner invitation attempts have been used. Homle will not contact anyone else automatically; review the timing or scope before deciding what to change."));
       } else {
         const firstAttempt = dispatchAction.kind === "authorize" && dispatchAction.attemptCount === 0;
-        dispatchPanel.append(element("strong", "", firstAttempt ? "Ready to find your Cleaner?" : "Try one more eligible Cleaner?"), element("p", "", "This authorises exactly one additional invitation to the best eligible profitable match. It is not a booking, no payment is taken, and the Cleaner must still accept."));
+        const maximum = automaticMaximumPrice(request);
+        dispatchPanel.append(element("strong", "", firstAttempt ? "Ready to find your Cleaner?" : "Try one more eligible Cleaner?"), element("p", "", maximum == null ? "Automatic matching is unavailable because this submitted request has no approved maximum total. Choose a Cleaner directly or withdraw and create a new request with a maximum." : `This authorises exactly one additional invitation to the best eligible profitable match at no more than ${formatBookingMoney(maximum)}. It is not a booking, no payment is taken, and the Cleaner must still accept.`));
         const authorize = element("button", "button", firstAttempt ? "Find my Cleaner" : "Try one more Cleaner");
         authorize.type = "button";
+        authorize.disabled = maximum == null;
         authorize.addEventListener("click", () => authorizeNextCleaner(request.requestId, dispatchAction.attemptLimit, authorize, dispatchFeedback));
         dispatchPanel.append(authorize, dispatchFeedback);
       }
@@ -779,14 +1007,21 @@ function renderRequests() {
 
 async function authorizeNextCleaner(requestId, attemptLimit, button, feedback) {
   feedback.hidden = true;
-  const csrf = await recoverCsrf(feedback, "authorising Cleaner matching");
-  if (!csrf) return;
+  const request = requests.find((item) => item.requestId === requestId);
+  const approvedMaximumPricePence = automaticMaximumPrice(request);
+  if (approvedMaximumPricePence == null) return showFeedback(feedback, "This request has no approved maximum total. Choose a Cleaner directly or create a new request with a maximum.");
+  if (!(await approveAutomaticDispatchPrice(approvedMaximumPricePence, attemptLimit))) return;
   setPending(button, true, "Authorising…");
+  const csrf = await recoverCsrf(feedback, "authorising Cleaner matching");
+  if (!csrf) {
+    setPending(button, false, attemptLimit === 1 ? "Find my Cleaner" : "Try one more Cleaner");
+    return;
+  }
   try {
     const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/automatic-dispatch`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-      body: JSON.stringify({ enabled: true, attemptLimit })
+      body: JSON.stringify({ enabled: true, attemptLimit, approvedMaximumPricePence })
     });
     requests = requests.map((request) => request.requestId === requestId ? { ...request, automaticDispatch: result.automaticDispatch } : request);
     uncertainDispatchRequests.delete(requestId);
@@ -830,6 +1065,11 @@ function closeInvitationStream() {
   invitationStream?.close();
   invitationStream = null;
   invitationStreamKey = "";
+}
+
+function clearLandlordInvitationDeadlineTimer() {
+  window.clearTimeout(landlordInvitationDeadlineTimer);
+  landlordInvitationDeadlineTimer = null;
 }
 
 async function refreshBookingTransition({ manual = false } = {}) {
@@ -958,6 +1198,10 @@ async function withdrawRequest(event) {
 
 function renderBookingCard(booking) {
   const card = element("article", "booking-summary-card");
+  if (booking.status === "pending-cleaner-acceptance") {
+    card.classList.add("landlord-waiting-card");
+    card.dataset.landlordWaitingBookingId = booking.bookingId;
+  }
   const heading = element("div", "booking-summary-heading");
   const title = element("div");
   title.append(element("span", "booking-status-pill", bookingSummaryStatusLabels[booking.status] || "Booking"), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Saved property"} · ${booking.counterpartyName || "Assigned Cleaner"}`));
@@ -980,10 +1224,72 @@ function renderBookingCard(booking) {
     actions.append(payment);
   }
   card.append(heading, facts);
-  if (booking.paymentAuthorizationReady) card.append(element("p", "landlord-request-boundary", "Payment authorization is ready for this clean."));
+  if (booking.status === "pending-cleaner-acceptance") {
+    const deadline = bookingInvitationDeadlineState(booking);
+    const boundary = element("p", "landlord-waiting-deadline");
+    boundary.dataset.landlordWaitingDeadline = "";
+    boundary.setAttribute("role", "status");
+    boundary.dataset.kind = deadline.kind;
+    boundary.textContent = deadline.kind === "expired"
+      ? "The Cleaner response window has ended. Homle is updating the request before matching can continue."
+      : deadline.kind === "unavailable"
+        ? "The Cleaner response deadline is being verified. No booking or payment has been created."
+        : `Cleaner response due by ${formatBookingMoment(booking.responseDeadline)}. If they do not accept, this invitation closes and matching can reopen.`;
+    card.append(boundary, element("p", "landlord-request-boundary", "No payment has been taken. This becomes a confirmed booking only if the Cleaner accepts the frozen time, checklist and total."));
+  } else if (booking.paymentAuthorizationReady) card.append(element("p", "landlord-request-boundary", "Payment authorization is ready for this clean."));
   else if (booking.paymentStepOpensAt) card.append(element("p", "landlord-request-boundary", `Payment opens ${formatBookingMoment(booking.paymentStepOpensAt)}. No action is needed yet.`));
   if (actions.childElementCount) card.append(actions);
   return card;
+}
+
+function updateLandlordWaitingDeadlineCard(card, booking) {
+  const deadline = bookingInvitationDeadlineState(booking);
+  const boundary = card.querySelector("[data-landlord-waiting-deadline]");
+  if (!boundary) return deadline;
+  boundary.dataset.kind = deadline.kind;
+  boundary.textContent = deadline.kind === "expired"
+    ? "The Cleaner response window has ended. Homle is checking the current request without sending or repeating any action."
+    : deadline.kind === "unavailable"
+      ? "The Cleaner response deadline is being verified. No booking or payment has been created."
+      : deadline.kind === "closed"
+        ? "This Cleaner invitation is no longer awaiting a response."
+        : `Cleaner replies within ${formatInvitationTimeRemaining(deadline.remainingMs)} · by ${formatBookingMoment(booking.responseDeadline)}. If they do not accept, this invitation closes and matching can reopen.`;
+  return deadline;
+}
+
+async function refreshExpiredLandlordWaiting() {
+  if (refreshingExpiredWaiting || !expiredWaitingRefreshNeeded || browserOffline()) return;
+  refreshingExpiredWaiting = true;
+  setBookingLiveStatus("A Cleaner response window ended. Homle is checking the current status without sending any action.", "attention");
+  try {
+    const refreshed = await refreshBookingTransition();
+    expiredWaitingRefreshNeeded = false;
+    if (refreshed && bookings.some((booking) => booking.status === "pending-cleaner-acceptance" && bookingInvitationDeadlineState(booking).kind === "expired")) {
+      setBookingLiveStatus("The response window has ended. Homle is waiting for the server to reopen matching; no booking or payment was created.", "attention");
+    }
+  } finally {
+    refreshingExpiredWaiting = false;
+  }
+}
+
+function updateLandlordWaitingDeadlines() {
+  clearLandlordInvitationDeadlineTimer();
+  let nextUpdateMs = Number.POSITIVE_INFINITY;
+  let expired = false;
+  for (const card of document.querySelectorAll("[data-landlord-waiting-booking-id]")) {
+    const booking = bookings.find((record) => record.bookingId === card.dataset.landlordWaitingBookingId);
+    if (!booking) continue;
+    const deadline = updateLandlordWaitingDeadlineCard(card, booking);
+    if (deadline.kind === "expired") expired = true;
+    else if (["open", "urgent"].includes(deadline.kind)) nextUpdateMs = Math.min(nextUpdateMs, deadline.remainingMs, 60_000);
+  }
+  if (expired) {
+    expiredWaitingRefreshNeeded = true;
+    queueMicrotask(refreshExpiredLandlordWaiting);
+    return;
+  }
+  expiredWaitingRefreshNeeded = false;
+  if (Number.isFinite(nextUpdateMs)) landlordInvitationDeadlineTimer = window.setTimeout(updateLandlordWaitingDeadlines, Math.max(1_000, nextUpdateMs + 250));
 }
 
 function renderBookings() {
@@ -994,6 +1300,12 @@ function renderBookings() {
   list.replaceChildren(...current.map(renderBookingCard));
   list.hidden = current.length === 0;
   document.querySelector("[data-landlord-booking-empty]").hidden = current.length > 0;
+  const waitingSection = document.querySelector("[data-landlord-waiting-section]");
+  const waitingList = document.querySelector("[data-landlord-waiting-list]");
+  waitingList.replaceChildren(...buckets.waiting.map(renderBookingCard));
+  waitingSection.hidden = buckets.waiting.length === 0;
+  document.querySelector("[data-landlord-waiting-count]").textContent = String(buckets.waiting.length);
+  updateLandlordWaitingDeadlines();
   const historyList = document.querySelector("[data-landlord-history-list]");
   historyList.replaceChildren(...buckets.history.map(renderBookingCard));
   document.querySelector("[data-landlord-history-count]").textContent = String(buckets.history.length);
@@ -1016,13 +1328,99 @@ function renderLandlordHistory(summary) {
     const copy = element("div");
     copy.append(element("strong", "", cleaner.displayName), element("small", "", formatBookingMoment(cleaner.scheduledStartAt)));
     identity.append(element("span", "landlord-previous-avatar", cleaner.displayName.slice(0, 1).toLocaleUpperCase("en-GB")), copy);
+    const actions = element("div", "landlord-previous-actions");
     const link = element("a", "text-button", "View latest clean");
     link.href = `/bookings/${cleaner.bookingId}`;
-    card.append(identity, link);
+    actions.append(link);
+    if (cleaner.cleanerId && cleaner.propertyId) {
+      const repeat = element("button", "button", "Book again");
+      repeat.type = "button";
+      repeat.addEventListener("click", () => {
+        try {
+          saveSelectedCleaner(localStorage, cleaner.cleanerId);
+          saveSelectedProperty(sessionStorage, cleaner.propertyId);
+        } catch {}
+        location.assign("/landlord/dashboard?start=booking");
+      });
+      actions.append(repeat);
+    }
+    card.append(identity, actions);
     return card;
   }));
   list.hidden = summary.previousCleanerVisits.length === 0;
   document.querySelector("[data-landlord-previous-empty]").hidden = summary.previousCleanerVisits.length > 0;
+}
+
+function renderFavouriteCleaners() {
+  const list = document.querySelector("[data-landlord-favourite-cleaners]");
+  list.replaceChildren(...favouriteCleaners.map((cleaner) => {
+    const card = element("article", "landlord-favourite-cleaner");
+    const identity = element("div", "landlord-favourite-identity");
+    const displayName = String(cleaner.displayName || "Cleaner profile");
+    const copy = element("div");
+    const evidence = Number(cleaner.reviewCount) > 0
+      ? `${Number(cleaner.averageRating).toFixed(1)} stars from ${Number(cleaner.reviewCount)} completed-job reviews`
+      : "No completed-job reviews yet";
+    copy.append(element("strong", "", displayName), element("small", "", evidence));
+    identity.append(element("span", "landlord-previous-avatar", displayName.slice(0, 1).toLocaleUpperCase("en-GB")), copy);
+    const actions = element("div", "landlord-favourite-actions");
+    const request = element("button", "button", "Start request");
+    request.type = "button";
+    request.addEventListener("click", () => {
+      try { saveSelectedCleaner(localStorage, cleaner.cleanerId); } catch {}
+      location.assign("/landlord/dashboard?start=booking");
+    });
+    const remove = element("button", "text-button", "Remove");
+    remove.type = "button";
+    remove.addEventListener("click", () => removeFavouriteCleaner(cleaner.cleanerId, remove));
+    actions.append(request, remove);
+    card.append(identity, actions);
+    return card;
+  }));
+  document.querySelector("[data-landlord-favourite-empty]").hidden = favouriteCleaners.length > 0;
+}
+
+async function refreshFavouriteCleaners({ quiet = false } = {}) {
+  const feedback = document.querySelector("[data-landlord-favourite-feedback]");
+  try {
+    const result = await requestJson("/api/marketplace/landlord/favourite-cleaners");
+    favouriteCleaners = Array.isArray(result.cleaners) ? result.cleaners : [];
+    renderFavouriteCleaners();
+    if (quiet) return true;
+    feedback.hidden = true;
+    feedback.textContent = "";
+    return true;
+  } catch {
+    if (!quiet) {
+      feedback.textContent = "Saved Cleaners are temporarily unavailable. Your other Landlord records are unaffected.";
+      feedback.hidden = false;
+    }
+    return false;
+  }
+}
+
+async function removeFavouriteCleaner(cleanerId, button) {
+  if (button.disabled) return;
+  const feedback = document.querySelector("[data-landlord-favourite-feedback]");
+  const csrf = await recoverCsrf(feedback, "changing your saved Cleaners");
+  if (!csrf) return;
+  button.disabled = true;
+  feedback.textContent = "Removing saved Cleaner...";
+  feedback.hidden = false;
+  try {
+    const result = await requestJson(`/api/marketplace/landlord/favourite-cleaners/${encodeURIComponent(cleanerId)}`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ favourite: false }) });
+    if (result.favourite?.favourite !== false) throw new Error("Homle did not confirm the saved Cleaner change.");
+    favouriteCleaners = favouriteCleaners.filter((cleaner) => cleaner.cleanerId !== cleanerId);
+    renderFavouriteCleaners();
+    feedback.textContent = "Cleaner removed from your private saved list.";
+  } catch (error) {
+    const reconciled = await refreshFavouriteCleaners({ quiet: true });
+    feedback.textContent = reconciled && !favouriteCleaners.some((cleaner) => cleaner.cleanerId === cleanerId)
+      ? "Cleaner removed from your private saved list."
+      : (error?.message || "Homle could not confirm the change. No removal will be retried automatically.");
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function renderNextAction() {
@@ -1096,35 +1494,48 @@ async function loadWorkspace() {
   loading = true;
   showState("Checking secure Landlord access…", "Your properties and drafts open only inside an authenticated Landlord session.");
   try {
-    const [accountResult, profileResult, propertyResult, requestResult, bookingResult, healthResult] = await Promise.all([
-      requestJson("/api/marketplace/account"),
+    const accountResult = await requestJson("/api/marketplace/account");
+    const account = accountResult.account;
+    const access = dashboardWorkspaceAccess(account, "landlord");
+    if (!access.ready) return access.reason === "different-workspace"
+      ? showState(`Your ${access.label} workspace is active.`, "Properties, room scans and cleaning requests remain in a separate private Landlord dashboard.", { kind: "authentication", workspaceDestination: access.destination, workspaceLabel: access.label })
+      : showState("This account has no Landlord workspace.", "Sign in through Book a clean to create the separate property workspace.", { kind: "authentication", allowSignIn: true });
+    document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
+    renderAccountAvatar(account);
+    state.hidden = true;
+    workspace.hidden = false;
+    workspace.setAttribute("aria-busy", "true");
+    loadStatus.hidden = true;
+
+    const [profileResult, propertyResult, requestResult, bookingResult, healthResult] = await Promise.allSettled([
       requestJson("/api/marketplace/landlord/profile"),
       requestJson("/api/marketplace/properties"),
       requestJson("/api/marketplace/cleaning-requests"),
       requestJson("/api/marketplace/bookings?limit=50"),
       requestJson("/api/health")
     ]);
-    const account = accountResult.account;
-    if (account?.selectedRole !== "landlord" || !account?.roles?.includes("landlord")) return showState("This is not a Landlord account.", "Use the workspace selected during onboarding or sign in with a Landlord/Property Manager account.", { kind: "authentication", allowSignIn: true });
-    properties = Array.isArray(propertyResult.properties) ? propertyResult.properties : [];
-    requests = Array.isArray(requestResult.cleaningRequests) ? requestResult.cleaningRequests : [];
-    bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
-    landlordProfile = profileResult.profile || { organisationName: null, biography: "" };
+    const results = [profileResult, propertyResult, requestResult, bookingResult, healthResult];
+    const failures = results.filter((result) => result.status === "rejected");
+    const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
+    if (authorizationFailure) throw authorizationFailure.reason;
+    if (propertyResult.status === "fulfilled") properties = Array.isArray(propertyResult.value.properties) ? propertyResult.value.properties : [];
+    if (requestResult.status === "fulfilled") requests = Array.isArray(requestResult.value.cleaningRequests) ? requestResult.value.cleaningRequests : [];
+    if (bookingResult.status === "fulfilled") bookings = Array.isArray(bookingResult.value.bookings) ? bookingResult.value.bookings : [];
+    landlordProfile = profileResult.status === "fulfilled" ? (profileResult.value.profile || { organisationName: null, biography: "" }) : { organisationName: null, biography: "" };
     landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";
     landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
     landlordProfileDirty = false;
-    mediaReady = healthResult?.marketplace?.mediaReady === true;
+    mediaReady = healthResult.status === "fulfilled" && healthResult.value?.marketplace?.mediaReady === true;
     mediaReadiness.hidden = mediaReady;
-    document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
-    renderAccountAvatar(account);
     renderProperties();
     restoreWorkingRequest();
     renderRequests();
     renderBookings();
-    state.hidden = true;
-    workspace.hidden = false;
+    await refreshFavouriteCleaners();
+    loadStatus.hidden = failures.length === 0;
     if (location.hash === "#landlord-account-title") selectWorkspaceTab("account");
     continueBookingStart();
+    void refreshSelectedCleanerProfile();
   } catch (error) {
     if (error.code === "browser-offline") showState("You are offline.", "Your unfinished room walkthrough stays in this tab. Reconnect and Homle will safely reopen the private workspace; no change will be retried automatically.", { kind: "offline", allowRetry: true });
     else if (error.statusCode === 401) showState("Sign in as a Landlord to open this workspace.", "Your properties and request drafts are private to your verified account.", { kind: "authentication", allowSignIn: true });
@@ -1132,9 +1543,16 @@ async function loadWorkspace() {
     else if (error.statusCode === 404 || error.statusCode === 503) showState("Landlord accounts are not connected yet.", "The workspace is ready but remains closed until Homle's secure marketplace database and account runtime are activated.", { kind: "unavailable", allowRetry: true });
     else showState("The Landlord workspace is temporarily unavailable.", "No property or request was changed. Check the connection and try again.", { kind: "error", allowRetry: true });
   } finally {
+    workspace.removeAttribute("aria-busy");
     loading = false;
   }
 }
+
+loadRetry.addEventListener("click", loadWorkspace);
+selectedCleanerClear.addEventListener("click", () => {
+  clearSelectedCleanerChoice();
+  renderRequests();
+});
 
 function optionalNumber(value) {
   return String(value || "").trim() === "" ? null : Number(value);
@@ -1280,15 +1698,19 @@ function useSavedChecklist() {
 
 function summariseSpeech({ automatic = false } = {}) {
   const tasks = checklistFromTranscript(requestForm.elements.transcript.value);
-  if (!tasks.length) return showFeedback(requestFeedback, "No cleaning tasks could be summarised. Name each room and describe the cleaning action clearly.");
+  if (!tasks.length) {
+    showFeedback(requestFeedback, "No cleaning tasks could be summarised. Name each room and describe the cleaning action clearly.");
+    return false;
+  }
   const value = tasks.join("\n");
-  if (!automatic && requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this new concise speech summary?")) return;
+  if (!automatic && requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this new concise speech summary?")) return false;
   invalidateScopeReview("The concise checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
   renderTaskPreview();
   requestDirty = true;
   scheduleWorkingRequestRecovery();
   showFeedback(requestFeedback, `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} prepared${automatic ? " automatically" : ""}. Review every bullet before confirming.`, "success");
+  return true;
 }
 
 function configureSpeech() {
@@ -1313,7 +1735,17 @@ function configureSpeech() {
       speechStatus.textContent = "Speech stopped. Concise room tasks were updated automatically.";
     } else speechStatus.textContent = "Speech stopped. No new room notes were heard.";
   };
-  recognition.onerror = () => { listening = false; speechFailed = true; speechButton.textContent = "Start speaking"; speechStatus.textContent = "Speech capture stopped. Your existing transcript is still here; type or try again."; };
+  recognition.onerror = () => {
+    listening = false;
+    speechFailed = true;
+    speechButton.textContent = "Start speaking";
+    const tasksUpdated = speechChangedDuringListen && requestForm.elements.transcript.value.trim()
+      ? summariseSpeech({ automatic: true })
+      : false;
+    speechStatus.textContent = tasksUpdated
+      ? "Speech stopped unexpectedly. Captured room notes were preserved and concise tasks were updated automatically."
+      : "Speech capture stopped. Your existing transcript is still here; type or try again.";
+  };
   recognition.onresult = (event) => {
     let finalText = "";
     let interimText = "";
@@ -1334,12 +1766,17 @@ function configureSpeech() {
   speechStatus.textContent = "Speech is available. Your browser may use its own speech-to-text service.";
 }
 
-document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addEventListener("click", () => { selectWorkspaceTab(button.dataset.landlordTab); }));
-document.querySelector("[data-open-account-tab]").addEventListener("click", () => {
-  selectWorkspaceTab("account");
-  document.querySelector("[data-account-menu]").open = false;
-  document.querySelector("[data-landlord-panel=\"account\"]").scrollIntoView({ behavior: "smooth", block: "start" });
-});
+document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addEventListener("click", () => { selectWorkspaceTab(button.dataset.landlordTab, { historyMode: "push" }); }));
+window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "properties"));
+selectWorkspaceTab(workspaceTabFromHash() || "properties");
+document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link.addEventListener("click", (event) => {
+  event.preventDefault();
+  const selected = link.dataset.openLandlordSection;
+  selectWorkspaceTab(selected, { historyMode: "push" });
+  const accountMenu = link.closest("[data-account-menu]");
+  if (accountMenu) accountMenu.open = false;
+  document.querySelector(`[data-landlord-panel="${selected}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}));
 document.querySelector("[data-open-request-tab]").addEventListener("click", () => {
   document.querySelector('[data-landlord-tab="requests"]').click();
   document.querySelector('[data-landlord-panel="requests"]').scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1408,7 +1845,7 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
 window.addEventListener("beforeunload", (event) => { rememberWorkingRequest(); if (propertyDirty || requestDirty || landlordProfileDirty) event.preventDefault(); });
-window.addEventListener("pagehide", closeInvitationStream);
+window.addEventListener("pagehide", () => { closeInvitationStream(); clearLandlordInvitationDeadlineTimer(); });
 window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", () => {
   updateNetworkStatus();

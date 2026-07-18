@@ -78,11 +78,22 @@ const security = createAccountSecurity({ async findSession(hash) { return hash.e
 const calls = [];
 const cleanerProfileService = {
   async searchPublicProfiles(filters) { calls.push({ kind: "search", filters }); return [{ cleanerId: "public-cleaner", displayName: "Public Cleaner" }]; },
+  async getPublicProfile(cleanerId) { calls.push({ kind: "cleaner-public", cleanerId }); return { cleanerId, displayName: "Public Cleaner", profilePhotoUrl: null, services: [] }; },
   async getOwnProfile(actor) { calls.push({ kind: "cleaner-get", actor }); return { cleanerId: actor.userId, biography: "Careful cleaner", profileCompletionPercent: 60, isPublic: false, services: [], serviceAreas: [] }; },
   async saveOwnProfile(actor, input) { calls.push({ kind: "cleaner-save", actor, input }); return { profileCompletionPercent: 100 }; },
   async listOwnAvailability(actor) { calls.push({ kind: "availability-list", actor }); return [{ availabilityId: "33333333-3333-4333-8333-333333333333", startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T17:00:00.000Z", status: "available" }]; },
   async createOwnAvailability(actor, input) { calls.push({ kind: "availability-create", actor, input }); return { availabilityId: "44444444-4444-4444-8444-444444444444", ...input, status: "available" }; },
   async withdrawOwnAvailability(actor, availabilityId) { calls.push({ kind: "availability-withdraw", actor, availabilityId }); return { availabilityId, startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T17:00:00.000Z", status: "withdrawn" }; }
+};
+const favouriteCleanerService = {
+  async listOwn(actor) {
+    calls.push({ kind: "favourite-cleaner-list", actor });
+    return [{ cleanerId: "22222222-2222-4222-8222-222222222222", displayName: "Cleaner Example", profilePhotoUrl: null, currentAvailabilityStatus: "available", averageRating: 4.8, reviewCount: 12, completedJobCount: 20, services: [], savedAt: "2026-07-16T12:00:00.000Z" }];
+  },
+  async setOwn(actor, cleanerId, input) {
+    calls.push({ kind: "favourite-cleaner-set", actor, cleanerId, input });
+    return { cleanerId, favourite: input.favourite === true };
+  }
 };
 const propertyService = {
   async getLandlordProfile(actor) { calls.push({ kind: "landlord-get", actor }); return { organisationName: "Example PM", biography: "Local portfolio" }; },
@@ -96,12 +107,13 @@ const cleaningRequestService = {
   async createOwnRequest(actor, input) { calls.push({ kind: "request-create", actor, input }); return { requestId: "66666666-6666-4666-8666-666666666666", propertyId: input.propertyId, status: "draft" }; },
   async listOwnRequests(actor) { calls.push({ kind: "request-list", actor }); return []; },
   async submitOwnRequest(actor, cleaningRequestId, input) { calls.push({ kind: "request-submit", actor, cleaningRequestId, input }); return { cleaningRequestId, status: "searching-for-cleaner", submittedAt: "2026-07-15T15:00:00.000Z", scopeConfirmedAt: "2026-07-15T15:00:00.000Z", cleanerPreviewAuthorized: input.cleanerPreviewAuthorized, photoCount: 1, taskCount: 2 }; },
-  async configureAutomaticDispatch(actor, cleaningRequestId, input) { calls.push({ kind: "request-dispatch", actor, cleaningRequestId, input }); return { cleaningRequestId, enabled: input.enabled, attemptLimit: input.attemptLimit, attemptCount: 0 }; },
+  async configureAutomaticDispatch(actor, cleaningRequestId, input) { calls.push({ kind: "request-dispatch", actor, cleaningRequestId, input }); return { cleaningRequestId, enabled: input.enabled, attemptLimit: input.attemptLimit, attemptCount: 0, maximumCustomerPricePence: input.approvedMaximumPricePence }; },
   async withdrawOwnRequest(actor, cleaningRequestId, input) { calls.push({ kind: "request-withdraw", actor, cleaningRequestId, input }); return { cleaningRequestId, status: "cancelled", previousStatus: "searching-for-cleaner", reasonCode: input.reasonCode, withdrawnAt: "2026-07-15T15:00:00.000Z" }; }
 };
 const bookingWorkflowService = {
   async listParticipantBookings(actor, input) { calls.push({ kind: "booking-list", actor, input }); return [{ bookingId: "55555555-5555-4555-8555-555555555555", participantRole: "landlord", pricePence: 12000, pricePerspective: "customer-total" }]; },
-  async inviteCleaner(actor, input) { calls.push({ kind: "booking-invite", actor, input }); return { bookingId: "55555555-5555-4555-8555-555555555555", status: "pending-cleaner-acceptance" }; },
+  async previewInvitation(actor, input) { calls.push({ kind: "booking-invitation-preview", actor, input }); return { cleaningRequestId: input.cleaningRequestId, cleanerId: input.cleanerId, customerPricePence: 12000, responseDeadline: "2026-07-15T18:00:00.000Z" }; },
+  async inviteCleaner(actor, input) { calls.push({ kind: "booking-invite", actor, input }); return { bookingId: "55555555-5555-4555-8555-555555555555", status: "pending-cleaner-acceptance", customerPricePence: input.approvedCustomerPricePence }; },
   async respondToInvitation(actor, bookingId, input) { calls.push({ kind: "booking-response", actor, bookingId, input }); return { bookingId, status: input.decision === "accept" ? "confirmed" : "cancelled" }; }
 };
 const matchingService = {
@@ -210,7 +222,7 @@ const rateLimiter = {
 const administratorBookingService = {
   async list(actor, input) { calls.push({ kind: "administrator-booking-list", actor, input }); return { operations: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; }
 };
-const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const dependencies = { security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -301,9 +313,11 @@ const directory = await dispatch(router, "GET", "/api/marketplace/cleaners?outwa
 assert(directory.handled && directory.response.statusCode === 200 && directory.body.cleaners.length === 1 && calls.at(-1).filters.outwardPostcode === "SW1A" && calls.at(-1).filters.verifiedOnly === true && calls.at(-1).filters.limit === "10", "Public cleaner discovery did not parse its bounded service filters.");
 const badBoolean = await dispatch(router, "GET", "/api/marketplace/cleaners?verifiedOnly=yes");
 assert(badBoolean.response.statusCode === 422 && badBoolean.body.code === "validation-failed", "Cleaner discovery accepted an ambiguous boolean filter.");
+const publicCleanerProfile = await dispatch(router, "GET", "/api/marketplace/cleaners/22222222-2222-4222-8222-222222222222");
+assert(publicCleanerProfile.response.statusCode === 200 && publicCleanerProfile.body.cleaner.cleanerId === "22222222-2222-4222-8222-222222222222" && publicCleanerProfile.body.cleaner.displayName === "Public Cleaner" && calls.at(-1).kind === "cleaner-public", "Direct public Cleaner profile routing lost the exact safe Cleaner identifier or public projection.");
 const publicReviews = await dispatch(router, "GET", "/api/marketplace/cleaners/22222222-2222-4222-8222-222222222222/reviews?limit=10");
 assert(publicReviews.response.statusCode === 200 && publicReviews.body.reviews.length === 0 && calls.at(-1).kind === "review-public" && calls.at(-1).input.limit === "10", "Public approved-review routing lost its safe Cleaner ID or cursor.");
-assert(calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-directory" && call.input.key === trustedClientKey) && calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-reviews" && call.input.key === trustedClientKey), "Public marketplace reads did not use separate trusted shared-limiter scopes.");
+assert(calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-directory" && call.input.key === trustedClientKey) && calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-profile" && call.input.key === trustedClientKey) && calls.some((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-public:cleaner-reviews" && call.input.key === trustedClientKey), "Public marketplace reads did not use separate trusted shared-limiter scopes.");
 
 const searchesBeforeThrottle = calls.filter((call) => call.kind === "search").length;
 rateLimitedScope = "marketplace-public:cleaner-directory";
@@ -327,6 +341,13 @@ const noSession = await dispatch(router, "GET", "/api/marketplace/properties");
 assert(noSession.response.statusCode === 401 && noSession.body.code === "authentication-required" && noSession.response.headers["Cache-Control"] === "no-store", "Private property listing accepted a missing session or allowed caching.");
 const privateAccount = await dispatch(router, "GET", "/api/marketplace/account", { headers: { cookie: authHeaders.cookie } });
 assert(privateAccount.response.statusCode === 200 && privateAccount.body.account.displayName === "Landlord Example" && privateAccount.body.account.email === "landlord@example.com" && privateAccount.body.account.selectedRole === "landlord" && privateAccount.body.account.roles.join(",") === "landlord" && !JSON.stringify(privateAccount.body).includes(sessions.landlord.session_id) && !JSON.stringify(privateAccount.body).includes("csrf"), "The private self-account route omitted role context or exposed session material.");
+const favouriteCleanerId = "22222222-2222-4222-8222-222222222222";
+const favouriteCleanerList = await dispatch(router, "GET", "/api/marketplace/landlord/favourite-cleaners", { headers: { cookie: authHeaders.cookie } });
+const cleanerFavouriteList = await dispatch(router, "GET", "/api/marketplace/landlord/favourite-cleaners", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const missingFavouriteCsrf = await dispatch(router, "POST", `/api/marketplace/landlord/favourite-cleaners/${favouriteCleanerId}`, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { favourite: true } });
+const savedFavourite = await dispatch(router, "POST", `/api/marketplace/landlord/favourite-cleaners/${favouriteCleanerId}`, { headers: authHeaders, body: { favourite: true } });
+const removedFavourite = await dispatch(router, "POST", `/api/marketplace/landlord/favourite-cleaners/${favouriteCleanerId}`, { headers: authHeaders, body: { favourite: false } });
+assert(favouriteCleanerList.response.statusCode === 200 && favouriteCleanerList.body.cleaners[0].displayName === "Cleaner Example" && cleanerFavouriteList.response.statusCode === 403 && missingFavouriteCsrf.response.statusCode === 403 && savedFavourite.body.favourite.favourite === true && removedFavourite.body.favourite.favourite === false && calls.slice(-3).map((call) => call.kind).join(",") === "favourite-cleaner-list,favourite-cleaner-set,favourite-cleaner-set" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Favourite Cleaner routes lost Landlord ownership, role isolation, CSRF protection or exact saved state.");
 const privacyList = await dispatch(router, "GET", "/api/marketplace/privacy-requests", { headers: { cookie: authHeaders.cookie } });
 const missingPrivacyCsrf = await dispatch(router, "POST", "/api/marketplace/privacy-requests", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { requestId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", requestType: "deletion" } });
 const privacyRequest = await dispatch(router, "POST", "/api/marketplace/privacy-requests", { headers: authHeaders, body: { requestId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", requestType: "deletion" } });
@@ -380,16 +401,19 @@ const requestPhotoAccess = await dispatch(router, "GET", `/api/marketplace/clean
 const requestSubmission = await dispatch(router, "POST", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/submit", { headers: authHeaders, body: { scopeReviewed: true, cleanerPreviewAuthorized: true } });
 assert(requestScan.response.statusCode === 200 && missingRequestMediaCsrf.response.statusCode === 403 && requestIntent.response.statusCode === 201 && requestCompletion.response.statusCode === 200 && requestPhotoAccess.response.statusCode === 200 && requestSubmission.response.statusCode === 200 && requestSubmission.body.submission.status === "searching-for-cleaner", "Private request scan routes lost authentication, CSRF, completion, signed read or reviewed submission.");
 assert(calls.slice(-5).map((call) => call.kind).join(",") === "request-media-scan,request-media-intent,request-media-complete,request-media-access,request-submit" && calls.at(-1).input.cleanerPreviewAuthorized === true, "Room-scan routing lost the owner resource, explicit preview choice or service order.");
-const dispatchAuthorized = await dispatch(router, "POST", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/automatic-dispatch", { headers: authHeaders, body: { enabled: true, attemptLimit: 3 } });
-assert(dispatchAuthorized.response.statusCode === 200 && dispatchAuthorized.body.automaticDispatch.enabled === true && calls.at(-1).kind === "request-dispatch" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Automatic matching was not protected by Landlord role, CSRF and explicit request-level consent.");
+const dispatchAuthorized = await dispatch(router, "POST", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/automatic-dispatch", { headers: authHeaders, body: { enabled: true, attemptLimit: 3, approvedMaximumPricePence: 15000 } });
+assert(dispatchAuthorized.response.statusCode === 200 && dispatchAuthorized.body.automaticDispatch.enabled === true && dispatchAuthorized.body.automaticDispatch.maximumCustomerPricePence === 15000 && calls.at(-1).kind === "request-dispatch" && calls.at(-1).actor.userId === sessions.landlord.user_id && calls.at(-1).input.approvedMaximumPricePence === 15000, "Automatic matching was not protected by Landlord role, CSRF and explicit request-level maximum-price consent.");
 const missingWithdrawalCsrf = await dispatch(router, "POST", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/withdraw", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { reasonCode: "other" } });
 const requestWithdrawn = await dispatch(router, "POST", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/withdraw", { headers: authHeaders, body: { reasonCode: "no-longer-needed" } });
 assert(missingWithdrawalCsrf.response.statusCode === 403 && requestWithdrawn.response.statusCode === 200 && requestWithdrawn.body.withdrawal.status === "cancelled" && calls.at(-1).kind === "request-withdraw" && calls.at(-1).actor.userId === sessions.landlord.user_id && calls.at(-1).input.reasonCode === "no-longer-needed", "Pre-booking withdrawal lost Landlord role, CSRF, route identity or explicit reason binding.");
 const cleanerId = "22222222-2222-4222-8222-222222222222";
 const matches = await dispatch(router, "GET", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/matches", { headers: { cookie: authHeaders.cookie } });
 assert(matches.response.statusCode === 200 && matches.body.candidates[0].cleanerId === cleanerId && calls.at(-1).kind === "request-matches" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Request-specific matching did not bind the authenticated Landlord or return the safe recommendation projection.");
-const invitation = await dispatch(router, "POST", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/invitations`, { headers: authHeaders, body: { cleanerId, customerPricePence: 1 } });
-assert(invitation.response.statusCode === 201 && calls.at(-1).kind === "booking-invite" && calls.at(-1).input.cleanerId === cleanerId && !Object.hasOwn(calls.at(-1).input, "customerPricePence"), "Invitation routing trusted browser-supplied economics or lost the selected cleaner.");
+const missingInvitationQuoteCsrf = await dispatch(router, "POST", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/invitation-quote`, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { cleanerId } });
+const invitationQuote = await dispatch(router, "POST", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/invitation-quote`, { headers: authHeaders, body: { cleanerId, customerPricePence: 1 } });
+assert(missingInvitationQuoteCsrf.response.statusCode === 403 && invitationQuote.response.statusCode === 200 && invitationQuote.body.quote.customerPricePence === 12000 && !Object.hasOwn(invitationQuote.body.quote, "cleanerPayPence") && calls.at(-1).kind === "booking-invitation-preview" && calls.at(-1).input.cleanerId === cleanerId && !Object.hasOwn(calls.at(-1).input, "customerPricePence"), "Invitation price preview lost Landlord/CSRF protection, trusted browser economics or exposed Cleaner pay.");
+const invitation = await dispatch(router, "POST", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/invitations`, { headers: authHeaders, body: { cleanerId, approvedCustomerPricePence: 12000, customerPricePence: 1 } });
+assert(invitation.response.statusCode === 201 && invitation.body.booking.customerPricePence === 12000 && calls.at(-1).kind === "booking-invite" && calls.at(-1).input.cleanerId === cleanerId && calls.at(-1).input.approvedCustomerPricePence === 12000 && !Object.hasOwn(calls.at(-1).input, "customerPricePence"), "Invitation routing lost the exact approved total, trusted browser-supplied economics or lost the selected Cleaner.");
 const bookingId = "55555555-5555-4555-8555-555555555555";
 const bookingCompletion = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/completion`, { headers: authHeaders, body: {} });
 const submittedReview = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/reviews`, { headers: authHeaders, body: { rating: 5, writtenReview: "Clear and professional." } });

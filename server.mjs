@@ -197,11 +197,12 @@ function setSecurityHeaders(response, requestPath = "") {
   const landlordDashboardPage = requestPath === "/landlord/dashboard";
   const privateMediaPage = activeJobPage || landlordDashboardPage;
   const activeJobStorage = privateMediaPage && objectStorageOrigins.length ? ` ${objectStorageOrigins.join(" ")}` : "";
+  const trustedAccountAvatars = " https://*.googleusercontent.com https://*.fbcdn.net https://platform-lookaside.fbsbx.com";
   response.setHeader("Content-Security-Policy", paymentPage
     ? "default-src 'self'; img-src 'self' data: blob: https://*.stripe.com; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://r.stripe.com https://m.stripe.network; frame-src https://js.stripe.com https://hooks.stripe.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     : privateMediaPage
-      ? `default-src 'self'; img-src 'self' data: blob:${activeJobStorage}; style-src 'self'; script-src 'self'; connect-src 'self'${activeJobStorage}; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
-      : "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+      ? `default-src 'self'; img-src 'self' data: blob:${activeJobStorage}${trustedAccountAvatars}; style-src 'self'; script-src 'self'; connect-src 'self'${activeJobStorage}; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
+      : `default-src 'self'; img-src 'self' data: blob:${trustedAccountAvatars}; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`);
   response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Frame-Options", "DENY");

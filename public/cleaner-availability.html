@@ -7,12 +7,14 @@
   <meta name="theme-color" content="#0e665b">
   <title>Availability | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260716-68">
+  <link rel="stylesheet" href="/styles.css?v=20260718-80">
   <script src="/cleaner-availability.js?v=20260716-1" type="module"></script>
+  <script src="/account-menu.js?v=20260718-3" type="module"></script>
+  <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
-<body class="cleaner-availability-page">
+<body class="cleaner-availability-page cleaner-workspace-page">
   <a class="skip-link" href="#availability-main">Skip to availability</a>
-  <header class="site-header"><div class="shell nav-wrap"><a class="brand" href="/" aria-label="Homle home"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><nav class="directory-nav" aria-label="Cleaner navigation"><a href="/cleaner/dashboard">Dashboard</a><a href="/cleaner/profile">Profile</a><a href="/login">Account</a></nav></div></header>
+  <header class="site-header cleaner-site-header"><div class="shell nav-wrap"><div class="workspace-brand"><a class="brand" href="/cleaner/dashboard" aria-label="Homle Cleaner dashboard"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill cleaner-workspace-pill">Cleaner</span></div><nav class="directory-nav cleaner-dashboard-nav" aria-label="Cleaner navigation"><a href="/cleaner/dashboard">Jobs</a><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaner/availability" aria-current="page">Availability</a><a href="/cleaner/profile">Profile</a></nav><details class="account-menu" data-account-menu hidden><summary aria-label="Open Cleaner account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Cleaner account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="/cleaner/dashboard" data-account-dashboard>Open Cleaner dashboard</a><a href="/settings">Account settings</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=work">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details></div></header>
 
   <main id="availability-main" class="availability-main shell">
     <a class="back-link" href="/cleaner/dashboard">Back to dashboard</a>

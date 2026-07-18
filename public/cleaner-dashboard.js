@@ -1,10 +1,12 @@
-import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDecisionState, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js?v=20260718-1";
-import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
+import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260718-5";
+import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
+import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 
 const gate = document.querySelector("[data-cleaner-dashboard-gate]");
 const dashboard = document.querySelector("[data-cleaner-dashboard]");
 const retry = document.querySelector("[data-cleaner-retry]");
 const signIn = document.querySelector("[data-cleaner-sign-in]");
+const workspaceLink = document.querySelector("[data-cleaner-workspace-link]");
 const feedback = document.querySelector("[data-cleaner-dashboard-feedback]");
 const declineDialog = document.querySelector("[data-decline-dialog]");
 const declineForm = document.querySelector("[data-decline-form]");
@@ -17,6 +19,9 @@ let responding = false;
 let payoutStatus = null;
 let availabilityWindows = [];
 let cleanerProfile = null;
+let invitationDeadlineTimer = null;
+let refreshingExpiredInvitations = false;
+let expiredInvitationRefreshNeeded = false;
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 
@@ -43,13 +48,18 @@ function element(name, className, text) {
   return node;
 }
 
-function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry = false } = {}) {
+function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry = false, workspaceDestination = "", workspaceLabel = "" } = {}) {
   gate.hidden = false;
   gate.dataset.kind = kind;
   document.querySelector("[data-cleaner-gate-title]").textContent = title;
   document.querySelector("[data-cleaner-gate-copy]").textContent = copy;
   signIn.hidden = !allowSignIn;
   retry.hidden = !allowRetry;
+  workspaceLink.hidden = !workspaceDestination;
+  if (workspaceDestination) {
+    workspaceLink.href = workspaceDestination;
+    workspaceLink.textContent = `Open ${workspaceLabel} dashboard`;
+  }
   dashboard.hidden = true;
 }
 
@@ -108,6 +118,67 @@ function bookingFacts(booking) {
     facts.append(wrapper);
   }
   return facts;
+}
+
+function updateInvitationDeadlineCard(card, booking) {
+  const state = cleanerInvitationDeadlineState(booking);
+  const deadline = card.querySelector("[data-response-deadline]");
+  const accept = card.querySelector('[data-invitation-decision="accept"]');
+  const decline = card.querySelector('[data-invitation-decision="decline"]');
+  const boundary = card.querySelector("[data-invitation-scope-boundary]");
+  card.dataset.deadlineState = state.kind;
+  if (deadline) {
+    deadline.dataset.kind = state.kind;
+    deadline.textContent = state.kind === "expired"
+      ? "Offer window ended. Checking the current request status…"
+      : state.kind === "unavailable"
+        ? "Response deadline unavailable. Do not accept this request."
+        : state.kind === "closed"
+          ? "This offer is no longer open for a response."
+          : `Respond within ${formatInvitationTimeRemaining(state.remainingMs)} · by ${formatBookingMoment(booking.responseDeadline)}`;
+  }
+  const responseOpen = ["open", "urgent"].includes(state.kind);
+  if (accept) accept.disabled = !responseOpen || accept.dataset.checklistReady !== "true";
+  if (decline) decline.disabled = !responseOpen;
+  if (!responseOpen && boundary) boundary.textContent = state.kind === "expired"
+    ? "The response window has ended. Homle will refresh this read-only status; no accept or decline decision will be sent."
+    : "This invitation cannot be answered safely. Refresh the dashboard before taking another action.";
+  return state;
+}
+
+async function refreshExpiredInvitations() {
+  if (refreshingExpiredInvitations || !expiredInvitationRefreshNeeded || browserOffline()) return;
+  refreshingExpiredInvitations = true;
+  showFeedback("An offer window ended. Homle is checking the current status without sending a decision.");
+  try {
+    await refreshBookings();
+    expiredInvitationRefreshNeeded = false;
+    showFeedback("Offer status refreshed. No expired accept or decline decision was sent.", "success");
+  } catch {
+    showFeedback("The offer window ended, but Homle could not refresh its server status. The decision buttons remain locked; reconnect and refresh before taking another action.", "error");
+  } finally {
+    refreshingExpiredInvitations = false;
+  }
+}
+
+function updateInvitationDeadlines() {
+  window.clearTimeout(invitationDeadlineTimer);
+  invitationDeadlineTimer = null;
+  let nextUpdateMs = Number.POSITIVE_INFINITY;
+  let expired = false;
+  for (const card of document.querySelectorAll("[data-invitation-booking-id]")) {
+    const booking = bookings.find((record) => record.bookingId === card.dataset.invitationBookingId);
+    if (!booking) continue;
+    const state = updateInvitationDeadlineCard(card, booking);
+    if (state.kind === "expired") expired = true;
+    else if (["open", "urgent"].includes(state.kind)) nextUpdateMs = Math.min(nextUpdateMs, state.remainingMs, 60_000);
+  }
+  if (expired) {
+    expiredInvitationRefreshNeeded = true;
+    queueMicrotask(refreshExpiredInvitations);
+    return;
+  }
+  if (Number.isFinite(nextUpdateMs)) invitationDeadlineTimer = window.setTimeout(updateInvitationDeadlines, Math.max(1_000, nextUpdateMs + 250));
 }
 
 function requestScanPreview(booking, pending = false, onReady = () => {}) {
@@ -193,30 +264,43 @@ function bookingCard(booking, pending = false) {
   const card = element("article", "booking-summary-card");
   const heading = element("div", "booking-summary-heading");
   const title = element("div");
-  title.append(element("span", "booking-status-pill", bookingSummaryStatusLabels[booking.status] || "Booking"), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Cleaning property"} · ${booking.counterpartyName || "Landlord"}`));
+  const invitationState = cleanerInvitationDeadlineState(booking);
+  const statusLabel = booking.status === "pending-cleaner-acceptance" && !["open", "urgent"].includes(invitationState.kind)
+    ? invitationState.kind === "expired" ? "Offer window ended" : "Offer closed"
+    : bookingSummaryStatusLabels[booking.status] || "Booking";
+  title.append(element("span", "booking-status-pill", statusLabel), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Cleaning property"} · ${booking.counterpartyName || "Landlord"}`));
   const pay = element("div", "booking-summary-price");
   pay.append(element("small", "", bookingSummaryPriceLabel("cleaner")), element("strong", "", formatBookingMoney(booking.pricePence)));
   heading.append(title, pay);
   card.append(heading, bookingFacts(booking));
   if (pending) {
-    const deadline = element("p", "booking-response-deadline", booking.responseDeadline ? `Respond by ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(booking.responseDeadline))}` : "Response window unavailable");
+    card.dataset.invitationBookingId = booking.bookingId;
+    const deadline = element("p", "booking-response-deadline");
+    deadline.dataset.responseDeadline = "";
+    deadline.setAttribute("role", "status");
     const actions = element("div", "booking-summary-actions");
     const accept = element("button", "button", "Loading checklist…");
     accept.type = "button";
     accept.disabled = true;
+    accept.dataset.invitationDecision = "accept";
+    accept.dataset.checklistReady = "false";
     const decline = element("button", "button button-outline", "Decline");
     decline.type = "button";
+    decline.dataset.invitationDecision = "decline";
     accept.addEventListener("click", () => acceptBooking(booking, accept));
     decline.addEventListener("click", () => openDecline(booking));
     actions.append(accept, decline);
     const scopeBoundary = element("p", "booking-accept-boundary", "Acceptance unlocks after the exact room checklist loads. Then one tap confirms this time, scope and pay; Homle rechecks overlaps before confirming.");
+    scopeBoundary.dataset.invitationScopeBoundary = "";
     if (booking.cleaningRequestId) card.append(requestScanPreview(booking, true, ({ taskCount, roomCount }) => {
-      accept.disabled = false;
+      accept.dataset.checklistReady = "true";
       accept.textContent = `Accept ${formatBookingMoney(booking.pricePence)} job`;
       scopeBoundary.textContent = `${taskCount} approved ${taskCount === 1 ? "task" : "tasks"} across ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. One tap confirms this exact time, scope and pay; Homle rechecks overlaps before confirming.`;
+      updateInvitationDeadlineCard(card, booking);
     }));
     else scopeBoundary.textContent = "The exact room checklist is unavailable. Do not accept this request; refresh the dashboard to verify its status.";
     card.append(deadline, scopeBoundary, actions);
+    updateInvitationDeadlineCard(card, booking);
   } else {
     const action = bookingSummaryPrimaryAction(booking, "cleaner");
     if (action.kind === "active-job") {
@@ -224,7 +308,7 @@ function bookingCard(booking, pending = false) {
       link.href = `/bookings/${booking.bookingId}`;
       card.append(link);
     }
-    if (booking.cleaningRequestId && !["cancelled", "expired"].includes(booking.status)) card.append(requestScanPreview(booking));
+    if (booking.cleaningRequestId && booking.status !== "pending-cleaner-acceptance" && !["cancelled", "expired"].includes(booking.status)) card.append(requestScanPreview(booking));
   }
   return card;
 }
@@ -248,6 +332,7 @@ function renderBookings() {
   document.querySelector("[data-cleaner-history-count]").textContent = String(buckets.history.length);
   renderWorkOverview(cleanerDashboardSummary(cleanerProfile, availabilityWindows, bookings, payoutStatus));
   renderNextAction(buckets, cleanerProfile, payoutStatus, availabilityWindows);
+  updateInvitationDeadlines();
 }
 
 function dashboardMoney(pence) {
@@ -362,8 +447,14 @@ async function reconcileDecision(bookingId, decision) {
 
 async function respondToBooking(bookingId, decision, reason, button) {
   if (responding) return false;
-  const csrf = await recoverCsrf();
-  if (!csrf) return false;
+  const currentInvitation = bookings.find((booking) => booking.bookingId === bookingId);
+  if (!currentInvitation || !["open", "urgent"].includes(cleanerInvitationDeadlineState(currentInvitation).kind)) {
+    if (decision === "decline" && declineDialog.open) declineDialog.close();
+    expiredInvitationRefreshNeeded = true;
+    updateInvitationDeadlines();
+    await refreshExpiredInvitations();
+    return false;
+  }
   responding = true;
   const originalLabel = button.textContent;
   button.disabled = true;
@@ -372,6 +463,8 @@ async function respondToBooking(bookingId, decision, reason, button) {
   button.textContent = decision === "accept" ? "Accepting…" : "Declining…";
   showFeedback("");
   try {
+    const csrf = await recoverCsrf();
+    if (!csrf) return false;
     const result = await requestJson(`/api/marketplace/bookings/${encodeURIComponent(bookingId)}/response`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ decision, reason }) });
     if (decision === "accept" && Object.hasOwn(result.booking || {}, "customerPricePence")) throw new Error("Homle withheld this response because private marketplace pricing was exposed.");
     try {
@@ -428,28 +521,46 @@ async function loadDashboard() {
   loading = true;
   showGate("Checking secure Cleaner access…", "Requests and jobs open only inside the assigned Cleaner account.");
   try {
-    const [accountResult, bookingResult, profileResult, payoutResult, availabilityResult] = await Promise.all([requestJson("/api/marketplace/account"), requestJson("/api/marketplace/bookings?limit=50"), requestJson("/api/marketplace/cleaner/profile"), loadOptionalPayoutStatus(), requestJson("/api/marketplace/cleaner/availability")]);
+    const accountResult = await requestJson("/api/marketplace/account");
     const account = accountResult.account;
-    if (account?.selectedRole !== "cleaner" || !account?.roles?.includes("cleaner")) return showGate("This is not a Cleaner account.", "Use the Cleaner workspace selected during onboarding.", { kind: "authentication", allowSignIn: true });
-    bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
-    cleanerProfile = profileResult.profile && typeof profileResult.profile === "object" ? profileResult.profile : null;
-    payoutStatus = payoutResult;
-    availabilityWindows = Array.isArray(availabilityResult.availability) ? availabilityResult.availability : [];
-    document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
-    document.querySelector("[data-cleaner-profile-link]").textContent = cleanerProfile?.profileCompletionPercent === 100 ? "Edit profile" : "Complete your profile";
+    const access = dashboardWorkspaceAccess(account, "cleaner");
+    if (!access.ready) return access.reason === "different-workspace"
+      ? showGate(`Your ${access.label} workspace is active.`, "Cleaner jobs and professional controls remain in a separate private dashboard.", { kind: "authentication", workspaceDestination: access.destination, workspaceLabel: access.label })
+      : showGate("This account has no Cleaner workspace.", "Sign in through Work as a Cleaner to create the separate professional workspace.", { kind: "authentication", allowSignIn: true });
     document.querySelector("[data-cleaner-name]").textContent = account.displayName || "Cleaner";
-    renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl);
-    renderBookings();
-    showFeedback("");
+    renderAccountAvatar(account);
     gate.hidden = true;
     dashboard.hidden = false;
+    dashboard.setAttribute("aria-busy", "true");
+
+    const [bookingResult, profileResult, payoutResult, availabilityResult] = await Promise.allSettled([
+      requestJson("/api/marketplace/bookings?limit=50"),
+      requestJson("/api/marketplace/cleaner/profile"),
+      loadOptionalPayoutStatus(),
+      requestJson("/api/marketplace/cleaner/availability")
+    ]);
+    const failures = [bookingResult, profileResult, availabilityResult].filter((result) => result.status === "rejected");
+    const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
+    if (authorizationFailure) throw authorizationFailure.reason;
+    if (bookingResult.status === "fulfilled") bookings = Array.isArray(bookingResult.value.bookings) ? bookingResult.value.bookings : [];
+    if (profileResult.status === "fulfilled") cleanerProfile = profileResult.value.profile && typeof profileResult.value.profile === "object" ? profileResult.value.profile : null;
+    if (payoutResult.status === "fulfilled") payoutStatus = payoutResult.value;
+    if (availabilityResult.status === "fulfilled") availabilityWindows = Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability : [];
+    document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
+    document.querySelector("[data-cleaner-profile-link]").textContent = cleanerProfile?.profileCompletionPercent === 100 ? "Edit profile" : "Complete your profile";
+    renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl);
+    renderBookings();
+    showFeedback(failures.length ? "Your Cleaner account is open, but some job or profile details could not be refreshed. Nothing was accepted, declined or changed. Try again to load the complete dashboard." : "", failures.length ? "error" : "info");
   } catch (error) {
     if (error.code === "browser-offline") showGate("You are offline.", "Reconnect to securely load your current requests and jobs. No decision was sent.", { kind: "offline", allowRetry: true });
     else if (error.statusCode === 401) showGate("Sign in as a Cleaner to open this dashboard.", "Requests and jobs are private to the assigned Cleaner account.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 403) showGate("This account cannot open the Cleaner dashboard.", "Use a Cleaner account selected during onboarding.", { kind: "authentication", allowSignIn: true });
     else if ([404, 503].includes(error.statusCode)) showGate("Cleaner accounts are not connected yet.", "The dashboard is ready but remains closed until Homle’s protected marketplace database and HTTPS runtime pass staging.", { kind: "unavailable", allowRetry: true });
     else showGate("The Cleaner dashboard is temporarily unavailable.", "No request was accepted or declined. Check the connection and try again.", { kind: "error", allowRetry: true });
-  } finally { loading = false; }
+  } finally {
+    dashboard.removeAttribute("aria-busy");
+    loading = false;
+  }
 }
 
 retry.addEventListener("click", loadDashboard);
@@ -457,6 +568,8 @@ window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", () => {
   updateNetworkStatus();
   if (!gate.hidden && gate.dataset.kind === "offline") loadDashboard();
+  else if (expiredInvitationRefreshNeeded) refreshExpiredInvitations();
 });
+window.addEventListener("pagehide", () => window.clearTimeout(invitationDeadlineTimer));
 updateNetworkStatus();
 loadDashboard();

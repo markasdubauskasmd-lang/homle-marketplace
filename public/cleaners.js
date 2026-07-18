@@ -20,6 +20,9 @@ const serviceLabels = new Map([
 ]);
 const currency = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" });
 let controller = null;
+let landlordFavouriteAccess = false;
+let favouriteCleanerIds = new Set();
+let favouriteMutationId = "";
 
 function element(name, className, text) {
   const node = document.createElement(name);
@@ -77,6 +80,99 @@ function detail(label, value) {
   return item;
 }
 
+function saveCsrf(token) {
+  try {
+    if (token) sessionStorage.setItem("tideway_csrf", token);
+    return token && sessionStorage.getItem("tideway_csrf") === token;
+  } catch { return false; }
+}
+
+async function privateRequestJson(path, options = {}, timeoutMs = 15_000) {
+  const privateController = new AbortController();
+  const timer = window.setTimeout(() => privateController.abort(), timeoutMs);
+  try {
+    const response = await fetch(path, { credentials: "same-origin", cache: "no-store", signal: privateController.signal, ...options });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.ok !== true) throw Object.assign(new Error(body.error || "The saved Cleaner list is temporarily unavailable."), { statusCode: response.status });
+    return body;
+  } catch (error) {
+    if (error?.name === "AbortError") throw Object.assign(new Error("Homle could not confirm that change. It may have completed; the saved list will be checked before another change."), { code: "request-timeout" });
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function recoverCsrf() {
+  try {
+    const current = sessionStorage.getItem("tideway_csrf") || "";
+    if (current) return current;
+  } catch {}
+  const result = await privateRequestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("This tab could not keep the secure account token. Sign in again before saving a Cleaner.");
+  return result.csrfToken;
+}
+
+async function readFavouriteCleanerIds() {
+  const result = await privateRequestJson("/api/marketplace/landlord/favourite-cleaners");
+  favouriteCleanerIds = new Set((Array.isArray(result.cleaners) ? result.cleaners : []).map((cleaner) => cleaner.cleanerId));
+  return favouriteCleanerIds;
+}
+
+function updateFavouriteButton(button, cleanerId) {
+  const saved = favouriteCleanerIds.has(cleanerId);
+  button.textContent = saved ? "Saved Cleaner" : "Save Cleaner";
+  button.setAttribute("aria-pressed", String(saved));
+  button.classList.toggle("is-saved", saved);
+}
+
+async function setFavourite(cleanerId, button, status) {
+  if (favouriteMutationId) return;
+  if (navigator.onLine === false) {
+    status.textContent = "Reconnect before changing saved Cleaners.";
+    return;
+  }
+  const desired = !favouriteCleanerIds.has(cleanerId);
+  favouriteMutationId = cleanerId;
+  button.disabled = true;
+  status.textContent = desired ? "Saving Cleaner..." : "Removing saved Cleaner...";
+  try {
+    const csrf = await recoverCsrf();
+    const result = await privateRequestJson(`/api/marketplace/landlord/favourite-cleaners/${encodeURIComponent(cleanerId)}`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ favourite: desired }) });
+    if (result.favourite?.favourite === true) favouriteCleanerIds.add(cleanerId);
+    else favouriteCleanerIds.delete(cleanerId);
+    status.textContent = result.favourite?.favourite === true ? "Saved privately to your Landlord dashboard." : "Removed from your saved Cleaners.";
+  } catch (error) {
+    let reconciled = false;
+    try {
+      await readFavouriteCleanerIds();
+      reconciled = favouriteCleanerIds.has(cleanerId) === desired;
+    } catch {}
+    status.textContent = reconciled
+      ? (desired ? "Saved privately to your Landlord dashboard." : "Removed from your saved Cleaners.")
+      : (error?.message || "Homle could not confirm the saved Cleaner change. No change will be retried automatically.");
+  } finally {
+    favouriteMutationId = "";
+    button.disabled = false;
+    updateFavouriteButton(button, cleanerId);
+  }
+}
+
+function favouriteControl(cleaner, name) {
+  if (!landlordFavouriteAccess) return null;
+  const wrapper = element("div", "directory-favourite-control");
+  const button = element("button", "button button-outline directory-favourite-button");
+  button.type = "button";
+  button.setAttribute("aria-label", `Save ${name} to your Landlord dashboard`);
+  updateFavouriteButton(button, cleaner.cleanerId);
+  const status = element("small", "directory-favourite-status");
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  button.addEventListener("click", () => setFavourite(cleaner.cleanerId, button, status));
+  wrapper.append(button, status);
+  return wrapper;
+}
+
 function cleanerCard(cleaner) {
   const card = element("article", "directory-cleaner-card");
   const identity = element("div", "directory-cleaner-identity");
@@ -113,7 +209,11 @@ function cleanerCard(cleaner) {
   const requestLink = element("a", "button directory-cleaner-action", "Start a cleaning request");
   requestLink.href = accountEntryPath("book", cleaner.cleanerId);
   requestLink.setAttribute("aria-label", `Start a cleaning request with ${name}`);
-  card.append(identity, metrics, biography, chips, details, requestLink);
+  const actions = element("div", "directory-cleaner-actions");
+  actions.append(requestLink);
+  const favourite = favouriteControl(cleaner, name);
+  if (favourite) actions.append(favourite);
+  card.append(identity, metrics, biography, chips, details, actions);
   return card;
 }
 
@@ -199,4 +299,17 @@ form.addEventListener("reset", () => setTimeout(() => {
 }));
 retry.addEventListener("click", loadDirectory);
 document.querySelector("[data-year]").textContent = new Date().getFullYear();
-loadDirectory();
+
+async function initializeDirectory() {
+  try {
+    const accountResult = await privateRequestJson("/api/marketplace/account");
+    landlordFavouriteAccess = accountResult.account?.selectedRole === "landlord" && accountResult.account?.roles?.includes("landlord");
+    if (landlordFavouriteAccess) await readFavouriteCleanerIds();
+  } catch {
+    landlordFavouriteAccess = false;
+    favouriteCleanerIds = new Set();
+  }
+  await loadDirectory();
+}
+
+initializeDirectory();

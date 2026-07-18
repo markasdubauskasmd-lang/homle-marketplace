@@ -670,10 +670,13 @@ if (SpeechRecognition) {
       : "Voice capture stopped. Speak again or type the instructions below.";
   };
   recognition.onerror = (event) => {
+    listening = false;
+    voiceButton.textContent = "Start speaking";
     voiceErrorMessage = event.error === "not-allowed"
       ? "Microphone access was not allowed. Type the instructions instead."
       : "Voice capture stopped. You can continue by typing.";
     voiceStatus.textContent = voiceErrorMessage;
+    renderReadiness();
   };
   recognition.onresult = (event) => {
     let finalText = "";
@@ -701,8 +704,13 @@ if (SpeechRecognition) {
         captureRoomSelect.focus();
         return;
       }
-      appendCurrentRoomMarker();
-      recognition.start();
+      try {
+        recognition.start();
+        appendCurrentRoomMarker();
+      } catch {
+        voiceStatus.textContent = "Speech is already starting or stopping. Wait a moment, then try again; your room notes were not changed.";
+        renderReadiness();
+      }
     }
   });
 } else {
@@ -747,6 +755,7 @@ form.addEventListener("submit", async (event) => {
     const controller = new AbortController();
     const requestTimer = setTimeout(() => controller.abort(), 30000);
     let response;
+    let result;
     const submissionBody = JSON.stringify({ requestId: form.elements.requestId.value, email: form.elements.email.value, transcript: transcript.value, checklist: tasks, photos: encodedPhotos, scopeCompleteConfirmed: form.elements.scopeCompleteConfirmed.checked, consent: form.elements.consent.checked, sharePhotosWithSelectedCleaner: form.elements.sharePhotosWithSelectedCleaner.checked });
     if (!pendingSubmission || pendingSubmission.body !== submissionBody) pendingSubmission = { body: submissionBody, key: newSubmissionKey() };
     try {
@@ -756,13 +765,13 @@ form.addEventListener("submit", async (event) => {
         body: submissionBody,
         signal: controller.signal
       });
+      result = await response.json();
     } catch (error) {
       if (error.name === "AbortError") throw new Error("The room scan took too long to save. Your entries are still here—check the connection and try again.");
       throw error;
     } finally {
       clearTimeout(requestTimer);
     }
-    const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "The job brief could not be saved.");
     successBox.querySelector("[data-brief-reference]").textContent = result.reference;
     const statusLink = successBox.querySelector("[data-status-link]");

@@ -18,6 +18,9 @@ DECLARE
   request_realtime_migration_installed boolean := false;
   session_avatar_migration_installed boolean := false;
   minimum_contribution_migration_installed boolean := false;
+  public_cleaner_lookup_migration_installed boolean := false;
+  automatic_dispatch_customer_cap_installed boolean := false;
+  participant_response_deadline_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -188,6 +191,44 @@ BEGIN
       INTO session_avatar_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 56)'
       INTO minimum_contribution_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 57)'
+      INTO public_cleaner_lookup_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 58)'
+      INTO automatic_dispatch_customer_cap_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 59)'
+      INTO participant_response_deadline_installed;
+  ELSE
+    -- A fully manual fresh install has no private migration ledger. Detect each
+    -- optional schema level from the exact object introduced by that migration
+    -- so it is not mistaken for the supported historical migration-45 baseline.
+    latest_migration_installed := to_regprocedure('tideway_private.activate_my_workspace(user_role)') IS NOT NULL;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.get_cleaning_request_scan(uuid)')
+        AND position('actor_has_pending_invitation' IN procedure.prosrc)>0
+    ) INTO scope_handoff_migration_installed;
+    payment_operations_migration_installed := to_regprocedure('tideway_private.list_administrator_payment_operations(text,integer,integer)') IS NOT NULL;
+    case_payment_handoff_migration_installed := to_regprocedure('tideway_private.get_administrator_booking_payment_operation(uuid)') IS NOT NULL;
+    booking_operations_migration_installed := to_regprocedure('tideway_private.list_administrator_booking_operations(text,integer,integer)') IS NOT NULL;
+    matching_self_exclusion_migration_installed := to_regprocedure('tideway_private.recommend_cleaners_for_request_v2(uuid,integer)') IS NOT NULL;
+    request_realtime_migration_installed := to_regclass('public.cleaning_request_realtime_events') IS NOT NULL;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.lookup_session(bytea)')
+        AND position('avatar_url' IN pg_get_function_result(procedure.oid))>0
+    ) INTO session_avatar_migration_installed;
+    minimum_contribution_migration_installed := to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL;
+    public_cleaner_lookup_migration_installed := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)') IS NOT NULL;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
+        AND position('automatic-dispatch-price-cap-required' IN procedure.prosrc)>0
+    ) INTO automatic_dispatch_customer_cap_installed;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.list_my_booking_summaries(integer)')
+        AND position('participant-response-deadline-v1' IN procedure.prosrc)>0
+    ) INTO participant_response_deadline_installed;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -329,6 +370,43 @@ BEGIN
       RAISE EXCEPTION 'Administrator booking operations omit the frozen minimum contribution target';
     END IF;
   END IF;
+  IF public_cleaner_lookup_migration_installed THEN
+    selected_function := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)');
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF selected_function IS NULL OR NOT EXISTS (
+      SELECT 1 FROM pg_proc procedure WHERE procedure.oid=selected_function AND procedure.prosecdef
+        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+    ) OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('public', selected_function, 'EXECUTE')
+      OR position('account.account_status = ''active''' IN COALESCE(selected_source,''))=0
+      OR position('profile.is_public' IN COALESCE(selected_source,''))=0
+      OR position('profile.profile_completion_percent = 100' IN COALESCE(selected_source,''))=0
+      OR position('account.email' IN COALESCE(selected_source,''))>0
+      OR position('phone' IN COALESCE(selected_source,''))>0 THEN
+      RAISE EXCEPTION 'Direct public Cleaner lookup is missing, unsafe or overexposed';
+    END IF;
+  END IF;
+  IF automatic_dispatch_customer_cap_installed THEN
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)');
+    IF position('approved_maximum_customer_price_pence' IN COALESCE(selected_source,''))=0
+       OR position('proposed_customer_price_pence>approved_maximum_customer_price_pence' IN COALESCE(selected_source,''))=0
+       OR position('automatic-dispatch-price-cap-required' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Automatic dispatch does not enforce the Landlord-approved maximum total';
+    END IF;
+  END IF;
+  IF participant_response_deadline_installed THEN
+    selected_function := to_regprocedure('tideway_private.list_my_booking_summaries(integer)');
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF selected_function IS NULL
+       OR position('participant-response-deadline-v1' IN COALESCE(selected_source,''))=0
+       OR position('WHEN booking.status = ''pending-cleaner-acceptance'' THEN booking.cleaner_response_deadline' IN COALESCE(selected_source,''))=0
+       OR position('''canRespond'', booking.cleaner_user_id = actor_id' IN COALESCE(selected_source,''))=0
+       OR position('access_instructions' IN COALESCE(selected_source,''))>0
+       OR position('property.address' IN COALESCE(selected_source,''))>0 THEN
+      RAISE EXCEPTION 'Participant booking summaries do not expose the pending response deadline safely';
+    END IF;
+  END IF;
   IF scope_handoff_migration_installed THEN
     SELECT procedure.prosrc INTO selected_source
     FROM pg_proc procedure
@@ -363,8 +441,8 @@ BEGIN
        OR position('UPDATE users AS u' IN COALESCE(selected_source, '')) = 0 THEN
       RAISE EXCEPTION 'The migration-46 social identity repair is not installed';
     END IF;
-    IF has_table_privilege('tideway_app', 'tideway_private.schema_migrations', 'SELECT')
-       OR has_table_privilege('tideway_worker', 'tideway_private.schema_migrations', 'SELECT') THEN
+    IF has_table_privilege('tideway_app', to_regclass('tideway_private.schema_migrations'), 'SELECT') IS TRUE
+       OR has_table_privilege('tideway_worker', to_regclass('tideway_private.schema_migrations'), 'SELECT') IS TRUE THEN
       RAISE EXCEPTION 'A restricted role can read the private migration ledger';
     END IF;
   END IF;

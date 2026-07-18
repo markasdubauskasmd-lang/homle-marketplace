@@ -112,6 +112,9 @@ function participantBookingProjection(record, actor) {
   const paymentAuthorizationReady = participantRole === "landlord" && status === "confirmed" && (record.paymentAuthorizationReady === true || record.payment_authorization_ready === true);
   const paymentStepAvailable = participantRole === "landlord" && status === "confirmed" && (record.paymentStepAvailable === true || record.payment_step_available === true);
   const paymentStepOpensAt = participantRole === "landlord" && status === "confirmed" ? optionalIso(record.paymentStepOpensAt ?? record.payment_step_opens_at, "payment opening time") : null;
+  const repeatBookingIdentifiers = participantRole === "landlord" && status === "completed" && (record.propertyId ?? record.property_id) && (record.cleanerId ?? record.cleaner_id)
+    ? { propertyId: uuid(record.propertyId ?? record.property_id, "repeat-booking property id"), cleanerId: uuid(record.cleanerId ?? record.cleaner_id, "repeat-booking Cleaner id") }
+    : {};
   if ((paymentAuthorizationReady && paymentStepAvailable) || (paymentStepOpensAt && (paymentAuthorizationReady || paymentStepAvailable))) throw new Error("Booking payment timing is inconsistent.");
   return Object.freeze({
     bookingId,
@@ -129,6 +132,7 @@ function participantBookingProjection(record, actor) {
     counterpartyName: summaryText(record.counterpartyName ?? record.counterparty_name, 160, participantRole === "cleaner" ? "Landlord" : "Assigned Cleaner"),
     canRespond: participantRole === "cleaner" && status === "pending-cleaner-acceptance" && (record.canRespond === true || record.can_respond === true),
     activeJobAvailable: ["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "disputed"].includes(status) && (record.activeJobAvailable === true || record.active_job_available === true),
+    ...repeatBookingIdentifiers,
     ...(participantRole === "landlord" ? { paymentAuthorizationReady, paymentStepAvailable, paymentStepOpensAt } : {}),
     respondedAt: optionalIso(record.respondedAt ?? record.responded_at, "response time"),
     confirmedAt: optionalIso(record.confirmedAt ?? record.confirmed_at, "confirmation time")
@@ -210,6 +214,16 @@ export function createBookingWorkflowService(repository, options = {}) {
   if (!repository || typeof repository.listParticipantBookings !== "function" || typeof repository.getInvitationCandidate !== "function" || typeof repository.inviteCleaner !== "function" || typeof repository.respondToInvitation !== "function") throw new TypeError("A complete booking workflow repository is required.");
   const pricingPolicy = options.pricingPolicy || null;
   const clock = options.clock || (() => new Date());
+  async function invitationQuote(actor, input = {}) {
+    if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.some((role) => role === "landlord" || role === "administrator")) throw new TypeError("A Landlord account is required to price a Cleaner invitation.");
+    if (!pricingPolicy || typeof pricingPolicy.quote !== "function") throw Object.assign(new Error("Booking invitations are unavailable until the private pricing policy is configured."), { statusCode: 503, code: "pricing-not-configured" });
+    const requestId = uuid(input.cleaningRequestId, "cleaning request id");
+    const cleanerId = uuid(input.cleanerId, "cleaner id");
+    if (cleanerId === actor.userId.toLowerCase()) throw Object.assign(new Error("Your Cleaner workspace cannot be invited to your own cleaning request."), { statusCode: 409, code: "self-booking-not-allowed" });
+    const candidate = await repository.getInvitationCandidate(actor, requestId, cleanerId);
+    if (!candidate) throw Object.assign(new Error("The cleaning request or cleaner was not found."), { statusCode: 404, code: "candidate-not-found" });
+    return Object.freeze({ requestId, cleanerId, terms: pricingPolicy.quote(candidate, clock()) });
+  }
   return Object.freeze({
     async listParticipantBookings(actor, input = {}) {
       if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.some((role) => role === "cleaner" || role === "landlord")) throw new TypeError("A Cleaner or Landlord account is required to view bookings.");
@@ -219,15 +233,14 @@ export function createBookingWorkflowService(repository, options = {}) {
       if (!Array.isArray(records) || records.length > maximumResults) throw new Error("Booking summaries are unavailable.");
       return records.map((record) => participantBookingProjection(record, actor));
     },
+    async previewInvitation(actor, input = {}) {
+      const { requestId, cleanerId, terms } = await invitationQuote(actor, input);
+      return Object.freeze({ cleaningRequestId: requestId, cleanerId, customerPricePence: terms.customerPricePence, responseDeadline: terms.responseDeadline });
+    },
     async inviteCleaner(actor, input = {}) {
-      if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.some((role) => role === "landlord" || role === "administrator")) throw new TypeError("A Landlord account is required to invite a cleaner.");
-      if (!pricingPolicy || typeof pricingPolicy.quote !== "function") throw Object.assign(new Error("Booking invitations are unavailable until the private pricing policy is configured."), { statusCode: 503, code: "pricing-not-configured" });
-      const requestId = uuid(input.cleaningRequestId, "cleaning request id");
-      const cleanerId = uuid(input.cleanerId, "cleaner id");
-      if (cleanerId === actor.userId.toLowerCase()) throw Object.assign(new Error("Your Cleaner workspace cannot be invited to your own cleaning request."), { statusCode: 409, code: "self-booking-not-allowed" });
-      const candidate = await repository.getInvitationCandidate(actor, requestId, cleanerId);
-      if (!candidate) throw Object.assign(new Error("The cleaning request or cleaner was not found."), { statusCode: 404, code: "candidate-not-found" });
-      const terms = pricingPolicy.quote(candidate, clock());
+      const { requestId, cleanerId, terms } = await invitationQuote(actor, input);
+      const approvedCustomerPricePence = integer(input.approvedCustomerPricePence, 1, 10_000_000, "Approved customer total");
+      if (approvedCustomerPricePence !== terms.customerPricePence) throw Object.assign(new Error("The quoted total changed. Review the current price before inviting the Cleaner."), { statusCode: 409, code: "invitation-price-changed" });
       const record = await repository.inviteCleaner(actor, { bookingId: randomUUID(), requestId, cleanerId, ...terms });
       return bookingProjection(record, actor);
     },
