@@ -133,7 +133,18 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM tideway_private.list_my_authentication_identities() identity WHERE identity.provider='google') THEN
     RAISE EXCEPTION 'Provider removal changed the wrong identity';
   END IF;
+  -- Apple is a first-class sign-in provider (migration 060), so removing google
+  -- still leaves a usable method and must succeed; apple then becomes the last
+  -- method whose removal must fail closed.
   SELECT * INTO disconnected_record FROM tideway_private.disconnect_my_social_identity('google');
+  IF disconnected_record.disconnected IS NOT TRUE OR disconnected_record.reason IS NOT NULL OR disconnected_record.revoked_sessions <> 0 THEN
+    RAISE EXCEPTION 'Removing a non-final provider did not succeed without revoking already-revoked sessions';
+  END IF;
+  IF EXISTS (SELECT 1 FROM tideway_private.list_my_authentication_identities() identity WHERE identity.provider='google')
+     OR NOT EXISTS (SELECT 1 FROM tideway_private.list_my_authentication_identities() identity WHERE identity.provider='apple') THEN
+    RAISE EXCEPTION 'Provider removal changed the wrong identity';
+  END IF;
+  SELECT * INTO disconnected_record FROM tideway_private.disconnect_my_social_identity('apple');
   IF disconnected_record.disconnected IS TRUE OR disconnected_record.reason <> 'last-sign-in-method' OR disconnected_record.revoked_sessions <> 0 THEN
     RAISE EXCEPTION 'Final sign-in method removal did not fail closed';
   END IF;
