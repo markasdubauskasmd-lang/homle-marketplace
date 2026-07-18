@@ -53,6 +53,33 @@ export function bookingSummaryPrimaryAction(booking, role) {
 
 const cleanerAcceptedStatuses = new Set(["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "disputed"]);
 
+function safeCount(value) {
+  return Number.isInteger(value) && value >= 0 ? value : 0;
+}
+
+function safeMoney(value) {
+  return Number.isInteger(value) && value > 0 ? value : 0;
+}
+
+export function cleanerDashboardSummary(profile, availability, bookings, payout) {
+  if (!Array.isArray(availability) || !Array.isArray(bookings)) throw new TypeError("Cleaner dashboard records are unavailable.");
+  const completedBookings = bookings.filter((booking) => booking?.participantRole === "cleaner" && booking.status === "completed");
+  const committedBookings = bookings.filter((booking) => booking?.participantRole === "cleaner" && cleanerAcceptedStatuses.has(booking.status) && booking.status !== "completed" && booking.status !== "disputed");
+  const reviewCount = safeCount(profile?.reviewCount);
+  const averageRating = reviewCount > 0 && Number.isFinite(profile?.averageRating) && profile.averageRating >= 0 && profile.averageRating <= 5 ? profile.averageRating : 0;
+  return Object.freeze({
+    profileCompletionPercent: Number.isInteger(profile?.profileCompletionPercent) && profile.profileCompletionPercent >= 0 && profile.profileCompletionPercent <= 100 ? profile.profileCompletionPercent : 0,
+    profilePublished: profile?.isPublic === true,
+    availableWindowCount: availability.filter((window) => window?.status === "available").length,
+    averageRating,
+    reviewCount,
+    completedJobCount: safeCount(profile?.completedJobCount),
+    completedJobValuePence: completedBookings.reduce((total, booking) => total + safeMoney(booking.pricePence), 0),
+    committedJobValuePence: committedBookings.reduce((total, booking) => total + safeMoney(booking.pricePence), 0),
+    payoutState: payout == null ? "unavailable" : payout.ready === true ? "ready" : payout.status === "action-required" ? "action-required" : "not-started"
+  });
+}
+
 export function cleanerInvitationDecisionState(booking, decision) {
   const status = String(booking?.status || "");
   if (status === "pending-cleaner-acceptance") return "pending";

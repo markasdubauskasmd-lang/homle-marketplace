@@ -8,6 +8,7 @@ export function createCleanerProfileRepository(database) {
              profile.hourly_rate_pence, profile.fixed_price_options, profile.travel_radius_km, profile.years_experience,
              profile.languages, profile.equipment_supplied, profile.products_supplied, profile.residential_preference,
              profile.commercial_preference, profile.profile_completion_percent, profile.current_availability_status,
+             profile.average_rating, profile.review_count, profile.completed_job_count,
              profile.is_public, COALESCE(services.records, '[]'::jsonb) AS services,
              COALESCE(areas.records, '[]'::jsonb) AS service_areas
            FROM cleaner_profiles profile
@@ -28,7 +29,7 @@ export function createCleanerProfileRepository(database) {
     saveOwnProfile(actor, profile) {
       return database.withUserTransaction(actor, async (client) => {
         const updated = await client.query(
-          "UPDATE cleaner_profiles SET biography=$2::text, hourly_rate_pence=$3::integer, fixed_price_options=$4::jsonb, travel_radius_km=$5::numeric, years_experience=$6::integer, languages=$7::text[], equipment_supplied=$8::text[], products_supplied=$9::text[], residential_preference=$10::boolean, commercial_preference=$11::boolean, profile_completion_percent=$12::integer, is_public=$13::boolean, updated_at=now() WHERE user_id=$1::uuid RETURNING user_id, public_slug, profile_photo_url, profile_completion_percent, current_availability_status, is_public, updated_at",
+          "UPDATE cleaner_profiles SET biography=$2::text, hourly_rate_pence=$3::integer, fixed_price_options=$4::jsonb, travel_radius_km=$5::numeric, years_experience=$6::integer, languages=$7::text[], equipment_supplied=$8::text[], products_supplied=$9::text[], residential_preference=$10::boolean, commercial_preference=$11::boolean, profile_completion_percent=$12::integer, is_public=$13::boolean, updated_at=now() WHERE user_id=$1::uuid RETURNING user_id, public_slug, profile_photo_url, profile_completion_percent, current_availability_status, average_rating, review_count, completed_job_count, is_public, updated_at",
           [actor.userId, profile.biography, profile.hourlyRatePence, profile.fixedPriceOptions, profile.travelRadiusKm, profile.yearsExperience, profile.languages, profile.equipmentSupplied, profile.productsSupplied, profile.residentialPreference, profile.commercialPreference, profile.profileCompletionPercent, profile.isPublic]
         );
         if (!updated.rows[0]) throw Object.assign(new Error("Cleaner profile was not found."), { statusCode: 404 });

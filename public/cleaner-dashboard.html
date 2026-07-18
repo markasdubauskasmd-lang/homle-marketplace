@@ -8,7 +8,7 @@
   <title>Cleaner dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260718-74">
-  <script src="/cleaner-dashboard.js?v=20260718-12" type="module"></script>
+  <script src="/cleaner-dashboard.js?v=20260718-13" type="module"></script>
   <script src="/account-menu.js?v=20260718-1" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
@@ -37,6 +37,23 @@
         <a class="button" href="/cleaner/profile" data-cleaner-next-link>Open profile</a>
       </section>
       <dl class="booking-dashboard-stats"><div><dt>Pending requests</dt><dd data-cleaner-pending-count>0</dd></div><div><dt>Active jobs</dt><dd data-cleaner-active-count>0</dd></div><div><dt>Upcoming jobs</dt><dd data-cleaner-upcoming-count>0</dd></div></dl>
+
+      <section class="cleaner-work-overview" aria-labelledby="cleaner-overview-title">
+        <div class="cleaner-overview-heading"><div><p class="eyebrow">Your working account</p><h2 id="cleaner-overview-title">Ready for the next suitable clean</h2><p>Profile, availability, reputation and job value stay separate from Landlord property controls.</p></div><a class="button button-outline" href="/cleaner/profile">Edit professional profile</a></div>
+        <dl class="cleaner-readiness-grid">
+          <div><dt>Profile</dt><dd data-cleaner-profile-progress>0%</dd><small data-cleaner-profile-state>Not published</small></div>
+          <div><dt>Availability</dt><dd data-cleaner-availability-count>0</dd><small>Exact future windows</small></div>
+          <div><dt>Reputation</dt><dd data-cleaner-rating>New</dd><small data-cleaner-review-count>No approved reviews yet</small></div>
+          <div><dt>Completed jobs</dt><dd data-cleaner-completed-jobs>0</dd><small>Verified marketplace jobs</small></div>
+        </dl>
+        <div class="cleaner-earnings-summary">
+          <div><span>Completed job value</span><strong data-cleaner-completed-value>£0.00</strong><small>Agreed Cleaner pay on completed jobs</small></div>
+          <div><span>Current confirmed job value</span><strong data-cleaner-committed-value>£0.00</strong><small>Not yet completed or transferred</small></div>
+          <div><span>Getting paid</span><strong data-cleaner-payout-state>Not connected</strong><small data-cleaner-payout-copy>Payout service is not attached</small></div>
+        </div>
+        <p class="cleaner-earnings-boundary">Job value is not a bank balance or proof of payout. Actual transfers remain verified separately through the private payout and payment records.</p>
+        <nav class="cleaner-overview-actions" aria-label="Cleaner account readiness"><a href="/cleaner/availability">Manage availability</a><a href="/cleaner/payouts" data-cleaner-overview-payout hidden>Set up payouts</a><a href="/cleaners" data-cleaner-public-profile hidden>View public directory</a></nav>
+      </section>
 
       <section class="booking-dashboard-section booking-pending-section" aria-labelledby="cleaner-pending-title">
         <div class="booking-section-heading"><div><p class="eyebrow">Needs your decision</p><h2 id="cleaner-pending-title">Cleaning requests</h2></div><span class="booking-private-pill">Your account only</span></div>

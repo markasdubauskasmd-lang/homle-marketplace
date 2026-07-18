@@ -1,4 +1,4 @@
-import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerInvitationDecisionState, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js?v=20260717-2";
+import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDecisionState, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js?v=20260718-1";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
 
 const gate = document.querySelector("[data-cleaner-dashboard-gate]");
@@ -246,7 +246,32 @@ function renderBookings() {
   document.querySelector("[data-cleaner-active-count]").textContent = String(buckets.active.length);
   document.querySelector("[data-cleaner-upcoming-count]").textContent = String(buckets.upcoming.length);
   document.querySelector("[data-cleaner-history-count]").textContent = String(buckets.history.length);
+  renderWorkOverview(cleanerDashboardSummary(cleanerProfile, availabilityWindows, bookings, payoutStatus));
   renderNextAction(buckets, cleanerProfile, payoutStatus, availabilityWindows);
+}
+
+function dashboardMoney(pence) {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
+}
+
+function renderWorkOverview(summary) {
+  document.querySelector("[data-cleaner-profile-progress]").textContent = `${summary.profileCompletionPercent}%`;
+  document.querySelector("[data-cleaner-profile-state]").textContent = summary.profilePublished ? "Published for matching" : summary.profileCompletionPercent === 100 ? "Ready to publish" : "Profile incomplete";
+  document.querySelector("[data-cleaner-availability-count]").textContent = String(summary.availableWindowCount);
+  document.querySelector("[data-cleaner-rating]").textContent = summary.reviewCount > 0 ? `${summary.averageRating.toFixed(1)} ★` : "New";
+  document.querySelector("[data-cleaner-review-count]").textContent = summary.reviewCount > 0 ? `${summary.reviewCount} approved ${summary.reviewCount === 1 ? "review" : "reviews"}` : "No approved reviews yet";
+  document.querySelector("[data-cleaner-completed-jobs]").textContent = String(summary.completedJobCount);
+  document.querySelector("[data-cleaner-completed-value]").textContent = dashboardMoney(summary.completedJobValuePence);
+  document.querySelector("[data-cleaner-committed-value]").textContent = dashboardMoney(summary.committedJobValuePence);
+  const payoutState = document.querySelector("[data-cleaner-payout-state]");
+  const payoutCopy = document.querySelector("[data-cleaner-payout-copy]");
+  payoutState.textContent = summary.payoutState === "ready" ? "Ready" : summary.payoutState === "action-required" ? "Action needed" : summary.payoutState === "not-started" ? "Not set up" : "Not connected";
+  payoutCopy.textContent = summary.payoutState === "ready" ? "Verified for eligible transfers" : summary.payoutState === "action-required" ? "Finish the secure payout form" : summary.payoutState === "not-started" ? "Complete secure payout setup" : "Payout service is not attached";
+  const payoutLink = document.querySelector("[data-cleaner-overview-payout]");
+  payoutLink.hidden = summary.payoutState === "unavailable";
+  payoutLink.textContent = summary.payoutState === "ready" ? "Review payout account" : summary.payoutState === "action-required" ? "Continue payout setup" : "Set up payouts";
+  const publicProfile = document.querySelector("[data-cleaner-public-profile]");
+  publicProfile.hidden = !summary.profilePublished;
 }
 
 function renderNextAction(buckets, profile, payout, availability) {

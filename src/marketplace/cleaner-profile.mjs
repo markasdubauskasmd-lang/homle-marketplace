@@ -160,6 +160,9 @@ export function editableCleanerProjection(record = {}) {
     productsSupplied: Array.isArray(record.products_supplied) ? record.products_supplied : [],
     residentialPreference: record.residential_preference === true,
     commercialPreference: record.commercial_preference === true,
+    averageRating: Number(record.average_rating) || 0,
+    reviewCount: Number(record.review_count) || 0,
+    completedJobCount: Number(record.completed_job_count) || 0,
     profileCompletionPercent: Number(record.profile_completion_percent) || 0,
     currentAvailabilityStatus: record.current_availability_status || "unavailable",
     isPublic: record.is_public === true,
@@ -239,7 +242,7 @@ export function createCleanerProfileService(repository, options = {}) {
       requireCleaner(actor, "edit this profile");
       const profile = normalizedCleanerProfile(input);
       const saved = await repository.saveOwnProfile(actor, profile);
-      return { cleanerId: saved.user_id || actor.userId, publicSlug: saved.public_slug || null, ...profile, profilePhotoUrl: saved.profile_photo_url || null, currentAvailabilityStatus: saved.current_availability_status || "unavailable" };
+      return { cleanerId: saved.user_id || actor.userId, publicSlug: saved.public_slug || null, ...profile, profilePhotoUrl: saved.profile_photo_url || null, averageRating: Number(saved.average_rating) || 0, reviewCount: Number(saved.review_count) || 0, completedJobCount: Number(saved.completed_job_count) || 0, currentAvailabilityStatus: saved.current_availability_status || "unavailable" };
     },
     async listOwnAvailability(actor) {
       requireCleaner(actor, "view availability");
