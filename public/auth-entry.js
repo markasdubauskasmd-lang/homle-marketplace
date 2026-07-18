@@ -1,5 +1,6 @@
 import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent, saveSelectedCleaner, selectedCleanerFromSearch } from "./account-intent.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
+import { accountReadyPresentation } from "./account-ready-model.js";
 
 const modes = Object.freeze({
   "/login": { form: "login", title: "Sign in to Homle", lead: "Use your verified account to open the correct private workspace." },
@@ -267,19 +268,17 @@ async function loadAccountReady() {
       return;
     }
   }
-  const cleaner = result.account.selectedRole === "cleaner" && result.account.roles.includes("cleaner");
-  const landlord = result.account.selectedRole === "landlord" && result.account.roles.includes("landlord");
-  if (!cleaner && !landlord) throw new Error("Your saved Homle role could not be verified.");
-  if (accountReadyTitle) accountReadyTitle.textContent = cleaner ? "Your Cleaner profile is created." : "Your Landlord profile is created.";
-  if (accountReadyCopy) accountReadyCopy.textContent = cleaner
-    ? "Your secure Cleaner account and role are saved. Professional details, availability and service areas will open here when Homle's private booking services pass staging."
-    : "Your secure Landlord account and role are saved. Properties, room scans and booking requests will open here when Homle's private booking services pass staging.";
+  const presentation = accountReadyPresentation(result.account, workspaceReady);
+  if (!presentation) throw new Error("Your saved Homle role could not be verified.");
+  const cleaner = presentation.role === "cleaner";
+  if (accountReadyTitle) accountReadyTitle.textContent = presentation.title;
+  if (accountReadyCopy) accountReadyCopy.textContent = presentation.copy;
   renderAccountAvatar(result.account);
   setAccountSide(cleaner ? "cleaner" : "landlord");
   if (pilotActions) pilotActions.hidden = true;
   if (accountReadyDashboard) {
-    accountReadyDashboard.href = cleaner ? "/cleaner/dashboard" : "/landlord/dashboard";
-    accountReadyDashboard.textContent = cleaner ? "Open Cleaner dashboard" : "Open Landlord dashboard";
+    accountReadyDashboard.href = presentation.actionHref;
+    accountReadyDashboard.textContent = presentation.actionLabel;
   }
 }
 
