@@ -431,19 +431,19 @@ BEGIN
     END IF;
     SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.connect_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)');
-    IF position('asserted_provider NOT IN (''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0
-       OR position('asserted_provider IN (''google'',''apple'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
+    IF position('asserted_providerNOTIN(''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0
+       OR position('asserted_providerIN(''google'',''apple'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
       RAISE EXCEPTION 'Apple provider connection does not require a verified provider email';
     END IF;
     SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.verify_my_social_identity(authentication_provider,text)');
-    IF position('asserted_provider NOT IN (''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
+    IF position('asserted_providerNOTIN(''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
       RAISE EXCEPTION 'Apple provider step-up is not installed';
     END IF;
     SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.disconnect_my_social_identity(authentication_provider)');
-    IF position('selected_provider NOT IN (''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0
-       OR position('identity.provider IN (''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
+    IF position('selected_providerNOTIN(''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0
+       OR position('identity.providerIN(''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
       RAISE EXCEPTION 'Apple provider removal or last-method protection is not installed';
     END IF;
   END IF;
