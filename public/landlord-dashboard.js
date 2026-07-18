@@ -1690,15 +1690,19 @@ function useSavedChecklist() {
 
 function summariseSpeech({ automatic = false } = {}) {
   const tasks = checklistFromTranscript(requestForm.elements.transcript.value);
-  if (!tasks.length) return showFeedback(requestFeedback, "No cleaning tasks could be summarised. Name each room and describe the cleaning action clearly.");
+  if (!tasks.length) {
+    showFeedback(requestFeedback, "No cleaning tasks could be summarised. Name each room and describe the cleaning action clearly.");
+    return false;
+  }
   const value = tasks.join("\n");
-  if (!automatic && requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this new concise speech summary?")) return;
+  if (!automatic && requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this new concise speech summary?")) return false;
   invalidateScopeReview("The concise checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
   renderTaskPreview();
   requestDirty = true;
   scheduleWorkingRequestRecovery();
   showFeedback(requestFeedback, `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} prepared${automatic ? " automatically" : ""}. Review every bullet before confirming.`, "success");
+  return true;
 }
 
 function configureSpeech() {
@@ -1723,7 +1727,17 @@ function configureSpeech() {
       speechStatus.textContent = "Speech stopped. Concise room tasks were updated automatically.";
     } else speechStatus.textContent = "Speech stopped. No new room notes were heard.";
   };
-  recognition.onerror = () => { listening = false; speechFailed = true; speechButton.textContent = "Start speaking"; speechStatus.textContent = "Speech capture stopped. Your existing transcript is still here; type or try again."; };
+  recognition.onerror = () => {
+    listening = false;
+    speechFailed = true;
+    speechButton.textContent = "Start speaking";
+    const tasksUpdated = speechChangedDuringListen && requestForm.elements.transcript.value.trim()
+      ? summariseSpeech({ automatic: true })
+      : false;
+    speechStatus.textContent = tasksUpdated
+      ? "Speech stopped unexpectedly. Captured room notes were preserved and concise tasks were updated automatically."
+      : "Speech capture stopped. Your existing transcript is still here; type or try again.";
+  };
   recognition.onresult = (event) => {
     let finalText = "";
     let interimText = "";
