@@ -717,7 +717,12 @@ function requestScanPanel(request) {
     libraryInput.multiple = true;
     libraryInput.hidden = true;
     const selected = element("span", "landlord-scan-selected", "No photos selected");
+    const selectionPreview = element("div", "landlord-scan-selection-preview");
+    selectionPreview.setAttribute("role", "list");
+    selectionPreview.setAttribute("aria-label", "Photos selected for private upload");
+    selectionPreview.hidden = true;
     let files = [];
+    let previewUrls = [];
     const pendingPhotoCompletions = new WeakMap();
     let uploadPending = false;
     const upload = element("button", "button", "Upload private room photos");
@@ -725,7 +730,14 @@ function requestScanPanel(request) {
     function setUploadEditorLocked(locked) {
       for (const control of [room, note, cameraButton, libraryButton, cameraInput, libraryInput]) control.disabled = locked || !mediaReady;
     }
+    function clearSelectionPreviews() {
+      for (const url of previewUrls) URL.revokeObjectURL(url);
+      previewUrls = [];
+      selectionPreview.replaceChildren();
+      selectionPreview.hidden = true;
+    }
     function renderSelection() {
+      clearSelectionPreviews();
       if (!files.length) {
         selected.textContent = "No photos selected";
         upload.textContent = "Upload private room photos";
@@ -737,9 +749,36 @@ function requestScanPanel(request) {
       if (awaitingVerification) {
         selected.textContent += ` · ${awaitingVerification} securely uploaded, awaiting verification`;
         upload.textContent = awaitingVerification === files.length ? `Verify ${awaitingVerification} uploaded ${awaitingVerification === 1 ? "photo" : "photos"}` : "Verify uploaded photos and continue";
-        return;
+      } else {
+        upload.textContent = `Upload ${files.length} private ${files.length === 1 ? "photo" : "photos"}`;
       }
-      upload.textContent = `Upload ${files.length} private ${files.length === 1 ? "photo" : "photos"}`;
+      selectionPreview.hidden = false;
+      for (const candidate of files) {
+        const card = element("div", "landlord-scan-selection-card");
+        card.setAttribute("role", "listitem");
+        if (candidate.mimeType === "image/heic" || typeof URL.createObjectURL !== "function") {
+          card.append(element("span", "landlord-scan-selection-placeholder", "Photo selected"));
+        } else {
+          const image = element("img");
+          const previewUrl = URL.createObjectURL(candidate.file);
+          previewUrls.push(previewUrl);
+          image.src = previewUrl;
+          image.alt = `${candidate.name} selected for private upload`;
+          card.append(image);
+        }
+        const copy = element("div", "landlord-scan-selection-copy");
+        copy.append(element("strong", "", candidate.name), element("small", "", `${humanFileSize(candidate.byteSize)} · ${room.value || "Choose its checklist room"}`));
+        const remove = element("button", "text-button", pendingPhotoCompletions.has(candidate) ? "Awaiting verification" : "Remove");
+        remove.type = "button";
+        remove.disabled = uploadPending || pendingPhotoCompletions.has(candidate);
+        remove.addEventListener("click", () => {
+          if (uploadPending || pendingPhotoCompletions.has(candidate)) return;
+          files = files.filter((item) => item !== candidate);
+          renderSelection();
+        });
+        card.append(copy, remove);
+        selectionPreview.append(card);
+      }
     }
     function choose(event) {
       if (uploadPending) { event.target.value = ""; return; }
@@ -759,12 +798,14 @@ function requestScanPanel(request) {
     }
     cameraInput.addEventListener("change", choose);
     libraryInput.addEventListener("change", choose);
+    room.addEventListener("change", () => { if (files.length) renderSelection(); });
     cameraButton.addEventListener("click", () => cameraInput.click());
     libraryButton.addEventListener("click", () => libraryInput.click());
+    window.addEventListener("pagehide", clearSelectionPreviews, { once: true });
     pickerActions.append(cameraButton, libraryButton, cameraInput, libraryInput);
     for (const control of [room, note, cameraButton, libraryButton, cameraInput, libraryInput, upload]) control.disabled = !mediaReady;
     if (!mediaReady) selected.textContent = "Photo capture unlocks after secure storage is verified";
-    form.append(roomLabel, noteLabel, pickerActions, selected, upload);
+    form.append(roomLabel, noteLabel, pickerActions, selected, selectionPreview, upload);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (uploadPending) return;

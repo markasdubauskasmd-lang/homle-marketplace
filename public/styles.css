@@ -1863,6 +1863,15 @@ textarea { resize: vertical; }
 .landlord-scan-upload-form label, .landlord-attempt-limit { display: grid; gap: 6px; font-size: .78rem; font-weight: 800; }
 .landlord-scan-picker-actions { display: flex; flex-wrap: wrap; gap: 9px; }
 .landlord-scan-selected { color: var(--muted); font-size: .72rem; overflow-wrap: anywhere; }
+.landlord-scan-selection-preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.landlord-scan-selection-card { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 10px; align-items: center; min-width: 0; padding: 9px; border: 1px solid #b9d9d1; border-radius: 12px; background: #fff; }
+.landlord-scan-selection-card img, .landlord-scan-selection-placeholder { width: 72px; height: 72px; border-radius: 9px; background: #e8f1ee; }
+.landlord-scan-selection-card img { object-fit: cover; }
+.landlord-scan-selection-placeholder { display: grid; place-items: center; padding: 7px; color: var(--muted); font-size: .68rem; font-weight: 800; text-align: center; }
+.landlord-scan-selection-copy { min-width: 0; }
+.landlord-scan-selection-copy strong, .landlord-scan-selection-copy small { display: block; overflow-wrap: anywhere; }
+.landlord-scan-selection-copy small { margin-top: 4px; color: var(--muted); font-size: .68rem; }
+.landlord-scan-selection-card .text-button { grid-column: 1 / -1; justify-self: start; min-height: 40px; }
 .landlord-scan-photo-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .landlord-scan-photo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px; border: 1px solid #b9d9d1; border-radius: 10px; background: #fff; }
 .landlord-scan-photo strong, .landlord-scan-photo span, .landlord-scan-photo small { display: block; }
