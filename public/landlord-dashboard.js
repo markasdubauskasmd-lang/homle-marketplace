@@ -655,6 +655,18 @@ function openRequestScan(requestId) {
   return true;
 }
 
+function beginRoomWalkthrough() {
+  selectWorkspaceTab("requests", { historyMode: "push" });
+  const speechSection = document.querySelector(".landlord-speech-scope");
+  speechSection.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (recognition && !listening) {
+    speechButton.click();
+    return;
+  }
+  speechFallback.open = true;
+  requestForm.elements.transcript.focus({ preventScroll: true });
+}
+
 function requestScanPanel(request) {
   const details = element("details", "landlord-request-scan");
   details.dataset.requestScanId = request.requestId;
@@ -1581,7 +1593,7 @@ function renderNextAction() {
   }
   nextTitle.textContent = "Speak and scan your rooms";
   nextCopy.textContent = "Choose the property, say what needs cleaning, then review the concise checklist.";
-  nextButton.textContent = "Start cleaning request";
+  nextButton.textContent = "Start room scan";
   nextButton.dataset.nextAction = "request";
   nextButton.hidden = false;
 }
@@ -1883,15 +1895,7 @@ document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link
   document.querySelector(`[data-landlord-panel="${selected}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }));
 document.querySelector("[data-open-request-tab]").addEventListener("click", () => {
-  selectWorkspaceTab("requests", { historyMode: "push" });
-  const speechSection = document.querySelector(".landlord-speech-scope");
-  speechSection.scrollIntoView({ behavior: "smooth", block: "center" });
-  if (recognition && !listening) {
-    speechButton.click();
-    return;
-  }
-  speechFallback.open = true;
-  requestForm.elements.transcript.focus({ preventScroll: true });
+  beginRoomWalkthrough();
 });
 document.querySelector("[data-toggle-property-form]").addEventListener("click", () => openPropertyEditor());
 document.querySelector("[data-close-property-form]").addEventListener("click", closePropertyEditor);
@@ -1909,6 +1913,10 @@ nextButton.addEventListener("click", () => {
   const action = nextButton.dataset.nextAction;
   if (action === "property") {
     openPropertyEditor();
+    return;
+  }
+  if (action === "request") {
+    beginRoomWalkthrough();
     return;
   }
   selectWorkspaceTab("requests");
