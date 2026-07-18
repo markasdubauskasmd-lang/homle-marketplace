@@ -3,6 +3,8 @@ import { createHmac } from "node:crypto";
 const supportedScopes = Object.freeze([
   "google-start",
   "google-callback",
+  "apple-start",
+  "apple-callback",
   "facebook-start",
   "facebook-callback",
   "facebook-verification-confirm",
@@ -12,9 +14,11 @@ const supportedScopes = Object.freeze([
   "verification-resend",
   "verification-confirm",
   "login",
+  "session-recovery",
   "password-reset-request",
   "password-reset-confirm",
   "marketplace-public:cleaner-directory",
+  "marketplace-public:cleaner-profile",
   "marketplace-public:cleaner-reviews"
 ]);
 

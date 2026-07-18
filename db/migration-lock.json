@@ -61,7 +61,8 @@
     { "order": 57, "file": "057_public_cleaner_profile_lookup.sql", "sha256": "b0d3e11c9a739a118985ab4e0c38da18e947cfdeed4bb4928162654bd3b9f24f" },
     { "order": 58, "file": "058_automatic_dispatch_customer_cap.sql", "sha256": "5f6d3b97e91a0cc8a0c2293917afe3ba198d57965705c3defa74b58a1f1c2145" },
     { "order": 59, "file": "059_participant_response_deadline.sql", "sha256": "8b36db99db571bc782244748983abbb868bab50268d0a43f7c8857c6f72e3669" },
-    { "order": 60, "file": "060_apple_sign_in_provider.sql", "sha256": "a8558bbf5cbe5b71c25692bbbedc029e9ed352a072a17efd97169ca886c69c10" }
+    { "order": 60, "file": "060_apple_sign_in_provider.sql", "sha256": "a8558bbf5cbe5b71c25692bbbedc029e9ed352a072a17efd97169ca886c69c10" },
+    { "order": 61, "file": "061_fix_missing_rate_limit_scopes.sql", "sha256": "5f8d6185ed58e1e5b4e47cf0c281e3bb51a946c07a6a71bd94a42ab602533918" }
   ],
   "grantFiles": [
     { "file": "runtime-role-grants.sql", "sha256": "a83007829805f709aaa5a6ad4da83eaacbdfd08a46a7a0baaa1c042709c37b2b" },

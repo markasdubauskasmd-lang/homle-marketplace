@@ -22,6 +22,7 @@ DECLARE
   automatic_dispatch_customer_cap_installed boolean := false;
   participant_response_deadline_installed boolean := false;
   apple_sign_in_migration_installed boolean := false;
+  rate_limit_scope_migration_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -200,6 +201,8 @@ BEGIN
       INTO participant_response_deadline_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 60)'
       INTO apple_sign_in_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 61)'
+      INTO rate_limit_scope_migration_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -237,6 +240,11 @@ BEGIN
       WHERE procedure.oid=to_regprocedure('tideway_private.connect_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)')
         AND position('google'',''apple'',''facebook' IN replace(procedure.prosrc, ' ', ''))>0
     ) INTO apple_sign_in_migration_installed;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.consume_rate_limit(text,bytea)')
+        AND position('session-recovery' IN procedure.prosrc)>0
+    ) INTO rate_limit_scope_migration_installed;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -445,6 +453,24 @@ BEGIN
     IF position('selected_providerNOTIN(''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0
        OR position('identity.providerIN(''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
       RAISE EXCEPTION 'Apple provider removal or last-method protection is not installed';
+    END IF;
+  END IF;
+  IF rate_limit_scope_migration_installed THEN
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.consume_rate_limit(text,bytea)');
+    IF position('(''session-recovery'',30,900)' IN replace(COALESCE(selected_source,''), ' ', ''))=0
+       OR position('(''marketplace-public:cleaner-profile'',120,60)' IN replace(COALESCE(selected_source,''), ' ', ''))=0
+       OR position('(''apple-start'',20,900)' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
+      RAISE EXCEPTION 'Shared rate limiter is missing the session-recovery, public Cleaner profile or Apple sign-in policy';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint constraint_record
+      WHERE constraint_record.conrelid='tideway_private.request_rate_limits'::regclass
+        AND constraint_record.conname='request_rate_limits_scope_check'
+        AND position('session-recovery' IN pg_get_constraintdef(constraint_record.oid))>0
+        AND position('marketplace-public:cleaner-profile' IN pg_get_constraintdef(constraint_record.oid))>0
+    ) THEN
+      RAISE EXCEPTION 'Shared rate-limit scope CHECK constraint does not admit the session-recovery or public Cleaner profile scope';
     END IF;
   END IF;
   IF scope_handoff_migration_installed THEN

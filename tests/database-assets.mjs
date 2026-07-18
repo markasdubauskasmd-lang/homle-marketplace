@@ -29,8 +29,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 60);
-  assert.equal(repositoryResult.migrations.at(-1), "060_apple_sign_in_provider.sql");
+  assert.equal(repositoryResult.migrations.length, 61);
+  assert.equal(repositoryResult.migrations.at(-1), "061_fix_missing_rate_limit_scopes.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
@@ -48,6 +48,7 @@ try {
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 58\)'/, "Deployment verification must detect the automatic-dispatch customer-cap migration dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 59\)'/, "Deployment verification must detect the participant response-deadline migration dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 60\)'/, "Deployment verification must detect the Apple sign-in migration dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 61\)'/, "Deployment verification must detect the missing rate-limit scope migration dynamically.");
   assert(deploymentVerifier.includes("A fully manual fresh install has no private migration ledger") && deploymentVerifier.includes("activate_my_workspace(user_role)") && deploymentVerifier.includes("recommend_cleaners_for_request_v2(uuid,integer)") && deploymentVerifier.includes("position('avatar_url' IN pg_get_function_result(procedure.oid))") && deploymentVerifier.includes("get_public_cleaner_profile(uuid)') IS NOT NULL"), "A ledger-free fresh install can still be mistaken for the historical migration-45 baseline instead of detecting its actual schema level.");
   const migration48VerificationStart = deploymentVerifier.indexOf("IF latest_migration_installed THEN");
   assert(migration48VerificationStart >= 0 && deploymentVerifier.indexOf("conname='bookings_distinct_participants'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its new constraint check until after that locked migration is installed.");
@@ -63,6 +64,7 @@ try {
   assert(deploymentVerifier.includes("approved_maximum_customer_price_pence") && deploymentVerifier.includes("automatic-dispatch-price-cap-required") && deploymentVerifier.includes("Automatic dispatch does not enforce the Landlord-approved maximum total"), "Migration-58 verification must prove automatic dispatch cannot exceed or omit the Landlord-approved maximum total.");
   assert(deploymentVerifier.includes("participant-response-deadline-v1") && deploymentVerifier.includes("Participant booking summaries do not expose the pending response deadline safely"), "Migration-59 verification must prove the shared deadline remains participant-safe and Cleaner response authority remains isolated.");
   assert(deploymentVerifier.includes("Apple sign-in rate limits are missing or unsafe") && deploymentVerifier.includes("Apple provider connection does not require a verified provider email") && deploymentVerifier.includes("Apple provider removal or last-method protection is not installed"), "Migration-60 verification must prove Apple rate limiting, verified-email connection, step-up and last-method protection.");
+  assert(deploymentVerifier.includes("Shared rate limiter is missing the session-recovery, public Cleaner profile or Apple sign-in policy") && deploymentVerifier.includes("Shared rate-limit scope CHECK constraint does not admit the session-recovery or public Cleaner profile scope"), "Migration-61 verification must prove the session-recovery and public Cleaner profile rate-limit policies and scope CHECK constraint are installed.");
   for (const normalizedNeedle of [
     "asserted_providerNOTIN(''google'',''apple'',''facebook'')",
     "asserted_providerIN(''google'',''apple'')",

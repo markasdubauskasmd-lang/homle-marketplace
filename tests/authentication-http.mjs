@@ -1,5 +1,6 @@
 import { AccountHttpError } from "../src/marketplace/account-security.mjs";
 import { createAuthenticationHttpRouter } from "../src/marketplace/authentication-http.mjs";
+import { postgresRateLimitScopes } from "../src/marketplace/postgres-rate-limiter.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -88,7 +89,7 @@ const accountSessionService = {
 const deliveries = [];
 const emailDelivery = { async send(message) { deliveries.push(message); } };
 let rateLimitedScope = "";
-const rateLimiter = { async consume(input) { calls.push({ kind: "limit", input }); return input.scope === rateLimitedScope ? { allowed: false, retryAfterSeconds: 90 } : { allowed: true }; } };
+const rateLimiter = { async consume(input) { calls.push({ kind: "limit", input }); if (!postgresRateLimitScopes.includes(input.scope)) throw new TypeError(`Rate-limit scope has no reviewed database policy: ${input.scope}`); return input.scope === rateLimitedScope ? { allowed: false, retryAfterSeconds: 90 } : { allowed: true }; } };
 let nowValue = 1000;
 const waits = [];
 let unexpectedError;
