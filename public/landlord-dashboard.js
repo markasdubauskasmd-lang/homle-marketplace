@@ -41,6 +41,10 @@ const invitationQuoteDialog = document.querySelector("[data-invitation-quote-dia
 const invitationQuoteCleaner = document.querySelector("[data-invitation-quote-cleaner]");
 const invitationQuotePrice = document.querySelector("[data-invitation-quote-price]");
 const invitationQuoteApprove = document.querySelector("[data-invitation-quote-approve]");
+const dispatchPriceDialog = document.querySelector("[data-dispatch-price-dialog]");
+const dispatchPriceMaximum = document.querySelector("[data-dispatch-price-maximum]");
+const dispatchPriceAttempts = document.querySelector("[data-dispatch-price-attempts]");
+const dispatchPriceApprove = document.querySelector("[data-dispatch-price-approve]");
 const requestWithdrawDialog = document.querySelector("[data-request-withdraw-dialog]");
 const requestWithdrawForm = document.querySelector("[data-request-withdraw-form]");
 const requestWithdrawFeedback = document.querySelector("[data-request-withdraw-feedback]");
@@ -231,7 +235,7 @@ function renderTaskPreview() {
   }
 }
 
-function showRequestCompletion(submission, { automaticDispatch = false, selectedCleanerInvited = false, selectedCleanerPricePence = null, warning = "" } = {}) {
+function showRequestCompletion(submission, { automaticDispatch = false, automaticMaximumPricePence = null, selectedCleanerInvited = false, selectedCleanerPricePence = null, warning = "" } = {}) {
   const photos = Number(submission?.photoCount);
   const tasks = Number(submission?.taskCount);
   requestCompleteReference.textContent = submission?.cleaningRequestId || "Recorded privately";
@@ -241,7 +245,7 @@ function showRequestCompletion(submission, { automaticDispatch = false, selected
     : selectedCleanerInvited
     ? `Your reviewed scan is submitted and the selected Cleaner has been invited at ${formatBookingMoney(selectedCleanerPricePence)}. This becomes a booking only if they accept.`
     : automaticDispatch
-    ? "Your reviewed scan is submitted and Homle is authorised to invite an eligible profitable match within your chosen attempt limit."
+    ? `Your reviewed scan is submitted and Homle is authorised to invite an eligible profitable match costing no more than ${formatBookingMoney(automaticMaximumPricePence)} within your chosen attempt limit.`
     : "Your reviewed scan is submitted for matching. No Cleaner has been invited automatically.";
   requestCompleteWarning.textContent = warning;
   requestCompleteWarning.hidden = !warning;
@@ -264,6 +268,26 @@ function approveInvitationQuote(quote, cleanerName) {
   return new Promise((resolve) => {
     invitationQuoteDialog.addEventListener("close", () => resolve(invitationQuoteDialog.returnValue === "approve"), { once: true });
     invitationQuoteDialog.showModal();
+  });
+}
+
+function automaticMaximumPrice(request) {
+  const value = Number(request?.budgetPence);
+  return Number.isInteger(value) && value >= 1 && value <= 10_000_000 ? value : null;
+}
+
+function approveAutomaticDispatchPrice(maximumPricePence, attemptLimit) {
+  if (!Number.isInteger(maximumPricePence) || maximumPricePence < 1 || maximumPricePence > 10_000_000) throw new Error("Add a maximum booking total before authorizing automatic matching.");
+  const formattedPrice = formatBookingMoney(maximumPricePence);
+  const boundedAttempts = Number(attemptLimit);
+  dispatchPriceMaximum.textContent = formattedPrice;
+  dispatchPriceAttempts.textContent = `Homle may make ${boundedAttempts === 1 ? "one invitation attempt" : `up to ${boundedAttempts} invitation attempts`} for this one clean, but no quoted total may exceed ${formattedPrice}. No payment is taken now, and a Cleaner must still accept.`;
+  dispatchPriceApprove.textContent = `Approve maximum ${formattedPrice}`;
+  if (typeof dispatchPriceDialog.showModal !== "function") return Promise.resolve(window.confirm(`Allow Cleaner matching only when the exact total is ${formattedPrice} or less? No payment is taken now.`));
+  dispatchPriceDialog.returnValue = "";
+  return new Promise((resolve) => {
+    dispatchPriceDialog.addEventListener("close", () => resolve(dispatchPriceDialog.returnValue === "approve"), { once: true });
+    dispatchPriceDialog.showModal();
   });
 }
 
@@ -764,7 +788,10 @@ function requestScanPanel(request) {
     const auto = element("input");
     auto.type = "checkbox";
     auto.name = "automaticDispatch";
-    autoLabel.append(auto, element("span", "", "After submission, automatically invite the best eligible profitable match. No booking exists until a Cleaner accepts."));
+    const automaticMaximumPricePence = automaticMaximumPrice(request);
+    autoLabel.append(auto, element("span", "", automaticMaximumPricePence == null
+      ? "Automatic matching needs a maximum booking total. Keep this request open and choose a Cleaner directly, or create a new request with a maximum."
+      : `After submission, invite the best eligible profitable match only when the exact total is ${formatBookingMoney(automaticMaximumPricePence)} or less. No booking exists until a Cleaner accepts.`));
     const preferredLabel = element("label", "checkbox landlord-preferred-cleaner");
     const preferred = element("input");
     preferred.type = "checkbox";
@@ -782,6 +809,7 @@ function requestScanPanel(request) {
     const submit = element("button", "button", "Submit cleaning request");
     submit.type = "submit";
     for (const control of [confirm, preview, auto, preferred, attempts, submit]) control.disabled = !mediaReady || control === attempts;
+    if (automaticMaximumPricePence == null) auto.disabled = true;
     if (!mediaReady) submit.textContent = "Room photos required before submission";
     submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerReady ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
     submitForm.addEventListener("submit", async (event) => {
@@ -789,6 +817,7 @@ function requestScanPanel(request) {
       feedback.hidden = true;
       if (!submitForm.reportValidity()) return;
       if (!(requestScans.get(request.requestId)?.photos?.length > 0)) return showFeedback(feedback, "Upload and finish at least one current room photo before submission.");
+      if (auto.checked && !(await approveAutomaticDispatchPrice(automaticMaximumPricePence, Number(attempts.value)))) return;
       const csrf = await recoverCsrf(feedback, "submitting this cleaning request");
       if (!csrf) return;
       setPending(submit, true, "Submitting reviewed scan…");
@@ -817,10 +846,10 @@ function requestScanPanel(request) {
           if (Number(invited.booking?.customerPricePence) !== selectedCleanerPricePence) throw new Error("The saved invitation total could not be verified. Refresh the request before taking another action.");
           selectedCleanerInvited = true;
           if (index >= 0) requests[index] = { ...requests[index], status: "cleaner-invited" };
-        } else if (auto.checked) await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/automatic-dispatch`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ enabled: true, attemptLimit: Number(attempts.value) }) });
+        } else if (auto.checked) await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/automatic-dispatch`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ enabled: true, attemptLimit: Number(attempts.value), approvedMaximumPricePence: automaticMaximumPricePence }) });
         clearCleanerSelection();
         renderRequests();
-        showRequestCompletion(submission, { automaticDispatch: auto.checked, selectedCleanerInvited, selectedCleanerPricePence });
+        showRequestCompletion(submission, { automaticDispatch: auto.checked, automaticMaximumPricePence, selectedCleanerInvited, selectedCleanerPricePence });
       } catch (error) {
         if (submitted) {
           const selectedInvitationFailed = Boolean(selectedCleanerReady && preferred.checked);
@@ -875,14 +904,19 @@ function renderRequests() {
         refresh.addEventListener("click", () => refreshDispatchAuthorization(request.requestId, refresh, dispatchFeedback));
         dispatchPanel.append(refresh, dispatchFeedback);
       } else if (dispatchAction.kind === "waiting") {
-        dispatchPanel.append(element("strong", "", "Finding one eligible Cleaner"), element("p", "", `You authorised ${dispatchAction.attemptLimit === 1 ? "one Cleaner invitation" : `up to ${dispatchAction.attemptLimit} total invitations`}. Homle is checking service fit, exact availability and profitable pricing. No booking or charge exists until a Cleaner accepts and you authorise payment.`));
+        const maximum = automaticMaximumPrice(request);
+        dispatchPanel.append(element("strong", "", "Finding one eligible Cleaner"), element("p", "", maximum == null
+          ? "Matching authorization exists on this older request, but its maximum total cannot be displayed. Homle will not offer another authorization; review the saved request before continuing."
+          : `You authorised ${dispatchAction.attemptLimit === 1 ? "one Cleaner invitation" : `up to ${dispatchAction.attemptLimit} total invitations`} at no more than ${formatBookingMoney(maximum)}. Homle is checking service fit, exact availability and profitable pricing. No booking or charge exists until a Cleaner accepts and you authorise payment.`));
       } else if (dispatchAction.kind === "exhausted") {
         dispatchPanel.append(element("strong", "", "Matching needs review"), element("p", "", "Five Cleaner invitation attempts have been used. Homle will not contact anyone else automatically; review the timing or scope before deciding what to change."));
       } else {
         const firstAttempt = dispatchAction.kind === "authorize" && dispatchAction.attemptCount === 0;
-        dispatchPanel.append(element("strong", "", firstAttempt ? "Ready to find your Cleaner?" : "Try one more eligible Cleaner?"), element("p", "", "This authorises exactly one additional invitation to the best eligible profitable match. It is not a booking, no payment is taken, and the Cleaner must still accept."));
+        const maximum = automaticMaximumPrice(request);
+        dispatchPanel.append(element("strong", "", firstAttempt ? "Ready to find your Cleaner?" : "Try one more eligible Cleaner?"), element("p", "", maximum == null ? "Automatic matching is unavailable because this submitted request has no approved maximum total. Choose a Cleaner directly or withdraw and create a new request with a maximum." : `This authorises exactly one additional invitation to the best eligible profitable match at no more than ${formatBookingMoney(maximum)}. It is not a booking, no payment is taken, and the Cleaner must still accept.`));
         const authorize = element("button", "button", firstAttempt ? "Find my Cleaner" : "Try one more Cleaner");
         authorize.type = "button";
+        authorize.disabled = maximum == null;
         authorize.addEventListener("click", () => authorizeNextCleaner(request.requestId, dispatchAction.attemptLimit, authorize, dispatchFeedback));
         dispatchPanel.append(authorize, dispatchFeedback);
       }
@@ -908,6 +942,10 @@ function renderRequests() {
 
 async function authorizeNextCleaner(requestId, attemptLimit, button, feedback) {
   feedback.hidden = true;
+  const request = requests.find((item) => item.requestId === requestId);
+  const approvedMaximumPricePence = automaticMaximumPrice(request);
+  if (approvedMaximumPricePence == null) return showFeedback(feedback, "This request has no approved maximum total. Choose a Cleaner directly or create a new request with a maximum.");
+  if (!(await approveAutomaticDispatchPrice(approvedMaximumPricePence, attemptLimit))) return;
   const csrf = await recoverCsrf(feedback, "authorising Cleaner matching");
   if (!csrf) return;
   setPending(button, true, "Authorising…");
@@ -915,7 +953,7 @@ async function authorizeNextCleaner(requestId, attemptLimit, button, feedback) {
     const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/automatic-dispatch`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-      body: JSON.stringify({ enabled: true, attemptLimit })
+      body: JSON.stringify({ enabled: true, attemptLimit, approvedMaximumPricePence })
     });
     requests = requests.map((request) => request.requestId === requestId ? { ...request, automaticDispatch: result.automaticDispatch } : request);
     uncertainDispatchRequests.delete(requestId);

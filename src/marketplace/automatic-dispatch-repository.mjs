@@ -3,6 +3,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 const expectedErrors = Object.freeze({
   "automatic-dispatch-lease-not-found": ["dispatch-lease-lost", "The automatic-matching lease is no longer active."],
   "automatic-dispatch-attempt-limit": ["dispatch-attempt-limit", "The automatic-matching attempt limit was reached."],
+  "automatic-dispatch-price-cap-required": ["dispatch-price-cap-required", "Automatic matching has no current Landlord-approved maximum total."],
   "automatic-dispatch-cleaner-already-tried": ["cleaner-already-tried", "This Cleaner was already invited for the request."],
   "request-not-matchable": ["request-not-matchable", "The cleaning request is no longer open for matching."],
   "cleaner-not-eligible": ["candidate-stale", "The Cleaner is no longer eligible."],

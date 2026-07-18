@@ -19,6 +19,7 @@ DECLARE
   session_avatar_migration_installed boolean := false;
   minimum_contribution_migration_installed boolean := false;
   public_cleaner_lookup_migration_installed boolean := false;
+  automatic_dispatch_customer_cap_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -191,6 +192,8 @@ BEGIN
       INTO minimum_contribution_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 57)'
       INTO public_cleaner_lookup_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 58)'
+      INTO automatic_dispatch_customer_cap_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -213,6 +216,11 @@ BEGIN
     ) INTO session_avatar_migration_installed;
     minimum_contribution_migration_installed := to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL;
     public_cleaner_lookup_migration_installed := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)') IS NOT NULL;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
+        AND position('automatic-dispatch-price-cap-required' IN procedure.prosrc)>0
+    ) INTO automatic_dispatch_customer_cap_installed;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -368,6 +376,15 @@ BEGIN
       OR position('account.email' IN COALESCE(selected_source,''))>0
       OR position('phone' IN COALESCE(selected_source,''))>0 THEN
       RAISE EXCEPTION 'Direct public Cleaner lookup is missing, unsafe or overexposed';
+    END IF;
+  END IF;
+  IF automatic_dispatch_customer_cap_installed THEN
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)');
+    IF position('approved_maximum_customer_price_pence' IN COALESCE(selected_source,''))=0
+       OR position('proposed_customer_price_pence>approved_maximum_customer_price_pence' IN COALESCE(selected_source,''))=0
+       OR position('automatic-dispatch-price-cap-required' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Automatic dispatch does not enforce the Landlord-approved maximum total';
     END IF;
   END IF;
   IF scope_handoff_migration_installed THEN

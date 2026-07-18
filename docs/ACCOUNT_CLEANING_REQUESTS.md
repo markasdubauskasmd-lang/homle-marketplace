@@ -10,13 +10,13 @@ This Phase 3 checkpoint prepares the transaction that turns a saved Landlord pro
 - Requested start/end must be exact UTC timestamps, in the future, within 366 days and between 30 minutes and 16 hours apart.
 - Cleaning type and every required service must use the same supported service catalogue as Cleaner profiles.
 - Each request requires 1–200 unique room-labelled tasks, preserving the reviewed scan as the core booking scope.
-- Budget is optional but, when supplied, is integer pence within the supported financial range.
+- Budget is optional for a direct selected-Cleaner quote, but it becomes the exact maximum customer total the Landlord must approve before automatic matching can be enabled. When supplied, it is integer pence within the supported financial range.
 - Frequency is one-time, weekly, fortnightly or every four weeks. A recurring preference never creates or promises automatic bookings; each visit still requires a separate accepted booking.
 - Scope is canonicalized and SHA-256 fingerprinted across property, schedule, services, instructions, budget, recurrence and ordered tasks.
 - Property check, request row, task rows and initial status-history row execute inside one actor-bound transaction.
 - Responses are whitelisted and do not return owner IDs, property access instructions, coordinates or persistence internals.
 - `GET /api/marketplace/cleaning-requests` lists at most the authenticated Landlord's latest 100 requests.
-- Creating or submitting a request never implies automatic matching consent. A submitted future request requires a separate authenticated Landlord action with a total one-to-five attempt limit; see [consent-bound automatic dispatch](AUTOMATIC_DISPATCH.md).
+- Creating or submitting a request never implies automatic matching consent. A submitted future request requires a separate authenticated Landlord action that confirms the saved maximum total and a one-to-five attempt limit; see [consent-bound automatic dispatch](AUTOMATIC_DISPATCH.md).
 - `POST /api/marketplace/cleaning-requests/:requestId/withdraw` lets only the owning authenticated Landlord withdraw a `draft` or `searching-for-cleaner` request after an explicit reason choice.
 - Withdrawal locks the request, refuses any non-cancelled related booking, revokes pending automatic-dispatch work and records both status history and a private audit event. It cannot cancel an invitation, confirmed booking or payment.
 

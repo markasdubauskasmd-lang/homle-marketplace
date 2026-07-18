@@ -42,6 +42,7 @@ for (const required of [
   "db/migrations/055_session_avatar_projection.sql",
   "db/migrations/056_booking_minimum_contribution.sql",
   "db/migrations/057_public_cleaner_profile_lookup.sql",
+  "db/migrations/058_automatic_dispatch_customer_cap.sql",
   "db/runtime-role-grants.sql",
   "db/worker-role-grants.sql",
   "db/bootstrap/assert-empty-staging.sql",
@@ -89,7 +90,7 @@ try {
   assert.equal(release.privateMaterialIncluded, false);
   assert.equal(release.requiredRuntimeFilesVerified, true);
   assert.equal(release.databaseAssetsVerified, true);
-  assert.equal(release.migrationCount, 57);
+  assert.equal(release.migrationCount, 58);
   assert(release.entryCount >= release.fileCount && release.fileCount === expectedFiles.length + 1);
 
   const archive = await readFile(release.archivePath);
@@ -97,7 +98,7 @@ try {
   assert.equal(entries.some((entry) => entry.name === "homle-release.json"), true, "Built release omitted its runtime deployment identity.");
   assert.equal(entries.some((entry) => entry.name === "public/account-menu.js"), true, "Built release omitted secure dashboard sign-out.");
   const identity = JSON.parse(readZipEntry(archive, "homle-release.json").toString("utf8"));
-  assert.deepEqual(identity, { schemaVersion: 1, application: "Homle", sourceCommit: release.sourceCommit, builtAt: release.generatedAt, migrationCount: 57 });
+  assert.deepEqual(identity, { schemaVersion: 1, application: "Homle", sourceCommit: release.sourceCommit, builtAt: release.generatedAt, migrationCount: 58 });
   assert.equal(entries.some((entry) => entry.name === "travel-coverage.mjs"), true, "Built release omitted the server's travel coverage dependency.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/038_facebook_data_deletion_callback.sql"), true, "Built release omitted the locked Facebook data-deletion migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/039_unexpected_task_frozen_terms.sql"), true, "Built release omitted the locked unexpected-task economics migration.");
@@ -119,6 +120,7 @@ try {
   assert.equal(entries.some((entry) => entry.name === "db/migrations/055_session_avatar_projection.sql"), true, "Built release omitted the account-avatar session projection.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/056_booking_minimum_contribution.sql"), true, "Built release omitted the booking minimum-contribution migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/057_public_cleaner_profile_lookup.sql"), true, "Built release omitted the privacy-safe public Cleaner lookup migration.");
+  assert.equal(entries.some((entry) => entry.name === "db/migrations/058_automatic_dispatch_customer_cap.sql"), true, "Built release omitted the automatic-dispatch customer-cap migration.");
   assert.equal(entries.some((entry) => entry.name === "public/tracking-test.html"), false, "Built release exposed the local tracking lab.");
   validateReleaseEntries(entries, [...expectedFiles, "homle-release.json"]);
 

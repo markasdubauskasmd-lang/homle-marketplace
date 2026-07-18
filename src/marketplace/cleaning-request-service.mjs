@@ -152,12 +152,14 @@ function dispatchProjection(record) {
   if (!record || !uuidPattern.test(record.cleaningRequestId || "")) throw new Error("Automatic-matching status is unavailable.");
   const attemptLimit = record.attemptLimit == null ? null : Number(record.attemptLimit);
   const attemptCount = Number(record.attemptCount) || 0;
-  if ((attemptLimit != null && (!Number.isInteger(attemptLimit) || attemptLimit < 1 || attemptLimit > 5)) || !Number.isInteger(attemptCount) || attemptCount < 0) throw new Error("Automatic-matching status is unavailable.");
+  const maximumCustomerPricePence = record.maximumCustomerPricePence == null ? null : Number(record.maximumCustomerPricePence);
+  if ((attemptLimit != null && (!Number.isInteger(attemptLimit) || attemptLimit < 1 || attemptLimit > 5)) || !Number.isInteger(attemptCount) || attemptCount < 0 || (record.enabled === true && (!Number.isInteger(maximumCustomerPricePence) || maximumCustomerPricePence < 1 || maximumCustomerPricePence > 10_000_000))) throw new Error("Automatic-matching status is unavailable.");
   return Object.freeze({
     cleaningRequestId: record.cleaningRequestId.toLowerCase(),
     enabled: record.enabled === true,
     attemptLimit,
     attemptCount,
+    maximumCustomerPricePence,
     authorizedAt: record.authorizedAt ? new Date(record.authorizedAt).toISOString() : null,
     revokedAt: record.revokedAt ? new Date(record.revokedAt).toISOString() : null,
     nextAttemptAt: record.nextAttemptAt ? new Date(record.nextAttemptAt).toISOString() : null,
@@ -210,7 +212,9 @@ export function createCleaningRequestService(repository, options = {}) {
       if (typeof input.enabled !== "boolean") throw new TypeError("Choose whether automatic matching is enabled.");
       const attemptLimit = input.enabled ? Number(input.attemptLimit ?? 3) : 3;
       if (!Number.isInteger(attemptLimit) || attemptLimit < 1 || attemptLimit > 5) throw new TypeError("Automatic matching may invite between 1 and 5 Cleaners.");
-      return dispatchProjection(await repository.configureAutomaticDispatch(actor, uuid(cleaningRequestId, "cleaning request id"), { enabled: input.enabled, attemptLimit }));
+      const approvedMaximumPricePence = input.enabled ? budget(input.approvedMaximumPricePence) : null;
+      if (input.enabled && approvedMaximumPricePence == null) throw new TypeError("Review and approve the maximum booking total before automatic matching.");
+      return dispatchProjection(await repository.configureAutomaticDispatch(actor, uuid(cleaningRequestId, "cleaning request id"), { enabled: input.enabled, attemptLimit, approvedMaximumPricePence }));
     },
     async withdrawOwnRequest(actor, cleaningRequestId, input = {}) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to withdraw a cleaning request.");

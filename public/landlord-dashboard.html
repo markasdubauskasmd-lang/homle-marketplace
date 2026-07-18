@@ -8,7 +8,7 @@
   <title>Landlord dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260718-78">
-  <script src="/landlord-dashboard.js?v=20260718-19" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260718-20" type="module"></script>
   <script src="/account-menu.js?v=20260718-1" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
@@ -190,6 +190,15 @@
       <div class="landlord-invitation-quote-total"><span>Your exact booking total</span><strong data-invitation-quote-price>&pound;0.00</strong></div>
       <p>No payment is taken now. If the Cleaner accepts, this total is frozen for the agreed checklist and time.</p>
       <div><button class="button button-outline" type="submit" value="cancel">Keep request open</button><button class="button" type="submit" value="approve" data-invitation-quote-approve>Invite at this price</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="active-job-dialog landlord-invitation-quote-dialog" data-dispatch-price-dialog aria-labelledby="dispatch-price-title">
+    <form method="dialog">
+      <div><p class="eyebrow">One spending limit</p><h2 id="dispatch-price-title">Approve your maximum</h2><p>Homle may invite only an eligible Cleaner whose exact total is at or below this saved limit.</p></div>
+      <div class="landlord-invitation-quote-total"><span>Maximum total for this clean</span><strong data-dispatch-price-maximum>&pound;0.00</strong></div>
+      <p data-dispatch-price-attempts>Homle will authorize one Cleaner invitation. No payment is taken now, and a Cleaner must still accept.</p>
+      <div><button class="button button-outline" type="submit" value="cancel">Not now</button><button class="button" type="submit" value="approve" data-dispatch-price-approve>Approve this maximum</button></div>
     </form>
   </dialog>
 

@@ -38,6 +38,16 @@ assert.ok(Number.isInteger(attempts[1].input.customerPricePence) && attempts[1].
 assert.equal(attempts[1].input.travelCostPence, 640, "Automatic dispatch did not freeze the backup Cleaner's two-kilometre travel cost into its invitation terms.");
 assert.equal(attempts[1].input.targetContributionPence, 1800, "Automatic dispatch lost the founder-approved minimum pounds per booking.");
 
+let uncappedCompletionAttempted = false;
+const uncappedWorker = createAutomaticDispatchWorker({
+  async claimDue() { return [{ cleaningRequestId: requestId, leaseExpiresAt: "2026-07-16T08:02:00.000Z" }]; },
+  async getCandidates() { return [{ ...best, budget_pence: null }]; },
+  async complete() { uncappedCompletionAttempted = true; },
+  async release() {}
+}, pricing, { createId: () => leaseId, clock: () => new Date(now) });
+assert.deepEqual(await uncappedWorker.runOnce(), { claimed: 1, invited: 0, noMatch: 1, stale: 0, deferred: 0 });
+assert.equal(uncappedCompletionAttempted, false, "Automatic dispatch attempted an invitation without a Landlord-approved maximum total.");
+
 const noMatchActions = [];
 const noMatchWorker = createAutomaticDispatchWorker({
   async claimDue() { return [{ cleaningRequestId: requestId, leaseExpiresAt: "2026-07-16T08:02:00.000Z" }]; },
@@ -112,9 +122,11 @@ const [migration, runtimeGrants, workerGrants] = await Promise.all([
   readFile(new URL("../db/worker-role-grants.sql", import.meta.url), "utf8")
 ]);
 const contributionFloorMigration = await readFile(new URL("../db/migrations/056_booking_minimum_contribution.sql", import.meta.url), "utf8");
+const customerCapMigration = await readFile(new URL("../db/migrations/058_automatic_dispatch_customer_cap.sql", import.meta.url), "utf8");
 for (const required of ["automatic_dispatch_authorized_at", "automatic_dispatch_attempt_limit BETWEEN 1 AND 5", "FOR UPDATE SKIP LOCKED", "automatic_dispatch_lease_token=lease_token", "prior.cleaner_user_id=candidate.cleaner_id", "tideway_private.invite_cleaner", "change_source='system'", "automatic-dispatch-authorized", "REVOKE ALL ON FUNCTION tideway_private.complete_automatic_dispatch"]) assert.ok(migration.includes(required), `Automatic dispatch migration omitted ${required}.`);
 assert.ok(runtimeGrants.includes("configure_automatic_dispatch(uuid,boolean,smallint)") && runtimeGrants.includes("REVOKE UPDATE, DELETE ON cleaning_requests"), "The web role can bypass consent-controlled request updates.");
 for (const signature of ["claim_due_automatic_dispatch(uuid,integer,integer)", "get_automatic_dispatch_candidates(uuid,uuid,integer)", "complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamptz,integer,integer,integer,integer,integer,integer,integer,integer,integer)", "release_automatic_dispatch_lease(uuid,uuid,text,timestamptz)"]) assert.ok(workerGrants.includes(signature), `The dedicated worker role cannot execute ${signature}.`);
 assert.ok(contributionFloorMigration.includes("proposed_target_contribution_pence") && contributionFloorMigration.includes("complete_automatic_dispatch") && !workerGrants.includes("GRANT EXECUTE ON FUNCTION tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamptz,integer,integer,integer,integer,integer,integer,integer,integer) TO tideway_worker"), "Automatic dispatch can bypass the minimum-contribution floor.");
+for (const required of ["approved_maximum_customer_price_pence", "proposed_customer_price_pence>approved_maximum_customer_price_pence", "automatic-dispatch-price-cap-required", "approvedMaximumCustomerPricePence", "maximumCustomerPricePence"]) assert.ok(customerCapMigration.includes(required), `Automatic dispatch customer-cap migration omitted ${required}.`);
 
-console.log("Automatic dispatch tests passed: explicit consent, two-floor profitable ranking, bounded concurrent leases/attempts, stale fallback, retry handling, parameterized worker access and function-only permissions.");
+console.log("Automatic dispatch tests passed: explicit maximum-price consent, two-floor profitable ranking, bounded concurrent leases/attempts, stale fallback, retry handling, parameterized worker access and function-only permissions.");
