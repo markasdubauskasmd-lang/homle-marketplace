@@ -784,6 +784,7 @@ textarea { resize: vertical; }
 .brief-page { background: #f5faf8; }
 .brief-hero { padding: 72px 0 48px; color: #fff; background: linear-gradient(135deg, var(--green-dark), #168276); }
 .brief-hero-grid { display: grid; grid-template-columns: 1.25fr .75fr; gap: 56px; align-items: center; }
+.brief-hero .eyebrow { color: #9ee8d4; }
 .brief-hero h1 { max-width: 760px; margin-bottom: 18px; font-size: clamp(2.6rem, 6vw, 5rem); }
 .brief-hero .hero-lead { max-width: 720px; color: #d8eee8; }
 .brief-steps { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
