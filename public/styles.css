@@ -1865,6 +1865,7 @@ textarea { resize: vertical; }
 .landlord-scan-upload-form, .landlord-request-submit-form { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .landlord-scan-upload-form label, .landlord-attempt-limit { display: grid; gap: 6px; font-size: .78rem; font-weight: 800; }
 .landlord-scan-picker-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.landlord-local-media-boundary { margin: 0; padding: 11px 12px; color: #7b4a08; border-left: 4px solid #c88820; border-radius: 8px; background: #fff8e8; font-size: .76rem; font-weight: 760; line-height: 1.45; }
 .landlord-scan-video-privacy { color: var(--muted); font-size: .72rem; line-height: 1.45; }
 .landlord-scan-selected { color: var(--muted); font-size: .72rem; overflow-wrap: anywhere; }
 .landlord-scan-selection-preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }

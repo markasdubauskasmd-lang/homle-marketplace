@@ -658,10 +658,10 @@ function openRequestScan(requestId) {
 function requestScanPanel(request) {
   const details = element("details", "landlord-request-scan");
   details.dataset.requestScanId = request.requestId;
-  const summary = element("summary", "", request.status === "draft" ? "Add room photos and submit" : "View reviewed room scan");
+  const summary = element("summary", "", request.status === "draft" ? (mediaReady ? "Add room photos and submit" : "Test the room camera") : "View reviewed room scan");
   details.append(summary);
   const panel = element("div", "landlord-request-scan-body");
-  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? (mediaReady ? "Choose the checklist room and take a current photo or short room video. Homle turns video into private still frames on this device, strips image metadata and keeps only sanitized JPEGs." : "Your spoken room checklist is saved. Private photo storage is not connected yet, so camera upload and matching submission remain safely locked.") : "This is the reviewed room-scan handoff attached to the request.");
+  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? (mediaReady ? "Choose the checklist room and take a current photo or short room video. Homle turns video into private still frames on this device, strips image metadata and keeps only sanitized JPEGs." : "Test the real phone camera or a short room video now. The visual previews stay only on this device and disappear when you leave; secure upload and matching submission remain locked until private storage is connected.") : "This is the reviewed room-scan handoff attached to the request.");
   const feedback = element("div", "landlord-form-feedback");
   feedback.hidden = true;
   feedback.tabIndex = -1;
@@ -727,11 +727,13 @@ function requestScanPanel(request) {
     videoInput.accept = "video/mp4,video/quicktime,video/webm,video/*";
     videoInput.setAttribute("capture", "environment");
     videoInput.hidden = true;
+    const localMediaBoundary = element("p", "landlord-local-media-boundary", "Camera rehearsal: these visual previews are not uploaded or saved. Keep this page open while reviewing them.");
+    localMediaBoundary.hidden = mediaReady;
     const videoPrivacy = element("small", "landlord-scan-video-privacy", "A short video becomes up to three still frames. The raw video and audio never leave this device.");
     const selected = element("span", "landlord-scan-selected", "No room visuals selected");
     const selectionPreview = element("div", "landlord-scan-selection-preview");
     selectionPreview.setAttribute("role", "list");
-    selectionPreview.setAttribute("aria-label", "Photos selected for private upload");
+    selectionPreview.setAttribute("aria-label", "Room photos selected for review");
     selectionPreview.hidden = true;
     let files = [];
     let previewUrls = [];
@@ -741,7 +743,7 @@ function requestScanPanel(request) {
     const upload = element("button", "button", "Upload private room photos");
     upload.type = "submit";
     function setUploadEditorLocked(locked) {
-      for (const control of [room, note, cameraButton, libraryButton, videoButton, cameraInput, libraryInput, videoInput]) control.disabled = locked || !mediaReady;
+      for (const control of [room, note, cameraButton, libraryButton, videoButton, cameraInput, libraryInput, videoInput]) control.disabled = locked;
     }
     function clearSelectionPreviews() {
       for (const url of previewUrls) URL.revokeObjectURL(url);
@@ -753,7 +755,8 @@ function requestScanPanel(request) {
       clearSelectionPreviews();
       if (!files.length) {
         selected.textContent = "No room visuals selected";
-        upload.textContent = "Upload private room photos";
+        upload.textContent = mediaReady ? "Upload private room photos" : "Secure storage needed to save";
+        upload.disabled = !mediaReady;
         return;
       }
       const totalBytes = files.reduce((sum, item) => sum + item.byteSize, 0);
@@ -763,8 +766,10 @@ function requestScanPanel(request) {
         selected.textContent += ` · ${awaitingVerification} securely uploaded, awaiting verification`;
         upload.textContent = awaitingVerification === files.length ? `Verify ${awaitingVerification} uploaded ${awaitingVerification === 1 ? "photo" : "photos"}` : "Verify uploaded photos and continue";
       } else {
-        upload.textContent = `Upload ${files.length} private ${files.length === 1 ? "photo" : "photos"}`;
+        upload.textContent = mediaReady ? `Upload ${files.length} private ${files.length === 1 ? "photo" : "photos"}` : "Secure storage needed to save";
       }
+      if (!mediaReady) selected.textContent += " · on this device only, not saved";
+      upload.disabled = !mediaReady;
       selectionPreview.hidden = false;
       for (const candidate of files) {
         const card = element("div", "landlord-scan-selection-card");
@@ -776,7 +781,7 @@ function requestScanPanel(request) {
           const previewUrl = URL.createObjectURL(candidate.file);
           previewUrls.push(previewUrl);
           image.src = previewUrl;
-          image.alt = `${candidate.name} selected for private upload`;
+          image.alt = `${candidate.name} selected for review`;
           card.append(image);
         }
         const copy = element("div", "landlord-scan-selection-copy");
@@ -802,7 +807,8 @@ function requestScanPanel(request) {
         const existingPhotoCount = Array.isArray(requestScans.get(request.requestId)?.photos) ? requestScans.get(request.requestId).photos.length : 0;
         files = validatedRoomPhotoSelection(candidates, { existingPhotoCount });
         renderSelection();
-        feedback.hidden = true;
+        if (mediaReady) feedback.hidden = true;
+        else showFeedback(feedback, `${files.length} room ${files.length === 1 ? "photo is" : "photos are"} ready to review on this device. Nothing was uploaded or saved.`, "success");
       } catch (error) {
         files = [];
         renderSelection();
@@ -812,7 +818,7 @@ function requestScanPanel(request) {
     cameraInput.addEventListener("change", choose);
     libraryInput.addEventListener("change", choose);
     videoInput.addEventListener("change", async (event) => {
-      if (uploadPending || videoProcessing || !mediaReady) { event.target.value = ""; return; }
+      if (uploadPending || videoProcessing) { event.target.value = ""; return; }
       const candidate = event.target.files?.[0];
       event.target.value = "";
       if (!candidate) return;
@@ -827,7 +833,9 @@ function requestScanPanel(request) {
         const frames = await extractRoomVideoFrames(candidate, { frameCount: Math.min(maximumRoomVideoFrames, remaining) });
         files = validatedRoomPhotoSelection(frames, { existingPhotoCount });
         renderSelection();
-        showFeedback(feedback, `${files.length} private still ${files.length === 1 ? "frame was" : "frames were"} prepared from the room video. The raw video and audio stayed on this device. Review the frames, then upload.`, "success");
+        showFeedback(feedback, mediaReady
+          ? `${files.length} private still ${files.length === 1 ? "frame was" : "frames were"} prepared from the room video. The raw video and audio stayed on this device. Review the frames, then upload.`
+          : `${files.length} still ${files.length === 1 ? "frame was" : "frames were"} prepared for review on this device. The raw video and audio were not uploaded, and these previews will disappear when you leave.`, "success");
       } catch (error) {
         files = [];
         renderSelection();
@@ -836,7 +844,7 @@ function requestScanPanel(request) {
         videoProcessing = false;
         setUploadEditorLocked(false);
         setPending(videoButton, false, "Record short room video");
-        videoButton.disabled = !mediaReady;
+        videoButton.disabled = false;
       }
     });
     room.addEventListener("change", () => { if (files.length) renderSelection(); });
@@ -845,13 +853,14 @@ function requestScanPanel(request) {
     videoButton.addEventListener("click", () => videoInput.click());
     window.addEventListener("pagehide", clearSelectionPreviews, { once: true });
     pickerActions.append(cameraButton, videoButton, libraryButton, cameraInput, videoInput, libraryInput);
-    for (const control of [room, note, cameraButton, videoButton, libraryButton, cameraInput, videoInput, libraryInput, upload]) control.disabled = !mediaReady;
-    if (!mediaReady) selected.textContent = "Photo capture unlocks after secure storage is verified";
-    form.append(roomLabel, noteLabel, pickerActions, videoPrivacy, selected, selectionPreview, upload);
+    upload.disabled = !mediaReady;
+    if (!mediaReady) upload.textContent = "Secure storage needed to save";
+    form.append(roomLabel, noteLabel, localMediaBoundary, pickerActions, videoPrivacy, selected, selectionPreview, upload);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (uploadPending || videoProcessing) return;
       feedback.hidden = true;
+      if (!mediaReady) return showFeedback(feedback, "These visual previews are still only on this device. Secure private storage must be connected before Homle can save them.");
       if (!form.reportValidity()) return;
       if (!files.length) return showFeedback(feedback, "Take a current room photo or choose photos from this device.");
       const queuedCount = files.length;
@@ -1564,7 +1573,7 @@ function renderNextAction() {
   }
   if (requests.some((request) => request.status === "draft")) {
     nextTitle.textContent = mediaReady ? "Finish your room scan" : "Review your spoken room checklist";
-    nextCopy.textContent = mediaReady ? (matchingReady ? "Add room photos, check the spoken-note summary and submit the private request." : "Add room photos and submit the reviewed scan. It will stay safely saved until private pricing and matching are connected.") : "Your draft is safe. Photo upload and matching will unlock only after private storage is verified.";
+    nextCopy.textContent = mediaReady ? (matchingReady ? "Add room photos, check the spoken-note summary and submit the private request." : "Add room photos and submit the reviewed scan. It will stay safely saved until private pricing and matching are connected.") : "Your draft is safe. You can test the phone camera and short-video scan locally now; saving visuals and matching unlock only after private storage is verified.";
     nextButton.textContent = "Continue room scan";
     nextButton.dataset.nextAction = "draft";
     nextButton.hidden = false;
