@@ -956,9 +956,12 @@ async function authorizeNextCleaner(requestId, attemptLimit, button, feedback) {
   const approvedMaximumPricePence = automaticMaximumPrice(request);
   if (approvedMaximumPricePence == null) return showFeedback(feedback, "This request has no approved maximum total. Choose a Cleaner directly or create a new request with a maximum.");
   if (!(await approveAutomaticDispatchPrice(approvedMaximumPricePence, attemptLimit))) return;
-  const csrf = await recoverCsrf(feedback, "authorising Cleaner matching");
-  if (!csrf) return;
   setPending(button, true, "Authorising…");
+  const csrf = await recoverCsrf(feedback, "authorising Cleaner matching");
+  if (!csrf) {
+    setPending(button, false, attemptLimit === 1 ? "Find my Cleaner" : "Try one more Cleaner");
+    return;
+  }
   try {
     const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/automatic-dispatch`, {
       method: "POST",
