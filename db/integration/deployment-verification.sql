@@ -20,6 +20,7 @@ DECLARE
   minimum_contribution_migration_installed boolean := false;
   public_cleaner_lookup_migration_installed boolean := false;
   automatic_dispatch_customer_cap_installed boolean := false;
+  participant_response_deadline_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -194,6 +195,8 @@ BEGIN
       INTO public_cleaner_lookup_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 58)'
       INTO automatic_dispatch_customer_cap_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 59)'
+      INTO participant_response_deadline_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -221,6 +224,11 @@ BEGIN
       WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
         AND position('automatic-dispatch-price-cap-required' IN procedure.prosrc)>0
     ) INTO automatic_dispatch_customer_cap_installed;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.list_my_booking_summaries(integer)')
+        AND position('participant-response-deadline-v1' IN procedure.prosrc)>0
+    ) INTO participant_response_deadline_installed;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -385,6 +393,18 @@ BEGIN
        OR position('proposed_customer_price_pence>approved_maximum_customer_price_pence' IN COALESCE(selected_source,''))=0
        OR position('automatic-dispatch-price-cap-required' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Automatic dispatch does not enforce the Landlord-approved maximum total';
+    END IF;
+  END IF;
+  IF participant_response_deadline_installed THEN
+    selected_function := to_regprocedure('tideway_private.list_my_booking_summaries(integer)');
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF selected_function IS NULL
+       OR position('participant-response-deadline-v1' IN COALESCE(selected_source,''))=0
+       OR position('WHEN booking.status = ''pending-cleaner-acceptance'' THEN booking.cleaner_response_deadline' IN COALESCE(selected_source,''))=0
+       OR position('''canRespond'', booking.cleaner_user_id = actor_id' IN COALESCE(selected_source,''))=0
+       OR position('access_instructions' IN COALESCE(selected_source,''))>0
+       OR position('property.address' IN COALESCE(selected_source,''))>0 THEN
+      RAISE EXCEPTION 'Participant booking summaries do not expose the pending response deadline safely';
     END IF;
   END IF;
   IF scope_handoff_migration_installed THEN

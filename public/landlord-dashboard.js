@@ -6,7 +6,7 @@ import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { landlordDispatchAction, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260717-6";
-import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-3";
+import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-4";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -1132,6 +1132,7 @@ async function withdrawRequest(event) {
 
 function renderBookingCard(booking) {
   const card = element("article", "booking-summary-card");
+  if (booking.status === "pending-cleaner-acceptance") card.classList.add("landlord-waiting-card");
   const heading = element("div", "booking-summary-heading");
   const title = element("div");
   title.append(element("span", "booking-status-pill", bookingSummaryStatusLabels[booking.status] || "Booking"), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Saved property"} · ${booking.counterpartyName || "Assigned Cleaner"}`));
@@ -1154,7 +1155,17 @@ function renderBookingCard(booking) {
     actions.append(payment);
   }
   card.append(heading, facts);
-  if (booking.paymentAuthorizationReady) card.append(element("p", "landlord-request-boundary", "Payment authorization is ready for this clean."));
+  if (booking.status === "pending-cleaner-acceptance") {
+    const deadline = bookingInvitationDeadlineState(booking);
+    const boundary = element("p", "landlord-waiting-deadline");
+    boundary.dataset.kind = deadline.kind;
+    boundary.textContent = deadline.kind === "expired"
+      ? "The Cleaner response window has ended. Homle is updating the request before matching can continue."
+      : deadline.kind === "unavailable"
+        ? "The Cleaner response deadline is being verified. No booking or payment has been created."
+        : `Cleaner response due by ${formatBookingMoment(booking.responseDeadline)}. If they do not accept, this invitation closes and matching can reopen.`;
+    card.append(boundary, element("p", "landlord-request-boundary", "No payment has been taken. This becomes a confirmed booking only if the Cleaner accepts the frozen time, checklist and total."));
+  } else if (booking.paymentAuthorizationReady) card.append(element("p", "landlord-request-boundary", "Payment authorization is ready for this clean."));
   else if (booking.paymentStepOpensAt) card.append(element("p", "landlord-request-boundary", `Payment opens ${formatBookingMoment(booking.paymentStepOpensAt)}. No action is needed yet.`));
   if (actions.childElementCount) card.append(actions);
   return card;
@@ -1168,6 +1179,11 @@ function renderBookings() {
   list.replaceChildren(...current.map(renderBookingCard));
   list.hidden = current.length === 0;
   document.querySelector("[data-landlord-booking-empty]").hidden = current.length > 0;
+  const waitingSection = document.querySelector("[data-landlord-waiting-section]");
+  const waitingList = document.querySelector("[data-landlord-waiting-list]");
+  waitingList.replaceChildren(...buckets.waiting.map(renderBookingCard));
+  waitingSection.hidden = buckets.waiting.length === 0;
+  document.querySelector("[data-landlord-waiting-count]").textContent = String(buckets.waiting.length);
   const historyList = document.querySelector("[data-landlord-history-list]");
   historyList.replaceChildren(...buckets.history.map(renderBookingCard));
   document.querySelector("[data-landlord-history-count]").textContent = String(buckets.history.length);

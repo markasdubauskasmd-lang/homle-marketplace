@@ -24,7 +24,7 @@ The invitation and request histories are system-attributed but retain private ev
 
 Before scheduling this worker:
 
-- apply and verify all 58 locked migrations and both restricted-role grant files on PostgreSQL 16;
+- apply and verify all 59 locked migrations and both restricted-role grant files on PostgreSQL 16;
 - pass the real multi-account RLS and two-worker concurrency harness;
 - configure and approve every private `BOOKING_*` cost and margin input;
 - include the approved fixed travel cost, per-kilometre cost and one-way/return distance multiplier so farther candidates cannot inherit a nearby job's travel allowance;

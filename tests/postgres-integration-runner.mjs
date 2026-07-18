@@ -54,6 +54,8 @@ assert.match(sources.get("facebook-data-deletion-behaviour.sql"), /Facebook dele
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account can read bookings/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account can read a private room scan/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Pending Cleaner scope handoff bypassed separate Landlord photo-preview consent/);
+assert.match(sources.get("marketplace-rls-behaviour.sql"), /Landlord booking summaries lost the shared deadline, response-role isolation or property privacy/);
+assert.match(sources.get("marketplace-rls-behaviour.sql"), /Cleaner booking summaries lost the exact actionable response deadline/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /insufficient_privilege/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Privacy export intake lost active-request idempotency/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Runtime role can read account privacy requests directly/);

@@ -2381,6 +2381,15 @@ textarea { resize: vertical; }
 .booking-dashboard-feedback { position: sticky; bottom: 14px; margin-top: 18px; padding: 13px 16px; border: 1px solid #b7d8ce; border-radius: 12px; background: #eff9f5; color: var(--green-dark); box-shadow: 0 10px 30px rgba(16,36,33,.14); font-weight: 750; }
 .booking-dashboard-feedback[data-kind="error"] { color: #782119; border-color: #dfa9a2; background: #fff2ef; }
 .landlord-booking-section { margin-bottom: 24px; }
+.landlord-waiting-section { margin-top: 20px; padding: 18px; border: 1px solid #e4ad73; border-radius: 16px; background: linear-gradient(145deg,#fff8ed,#fffdf9); }
+.landlord-waiting-section > div:first-child h3 { margin: 3px 0 4px; color: #6d3908; font-size: 1.25rem; }
+.landlord-waiting-section > div:first-child h3 span { display: inline-grid; min-width: 25px; height: 25px; margin-left: 5px; place-items: center; border-radius: 50%; background: #ffe0b8; font-size: .75rem; vertical-align: middle; }
+.landlord-waiting-section > div:first-child > p:last-child { margin: 0; color: var(--muted); font-size: .77rem; }
+.landlord-waiting-list { grid-template-columns: 1fr; }
+.landlord-waiting-card { border-color: #e4ad73; background: #fffdf9; }
+.landlord-waiting-deadline { margin: 0; padding: 11px 13px; color: #6d3908; border-left: 3px solid #d87937; background: #fff2df; font-size: .78rem; font-weight: 820; line-height: 1.45; }
+.landlord-waiting-deadline[data-kind="urgent"] { border-color: #b64c1f; background: #ffe7d2; }
+.landlord-waiting-deadline[data-kind="expired"], .landlord-waiting-deadline[data-kind="unavailable"] { color: #7e221a; border-color: #a33a30; background: #fff0ed; }
 .landlord-history-overview { margin-top: 22px; padding: 20px; border: 1px solid #cce1d9; border-radius: 18px; background: #f6fbf8; }
 .landlord-history-heading { display: flex; justify-content: space-between; gap: 20px; align-items: end; }
 .landlord-history-heading h3 { margin: 4px 0 0; color: var(--green-dark); font-size: clamp(1.25rem, 3vw, 1.7rem); }

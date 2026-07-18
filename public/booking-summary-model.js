@@ -23,8 +23,8 @@ function deadlineNow(value) {
   return Number.isFinite(milliseconds) ? milliseconds : Date.now();
 }
 
-export function cleanerInvitationDeadlineState(booking, now = Date.now()) {
-  if (booking?.status !== "pending-cleaner-acceptance" || booking?.canRespond !== true) return Object.freeze({ kind: "closed", remainingMs: 0 });
+export function bookingInvitationDeadlineState(booking, now = Date.now()) {
+  if (booking?.status !== "pending-cleaner-acceptance") return Object.freeze({ kind: "closed", remainingMs: 0 });
   const deadline = Date.parse(booking.responseDeadline || "");
   if (!Number.isFinite(deadline)) return Object.freeze({ kind: "unavailable", remainingMs: 0 });
   const remainingMs = deadline - deadlineNow(now);
@@ -32,11 +32,17 @@ export function cleanerInvitationDeadlineState(booking, now = Date.now()) {
   return Object.freeze({ kind: remainingMs <= 60 * 60_000 ? "urgent" : "open", remainingMs });
 }
 
+export function cleanerInvitationDeadlineState(booking, now = Date.now()) {
+  if (booking?.canRespond !== true) return Object.freeze({ kind: "closed", remainingMs: 0 });
+  return bookingInvitationDeadlineState(booking, now);
+}
+
 export function bookingSummaryBuckets(bookings, role, now = Date.now()) {
   const records = Array.isArray(bookings) ? bookings.filter((booking) => booking?.participantRole === role) : [];
   const invitationOpen = (booking) => ["open", "urgent"].includes(cleanerInvitationDeadlineState(booking, now).kind);
   return Object.freeze({
     pending: Object.freeze(records.filter((booking) => role === "cleaner" && invitationOpen(booking))),
+    waiting: Object.freeze(records.filter((booking) => role === "landlord" && booking.status === "pending-cleaner-acceptance")),
     active: Object.freeze(records.filter((booking) => activeStatuses.has(booking.status))),
     upcoming: Object.freeze(records.filter((booking) => upcomingStatuses.has(booking.status))),
     history: Object.freeze(records.filter((booking) => historyStatuses.has(booking.status) || role === "cleaner" && booking.status === "pending-cleaner-acceptance" && !invitationOpen(booking)))

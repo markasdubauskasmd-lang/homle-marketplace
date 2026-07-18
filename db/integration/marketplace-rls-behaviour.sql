@@ -5,11 +5,13 @@ BEGIN;
 SELECT set_config('app.user_id', '10000000-0000-4000-8000-000000000003', true);
 SELECT set_config('app.user_roles', 'landlord', true);
 DO $outsider$
-DECLARE affected integer;
+DECLARE affected integer; booking_summaries jsonb;
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 0 THEN RAISE EXCEPTION 'Unrelated account can read bookings'; END IF;
   IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 0 THEN RAISE EXCEPTION 'Unrelated account can read property instructions'; END IF;
   IF (SELECT count(*) FROM cleaning_requests WHERE id::text LIKE '30000000-0000-4000-8000-%') <> 0 THEN RAISE EXCEPTION 'Unrelated account can read cleaning requests'; END IF;
+  SELECT tideway_private.list_my_booking_summaries(50) INTO booking_summaries;
+  IF jsonb_array_length(booking_summaries) <> 0 THEN RAISE EXCEPTION 'Unrelated account can read participant booking deadlines'; END IF;
   BEGIN
     PERFORM tideway_private.get_cleaning_request_scan('30000000-0000-4000-8000-000000000001');
     RAISE EXCEPTION 'Unrelated account can read a private room scan';
@@ -96,11 +98,18 @@ $shared_rate_limit$;
 SELECT set_config('app.user_id', '10000000-0000-4000-8000-000000000001', true);
 SELECT set_config('app.user_roles', 'landlord', true);
 DO $landlord$
-DECLARE disconnected_record record; export_first jsonb; export_retry jsonb; deletion_first jsonb; privacy_history jsonb;
+DECLARE disconnected_record record; export_first jsonb; export_retry jsonb; deletion_first jsonb; privacy_history jsonb; booking_summaries jsonb;
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Landlord cannot read both own bookings'; END IF;
   IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 3 THEN RAISE EXCEPTION 'Landlord cannot read all own properties'; END IF;
   IF (SELECT count(*) FROM cleaning_requests WHERE id::text LIKE '30000000-0000-4000-8000-%') <> 3 THEN RAISE EXCEPTION 'Landlord cannot read all own requests'; END IF;
+  SELECT tideway_private.list_my_booking_summaries(50) INTO booking_summaries;
+  IF (SELECT count(*) FROM jsonb_array_elements(booking_summaries) AS entry(summary)
+      WHERE summary->>'status'='pending-cleaner-acceptance' AND summary->>'responseDeadline' IS NOT NULL) <> 2
+     OR EXISTS (SELECT 1 FROM jsonb_array_elements(booking_summaries) AS entry(summary) WHERE (summary->>'canRespond')::boolean IS TRUE)
+     OR booking_summaries::text LIKE '%accessInstructions%' OR booking_summaries::text LIKE '%Private test address%' THEN
+    RAISE EXCEPTION 'Landlord booking summaries lost the shared deadline, response-role isolation or property privacy';
+  END IF;
   IF tideway_private.verify_my_social_identity('google','integration-google-subject') IS NOT TRUE
      OR tideway_private.verify_my_social_identity('google','different-subject') IS TRUE THEN
     RAISE EXCEPTION 'Provider step-up did not require the exact connected subject';
@@ -134,10 +143,15 @@ $landlord$;
 SELECT set_config('app.user_id', '10000000-0000-4000-8000-000000000002', true);
 SELECT set_config('app.user_roles', 'cleaner', true);
 DO $cleaner$
-DECLARE scan jsonb; object_record record; payout_first jsonb; payout_retry jsonb; payout_synced jsonb;
+DECLARE scan jsonb; object_record record; payout_first jsonb; payout_retry jsonb; payout_synced jsonb; booking_summaries jsonb;
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Assigned cleaner cannot read invitations'; END IF;
   IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 0 THEN RAISE EXCEPTION 'Cleaner received access instructions before acceptance'; END IF;
+  SELECT tideway_private.list_my_booking_summaries(50) INTO booking_summaries;
+  IF (SELECT count(*) FROM jsonb_array_elements(booking_summaries) AS entry(summary)
+      WHERE summary->>'status'='pending-cleaner-acceptance' AND summary->>'responseDeadline' IS NOT NULL AND (summary->>'canRespond')::boolean IS TRUE) <> 2 THEN
+    RAISE EXCEPTION 'Cleaner booking summaries lost the exact actionable response deadline';
+  END IF;
   SELECT tideway_private.get_cleaning_request_scan('30000000-0000-4000-8000-000000000001') INTO scan;
   IF jsonb_array_length(scan->'photos')<>1 OR scan->'photos'->0->>'roomName'<>'Kitchen' THEN RAISE EXCEPTION 'Consented invited-Cleaner room scan is unavailable'; END IF;
   SELECT * INTO object_record FROM tideway_private.get_cleaning_request_photo_object('30000000-0000-4000-8000-000000000001','60000000-0000-4000-8000-000000000001');
