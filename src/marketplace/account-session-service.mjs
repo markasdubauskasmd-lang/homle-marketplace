@@ -39,6 +39,7 @@ function publicAccount(account) {
     email: String(account?.email || ""),
     emailVerifiedAt: account?.emailVerifiedAt ?? account?.email_verified_at ?? null,
     displayName: account?.displayName ?? account?.display_name ?? "",
+    avatarUrl: account?.avatarUrl ?? account?.avatar_url ?? null,
     selectedRole: account?.selectedRole ?? account?.selected_role ?? null,
     roles
   };

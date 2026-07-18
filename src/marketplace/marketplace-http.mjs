@@ -30,6 +30,7 @@ const jobPhotoCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPat
 const jobPhotoAccessPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/(${uuidPattern})/access$`);
 const bookingMessagesPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/messages$`);
 const bookingEventsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/events$`);
+const requestEventsPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/events$`);
 const notificationReadPath = new RegExp(`^/api/marketplace/notifications/(${uuidPattern})/read$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
 const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
@@ -38,6 +39,8 @@ const bookingCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPatt
 const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews$`);
 const bookingReviewResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews/response$`);
 const bookingPaymentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/payment$`);
+const adminPaymentCommandPath = new RegExp(`^/api/marketplace/admin/payments/(${uuidPattern})/(capture|cancel|refund|transfer)$`);
+const adminRequestMatchingReadinessPath = new RegExp(`^/api/marketplace/admin/cleaning-requests/(${uuidPattern})/matching-readiness$`);
 const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
 const bookingDisputePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/dispute$`);
 const adminDisputePath = new RegExp(`^/api/marketplace/admin/disputes/(${uuidPattern})$`);
@@ -56,6 +59,20 @@ function queryFilters(url) {
   return result;
 }
 
+export function administratorMatchingReadiness(result) {
+  if (!result || typeof result !== "object" || !Array.isArray(result.candidates) || typeof result.generatedAt !== "string" || !Number.isFinite(Date.parse(result.generatedAt))) throw new Error("Matching readiness is unavailable.");
+  const prices = result.candidates.map((candidate) => Number(candidate?.estimatedCustomerPricePence)).filter((price) => Number.isInteger(price) && price > 0 && price <= 10_000_000);
+  if (prices.length !== result.candidates.length) throw new Error("Matching readiness pricing is unavailable.");
+  return Object.freeze({
+    generatedAt: new Date(result.generatedAt).toISOString(),
+    candidateCount: result.candidates.length,
+    candidateLimit: 25,
+    moreMayExist: result.candidates.length === 25,
+    lowestCustomerPricePence: prices.length ? Math.min(...prices) : null,
+    highestCustomerPricePence: prices.length ? Math.max(...prices) : null
+  });
+}
+
 export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const security = dependencies?.security;
   const properties = dependencies?.propertyService;
@@ -72,12 +89,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const notifications = dependencies?.notificationService;
   const reviews = dependencies?.reviewService;
   const disputes = dependencies?.disputeService;
+  const administratorBookings = dependencies?.administratorBookingService;
   const privacyRequests = dependencies?.privacyRequestService;
   const payments = dependencies?.paymentService || null;
   const cleanerPayouts = dependencies?.cleanerPayoutService || null;
   const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
-  if (!properties || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
+  if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof cleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaner profile service.");
   if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
@@ -87,12 +105,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!media || !["createUploadIntent", "completeUpload", "getPhotoAccess"].every((method) => typeof media[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private job-media service.");
   if (!requestMedia || !["createUploadIntent", "completeUpload", "getScan", "getPhotoAccess"].every((method) => typeof requestMedia[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private request-media service.");
   if (!messages || !["sendMessage", "listMessages"].every((method) => typeof messages[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-message service.");
-  if (!realtime || typeof realtime.openStream !== "function") throw new TypeError("Marketplace HTTP routes require the booking real-time service.");
+  if (!realtime || typeof realtime.openStream !== "function" || typeof realtime.openRequestStream !== "function") throw new TypeError("Marketplace HTTP routes require the real-time marketplace service.");
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
   if (!disputes || !["open", "getForBooking", "listForAdministrator", "review"].every((method) => typeof disputes[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-case service.");
+  if (!administratorBookings || typeof administratorBookings.list !== "function") throw new TypeError("Marketplace HTTP routes require the Administrator booking operations service.");
   if (!privacyRequests || !["list", "request"].every((method) => typeof privacyRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account privacy-request service.");
-  if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
+  if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration", "listForAdministrator", "capture", "cancel", "refund", "transfer"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
   if (cleanerPayouts && !["getStatus", "refreshStatus", "beginOnboarding"].every((method) => typeof cleanerPayouts[method] === "function")) throw new TypeError("Marketplace Cleaner payout routes require the complete payout service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
   const limitPublicRead = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
@@ -117,6 +136,40 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);
           sendJson(response, 200, { ok: true, payment: payments.getClientConfiguration(context.actor) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/payments") {
+          if (!payments) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const page = await payments.listForAdministrator(context.actor, { bookingId: url.searchParams.get("bookingId"), status: url.searchParams.get("status"), limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
+          sendJson(response, 200, { ok: true, ...page });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/bookings") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const page = await administratorBookings.list(context.actor, { view: url.searchParams.get("view"), limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
+          sendJson(response, 200, { ok: true, ...page });
+          return true;
+        }
+        const selectedAdminMatchingReadiness = pathname.match(adminRequestMatchingReadinessPath);
+        if (selectedAdminMatchingReadiness) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const readiness = administratorMatchingReadiness(await matching.recommendForRequest(context.actor, selectedAdminMatchingReadiness[1]));
+          sendJson(response, 200, { ok: true, matchingReadiness: readiness });
+          return true;
+        }
+        const selectedAdminPaymentCommand = pathname.match(adminPaymentCommandPath);
+        if (selectedAdminPaymentCommand) {
+          if (!payments) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const input = await readJsonObject(request);
+          const kind = selectedAdminPaymentCommand[2];
+          const command = await payments[kind](context.actor, { paymentId: selectedAdminPaymentCommand[1], idempotencyKey: input.idempotencyKey, ...(kind === "refund" ? { amountPence: input.amountPence } : {}) });
+          sendJson(response, 202, { ok: true, command });
           return true;
         }
         if (pathname === "/api/marketplace/cleaner/payout-account") {
@@ -155,7 +208,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         if (pathname === "/api/marketplace/account") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);
-          sendJson(response, 200, { ok: true, account: { displayName: context.account.displayName, email: context.account.email, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
+          sendJson(response, 200, { ok: true, account: { displayName: context.account.displayName, email: context.account.email, avatarUrl: context.account.avatarUrl, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
           return true;
         }
         if (pathname === "/api/marketplace/privacy-requests") {
@@ -221,9 +274,12 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           return true;
         }
         if (pathname === "/api/marketplace/landlord/profile") {
-          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
-          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
-          const profile = await properties.saveLandlordProfile(context.actor, await readJsonObject(request));
+          if (request.method !== "GET" && request.method !== "PUT") return methodNotAllowed(response, ["GET", "PUT"]), true;
+          const mutation = request.method === "PUT";
+          const context = await security.protect(request, { mutation, roles: ["landlord"] });
+          const profile = mutation
+            ? await properties.saveLandlordProfile(context.actor, await readJsonObject(request))
+            : await properties.getLandlordProfile(context.actor);
           sendJson(response, 200, { ok: true, profile });
           return true;
         }
@@ -459,6 +515,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request);
           security.requireOrigin(request);
           await realtime.openStream(context.actor, selectedEvents[1], request, response, request.headers?.["last-event-id"] || url.searchParams.get("afterEventId") || 0, context.expiresAt);
+          return true;
+        }
+        const selectedRequestEvents = pathname.match(requestEventsPath);
+        if (selectedRequestEvents) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["landlord"] });
+          security.requireOrigin(request);
+          await realtime.openRequestStream(context.actor, selectedRequestEvents[1], request, response, request.headers?.["last-event-id"] || url.searchParams.get("afterEventId") || 0, context.expiresAt);
           return true;
         }
         const selectedJourneyStart = pathname.match(journeyStartPath);

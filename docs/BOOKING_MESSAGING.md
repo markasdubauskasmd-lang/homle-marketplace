@@ -8,6 +8,10 @@ Tideway now has a private message contract for the Landlord and assigned Cleaner
 
 - Only the booking Landlord and assigned Cleaner can send. An Administrator may read for authorized moderation but cannot impersonate either participant.
 - Messaging opens at `pending-cleaner-acceptance` and remains available through confirmed, journey, active-cleaning, review, completed and disputed states. It is closed for draft/search/pre-invite and cancelled records.
+
+## Local participant evidence
+
+The disposable PostgreSQL participant rehearsal now proves one Landlord message, exact retry recovery without duplication, changed-retry rejection, one Cleaner reply, ordered participant reads, direct phone-number rejection and unrelated-account read/send denial. The final verifier requires exactly two messages, two in-app notifications and two audit events before cleanup removes the booking and every dependent chat record. This is database evidence only: no email or SMS provider is contacted, and the managed two-phone HTTPS rehearsal remains required before activation.
 - Every read and write is authorized again in a `SECURITY DEFINER` database function using the transaction-local account context. RLS remains enabled, and the runtime role cannot directly read or mutate conversation/message tables.
 - Sensitive property access instructions remain in the separately gated property projection; messaging does not broaden access to them.
 

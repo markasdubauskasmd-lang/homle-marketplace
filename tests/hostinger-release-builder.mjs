@@ -19,6 +19,7 @@ for (const required of [
   "travel-coverage.mjs",
   "authentication-activation-readiness.mjs",
   "public/index.html",
+  "public/account-menu.js",
   "src/marketplace/runtime.mjs",
   "db/migration-lock.json",
   "db/migrations/038_facebook_data_deletion_callback.sql",
@@ -32,6 +33,14 @@ for (const required of [
   "db/migrations/046_fix_social_identity_column_ambiguity.sql",
   "db/migrations/047_fix_role_onboarding_column_ambiguity.sql",
   "db/migrations/048_multi_workspace_accounts.sql",
+  "db/migrations/049_pending_cleaner_scope_handoff.sql",
+  "db/migrations/050_administrator_payment_operations.sql",
+  "db/migrations/051_administrator_case_payment_handoff.sql",
+  "db/migrations/052_administrator_booking_operations.sql",
+  "db/migrations/053_matching_self_exclusion.sql",
+  "db/migrations/054_cleaning_request_realtime_events.sql",
+  "db/migrations/055_session_avatar_projection.sql",
+  "db/migrations/056_booking_minimum_contribution.sql",
   "db/runtime-role-grants.sql",
   "db/worker-role-grants.sql",
   "db/bootstrap/assert-empty-staging.sql",
@@ -79,14 +88,15 @@ try {
   assert.equal(release.privateMaterialIncluded, false);
   assert.equal(release.requiredRuntimeFilesVerified, true);
   assert.equal(release.databaseAssetsVerified, true);
-  assert.equal(release.migrationCount, 48);
+  assert.equal(release.migrationCount, 56);
   assert(release.entryCount >= release.fileCount && release.fileCount === expectedFiles.length + 1);
 
   const archive = await readFile(release.archivePath);
   const entries = inspectZipEntries(archive);
   assert.equal(entries.some((entry) => entry.name === "homle-release.json"), true, "Built release omitted its runtime deployment identity.");
+  assert.equal(entries.some((entry) => entry.name === "public/account-menu.js"), true, "Built release omitted secure dashboard sign-out.");
   const identity = JSON.parse(readZipEntry(archive, "homle-release.json").toString("utf8"));
-  assert.deepEqual(identity, { schemaVersion: 1, application: "Homle", sourceCommit: release.sourceCommit, builtAt: release.generatedAt, migrationCount: 48 });
+  assert.deepEqual(identity, { schemaVersion: 1, application: "Homle", sourceCommit: release.sourceCommit, builtAt: release.generatedAt, migrationCount: 56 });
   assert.equal(entries.some((entry) => entry.name === "travel-coverage.mjs"), true, "Built release omitted the server's travel coverage dependency.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/038_facebook_data_deletion_callback.sql"), true, "Built release omitted the locked Facebook data-deletion migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/039_unexpected_task_frozen_terms.sql"), true, "Built release omitted the locked unexpected-task economics migration.");
@@ -99,6 +109,14 @@ try {
   assert.equal(entries.some((entry) => entry.name === "db/migrations/046_fix_social_identity_column_ambiguity.sql"), true, "Built release omitted the social-identity ambiguity repair migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/047_fix_role_onboarding_column_ambiguity.sql"), true, "Built release omitted the role-onboarding ambiguity repair migration.");
   assert.equal(entries.some((entry) => entry.name === "db/migrations/048_multi_workspace_accounts.sql"), true, "Built release omitted the audited multi-workspace migration.");
+  assert.equal(entries.some((entry) => entry.name === "db/migrations/049_pending_cleaner_scope_handoff.sql"), true, "Built release omitted the pending-Cleaner checklist handoff migration.");
+  assert.equal(entries.some((entry) => entry.name === "db/migrations/050_administrator_payment_operations.sql"), true, "Built release omitted the Administrator payment-operations queue migration.");
+  assert.equal(entries.some((entry) => entry.name === "db/migrations/051_administrator_case_payment_handoff.sql"), true, "Built release omitted the booking-case payment-handoff migration.");
+  assert.equal(entries.some((entry) => entry.name === "db/migrations/052_administrator_booking_operations.sql"), true, "Built release omitted the Administrator booking-operations migration.");
+  assert.equal(entries.some((entry) => entry.name === "db/migrations/053_matching_self_exclusion.sql"), true, "Built release omitted the shared matching self-exclusion migration.");
+  assert.equal(entries.some((entry) => entry.name === "db/migrations/054_cleaning_request_realtime_events.sql"), true, "Built release omitted private Landlord request live updates.");
+  assert.equal(entries.some((entry) => entry.name === "db/migrations/055_session_avatar_projection.sql"), true, "Built release omitted the account-avatar session projection.");
+  assert.equal(entries.some((entry) => entry.name === "db/migrations/056_booking_minimum_contribution.sql"), true, "Built release omitted the booking minimum-contribution migration.");
   assert.equal(entries.some((entry) => entry.name === "public/tracking-test.html"), false, "Built release exposed the local tracking lab.");
   validateReleaseEntries(entries, [...expectedFiles, "homle-release.json"]);
 

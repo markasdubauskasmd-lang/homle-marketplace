@@ -24,6 +24,7 @@ Both routes require an authenticated booking participant; the mutation also requ
 - The screen displays only a shortened booking reference, case category, participant role, description and lifecycle timestamps. It does not request or render property addresses, access instructions, contact information, provider identifiers or payment details.
 - Status filtering and bounded 50-record pages keep the queue usable without broad reads. Counts are explicitly limited to the current loaded page rather than presented as marketplace totals.
 - Starting review and recording resolution use same-origin session cookies plus the tab-held CSRF value. Private case text is rendered through DOM `textContent`, never HTML insertion or persistent browser storage.
+- Only a case already marked `reviewing` exposes **Review related test payment**. That link opens the protected Administrator payment screen scoped to the exact booking; it does not resolve the case, submit a refund or expose provider, participant, property or payout identifiers. The destination page uses a no-referrer policy and invalid booking links fail closed.
 - Offline, authentication, wrong-role, disabled-runtime, empty, loading and retry states preserve the last visible queue without claiming that an uncertain update failed. If the mutation succeeds but refresh fails, the screen says the decision was recorded and requires a refresh before another action.
 - `GET /api/marketplace/admin/disputes` returns a bounded, status-filtered queue without participant contact data or property access details.
 - `PATCH /api/marketplace/admin/disputes/:disputeId` can mark a case `reviewing` or resolve it.
@@ -34,7 +35,7 @@ Both routes require an authenticated booking participant; the mutation also requ
 - Retrying the exact final resolution is idempotent; attempting to change a final decision is rejected.
 - A completed visit keeps its original `completed_at` evidence even if a later case outcome cancels the commercial booking.
 
-The source-complete operations screen is not a claim that trust-and-safety operations are ready. The evidence/minimisation safeguard and category routing are documented in `CASE_RESPONSE_PLAYBOOK.md`, but response targets, retention decisions, refund/re-clean/compensation authority, escalation ownership, an approved Administrator account and the real two-account HTTPS staging trial still require approval and evidence before real intake. The visual browser-automation connection was unavailable at this checkpoint, so responsive markup/style assertions and HTTP tests passed but a human visual pass remains required in staging.
+The source-complete operations screen is not a claim that trust-and-safety operations are ready. The evidence/minimisation safeguard, category routing and exact test-payment handoff are documented, but response targets, retention decisions, refund/re-clean/compensation authority, fraud checks, escalation ownership, an approved Administrator account and the real two-account HTTPS staging trial still require approval and evidence before real intake. The payment handoff does not grant remedy authority or enable payments. A human visual pass remains required in staging.
 
 ## Database boundary and proof
 
@@ -44,5 +45,6 @@ The runtime role has no direct `SELECT`, `INSERT`, `UPDATE` or `DELETE` privileg
 - `get_booking_dispute`
 - `list_admin_booking_disputes`
 - `review_booking_dispute`
+- `get_administrator_booking_payment_operation` is a separate payment function available only to the Administrator role through the restricted runtime grant; it does not broaden dispute-table access.
 
 The disposable PostgreSQL 16 integration suite uses distinct migration-owner and restricted application roles. It proves direct-table denial, unrelated-account denial, retry idempotency, one-active-case behavior, participant outcome access, Administrator-only review, exact history/audit evidence and complete fixture removal.

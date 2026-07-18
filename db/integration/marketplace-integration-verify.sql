@@ -5,7 +5,10 @@ BEGIN TRANSACTION READ ONLY;
 DO $verification$
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 3 THEN RAISE EXCEPTION 'Integration bookings are missing'; END IF;
-  IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%' AND status = 'confirmed') <> 1 THEN RAISE EXCEPTION 'Concurrent acceptance did not produce one confirmed booking'; END IF;
+  IF (SELECT count(*) FROM bookings WHERE id='40000000-0000-4000-8000-000000000001' AND target_contribution_pence=1200 AND planned_contribution_pence>=target_contribution_pence) <> 1 THEN RAISE EXCEPTION 'Participant invitation did not freeze and satisfy its minimum contribution'; END IF;
+  IF EXISTS (SELECT 1 FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%' AND planned_contribution_pence<target_contribution_pence) THEN RAISE EXCEPTION 'An integration booking violates its frozen minimum contribution'; END IF;
+  IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%' AND status = 'confirmed') <> 0 THEN RAISE EXCEPTION 'Participant rehearsal left a confirmed booking unfinished'; END IF;
+  IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%' AND status = 'completed') <> 1 THEN RAISE EXCEPTION 'Participant rehearsal did not produce one completed booking'; END IF;
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%' AND status = 'pending-cleaner-acceptance') <> 1 THEN RAISE EXCEPTION 'Losing overlapping invitation did not remain pending'; END IF;
   IF (SELECT count(*) FROM bookings WHERE id='40000000-0000-4000-8000-000000000003' AND status='cancelled' AND completed_at IS NOT NULL AND cancelled_at IS NOT NULL) <> 1 THEN RAISE EXCEPTION 'Resolved dispute booking outcome or completion evidence is missing'; END IF;
   IF (SELECT count(*) FROM disputes WHERE id IN ('50000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000006') AND status='resolved' AND assigned_admin_user_id='10000000-0000-4000-8000-000000000004') <> 2 THEN RAISE EXCEPTION 'Audited Administrator dispute resolutions are missing'; END IF;
@@ -13,6 +16,12 @@ BEGIN
   IF (SELECT count(*) FROM audit_logs WHERE resource_id IN ('50000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000006') AND action IN ('booking-dispute-opened','booking-dispute-review-started','booking-dispute-resolved')) <> 5 THEN RAISE EXCEPTION 'Dispute audit trail is incomplete'; END IF;
   IF (SELECT count(*) FROM booking_status_history WHERE booking_id::text LIKE '40000000-0000-4000-8000-%' AND to_status = 'confirmed') <> 1 THEN RAISE EXCEPTION 'Confirmation history is not exactly once'; END IF;
   IF (SELECT count(*) FROM conversations WHERE booking_id::text LIKE '40000000-0000-4000-8000-%') <> 1 THEN RAISE EXCEPTION 'Confirmed booking conversation was not created exactly once'; END IF;
+  IF (SELECT count(*) FROM messages WHERE id IN ('54000000-0000-4000-8000-000000000001','54000000-0000-4000-8000-000000000003') AND deleted_at IS NULL) <> 2 THEN RAISE EXCEPTION 'Two-way participant messages are missing or duplicated'; END IF;
+  IF (SELECT count(*) FROM notifications WHERE event_type='booking-message' AND idempotency_key IN ('message:54000000-0000-4000-8000-000000000001','message:54000000-0000-4000-8000-000000000003')) <> 2 THEN RAISE EXCEPTION 'Participant message notifications are missing or duplicated'; END IF;
+  IF (SELECT count(*) FROM audit_logs WHERE action='booking-message-sent' AND resource_id IN ('54000000-0000-4000-8000-000000000001','54000000-0000-4000-8000-000000000003')) <> 2 THEN RAISE EXCEPTION 'Participant message audit evidence is missing or duplicated'; END IF;
+  IF (SELECT count(*) FROM reviews WHERE id='53000000-0000-4000-8000-000000000001' AND moderation_status='approved' AND rating=5 AND cleaner_response='Thank you for the synthetic review.') <> 1 THEN RAISE EXCEPTION 'Verified participant review lifecycle is incomplete'; END IF;
+  IF (SELECT count(*) FROM booking_status_history WHERE booking_id=(SELECT booking_id FROM booking_payments WHERE id='52000000-0000-4000-8000-000000000001') AND to_status IN ('cleaner-en-route','cleaner-arrived','cleaning-in-progress','awaiting-review','completed')) <> 5 THEN RAISE EXCEPTION 'Participant booking lifecycle history is incomplete or duplicated'; END IF;
+  IF (SELECT count(*) FROM booking_payments WHERE id='52000000-0000-4000-8000-000000000001' AND status='authorized' AND provider_payment_id='pi_synthetic_local_rehearsal') <> 1 THEN RAISE EXCEPTION 'Synthetic local payment gate evidence is missing'; END IF;
   IF (SELECT count(*) FROM tideway_private.facebook_data_deletion_requests WHERE id IN (
     '73000000-0000-4000-8000-000000000001',
     '73000000-0000-4000-8000-000000000002',

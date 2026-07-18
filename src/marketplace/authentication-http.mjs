@@ -57,6 +57,7 @@ function accountFromOnboarding(context, result) {
     email: context.account.email,
     emailVerifiedAt: context.account.emailVerifiedAt,
     displayName: context.account.displayName,
+    avatarUrl: context.account.avatarUrl,
     selectedRole: result.selected_role ?? result.selectedRole,
     roles: Array.isArray(result.roles) ? result.roles : []
   };
@@ -166,7 +167,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
         if (url.pathname === "/api/marketplace/account") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);
-          sendJson(response, 200, { ok: true, workspaceReady, account: { displayName: context.account.displayName, email: context.account.email, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
+          sendJson(response, 200, { ok: true, workspaceReady, account: { displayName: context.account.displayName, email: context.account.email, avatarUrl: context.account.avatarUrl, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
           return true;
         }
         if (url.pathname === `${prefix}session`) {

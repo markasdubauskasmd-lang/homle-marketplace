@@ -49,6 +49,8 @@ import { createDisputeService } from "./dispute-service.mjs";
 import { createPrivacyRequestRepository } from "./privacy-request-repository.mjs";
 import { createPrivacyRequestService } from "./privacy-request-service.mjs";
 import { createStagingAccountAccess } from "./staging-account-access.mjs";
+import { createAdministratorBookingRepository } from "./administrator-booking-repository.mjs";
+import { createAdministratorBookingService } from "./administrator-booking-service.mjs";
 
 export function createMarketplaceRuntime(pool, options = {}) {
   const env = options.env || process.env;
@@ -138,9 +140,11 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const reviewService = createReviewService(reviewRepository);
   const disputeRepository = createDisputeRepository(database);
   const disputeService = createDisputeService(disputeRepository);
+  const administratorBookingRepository = createAdministratorBookingRepository(database);
+  const administratorBookingService = createAdministratorBookingService(administratorBookingRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
   const authenticationRouter = options.emailDelivery
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: true })
@@ -200,6 +204,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     reviewService,
     disputeRepository,
     disputeService,
+    administratorBookingRepository,
+    administratorBookingService,
     privacyRequestRepository,
     privacyRequestService,
     authenticationRouter,

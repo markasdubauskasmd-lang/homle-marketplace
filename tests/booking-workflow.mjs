@@ -22,6 +22,7 @@ const candidate = {
 };
 const policy = createBookingPricingPolicy({
   targetMarginBasisPoints: 2000,
+  minimumContributionPence: 1800,
   labourOnCostBasisPoints: 1000,
   paymentFeeBasisPoints: 300,
   paymentFeeFixedPence: 20,
@@ -31,11 +32,13 @@ const policy = createBookingPricingPolicy({
 });
 const quote = policy.quote(candidate, now);
 const costs = quote.cleanerPayPence + quote.labourOnCostPence + quote.paymentFeePence + quote.travelCostPence + quote.suppliesCostPence + quote.otherCostPence;
-assert(quote.cleanerPayPence === 7500 && quote.customerPricePence > costs && (quote.customerPricePence - costs) * 10000 >= quote.customerPricePence * 2000 && quote.responseDeadline === "2026-07-15T13:00:00.000Z", "Private pricing did not cover cleaner pay, costs, target margin and a bounded response window.");
+assert(quote.cleanerPayPence === 7500 && quote.customerPricePence > costs && quote.customerPricePence - costs >= 1800 && (quote.customerPricePence - costs) * 10000 >= quote.customerPricePence * 2000 && quote.targetContributionPence === 1800 && quote.responseDeadline === "2026-07-15T13:00:00.000Z", "Private pricing did not cover cleaner pay, costs, both profit floors and a bounded response window.");
 assert(await rejects(() => Promise.resolve(createBookingPricingPolicy({ targetMarginBasisPoints: 0 })), "Target margin"), "A zero-margin policy was accepted.");
+assert(await rejects(() => Promise.resolve(createBookingPricingPolicy({ targetMarginBasisPoints: 2000 })), "Minimum booking contribution"), "A missing pounds-per-booking floor was accepted.");
 assert(await rejects(() => Promise.resolve(policy.quote({ ...candidate, services: [{ serviceCode: "regular-domestic", pricingModel: "quote", pricePence: null }] }, now)), "manual quote"), "A manual-quote service was silently priced.");
 const distancePolicy = createBookingPricingPolicy({
   targetMarginBasisPoints: 2000,
+  minimumContributionPence: 1800,
   labourOnCostBasisPoints: 1000,
   paymentFeeBasisPoints: 300,
   paymentFeeFixedPence: 20,
@@ -51,10 +54,10 @@ assert(distanceQuote.travelCostPence === 1368 && nearbyQuote.travelCostPence ===
 for (const suppliedDistance of [null, "", "not-a-distance", "-1", "500.01"]) {
   assert(await rejectsCode(() => Promise.resolve(distancePolicy.quote({ ...candidate, distance_km: suppliedDistance }, now)), "travel-distance-unavailable"), `Unsafe travel distance ${String(suppliedDistance)} was priced instead of failing closed.`);
 }
-const excessiveTravelPolicy = createBookingPricingPolicy({ targetMarginBasisPoints: 2000, travelCostPence: 999999, travelCostPerKmPence: 100000, travelDistanceMultiplierBasisPoints: 50000 });
+const excessiveTravelPolicy = createBookingPricingPolicy({ targetMarginBasisPoints: 2000, minimumContributionPence: 1, travelCostPence: 999999, travelCostPerKmPence: 100000, travelDistanceMultiplierBasisPoints: 50000 });
 assert(await rejectsCode(() => Promise.resolve(excessiveTravelPolicy.quote({ ...candidate, distance_km: "500" }, now)), "request-not-priceable"), "An excessive distance cost escaped the supported frozen travel-cost ceiling.");
 assert(bookingPricingPolicyFromEnvironment({}) === null && await rejects(() => Promise.resolve(bookingPricingPolicyFromEnvironment({ BOOKING_TARGET_MARGIN_BPS: "2000" })), "complete private"), "Missing or partial booking economics did not fail closed.");
-const previousEnvironmentPolicy = { BOOKING_TARGET_MARGIN_BPS: "2000", BOOKING_LABOUR_ON_COST_BPS: "1000", BOOKING_PAYMENT_FEE_BPS: "300", BOOKING_PAYMENT_FEE_FIXED_PENCE: "20", BOOKING_TRAVEL_COST_PENCE: "500", BOOKING_SUPPLIES_COST_PENCE: "250", BOOKING_OTHER_COST_PENCE: "0", BOOKING_INVITATION_TTL_MINUTES: "180" };
+const previousEnvironmentPolicy = { BOOKING_TARGET_MARGIN_BPS: "2000", BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1800", BOOKING_LABOUR_ON_COST_BPS: "1000", BOOKING_PAYMENT_FEE_BPS: "300", BOOKING_PAYMENT_FEE_FIXED_PENCE: "20", BOOKING_TRAVEL_COST_PENCE: "500", BOOKING_SUPPLIES_COST_PENCE: "250", BOOKING_OTHER_COST_PENCE: "0", BOOKING_INVITATION_TTL_MINUTES: "180" };
 assert(await rejects(() => Promise.resolve(bookingPricingPolicyFromEnvironment(previousEnvironmentPolicy)), "complete private"), "The previous fixed-only environment silently activated without an explicit distance rate and distance multiplier.");
 const configuredPolicy = bookingPricingPolicyFromEnvironment({ ...previousEnvironmentPolicy, BOOKING_TRAVEL_COST_PER_KM_PENCE: "35", BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS: "20000" });
 assert(configuredPolicy.quote(candidate, now).customerPricePence === distanceQuote.customerPricePence, "Complete private distance-aware environment pricing did not compose deterministically.");
@@ -113,10 +116,10 @@ const database = { async withUserTransaction(actor, operation) { return operatio
 const repository = createBookingRepository(database);
 const selectedCandidate = await repository.getInvitationCandidate(landlord, requestId, cleaner.userId);
 await repository.listParticipantBookings(cleaner, 50);
-await repository.inviteCleaner(landlord, { bookingId, requestId, cleanerId: cleaner.userId, responseDeadline: quote.responseDeadline, customerPricePence: quote.customerPricePence, cleanerPayPence: quote.cleanerPayPence, labourOnCostPence: quote.labourOnCostPence, paymentFeePence: quote.paymentFeePence, travelCostPence: quote.travelCostPence, suppliesCostPence: quote.suppliesCostPence, otherCostPence: quote.otherCostPence, targetMarginBasisPoints: quote.targetMarginBasisPoints });
+await repository.inviteCleaner(landlord, { bookingId, requestId, cleanerId: cleaner.userId, responseDeadline: quote.responseDeadline, customerPricePence: quote.customerPricePence, cleanerPayPence: quote.cleanerPayPence, labourOnCostPence: quote.labourOnCostPence, paymentFeePence: quote.paymentFeePence, travelCostPence: quote.travelCostPence, suppliesCostPence: quote.suppliesCostPence, otherCostPence: quote.otherCostPence, targetMarginBasisPoints: quote.targetMarginBasisPoints, targetContributionPence: quote.targetContributionPence });
 await repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null });
 assert(selectedCandidate.distance_km === "4.20" && sqlCalls[0].text.includes("JOIN properties property") && sqlCalls[0].text.includes("cleaner_service_areas") && sqlCalls[0].text.includes("coverage.distance_km") && sqlCalls[0].text.includes("profile.user_id<>request.landlord_user_id") && sqlCalls[0].values[1] === cleaner.userId, "Direct Cleaner invitation pricing did not bind the selected Cleaner to the property distance evidence or exclude a Landlord's own Cleaner profile.");
-assert(sqlCalls[1].text.includes("list_my_booking_summaries") && sqlCalls[1].values[0] === 50 && sqlCalls[2].text.includes("tideway_private.invite_cleaner") && sqlCalls[2].values.length === 12 && sqlCalls[3].text.includes("respond_to_cleaner_invitation") && sqlCalls[3].actor.userId === cleaner.userId, "Booking repository bypassed participant-safe summaries, actor-bound audited transitions or parameterized terms.");
+assert(sqlCalls[1].text.includes("list_my_booking_summaries") && sqlCalls[1].values[0] === 50 && sqlCalls[2].text.includes("tideway_private.invite_cleaner") && sqlCalls[2].values.length === 13 && sqlCalls[2].values[12] === 1800 && sqlCalls[3].text.includes("respond_to_cleaner_invitation") && sqlCalls[3].actor.userId === cleaner.userId, "Booking repository bypassed participant-safe summaries, actor-bound audited transitions or both parameterized profit targets.");
 failure = Object.assign(new Error("duplicate overlap"), { code: "23P01" });
 assert(await rejects(() => repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null }), "overlaps"), "Concurrent exclusion violations were not mapped to a safe schedule conflict.");
 for (const [databaseMessage, publicMessage] of [
@@ -137,6 +140,7 @@ const paymentWindowMigration = await readFile(new URL("../db/migrations/042_book
 const expiryMigration = await readFile(new URL("../db/migrations/011_invitation_expiry_and_requeue.sql", import.meta.url), "utf8");
 const hardeningMigration = await readFile(new URL("../db/migrations/028_invitation_eligibility_hardening.sql", import.meta.url), "utf8");
 const serviceAreaRepairMigration = await readFile(new URL("../db/migrations/031_fix_invitation_service_area_lookup.sql", import.meta.url), "utf8");
+const contributionFloorMigration = await readFile(new URL("../db/migrations/056_booking_minimum_contribution.sql", import.meta.url), "utf8");
 const grants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const workerGrants = await readFile(new URL("../db/worker-role-grants.sql", import.meta.url), "utf8");
 for (const required of ["bookings_one_live_attempt_per_request_idx", "planned_contribution_pence", "bookings_target_margin_check", "cleaner_response_deadline", "scope_snapshot", "cleaner-services-mismatch", "cleaner-unavailable", "exclusion_violation", "booking_status_history", "cleaning_request_status_history", "ON CONFLICT (booking_id) DO NOTHING", "idempotency_key"]) assert(migration.includes(required), `Booking migration omitted ${required}.`);
@@ -149,5 +153,7 @@ assert(!grants.includes("expire_due_cleaner_invitations") && workerGrants.includ
 for (const required of ["pg_advisory_xact_lock", "account.account_status='active'", "cleaner-property-mismatch", "cleaner-outside-service-area", "cleaner-price-changed", "cleaner-has-overlapping-invitation", "service.pricing_model IN ('hourly','fixed')", "expected_cleaner_pay<>proposed_cleaner_pay_pence", "cleaner_availability", "tstzrange", "invite_cleaner_before_eligibility_hardening", "respond_to_cleaner_invitation_before_eligibility_hardening", "REVOKE ALL"]) assert(hardeningMigration.includes(required), `Invitation eligibility hardening omitted ${required}.`);
 assert(hardeningMigration.indexOf("pg_advisory_xact_lock") < hardeningMigration.indexOf("cleaner-has-overlapping-invitation") && !grants.includes("invite_cleaner_before_eligibility_hardening") && !grants.includes("respond_to_cleaner_invitation_before_eligibility_hardening"), "Invitation schedule serialization happens too late or a superseded function is executable by the runtime role.");
 assert(serviceAreaRepairMigration.includes("request_outward_postcode") && serviceAreaRepairMigration.includes("area.outward_postcode=request_outward_postcode") && !serviceAreaRepairMigration.includes("area.outward_postcode=outward_postcode"), "The deployed invitation function retains an ambiguous postcode lookup.");
+for (const required of ["target_contribution_pence", "bookings_target_contribution_check", "proposed_target_contribution_pence", "planned_contribution<proposed_target_contribution_pence", "termsFingerprint", "REVOKE ALL ON FUNCTION tideway_private.invite_cleaner"]) assert(contributionFloorMigration.includes(required), `The booking minimum-contribution migration omitted ${required}.`);
+assert(grants.includes("invite_cleaner(uuid, uuid, uuid, timestamptz, integer, integer, integer, integer, integer, integer, integer, integer, integer)") && !grants.includes("GRANT EXECUTE ON FUNCTION tideway_private.invite_cleaner(uuid, uuid, uuid, timestamptz, integer, integer, integer, integer, integer, integer, integer, integer) TO tideway_app"), "The runtime role did not move exclusively to the two-floor invitation function.");
 
-console.log("Booking workflow tests passed: server-owned profitable terms, frozen scope, authoritative property/coverage/pay/availability eligibility, decline/retry history, idempotent responses and concurrent overlap protection.");
+console.log("Booking workflow tests passed: server-owned two-floor profitable terms, frozen scope, authoritative property/coverage/pay/availability eligibility, decline/retry history, idempotent responses and concurrent overlap protection.");

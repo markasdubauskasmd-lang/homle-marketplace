@@ -40,10 +40,11 @@ GRANT EXECUTE ON FUNCTION tideway_private.record_password_attempt(uuid, boolean)
 GRANT EXECUTE ON FUNCTION tideway_private.issue_password_reset(citext, bytea, timestamptz) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.consume_password_reset(bytea, text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.search_cleaner_directory(text, text, timestamptz, timestamptz, numeric, integer, boolean, numeric, numeric, numeric, integer, integer) TO tideway_app;
-GRANT EXECUTE ON FUNCTION tideway_private.invite_cleaner(uuid, uuid, uuid, timestamptz, integer, integer, integer, integer, integer, integer, integer, integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.invite_cleaner(uuid, uuid, uuid, timestamptz, integer, integer, integer, integer, integer, integer, integer, integer, integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.respond_to_cleaner_invitation(uuid, text, text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_my_booking_summaries(integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.recommend_cleaners_for_request(uuid, integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.recommend_cleaners_for_request_v2(uuid, integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.configure_automatic_dispatch(uuid,boolean,smallint) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.create_request_photo_upload_intent(uuid,uuid,text,text,text,text,text,integer,text,timestamptz) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_request_photo_upload_for_completion(uuid) TO tideway_app;
@@ -73,6 +74,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_job_photo_object(uuid,uuid) TO tid
 GRANT EXECUTE ON FUNCTION tideway_private.send_booking_message(uuid,uuid,uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_messages(uuid,timestamptz,uuid,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_realtime_snapshot(uuid,bigint,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_request_realtime_snapshot(uuid,bigint,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_notifications(timestamptz,uuid,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.mark_my_notification_read(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.mark_all_my_notifications_read(timestamptz) TO tideway_app;
@@ -89,6 +91,9 @@ GRANT EXECUTE ON FUNCTION tideway_private.begin_booking_payment_command(uuid,uui
 GRANT EXECUTE ON FUNCTION tideway_private.record_booking_payment_command(uuid,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.read_booking_payment(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_administrator_payment_operations(text,integer,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_administrator_booking_payment_operation(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_administrator_booking_operations(text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.current_booking_payment_authorized(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.open_booking_dispute(uuid,uuid,uuid,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_dispute(uuid) TO tideway_app;
@@ -111,6 +116,7 @@ REVOKE INSERT, UPDATE, DELETE ON disputes FROM tideway_app;
 REVOKE SELECT ON job_photos, job_photo_uploads FROM tideway_app;
 REVOKE SELECT ON conversations, messages FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON booking_realtime_events FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaning_request_realtime_events FROM tideway_app;
 REVOKE SELECT ON notifications FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON reviews FROM tideway_app;
 REVOKE SELECT ON disputes FROM tideway_app;

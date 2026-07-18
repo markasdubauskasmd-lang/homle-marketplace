@@ -4,6 +4,9 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 const referencePattern = /^[A-Za-z0-9_:-]{3,255}$/;
 const idempotencyPattern = /^[A-Za-z0-9_-]{32,128}$/;
 const commandKinds = new Set(["capture", "cancel", "refund", "transfer"]);
+const paymentStatuses = new Set(["creating", "requires-customer-action", "processing", "authorized", "authorization-failed", "captured", "partially-refunded", "refunded", "cancelled", "disputed"]);
+const bookingStatuses = new Set(["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "cancelled", "disputed"]);
+const commandStatuses = new Set(["created", "provider-pending", "provider-failed", "reconciled"]);
 const eventKinds = new Set([
   "authorization-requires-action",
   "authorization-processing",
@@ -44,6 +47,69 @@ function keyHash(value) {
 
 function actorHas(actor, role) {
   return uuidPattern.test(actor?.userId || "") && Array.isArray(actor.roles) && actor.roles.includes(role);
+}
+
+function object(value) {
+  if (typeof value === "string") { try { return JSON.parse(value); } catch { return null; } }
+  return value;
+}
+
+function timestamp(value, label) {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) throw new Error(`${label} is unavailable.`);
+  return new Date(value).toISOString();
+}
+
+function boundedInteger(value, minimum, maximum, fallback, label) {
+  if (value == null || value === "") return fallback;
+  const selected = Number(value);
+  if (!Number.isInteger(selected) || selected < minimum || selected > maximum) throw new TypeError(`${label} is outside the supported range.`);
+  return selected;
+}
+
+function exactInteger(value, minimum, maximum, label) {
+  if (!Number.isInteger(value) || value < minimum || value > maximum) throw new Error(`${label} is unavailable.`);
+  return value;
+}
+
+function optionalCommandStatus(value) {
+  if (value == null) return null;
+  if (!commandStatuses.has(value)) throw new Error("A payment action status is unavailable.");
+  return value;
+}
+
+function administratorPaymentOperation(value) {
+  const record = object(value);
+  if (!record || typeof record !== "object" || !paymentStatuses.has(record.paymentStatus) || !bookingStatuses.has(record.bookingStatus)) throw new Error("The payment operation is unavailable.");
+  const amountPence = positiveInteger(record.amountPence, "Payment amount");
+  const captured = exactInteger(record.amountCapturedPence, 0, amountPence, "Captured amount");
+  const refunded = exactInteger(record.amountRefundedPence, 0, captured, "Refunded amount");
+  const cleanerPay = positiveInteger(record.cleanerPayPence, "Cleaner pay");
+  if (cleanerPay > amountPence) throw new Error("The payment operation economics are unavailable.");
+  const result = {
+    paymentId: uuid(record.paymentId, "payment id"),
+    bookingId: uuid(record.bookingId, "booking id"),
+    paymentStatus: record.paymentStatus,
+    bookingStatus: record.bookingStatus,
+    scheduledStartAt: timestamp(record.scheduledStartAt, "Booking start time"),
+    scheduledEndAt: timestamp(record.scheduledEndAt, "Booking end time"),
+    amountPence,
+    currency: currency(record.currency),
+    amountCapturedPence: captured,
+    amountRefundedPence: refunded,
+    cleanerPayPence: cleanerPay,
+    payoutReady: record.payoutReady === true,
+    canCapture: record.canCapture === true,
+    canCancel: record.canCancel === true,
+    canRefund: record.canRefund === true,
+    canTransfer: record.canTransfer === true,
+    awaitingProvider: record.awaitingProvider === true,
+    captureStatus: optionalCommandStatus(record.captureStatus),
+    cancelStatus: optionalCommandStatus(record.cancelStatus),
+    refundStatus: optionalCommandStatus(record.refundStatus),
+    transferStatus: optionalCommandStatus(record.transferStatus),
+    updatedAt: timestamp(record.updatedAt, "Payment update time")
+  };
+  return Object.freeze(result);
 }
 
 function requireRole(actor, ...roles) {
@@ -108,7 +174,7 @@ function normalizedEvent(value, payloadHash) {
 }
 
 export function createPaymentService(repository, provider, options = {}) {
-  const requiredRepository = ["getByBooking", "beginAuthorization", "recordAuthorization", "beginCommand", "recordCommand", "reconcileEvent"];
+  const requiredRepository = ["getByBooking", "listForAdministrator", "getForAdministratorBooking", "beginAuthorization", "recordAuthorization", "beginCommand", "recordCommand", "reconcileEvent"];
   const requiredProvider = ["createAuthorization", "retrieveAuthorization", "capture", "cancel", "refund", "transfer", "verifyWebhook"];
   if (!repository || requiredRepository.some((method) => typeof repository[method] !== "function")) throw new TypeError("A complete payment repository is required.");
   if (!provider || provider.name !== "stripe" || requiredProvider.some((method) => typeof provider[method] !== "function")) throw new TypeError("A complete Stripe payment adapter is required.");
@@ -180,6 +246,19 @@ export function createPaymentService(repository, provider, options = {}) {
       requireRole(actor, "landlord", "administrator");
       const record = await repository.getByBooking(actor, uuid(bookingId, "booking id"));
       return record ? publicPayment(record) : null;
+    },
+    async listForAdministrator(actor, input = {}) {
+      requireRole(actor, "administrator");
+      const bookingId = input.bookingId == null || input.bookingId === "" ? null : uuid(String(input.bookingId).trim(), "booking id");
+      const status = input.status == null || input.status === "" ? "actionable" : String(input.status).trim().toLowerCase();
+      if (status !== "actionable" && !paymentStatuses.has(status)) throw new TypeError("Choose a valid payment queue status.");
+      const limit = boundedInteger(input.limit, 1, 100, 50, "Payment page size");
+      const offset = boundedInteger(input.offset, 0, 10000, 0, "Payment page offset");
+      const page = bookingId
+        ? { payments: [object(await repository.getForAdministratorBooking(actor, bookingId))].filter(Boolean), limit: 1, offset: 0 }
+        : object(await repository.listForAdministrator(actor, { status, limit, offset }));
+      if (!page || !Array.isArray(page.payments)) throw new Error("The payment operations queue is unavailable.");
+      return Object.freeze({ payments: Object.freeze(page.payments.map(administratorPaymentOperation)), limit: boundedInteger(page.limit, 1, 100, limit, "Payment page size"), offset: boundedInteger(page.offset, 0, 10000, offset, "Payment page offset"), testMode: true });
     },
     beginAuthorization,
     capture(actor, input) { return runCommand(actor, "capture", input); },

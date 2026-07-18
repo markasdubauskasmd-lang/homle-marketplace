@@ -1,4 +1,5 @@
-import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js";
+import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDecisionState, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js?v=20260718-1";
+import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
 
 const gate = document.querySelector("[data-cleaner-dashboard-gate]");
 const dashboard = document.querySelector("[data-cleaner-dashboard]");
@@ -7,6 +8,8 @@ const signIn = document.querySelector("[data-cleaner-sign-in]");
 const feedback = document.querySelector("[data-cleaner-dashboard-feedback]");
 const declineDialog = document.querySelector("[data-decline-dialog]");
 const declineForm = document.querySelector("[data-decline-form]");
+const declineCancel = document.querySelector("[data-decline-cancel]");
+const networkStatus = document.querySelector("[data-cleaner-network-status]");
 let bookings = [];
 let selectedDeclineBookingId = "";
 let loading = false;
@@ -19,6 +22,18 @@ document.querySelector("[data-year]").textContent = String(new Date().getFullYea
 
 function storedCsrf() {
   try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
+}
+
+function saveCsrf(token) {
+  try { sessionStorage.setItem("tideway_csrf", token); return true; } catch { return false; }
+}
+
+function browserOffline() {
+  return navigator.onLine === false;
+}
+
+function updateNetworkStatus() {
+  networkStatus.hidden = !browserOffline();
 }
 
 function element(name, className, text) {
@@ -47,10 +62,37 @@ function showFeedback(message, kind = "info") {
 
 async function requestJson(path, options = {}) {
   const { headers = {}, ...rest } = options;
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers } });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(result.error || "The Cleaner dashboard could not be updated."), { statusCode: response.status, code: result.code });
-  return result;
+  const mutation = String(rest.method || "GET").toUpperCase() !== "GET";
+  if (browserOffline()) throw Object.assign(new Error(mutation ? "You are offline. This decision was not sent; reconnect before trying again." : "You are offline. Reconnect to refresh the Cleaner dashboard."), { code: "browser-offline", uncertain: false });
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 30_000);
+  try {
+    const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, signal: controller.signal, headers: { Accept: "application/json", ...headers } });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(result.error || "The Cleaner dashboard could not be updated."), { statusCode: response.status, code: result.code, uncertain: false });
+    return result;
+  } catch (error) {
+    if (error?.name === "AbortError") throw Object.assign(new Error(mutation ? "The connection took too long. This decision may have reached Homle; its current status must be checked before trying again." : "The dashboard took too long to load. Check the connection and try again."), { code: "request-timeout", uncertain: mutation });
+    if (browserOffline()) throw Object.assign(new Error(mutation ? "The connection was lost. This decision may have reached Homle; reconnect so its current status can be checked before trying again." : "The connection was lost. Reconnect to refresh the Cleaner dashboard."), { code: "browser-offline", uncertain: mutation });
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function recoverCsrf() {
+  const current = storedCsrf();
+  if (current) return current;
+  try {
+    const result = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("The secure editing token could not be stored in this browser.");
+    return result.csrfToken;
+  } catch (error) {
+    if (error.code === "browser-offline") showFeedback("You are offline. No request decision was sent. Reconnect, then try again.", "error");
+    else if (error.code === "request-timeout") showFeedback("The secure session refresh took too long. No request decision was sent. Refresh the dashboard, then try again.", "error");
+    else showFeedback("Your secure session could not be recovered. Sign in again before answering this request.", "error");
+    return "";
+  }
 }
 
 function bookingFacts(booking) {
@@ -68,20 +110,41 @@ function bookingFacts(booking) {
   return facts;
 }
 
-function requestScanPreview(booking, pending = false) {
+function requestScanPreview(booking, pending = false, onReady = () => {}) {
   const details = element("details", "cleaner-request-scan");
-  details.append(element("summary", "", pending ? "Review private room scan" : "View private room scan"));
+  details.append(element("summary", "", pending ? "Approved room checklist" : "View private room scan"));
   const body = element("div", "cleaner-request-scan-body");
-  body.append(element("p", "", "Loading the Landlord-approved room handoff…"));
+  body.append(element("p", "", "Loading the Landlord-approved room checklist…"));
   details.append(body);
   let loaded = false;
-  details.addEventListener("toggle", async () => {
-    if (!details.open || loaded) return;
-    loaded = true;
+  let loadingScan = false;
+  async function loadScan() {
+    if (loaded || loadingScan) return;
+    loadingScan = true;
     try {
       const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(booking.cleaningRequestId)}/scan`);
+      const tasks = Array.isArray(result.scan?.tasks) ? result.scan.tasks : [];
       const photos = Array.isArray(result.scan?.photos) ? result.scan.photos : [];
+      if (!tasks.length) throw new Error("The approved room checklist is unavailable. Do not accept this request yet.");
       body.replaceChildren(element("p", "cleaner-scan-privacy", "Only room labels, work notes and approved photos are shown here. The Landlord’s identity, exact address and access details remain hidden until confirmation."));
+      const taskHeading = element("h4", "", "Cleaner checklist");
+      const taskList = element("div", "cleaner-request-task-list");
+      const rooms = new Map();
+      for (const task of tasks) {
+        const roomName = String(task.roomName || "Room");
+        if (!rooms.has(roomName)) rooms.set(roomName, []);
+        rooms.get(roomName).push(String(task.description || ""));
+      }
+      for (const [roomName, roomTasks] of rooms) {
+        const room = element("section", "cleaner-request-task-room");
+        room.append(element("strong", "", roomName));
+        const list = element("ul");
+        roomTasks.filter(Boolean).forEach((task) => list.append(element("li", "", task)));
+        room.append(list);
+        taskList.append(room);
+      }
+      body.append(taskHeading, taskList);
+      const photoHeading = element("h4", "", "Room photos");
       const list = element("ul", "cleaner-request-scan-list");
       for (const photo of photos) {
         const item = element("li");
@@ -105,12 +168,24 @@ function requestScanPreview(booking, pending = false) {
         item.append(copy, view);
         list.append(item);
       }
-      body.append(photos.length ? list : element("p", "", "No room photos are available for pre-acceptance review."));
+      body.append(photoHeading, photos.length ? list : element("p", "cleaner-scan-photo-boundary", result.scan?.cleanerPreviewAuthorized === true ? "No approved room photos are attached." : "The Landlord kept photos private until a Cleaner accepts. The exact approved checklist above is still the scope you are deciding on."));
+      loaded = true;
+      onReady({ taskCount: tasks.length, roomCount: rooms.size });
     } catch (error) {
-      body.replaceChildren(element("p", "cleaner-scan-privacy", error.statusCode === 404 ? "The Landlord kept room photos private until a Cleaner accepts. Review the time, area, checklist size and offered pay before deciding." : "The private room scan could not be opened. Try again before accepting."));
-      if (error.statusCode !== 404) loaded = false;
+      body.replaceChildren(element("p", "cleaner-scan-privacy", error.statusCode === 404 ? "The approved checklist is no longer available to this invitation. Do not accept; refresh the dashboard to check its current status." : error.message || "The approved room checklist could not be opened. Try again before accepting."));
+      const retryScope = element("button", "button button-outline", "Try checklist again");
+      retryScope.type = "button";
+      retryScope.addEventListener("click", loadScan);
+      body.append(retryScope);
+    } finally {
+      loadingScan = false;
     }
-  });
+  }
+  details.addEventListener("toggle", () => { if (details.open) loadScan(); });
+  if (pending) {
+    details.open = true;
+    queueMicrotask(loadScan);
+  }
   return details;
 }
 
@@ -126,15 +201,22 @@ function bookingCard(booking, pending = false) {
   if (pending) {
     const deadline = element("p", "booking-response-deadline", booking.responseDeadline ? `Respond by ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(booking.responseDeadline))}` : "Response window unavailable");
     const actions = element("div", "booking-summary-actions");
-    const accept = element("button", "button", `Accept ${formatBookingMoney(booking.pricePence)} job`);
+    const accept = element("button", "button", "Loading checklist…");
     accept.type = "button";
+    accept.disabled = true;
     const decline = element("button", "button button-outline", "Decline");
     decline.type = "button";
     accept.addEventListener("click", () => acceptBooking(booking, accept));
     decline.addEventListener("click", () => openDecline(booking));
     actions.append(accept, decline);
-    if (booking.cleaningRequestId) card.append(requestScanPreview(booking, true));
-    card.append(deadline, element("p", "booking-accept-boundary", "One tap confirms you are available for this exact time and pay. Homle rechecks overlaps before confirming."), actions);
+    const scopeBoundary = element("p", "booking-accept-boundary", "Acceptance unlocks after the exact room checklist loads. Then one tap confirms this time, scope and pay; Homle rechecks overlaps before confirming.");
+    if (booking.cleaningRequestId) card.append(requestScanPreview(booking, true, ({ taskCount, roomCount }) => {
+      accept.disabled = false;
+      accept.textContent = `Accept ${formatBookingMoney(booking.pricePence)} job`;
+      scopeBoundary.textContent = `${taskCount} approved ${taskCount === 1 ? "task" : "tasks"} across ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. One tap confirms this exact time, scope and pay; Homle rechecks overlaps before confirming.`;
+    }));
+    else scopeBoundary.textContent = "The exact room checklist is unavailable. Do not accept this request; refresh the dashboard to verify its status.";
+    card.append(deadline, scopeBoundary, actions);
   } else {
     const action = bookingSummaryPrimaryAction(booking, "cleaner");
     if (action.kind === "active-job") {
@@ -164,7 +246,32 @@ function renderBookings() {
   document.querySelector("[data-cleaner-active-count]").textContent = String(buckets.active.length);
   document.querySelector("[data-cleaner-upcoming-count]").textContent = String(buckets.upcoming.length);
   document.querySelector("[data-cleaner-history-count]").textContent = String(buckets.history.length);
+  renderWorkOverview(cleanerDashboardSummary(cleanerProfile, availabilityWindows, bookings, payoutStatus));
   renderNextAction(buckets, cleanerProfile, payoutStatus, availabilityWindows);
+}
+
+function dashboardMoney(pence) {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
+}
+
+function renderWorkOverview(summary) {
+  document.querySelector("[data-cleaner-profile-progress]").textContent = `${summary.profileCompletionPercent}%`;
+  document.querySelector("[data-cleaner-profile-state]").textContent = summary.profilePublished ? "Published for matching" : summary.profileCompletionPercent === 100 ? "Ready to publish" : "Profile incomplete";
+  document.querySelector("[data-cleaner-availability-count]").textContent = String(summary.availableWindowCount);
+  document.querySelector("[data-cleaner-rating]").textContent = summary.reviewCount > 0 ? `${summary.averageRating.toFixed(1)} ★` : "New";
+  document.querySelector("[data-cleaner-review-count]").textContent = summary.reviewCount > 0 ? `${summary.reviewCount} approved ${summary.reviewCount === 1 ? "review" : "reviews"}` : "No approved reviews yet";
+  document.querySelector("[data-cleaner-completed-jobs]").textContent = String(summary.completedJobCount);
+  document.querySelector("[data-cleaner-completed-value]").textContent = dashboardMoney(summary.completedJobValuePence);
+  document.querySelector("[data-cleaner-committed-value]").textContent = dashboardMoney(summary.committedJobValuePence);
+  const payoutState = document.querySelector("[data-cleaner-payout-state]");
+  const payoutCopy = document.querySelector("[data-cleaner-payout-copy]");
+  payoutState.textContent = summary.payoutState === "ready" ? "Ready" : summary.payoutState === "action-required" ? "Action needed" : summary.payoutState === "not-started" ? "Not set up" : "Not connected";
+  payoutCopy.textContent = summary.payoutState === "ready" ? "Verified for eligible transfers" : summary.payoutState === "action-required" ? "Finish the secure payout form" : summary.payoutState === "not-started" ? "Complete secure payout setup" : "Payout service is not attached";
+  const payoutLink = document.querySelector("[data-cleaner-overview-payout]");
+  payoutLink.hidden = summary.payoutState === "unavailable";
+  payoutLink.textContent = summary.payoutState === "ready" ? "Review payout account" : summary.payoutState === "action-required" ? "Continue payout setup" : "Set up payouts";
+  const publicProfile = document.querySelector("[data-cleaner-public-profile]");
+  publicProfile.hidden = !summary.profilePublished;
 }
 
 function renderNextAction(buckets, profile, payout, availability) {
@@ -237,26 +344,56 @@ async function refreshBookings() {
   renderBookings();
 }
 
+async function reconcileDecision(bookingId, decision) {
+  await refreshBookings();
+  const booking = bookings.find((record) => record.bookingId === bookingId);
+  const state = cleanerInvitationDecisionState(booking, decision);
+  if (state === "recorded") {
+    showFeedback(decision === "accept" ? "Request accepted. The server confirmed that this job is now in your dashboard." : "Request declined. The server confirmed that matching reopened for the Landlord.", "success");
+    return true;
+  }
+  if (state === "pending") {
+    showFeedback("Homle checked the current request and did not record that decision. You can review it and try once more.", "error");
+    return false;
+  }
+  showFeedback("This invitation changed while Homle was checking it. Review the current dashboard before taking another action.", "error");
+  return true;
+}
+
 async function respondToBooking(bookingId, decision, reason, button) {
-  if (responding) return;
-  const csrf = storedCsrf();
-  if (!csrf) return showFeedback("Your secure editing token is missing. Sign in again before answering this request.", "error");
+  if (responding) return false;
+  const csrf = await recoverCsrf();
+  if (!csrf) return false;
   responding = true;
   const originalLabel = button.textContent;
   button.disabled = true;
+  if (decision === "decline") declineCancel.disabled = true;
   button.setAttribute("aria-busy", "true");
   button.textContent = decision === "accept" ? "Accepting…" : "Declining…";
   showFeedback("");
   try {
-    const result = await requestJson(`/api/marketplace/bookings/${bookingId}/response`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ decision, reason }) });
+    const result = await requestJson(`/api/marketplace/bookings/${encodeURIComponent(bookingId)}/response`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ decision, reason }) });
     if (decision === "accept" && Object.hasOwn(result.booking || {}, "customerPricePence")) throw new Error("Homle withheld this response because private marketplace pricing was exposed.");
-    await refreshBookings();
-    showFeedback(decision === "accept" ? "Request accepted. Homle rechecked your availability and the confirmed job is now in your dashboard." : "Request declined. Matching has reopened for the Landlord.", "success");
+    try {
+      await refreshBookings();
+      showFeedback(decision === "accept" ? "Request accepted. Homle rechecked your availability and the confirmed job is now in your dashboard." : "Request declined. Matching has reopened for the Landlord.", "success");
+    } catch {
+      bookings = bookings.map((booking) => booking.bookingId === bookingId ? { ...booking, status: result.booking?.status || (decision === "accept" ? "confirmed" : "cancelled"), canRespond: false } : booking);
+      renderBookings();
+      showFeedback("Decision recorded. The dashboard refresh was delayed; refresh later to see the latest details. Do not answer this request again.", "success");
+    }
+    return true;
   } catch (error) {
-    showFeedback(error.statusCode === 409 ? error.message : error.statusCode === 401 || error.statusCode === 403 ? "Your session expired or this request is no longer assigned to you. Sign in and refresh." : error.message, "error");
+    if ((error.uncertain === true || error.statusCode === 409) && !browserOffline()) {
+      try { return await reconcileDecision(bookingId, decision); }
+      catch { showFeedback("Homle could not verify whether that decision completed. Refresh the dashboard to check its current status before trying again.", "error"); return false; }
+    }
+    showFeedback(error.uncertain === true ? `${error.message} Refresh the dashboard to verify before trying again.` : error.statusCode === 401 || error.statusCode === 403 ? "Your session expired or this request is no longer assigned to you. Sign in and refresh." : error.message, "error");
+    return false;
   } finally {
     responding = false;
     button.disabled = false;
+    if (decision === "decline") declineCancel.disabled = false;
     button.removeAttribute("aria-busy");
     button.textContent = originalLabel;
   }
@@ -272,15 +409,19 @@ function openDecline(booking) {
   declineDialog.showModal();
 }
 
-declineForm.addEventListener("submit", (event) => {
+declineForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const reason = new FormData(declineForm).get("reason")?.toString().trim() || "";
   const button = declineForm.querySelector('button[type="submit"]');
-  declineDialog.close();
-  respondToBooking(selectedDeclineBookingId, "decline", reason, button);
+  const completed = await respondToBooking(selectedDeclineBookingId, "decline", reason, button);
+  if (completed) {
+    selectedDeclineBookingId = "";
+    declineDialog.close();
+  }
 });
 
-document.querySelector("[data-decline-cancel]").addEventListener("click", () => declineDialog.close());
+declineCancel.addEventListener("click", () => { if (!responding) declineDialog.close(); });
+declineDialog.addEventListener("cancel", (event) => { if (responding) event.preventDefault(); });
 
 async function loadDashboard() {
   if (loading) return;
@@ -297,12 +438,14 @@ async function loadDashboard() {
     document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
     document.querySelector("[data-cleaner-profile-link]").textContent = cleanerProfile?.profileCompletionPercent === 100 ? "Edit profile" : "Complete your profile";
     document.querySelector("[data-cleaner-name]").textContent = account.displayName || "Cleaner";
+    renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl);
     renderBookings();
     showFeedback("");
     gate.hidden = true;
     dashboard.hidden = false;
   } catch (error) {
-    if (error.statusCode === 401) showGate("Sign in as a Cleaner to open this dashboard.", "Requests and jobs are private to the assigned Cleaner account.", { kind: "authentication", allowSignIn: true });
+    if (error.code === "browser-offline") showGate("You are offline.", "Reconnect to securely load your current requests and jobs. No decision was sent.", { kind: "offline", allowRetry: true });
+    else if (error.statusCode === 401) showGate("Sign in as a Cleaner to open this dashboard.", "Requests and jobs are private to the assigned Cleaner account.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 403) showGate("This account cannot open the Cleaner dashboard.", "Use a Cleaner account selected during onboarding.", { kind: "authentication", allowSignIn: true });
     else if ([404, 503].includes(error.statusCode)) showGate("Cleaner accounts are not connected yet.", "The dashboard is ready but remains closed until Homle’s protected marketplace database and HTTPS runtime pass staging.", { kind: "unavailable", allowRetry: true });
     else showGate("The Cleaner dashboard is temporarily unavailable.", "No request was accepted or declined. Check the connection and try again.", { kind: "error", allowRetry: true });
@@ -310,4 +453,10 @@ async function loadDashboard() {
 }
 
 retry.addEventListener("click", loadDashboard);
+window.addEventListener("offline", updateNetworkStatus);
+window.addEventListener("online", () => {
+  updateNetworkStatus();
+  if (!gate.hidden && gate.dataset.kind === "offline") loadDashboard();
+});
+updateNetworkStatus();
 loadDashboard();

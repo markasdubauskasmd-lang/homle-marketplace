@@ -11,7 +11,7 @@ export function formatPaymentAmount(amountPence) {
 }
 
 export function paymentPresentation(payment) {
-  if (!payment) return { action: "prepare", title: "Secure payment has not started", copy: "Prepare the reviewed booking total when you are ready to enter test payment details." };
+  if (!payment) return { action: "blocked", title: "Exact booking total unavailable", copy: "Homle will not open payment details until the server confirms the frozen booking total." };
   const presentations = {
     "not-started": { action: "prepare", title: "Your agreed total is ready", copy: "Check the exact total above, then enter payment details securely when you are ready." },
     creating: { action: "continue", title: "Preparing secure payment", copy: "Continue to the protected payment form." },

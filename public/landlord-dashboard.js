@@ -1,8 +1,11 @@
 import { checklistFromTranscript } from "./checklist.js";
 import { clearSelectedCleaner, readSelectedCleaner } from "./account-intent.js";
 import { isUkPostcode } from "./contact-validation.js";
-import { landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260716-5";
-import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction } from "./booking-summary-model.js?v=20260717-1";
+import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
+import { validatedRoomPhotoSelection } from "./room-photo-selection.js";
+import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
+import { landlordDispatchAction, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260717-6";
+import { bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-2";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -17,6 +20,9 @@ const requestCompleteCounts = document.querySelector("[data-request-complete-cou
 const requestCompleteWarning = document.querySelector("[data-request-complete-warning]");
 const propertyForm = document.querySelector("[data-property-form]");
 const requestForm = document.querySelector("[data-request-form]");
+const landlordProfileForm = document.querySelector("[data-landlord-profile-form]");
+const landlordProfileFeedback = document.querySelector("[data-landlord-profile-feedback]");
+const landlordProfileSave = document.querySelector("[data-save-landlord-profile]");
 const propertyList = document.querySelector("[data-property-list]");
 const propertyEmpty = document.querySelector("[data-property-empty]");
 const requestList = document.querySelector("[data-request-list]");
@@ -29,6 +35,7 @@ const propertyFeedback = document.querySelector("[data-property-feedback]");
 const propertyStatus = document.querySelector("[data-property-status]");
 const propertyFormTitle = document.querySelector("[data-property-form-title]");
 const requestFeedback = document.querySelector("[data-request-feedback]");
+const requestRecoveryStatus = document.querySelector("[data-request-recovery-status]");
 const requestStatus = document.querySelector("[data-request-status]");
 const requestWithdrawDialog = document.querySelector("[data-request-withdraw-dialog]");
 const requestWithdrawForm = document.querySelector("[data-request-withdraw-form]");
@@ -41,29 +48,51 @@ const speechButton = document.querySelector("[data-speech-toggle]");
 const speechStatus = document.querySelector("[data-speech-status]");
 const speechFallback = document.querySelector("[data-speech-fallback]");
 const taskPreview = document.querySelector("[data-task-preview]");
+const taskReviewStatus = document.querySelector("[data-task-review-status]");
 const cleaningTypeSelect = requestForm.elements.cleaningType;
 const cleaningTypeHint = document.querySelector("[data-cleaning-type-hint]");
 const nextTitle = document.querySelector("[data-landlord-next-title]");
 const nextCopy = document.querySelector("[data-landlord-next-copy]");
 const nextLink = document.querySelector("[data-landlord-next-link]");
 const nextButton = document.querySelector("[data-landlord-next-button]");
+const mediaReadiness = document.querySelector("[data-landlord-media-readiness]");
+const networkStatus = document.querySelector("[data-landlord-network-status]");
+const bookingLiveStatus = document.querySelector("[data-landlord-booking-live]");
+const bookingRefresh = document.querySelector("[data-landlord-booking-refresh]");
 let properties = [];
 let requests = [];
 let bookings = [];
+let landlordProfile = null;
 let recognition = null;
 let listening = false;
 let speechFailed = false;
 let speechChangedDuringListen = false;
 let propertyDirty = false;
 let requestDirty = false;
+let landlordProfileDirty = false;
 let editingPropertyId = "";
 let withdrawingRequestId = "";
 let withdrawalPending = false;
 let loading = false;
+let mediaReady = false;
+let requestRecoveryChecked = false;
+let requestRecoveryTimer = null;
+let invitationStream = null;
+let invitationStreamKey = "";
+let bookingTransitionRefresh = null;
 const requestScans = new Map();
+const uncertainDispatchRequests = new Set();
 const bookingStart = landlordStartFromSearch(location.search) === "booking";
 let selectedCleanerId = "";
 try { if (bookingStart) selectedCleanerId = readSelectedCleaner(localStorage); } catch {}
+
+function browserOffline() {
+  return navigator.onLine === false;
+}
+
+function updateNetworkStatus() {
+  networkStatus.hidden = !browserOffline();
+}
 
 function storedCsrf() {
   try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
@@ -74,6 +103,42 @@ function saveCsrf(token) {
     sessionStorage.setItem("tideway_csrf", token);
     return sessionStorage.getItem("tideway_csrf") === token;
   } catch { return false; }
+}
+
+function requestDraftFields() {
+  return Object.fromEntries(["propertyId", "requestedDate", "requestedTime", "durationMinutes", "cleaningType", "frequency", "budget", "specialInstructions", "transcript", "tasks"].map((name) => [name, requestForm.elements[name]?.value || ""]));
+}
+
+function rememberWorkingRequest() {
+  if (!requestDirty) return;
+  try { saveLandlordRequestDraft(window.sessionStorage, { fields: requestDraftFields() }); } catch {}
+}
+
+function scheduleWorkingRequestRecovery() {
+  window.clearTimeout(requestRecoveryTimer);
+  requestRecoveryTimer = window.setTimeout(rememberWorkingRequest, 250);
+}
+
+function restoreWorkingRequest() {
+  if (requestRecoveryChecked) return;
+  requestRecoveryChecked = true;
+  let draft = null;
+  try { draft = readLandlordRequestDraft(window.sessionStorage); } catch {}
+  if (!draft) return;
+  const propertyAvailable = properties.some((property) => property.propertyId === draft.fields.propertyId);
+  for (const name of ["requestedDate", "requestedTime", "durationMinutes", "cleaningType", "frequency", "budget", "specialInstructions", "transcript", "tasks"]) {
+    const control = requestForm.elements[name];
+    if (control && draft.fields[name]) control.value = draft.fields[name];
+  }
+  if (propertyAvailable) propertySelect.value = draft.fields.propertyId;
+  if (draft.fields.cleaningType) cleaningTypeSelect.dataset.selectionSource = "user";
+  requestForm.elements.scopeReviewed.checked = false;
+  renderTaskPreview();
+  requestDirty = true;
+  requestRecoveryStatus.dataset.kind = "recovered";
+  requestRecoveryStatus.textContent = propertyAvailable || !draft.fields.propertyId
+    ? "Your unfinished room walkthrough was recovered from this tab. Review every bullet before saving."
+    : "Your unfinished walkthrough was recovered, but its saved property is no longer available. Choose a property and review every bullet.";
 }
 
 function element(name, className, text) {
@@ -110,6 +175,19 @@ function invalidateScopeReview(message) {
 
 function renderTaskPreview() {
   const lines = String(requestForm.elements.tasks.value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const confirmation = requestForm.elements.scopeReviewed;
+  try {
+    const reviewedTasks = requestTasksFromLines(lines.join("\n"));
+    const roomCount = new Set(reviewedTasks.map((task) => task.roomName.toLowerCase())).size;
+    confirmation.disabled = false;
+    taskReviewStatus.dataset.kind = "ready";
+    taskReviewStatus.textContent = `${reviewedTasks.length} clear ${reviewedTasks.length === 1 ? "task" : "tasks"} across ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. Review the bullets, then confirm.`;
+  } catch (error) {
+    confirmation.checked = false;
+    confirmation.disabled = true;
+    taskReviewStatus.dataset.kind = "needs-attention";
+    taskReviewStatus.textContent = error.message;
+  }
   taskPreview.replaceChildren();
   if (!lines.length) {
     const empty = element("p", "landlord-task-empty", "No tasks yet. Start speaking or type the room walkthrough.");
@@ -185,10 +263,28 @@ function continueBookingStart() {
 
 async function requestJson(path, options = {}) {
   const { headers = {}, ...rest } = options;
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers } });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(result.error || result.message || "The account action could not be completed."), { statusCode: response.status, code: result.code });
-  return result;
+  const mutation = Boolean(rest.method && rest.method !== "GET");
+  if (browserOffline()) throw Object.assign(new Error(mutation
+    ? "You are offline. This change was not sent; your entries are still here. Reconnect, then try again."
+    : "You are offline. Reconnect to open your private workspace."), { code: "browser-offline" });
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 30_000);
+  try {
+    const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers }, signal: controller.signal });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(result.error || result.message || "The account action could not be completed."), { statusCode: response.status, code: result.code });
+    return result;
+  } catch (error) {
+    if (browserOffline()) throw Object.assign(new Error(mutation
+      ? "You went offline. This change may have reached Homle. Your entries are still here; reconnect and refresh to verify before trying again."
+      : "You are offline. Reconnect to open your private workspace."), { code: "browser-offline" });
+    if (error?.name === "AbortError") throw Object.assign(new Error(mutation
+      ? "The connection took too long. This action may have completed. Your entries are still here; refresh the dashboard to check before trying again."
+      : "The connection took too long. Check the connection and try again."), { code: "request-timeout" });
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 async function recoverCsrf(target, action) {
@@ -198,8 +294,8 @@ async function recoverCsrf(target, action) {
     const result = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("This browser could not keep the renewed secure editing token.");
     return result.csrfToken;
-  } catch {
-    showFeedback(target, `Your secure session could not be recovered. Sign in again before ${action}.`);
+  } catch (error) {
+    showFeedback(target, error?.code === "browser-offline" ? error.message : `Your secure session could not be recovered. Sign in again before ${action}.`);
     return "";
   }
 }
@@ -387,7 +483,7 @@ function requestScanPanel(request) {
   const summary = element("summary", "", request.status === "draft" ? "Add room photos and submit" : "View reviewed room scan");
   details.append(summary);
   const panel = element("div", "landlord-request-scan-body");
-  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? "Choose the checklist room and take a current photo. Add a photo note only when the checklist needs extra visual context. Homle strips metadata and keeps the sanitized image private." : "This is the reviewed room-scan handoff attached to the request.");
+  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? (mediaReady ? "Choose the checklist room and take a current photo. Add a photo note only when the checklist needs extra visual context. Homle strips metadata and keeps the sanitized image private." : "Your spoken room checklist is saved. Private photo storage is not connected yet, so camera upload and matching submission remain safely locked.") : "This is the reviewed room-scan handoff attached to the request.");
   const feedback = element("div", "landlord-form-feedback");
   feedback.hidden = true;
   feedback.tabIndex = -1;
@@ -398,6 +494,11 @@ function requestScanPanel(request) {
   let loaded = false;
 
   async function loadScan() {
+    if (!mediaReady) {
+      count.textContent = "Private room-photo storage not connected";
+      loaded = true;
+      return;
+    }
     try {
       const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/scan`);
       requestScans.set(request.requestId, result.scan);
@@ -430,7 +531,7 @@ function requestScanPanel(request) {
     noteLabel.append(note);
     const pickerActions = element("div", "landlord-scan-picker-actions");
     const cameraButton = element("button", "button", "Open rear camera");
-    const libraryButton = element("button", "button button-outline", "Choose existing photo");
+    const libraryButton = element("button", "button button-outline", "Choose existing photos");
     cameraButton.type = libraryButton.type = "button";
     const cameraInput = element("input");
     cameraInput.type = "file";
@@ -439,56 +540,94 @@ function requestScanPanel(request) {
     cameraInput.hidden = true;
     const libraryInput = element("input");
     libraryInput.type = "file";
-    libraryInput.accept = "image/jpeg,image/png,image/webp,image/heic,.heic,.heif";
+    libraryInput.accept = "image/jpeg,image/png,image/webp,image/heic,.heic";
+    libraryInput.multiple = true;
     libraryInput.hidden = true;
-    const selected = element("span", "landlord-scan-selected", "No photo selected");
-    let file = null;
-    function choose(event) {
-      const candidate = event.target.files?.[0] || null;
-      event.target.value = "";
-      if (!candidate) return;
-      if (!new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]).has(candidate.type) || candidate.size < 1 || candidate.size > 15_000_000) {
-        file = null;
-        return showFeedback(feedback, "Choose one JPEG, PNG, WebP or HEIC image up to 15 MB.");
+    const selected = element("span", "landlord-scan-selected", "No photos selected");
+    let files = [];
+    const upload = element("button", "button", "Upload private room photos");
+    upload.type = "submit";
+    function renderSelection() {
+      if (!files.length) {
+        selected.textContent = "No photos selected";
+        upload.textContent = "Upload private room photos";
+        return;
       }
-      file = candidate;
-      selected.textContent = `${candidate.name || "Camera photo"} · ${humanFileSize(candidate.size)}`;
-      feedback.hidden = true;
+      const totalBytes = files.reduce((sum, item) => sum + item.byteSize, 0);
+      selected.textContent = files.length === 1 ? `${files[0].name} · ${humanFileSize(files[0].byteSize)}` : `${files.length} photos selected · ${humanFileSize(totalBytes)} total`;
+      upload.textContent = `Upload ${files.length} private ${files.length === 1 ? "photo" : "photos"}`;
+    }
+    function choose(event) {
+      const candidates = event.target.files;
+      event.target.value = "";
+      if (!candidates?.length) return;
+      try {
+        const existingPhotoCount = Array.isArray(requestScans.get(request.requestId)?.photos) ? requestScans.get(request.requestId).photos.length : 0;
+        files = validatedRoomPhotoSelection(candidates, { existingPhotoCount });
+        renderSelection();
+        feedback.hidden = true;
+      } catch (error) {
+        files = [];
+        renderSelection();
+        showFeedback(feedback, error.message);
+      }
     }
     cameraInput.addEventListener("change", choose);
     libraryInput.addEventListener("change", choose);
     cameraButton.addEventListener("click", () => cameraInput.click());
     libraryButton.addEventListener("click", () => libraryInput.click());
     pickerActions.append(cameraButton, libraryButton, cameraInput, libraryInput);
-    const upload = element("button", "button", "Upload private room photo");
-    upload.type = "submit";
+    for (const control of [room, note, cameraButton, libraryButton, cameraInput, libraryInput, upload]) control.disabled = !mediaReady;
+    if (!mediaReady) selected.textContent = "Photo capture unlocks after secure storage is verified";
     form.append(roomLabel, noteLabel, pickerActions, selected, upload);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       feedback.hidden = true;
       if (!form.reportValidity()) return;
-      if (!file) return showFeedback(feedback, "Take a current room photo or choose one from this device.");
+      if (!files.length) return showFeedback(feedback, "Take a current room photo or choose photos from this device.");
       const csrf = await recoverCsrf(feedback, "uploading this room photo");
       if (!csrf) return;
-      setPending(upload, true, "Checking and uploading…");
+      const queuedCount = files.length;
+      let uploadedCount = 0;
+      setPending(upload, true, `Checking photo 1 of ${queuedCount}…`);
       try {
-        const checksumSha256 = await sha256(file);
-        const intent = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/intents`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ roomName: room.value, note: note.value, mimeType: file.type, byteSize: file.size, checksumSha256 }) });
-        const signed = intent.upload;
-        if (signed?.method !== "PUT" || !signed.uploadId || !signed.uploadUrl || !signed.requiredHeaders || Object.keys(signed.requiredHeaders).length !== 4) throw new Error("The secure upload instructions were incomplete.");
-        const destination = new URL(signed.uploadUrl);
-        if (destination.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(destination.hostname)) throw new Error("The secure upload destination was unsafe.");
-        checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer" }));
-        const completed = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/${encodeURIComponent(signed.uploadId)}/complete`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}" });
-        requestScans.set(request.requestId, completed.scan);
-        renderScanPhotos(request.requestId, completed.scan, list, count);
-        file = null;
-        selected.textContent = "No photo selected";
+        while (files.length) {
+          if (browserOffline()) throw Object.assign(new Error("You are offline. The remaining selected photos are still here; reconnect, then continue the upload."), { code: "browser-offline" });
+          const candidate = files[0];
+          setPending(upload, true, `Checking photo ${uploadedCount + 1} of ${queuedCount}…`);
+          const checksumSha256 = await sha256(candidate.file);
+          const intent = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/intents`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ roomName: room.value, note: note.value, mimeType: candidate.mimeType, byteSize: candidate.byteSize, checksumSha256 }) });
+          const signed = intent.upload;
+          if (signed?.method !== "PUT" || !signed.uploadId || !signed.uploadUrl || !signed.requiredHeaders || Object.keys(signed.requiredHeaders).length !== 4) throw new Error("The secure upload instructions were incomplete.");
+          const destination = new URL(signed.uploadUrl);
+          if (destination.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(destination.hostname)) throw new Error("The secure upload destination was unsafe.");
+          const uploadController = new AbortController();
+          const uploadTimer = window.setTimeout(() => uploadController.abort(), 120_000);
+          try {
+            checkedUploadResponse(await fetch(destination, { method: "PUT", headers: signed.requiredHeaders, body: candidate.file, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer", signal: uploadController.signal }));
+          } catch (error) {
+            if (browserOffline()) throw Object.assign(new Error("You went offline during the private upload. The remaining selected photos are still here; reconnect, then continue."), { code: "browser-offline" });
+            if (error?.name === "AbortError") throw new Error("The private photo upload took too long. The remaining selected photos are still here; check the connection and try again.");
+            throw error;
+          } finally {
+            window.clearTimeout(uploadTimer);
+          }
+          const completed = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/${encodeURIComponent(signed.uploadId)}/complete`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}" });
+          requestScans.set(request.requestId, completed.scan);
+          renderScanPhotos(request.requestId, completed.scan, list, count);
+          files.shift();
+          uploadedCount += 1;
+          renderSelection();
+          loaded = true;
+        }
         note.value = "";
-        loaded = true;
-        showFeedback(feedback, "Private room photo checked, sanitized and attached.", "success");
-      } catch (error) { showFeedback(feedback, error.message); }
-      finally { setPending(upload, false, "Upload private room photo"); }
+        showFeedback(feedback, `${uploadedCount} private room ${uploadedCount === 1 ? "photo" : "photos"} checked, sanitized and attached.`, "success");
+      } catch (error) {
+        if (error?.code === "request-photo-limit") files = [];
+        renderSelection();
+        showFeedback(feedback, `${uploadedCount ? `${uploadedCount} ${uploadedCount === 1 ? "photo was" : "photos were"} attached. ` : ""}${error.message}`);
+      }
+      finally { setPending(upload, false, files.length ? `Upload ${files.length} remaining ${files.length === 1 ? "photo" : "photos"}` : "Upload private room photos"); }
     });
     panel.append(form);
 
@@ -524,6 +663,8 @@ function requestScanPanel(request) {
     auto.addEventListener("change", () => { attempts.disabled = !auto.checked; });
     const submit = element("button", "button", "Submit cleaning request");
     submit.type = "submit";
+    for (const control of [confirm, preview, auto, preferred, attempts, submit]) control.disabled = !mediaReady || control === attempts;
+    if (!mediaReady) submit.textContent = "Room photos required before submission";
     submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerId ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
     submitForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -591,6 +732,33 @@ function renderRequests() {
       : "This request has entered the account workflow.";
     const boundary = element("p", "landlord-request-boundary", boundaryCopy);
     card.append(heading, facts, boundary, requestScanPanel(request));
+    const dispatchAction = landlordDispatchAction(request);
+    if (dispatchAction.kind !== "none") {
+      const dispatchPanel = element("section", "landlord-dispatch-action");
+      dispatchPanel.setAttribute("aria-label", "Cleaner matching authorization");
+      dispatchPanel.dataset.dispatchRequestId = request.requestId;
+      const dispatchFeedback = element("p", "form-feedback");
+      dispatchFeedback.hidden = true;
+      if (uncertainDispatchRequests.has(request.requestId)) {
+        dispatchPanel.append(element("strong", "", "Check whether matching was authorised"), element("p", "", "The last connection ended before Homle could confirm the result. Refresh the saved request before authorising anything again."));
+        const refresh = element("button", "button button-outline", "Refresh matching status");
+        refresh.type = "button";
+        refresh.addEventListener("click", () => refreshDispatchAuthorization(request.requestId, refresh, dispatchFeedback));
+        dispatchPanel.append(refresh, dispatchFeedback);
+      } else if (dispatchAction.kind === "waiting") {
+        dispatchPanel.append(element("strong", "", "Finding one eligible Cleaner"), element("p", "", `You authorised ${dispatchAction.attemptLimit === 1 ? "one Cleaner invitation" : `up to ${dispatchAction.attemptLimit} total invitations`}. Homle is checking service fit, exact availability and profitable pricing. No booking or charge exists until a Cleaner accepts and you authorise payment.`));
+      } else if (dispatchAction.kind === "exhausted") {
+        dispatchPanel.append(element("strong", "", "Matching needs review"), element("p", "", "Five Cleaner invitation attempts have been used. Homle will not contact anyone else automatically; review the timing or scope before deciding what to change."));
+      } else {
+        const firstAttempt = dispatchAction.kind === "authorize" && dispatchAction.attemptCount === 0;
+        dispatchPanel.append(element("strong", "", firstAttempt ? "Ready to find your Cleaner?" : "Try one more eligible Cleaner?"), element("p", "", "This authorises exactly one additional invitation to the best eligible profitable match. It is not a booking, no payment is taken, and the Cleaner must still accept."));
+        const authorize = element("button", "button", firstAttempt ? "Find my Cleaner" : "Try one more Cleaner");
+        authorize.type = "button";
+        authorize.addEventListener("click", () => authorizeNextCleaner(request.requestId, dispatchAction.attemptLimit, authorize, dispatchFeedback));
+        dispatchPanel.append(authorize, dispatchFeedback);
+      }
+      card.append(dispatchPanel);
+    }
     if (["draft", "searching-for-cleaner"].includes(request.status)) {
       const actions = element("div", "landlord-request-actions");
       const withdraw = element("button", "text-button", "Withdraw request");
@@ -607,6 +775,143 @@ function renderRequests() {
   const draftCount = requests.filter((request) => request.status === "draft").length;
   document.querySelector("[data-draft-count]").textContent = String(draftCount);
   renderNextAction();
+}
+
+async function authorizeNextCleaner(requestId, attemptLimit, button, feedback) {
+  feedback.hidden = true;
+  const csrf = await recoverCsrf(feedback, "authorising Cleaner matching");
+  if (!csrf) return;
+  setPending(button, true, "Authorising…");
+  try {
+    const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/automatic-dispatch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ enabled: true, attemptLimit })
+    });
+    requests = requests.map((request) => request.requestId === requestId ? { ...request, automaticDispatch: result.automaticDispatch } : request);
+    uncertainDispatchRequests.delete(requestId);
+    renderRequests();
+    showFeedback(requestStatus, "Matching authorised for one additional Cleaner. No booking or payment exists until they accept and you approve the next step.", "success");
+  } catch (error) {
+    const uncertain = error?.code === "request-timeout" || /may have (?:reached Homle|completed)/i.test(error?.message || "");
+    if (uncertain) {
+      uncertainDispatchRequests.add(requestId);
+      renderRequests();
+      showFeedback(requestStatus, "Homle could not verify whether matching was authorised. Refresh the saved status before trying again; no action will be repeated automatically.");
+    } else {
+      showFeedback(feedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot authorise matching. Sign in again." : error.message);
+      setPending(button, false, attemptLimit === 1 ? "Find my Cleaner" : "Try one more Cleaner");
+    }
+  }
+}
+
+async function refreshDispatchAuthorization(requestId, button, feedback) {
+  feedback.hidden = true;
+  setPending(button, true, "Refreshing…");
+  try {
+    const result = await requestJson("/api/marketplace/cleaning-requests");
+    requests = Array.isArray(result.cleaningRequests) ? result.cleaningRequests : [];
+    uncertainDispatchRequests.delete(requestId);
+    renderRequests();
+    const current = requests.find((request) => request.requestId === requestId);
+    showFeedback(requestStatus, current?.automaticDispatch?.enabled ? "Matching authorization is saved. Homle will not repeat it." : "Matching was not authorised. You can choose the next action now.", "success");
+  } catch (error) {
+    showFeedback(feedback, error.message);
+    setPending(button, false, "Refresh matching status");
+  }
+}
+
+function setBookingLiveStatus(message, kind = "info") {
+  bookingLiveStatus.dataset.kind = kind;
+  bookingLiveStatus.textContent = message;
+}
+
+function closeInvitationStream() {
+  invitationStream?.close();
+  invitationStream = null;
+  invitationStreamKey = "";
+}
+
+async function refreshBookingTransition({ manual = false } = {}) {
+  if (bookingTransitionRefresh) return bookingTransitionRefresh;
+  const before = new Map(bookings.map((booking) => [booking.bookingId, booking.status]));
+  bookingRefresh.disabled = true;
+  bookingRefresh.textContent = "Refreshing…";
+  bookingTransitionRefresh = (async () => {
+    try {
+      const [bookingResult, requestResult] = await Promise.all([
+        requestJson("/api/marketplace/bookings?limit=50"),
+        requestJson("/api/marketplace/cleaning-requests")
+      ]);
+      bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
+      requests = Array.isArray(requestResult.cleaningRequests) ? requestResult.cleaningRequests : [];
+      const invited = bookings.find((booking) => !before.has(booking.bookingId) && booking.status === "pending-cleaner-acceptance");
+      const accepted = bookings.find((booking) => before.get(booking.bookingId) === "pending-cleaner-acceptance" && booking.status === "confirmed");
+      const closed = bookings.find((booking) => before.get(booking.bookingId) === "pending-cleaner-acceptance" && booking.status === "cancelled");
+      renderRequests();
+      renderBookings();
+      if (accepted) setBookingLiveStatus(`Cleaner accepted — ${accepted.propertyName || "your clean"} is now a confirmed booking.`, "success");
+      else if (closed) setBookingLiveStatus("That Cleaner could not take the request. Matching has reopened and no payment was taken.", "attention");
+      else if (invited) setBookingLiveStatus("A Cleaner invitation was sent. Homle is now watching securely for their response; no booking is confirmed and no payment was taken.", "live");
+      else if (manual) setBookingLiveStatus("Booking and Cleaner-response status checked just now.", "success");
+      return true;
+    } catch (error) {
+      setBookingLiveStatus(error.code === "browser-offline" ? "You are offline. The last verified booking status remains shown." : "Booking status could not be refreshed. The last verified status remains shown; try again.", "error");
+      return false;
+    }
+  })();
+  try { return await bookingTransitionRefresh; }
+  finally {
+    bookingTransitionRefresh = null;
+    bookingRefresh.disabled = false;
+    bookingRefresh.textContent = "Refresh booking status";
+  }
+}
+
+function syncInvitationStream() {
+  const pending = bookings.find((booking) => booking.participantRole === "landlord" && booking.status === "pending-cleaner-acceptance");
+  const matchingRequest = requests.find((request) => request.status === "searching-for-cleaner" && request.automaticDispatch?.enabled === true);
+  if (!pending && !matchingRequest) {
+    closeInvitationStream();
+    if (bookingLiveStatus.dataset.kind !== "success" && bookingLiveStatus.dataset.kind !== "attention") setBookingLiveStatus("No Cleaner response is currently waiting. Refresh any time.");
+    return;
+  }
+  const streamType = pending ? "booking" : "request";
+  const streamId = pending?.bookingId || matchingRequest.requestId;
+  const streamKey = `${streamType}:${streamId}`;
+  if (invitationStream && invitationStreamKey === streamKey) return;
+  closeInvitationStream();
+  if (typeof EventSource !== "function") {
+    setBookingLiveStatus("Live Cleaner-response updates are unavailable in this browser. Use Refresh booking status.", "attention");
+    return;
+  }
+  const streamPath = streamType === "booking"
+    ? `/api/marketplace/bookings/${encodeURIComponent(streamId)}/events`
+    : `/api/marketplace/cleaning-requests/${encodeURIComponent(streamId)}/events`;
+  const stream = new EventSource(streamPath, { withCredentials: true });
+  invitationStream = stream;
+  invitationStreamKey = streamKey;
+  stream.addEventListener("open", () => setBookingLiveStatus(streamType === "booking" ? "Watching securely for the Cleaner’s response." : "Finding one eligible Cleaner. This page will update automatically when an invitation is sent.", "live"));
+  stream.addEventListener("booking-snapshot", (event) => {
+    try {
+      const snapshot = JSON.parse(event.data);
+      if (snapshot.bookingId !== streamId) throw new Error("Booking mismatch");
+      const current = bookings.find((booking) => booking.bookingId === streamId);
+      if (snapshot.status && snapshot.status !== current?.status) void refreshBookingTransition();
+    } catch { setBookingLiveStatus("A live update could not be verified. Use Refresh booking status.", "error"); }
+  });
+  stream.addEventListener("request-snapshot", (event) => {
+    try {
+      const snapshot = JSON.parse(event.data);
+      if (snapshot.requestId !== streamId) throw new Error("Request mismatch");
+      const current = requests.find((request) => request.requestId === streamId);
+      const dispatch = current?.automaticDispatch || {};
+      const liveDispatch = snapshot.automaticDispatch || {};
+      if (snapshot.status !== current?.status || liveDispatch.lastResult !== dispatch.lastResult || Number(liveDispatch.attemptCount) !== Number(dispatch.attemptCount)) void refreshBookingTransition();
+    } catch { setBookingLiveStatus("A live matching update could not be verified. Use Refresh booking status.", "error"); }
+  });
+  stream.addEventListener("stream-error", () => setBookingLiveStatus("Live updates were interrupted. Use Refresh booking status while Homle reconnects.", "attention"));
+  stream.addEventListener("error", () => setBookingLiveStatus("Reconnecting securely for the Cleaner’s response. The last verified status remains shown.", "attention"));
 }
 
 function openRequestWithdrawal(requestId) {
@@ -683,6 +988,7 @@ function renderBookingCard(booking) {
 
 function renderBookings() {
   const buckets = bookingSummaryBuckets(bookings, "landlord");
+  const historySummary = landlordDashboardSummary(bookings);
   const current = [...buckets.active, ...buckets.upcoming];
   const list = document.querySelector("[data-landlord-booking-list]");
   list.replaceChildren(...current.map(renderBookingCard));
@@ -693,7 +999,30 @@ function renderBookings() {
   document.querySelector("[data-landlord-history-count]").textContent = String(buckets.history.length);
   document.querySelector("[data-landlord-history-section]").hidden = buckets.history.length === 0;
   document.querySelector("[data-landlord-active-count]").textContent = String(current.length);
+  renderLandlordHistory(historySummary);
   renderNextAction();
+  syncInvitationStream();
+}
+
+function renderLandlordHistory(summary) {
+  document.querySelector("[data-landlord-completed-count]").textContent = String(summary.completedCleanCount);
+  document.querySelector("[data-landlord-awaiting-count]").textContent = String(summary.awaitingConfirmationCount);
+  document.querySelector("[data-landlord-completed-value]").textContent = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(summary.completedBookingValuePence / 100);
+  document.querySelector("[data-landlord-previous-count]").textContent = String(summary.previousCleanerVisitCount);
+  const list = document.querySelector("[data-landlord-previous-cleaners]");
+  list.replaceChildren(...summary.previousCleanerVisits.map((cleaner) => {
+    const card = element("article", "landlord-previous-cleaner");
+    const identity = element("div");
+    const copy = element("div");
+    copy.append(element("strong", "", cleaner.displayName), element("small", "", formatBookingMoment(cleaner.scheduledStartAt)));
+    identity.append(element("span", "landlord-previous-avatar", cleaner.displayName.slice(0, 1).toLocaleUpperCase("en-GB")), copy);
+    const link = element("a", "text-button", "View latest clean");
+    link.href = `/bookings/${cleaner.bookingId}`;
+    card.append(identity, link);
+    return card;
+  }));
+  list.hidden = summary.previousCleanerVisits.length === 0;
+  document.querySelector("[data-landlord-previous-empty]").hidden = summary.previousCleanerVisits.length > 0;
 }
 
 function renderNextAction() {
@@ -737,17 +1066,19 @@ function renderNextAction() {
   const activeRequest = requests.find((request) => ["searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "matched"].includes(request.status));
   if (activeRequest) {
     const waitingForCleaner = ["cleaner-invited", "pending-cleaner-acceptance"].includes(activeRequest.status);
-    nextTitle.textContent = waitingForCleaner ? "A Cleaner is reviewing your request" : activeRequest.status === "matched" ? "Your Cleaner is matched" : "Homle is looking for your Cleaner";
-    nextCopy.textContent = `${requestStatusLabel(activeRequest.status)} · Review the submitted rooms, tasks and current status in one place.`;
-    nextButton.textContent = "View request status";
-    nextButton.dataset.nextAction = "submitted";
+    const dispatchAction = landlordDispatchAction(activeRequest);
+    const needsAuthorization = ["authorize", "retry"].includes(dispatchAction.kind);
+    nextTitle.textContent = needsAuthorization ? (dispatchAction.kind === "authorize" ? "Find your Cleaner" : "Try one more eligible Cleaner") : waitingForCleaner ? "A Cleaner is reviewing your request" : activeRequest.status === "matched" ? "Your Cleaner is matched" : "Homle is looking for your Cleaner";
+    nextCopy.textContent = needsAuthorization ? "Authorize exactly one next invitation. Homle still rechecks availability, service fit and profitable pricing before anything is sent." : `${requestStatusLabel(activeRequest.status)} · Review the submitted rooms, tasks and current status in one place.`;
+    nextButton.textContent = needsAuthorization ? (dispatchAction.kind === "authorize" ? "Find my Cleaner" : "Review next Cleaner attempt") : "View request status";
+    nextButton.dataset.nextAction = needsAuthorization ? "dispatch" : "submitted";
     nextButton.dataset.nextRequestId = activeRequest.requestId;
     nextButton.hidden = false;
     return;
   }
   if (requests.some((request) => request.status === "draft")) {
-    nextTitle.textContent = "Finish your room scan";
-    nextCopy.textContent = "Add room photos, check the spoken-note summary and submit the private request.";
+    nextTitle.textContent = mediaReady ? "Finish your room scan" : "Review your spoken room checklist";
+    nextCopy.textContent = mediaReady ? "Add room photos, check the spoken-note summary and submit the private request." : "Your draft is safe. Photo upload and matching will unlock only after private storage is verified.";
     nextButton.textContent = "Continue room scan";
     nextButton.dataset.nextAction = "draft";
     nextButton.hidden = false;
@@ -765,26 +1096,38 @@ async function loadWorkspace() {
   loading = true;
   showState("Checking secure Landlord access…", "Your properties and drafts open only inside an authenticated Landlord session.");
   try {
-    const [accountResult, propertyResult, requestResult, bookingResult] = await Promise.all([
+    const [accountResult, profileResult, propertyResult, requestResult, bookingResult, healthResult] = await Promise.all([
       requestJson("/api/marketplace/account"),
+      requestJson("/api/marketplace/landlord/profile"),
       requestJson("/api/marketplace/properties"),
       requestJson("/api/marketplace/cleaning-requests"),
-      requestJson("/api/marketplace/bookings?limit=50")
+      requestJson("/api/marketplace/bookings?limit=50"),
+      requestJson("/api/health")
     ]);
     const account = accountResult.account;
     if (account?.selectedRole !== "landlord" || !account?.roles?.includes("landlord")) return showState("This is not a Landlord account.", "Use the workspace selected during onboarding or sign in with a Landlord/Property Manager account.", { kind: "authentication", allowSignIn: true });
     properties = Array.isArray(propertyResult.properties) ? propertyResult.properties : [];
     requests = Array.isArray(requestResult.cleaningRequests) ? requestResult.cleaningRequests : [];
     bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
+    landlordProfile = profileResult.profile || { organisationName: null, biography: "" };
+    landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";
+    landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
+    landlordProfileDirty = false;
+    mediaReady = healthResult?.marketplace?.mediaReady === true;
+    mediaReadiness.hidden = mediaReady;
     document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
+    renderAccountAvatar(account);
     renderProperties();
+    restoreWorkingRequest();
     renderRequests();
     renderBookings();
     state.hidden = true;
     workspace.hidden = false;
+    if (location.hash === "#landlord-account-title") selectWorkspaceTab("account");
     continueBookingStart();
   } catch (error) {
-    if (error.statusCode === 401) showState("Sign in as a Landlord to open this workspace.", "Your properties and request drafts are private to your verified account.", { kind: "authentication", allowSignIn: true });
+    if (error.code === "browser-offline") showState("You are offline.", "Your unfinished room walkthrough stays in this tab. Reconnect and Homle will safely reopen the private workspace; no change will be retried automatically.", { kind: "offline", allowRetry: true });
+    else if (error.statusCode === 401) showState("Sign in as a Landlord to open this workspace.", "Your properties and request drafts are private to your verified account.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 403) showState("This account cannot open the Landlord workspace.", "Use a Landlord/Property Manager account selected during onboarding.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 404 || error.statusCode === 503) showState("Landlord accounts are not connected yet.", "The workspace is ready but remains closed until Homle's secure marketplace database and account runtime are activated.", { kind: "unavailable", allowRetry: true });
     else showState("The Landlord workspace is temporarily unavailable.", "No property or request was changed. Check the connection and try again.", { kind: "error", allowRetry: true });
@@ -795,6 +1138,32 @@ async function loadWorkspace() {
 
 function optionalNumber(value) {
   return String(value || "").trim() === "" ? null : Number(value);
+}
+
+async function saveLandlordProfile(event) {
+  event.preventDefault();
+  landlordProfileFeedback.hidden = true;
+  if (!landlordProfileForm.reportValidity()) return;
+  const csrf = await recoverCsrf(landlordProfileFeedback, "saving your Landlord details");
+  if (!csrf) return;
+  const data = new FormData(landlordProfileForm);
+  const body = {
+    organisationName: String(data.get("organisationName") || ""),
+    biography: String(data.get("biography") || "")
+  };
+  setPending(landlordProfileSave, true, "Saving…");
+  try {
+    const result = await requestJson("/api/marketplace/landlord/profile", { method: "PUT", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
+    landlordProfile = result.profile;
+    landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";
+    landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
+    landlordProfileDirty = false;
+    showFeedback(landlordProfileFeedback, "Landlord account details saved privately.", "success");
+  } catch (error) {
+    showFeedback(landlordProfileFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this Landlord profile. Sign in again." : error.message);
+  } finally {
+    setPending(landlordProfileSave, false, "Save Landlord details");
+  }
 }
 
 async function saveProperty(event) {
@@ -866,6 +1235,9 @@ async function createRequestDraft(event) {
     requests.unshift(result.cleaningRequest);
     renderRequests();
     requestForm.reset();
+    try { clearLandlordRequestDraft(window.sessionStorage); } catch {}
+    requestRecoveryStatus.removeAttribute("data-kind");
+    requestRecoveryStatus.textContent = "An unfinished walkthrough stays only in this browser tab for up to 30 minutes. Approval and photos are never restored.";
     delete cleaningTypeSelect.dataset.selectionSource;
     initialiseRequestDefaults();
     renderTaskPreview();
@@ -902,6 +1274,7 @@ function useSavedChecklist() {
   requestForm.elements.tasks.value = value;
   renderTaskPreview();
   requestDirty = true;
+  scheduleWorkingRequestRecovery();
   showFeedback(requestFeedback, "Saved checklist copied. Review every task against the current room scan before saving.", "success");
 }
 
@@ -914,6 +1287,7 @@ function summariseSpeech({ automatic = false } = {}) {
   requestForm.elements.tasks.value = value;
   renderTaskPreview();
   requestDirty = true;
+  scheduleWorkingRequestRecovery();
   showFeedback(requestFeedback, `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} prepared${automatic ? " automatically" : ""}. Review every bullet before confirming.`, "success");
 }
 
@@ -952,6 +1326,7 @@ function configureSpeech() {
       invalidateScopeReview("The spoken walkthrough changed. Summarise again or manually reconcile every room task before confirming.");
       requestForm.elements.transcript.value = `${requestForm.elements.transcript.value.trim()} ${finalText}`.trim().slice(0, 5000);
       speechChangedDuringListen = true;
+      scheduleWorkingRequestRecovery();
     }
     speechStatus.textContent = interimText ? `Listening: ${interimText.slice(0, 160)}` : "Listening…";
     requestDirty = true;
@@ -960,6 +1335,11 @@ function configureSpeech() {
 }
 
 document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addEventListener("click", () => { selectWorkspaceTab(button.dataset.landlordTab); }));
+document.querySelector("[data-open-account-tab]").addEventListener("click", () => {
+  selectWorkspaceTab("account");
+  document.querySelector("[data-account-menu]").open = false;
+  document.querySelector("[data-landlord-panel=\"account\"]").scrollIntoView({ behavior: "smooth", block: "start" });
+});
 document.querySelector("[data-open-request-tab]").addEventListener("click", () => {
   document.querySelector('[data-landlord-tab="requests"]').click();
   document.querySelector('[data-landlord-panel="requests"]').scrollIntoView({ behavior: "smooth", block: "start" });
@@ -987,6 +1367,12 @@ nextButton.addEventListener("click", () => {
     openRequestScan(nextButton.dataset.nextRequestId);
     return;
   }
+  if (action === "dispatch") {
+    const panel = [...document.querySelectorAll("[data-dispatch-request-id]")].find((candidate) => candidate.dataset.dispatchRequestId === nextButton.dataset.nextRequestId);
+    panel?.scrollIntoView({ behavior: "smooth", block: "center" });
+    panel?.querySelector("button")?.focus({ preventScroll: true });
+    return;
+  }
   if (action === "draft") {
     requestList.scrollIntoView({ behavior: "smooth", block: "start" });
     requestList.querySelector("details")?.setAttribute("open", "");
@@ -997,8 +1383,11 @@ nextButton.addEventListener("click", () => {
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
 propertyForm.addEventListener("input", () => { propertyDirty = true; });
-requestForm.addEventListener("input", () => { requestDirty = true; });
+landlordProfileForm.addEventListener("input", () => { landlordProfileDirty = true; });
+requestForm.addEventListener("input", () => { requestDirty = true; scheduleWorkingRequestRecovery(); });
+requestForm.addEventListener("change", () => { requestDirty = true; scheduleWorkingRequestRecovery(); });
 propertyForm.addEventListener("submit", saveProperty);
+landlordProfileForm.addEventListener("submit", saveLandlordProfile);
 requestForm.addEventListener("submit", createRequestDraft);
 requestWithdrawForm.addEventListener("submit", withdrawRequest);
 requestWithdrawCancel.addEventListener("click", () => { if (!withdrawalPending) requestWithdrawDialog.close(); });
@@ -1010,6 +1399,7 @@ requestWithdrawDialog.addEventListener("close", () => {
   requestWithdrawFeedback.hidden = true;
 });
 retry.addEventListener("click", loadWorkspace);
+bookingRefresh.addEventListener("click", () => { void refreshBookingTransition({ manual: true }); });
 document.querySelector("[data-request-complete-another]").addEventListener("click", () => {
   requestComplete.hidden = true;
   workspace.hidden = false;
@@ -1017,9 +1407,17 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
   requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });
-window.addEventListener("beforeunload", (event) => { if (propertyDirty || requestDirty) event.preventDefault(); });
+window.addEventListener("beforeunload", (event) => { rememberWorkingRequest(); if (propertyDirty || requestDirty || landlordProfileDirty) event.preventDefault(); });
+window.addEventListener("pagehide", closeInvitationStream);
+window.addEventListener("offline", updateNetworkStatus);
+window.addEventListener("online", () => {
+  updateNetworkStatus();
+  if (!state.hidden && state.dataset.kind === "offline") loadWorkspace();
+  else if (!workspace.hidden && bookings.some((booking) => booking.status === "pending-cleaner-acceptance")) void refreshBookingTransition();
+});
 document.querySelector("[data-year]").textContent = new Date().getFullYear();
 initialiseRequestDefaults();
 renderTaskPreview();
 configureSpeech();
+updateNetworkStatus();
 loadWorkspace();

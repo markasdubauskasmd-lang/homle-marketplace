@@ -37,7 +37,7 @@ const candidates = [
 ];
 const calls = [];
 const repository = { async recommendForRequest(actor, suppliedRequestId, limit) { calls.push({ actor, suppliedRequestId, limit }); return candidates; } };
-const pricingPolicy = createBookingPricingPolicy({ targetMarginBasisPoints: 2000, labourOnCostBasisPoints: 1000, paymentFeeBasisPoints: 300, paymentFeeFixedPence: 20, travelCostPence: 500, travelCostPerKmPence: 35, travelDistanceMultiplierBasisPoints: 20000, suppliesCostPence: 250, otherCostPence: 0, invitationTtlMinutes: 180 });
+const pricingPolicy = createBookingPricingPolicy({ targetMarginBasisPoints: 2000, minimumContributionPence: 1800, labourOnCostBasisPoints: 1000, paymentFeeBasisPoints: 300, paymentFeeFixedPence: 20, travelCostPence: 500, travelCostPerKmPence: 35, travelDistanceMultiplierBasisPoints: 20000, suppliesCostPence: 250, otherCostPence: 0, invitationTtlMinutes: 180 });
 const service = createMatchingService(repository, { pricingPolicy, clock: () => new Date(now) });
 const result = await service.recommendForRequest(landlord, requestId);
 assert(calls[0].actor.userId === landlord.userId && calls[0].suppliedRequestId === requestId && calls[0].limit === 25, "Matching did not bind the authenticated Landlord and bounded request query.");
@@ -56,13 +56,15 @@ let failure = null;
 const database = { async withUserTransaction(actor, operation) { return operation({ async query(text, values) { databaseCalls.push({ actor, text, values }); if (failure) throw failure; return { rows: candidates }; } }); } };
 const databaseRepository = createMatchingRepository(database);
 const rows = await databaseRepository.recommendForRequest(landlord, requestId, 25);
-assert(rows.length === candidates.length && databaseCalls[0].text.includes("tideway_private.recommend_cleaners_for_request($1::uuid, $2::integer)") && databaseCalls[0].values[0] === requestId && databaseCalls[0].values[1] === 25, "Matching repository bypassed the restricted request-specific function or interpolation-safe parameters.");
+assert(rows.length === candidates.length && databaseCalls[0].text.includes("tideway_private.recommend_cleaners_for_request_v2($1::uuid, $2::integer)") && databaseCalls[0].values[0] === requestId && databaseCalls[0].values[1] === 25, "Matching repository bypassed the hardened request-specific function or interpolation-safe parameters.");
 failure = new Error("request-not-matchable");
 assert(await rejects(() => databaseRepository.recommendForRequest(landlord, requestId, 25), "no longer open"), "Closed requests did not map to a safe matching conflict.");
 
 const migration = await readFile(new URL("../db/migrations/010_request_cleaner_matching.sql", import.meta.url), "utf8");
+const selfExclusionMigration = await readFile(new URL("../db/migrations/053_matching_self_exclusion.sql", import.meta.url), "utf8");
 const grants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 for (const required of ["SECURITY DEFINER", "request.landlord_user_id = actor_id", "profile.profile_completion_percent = 100", "account.account_status = 'active'", "service.pricing_model <> 'quote'", "availability.status = 'available'", "tstzrange(occupied.scheduled_start_at", "coverage.distance_km <= profile.travel_radius_km", "previous_completed_jobs", "profile.acceptance_rate", "request_record.budget_pence"]) assert(migration.includes(required), `Request-specific matching omitted ${required}.`);
 assert(grants.includes("recommend_cleaners_for_request(uuid, integer)"), "The restricted runtime role cannot execute request-specific matching.");
+assert(grants.includes("recommend_cleaners_for_request_v2(uuid, integer)") && selfExclusionMigration.includes("candidate.cleaner_id<>request_landlord_id") && selfExclusionMigration.includes("LEAST(result_limit + 1,50)") && selfExclusionMigration.includes("LIMIT result_limit") && selfExclusionMigration.includes("recommend_cleaners_for_request_v2(request_record.id,50)"), "Administrator and automatic-dispatch matching do not share bounded database-enforced self-exclusion.");
 
 console.log("Matching tests passed: owner-only request ranking, dual-workspace self-exclusion, full eligibility/availability/coverage filters, profitable budget-aware pricing, prior-relationship scoring, safe explanations and private-factor projection.");

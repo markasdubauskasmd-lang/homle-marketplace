@@ -1,4 +1,5 @@
 import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent, saveSelectedCleaner, selectedCleanerFromSearch } from "./account-intent.js";
+import { renderAccountAvatar } from "./account-avatar.js?v=20260717-1";
 
 const modes = Object.freeze({
   "/login": { form: "login", title: "Sign in to Homle", lead: "Use your verified account to open the correct private workspace." },
@@ -26,6 +27,10 @@ const accountReadyPanel = document.querySelector("[data-account-ready]");
 const accountReadyTitle = document.querySelector("[data-account-ready-title]");
 const accountReadyCopy = document.querySelector("[data-account-ready-copy]");
 const accountReadyLogout = document.querySelector("[data-account-ready-logout]");
+const accountReadyDashboard = document.querySelector("[data-account-ready-dashboard]");
+const pilotActions = document.querySelector("[data-pilot-actions]");
+const accountSideTitle = document.querySelector("[data-account-side-title]");
+const accountSideNote = document.querySelector("[data-account-side-note]");
 const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
 const privateToken = fragment.get("token") || "";
 const socialResult = fragment.get("social") || "";
@@ -64,6 +69,25 @@ if (bookingIntent && ["login", "signup"].includes(selectedMode.form)) {
 function clearCompletedIntent() {
   try { clearAccountIntent(sessionStorage); } catch {}
   accountIntent = "";
+}
+
+function setAccountSide(role = "landlord") {
+  const cleaner = role === "cleaner";
+  if (accountSideTitle) accountSideTitle.textContent = cleaner ? "Your Cleaner work stays focused." : "Your property booking stays simple.";
+  const titles = cleaner ? ["Finish your profile", "Set availability", "Manage accepted jobs"] : ["Add a property", "Scan and speak", "Track the booking"];
+  const copies = cleaner
+    ? ["Show only real services, prices and travel area.", "Choose the times when suitable requests can reach you.", "See your checklist, journey, progress and payout setup."]
+    : ["Save the location privately once.", "Turn each room walkthrough into concise Cleaner tasks.", "See matching, arrival and cleaning progress in one place."];
+  titles.forEach((value, index) => {
+    const step = index + 1;
+    const titleNode = document.querySelector(`[data-account-step-title="${step}"]`);
+    const copyNode = document.querySelector(`[data-account-step-copy="${step}"]`);
+    if (titleNode) titleNode.textContent = value;
+    if (copyNode) copyNode.textContent = copies[index];
+  });
+  if (accountSideNote) accountSideNote.textContent = cleaner
+    ? "Landlord properties and booking controls never appear in the Cleaner dashboard."
+    : "Cleaner profile, availability and earnings controls never appear in the Landlord dashboard.";
 }
 
 function showFeedback(message, kind = "info") {
@@ -122,6 +146,9 @@ function activateForm(providers) {
     title.textContent = "Confirm your Cleaner workspace";
     lead.textContent = "Continue as a Cleaner to build your professional profile, availability and service area.";
   }
+  if (bookingIntent) setAccountSide("landlord");
+  else if (cleanerIntent) setAccountSide("cleaner");
+  if (pilotActions) pilotActions.hidden = selectedMode.form === "ready";
   if ((selectedMode.form === "verify" || selectedMode.form === "facebook-verify") && !privateToken) showFeedback("This verification link is incomplete or has already been removed.", "error");
 }
 
@@ -247,6 +274,13 @@ async function loadAccountReady() {
   if (accountReadyCopy) accountReadyCopy.textContent = cleaner
     ? "Your secure Cleaner account and role are saved. Professional details, availability and service areas will open here when Homle's private booking services pass staging."
     : "Your secure Landlord account and role are saved. Properties, room scans and booking requests will open here when Homle's private booking services pass staging.";
+  renderAccountAvatar(result.account);
+  setAccountSide(cleaner ? "cleaner" : "landlord");
+  if (pilotActions) pilotActions.hidden = true;
+  if (accountReadyDashboard) {
+    accountReadyDashboard.href = cleaner ? "/cleaner/dashboard" : "/landlord/dashboard";
+    accountReadyDashboard.textContent = cleaner ? "Open Cleaner dashboard" : "Open Landlord dashboard";
+  }
 }
 
 async function logoutReadyAccount() {

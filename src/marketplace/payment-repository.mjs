@@ -15,6 +15,9 @@ const mappedErrors = Object.freeze({
   "payment-not-refundable": [409, "payment-not-refundable", "The requested refund is not available for this payment."],
   "payment-not-transferable": [409, "payment-not-transferable", "Cleaner funds are not ready for transfer."],
   "cleaner-payout-unavailable": [409, "cleaner-payout-unavailable", "The Cleaner does not have an approved payout destination."],
+  "invalid-payment-operation-status": [422, "invalid-payment-operation-status", "Choose a valid payment queue status."],
+  "invalid-payment-operation-page": [422, "invalid-payment-operation-page", "The payment queue page is invalid."],
+  "invalid-payment-operation-booking": [422, "invalid-payment-operation-booking", "Choose a valid booking payment."],
   "administrator-required": [403, "administrator-required", "Administrator approval is required for this payment action."],
   "landlord-required": [403, "landlord-required", "A Landlord account is required for this payment action."],
   "payment-role-required": [403, "payment-role-required", "You are not allowed to perform this payment action."]
@@ -69,6 +72,22 @@ export function createPaymentRepository(database) {
         try {
           const result = await client.query("SELECT * FROM tideway_private.read_booking_payment($1::uuid)", [bookingId]);
           return paymentRecord(result.rows[0]);
+        } catch (error) { throw mapError(error); }
+      });
+    },
+    listForAdministrator(actor, input) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.list_administrator_payment_operations($1::text,$2::integer,$3::integer) AS result", [input.status, input.limit, input.offset]);
+          return result.rows[0]?.result;
+        } catch (error) { throw mapError(error); }
+      });
+    },
+    getForAdministratorBooking(actor, bookingId) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.get_administrator_booking_payment_operation($1::uuid) AS result", [bookingId]);
+          return result.rows[0]?.result || null;
         } catch (error) { throw mapError(error); }
       });
     },

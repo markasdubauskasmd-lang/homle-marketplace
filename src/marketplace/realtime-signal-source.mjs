@@ -1,4 +1,5 @@
-const channel = "tideway_booking_events";
+const bookingChannel = "tideway_booking_events";
+const requestChannel = "tideway_request_events";
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function unavailable(cause) {
@@ -17,12 +18,13 @@ export function createPostgresRealtimeSignalSource(pool, options = {}) {
   let closed = false;
 
   function validSignal(notification) {
-    if (notification?.channel !== channel || typeof notification.payload !== "string") return null;
+    if (![bookingChannel, requestChannel].includes(notification?.channel) || typeof notification.payload !== "string") return null;
     try {
       const value = JSON.parse(notification.payload);
       const eventId = Number(value.eventId);
-      if (!uuidPattern.test(value.bookingId || "") || !Number.isSafeInteger(eventId) || eventId < 1 || typeof value.kind !== "string") return null;
-      return Object.freeze({ bookingId: value.bookingId.toLowerCase(), eventId, kind: value.kind });
+      const idKey = notification.channel === bookingChannel ? "bookingId" : "requestId";
+      if (!uuidPattern.test(value[idKey] || "") || !Number.isSafeInteger(eventId) || eventId < 1 || typeof value.kind !== "string") return null;
+      return Object.freeze({ entityType: notification.channel === bookingChannel ? "booking" : "request", [idKey]: value[idKey].toLowerCase(), eventId, kind: value.kind });
     } catch { return null; }
   }
 
@@ -72,7 +74,8 @@ export function createPostgresRealtimeSignalSource(pool, options = {}) {
         if (!selected || typeof selected.query !== "function" || typeof selected.on !== "function") throw new Error("PostgreSQL notification client is incomplete.");
         selected.on("notification", onNotification);
         selected.on("error", onConnectionError);
-        await selected.query(`LISTEN ${channel}`);
+        await selected.query(`LISTEN ${bookingChannel}`);
+        await selected.query(`LISTEN ${requestChannel}`);
         client = selected;
         reconnectAttempt = 0;
         if (reconnecting) for (const listener of listeners) { try { listener(Object.freeze({ resyncAll: true })); } catch {} }
@@ -103,11 +106,12 @@ export function createPostgresRealtimeSignalSource(pool, options = {}) {
       const selected = client;
       client = null;
       if (selected) {
-        try { await selected.query(`UNLISTEN ${channel}`); } catch {}
+        try { await selected.query(`UNLISTEN ${bookingChannel}`); } catch {}
+        try { await selected.query(`UNLISTEN ${requestChannel}`); } catch {}
         detach(selected);
       }
     }
   });
 }
 
-export { channel as bookingRealtimeChannel };
+export { bookingChannel as bookingRealtimeChannel, requestChannel as requestRealtimeChannel };

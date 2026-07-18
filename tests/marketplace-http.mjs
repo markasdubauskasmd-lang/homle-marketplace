@@ -1,5 +1,5 @@
 import { AccountHttpError, createAccountSecurity } from "../src/marketplace/account-security.mjs";
-import { createMarketplaceHttpRouter, maximumBodyBytes } from "../src/marketplace/marketplace-http.mjs";
+import { administratorMatchingReadiness, createMarketplaceHttpRouter, maximumBodyBytes } from "../src/marketplace/marketplace-http.mjs";
 import { createMarketplaceRuntime } from "../src/marketplace/runtime.mjs";
 import { createSessionMaterial, developmentSessionCookieName } from "../src/marketplace/session.mjs";
 
@@ -38,6 +38,7 @@ async function dispatch(router, method, url, options) {
 const sessionSecret = "marketplace-http-session-secret-over-thirty-two-characters";
 const material = createSessionMaterial(sessionSecret, new Date("2026-07-15T15:00:00.000Z"), 3600);
 const cleanerMaterial = createSessionMaterial(sessionSecret, new Date("2026-07-15T15:00:00.000Z"), 3600);
+const administratorMaterial = createSessionMaterial(sessionSecret, new Date("2026-07-15T15:00:00.000Z"), 3600);
 const sessions = {
   landlord: {
     session_id: "77777777-7777-4777-8777-777777777777",
@@ -60,9 +61,20 @@ const sessions = {
     roles: ["cleaner"],
     csrf_secret_hash: cleanerMaterial.csrfHash,
     expires_at: cleanerMaterial.expiresAt
+  },
+  administrator: {
+    session_id: "99999999-9999-4999-8999-999999999999",
+    user_id: "33333333-3333-4333-8333-333333333333",
+    email: "administrator@example.com",
+    email_verified_at: "2026-07-15T14:00:00.000Z",
+    display_name: "Administrator Example",
+    selected_role: "administrator",
+    roles: ["administrator"],
+    csrf_secret_hash: administratorMaterial.csrfHash,
+    expires_at: administratorMaterial.expiresAt
   }
 };
-const security = createAccountSecurity({ async findSession(hash) { return hash.equals(material.tokenHash) ? sessions.landlord : hash.equals(cleanerMaterial.tokenHash) ? sessions.cleaner : null; } }, { sessionSecret, appOrigin: "http://127.0.0.1:4173", production: false });
+const security = createAccountSecurity({ async findSession(hash) { return hash.equals(material.tokenHash) ? sessions.landlord : hash.equals(cleanerMaterial.tokenHash) ? sessions.cleaner : hash.equals(administratorMaterial.tokenHash) ? sessions.administrator : null; } }, { sessionSecret, appOrigin: "http://127.0.0.1:4173", production: false });
 const calls = [];
 const cleanerProfileService = {
   async searchPublicProfiles(filters) { calls.push({ kind: "search", filters }); return [{ cleanerId: "public-cleaner", displayName: "Public Cleaner" }]; },
@@ -73,6 +85,7 @@ const cleanerProfileService = {
   async withdrawOwnAvailability(actor, availabilityId) { calls.push({ kind: "availability-withdraw", actor, availabilityId }); return { availabilityId, startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T17:00:00.000Z", status: "withdrawn" }; }
 };
 const propertyService = {
+  async getLandlordProfile(actor) { calls.push({ kind: "landlord-get", actor }); return { organisationName: "Example PM", biography: "Local portfolio" }; },
   async saveLandlordProfile(actor, input) { calls.push({ kind: "landlord-save", actor, input }); return { organisationName: input.organisationName || null, biography: input.biography || "" }; },
   async createProperty(actor, input) { calls.push({ kind: "property-create", actor, input }); return { propertyId: "44444444-4444-4444-8444-444444444444", name: input.name }; },
   async updateOwnProperty(actor, input) { calls.push({ kind: "property-update", actor, input }); return { propertyId: input.id, name: input.name }; },
@@ -92,7 +105,7 @@ const bookingWorkflowService = {
   async respondToInvitation(actor, bookingId, input) { calls.push({ kind: "booking-response", actor, bookingId, input }); return { bookingId, status: input.decision === "accept" ? "confirmed" : "cancelled" }; }
 };
 const matchingService = {
-  async recommendForRequest(actor, cleaningRequestId) { calls.push({ kind: "request-matches", actor, cleaningRequestId }); return { cleaningRequestId, generatedAt: "2026-07-15T15:00:00.000Z", candidates: [{ cleanerId: "22222222-2222-4222-8222-222222222222", rank: 1 }] }; }
+  async recommendForRequest(actor, cleaningRequestId) { calls.push({ kind: "request-matches", actor, cleaningRequestId }); return { cleaningRequestId, generatedAt: "2026-07-15T15:00:00.000Z", candidates: [{ cleanerId: "22222222-2222-4222-8222-222222222222", displayName: "Private Cleaner", rank: 1, estimatedCustomerPricePence: 12000 }] }; }
 };
 const journeyService = {
   async startJourney(actor, bookingId, input) { calls.push({ kind: "journey-start", actor, bookingId, input }); return { bookingId, status: "cleaner-en-route", sharingState: "live" }; },
@@ -126,7 +139,8 @@ const messageService = {
   async listMessages(actor, bookingId, input) { calls.push({ kind: "message-list", actor, bookingId, input }); return { bookingId, messages: [], hasMore: false, nextCursor: null }; }
 };
 const realtimeService = {
-  async openStream(actor, bookingId, request, response, lastEventId) { calls.push({ kind: "realtime-open", actor, bookingId, lastEventId }); response.writeHead(200, { "Content-Type": "text/event-stream" }); response.end(JSON.stringify({ ok: true })); }
+  async openStream(actor, bookingId, request, response, lastEventId) { calls.push({ kind: "realtime-open", actor, bookingId, lastEventId }); response.writeHead(200, { "Content-Type": "text/event-stream" }); response.end(JSON.stringify({ ok: true })); },
+  async openRequestStream(actor, requestId, request, response, lastEventId) { calls.push({ kind: "request-realtime-open", actor, requestId, lastEventId }); response.writeHead(200, { "Content-Type": "text/event-stream" }); response.end(JSON.stringify({ ok: true })); }
 };
 const notificationService = {
   async listNotifications(actor, input) { calls.push({ kind: "notification-list", actor, input }); return { notifications: [], unreadCount: 2, hasMore: false, nextCursor: null }; },
@@ -163,6 +177,14 @@ const paymentService = {
     paymentStarted = true;
     return { paymentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId: input.bookingId, status: "requires-customer-action", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: true, clientSecret: "pi_test_client_secret" };
   },
+  async listForAdministrator(actor, input) {
+    calls.push({ kind: "payment-admin-list", actor, input });
+    return { payments: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0, testMode: true };
+  },
+  async capture(actor, input) { calls.push({ kind: "payment-admin-capture", actor, input }); return { commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: input.paymentId, kind: "capture", status: "provider-pending" }; },
+  async cancel(actor, input) { calls.push({ kind: "payment-admin-cancel", actor, input }); return { commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: input.paymentId, kind: "cancel", status: "provider-pending" }; },
+  async refund(actor, input) { calls.push({ kind: "payment-admin-refund", actor, input }); return { commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: input.paymentId, kind: "refund", status: "provider-pending" }; },
+  async transfer(actor, input) { calls.push({ kind: "payment-admin-transfer", actor, input }); return { commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: input.paymentId, kind: "transfer", status: "provider-pending" }; },
   async handleWebhook(body, signature) {
     calls.push({ kind: "payment-webhook", body, signature });
     if (signature === "bad") throw Object.assign(new Error("The payment webhook could not be verified."), { statusCode: 400, code: "invalid-payment-webhook" });
@@ -185,7 +207,10 @@ const rateLimiter = {
     return input.scope === rateLimitedScope ? { allowed: false, retryAfterSeconds: 99999 } : { allowed: true };
   }
 };
-const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const administratorBookingService = {
+  async list(actor, input) { calls.push({ kind: "administrator-booking-list", actor, input }); return { operations: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; }
+};
+const dependencies = { security, cleanerProfileService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -197,6 +222,12 @@ const cleanerAuthHeaders = {
   cookie: `${developmentSessionCookieName}=${cleanerMaterial.token}`,
   origin: "http://127.0.0.1:4173",
   "x-csrf-token": cleanerMaterial.csrfToken,
+  "content-type": "application/json; charset=utf-8"
+};
+const administratorAuthHeaders = {
+  cookie: `${developmentSessionCookieName}=${administratorMaterial.token}`,
+  origin: "http://127.0.0.1:4173",
+  "x-csrf-token": administratorMaterial.csrfToken,
   "content-type": "application/json; charset=utf-8"
 };
 
@@ -215,7 +246,8 @@ const noPaymentRouter = createMarketplaceHttpRouter({ ...dependencies, paymentSe
 const absentWebhookResponse = response();
 assert(await noPaymentRouter.handle(request("POST", "/api/marketplace/payments/webhook", { body: Buffer.from("{}") }), absentWebhookResponse, new URL("http://127.0.0.1:4173/api/marketplace/payments/webhook")) === false && absentWebhookResponse.statusCode === null, "Disabled payments exposed a webhook route.");
 
-const bookingPaymentUrl = "/api/marketplace/bookings/55555555-5555-4555-8555-555555555555/payment";
+const paymentBookingId = "55555555-5555-4555-8555-555555555555";
+const bookingPaymentUrl = `/api/marketplace/bookings/${paymentBookingId}/payment`;
 const paymentConfiguration = await dispatch(router, "GET", "/api/marketplace/payments/config", { headers: { cookie: authHeaders.cookie } });
 assert(paymentConfiguration.response.statusCode === 200 && paymentConfiguration.body.payment.publishableKey.startsWith("pk_test_") && paymentConfiguration.body.payment.testMode === true && calls.at(-1).kind === "payment-config", "Authenticated test checkout could not obtain its bounded publishable configuration.");
 const unauthenticatedPaymentConfiguration = await dispatch(router, "GET", "/api/marketplace/payments/config");
@@ -233,6 +265,27 @@ const paymentStatus = await dispatch(router, "GET", bookingPaymentUrl, { headers
 assert(paymentStatus.response.statusCode === 200 && paymentStatus.body.payment.status === "authorized" && !JSON.stringify(paymentStatus.body).includes("pi_test_client_secret") && calls.at(-1).kind === "payment-get", "Landlord payment status exposed customer-action material or missed its owner-bound service.");
 const absentBookingPaymentResponse = response();
 assert(await noPaymentRouter.handle(request("GET", bookingPaymentUrl), absentBookingPaymentResponse, new URL(`http://127.0.0.1:4173${bookingPaymentUrl}`)) === false && absentBookingPaymentResponse.statusCode === null, "Disabled payments exposed a participant payment route.");
+
+const adminPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments?status=actionable&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
+const adminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings?view=attention&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
+const landlordAdminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings", { headers: { cookie: authHeaders.cookie } });
+const adminMatchingReadiness = await dispatch(router, "GET", "/api/marketplace/admin/cleaning-requests/66666666-6666-4666-8666-666666666666/matching-readiness", { headers: { cookie: administratorAuthHeaders.cookie } });
+const landlordAdminMatchingReadiness = await dispatch(router, "GET", "/api/marketplace/admin/cleaning-requests/66666666-6666-4666-8666-666666666666/matching-readiness", { headers: { cookie: authHeaders.cookie } });
+const relatedPaymentQueue = await dispatch(router, "GET", `/api/marketplace/admin/payments?bookingId=${paymentBookingId}`, { headers: { cookie: administratorAuthHeaders.cookie } });
+const relatedPaymentCall = calls.findLast((call) => call.kind === "payment-admin-list");
+const landlordPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments", { headers: { cookie: authHeaders.cookie } });
+const missingAdminPaymentCsrf = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/capture", { headers: { cookie: administratorAuthHeaders.cookie, origin: administratorAuthHeaders.origin, "content-type": administratorAuthHeaders["content-type"] }, body: { idempotencyKey: "admin_capture_retry_key_123456789012" } });
+const capturedPayment = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/capture", { headers: administratorAuthHeaders, body: { idempotencyKey: "admin_capture_retry_key_123456789012" } });
+const refundedPayment = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/refund", { headers: administratorAuthHeaders, body: { idempotencyKey: "admin_refund_retry_key_1234567890123", amountPence: 1500, destinationAccountId: "acct_browser_attack" } });
+assert(adminPaymentQueue.response.statusCode === 200 && adminPaymentQueue.body.testMode === true && calls.find((call) => call.kind === "payment-admin-list")?.input.status === "actionable" && landlordPaymentQueue.response.statusCode === 403 && missingAdminPaymentCsrf.response.statusCode === 403, "Administrator payment queue lost role isolation, exact filters, test-mode proof or CSRF protection.");
+assert(adminBookingQueue.response.statusCode === 200 && landlordAdminBookingQueue.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-booking-list")?.input.view === "attention", "Administrator booking operations lost role isolation or its exact view filter.");
+assert(adminMatchingReadiness.response.statusCode === 200 && landlordAdminMatchingReadiness.response.statusCode === 403 && adminMatchingReadiness.body.matchingReadiness.candidateCount === 1 && adminMatchingReadiness.body.matchingReadiness.lowestCustomerPricePence === 12000 && !adminMatchingReadiness.response.body.includes("Private Cleaner") && !adminMatchingReadiness.response.body.includes("22222222-2222"), "Administrator matching readiness lost role isolation, exact pricing or identity redaction.");
+const emptyMatchingReadiness = administratorMatchingReadiness({ generatedAt: "2026-07-15T15:00:00.000Z", candidates: [] });
+assert(emptyMatchingReadiness.candidateCount === 0 && emptyMatchingReadiness.candidateLimit === 25 && emptyMatchingReadiness.lowestCustomerPricePence === null && emptyMatchingReadiness.highestCustomerPricePence === null, "Empty matching readiness invented Cleaner supply or prices.");
+assert(relatedPaymentQueue.response.statusCode === 200 && relatedPaymentCall.input.bookingId === paymentBookingId && relatedPaymentCall.input.status === null, "The case-payment route lost its exact booking filter or introduced a payment mutation.");
+assert(capturedPayment.response.statusCode === 202 && refundedPayment.response.statusCode === 202 && calls.find((call) => call.kind === "payment-admin-capture")?.input.idempotencyKey === "admin_capture_retry_key_123456789012" && calls.find((call) => call.kind === "payment-admin-refund")?.input.amountPence === 1500 && !Object.hasOwn(calls.find((call) => call.kind === "payment-admin-refund").input, "destinationAccountId"), "Administrator capture/refund routes lost exact payment, retry, amount or server-owned destination boundaries.");
+const absentAdminPaymentResponse = response();
+assert(await noPaymentRouter.handle(request("GET", "/api/marketplace/admin/payments"), absentAdminPaymentResponse, new URL("http://127.0.0.1:4173/api/marketplace/admin/payments")) === false && absentAdminPaymentResponse.statusCode === null, "Disabled payments exposed Administrator settlement operations.");
 
 const payoutUrl = "/api/marketplace/cleaner/payout-account";
 const landlordPayout = await dispatch(router, "GET", payoutUrl, { headers: { cookie: authHeaders.cookie } });
@@ -302,6 +355,10 @@ const notificationId = "77777777-7777-4777-8777-777777777777";
 const notificationRead = await dispatch(router, "POST", `/api/marketplace/notifications/${notificationId}/read`, { headers: authHeaders, body: {} });
 const notificationReadAll = await dispatch(router, "POST", "/api/marketplace/notifications/read-all", { headers: authHeaders, body: { cutoffCreatedAt: "2026-07-15T18:10:00.000Z" } });
 assert(notificationList.response.statusCode === 200 && notificationList.body.unreadCount === 2 && notificationRead.response.statusCode === 200 && notificationReadAll.response.statusCode === 200 && calls.slice(-3).map((call) => call.kind).join(",") === "notification-list,notification-read,notification-read-all" && calls.at(-3).input.limit === "15" && calls.at(-2).notificationId === notificationId, "Notification inbox routes lost account authorization, pagination or CSRF-protected read actions.");
+const profileRead = await dispatch(router, "GET", "/api/marketplace/landlord/profile", { headers: { cookie: authHeaders.cookie } });
+assert(profileRead.response.statusCode === 200 && profileRead.body.profile.organisationName === "Example PM" && calls.at(-1).kind === "landlord-get" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Landlord profile read was not bound to the authenticated Landlord.");
+const cleanerProfileRead = await dispatch(router, "GET", "/api/marketplace/landlord/profile", { headers: { cookie: cleanerAuthHeaders.cookie } });
+assert(cleanerProfileRead.response.statusCode === 403 && calls.at(-1).kind === "landlord-get", "A Cleaner account could read the separate private Landlord profile.");
 const profile = await dispatch(router, "PUT", "/api/marketplace/landlord/profile", { headers: authHeaders, body: { organisationName: "Example PM", biography: "Local portfolio", userId: "33333333-3333-4333-8333-333333333333" } });
 assert(profile.response.statusCode === 200 && calls.at(-1).actor.userId === sessions.landlord.user_id && calls.at(-1).input.userId !== calls.at(-1).actor.userId, "Landlord profile routing trusted a submitted owner identifier.");
 const created = await dispatch(router, "POST", "/api/marketplace/properties", { headers: authHeaders, body: { name: "Canal View", landlordUserId: "33333333-3333-4333-8333-333333333333" } });
@@ -351,6 +408,8 @@ assert(messageList.response.statusCode === 200 && landlordMessage.response.statu
 const missingRealtimeOrigin = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/events`, { headers: { cookie: authHeaders.cookie } });
 const realtimeStream = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/events?afterEventId=7`, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin } });
 assert(missingRealtimeOrigin.response.statusCode === 403 && missingRealtimeOrigin.body.code === "origin-rejected" && realtimeStream.response.statusCode === 200 && calls.at(-1).kind === "realtime-open" && calls.at(-1).lastEventId === "7", "Real-time booking stream did not require exact origin or preserve its durable reconnect cursor.");
+const requestRealtimeStream = await dispatch(router, "GET", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/events?afterEventId=11", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin } });
+assert(requestRealtimeStream.response.statusCode === 200 && calls.at(-1).kind === "request-realtime-open" && calls.at(-1).requestId === "66666666-6666-4666-8666-666666666666" && calls.at(-1).lastEventId === "11", "The private Landlord request stream lost role, exact-origin, resource or durable cursor binding.");
 const landlordJourneyStart = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/journey/start`, { headers: authHeaders, body: { consentGranted: true, latitude: 51.5, longitude: -0.1 } });
 assert(landlordJourneyStart.response.statusCode === 403 && landlordJourneyStart.body.code === "role-rejected", "A Landlord could start the Cleaner journey.");
 const landlordProgress = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/cleaning-progress`, { headers: { cookie: authHeaders.cookie } });

@@ -117,7 +117,7 @@ Implemented account cleaning-request checkpoint:
 
 Implemented frozen invitation/acceptance checkpoint:
 
-- Private server-owned pricing derives Cleaner pay from active service prices, covers explicitly configured costs and solves the minimum customer total meeting the approved margin floor; browser-submitted economics are discarded.
+- Private server-owned pricing derives Cleaner pay from active service prices, covers explicitly configured costs and solves the minimum customer total meeting both the approved percentage-margin floor and minimum contribution in pounds; browser-submitted economics are discarded.
 - One locked database transition rechecks request ownership/state/budget, Cleaner profile/service/full-window availability, freezes scope and terms fingerprints, copies the room checklist and records both histories plus an idempotent notification.
 - Cleaner-only accept/decline rechecks eligibility, scope and availability; PostgreSQL’s exclusion constraint is the final concurrent overlap guard.
 - Declines preserve the cancelled attempt and reopen matching while a partial unique index permits one replacement but never two live invitations.

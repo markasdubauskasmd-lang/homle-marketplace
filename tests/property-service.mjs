@@ -87,6 +87,7 @@ let storedProperty;
 let bookingStatus = "confirmed";
 const repositoryCalls = [];
 const fakeRepository = {
+  async getLandlordProfile(actor) { repositoryCalls.push({ kind: "profile-get", actor }); return { organisation_name: "Example Property Management", biography: "Small local portfolio." }; },
   async saveLandlordProfile(actor, profile) { repositoryCalls.push({ kind: "profile", actor, profile }); return profile; },
   async createProperty(actor, property) { repositoryCalls.push({ kind: "create", actor, property }); storedProperty = property; return propertyRow(property); },
   async updateOwnProperty(actor, property) { repositoryCalls.push({ kind: "update", actor, property }); storedProperty = property; return propertyRow(property); },
@@ -98,6 +99,8 @@ const landlord = { userId: landlordId, roles: ["landlord"] };
 const cleaner = { userId: cleanerId, roles: ["cleaner"] };
 const unrelated = { userId: unrelatedId, roles: ["cleaner"] };
 
+const ownProfile = await service.getLandlordProfile(landlord);
+assert(ownProfile.organisationName === "Example Property Management" && ownProfile.biography === "Small local portfolio.", "The Landlord could not read their own private profile projection.");
 await service.saveLandlordProfile(landlord, { organisationName: "Example Property Management", biography: "Small local portfolio." });
 const created = await service.createProperty(landlord, input);
 assert(created.exactAddress.postcode === "SW1A 1AA" && created.accessInstructions === accessInstructions && !Object.hasOwn(created, "accessInstructionsCiphertext") && !Object.hasOwn(created, "latitude") && !Object.hasOwn(created, "landlordUserId"), "The landlord property projection exposed storage or coordinate fields or omitted owned details.");
@@ -107,7 +110,7 @@ const updated = await service.updateOwnProperty(landlord, { ...input, id: proper
 const updateCall = repositoryCalls.find((call) => call.kind === "update");
 assert(updated.propertyId === propertyId && updated.accessInstructions === updatedInstructions && Buffer.isBuffer(updateCall.property.accessInstructionsCiphertext) && !updateCall.property.accessInstructionsCiphertext.includes(Buffer.from(updatedInstructions)), "An owner property edit did not preserve identity, encrypt the replacement access instructions or return the protected owner projection.");
 assert((await service.listOwnProperties(landlord))[0].accessInstructions === updatedInstructions, "A landlord could not retrieve their updated protected property details.");
-assert(throws(() => createPropertyService(fakeRepository, { dataEncryptionSecret: "too-short" }), "at least 32") && await rejects(() => service.createProperty(cleaner, input), "Landlord account") && await rejects(() => service.updateOwnProperty(cleaner, { ...input, id: propertyId }), "Landlord account"), "Property service accepted a weak encryption key or a cleaner property write.");
+assert(throws(() => createPropertyService(fakeRepository, { dataEncryptionSecret: "too-short" }), "at least 32") && await rejects(() => service.getLandlordProfile(cleaner), "Landlord account") && await rejects(() => service.createProperty(cleaner, input), "Landlord account") && await rejects(() => service.updateOwnProperty(cleaner, { ...input, id: propertyId }), "Landlord account"), "Property service accepted a weak encryption key or a cleaner property read/write.");
 
 bookingStatus = "confirmed";
 const activeCleanerView = await service.getBookingProperty(cleaner, bookingId);
@@ -135,11 +138,17 @@ const database = {
   }
 };
 const repository = createPropertyRepository(database);
+await repository.getLandlordProfile(landlord);
 await repository.createProperty(landlord, canonical);
 await repository.updateOwnProperty(landlord, canonical);
 await repository.listOwnProperties(landlord);
 await repository.getBookingProperty(cleaner, bookingId);
-assert(databaseCalls[0].values[1] === landlordId && databaseCalls[1].text.includes("WHERE id=$1::uuid AND landlord_user_id=$2::uuid") && databaseCalls[1].values[1] === landlordId && databaseCalls[1].text.includes("address_line_1 IS NOT DISTINCT FROM $4::text") && databaseCalls[1].text.includes("COALESCE($17::numeric,latitude)") && databaseCalls[1].text.includes("ELSE $17::numeric") && databaseCalls[2].text.includes("landlord_user_id=$1::uuid") && databaseCalls[3].text.includes("b.landlord_user_id=$2::uuid OR b.cleaner_user_id=$2::uuid") && databaseCalls.every((call) => !call.text.includes(accessInstructions)), "Property repository did not bind ownership, preserve unchanged-address coordinates, clear stale changed-address coordinates or protect booking participation in parameterized queries.");
+const profileReadCall = databaseCalls.find((call) => call.text.includes("FROM landlord_profiles"));
+const createCall = databaseCalls.find((call) => call.text.startsWith("INSERT INTO properties"));
+const updatePropertyCall = databaseCalls.find((call) => call.text.startsWith("UPDATE properties"));
+const listCall = databaseCalls.find((call) => call.text.startsWith("SELECT * FROM properties"));
+const bookingCall = databaseCalls.find((call) => call.text.includes("FROM bookings b"));
+assert(profileReadCall.values[0] === landlordId && createCall.values[1] === landlordId && updatePropertyCall.text.includes("WHERE id=$1::uuid AND landlord_user_id=$2::uuid") && updatePropertyCall.values[1] === landlordId && updatePropertyCall.text.includes("address_line_1 IS NOT DISTINCT FROM $4::text") && updatePropertyCall.text.includes("COALESCE($17::numeric,latitude)") && updatePropertyCall.text.includes("ELSE $17::numeric") && listCall.text.includes("landlord_user_id=$1::uuid") && bookingCall.text.includes("b.landlord_user_id=$2::uuid OR b.cleaner_user_id=$2::uuid") && databaseCalls.every((call) => !call.text.includes(accessInstructions)), "Property repository did not bind profile/property ownership, preserve unchanged-address coordinates, clear stale changed-address coordinates or protect booking participation in parameterized queries.");
 
 const rls = await readFile(new URL("../db/migrations/002_marketplace_row_level_security.sql", import.meta.url), "utf8");
 const propertyPolicy = rls.match(/CREATE POLICY properties_confirmed_cleaner_read[^;]+;/)?.[0] || "";

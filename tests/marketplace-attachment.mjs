@@ -86,7 +86,7 @@ const pool = {
     return {
       async query(sql) {
         probeQueries.push(sql);
-        return { rows: [{ database_role: "tideway_app", database_name: "tideway", server_version_num: 160004, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_room_scan_ready: true, rate_limit_ready: true, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true }] };
+        return { rows: [{ database_role: "tideway_app", database_name: "tideway", server_version_num: 160004, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_realtime_ready: true, request_room_scan_ready: true, rate_limit_ready: true, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true }] };
       },
       release() { released += 1; }
     };
@@ -169,7 +169,7 @@ assert.equal(storageVerified, 1);
 assert.equal(released, 1);
 assert.equal(realtimeReleased, 1);
 assert(realtimeProbeQueries.some((query) => String(query).includes("LISTEN tideway_booking_events")) && realtimeProbeQueries.some((query) => String(query).includes("UNLISTEN tideway_booking_events")), "The dedicated real-time connection did not prove LISTEN/UNLISTEN support.");
-assert.ok(probeQueries[0].includes("current_user") && probeQueries[0].includes("tideway_private.lookup_session") && probeQueries[0].includes("list_my_booking_summaries") && probeQueries[0].includes("configure_automatic_dispatch") && probeQueries[0].includes("submit_cleaning_request") && probeQueries[0].includes("withdraw_cleaning_request") && probeQueries[0].includes("create_request_photo_upload_intent") && probeQueries[0].includes("connect_social_identity") && probeQueries[0].includes("request_my_privacy_action") && probeQueries[0].includes("request_facebook_data_deletion") && probeQueries[0].includes("begin_my_cleaner_payout_onboarding"));
+assert.ok(probeQueries[0].includes("current_user") && probeQueries[0].includes("tideway_private.lookup_session") && probeQueries[0].includes("list_my_booking_summaries") && probeQueries[0].includes("configure_automatic_dispatch") && probeQueries[0].includes("get_cleaning_request_realtime_snapshot") && probeQueries[0].includes("submit_cleaning_request") && probeQueries[0].includes("withdraw_cleaning_request") && probeQueries[0].includes("create_request_photo_upload_intent") && probeQueries[0].includes("connect_social_identity") && probeQueries[0].includes("request_my_privacy_action") && probeQueries[0].includes("request_facebook_data_deletion") && probeQueries[0].includes("begin_my_cleaner_payout_onboarding"));
 assert.equal(attachment.authenticationCapabilities.emailPassword, true);
 assert.equal(attachment.authenticationCapabilities.passwordReset, true);
 assert.equal(attachment.authenticationCapabilities.emailVerification, true);
@@ -264,7 +264,7 @@ let unsafeReleased = 0;
 await assert.rejects(probeMarketplaceDatabase({
   async connect() {
     return {
-      async query() { return { rows: [{ database_role: "migration_owner", server_version_num: 160000, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_room_scan_ready: true, rate_limit_ready: true, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true }] }; },
+      async query() { return { rows: [{ database_role: "migration_owner", server_version_num: 160000, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_realtime_ready: true, request_room_scan_ready: true, rate_limit_ready: true, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true }] }; },
       release() { unsafeReleased += 1; }
     };
   }
@@ -285,7 +285,7 @@ assert.equal(realtimeUnsafeReleased, 1);
 await assert.rejects(probeMarketplaceDatabase({
   async connect() {
     return {
-      async query() { return { rows: [{ database_role: "tideway_app", server_version_num: 160000, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_room_scan_ready: true, rate_limit_ready: false, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true }] }; },
+      async query() { return { rows: [{ database_role: "tideway_app", server_version_num: 160000, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_realtime_ready: true, request_room_scan_ready: true, rate_limit_ready: false, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true }] }; },
       release() {}
     };
   }

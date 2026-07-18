@@ -64,3 +64,14 @@ export function requestStatusLabel(status) {
   const labels = { draft: "Draft — scan not submitted", "searching-for-cleaner": "Searching for Cleaner", "cleaner-invited": "Cleaner invited", "pending-cleaner-acceptance": "Waiting for Cleaner", matched: "Matched", cancelled: "Cancelled" };
   return labels[status] || "Status unavailable";
 }
+
+export function landlordDispatchAction(request) {
+  if (request?.status !== "searching-for-cleaner") return Object.freeze({ kind: "none", attemptLimit: null });
+  const dispatch = request.automaticDispatch && typeof request.automaticDispatch === "object" ? request.automaticDispatch : {};
+  const attemptCount = Number.isInteger(dispatch.attemptCount) && dispatch.attemptCount >= 0 ? dispatch.attemptCount : 0;
+  const attemptLimit = Number.isInteger(dispatch.attemptLimit) && dispatch.attemptLimit >= 1 && dispatch.attemptLimit <= 5 ? dispatch.attemptLimit : 0;
+  if (dispatch.enabled !== true) return Object.freeze({ kind: attemptCount >= 5 ? "exhausted" : "authorize", attemptLimit: Math.min(attemptCount + 1, 5), attemptCount });
+  if (attemptCount < attemptLimit) return Object.freeze({ kind: "waiting", attemptLimit, attemptCount });
+  if (attemptCount < 5) return Object.freeze({ kind: "retry", attemptLimit: attemptCount + 1, attemptCount });
+  return Object.freeze({ kind: "exhausted", attemptLimit: 5, attemptCount });
+}

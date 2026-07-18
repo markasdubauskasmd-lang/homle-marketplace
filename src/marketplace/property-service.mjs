@@ -129,10 +129,14 @@ function landlordProfileProjection(record) {
 }
 
 export function createPropertyService(repository, options) {
-  if (!repository || typeof repository.saveLandlordProfile !== "function" || typeof repository.createProperty !== "function" || typeof repository.updateOwnProperty !== "function" || typeof repository.listOwnProperties !== "function" || typeof repository.getBookingProperty !== "function") throw new TypeError("A complete property repository is required.");
+  if (!repository || typeof repository.getLandlordProfile !== "function" || typeof repository.saveLandlordProfile !== "function" || typeof repository.createProperty !== "function" || typeof repository.updateOwnProperty !== "function" || typeof repository.listOwnProperties !== "function" || typeof repository.getBookingProperty !== "function") throw new TypeError("A complete property repository is required.");
   const dataEncryptionSecret = options?.dataEncryptionSecret;
   assertPropertyEncryptionSecret(dataEncryptionSecret);
   return {
+    async getLandlordProfile(actor) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required.");
+      return landlordProfileProjection(await repository.getLandlordProfile(actor));
+    },
     async saveLandlordProfile(actor, input) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required.");
       return landlordProfileProjection(await repository.saveLandlordProfile(actor, normalizedLandlordProfile(input)));

@@ -70,8 +70,8 @@ export function createBookingRepository(database) {
       return database.withUserTransaction(actor, async (client) => {
         try {
           const result = await client.query(
-            "SELECT (tideway_private.invite_cleaner($1::uuid, $2::uuid, $3::uuid, $4::timestamptz, $5::integer, $6::integer, $7::integer, $8::integer, $9::integer, $10::integer, $11::integer, $12::integer)).*",
-            [invitation.bookingId, invitation.requestId, invitation.cleanerId, invitation.responseDeadline, invitation.customerPricePence, invitation.cleanerPayPence, invitation.labourOnCostPence, invitation.paymentFeePence, invitation.travelCostPence, invitation.suppliesCostPence, invitation.otherCostPence, invitation.targetMarginBasisPoints]
+            "SELECT (tideway_private.invite_cleaner($1::uuid, $2::uuid, $3::uuid, $4::timestamptz, $5::integer, $6::integer, $7::integer, $8::integer, $9::integer, $10::integer, $11::integer, $12::integer, $13::integer)).*",
+            [invitation.bookingId, invitation.requestId, invitation.cleanerId, invitation.responseDeadline, invitation.customerPricePence, invitation.cleanerPayPence, invitation.labourOnCostPence, invitation.paymentFeePence, invitation.travelCostPence, invitation.suppliesCostPence, invitation.otherCostPence, invitation.targetMarginBasisPoints, invitation.targetContributionPence]
           );
           return result.rows[0];
         } catch (error) { throw mappedDatabaseError(error); }

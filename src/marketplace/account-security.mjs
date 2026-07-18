@@ -51,6 +51,7 @@ export function createAccountSecurity(repository, options) {
         email: session.email,
         emailVerifiedAt: session.email_verified_at,
         displayName: session.display_name,
+        avatarUrl: session.avatar_url || null,
         selectedRole: session.selected_role
       }
     };

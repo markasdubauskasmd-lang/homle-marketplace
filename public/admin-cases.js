@@ -140,6 +140,12 @@ function caseCard(record) {
       review.addEventListener("click", async () => { try { await updateCase(record.disputeId, adminCaseReviewPayload(), review); } catch {} });
       actions.append(review);
     }
+    if (record.status === "reviewing") {
+      const payment = element("a", "button button-outline", "Review related test payment");
+      payment.href = `/admin/payments?bookingId=${encodeURIComponent(record.bookingId)}`;
+      payment.setAttribute("aria-label", `Review the related test payment for ${shortBookingReference(record.bookingId)}`);
+      actions.append(payment);
+    }
     const resolve = element("button", "button", "Resolve case");
     resolve.type = "button";
     resolve.addEventListener("click", () => openResolution(record));
