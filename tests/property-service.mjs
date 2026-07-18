@@ -112,6 +112,36 @@ assert(updated.propertyId === propertyId && updated.accessInstructions === updat
 assert((await service.listOwnProperties(landlord))[0].accessInstructions === updatedInstructions, "A landlord could not retrieve their updated protected property details.");
 assert(throws(() => createPropertyService(fakeRepository, { dataEncryptionSecret: "too-short" }), "at least 32") && await rejects(() => service.getLandlordProfile(cleaner), "Landlord account") && await rejects(() => service.createProperty(cleaner, input), "Landlord account") && await rejects(() => service.updateOwnProperty(cleaner, { ...input, id: propertyId }), "Landlord account"), "Property service accepted a weak encryption key or a cleaner property read/write.");
 
+// Geocoding integration: a configured geocoder fills coordinates from the
+// postcode only when the Landlord did not supply them, and never blocks a save.
+// Uses an isolated repository so it cannot disturb the shared fixtures above.
+const geocoderCalls = [];
+let geoStored;
+const geoRepository = {
+  async getLandlordProfile() { return {}; }, async saveLandlordProfile(a, p) { return p; },
+  async createProperty(actor, property) { geoStored = property; return propertyRow(property); },
+  async updateOwnProperty(actor, property) { geoStored = property; return propertyRow(property); },
+  async listOwnProperties() { return [propertyRow(geoStored)]; }, async getBookingProperty() { return propertyRow(geoStored); }
+};
+function geocodingService(geocoder) {
+  return createPropertyService(geoRepository, { dataEncryptionSecret: encryptionSecret, geocoder });
+}
+const uncoordinated = { ...input };
+delete uncoordinated.latitude;
+delete uncoordinated.longitude;
+
+const resolvingGeocoder = { async geocodePostcode(pc) { geocoderCalls.push(pc); return { latitude: 51.501009, longitude: -0.141588 }; } };
+await geocodingService(resolvingGeocoder).createProperty(landlord, uncoordinated);
+assert(geoStored.latitude === 51.501009 && geoStored.longitude === -0.141588 && geocoderCalls.at(-1) === "SW1A 1AA", "A property saved without coordinates was not geocoded from its postcode.");
+
+geocoderCalls.length = 0;
+await geocodingService(resolvingGeocoder).createProperty(landlord, input);
+assert(geoStored.latitude === 51.501 && geoStored.longitude === -0.142 && geocoderCalls.length === 0, "A Landlord-supplied coordinate was overwritten by geocoding or geocoding ran unnecessarily.");
+
+const failingGeocoder = { async geocodePostcode() { return null; } };
+const savedUnresolved = await geocodingService(failingGeocoder).createProperty(landlord, uncoordinated);
+assert(geoStored.latitude == null && geoStored.longitude == null && savedUnresolved.exactAddress.postcode === "SW1A 1AA", "An unresolved geocode did not fail safe with null coordinates and a saved property.");
+
 bookingStatus = "confirmed";
 const activeCleanerView = await service.getBookingProperty(cleaner, bookingId);
 assert(activeCleanerView.exactAddress.postcode === "SW1A 1AA" && activeCleanerView.accessInstructions === updatedInstructions, "The assigned cleaner could not access the latest visit details during a confirmed booking.");
