@@ -52,6 +52,9 @@ try {
   assert(deploymentVerifier.includes("recommend_cleaners_for_request_v2(uuid,integer)") && deploymentVerifier.includes("candidate.cleaner_id<>request_landlord_id") && deploymentVerifier.includes("Automatic dispatch bypasses"), "Migration-53 verification must prove shared self-exclusion for interactive and automatic matching.");
   assert(deploymentVerifier.includes("get_cleaning_request_realtime_snapshot(uuid,bigint,integer)") && deploymentVerifier.includes("Cleaning-request live events lack RLS") && deploymentVerifier.includes("lookup_session(bytea)") && deploymentVerifier.includes("avatar_url"), "Migration-54/55 verification must prove the private request stream and account-avatar session projection.");
   assert(deploymentVerifier.includes("target_contribution_pence") && deploymentVerifier.includes("planned_contribution<proposed_target_contribution_pence"), "Migration-56 verification must prove the frozen minimum-contribution boundary.");
+  assert(deploymentVerifier.includes("active_invite_function := CASE WHEN minimum_contribution_migration_installed") && deploymentVerifier.includes("active_dispatch_function := CASE WHEN minimum_contribution_migration_installed"), "Pre-upgrade verification must select the booking function signatures installed at the current migration level.");
+  assert(deploymentVerifier.includes("app_functions || ARRAY[active_invite_function]") && deploymentVerifier.includes("worker_functions || ARRAY[active_dispatch_function]"), "Runtime privilege verification must follow the migration-aware booking function signatures.");
+  assert(deploymentVerifier.includes("IF minimum_contribution_migration_installed THEN") && deploymentVerifier.includes("Superseded minimum-contribution function is missing"), "Post-migration verification must still prove that the older booking signatures are revoked.");
   const onboardingRepair = await readFile(path.join(sourceDatabaseDirectory, "migrations", "047_fix_role_onboarding_column_ambiguity.sql"), "utf8");
   assert.match(onboardingRepair, /#variable_conflict error/, "Role onboarding must fail closed if a future PL\/pgSQL variable conflicts with a column.");
   assert.match(onboardingRepair, /ON CONFLICT ON CONSTRAINT cleaner_profiles_pkey DO NOTHING/, "Cleaner onboarding must name its conflict constraint explicitly.");
@@ -61,8 +64,8 @@ try {
   const workerBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("worker_functions constant"), deploymentVerifier.indexOf("BEGIN", deploymentVerifier.indexOf("worker_functions constant")));
   const advertisedAppChecks = Number(deploymentVerifier.match(/'appFunctionChecks',\s*(\d+)/)?.[1]);
   const advertisedWorkerChecks = Number(deploymentVerifier.match(/'workerFunctionChecks',\s*(\d+)/)?.[1]);
-  assert.equal(advertisedAppChecks, [...appBlock.matchAll(/'tideway_private\./g)].length + 1, "deployment report must count core functions plus the migration-48 workspace function it verifies conditionally");
-  assert.equal(advertisedWorkerChecks, [...workerBlock.matchAll(/'tideway_private\./g)].length, "deployment report must count every exact worker function it verifies");
+  assert.equal(advertisedAppChecks, [...appBlock.matchAll(/'tideway_private\./g)].length + 2, "deployment report must count core functions plus the migration-aware invitation and migration-48 workspace functions");
+  assert.equal(advertisedWorkerChecks, [...workerBlock.matchAll(/'tideway_private\./g)].length + 1, "deployment report must count core worker functions plus the migration-aware automatic-dispatch function");
 
   await freshFixture();
   const tamperedPath = path.join(fixtureDatabaseDirectory, "migrations", "004_social_identity_and_onboarding.sql");

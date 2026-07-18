@@ -18,6 +18,8 @@ DECLARE
   request_realtime_migration_installed boolean := false;
   session_avatar_migration_installed boolean := false;
   minimum_contribution_migration_installed boolean := false;
+  active_invite_function text;
+  active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
     'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
@@ -36,7 +38,6 @@ DECLARE
     'tideway_private.lookup_session(bytea)',
     'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
     'tideway_private.search_cleaner_directory(text,text,timestamp with time zone,timestamp with time zone,numeric,integer,boolean,numeric,numeric,numeric,integer,integer)',
-    'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.list_my_booking_summaries(integer)',
     'tideway_private.configure_automatic_dispatch(uuid,boolean,smallint)',
     'tideway_private.create_request_photo_upload_intent(uuid,uuid,text,text,text,text,text,integer,text,timestamp with time zone)',
@@ -94,7 +95,6 @@ DECLARE
     'tideway_private.purge_expired_pending_social_identities(integer)',
     'tideway_private.claim_due_automatic_dispatch(uuid,integer,integer)',
     'tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)',
-    'tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.release_automatic_dispatch_lease(uuid,uuid,text,timestamp with time zone)'
   ];
 BEGIN
@@ -169,18 +169,6 @@ BEGIN
   END IF;
   IF to_regclass('public.audit_logs_administrator_bootstrap_request_idx') IS NULL THEN RAISE EXCEPTION 'Administrator bootstrap retry index is missing'; END IF;
 
-  FOREACH selected_name IN ARRAY app_functions || worker_functions LOOP
-    selected_function := to_regprocedure(selected_name);
-    IF selected_function IS NULL THEN RAISE EXCEPTION 'Required protected function is missing: %', selected_name; END IF;
-    IF NOT EXISTS (
-      SELECT 1 FROM pg_proc procedure
-      WHERE procedure.oid = selected_function AND procedure.prosecdef
-        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
-    ) THEN
-      RAISE EXCEPTION 'Protected function is not SECURITY DEFINER with the trusted search path: %', selected_name;
-    END IF;
-  END LOOP;
-
   IF to_regclass('tideway_private.schema_migrations') IS NOT NULL THEN
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 48)'
       INTO latest_migration_installed;
@@ -201,6 +189,29 @@ BEGIN
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 56)'
       INTO minimum_contribution_migration_installed;
   END IF;
+
+  active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
+    'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)'
+  ELSE
+    'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)'
+  END;
+  active_dispatch_function := CASE WHEN minimum_contribution_migration_installed THEN
+    'tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)'
+  ELSE
+    'tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)'
+  END;
+
+  FOREACH selected_name IN ARRAY app_functions || ARRAY[active_invite_function] || worker_functions || ARRAY[active_dispatch_function] LOOP
+    selected_function := to_regprocedure(selected_name);
+    IF selected_function IS NULL THEN RAISE EXCEPTION 'Required protected function is missing: %', selected_name; END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid = selected_function AND procedure.prosecdef
+        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+    ) THEN
+      RAISE EXCEPTION 'Protected function is not SECURITY DEFINER with the trusted search path: %', selected_name;
+    END IF;
+  END LOOP;
   IF payment_operations_migration_installed THEN
     selected_name := 'tideway_private.list_administrator_payment_operations(text,integer,integer)';
     selected_function := to_regprocedure(selected_name);
@@ -358,22 +369,31 @@ BEGIN
     END IF;
   END IF;
 
-  FOREACH selected_name IN ARRAY app_functions LOOP
+  FOREACH selected_name IN ARRAY app_functions || ARRAY[active_invite_function] LOOP
     IF NOT has_function_privilege('tideway_app', selected_name, 'EXECUTE') THEN RAISE EXCEPTION 'App role is missing required function execution: %', selected_name; END IF;
   END LOOP;
   FOREACH selected_name IN ARRAY ARRAY[
-    'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.invite_cleaner_before_eligibility_hardening(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
     'tideway_private.respond_to_cleaner_invitation_before_eligibility_hardening(uuid,text,text)',
-    'tideway_private.respond_to_cleaner_invitation_core(uuid,text,text)',
-    'tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)'
+    'tideway_private.respond_to_cleaner_invitation_core(uuid,text,text)'
   ] LOOP
     IF to_regprocedure(selected_name) IS NULL THEN RAISE EXCEPTION 'Superseded booking function is missing: %', selected_name; END IF;
     IF has_function_privilege('tideway_app', selected_name, 'EXECUTE') OR has_function_privilege('tideway_worker', selected_name, 'EXECUTE') THEN
       RAISE EXCEPTION 'Restricted role can bypass the current booking eligibility wrapper: %', selected_name;
     END IF;
   END LOOP;
-  FOREACH selected_name IN ARRAY worker_functions LOOP
+  IF minimum_contribution_migration_installed THEN
+    FOREACH selected_name IN ARRAY ARRAY[
+      'tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)',
+      'tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer)'
+    ] LOOP
+      IF to_regprocedure(selected_name) IS NULL THEN RAISE EXCEPTION 'Superseded minimum-contribution function is missing: %', selected_name; END IF;
+      IF has_function_privilege('tideway_app', selected_name, 'EXECUTE') OR has_function_privilege('tideway_worker', selected_name, 'EXECUTE') THEN
+        RAISE EXCEPTION 'Restricted role can bypass the minimum-contribution booking wrapper: %', selected_name;
+      END IF;
+    END LOOP;
+  END IF;
+  FOREACH selected_name IN ARRAY worker_functions || ARRAY[active_dispatch_function] LOOP
     IF NOT has_function_privilege('tideway_worker', selected_name, 'EXECUTE') THEN RAISE EXCEPTION 'Worker role is missing required function execution: %', selected_name; END IF;
     IF has_function_privilege('tideway_app', selected_name, 'EXECUTE') THEN RAISE EXCEPTION 'App role can execute worker-only function: %', selected_name; END IF;
   END LOOP;
