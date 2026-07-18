@@ -1769,11 +1769,14 @@ function configureSpeech() {
 document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addEventListener("click", () => { selectWorkspaceTab(button.dataset.landlordTab, { historyMode: "push" }); }));
 window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "properties"));
 selectWorkspaceTab(workspaceTabFromHash() || "properties");
-document.querySelector("[data-open-account-tab]").addEventListener("click", () => {
-  selectWorkspaceTab("account");
-  document.querySelector("[data-account-menu]").open = false;
-  document.querySelector("[data-landlord-panel=\"account\"]").scrollIntoView({ behavior: "smooth", block: "start" });
-});
+document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link.addEventListener("click", (event) => {
+  event.preventDefault();
+  const selected = link.dataset.openLandlordSection;
+  selectWorkspaceTab(selected, { historyMode: "push" });
+  const accountMenu = link.closest("[data-account-menu]");
+  if (accountMenu) accountMenu.open = false;
+  document.querySelector(`[data-landlord-panel="${selected}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}));
 document.querySelector("[data-open-request-tab]").addEventListener("click", () => {
   document.querySelector('[data-landlord-tab="requests"]').click();
   document.querySelector('[data-landlord-panel="requests"]').scrollIntoView({ behavior: "smooth", block: "start" });
