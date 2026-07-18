@@ -28,6 +28,12 @@ const requirementDefinitions = Object.freeze([
     complete: (state) => state.marketplaceEnabled === true && state.marketplaceReady === true
   },
   {
+    key: "matchingPricing",
+    label: "Cleaner matching and pricing",
+    missing: "Configure and verify the complete founder-approved private booking pricing policy",
+    complete: (state) => state.matchingReady === true
+  },
+  {
     key: "payments",
     label: "Test payment service",
     missing: "Attach the approved test-only payment service",

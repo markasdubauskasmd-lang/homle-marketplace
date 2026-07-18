@@ -4731,6 +4731,7 @@ async function getAdminConfig(request, response) {
     privateDataStorageSafe: storageSafety.safeForPrivatePilot,
     marketplaceEnabled: marketplaceAttachment.enabled,
     marketplaceReady: marketplaceAttachment.ready,
+    matchingReady: marketplaceAttachment.matchingReady,
     authenticationReady: accountAttachment.authenticationHttpReady,
     providers: accountAttachment.authenticationCapabilities,
     paymentsReady: marketplaceAttachment.paymentsReady,
