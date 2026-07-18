@@ -4731,6 +4731,10 @@ async function getAdminConfig(request, response) {
     privateDataStorageSafe: storageSafety.safeForPrivatePilot,
     marketplaceEnabled: marketplaceAttachment.enabled,
     marketplaceReady: marketplaceAttachment.ready,
+    emailReady: marketplaceAttachment.emailReady,
+    mediaReady: marketplaceAttachment.mediaReady,
+    realtimeReady: marketplaceAttachment.realtimeReady,
+    matchingReady: marketplaceAttachment.matchingReady,
     authenticationReady: accountAttachment.authenticationHttpReady,
     providers: accountAttachment.authenticationCapabilities,
     paymentsReady: marketplaceAttachment.paymentsReady,
@@ -5352,6 +5356,7 @@ async function handleHttpRequest(request, response) {
           authenticationReady: accountAttachment.authenticationHttpReady,
           emailReady: marketplaceAttachment.emailReady === true,
           mediaReady: marketplaceAttachment.mediaReady === true,
+          realtimeReady: marketplaceAttachment.realtimeReady === true,
           matchingReady: marketplaceAttachment.matchingReady === true,
           paymentsReady: marketplaceAttachment.paymentsReady === true
         },

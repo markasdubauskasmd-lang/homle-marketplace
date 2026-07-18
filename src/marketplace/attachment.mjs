@@ -153,6 +153,7 @@ function unavailableAttachment(env, reason = "disabled") {
     authenticationCapabilities,
     emailReady: false,
     mediaReady: false,
+    realtimeReady: false,
     matchingReady: false,
     paymentsReady: false,
     router: null,
@@ -188,6 +189,7 @@ export async function createMarketplaceAttachment(options = {}) {
   let objectStorage;
   let pool;
   let realtimePool;
+  let realtimeEvidence = null;
   let realtimeSignalSource;
   let runtime;
   let paymentProvider;
@@ -205,7 +207,7 @@ export async function createMarketplaceAttachment(options = {}) {
     const databaseEvidence = await (options.probeDatabase || probeMarketplaceDatabase)(pool);
     if (environment.realtimeDatabaseConfigured) {
       realtimePool = await createRealtimePool(env);
-      const realtimeEvidence = await (options.probeRealtimeDatabase || probeRealtimeDatabase)(realtimePool);
+      realtimeEvidence = await (options.probeRealtimeDatabase || probeRealtimeDatabase)(realtimePool);
       if (databaseEvidence?.databaseName && realtimeEvidence?.databaseName && databaseEvidence.databaseName !== realtimeEvidence.databaseName) throw new Error("DATABASE_URL and REALTIME_DATABASE_URL must target the same marketplace database.");
     } else {
       realtimePool = pool;
@@ -246,7 +248,7 @@ export async function createMarketplaceAttachment(options = {}) {
     passwordReset: true,
     emailVerification: true,
     google: runtime.googleOidcReady === true,
-    apple: false,
+    apple: runtime.appleSignInReady === true,
     facebook: runtime.facebookLoginReady === true
   });
   let closed = false;
@@ -258,6 +260,7 @@ export async function createMarketplaceAttachment(options = {}) {
     authenticationCapabilities,
     emailReady: Boolean(emailDelivery),
     mediaReady: Boolean(objectStorage),
+    realtimeReady: realtimeEvidence?.listenReady === true,
     matchingReady: runtime.matchingReady === true,
     paymentsReady: environment.payments.requested && runtime.paymentReady === true,
     router: runtime.router,

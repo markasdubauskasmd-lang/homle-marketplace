@@ -6,7 +6,7 @@ Tideway now has mobile-first account form markup and browser logic for `/login`,
 
 - Every account form and fieldset is hidden and disabled in the server-rendered HTML.
 - The browser calls the no-store `/api/auth/providers` capability endpoint.
-- Email forms activate only when `emailPassword === true`; Google and Facebook controls activate only under their matching capability. The Facebook verification form additionally requires `facebook === true`. Each flag requires the matching complete backend plus the explicit runtime-composition gate.
+- Email forms activate only when `emailPassword === true`; Google, Apple and Facebook controls activate only under their matching capability. The Facebook verification form additionally requires `facebook === true`. Each flag requires the matching complete backend plus the explicit runtime-composition gate.
 - Today that flag is false, so users continue to see the honest account-unavailable state and the working request/cleaner-pilot actions.
 - Google and Facebook controls exist hidden and inert in the server markup. The browser reveals only a provider explicitly advertised by the no-store capability response. Both callback implementations now exist, while both remain false and hidden without complete staging infrastructure and verified credentials.
 

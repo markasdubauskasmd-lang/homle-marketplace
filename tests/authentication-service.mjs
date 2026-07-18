@@ -68,14 +68,16 @@ const normalized = normalizedVerifiedSocialClaims("google", googleClaims);
 assert(normalized.email === "owner@example.com" && normalized.displayName === "Property Owner" && normalized.avatarUrl.startsWith("https://") && normalized.profile.locale === "en-GB", "Verified provider claims were not safely normalized.");
 assert(expectThrow(() => normalizedVerifiedSocialClaims("google", { ...googleClaims, emailVerified: false }), "must verify") && expectThrow(() => normalizedVerifiedSocialClaims("password", googleClaims), "supported social") && expectThrow(() => selectedOnboardingRole("administrator"), "Cleaner or Landlord"), "Unverified social email, password-as-social or administrator self-selection was accepted.");
 const facebookConnectionClaims = normalizedProviderConnectionClaims("facebook", { ...googleClaims, emailVerified: false });
-assert(facebookConnectionClaims.email === "owner@example.com" && facebookConnectionClaims.emailVerified === false && expectThrow(() => normalizedProviderConnectionClaims("google", { ...googleClaims, emailVerified: false }), "must verify"), "Authenticated provider connection did not preserve the distinct Google/Facebook email trust boundary.");
+const appleConnectionClaims = normalizedProviderConnectionClaims("apple", { ...googleClaims, subject: "apple-subject-1" });
+assert(facebookConnectionClaims.email === "owner@example.com" && facebookConnectionClaims.emailVerified === false && appleConnectionClaims.emailVerified === true && expectThrow(() => normalizedProviderConnectionClaims("google", { ...googleClaims, emailVerified: false }), "must verify") && expectThrow(() => normalizedProviderConnectionClaims("apple", { ...googleClaims, emailVerified: false }), "must verify"), "Authenticated provider connection did not preserve the distinct verified Apple/Google and unverified Facebook email trust boundaries.");
 
 const firstGoogleLogin = await service.socialSignIn("google", googleClaims);
 const repeatedGoogleLogin = await service.socialSignIn("google", googleClaims);
+const connectedAppleLogin = await service.socialSignIn("apple", { ...googleClaims, subject: "apple-subject-9", avatarUrl: "" });
 const connectedFacebookLogin = await service.socialSignIn("facebook", { ...googleClaims, subject: "facebook-subject-9" });
 assert(firstGoogleLogin.account_created && firstGoogleLogin.identity_created && firstGoogleLogin.user_id === "account-1", "A new verified Google user did not automatically receive an account.");
 assert(!repeatedGoogleLogin.account_created && !repeatedGoogleLogin.identity_created && repeatedGoogleLogin.user_id === firstGoogleLogin.user_id, "Repeated Google login created a duplicate account or identity.");
-assert(!connectedFacebookLogin.account_created && connectedFacebookLogin.identity_created && connectedFacebookLogin.user_id === firstGoogleLogin.user_id && accountsByEmail.size === 1, "A second provider using the same verified email created a duplicate account.");
+assert(!connectedAppleLogin.account_created && connectedAppleLogin.identity_created && connectedAppleLogin.user_id === firstGoogleLogin.user_id && !connectedFacebookLogin.account_created && connectedFacebookLogin.identity_created && connectedFacebookLogin.user_id === firstGoogleLogin.user_id && accountsByEmail.size === 1, "A second verified provider using the same email created a duplicate account.");
 
 accountsByEmail.set("collision@example.com", { user_id: "attacker-preregistered-account", email: "collision@example.com", email_verified_at: null, has_password_identity: true, display_name: "Unverified", avatar_url: "", selected_role: null, roles: [] });
 let unverifiedCollisionRejected = false;

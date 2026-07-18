@@ -39,6 +39,7 @@ assert.equal(disabled.ready, false);
 assert.equal(disabled.router, null);
 assert.equal(disabled.paymentsReady, false);
 assert.equal(disabled.matchingReady, false);
+assert.equal(disabled.realtimeReady, false);
 assert.equal(adapterLoaded, false);
 assert.ok(Object.values(disabled.authenticationCapabilities).filter((value) => value === true).length === 0);
 
@@ -180,6 +181,7 @@ assert.equal(attachment.authenticationCapabilities.facebook, true, "A configured
 assert.equal(attachment.paymentsReady, false, "Payments appeared attached without the explicit payment switch.");
 assert.equal(attachment.emailReady, true);
 assert.equal(attachment.mediaReady, true);
+assert.equal(attachment.realtimeReady, true);
 assert.equal(attachment.matchingReady, true);
 await attachment.close();
 await attachment.close();
@@ -207,7 +209,7 @@ const restrictedCore = await createMarketplaceAttachment({
   async createPool() { return { async end() {} }; },
   async createRealtimePool() { return { async end() {} }; },
   async probeDatabase() { return { databaseName: "tideway" }; },
-  async probeRealtimeDatabase() { return { databaseName: "tideway" }; },
+  async probeRealtimeDatabase() { return { databaseName: "tideway", listenReady: true }; },
   createRealtimeSignalSource() { return { async close() { restrictedCoreClosed += 1; } }; },
   async createEmailDelivery() { throw new Error("Restricted core must not create unconfigured email delivery."); },
   async createObjectStorage() { throw new Error("Restricted core must not create unconfigured object storage."); },
@@ -224,6 +226,7 @@ assert.equal(restrictedCore.ready, true);
 assert.equal(restrictedCore.authenticationHttpReady, false);
 assert.equal(restrictedCore.emailReady, false);
 assert.equal(restrictedCore.mediaReady, false);
+assert.equal(restrictedCore.realtimeReady, true);
 assert.equal(restrictedCore.matchingReady, false);
 await restrictedCore.close();
 assert.equal(restrictedCoreClosed, 1);
@@ -237,7 +240,7 @@ const paymentAttachment = await createMarketplaceAttachment({
   async createPool() { return { async end() {} }; },
   async createRealtimePool() { return { async end() {} }; },
   async probeDatabase() {},
-  async probeRealtimeDatabase() {},
+  async probeRealtimeDatabase() { return { listenReady: true }; },
   createRealtimeSignalSource() { return { async close() {} }; },
   async createEmailDelivery() { return { async verify() {}, async send() {}, async close() {} }; },
   async createObjectStorage() { return { async verify() {}, async createUploadUrl() {}, async headObject() {}, async inspectAndSanitizeImage() {}, async createReadUrl() {}, async deleteObject() {}, async close() {} }; },

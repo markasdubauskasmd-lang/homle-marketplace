@@ -30,6 +30,15 @@ async function facebookSignedRequest(request) {
   return values[0];
 }
 
+async function appleAuthorizationResponse(request, url) {
+  if (request.method === "GET") return url.searchParams;
+  if (request.method !== "POST") return null;
+  if (!/^application\/x-www-form-urlencoded(?:\s*;|$)/i.test(header(request, "content-type"))) {
+    throw Object.assign(new SyntaxError("Apple supplied an invalid authorization response."), { code: "form-content-type-required" });
+  }
+  return new URLSearchParams((await readRawBody(request, 32 * 1024)).toString("utf8"));
+}
+
 function accountIntent(value) {
   if (value === undefined) return "";
   if (!new Set(["book", "work"]).has(value)) throw Object.assign(new Error("Choose a supported account action."), { statusCode: 400, code: "invalid-account-intent" });
@@ -90,6 +99,18 @@ function googleFailureReason(error, stage) {
   return stage === "account" || stage === "session" ? "account-save-failed" : "provider-failed";
 }
 
+function appleFailureReason(error, stage) {
+  if (error?.code === "apple-provider-access-denied" || error?.code === "apple-provider-rejected") return "access-denied";
+  if (error?.code === "apple-flow-invalid") return "attempt-expired";
+  if (error?.code === "apple-token-exchange-rejected" || error?.code === "apple-token-network-failed") return "handoff-rejected";
+  if (error?.code === "apple-identity-verification-failed") return "identity-unverified";
+  return stage === "account" || stage === "session" ? "account-save-failed" : "provider-failed";
+}
+
+function providerLabel(provider) {
+  return ({ google: "Google", apple: "Apple", facebook: "Facebook" })[provider] || "Provider";
+}
+
 export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const security = dependencies?.security;
   const credentials = dependencies?.credentialService;
@@ -98,13 +119,14 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const emailDelivery = dependencies?.emailDelivery;
   const rateLimiter = dependencies?.rateLimiter;
   const google = dependencies?.googleOidcProvider || null;
+  const apple = dependencies?.appleSignInProvider || null;
   const facebook = dependencies?.facebookLoginProvider || null;
   const facebookIdentity = dependencies?.facebookIdentityService || null;
   const facebookDataDeletion = dependencies?.facebookDataDeletionService || null;
   const providerLink = dependencies?.providerLinkState || null;
   if (!security || typeof security.protect !== "function" || typeof security.requireOrigin !== "function") throw new TypeError("Authentication HTTP routes require account security.");
   if (!credentials || ["register", "requestEmailVerification", "verifyEmail", "signIn", "requestPasswordReset", "resetPassword"].some((method) => typeof credentials[method] !== "function")) throw new TypeError("Authentication HTTP routes require the credential service.");
-  if (!identity || ["completeOnboarding", "activateWorkspace", "connectedProviders", "connectProvider", "verifyProviderStepUp", "disconnectProvider"].some((method) => typeof identity[method] !== "function") || (google && typeof identity.socialSignIn !== "function")) throw new TypeError("Authentication HTTP routes require the identity service.");
+  if (!identity || ["completeOnboarding", "activateWorkspace", "connectedProviders", "connectProvider", "verifyProviderStepUp", "disconnectProvider"].some((method) => typeof identity[method] !== "function") || ((google || apple) && typeof identity.socialSignIn !== "function")) throw new TypeError("Authentication HTTP routes require the identity service.");
   if (facebook && (!facebookIdentity || typeof facebookIdentity.begin !== "function" || typeof facebookIdentity.verify !== "function")) throw new TypeError("Facebook authentication routes require the pending identity service.");
   if (facebook && (!facebookDataDeletion || typeof facebookDataDeletion.request !== "function" || typeof facebookDataDeletion.status !== "function")) throw new TypeError("Facebook authentication routes require the signed data-deletion service.");
   if (!sessions || ["establish", "rotate", "logout", "logoutAll"].some((method) => typeof sessions[method] !== "function")) throw new TypeError("Authentication HTTP routes require the session service.");
@@ -118,6 +140,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   const workspaceReady = options.workspaceReady === true;
   const limit = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
   if (google && (google.name !== "google" || typeof google.begin !== "function" || typeof google.complete !== "function" || typeof google.clearCookie !== "string")) throw new TypeError("Google authentication routes require a complete OIDC provider.");
+  if (apple && (apple.name !== "apple" || typeof apple.begin !== "function" || typeof apple.complete !== "function" || typeof apple.clearCookie !== "string")) throw new TypeError("Apple authentication routes require a complete provider verifier.");
   if (facebook && (facebook.name !== "facebook" || typeof facebook.begin !== "function" || typeof facebook.complete !== "function" || typeof facebook.clearCookie !== "string")) throw new TypeError("Facebook authentication routes require a complete provider verifier.");
   if (!providerLink || ["begin", "verify", "has", "beginStepUp", "verifyStepUp", "completeStepUp", "verifyRecentStepUp", "hasStepUpFlow"].some((method) => typeof providerLink[method] !== "function") || ["clearCookie", "clearStepUpFlowCookie", "clearRecentStepUpCookie"].some((field) => typeof providerLink[field] !== "string")) throw new TypeError("Authentication HTTP routes require provider connection state.");
 
@@ -137,7 +160,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
   }
 
   function providerAdapter(name) {
-    return name === "google" ? google : name === "facebook" ? facebook : null;
+    return name === "google" ? google : name === "apple" ? apple : name === "facebook" ? facebook : null;
   }
 
   async function completeProviderConnection(request, response, provider, claims, adapter) {
@@ -194,10 +217,10 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request);
           const connected = await identity.connectedProviders(context.actor);
           const verified = recentStepUp(request, context);
-          sendJson(response, 200, { ok: true, connected, available: { google: Boolean(google), facebook: Boolean(facebook), apple: false }, recentStepUp: verified ? { provider: verified.provider } : null });
+          sendJson(response, 200, { ok: true, connected, available: { google: Boolean(google), apple: Boolean(apple), facebook: Boolean(facebook) }, recentStepUp: verified ? { provider: verified.provider } : null });
           return true;
         }
-        const stepUpStartMatch = url.pathname.match(new RegExp(`^${prefix}provider-links/(google|facebook)/step-up/start$`));
+        const stepUpStartMatch = url.pathname.match(new RegExp(`^${prefix}provider-links/(google|apple|facebook)/step-up/start$`));
         if (stepUpStartMatch) {
           const selectedProvider = stepUpStartMatch[1];
           const adapter = providerAdapter(selectedProvider);
@@ -215,7 +238,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, provider: selectedProvider, location: attempt.location }, { "Set-Cookie": [attempt.setCookie, providerLink.beginStepUp(context, selectedProvider)] });
           return true;
         }
-        const linkStartMatch = url.pathname.match(new RegExp(`^${prefix}provider-links/(google|facebook)/start$`));
+        const linkStartMatch = url.pathname.match(new RegExp(`^${prefix}provider-links/(google|apple|facebook)/start$`));
         if (linkStartMatch) {
           const selectedProvider = linkStartMatch[1];
           const adapter = providerAdapter(selectedProvider);
@@ -226,7 +249,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           await limit(request, `${selectedProvider}-start`);
           const connected = await identity.connectedProviders(context.actor);
           if (connected.some((item) => item.provider === selectedProvider)) {
-            sendJson(response, 409, { ok: false, code: "provider-already-connected", error: `${selectedProvider === "google" ? "Google" : "Facebook"} is already connected to this account.` });
+            sendJson(response, 409, { ok: false, code: "provider-already-connected", error: `${providerLabel(selectedProvider)} is already connected to this account.` });
             return true;
           }
           const hasPassword = connected.some((item) => item.provider === "password");
@@ -249,7 +272,7 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, provider: selectedProvider, location: attempt.location }, { "Set-Cookie": [attempt.setCookie, providerLink.begin(context, selectedProvider), providerLink.clearRecentStepUpCookie] });
           return true;
         }
-        const disconnectMatch = url.pathname.match(new RegExp(`^${prefix}provider-links/(google|facebook)$`));
+        const disconnectMatch = url.pathname.match(new RegExp(`^${prefix}provider-links/(google|apple|facebook)$`));
         if (disconnectMatch) {
           const selectedProvider = disconnectMatch[1];
           if (request.method !== "DELETE") return methodNotAllowed(response, ["DELETE"]), true;
@@ -334,6 +357,53 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
               ...(!rateLimited && !stagingAccessUnavailable ? { reason: googleFailureReason(error, googleStage) } : {})
             });
             sendRedirect(response, 303, `${accountFlow ? "/settings" : "/login"}#${fragment}`, [google.clearCookie, ...(linking ? [providerLink.clearCookie] : []), ...(steppingUp ? [providerLink.clearStepUpFlowCookie] : [])]);
+          }
+          return true;
+        }
+        if (url.pathname === `${prefix}apple/start`) {
+          if (!apple) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          await limit(request, "apple-start");
+          const attempt = apple.begin({ intent: signInIntent(url) });
+          sendRedirect(response, 302, attempt.location, [attempt.setCookie]);
+          return true;
+        }
+        if (url.pathname === `${prefix}apple/callback`) {
+          if (!apple) return sendJson(response, 404, { ok: false, code: "not-found", error: "Authentication route not found." }), true;
+          if (!["GET", "POST"].includes(request.method)) return methodNotAllowed(response, ["GET", "POST"]), true;
+          let appleStage = "provider";
+          try {
+            await limit(request, "apple-callback");
+            const claims = await apple.complete(await appleAuthorizationResponse(request, url), header(request, "cookie"));
+            if ((claims.flowPurpose ?? "sign-in") === "step-up") {
+              await completeProviderStepUp(request, response, "apple", claims, apple);
+              return true;
+            }
+            if ((claims.flowPurpose ?? "sign-in") === "link") {
+              await completeProviderConnection(request, response, "apple", claims, apple);
+              return true;
+            }
+            if ((claims.flowPurpose ?? "sign-in") !== "sign-in") throw new TypeError("Apple returned an invalid flow purpose.");
+            appleStage = "account";
+            const account = await identity.socialSignIn("apple", claims);
+            appleStage = "session";
+            const session = await sessions.establish(account, metadata(request));
+            const destination = session.account.roles.length ? "/login" : "/onboarding";
+            const fragment = new URLSearchParams({ social: "apple", csrfToken: session.csrfToken, ...(claims.flowIntent ? { intent: claims.flowIntent } : {}) });
+            sendRedirect(response, 303, `${destination}#${fragment}`, [apple.clearCookie, session.setCookie]);
+          } catch (error) {
+            const rateLimited = error?.statusCode === 429;
+            const stagingAccessUnavailable = error?.code === "staging-account-access-unavailable";
+            const expectedProviderRejection = error?.code === "apple-provider-access-denied" || error?.code === "apple-provider-rejected";
+            if (!rateLimited && !stagingAccessUnavailable && !expectedProviderRejection) onUnexpectedError(callbackDiagnostic(error, "apple", appleStage), { component: "authentication", operation: "apple-callback" });
+            const linking = providerLink.has(header(request, "cookie"));
+            const steppingUp = providerLink.hasStepUpFlow(header(request, "cookie"));
+            const accountFlow = linking || steppingUp;
+            const fragment = new URLSearchParams({
+              [accountFlow ? "provider" : "social"]: rateLimited ? "rate-limited" : stagingAccessUnavailable && !accountFlow ? "staging-access-unavailable" : "apple-failed",
+              ...(!rateLimited && !stagingAccessUnavailable ? { reason: appleFailureReason(error, appleStage) } : {})
+            });
+            sendRedirect(response, 303, `${accountFlow ? "/settings" : "/login"}#${fragment}`, [apple.clearCookie, ...(linking ? [providerLink.clearCookie] : []), ...(steppingUp ? [providerLink.clearStepUpFlowCookie] : [])]);
           }
           return true;
         }

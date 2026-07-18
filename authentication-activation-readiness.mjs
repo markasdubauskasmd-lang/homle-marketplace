@@ -5,7 +5,7 @@ import { validateProductionDeployment } from "./deployment-readiness.mjs";
 import { normalizeExpectedReleaseCommit, packagedReleaseIdentityMatches } from "./release-identity.mjs";
 import { marketplaceEnvironment } from "./src/marketplace/config.mjs";
 
-const supportedSocialProviders = Object.freeze(["google", "facebook"]);
+const supportedSocialProviders = Object.freeze(["google", "apple", "facebook"]);
 
 function exact(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -14,8 +14,8 @@ function exact(value) {
 export function expectedAuthenticationProviders(value) {
   const entries = Array.isArray(value) ? value : exact(value).split(",");
   const normalized = entries.map((entry) => exact(entry).toLowerCase()).filter(Boolean);
-  if (!normalized.length) throw new TypeError("Choose at least one expected social provider: google or facebook.");
-  if (normalized.some((entry) => !supportedSocialProviders.includes(entry))) throw new TypeError("Expected social providers may contain only google and facebook.");
+  if (!normalized.length) throw new TypeError("Choose at least one expected social provider: google, apple or facebook.");
+  if (normalized.some((entry) => !supportedSocialProviders.includes(entry))) throw new TypeError("Expected social providers may contain only google, apple and facebook.");
   if (new Set(normalized).size !== normalized.length) throw new TypeError("Expected social providers must not contain duplicates.");
   return Object.freeze(normalized);
 }
@@ -34,8 +34,7 @@ function callbackOrigin(value) {
 }
 
 function providerConfiguration(state, provider) {
-  if (provider === "google") return state.capabilities.google === true;
-  return state.capabilities.facebook === true;
+  return state.capabilities[provider] === true;
 }
 
 export function authenticationActivationReadiness(env = process.env, options = {}) {

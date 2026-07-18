@@ -31,7 +31,7 @@ const deletionConfirmation = document.querySelector("[data-deletion-confirmation
 const deletionCheckbox = privacyForm.elements.confirmDeletion;
 const privacyCancel = document.querySelector("[data-privacy-cancel]");
 const privacySubmit = document.querySelector("[data-privacy-submit]");
-const providerLabels = Object.freeze({ password: "Email and password", google: "Google", facebook: "Facebook" });
+const providerLabels = Object.freeze({ password: "Email and password", google: "Google", apple: "Apple", facebook: "Facebook" });
 let selectedProvider = "";
 let selectedAction = "";
 let passwordStepUpAvailable = false;
@@ -66,9 +66,10 @@ function safeProviderLocation(value, provider) {
   let url;
   try { url = new URL(value); } catch { throw new Error("The provider returned an unsafe connection address."); }
   const google = provider === "google" && url.origin === "https://accounts.google.com" && url.pathname === "/o/oauth2/v2/auth";
+  const apple = provider === "apple" && url.origin === "https://appleid.apple.com" && url.pathname === "/auth/authorize";
   const facebook = provider === "facebook" && url.origin === "https://www.facebook.com" && /^\/v\d{1,2}\.\d{1,2}\/dialog\/oauth$/.test(url.pathname);
   const callback = `${location.origin}/api/marketplace/auth/${provider}/callback`;
-  if ((!google && !facebook) || url.searchParams.get("redirect_uri") !== callback || url.searchParams.get("response_type") !== "code" || !url.searchParams.get("state")) throw new Error("The provider returned an unsafe connection address.");
+  if ((!google && !apple && !facebook) || url.searchParams.get("redirect_uri") !== callback || url.searchParams.get("response_type") !== "code" || !url.searchParams.get("state")) throw new Error("The provider returned an unsafe connection address.");
   return url.toString();
 }
 
@@ -189,7 +190,7 @@ async function load() {
     recentStepUpProvider = connected.has(result.recentStepUp?.provider) ? result.recentStepUp.provider : "";
     const methodCount = connected.size;
     providerList.replaceChildren(...result.connected.map((identity) => {
-      const social = identity.provider === "google" || identity.provider === "facebook";
+      const social = identity.provider === "google" || identity.provider === "apple" || identity.provider === "facebook";
       const removalAllowed = social && methodCount > 1 && (passwordStepUpAvailable || (recentStepUpProvider && recentStepUpProvider !== identity.provider));
       return renderIdentity(identity, removalAllowed);
     }));
@@ -209,7 +210,7 @@ async function load() {
     stepUpActions.hidden = verifiable === 0;
     providerActions.hidden = connectable === 0 && verifiable === 0;
     actionCopy.textContent = passwordStepUpAvailable
-      ? "Your current Homle password protects every connection or removal. Homle never receives a Google or Facebook password."
+      ? "Your current Homle password protects every connection or removal. Homle never receives a provider password."
       : recentStepUpProvider
         ? `${providerLabels[recentStepUpProvider]} recently confirmed it is you. Homle clears this approval when another connection starts.`
         : "Confirm one existing provider before connecting or removing another sign-in method.";

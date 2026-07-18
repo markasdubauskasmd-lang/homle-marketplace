@@ -139,6 +139,13 @@ export function validateMarketplaceEnvironment(env = process.env) {
   if (present(env, "FACEBOOK_GRAPH_API_VERSION") && !/^v\d{1,2}\.\d{1,2}$/.test(env.FACEBOOK_GRAPH_API_VERSION.trim())) errors.push("FACEBOOK_GRAPH_API_VERSION must be explicitly configured as vN.N.");
   if (present(env, "FACEBOOK_APP_ID") && !/^\d{5,32}$/.test(env.FACEBOOK_APP_ID.trim())) errors.push("FACEBOOK_APP_ID must contain only the numeric Meta App ID.");
   if (present(env, "FACEBOOK_APP_SECRET") && !/^[a-f0-9]{32,128}$/i.test(env.FACEBOOK_APP_SECRET.trim())) errors.push("FACEBOOK_APP_SECRET must contain the exact Meta app secret.");
+  if (present(env, "APPLE_CLIENT_ID") && !/^[A-Za-z0-9][A-Za-z0-9.-]+[A-Za-z0-9]$/.test(env.APPLE_CLIENT_ID.trim())) errors.push("APPLE_CLIENT_ID must contain the exact Apple Services ID.");
+  if (present(env, "APPLE_TEAM_ID") && !/^[A-Z0-9]{10}$/.test(env.APPLE_TEAM_ID.trim())) errors.push("APPLE_TEAM_ID must contain the exact 10-character Apple Team ID.");
+  if (present(env, "APPLE_KEY_ID") && !/^[A-Z0-9]{10}$/.test(env.APPLE_KEY_ID.trim())) errors.push("APPLE_KEY_ID must contain the exact 10-character Apple key ID.");
+  if (present(env, "APPLE_PRIVATE_KEY") && !env.APPLE_PRIVATE_KEY.replace(/\\n/g, "\n").includes("-----BEGIN PRIVATE KEY-----")) errors.push("APPLE_PRIVATE_KEY must contain the Apple P-256 private key in PKCS#8 PEM form.");
+  if (state.providers.apple.enabled && state.appOrigin) {
+    try { if (new URL(state.appOrigin).protocol !== "https:") errors.push("Apple sign-in requires an HTTPS APP_ORIGIN."); } catch {}
+  }
   const objectStorageKeys = ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_REGION", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"];
   const suppliedObjectStorage = objectStorageKeys.filter((key) => present(env, key));
   if (suppliedObjectStorage.length > 0 && suppliedObjectStorage.length < objectStorageKeys.length) errors.push(`Object storage is partially configured; missing ${objectStorageKeys.filter((key) => !present(env, key)).join(", ")}.`);
@@ -160,7 +167,7 @@ export function validateMarketplaceEnvironment(env = process.env) {
       if (!state.databaseConfigured) errors.push("DATABASE_URL is required when production authentication is enabled.");
       if (!state.sessionConfigured) errors.push("A 32-character SESSION_SECRET is required when production authentication is enabled.");
       if (!state.authTokenConfigured) errors.push("A separate 32-character AUTH_TOKEN_SECRET is required when production authentication is enabled.");
-      if (!state.emailConfigured && !state.capabilities.google) errors.push("Production authentication requires a configured email provider or a complete Google OAuth client.");
+      if (!state.emailConfigured && !state.capabilities.google && !state.capabilities.apple) errors.push("Production authentication requires a configured email provider or a complete Google or Apple client.");
     }
     if (state.marketplace.requested) {
       if (!state.databaseConfigured) errors.push("DATABASE_URL is required when the production marketplace is enabled.");

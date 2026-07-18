@@ -33,7 +33,7 @@ const environment = Object.freeze({
 
 const validated = validateStagingServiceProbeEnvironment(environment, stagingServiceProbeConfirmation);
 assert.deepEqual(validated.database, { database: "acme_homle_staging", role: "tideway_app", tls: "verified-tls" });
-assert.deepEqual(validated.providersConfigured, { google: true, facebook: false });
+assert.deepEqual(validated.providersConfigured, { google: true, apple: false, facebook: false });
 
 const renderInternalEnvironment = {
   ...environment,
@@ -57,7 +57,7 @@ const result = await probeMarketplaceStagingServices({
       ready: true,
       authenticationHttpReady: true,
       paymentsReady: false,
-      authenticationCapabilities: { emailPassword: true, emailVerification: true, passwordReset: true, google: true, facebook: false },
+      authenticationCapabilities: { emailPassword: true, emailVerification: true, passwordReset: true, google: true, apple: false, facebook: false },
       async close() { closeCalls += 1; }
     };
   }
@@ -66,7 +66,7 @@ assert.equal(attachmentCalls, 1);
 assert.equal(closeCalls, 1);
 assert.equal(result.ok, true);
 assert.equal(result.probes.paymentsContacted, false);
-assert.deepEqual(result.providers, { google: true, facebook: false, apple: false });
+assert.deepEqual(result.providers, { google: true, apple: false, facebook: false });
 assert.equal(result.nextEvidence.length, 4);
 const serialized = JSON.stringify(result);
 for (const value of [environment.DATABASE_URL, environment.SMTP_URL, environment.SESSION_SECRET, environment.OBJECT_STORAGE_SECRET_ACCESS_KEY]) assert(!serialized.includes(value));

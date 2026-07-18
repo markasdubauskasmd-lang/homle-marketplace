@@ -21,6 +21,8 @@ const secrets = Object.freeze({
   storage: "private-storage-secret-never-print-this"
 });
 
+const applePrivateKey = "-----BEGIN PRIVATE KEY-----\nunit-test-private-key-not-used-by-readiness\n-----END PRIVATE KEY-----";
+
 const configured = {
   NODE_ENV: "production",
   HOST: "127.0.0.1",
@@ -51,18 +53,22 @@ const configured = {
   MARKETPLACE_ADAPTER_MODULE: path.join(projectRoot, "deployment", "monitoring-adapter.mjs"),
   GOOGLE_CLIENT_ID: "homle.apps.googleusercontent.com",
   GOOGLE_CLIENT_SECRET: secrets.google,
+  APPLE_CLIENT_ID: "co.uk.homle.web",
+  APPLE_TEAM_ID: "ABCDE12345",
+  APPLE_KEY_ID: "FGHIJ67890",
+  APPLE_PRIVATE_KEY: applePrivateKey,
   FACEBOOK_APP_ID: "123456789012345",
   FACEBOOK_APP_SECRET: secrets.facebook,
   FACEBOOK_GRAPH_API_VERSION: "v99.0",
-  TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google,facebook",
+  TIDEWAY_EXPECT_SOCIAL_PROVIDERS: "google,apple,facebook",
   TIDEWAY_EXPECT_RELEASE: "6466d6e5"
 };
 
 try {
-  assert.deepEqual([...expectedAuthenticationProviders("google,facebook")], ["google", "facebook"]);
+  assert.deepEqual([...expectedAuthenticationProviders("google,apple,facebook")], ["google", "apple", "facebook"]);
   assert.throws(() => expectedAuthenticationProviders(""), /at least one/i);
   assert.throws(() => expectedAuthenticationProviders("google,GOOGLE"), /duplicates/i);
-  assert.throws(() => expectedAuthenticationProviders("apple"), /only google and facebook/i);
+  assert.throws(() => expectedAuthenticationProviders("microsoft"), /only google, apple and facebook/i);
 
   const ready = authenticationActivationReadiness(configured, readinessOptions);
   assert.equal(ready.ok, true, ready.errors.join("\n"));
@@ -70,6 +76,7 @@ try {
   assert.deepEqual(ready.checks, { productionDeployment: true, releaseIdentity: true, authenticationCore: true, accountEntry: true, emailFallback: true, socialProviders: true });
   assert.deepEqual(ready.release, { expectedCommit: "6466d6e5", runningCommit: "6466d6e5" });
   assert.equal(ready.callbacks.google, "https://homle.co.uk/api/marketplace/auth/google/callback");
+  assert.equal(ready.callbacks.apple, "https://homle.co.uk/api/marketplace/auth/apple/callback");
   assert.equal(ready.callbacks.facebook, "https://homle.co.uk/api/marketplace/auth/facebook/callback");
   assert.deepEqual(ready.facebookDataDeletion, {
     callback: "https://homle.co.uk/api/marketplace/auth/facebook/data-deletion",

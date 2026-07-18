@@ -33,7 +33,10 @@ await assert.rejects(async () => state.verify(requestCookie, context, "google"),
 
 const local = createProviderLinkState({ secret, appOrigin: "http://127.0.0.1:4173" });
 assert.ok(local.begin(context, "facebook").startsWith("tideway_provider_link=") && !local.begin(context, "facebook").includes("; Secure"));
-assert.throws(() => state.begin(context, "apple"), /supported provider/i);
+const appleLink = state.begin(context, "apple");
+assert.deepEqual(state.verify(appleLink.split(";", 1)[0], context, "apple"), { provider: "apple", userId: context.actor.userId, sessionId: context.sessionId });
+const appleStepUp = state.beginStepUp(context, "apple");
+assert.deepEqual(state.verifyStepUp(appleStepUp.split(";", 1)[0], context, "apple"), { provider: "apple", userId: context.actor.userId, sessionId: context.sessionId });
 assert.throws(() => createProviderLinkState({ secret: "short", appOrigin: "https://tidewaycleaning.co.uk" }), /32-character/i);
 
 console.log("Provider-link state tests passed: link and recent-provider step-up cookies are purpose-separated, user/session/provider-bound, expiring, tamper-resistant and host-only in production.");

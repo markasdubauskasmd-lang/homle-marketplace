@@ -81,6 +81,7 @@
     "test:sessions": "node tests/account-session-service.mjs",
     "test:session-purge": "node tests/session-purge-worker.mjs",
     "test:google-oidc": "node tests/google-oidc.mjs",
+    "test:apple-sign-in": "node tests/apple-sign-in.mjs",
     "test:facebook-login": "node tests/facebook-login.mjs",
     "check:facebook-data-deletion": "node --check src/marketplace/facebook-data-deletion.mjs && node --check src/marketplace/facebook-data-deletion-repository.mjs && node --check public/facebook-data-deletion.js && node --check tests/facebook-data-deletion.mjs",
     "test:facebook-data-deletion": "node tests/facebook-data-deletion.mjs",

@@ -23,9 +23,33 @@ const requirementDefinitions = Object.freeze([
   },
   {
     key: "marketplaceServices",
-    label: "Managed marketplace services",
-    missing: "Attach private media storage and verify managed booking services",
+    label: "Managed booking database",
+    missing: "Verify the restricted managed booking database and marketplace runtime",
     complete: (state) => state.marketplaceEnabled === true && state.marketplaceReady === true
+  },
+  {
+    key: "privateMedia",
+    label: "Private room media",
+    missing: "Attach and verify private room photo/video storage",
+    complete: (state) => state.mediaReady === true
+  },
+  {
+    key: "transactionalEmail",
+    label: "Transactional email",
+    missing: "Attach and verify transactional account and booking email delivery",
+    complete: (state) => state.emailReady === true
+  },
+  {
+    key: "realtimeUpdates",
+    label: "Real-time booking updates",
+    missing: "Attach and verify the dedicated real-time PostgreSQL connection",
+    complete: (state) => state.realtimeReady === true
+  },
+  {
+    key: "matchingPricing",
+    label: "Cleaner matching and pricing",
+    missing: "Configure and verify the complete founder-approved private booking pricing policy",
+    complete: (state) => state.matchingReady === true
   },
   {
     key: "payments",

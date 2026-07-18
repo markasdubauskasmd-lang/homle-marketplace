@@ -9,6 +9,7 @@ import { createFacebookDataDeletionService } from "./facebook-data-deletion.mjs"
 import { createFacebookIdentityService } from "./facebook-identity-service.mjs";
 import { createFacebookLoginProvider } from "./facebook-login.mjs";
 import { createGoogleOidcProvider } from "./google-oidc.mjs";
+import { createAppleSignInProvider } from "./apple-sign-in.mjs";
 import { createIdentityService } from "./identity-service.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config.mjs";
 import { createProviderLinkState } from "./provider-link-state.mjs";
@@ -24,7 +25,7 @@ export function createAuthenticationRuntime(pool, options = {}) {
   if (!environment.sessionConfigured) required.push("SESSION_SECRET");
   if (!environment.authTokenConfigured) required.push("AUTH_TOKEN_SECRET");
   if (!environment.appOrigin) required.push("APP_ORIGIN");
-  if (!environment.emailConfigured && !environment.capabilities.google) required.push("EMAIL_FROM and an email provider, or a complete Google OAuth client");
+  if (!environment.emailConfigured && !environment.capabilities.google && !environment.capabilities.apple) required.push("EMAIL_FROM and an email provider, or a complete Google or Apple client");
   if (required.length) throw new TypeError(`Authentication runtime is unavailable; configure ${required.join(", ")}.`);
   if (environment.emailConfigured && (!options.emailDelivery || typeof options.emailDelivery.send !== "function")) throw new TypeError("Email/password authentication requires trusted email delivery.");
   if (!options.rateLimiter || typeof options.rateLimiter.consume !== "function" || typeof options.clientKey !== "function") throw new TypeError("Authentication runtime requires a shared rate limiter and trusted client-key resolver.");
@@ -40,6 +41,17 @@ export function createAuthenticationRuntime(pool, options = {}) {
       clientSecret: env.GOOGLE_CLIENT_SECRET,
       stateSecret: env.AUTH_TOKEN_SECRET,
       fetch: options.googleFetch
+    })
+    : null);
+  const appleSignInProvider = options.appleSignInProvider || (environment.providers.apple.enabled
+    ? createAppleSignInProvider({
+      appOrigin: environment.appOrigin,
+      clientId: env.APPLE_CLIENT_ID,
+      teamId: env.APPLE_TEAM_ID,
+      keyId: env.APPLE_KEY_ID,
+      privateKey: env.APPLE_PRIVATE_KEY,
+      stateSecret: env.AUTH_TOKEN_SECRET,
+      fetch: options.appleFetch
     })
     : null);
   const facebookLoginProvider = options.facebookLoginProvider || (environment.capabilities.facebook
@@ -80,6 +92,7 @@ export function createAuthenticationRuntime(pool, options = {}) {
     emailDelivery: options.emailDelivery,
     rateLimiter: options.rateLimiter,
     googleOidcProvider,
+    appleSignInProvider,
     facebookLoginProvider
   }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: options.workspaceReady === true });
 
@@ -89,6 +102,7 @@ export function createAuthenticationRuntime(pool, options = {}) {
     stagingAccountAccess,
     identityService,
     googleOidcProvider,
+    appleSignInProvider,
     facebookLoginProvider,
     facebookIdentityService,
     facebookDataDeletionRepository,
@@ -101,6 +115,7 @@ export function createAuthenticationRuntime(pool, options = {}) {
     authenticationHttpReady: true,
     emailPasswordReady: environment.capabilities.emailPassword && Boolean(options.emailDelivery),
     googleOidcReady: googleOidcProvider !== null,
+    appleSignInReady: appleSignInProvider !== null,
     facebookLoginReady: facebookLoginProvider !== null && facebookDataDeletionService !== null
   });
 }

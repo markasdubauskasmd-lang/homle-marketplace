@@ -80,7 +80,7 @@ export async function createAuthenticationAttachment(options = {}) {
     passwordReset: runtime.emailPasswordReady === true,
     emailVerification: runtime.emailPasswordReady === true,
     google: runtime.googleOidcReady === true,
-    apple: false,
+    apple: runtime.appleSignInReady === true,
     facebook: runtime.facebookLoginReady === true
   });
   let closed = false;

@@ -57,6 +57,7 @@ const marketplaceRuntimeEnvironment = Object.freeze({
   BOOKING_LABOUR_ON_COST_BPS: "1000",
   BOOKING_PAYMENT_FEE_BPS: "300",
   BOOKING_PAYMENT_FEE_FIXED_PENCE: "20",
+  BOOKING_RISK_CONTINGENCY_BPS: "500",
   BOOKING_TRAVEL_COST_PENCE: "500",
   BOOKING_TRAVEL_COST_PER_KM_PENCE: "35",
   BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS: "20000",
@@ -136,12 +137,14 @@ const invalidPricing = renderEnvironmentActivationReport(entriesFrom({
   ...marketplaceRuntimeEnvironment,
   BOOKING_TARGET_MARGIN_BPS: "9001",
   BOOKING_MINIMUM_CONTRIBUTION_PENCE: "0",
+  BOOKING_RISK_CONTINGENCY_BPS: "5001",
   BOOKING_OTHER_COST_PENCE: "1.5"
 }));
 assert.equal(invalidPricing.checks.marketplaceRuntimeConfigured, false);
 assert.deepEqual(invalidPricing.missing.marketplaceRuntime.filter((key) => key.startsWith("valid BOOKING_")), [
   "valid BOOKING_TARGET_MARGIN_BPS",
   "valid BOOKING_MINIMUM_CONTRIBUTION_PENCE",
+  "valid BOOKING_RISK_CONTINGENCY_BPS",
   "valid BOOKING_OTHER_COST_PENCE"
 ]);
 assert(!JSON.stringify(invalidPricing).includes("9001") && !JSON.stringify(invalidPricing).includes("1.5"), "Render readiness exposed private pricing values.");

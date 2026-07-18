@@ -289,7 +289,7 @@ function renderPrivateDataStorage(storageSafety = {}) {
 
 function renderActivationReadiness(readiness = {}) {
   state.activationReadiness = readiness;
-  document.querySelector("#technical-readiness-score").textContent = `${Number(readiness.completed) || 0}/${Number(readiness.total) || 6}`;
+  document.querySelector("#technical-readiness-score").textContent = `${Number(readiness.completed) || 0}/${Number(readiness.total) || 10}`;
   document.querySelectorAll("#technical-readiness-list [data-activation-check]").forEach((item) => {
     const key = item.dataset.activationCheck;
     const complete = readiness.checks?.[key] === true;
@@ -301,7 +301,7 @@ function renderActivationReadiness(readiness = {}) {
   const next = document.querySelector("#technical-readiness-next");
   next.classList.toggle("technical-readiness-complete", readiness.ready === true);
   next.textContent = readiness.ready === true
-    ? "All six technical service attachments are verified in this running environment. Business approval and the final two-account booking, payment and mobile rehearsal still remain separate gates."
+    ? `All ${Number(readiness.total) || 10} technical service and matching checks are verified in this running environment. Business approval and the final two-account booking, payment and mobile rehearsal still remain separate gates.`
     : `Next technical gate — ${readiness.next?.label || "environment evidence"}: ${readiness.next?.action || "complete the verified deployment setup"}.`;
 }
 

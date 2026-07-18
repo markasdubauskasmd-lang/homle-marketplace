@@ -66,7 +66,7 @@ const good = await verifyDomainReadiness("https://tidewaycleaning.co.uk", {
     const boundary = privateBoundaryResponse(url);
     if (boundary) return boundary;
     if (url.endsWith("/api/auth/providers")) return jsonResponse({ ok: true, providers: { emailPassword: false, passwordReset: false, emailVerification: false, google: false, apple: false, facebook: false, roles: ["cleaner", "landlord"] } });
-    if (url.endsWith("/api/marketplace/auth/google/start") || url.endsWith("/api/marketplace/auth/facebook/start")) return new Response(null, { status: 404 });
+    if (["google", "apple", "facebook"].some((provider) => url.endsWith(`/api/marketplace/auth/${provider}/start`))) return new Response(null, { status: 404 });
     throw new Error(`Unexpected URL: ${url}`);
   }
 });
@@ -74,7 +74,7 @@ assert.equal(good.ok, true);
 assert.equal(good.origin, "https://tidewaycleaning.co.uk");
 assert.ok(good.checks.every((check) => check.ok));
 assert.equal(good.checks.find((check) => check.name === "release-identity")?.ok, true);
-assert.equal(requested.length, 11);
+assert.equal(requested.length, 12);
 assert.ok(requested.every((entry) => entry.options.redirect === "manual" && entry.options.signal instanceof AbortSignal));
 assert.ok(requested.every((entry) => entry.options.method === undefined && !entry.options.headers["x-admin-key"]), "Readiness attempted a mutation or sent an Administrator key.");
 assert.ok(requested.every((entry) => !entry.url.startsWith("https://accounts.google.com") && !entry.url.startsWith("https://www.facebook.com")), "Readiness followed a social-provider redirect.");
@@ -101,6 +101,7 @@ const activeProviders = await verifyDomainReadiness("https://tidewaycleaning.co.
       location.search = new URLSearchParams({ response_type: "code", client_id: "123456789", redirect_uri: "https://tidewaycleaning.co.uk/api/marketplace/auth/facebook/callback", scope: "email", state: "f".repeat(43) }).toString();
       return new Response(null, { status: 302, headers: { location: location.toString(), "set-cookie": `__Host-tideway_facebook_flow=${"f".repeat(50)}; Path=/; HttpOnly; SameSite=Lax; Secure`, "cache-control": "no-store" } });
     }
+    if (url.endsWith("/api/marketplace/auth/apple/start")) return new Response(null, { status: 404 });
     throw new Error(`Unexpected URL: ${url}`);
   }
 });
@@ -108,7 +109,7 @@ assert.equal(activeProviders.ok, true);
 assert.equal(activeProviders.checks.find((check) => check.name === "google-sign-in-start")?.ok, true);
 assert.equal(activeProviders.checks.find((check) => check.name === "google-provider-registration")?.ok, true);
 assert.equal(activeProviders.checks.find((check) => check.name === "facebook-sign-in-start")?.ok, true);
-assert.equal(activeProviderRequests.length, 12);
+assert.equal(activeProviderRequests.length, 13);
 assert.ok(activeProviderRequests.every((entry) => entry.options.redirect === "manual"));
 const googleProviderProbe = activeProviderRequests.find((entry) => entry.url.startsWith("https://accounts.google.com/o/oauth2/v2/auth?"));
 assert(googleProviderProbe && !googleProviderProbe.options.headers.cookie && !googleProviderProbe.options.headers.authorization, "Provider registration probe sent credentials or an existing session to Google.");
@@ -136,6 +137,7 @@ const googleOnlyAuthentication = await verifyDomainReadiness("https://tidewaycle
     if (boundary) return boundary;
     if (url.endsWith("/api/auth/providers")) return jsonResponse({ ok: true, providers: { emailPassword: false, passwordReset: false, emailVerification: false, google: true, apple: false, facebook: false, roles: ["cleaner", "landlord"] } });
     if (url.endsWith("/api/marketplace/auth/google/start")) return new Response(null, { status: 302, headers: { location: googleStartLocation(), "set-cookie": `__Host-tideway_google_flow=${"g".repeat(50)}; Path=/; HttpOnly; SameSite=Lax; Secure`, "cache-control": "no-store" } });
+    if (url.endsWith("/api/marketplace/auth/apple/start")) return new Response(null, { status: 404 });
     if (url.startsWith("https://accounts.google.com/o/oauth2/v2/auth?")) return new Response("<!doctype html><title>Sign in with Google</title>", { status: 200, headers: { "content-type": "text/html" } });
     if (url.endsWith("/api/marketplace/auth/facebook/start")) return new Response(null, { status: 404 });
     throw new Error(`Unexpected URL: ${url}`);
@@ -157,6 +159,7 @@ const spoofedGoogle = await verifyDomainReadiness("https://tidewaycleaning.co.uk
     if (boundary) return boundary;
     if (url.endsWith("/api/auth/providers")) return jsonResponse({ ok: true, providers: { emailPassword: true, passwordReset: true, emailVerification: true, google: true, apple: false, facebook: false, roles: ["cleaner", "landlord"] } });
     if (url.endsWith("/api/marketplace/auth/google/start")) return new Response(null, { status: 302, headers: { location: "https://attacker.example/oauth", "set-cookie": `__Host-tideway_google_flow=${"g".repeat(50)}; Path=/; HttpOnly; SameSite=Lax; Secure`, "cache-control": "no-store" } });
+    if (url.endsWith("/api/marketplace/auth/apple/start")) return new Response(null, { status: 404 });
     if (url.endsWith("/api/marketplace/auth/facebook/start")) return new Response(null, { status: 404 });
     throw new Error(`Unexpected URL: ${url}`);
   }
@@ -178,7 +181,7 @@ const exposedPrivateSurfaces = await verifyDomainReadiness("https://tidewayclean
     if (url.endsWith("/tracking-test.js")) return new Response(null, { status: 302, headers: { location: "/", "content-type": "application/json", "cache-control": "no-store" } });
     if (url.endsWith("/api/tracking-test/snapshot")) return new Response(JSON.stringify({ ok: false }), { status: 404, headers: { "content-type": "application/json", "cache-control": "public, max-age=60" } });
     if (url.endsWith("/api/auth/providers")) return jsonResponse({ ok: true, providers: { emailPassword: false, passwordReset: false, emailVerification: false, google: false, apple: false, facebook: false, roles: ["cleaner", "landlord"] } });
-    if (url.endsWith("/api/marketplace/auth/google/start") || url.endsWith("/api/marketplace/auth/facebook/start")) return new Response(null, { status: 404 });
+    if (["google", "apple", "facebook"].some((provider) => url.endsWith(`/api/marketplace/auth/${provider}/start`))) return new Response(null, { status: 404 });
     throw new Error(`Unexpected URL: ${url}`);
   }
 });
@@ -188,7 +191,7 @@ for (const name of ["health", "anonymous-admin-closed", "local-demo-closed:/trac
 }
 
 await assert.rejects(verifyDomainReadiness("https://tidewaycleaning.co.uk", { expectedSocialProviders: "google" }), /array/i);
-await assert.rejects(verifyDomainReadiness("https://tidewaycleaning.co.uk", { expectedSocialProviders: ["apple"] }), /google and facebook/i);
+await assert.rejects(verifyDomainReadiness("https://tidewaycleaning.co.uk", { expectedSocialProviders: ["microsoft"] }), /google, apple and facebook/i);
 await assert.rejects(verifyDomainReadiness("https://tidewaycleaning.co.uk", { expectedSocialProviders: ["google", "GOOGLE"] }), /duplicates/i);
 assert.equal(normalizeExpectedReleaseCommit("A92999ED"), "a92999ed");
 assert.throws(() => normalizeExpectedReleaseCommit("main"), /eight-character source commit/i);
