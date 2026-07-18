@@ -37,6 +37,10 @@ const propertyFormTitle = document.querySelector("[data-property-form-title]");
 const requestFeedback = document.querySelector("[data-request-feedback]");
 const requestRecoveryStatus = document.querySelector("[data-request-recovery-status]");
 const requestStatus = document.querySelector("[data-request-status]");
+const invitationQuoteDialog = document.querySelector("[data-invitation-quote-dialog]");
+const invitationQuoteCleaner = document.querySelector("[data-invitation-quote-cleaner]");
+const invitationQuotePrice = document.querySelector("[data-invitation-quote-price]");
+const invitationQuoteApprove = document.querySelector("[data-invitation-quote-approve]");
 const requestWithdrawDialog = document.querySelector("[data-request-withdraw-dialog]");
 const requestWithdrawForm = document.querySelector("[data-request-withdraw-form]");
 const requestWithdrawFeedback = document.querySelector("[data-request-withdraw-feedback]");
@@ -227,7 +231,7 @@ function renderTaskPreview() {
   }
 }
 
-function showRequestCompletion(submission, { automaticDispatch = false, selectedCleanerInvited = false, warning = "" } = {}) {
+function showRequestCompletion(submission, { automaticDispatch = false, selectedCleanerInvited = false, selectedCleanerPricePence = null, warning = "" } = {}) {
   const photos = Number(submission?.photoCount);
   const tasks = Number(submission?.taskCount);
   requestCompleteReference.textContent = submission?.cleaningRequestId || "Recorded privately";
@@ -235,7 +239,7 @@ function showRequestCompletion(submission, { automaticDispatch = false, selected
   requestCompleteLead.textContent = warning
     ? "Your reviewed scan is submitted for matching. No booking or payment exists yet."
     : selectedCleanerInvited
-    ? "Your reviewed scan is submitted and the selected Cleaner has been invited. This becomes a booking only if they accept."
+    ? `Your reviewed scan is submitted and the selected Cleaner has been invited at ${formatBookingMoney(selectedCleanerPricePence)}. This becomes a booking only if they accept.`
     : automaticDispatch
     ? "Your reviewed scan is submitted and Homle is authorised to invite an eligible profitable match within your chosen attempt limit."
     : "Your reviewed scan is submitted for matching. No Cleaner has been invited automatically.";
@@ -246,6 +250,21 @@ function showRequestCompletion(submission, { automaticDispatch = false, selected
   requestComplete.hidden = false;
   history.replaceState(null, "", "/landlord/dashboard");
   requestComplete.focus();
+}
+
+function approveInvitationQuote(quote, cleanerName) {
+  const pricePence = Number(quote?.customerPricePence);
+  if (!Number.isInteger(pricePence) || pricePence < 1 || pricePence > 10_000_000) throw new Error("The exact booking total could not be verified.");
+  const formattedPrice = formatBookingMoney(pricePence);
+  invitationQuoteCleaner.textContent = cleanerName || "Selected Cleaner";
+  invitationQuotePrice.textContent = formattedPrice;
+  invitationQuoteApprove.textContent = `Invite for ${formattedPrice}`;
+  if (typeof invitationQuoteDialog.showModal !== "function") return Promise.resolve(window.confirm(`Invite ${cleanerName || "this Cleaner"} for the exact total ${formattedPrice}? No payment is taken now.`));
+  invitationQuoteDialog.returnValue = "";
+  return new Promise((resolve) => {
+    invitationQuoteDialog.addEventListener("close", () => resolve(invitationQuoteDialog.returnValue === "approve"), { once: true });
+    invitationQuoteDialog.showModal();
+  });
 }
 
 function selectedCleanerInitials(name) {
@@ -752,7 +771,7 @@ function requestScanPanel(request) {
     preferred.name = "selectedCleanerInvitation";
     const selectedCleanerReady = Boolean(selectedCleanerId && selectedCleanerProfile && selectedCleanerVerificationState === "ready");
     preferred.checked = selectedCleanerReady;
-    preferredLabel.append(preferred, element("span", "", selectedCleanerReady ? `Invite ${selectedCleanerProfile.displayName} first. Homle verified the current public profile and will still recheck the room scan, availability, service fit and profitable price before sending anything. If they cannot be invited, this request stays open for matching.` : "Use normal matching to find the best currently eligible and profitable Cleaner."));
+    preferredLabel.append(preferred, element("span", "", selectedCleanerReady ? `Invite ${selectedCleanerProfile.displayName} first. Homle will recheck the room scan, availability and service fit, then show your exact total for one approval before sending anything. If they cannot be invited, this request stays open for matching.` : "Use normal matching to find the best currently eligible and profitable Cleaner."));
     const attemptsLabel = element("label", "landlord-attempt-limit", "Maximum Cleaner invitations");
     const attempts = element("select");
     attempts.name = "attemptLimit";
@@ -776,6 +795,7 @@ function requestScanPanel(request) {
       let submitted = false;
       let submission = null;
       let selectedCleanerInvited = false;
+      let selectedCleanerPricePence = null;
       try {
         const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/submit`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ scopeReviewed: true, cleanerPreviewAuthorized: preview.checked }) });
         submission = result.submission;
@@ -784,20 +804,30 @@ function requestScanPanel(request) {
         const index = requests.findIndex((item) => item.requestId === request.requestId);
         if (index >= 0) requests[index] = { ...requests[index], status: "searching-for-cleaner", submittedAt: submission.submittedAt, cleanerPreviewAuthorized: preview.checked };
         if (selectedCleanerReady && preferred.checked) {
-          await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/invitations`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ cleanerId: selectedCleanerId }) });
+          const quoted = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/invitation-quote`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ cleanerId: selectedCleanerId }) });
+          const approved = await approveInvitationQuote(quoted.quote, selectedCleanerProfile.displayName);
+          if (!approved) {
+            clearCleanerSelection();
+            renderRequests();
+            showRequestCompletion(submission, { warning: "You kept the request open without inviting the selected Cleaner. No booking or payment exists. You can track the request and choose matching when ready." });
+            return;
+          }
+          selectedCleanerPricePence = Number(quoted.quote.customerPricePence);
+          const invited = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/invitations`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ cleanerId: selectedCleanerId, approvedCustomerPricePence: selectedCleanerPricePence }) });
+          if (Number(invited.booking?.customerPricePence) !== selectedCleanerPricePence) throw new Error("The saved invitation total could not be verified. Refresh the request before taking another action.");
           selectedCleanerInvited = true;
           if (index >= 0) requests[index] = { ...requests[index], status: "cleaner-invited" };
         } else if (auto.checked) await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/automatic-dispatch`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ enabled: true, attemptLimit: Number(attempts.value) }) });
         clearCleanerSelection();
         renderRequests();
-        showRequestCompletion(submission, { automaticDispatch: auto.checked, selectedCleanerInvited });
+        showRequestCompletion(submission, { automaticDispatch: auto.checked, selectedCleanerInvited, selectedCleanerPricePence });
       } catch (error) {
         if (submitted) {
           const selectedInvitationFailed = Boolean(selectedCleanerReady && preferred.checked);
           clearCleanerSelection();
           renderRequests();
           showRequestCompletion(submission, { warning: selectedInvitationFailed
-            ? `The room scan is safely submitted, but the selected Cleaner could not be invited: ${error.message} The request remains open for matching and no booking or payment exists.`
+            ? `The room scan is safely submitted, but Homle could not verify the selected-Cleaner invitation: ${error.message} Track the saved request before taking another action; Homle will not repeat an invitation automatically.`
             : `The room scan is safely submitted, but Homle could not verify automatic invitation authorisation: ${error.message} Check the request before retrying.` });
         } else showFeedback(requestFeedback, error.message);
       } finally { setPending(submit, false, "Submit cleaning request"); }

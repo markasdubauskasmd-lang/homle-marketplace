@@ -112,7 +112,8 @@ const cleaningRequestService = {
 };
 const bookingWorkflowService = {
   async listParticipantBookings(actor, input) { calls.push({ kind: "booking-list", actor, input }); return [{ bookingId: "55555555-5555-4555-8555-555555555555", participantRole: "landlord", pricePence: 12000, pricePerspective: "customer-total" }]; },
-  async inviteCleaner(actor, input) { calls.push({ kind: "booking-invite", actor, input }); return { bookingId: "55555555-5555-4555-8555-555555555555", status: "pending-cleaner-acceptance" }; },
+  async previewInvitation(actor, input) { calls.push({ kind: "booking-invitation-preview", actor, input }); return { cleaningRequestId: input.cleaningRequestId, cleanerId: input.cleanerId, customerPricePence: 12000, responseDeadline: "2026-07-15T18:00:00.000Z" }; },
+  async inviteCleaner(actor, input) { calls.push({ kind: "booking-invite", actor, input }); return { bookingId: "55555555-5555-4555-8555-555555555555", status: "pending-cleaner-acceptance", customerPricePence: input.approvedCustomerPricePence }; },
   async respondToInvitation(actor, bookingId, input) { calls.push({ kind: "booking-response", actor, bookingId, input }); return { bookingId, status: input.decision === "accept" ? "confirmed" : "cancelled" }; }
 };
 const matchingService = {
@@ -408,8 +409,11 @@ assert(missingWithdrawalCsrf.response.statusCode === 403 && requestWithdrawn.res
 const cleanerId = "22222222-2222-4222-8222-222222222222";
 const matches = await dispatch(router, "GET", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/matches", { headers: { cookie: authHeaders.cookie } });
 assert(matches.response.statusCode === 200 && matches.body.candidates[0].cleanerId === cleanerId && calls.at(-1).kind === "request-matches" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Request-specific matching did not bind the authenticated Landlord or return the safe recommendation projection.");
-const invitation = await dispatch(router, "POST", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/invitations`, { headers: authHeaders, body: { cleanerId, customerPricePence: 1 } });
-assert(invitation.response.statusCode === 201 && calls.at(-1).kind === "booking-invite" && calls.at(-1).input.cleanerId === cleanerId && !Object.hasOwn(calls.at(-1).input, "customerPricePence"), "Invitation routing trusted browser-supplied economics or lost the selected cleaner.");
+const missingInvitationQuoteCsrf = await dispatch(router, "POST", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/invitation-quote`, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { cleanerId } });
+const invitationQuote = await dispatch(router, "POST", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/invitation-quote`, { headers: authHeaders, body: { cleanerId, customerPricePence: 1 } });
+assert(missingInvitationQuoteCsrf.response.statusCode === 403 && invitationQuote.response.statusCode === 200 && invitationQuote.body.quote.customerPricePence === 12000 && !Object.hasOwn(invitationQuote.body.quote, "cleanerPayPence") && calls.at(-1).kind === "booking-invitation-preview" && calls.at(-1).input.cleanerId === cleanerId && !Object.hasOwn(calls.at(-1).input, "customerPricePence"), "Invitation price preview lost Landlord/CSRF protection, trusted browser economics or exposed Cleaner pay.");
+const invitation = await dispatch(router, "POST", `/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/invitations`, { headers: authHeaders, body: { cleanerId, approvedCustomerPricePence: 12000, customerPricePence: 1 } });
+assert(invitation.response.statusCode === 201 && invitation.body.booking.customerPricePence === 12000 && calls.at(-1).kind === "booking-invite" && calls.at(-1).input.cleanerId === cleanerId && calls.at(-1).input.approvedCustomerPricePence === 12000 && !Object.hasOwn(calls.at(-1).input, "customerPricePence"), "Invitation routing lost the exact approved total, trusted browser-supplied economics or lost the selected Cleaner.");
 const bookingId = "55555555-5555-4555-8555-555555555555";
 const bookingCompletion = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/completion`, { headers: authHeaders, body: {} });
 const submittedReview = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/reviews`, { headers: authHeaders, body: { rating: 5, writtenReview: "Clear and professional." } });
