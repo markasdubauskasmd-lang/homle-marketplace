@@ -31,6 +31,18 @@ storage. Payments intentionally remain off. The deployed commit is current with
 
 ## 2. Actions on Render (in order)
 
+### Step 0b — Redeploy again for the live-speech fix — OPEN
+`main` has moved past the deployed release. Merged since: **#24** (walkthrough speech
+now turns into concise bullets live, from the founder's first-run feedback) and **#22**.
+Deploy latest commit so the founder sees the fix they asked for. Combine this with
+Step 2 below in a single redeploy if the bucket is configured first.
+
+**Open draft PR #23** (`agent/nearby-cleaner-postcode-search`) — CI is green and the
+code assistant reviewed it: the geocode fallback is fail-safe, and the wide
+`maximumDistanceKm: 500` is correctly bounded by each Cleaner's own
+`travel_radius_km` via `LEAST(...)` in migration 006. It was left unmerged only
+because it is still marked **draft** — mark it ready when you are finished with it.
+
 ### Step 0 — Redeploy from `main` — COMPLETE
 Render → `homle-marketplace-preview` → **Manual Deploy → Deploy latest commit**.
 The completed deploy shipped through #21 and, via the staging bootstrap, verified all
@@ -46,11 +58,22 @@ Environment tab, add either provider (pick one). **RESEND is easiest on Render f
 
 *(SMTP alternative: `EMAIL_DELIVERY_PROVIDER=smtp`, `SMTP_URL=smtps://user:pass@host:465`.)*
 
-### Step 2 — Room photos  (turns `mediaReady` → true)
+### Step 2 — Room photos  (turns `mediaReady` → true) — **NOW THE CRITICAL BLOCKER**
+The founder attempted the first real end-to-end booking on 2026-07-20 and could not
+save a room photo. This is not a bug: `mediaReady` is `false` because no bucket is
+configured. It blocks the whole walkthrough, because
+`db/migrations/030_private_request_room_scans.sql` requires at least one stored photo
+to submit a request (`photo_count < 1` → `request-scan-incomplete`). **No booking can
+be completed end to end until this step is done.** Treat it as the top priority.
+
 An S3-compatible private bucket (Cloudflare R2 / Backblaze B2 / AWS S3). Add:
 - `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_REGION`
 - `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY` *(secret)*
 - `OBJECT_STORAGE_FORCE_PATH_STYLE` = `true` if the provider needs path-style URLs (R2/B2 usually do)
+
+Backblaze B2 is the cheapest route on a free stack (10 GB free). Keep the bucket
+**private** — the app issues short-lived signed URLs and the room-photo privacy model
+depends on the objects never being publicly readable.
 
 ### Step 3 — Matching / pricing — COMPLETE FOR STAGING
 `matchingReady` requires the **complete** set of 12 `BOOKING_*` variables (all-or-nothing).
