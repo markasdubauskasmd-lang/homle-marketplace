@@ -228,8 +228,23 @@ export function editableAvailabilityProjection(record = {}) {
 export function createCleanerProfileService(repository, options = {}) {
   if (!repository || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "getPublicProfile", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof repository[method] === "function")) throw new TypeError("A complete cleaner profile repository is required.");
   const now = typeof options.now === "function" ? options.now : () => new Date();
+  const geocoder = options.geocoder && typeof options.geocoder.geocodeOutcode === "function" ? options.geocoder : null;
   function requireCleaner(actor, action) {
     if (!actor?.userId || !actor.roles?.includes("cleaner")) throw new TypeError(`A Cleaner account is required to ${action}.`);
+  }
+
+  // Resolve each service area's outward postcode to coordinates so matching can
+  // rank by real distance. Best-effort per area: a Cleaner-supplied coordinate
+  // is preserved, and an unresolved outcode leaves that area on the existing
+  // outward-postcode fallback. Never blocks a save.
+  async function geocodedProfile(profile) {
+    if (!geocoder || !Array.isArray(profile.serviceAreas) || profile.serviceAreas.length === 0) return profile;
+    const serviceAreas = await Promise.all(profile.serviceAreas.map(async (area) => {
+      if (area.latitude != null || area.longitude != null) return area;
+      const coordinates = await geocoder.geocodeOutcode(area.outwardPostcode);
+      return coordinates ? { ...area, latitude: coordinates.latitude, longitude: coordinates.longitude } : area;
+    }));
+    return { ...profile, serviceAreas };
   }
   return {
     async getOwnProfile(actor) {
@@ -240,7 +255,7 @@ export function createCleanerProfileService(repository, options = {}) {
     },
     async saveOwnProfile(actor, input) {
       requireCleaner(actor, "edit this profile");
-      const profile = normalizedCleanerProfile(input);
+      const profile = await geocodedProfile(normalizedCleanerProfile(input));
       const saved = await repository.saveOwnProfile(actor, profile);
       return { cleanerId: saved.user_id || actor.userId, publicSlug: saved.public_slug || null, ...profile, profilePhotoUrl: saved.profile_photo_url || null, averageRating: Number(saved.average_rating) || 0, reviewCount: Number(saved.review_count) || 0, completedJobCount: Number(saved.completed_job_count) || 0, currentAvailabilityStatus: saved.current_availability_status || "unavailable" };
     },

@@ -121,12 +121,12 @@ export function createMarketplaceRuntime(pool, options = {}) {
     appOrigin: environment.appOrigin,
     production: environment.production
   });
+  const geocoder = options.geocoder || geocoderFromEnvironment(env);
   const cleanerProfileRepository = createCleanerProfileRepository(database);
-  const cleanerProfileService = createCleanerProfileService(cleanerProfileRepository);
+  const cleanerProfileService = createCleanerProfileService(cleanerProfileRepository, { geocoder });
   const favouriteCleanerRepository = createFavouriteCleanerRepository(database);
   const favouriteCleanerService = createFavouriteCleanerService(favouriteCleanerRepository);
   const propertyRepository = createPropertyRepository(database);
-  const geocoder = options.geocoder || geocoderFromEnvironment(env);
   const propertyService = createPropertyService(propertyRepository, { dataEncryptionSecret: env.DATA_ENCRYPTION_KEY, geocoder });
   const cleaningRequestRepository = createCleaningRequestRepository(database);
   const cleaningRequestService = createCleaningRequestService(cleaningRequestRepository);

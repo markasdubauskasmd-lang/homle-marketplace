@@ -89,6 +89,30 @@ const publicProfile = await service.getPublicProfile(publicRows[0].cleaner_id);
 const serialisedPublicResult = JSON.stringify(searchResults);
 assert(ownProfile.cleanerId === cleanerActor.userId && ownProfile.isPublic === true && ownProfile.averageRating === 4.8 && ownProfile.reviewCount === 15 && ownProfile.completedJobCount === 32 && ownProfile.serviceAreas[0].outwardPostcode === "SW1A" && serviceCalls[1].actor.userId === cleanerActor.userId && !Object.hasOwn(serviceCalls[1].profile, "userId") && serviceCalls[2].filters.outwardPostcode === "SW1A" && searchResults[0].distanceKm === 3.25 && searchResults[0].verified, "Cleaner ownership, private reputation summary, editable projection or search filter canonicalization failed.");
 assert(!JSON.stringify(ownProfile).includes("private@example.com") && await rejects(() => service.getOwnProfile({ userId: "landlord", roles: ["landlord"] }), "Cleaner account"), "The owner profile read leaked private account fields or accepted another role.");
+
+// Service-area geocoding: outward postcodes resolve to coordinates on save so
+// matching can rank by real distance. Isolated repository to avoid disturbing
+// the shared serviceCalls ordering above.
+{
+  const outcodeCalls = [];
+  let savedProfile;
+  const geoRepo = { ...fakeServiceRepository, async saveOwnProfile(actor, profile) { savedProfile = profile; return { profileCompletionPercent: profile.profileCompletionPercent }; } };
+  const resolvingGeocoder = {
+    async geocodeOutcode(outcode) { outcodeCalls.push(outcode); return outcode === "SW1A" ? { latitude: 51.5, longitude: -0.14 } : { latitude: 51.52, longitude: -0.06 }; }
+  };
+  const geoService = createCleanerProfileService(geoRepo, { now: () => new Date("2026-07-16T12:00:00.000Z"), geocoder: resolvingGeocoder });
+  const twoAreas = { ...completeInput, serviceAreas: [{ outwardPostcode: "sw1a" }, { outwardPostcode: "e1", latitude: 51.51, longitude: -0.05 }] };
+  await geoService.saveOwnProfile(cleanerActor, twoAreas);
+  const bySw1a = savedProfile.serviceAreas.find((area) => area.outwardPostcode === "SW1A");
+  const byE1 = savedProfile.serviceAreas.find((area) => area.outwardPostcode === "E1");
+  assert(bySw1a.latitude === 51.5 && bySw1a.longitude === -0.14, "A service area without coordinates was not geocoded from its outward postcode.");
+  assert(byE1.latitude === 51.51 && byE1.longitude === -0.05 && !outcodeCalls.includes("E1"), "A Cleaner-supplied service-area coordinate was overwritten or geocoded unnecessarily.");
+
+  const failingGeocoder = { async geocodeOutcode() { return null; } };
+  const failService = createCleanerProfileService(geoRepo, { now: () => new Date("2026-07-16T12:00:00.000Z"), geocoder: failingGeocoder });
+  await failService.saveOwnProfile(cleanerActor, { ...completeInput, serviceAreas: [{ outwardPostcode: "sw1a" }] });
+  assert(savedProfile.serviceAreas[0].latitude == null && savedProfile.serviceAreas[0].outwardPostcode === "SW1A", "An unresolved service-area geocode did not fail safe with null coordinates.");
+}
 assert(!serialisedPublicResult.includes("private@example.com") && !serialisedPublicResult.includes("07123456789") && !serialisedPublicResult.includes("Private address") && !serialisedPublicResult.includes("acceptance_rate"), "Public cleaner projection exposed private contact, address or internal acceptance data.");
 assert(publicProfile.cleanerId === publicRows[0].cleaner_id && publicProfile.displayName === "Careful Cleaner" && !JSON.stringify(publicProfile).includes("private@example.com") && serviceCalls.at(-1).kind === "get-public" && await rejects(() => service.getPublicProfile("invalid"), "valid Cleaner profile") && await rejects(() => service.getPublicProfile("33333333-3333-4333-8333-333333333333"), "no longer publicly available"), "A direct public Cleaner lookup accepted an invalid/unavailable profile or exposed private account data.");
 assert(throws(() => normalizedCleanerSearch({ startAt: "2026-07-20T09:00:00Z" }), "start and end") && throws(() => normalizedCleanerSearch({ maximumDistanceKm: 10 }), "requires search coordinates"), "Cleaner search accepted incomplete availability or distance filters.");
