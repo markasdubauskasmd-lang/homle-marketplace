@@ -63,10 +63,11 @@
     { "order": 59, "file": "059_participant_response_deadline.sql", "sha256": "8b36db99db571bc782244748983abbb868bab50268d0a43f7c8857c6f72e3669" },
     { "order": 60, "file": "060_apple_sign_in_provider.sql", "sha256": "a8558bbf5cbe5b71c25692bbbedc029e9ed352a072a17efd97169ca886c69c10" },
     { "order": 61, "file": "061_fix_missing_rate_limit_scopes.sql", "sha256": "5f8d6185ed58e1e5b4e47cf0c281e3bb51a946c07a6a71bd94a42ab602533918" },
-    { "order": 62, "file": "062_cleaner_verification_authority.sql", "sha256": "51f69f554f2c9db1a25202ffd998e2d8894f7abf93a90dad90a0cc318ba99760" }
+    { "order": 62, "file": "062_cleaner_verification_authority.sql", "sha256": "51f69f554f2c9db1a25202ffd998e2d8894f7abf93a90dad90a0cc318ba99760" },
+    { "order": 63, "file": "063_administrator_cleaner_verification.sql", "sha256": "d2bb7d5a72038c62c5ad7d926ad3632e0ae278306b69f320cfc675304cf74b2f" }
   ],
   "grantFiles": [
-    { "file": "runtime-role-grants.sql", "sha256": "a83007829805f709aaa5a6ad4da83eaacbdfd08a46a7a0baaa1c042709c37b2b" },
+    { "file": "runtime-role-grants.sql", "sha256": "ef6a77231573710ea66e57021b6738333e49f8f0e34941654772aa2f476d8cc4" },
     { "file": "worker-role-grants.sql", "sha256": "c0e6047e87d173bc9988058dd4a8df2b5b3dc083daa5e1adbba5c4902bbf40fe" }
   ]
 }

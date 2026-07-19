@@ -204,4 +204,26 @@ BEGIN
 END
 $cleaner$;
 
+SELECT set_config('app.user_id', '10000000-0000-4000-8000-000000000004', true);
+SELECT set_config('app.user_roles', 'administrator', true);
+DO $administrator$
+DECLARE verification jsonb; queue jsonb;
+BEGIN
+  -- An Administrator can set a cleaner's verification status (the counterpart to
+  -- the cleaner self-verify block above).
+  SELECT tideway_private.set_cleaner_verification('10000000-0000-4000-8000-000000000002','verified','not-required','Reviewed passport and DBS.') INTO verification;
+  IF verification->>'identityCheckStatus'<>'verified' OR verification->>'backgroundCheckStatus'<>'not-required' THEN
+    RAISE EXCEPTION 'Administrator could not set cleaner verification status';
+  END IF;
+  IF (SELECT identity_check_status FROM cleaner_profiles WHERE user_id='10000000-0000-4000-8000-000000000002')<>'verified' THEN
+    RAISE EXCEPTION 'Administrator verification did not persist to the cleaner profile';
+  END IF;
+  SELECT tideway_private.list_cleaner_verification_queue('verified',50,0) INTO queue;
+  IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(queue->'cleaners') AS entry(c)
+    WHERE c->>'cleanerId'='10000000-0000-4000-8000-000000000002' AND c->>'identityCheckStatus'='verified') THEN
+    RAISE EXCEPTION 'Verified cleaner is missing from the administrator verification queue';
+  END IF;
+END
+$administrator$;
+
 ROLLBACK;
