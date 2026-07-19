@@ -54,6 +54,7 @@ const safeAccountEnvironment = {
 const marketplaceRuntimeEnvironment = Object.freeze({
   DATABASE_URL: privateValues.runtimeDatabase,
   REALTIME_DATABASE_URL: privateValues.realtimeDatabase,
+  GEOCODING_PROVIDER: "postcodes-io",
   BOOKING_TARGET_MARGIN_BPS: "2000",
   BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1800",
   BOOKING_LABOUR_ON_COST_BPS: "1000",
@@ -177,6 +178,15 @@ const invalidRuntimeDatabase = renderEnvironmentActivationReport(entriesFrom({
 }));
 assert(invalidRuntimeDatabase.missing.marketplaceRuntime.includes("valid DATABASE_URL"));
 assert(!JSON.stringify(invalidRuntimeDatabase).includes("not-a-database-url"));
+
+const missingGeocoding = renderEnvironmentActivationReport(entriesFrom({
+  ...safeAccountEnvironment,
+  ...marketplaceRuntimeEnvironment,
+  GEOCODING_PROVIDER: "none"
+}));
+assert.equal(missingGeocoding.checks.marketplaceRuntimeConfigured, false);
+assert(missingGeocoding.missing.marketplaceRuntime.includes("GEOCODING_PROVIDER=postcodes-io"));
+assert(!JSON.stringify(missingGeocoding).includes('"GEOCODING_PROVIDER":"none"'));
 
 const unsafe = renderEnvironmentActivationReport(entriesFrom({ ...safeAccountEnvironment, STAGING_ACCOUNTS_ONLY: "false", MARKETPLACE_ENABLED: "true", PAYMENTS_ENABLED: "true" }));
 assert.equal(unsafe.ok, false);

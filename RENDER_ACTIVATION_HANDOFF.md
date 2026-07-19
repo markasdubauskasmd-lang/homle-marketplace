@@ -73,13 +73,22 @@ an approved price list and must not be used for live customer payments.
 | `BOOKING_OTHER_COST_PENCE` | `0` | other |
 | `BOOKING_INVITATION_TTL_MINUTES` | `120` | invite expiry |
 
+### Step 3b — Real-distance matching — OPEN
+Add `GEOCODING_PROVIDER=postcodes-io` to the Render web service. This enables the
+reviewed UK postcode geocoder used to store property and Cleaner service-area
+coordinates before matching. It requires no provider account or API key. Do not call
+distance matching production-ready until the secret-safe environment preflight
+reports this exact setting.
+
 ### Step 4 — Approved testers — COMPLETE
 `STAGING_ACCOUNTS_ONLY` is `true`, so signup is blocked until approved emails are listed.
 - `STAGING_ACCOUNT_EMAIL_SHA256` = comma-separated SHA-256 hashes of allowed tester emails.
 - Generate with `node tools/staging-account-email-hash.mjs <email>` (repo tool). Never commit the raw emails.
 
 ### Verify
-After Steps 1–2, `GET /api/health` should show `emailReady`, `mediaReady`, `matchingReady` all `true`.
+After Steps 1–2 and 3b, `GET /api/health` should show `emailReady`, `mediaReady`,
+`matchingReady` all `true`, and the Render environment preflight should report no
+marketplace-runtime omissions.
 Then create one landlord + one cleaner test account and run a booking end to end.
 
 ---

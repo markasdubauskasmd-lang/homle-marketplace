@@ -124,6 +124,7 @@ function marketplaceRuntimeMissing(values) {
     if (!exact(values.get(rule.key))) missing.push(rule.key);
     else if (!boundedInteger(values.get(rule.key), rule.minimum, rule.maximum)) missing.push(`valid ${rule.key}`);
   }
+  if (exact(values.get("GEOCODING_PROVIDER")).toLowerCase() !== "postcodes-io") missing.push("GEOCODING_PROVIDER=postcodes-io");
   return [...new Set(missing)];
 }
 
