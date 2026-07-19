@@ -21,7 +21,9 @@ import {
   taskCanBeDecided,
   taskCanBeQuickCompleted,
   taskNeedsCleanerTermsConfirmation,
-  taskCanBeUpdated
+  taskCanBeUpdated,
+  journeyProgress,
+  journeyDistanceLabel
 } from "../public/active-job-model.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
@@ -106,5 +108,34 @@ assert(server.includes('activeJobPage') && server.includes('camera=(self), micro
 assert(config.includes("OBJECT_STORAGE_ENDPOINT must be an exact HTTPS origin") && server.includes("connect-src 'self'${activeJobStorage}") && server.includes("img-src 'self' data: blob:${activeJobStorage}"), "The active-job storage allowlist could accept an unvalidated or wildcard origin.");
 assert(styles.includes(".active-primary-action") && styles.includes(".active-message-list") && styles.includes(".active-photo-list") && styles.includes(".active-photo-viewer") && styles.includes(".active-review-stars") && styles.includes(".active-review-response-form") && styles.includes(".active-dispute-form") && styles.includes(".active-dispute-summary") && styles.includes("@media (max-width: 680px)") && styles.includes("prefers-reduced-motion"), "The active-job experience omitted one-hand mobile chat/photo/review/case controls or reduced-motion styling.");
 assert(packageFile.includes("tests/active-job-ui.mjs"), "The active-job checks are not included in the project gate.");
+
+{
+  const journeyNow = Date.parse("2026-07-20T12:00:00.000Z");
+  const enRoute = (minutes) => ({ status: "cleaner-en-route", sharingState: "live", location: { estimatedArrivalAt: new Date(journeyNow + minutes * 60000).toISOString() } });
+  const carry = (progress) => ({ baselineMinutes: progress.baselineMinutes, achievedPercent: progress.achievedPercent });
+  const started = journeyProgress(enRoute(30), {}, journeyNow);
+  const halfway = journeyProgress(enRoute(15), carry(started), journeyNow);
+  assert(started.percent === 0 && started.baselineMinutes === 30 && halfway.percent === 0.5, "Journey approach progress is not derived proportionally from the remaining estimated arrival time.");
+
+  // A journey that deteriorates after real progress must hold its position and
+  // say so, never animate the Cleaner back down the road towards the start.
+  const delayed = journeyProgress(enRoute(35), carry(halfway), journeyNow);
+  assert(delayed.percent === halfway.percent && delayed.delayed === true && delayed.remainingMinutes === 35 && delayed.baselineMinutes === 35, "A journey that slowed after visible progress moved the Cleaner backwards instead of holding and reporting the delay.");
+  assert(journeyDistanceLabel(delayed) === "About 35 min away — running later than expected", "A delayed journey did not tell the customer the truth about the longer wait.");
+  assert(journeyProgress(enRoute(10), carry(delayed), journeyNow).percent > delayed.percent, "A recovering journey did not resume forward progress.");
+
+  // Only a recorded arrival may place the Cleaner on the home. An elapsed
+  // estimate must not imply the Cleaner is already at the door.
+  const elapsedEstimate = journeyProgress(enRoute(0), carry(halfway), journeyNow);
+  assert(elapsedEstimate.percent < 1 && elapsedEstimate.arrived === false && journeyProgress({ status: "cleaner-arrived" }, {}, journeyNow).percent === 1, "An elapsed estimate claimed arrival before the Cleaner actually arrived.");
+  assert(journeyProgress({ status: "cleaning-in-progress" }, {}, journeyNow).arrived === true && journeyProgress({ status: "cleaner-en-route", sharingState: "off" }, {}, journeyNow).known === false && journeyProgress({ status: "cleaner-en-route", sharingState: "live", location: { estimatedArrivalAt: "not-a-date" } }, {}, journeyNow).known === false, "Arrived, sharing-off or unusable-estimate journeys did not fall back to a safe approach state.");
+  assert(journeyDistanceLabel(halfway) === "About 15 min away" && journeyDistanceLabel(elapsedEstimate) === "Arriving now" && journeyDistanceLabel({ known: false }) === "Not available", "The approach readout did not describe remaining travel time safely.");
+
+  assert(html.includes("data-journey-approach") && html.includes('data-journey-approach role="status" aria-live="polite"') && script.includes("function renderJourneyApproach(tracking)") && script.includes("--journey-progress") && script.includes("homle:journey-baseline:") && styles.includes("var(--journey-progress, 0)") && styles.includes("transition: none; animation: none;"), "The live approach indicator is not rendered from journey progress, is not announced to assistive technology, or ignores reduced-motion preferences.");
+  // The estimate keeps counting down between snapshots, storage can be refused,
+  // and a finished booking must not leave a breadcrumb behind.
+  assert(script.includes("function scheduleJourneyTick(progress)") && script.includes("function stopJourneyTicks()") && script.includes("state.journeyMemory") && script.includes("function clearJourneyMemory()") && script.includes("localStorage.removeItem(journeyMemoryKey())") && script.includes('document.querySelector("[data-location-marker]").hidden = !progress.known || progress.arrived'), "The approach indicator does not re-derive on a timer, survive refused storage in memory, clear finished journeys, or withhold the marker when the Cleaner cannot be placed honestly.");
+  assert(!script.includes("destinationLatitude") && !script.includes("mapbox") && !script.includes("leaflet") && html.includes("not a street map"), "The journey view started plotting a street position or depended on a third-party map provider.");
+}
 
 console.log("Active-job UI tests passed: canonical participant route, role-safe journey/task actions, explicit foreground location, durable live snapshots, private retry-safe chat, secure before/after evidence, verified completion/reviews, mobile controls and privacy-first map boundary.");
