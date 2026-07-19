@@ -5301,6 +5301,7 @@ async function serveFile(requestPath, response) {
     "/admin/cases": "admin-cases.html",
     "/admin/payments": "admin-payments.html",
     "/admin/bookings": "admin-bookings.html",
+    "/admin/verifications": "admin-verifications.html",
     "/privacy": "privacy.html",
     "/facebook-data-deletion": "facebook-data-deletion.html",
     "/terms": "terms.html"

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+  <title>Cleaner vetting — Homle</title><link rel="icon" href="/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="/styles.css?v=20260718-100">
+  <script type="module" src="/admin-verifications.js"></script>
+</head>
+<body class="account-page admin-bookings-page">
+  <a class="skip-link" href="#admin-verifications-main">Skip to cleaner vetting</a>
+  <p class="network-status" data-network-status role="status" hidden>You are offline. Reconnect before recording a decision.</p>
+  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/admin"><img src="/logo.svg" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator"><a href="/admin/bookings">Booking operations</a><a href="/admin/cases">Booking cases</a><a href="/admin">Control desk</a></nav></div></header>
+  <main id="admin-verifications-main" class="booking-dashboard-shell">
+    <section class="booking-dashboard-gate" data-admin-verifications-gate aria-live="polite"><div><p class="eyebrow">Private trust and safety</p><h1 data-admin-verifications-gate-title>Checking secure Administrator access…</h1><p data-admin-verifications-gate-copy>This page opens only inside an authenticated Homle Administrator account.</p><div class="booking-dashboard-actions"><a class="button" href="/login?next=%2Fadmin%2Fverifications" data-admin-verifications-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-admin-verifications-retry hidden>Try again</button></div></div></section>
+    <div class="booking-dashboard" data-admin-verifications-workspace hidden>
+      <header class="booking-dashboard-header"><div><p class="eyebrow">Cleaner vetting desk</p><h1>Cleaner verification</h1><p>Record the outcome of each identity and background review. Cleaners can never set these themselves, and every decision here is audit-logged.</p></div><button class="button button-outline" type="button" data-admin-verifications-refresh>Refresh</button></header>
+      <aside class="admin-case-policy-banner"><div><p class="eyebrow">Evidence boundary</p><h2>Review documents outside this page, then record the outcome</h2></div><p>This desk stores only the decision and a short evidence note. Do not paste document contents, ID numbers or personal detail into the note.</p></aside>
+      <dl class="booking-dashboard-stats"><div><dt>Loaded</dt><dd data-admin-verifications-count>0</dd></div><div><dt>Awaiting review</dt><dd data-admin-verifications-awaiting>0</dd></div><div><dt>Fully verified</dt><dd data-admin-verifications-verified>0</dd></div></dl>
+      <section class="booking-dashboard-section"><div class="admin-cases-toolbar"><div><h2>Verification queue</h2><p>Newest profile changes first. A cleaner is bookable-as-verified only when identity is verified and the background check is verified or not required.</p></div><label>View<select data-admin-verifications-filter><option value="awaiting">Awaiting review</option><option value="verified">Verified</option><option value="all">All cleaners</option></select></label></div>
+        <div class="admin-bookings-list" data-admin-verifications-list aria-live="polite" aria-busy="true"></div>
+        <div class="booking-dashboard-empty" data-admin-verifications-empty hidden><strong>No cleaners in this view</strong><p>Change the view or refresh the queue.</p></div>
+        <nav class="admin-cases-pagination" aria-label="Cleaner verification pages"><button class="button button-outline button-small" type="button" data-admin-verifications-previous disabled>Previous</button><span data-admin-verifications-page>Page 1</span><button class="button button-outline button-small" type="button" data-admin-verifications-next disabled>Next</button></nav>
+      </section>
+      <div class="booking-dashboard-feedback" data-admin-verifications-feedback role="status" tabindex="-1" hidden></div>
+    </div>
+  </main>
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle</span><span>Private Administrator workspace · <a href="/privacy">Privacy</a></span></div></footer>
+</body></html>
