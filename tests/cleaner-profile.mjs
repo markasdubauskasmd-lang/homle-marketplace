@@ -96,7 +96,12 @@ assert(!JSON.stringify(ownProfile).includes("private@example.com") && await reje
 {
   const outcodeCalls = [];
   let savedProfile;
-  const geoRepo = { ...fakeServiceRepository, async saveOwnProfile(actor, profile) { savedProfile = profile; return { profileCompletionPercent: profile.profileCompletionPercent }; } };
+  let searchedFilters;
+  const geoRepo = {
+    ...fakeServiceRepository,
+    async saveOwnProfile(actor, profile) { savedProfile = profile; return { profileCompletionPercent: profile.profileCompletionPercent }; },
+    async searchPublicProfiles(filters) { searchedFilters = filters; return publicRows; }
+  };
   const resolvingGeocoder = {
     async geocodeOutcode(outcode) { outcodeCalls.push(outcode); return outcode === "SW1A" ? { latitude: 51.5, longitude: -0.14 } : { latitude: 51.52, longitude: -0.06 }; }
   };
@@ -107,11 +112,23 @@ assert(!JSON.stringify(ownProfile).includes("private@example.com") && await reje
   const byE1 = savedProfile.serviceAreas.find((area) => area.outwardPostcode === "E1");
   assert(bySw1a.latitude === 51.5 && bySw1a.longitude === -0.14, "A service area without coordinates was not geocoded from its outward postcode.");
   assert(byE1.latitude === 51.51 && byE1.longitude === -0.05 && !outcodeCalls.includes("E1"), "A Cleaner-supplied service-area coordinate was overwritten or geocoded unnecessarily.");
+  await geoService.searchPublicProfiles({ outwardPostcode: "sw1a", serviceCode: "regular-domestic" });
+  assert(searchedFilters.outwardPostcode === null && searchedFilters.latitude === 51.5 && searchedFilters.longitude === -0.14 && searchedFilters.maximumDistanceKm === 500, "A public outward-postcode search was not converted into travel-radius-aware nearby matching.");
 
   const failingGeocoder = { async geocodeOutcode() { return null; } };
   const failService = createCleanerProfileService(geoRepo, { now: () => new Date("2026-07-16T12:00:00.000Z"), geocoder: failingGeocoder });
   await failService.saveOwnProfile(cleanerActor, { ...completeInput, serviceAreas: [{ outwardPostcode: "sw1a" }] });
   assert(savedProfile.serviceAreas[0].latitude == null && savedProfile.serviceAreas[0].outwardPostcode === "SW1A", "An unresolved service-area geocode did not fail safe with null coordinates.");
+  await failService.searchPublicProfiles({ outwardPostcode: "sw1a" });
+  assert(searchedFilters.outwardPostcode === "SW1A" && searchedFilters.latitude == null && searchedFilters.maximumDistanceKm == null, "An unresolved public postcode search did not fall back to the exact outward area safely.");
+
+  const throwingService = createCleanerProfileService(geoRepo, { geocoder: { async geocodeOutcode() { throw new Error("provider unavailable"); } } });
+  await throwingService.searchPublicProfiles({ outwardPostcode: "sw1a" });
+  assert(searchedFilters.outwardPostcode === "SW1A" && searchedFilters.latitude == null, "A failed public geocoder blocked the directory instead of using its exact-area fallback.");
+
+  const malformedService = createCleanerProfileService(geoRepo, { geocoder: { async geocodeOutcode() { return { latitude: "private", longitude: 500 }; } } });
+  await malformedService.searchPublicProfiles({ outwardPostcode: "sw1a" });
+  assert(searchedFilters.outwardPostcode === "SW1A" && searchedFilters.latitude == null, "Malformed provider coordinates reached public matching instead of using the exact-area fallback.");
 }
 assert(!serialisedPublicResult.includes("private@example.com") && !serialisedPublicResult.includes("07123456789") && !serialisedPublicResult.includes("Private address") && !serialisedPublicResult.includes("acceptance_rate"), "Public cleaner projection exposed private contact, address or internal acceptance data.");
 assert(publicProfile.cleanerId === publicRows[0].cleaner_id && publicProfile.displayName === "Careful Cleaner" && !JSON.stringify(publicProfile).includes("private@example.com") && serviceCalls.at(-1).kind === "get-public" && await rejects(() => service.getPublicProfile("invalid"), "valid Cleaner profile") && await rejects(() => service.getPublicProfile("33333333-3333-4333-8333-333333333333"), "no longer publicly available"), "A direct public Cleaner lookup accepted an invalid/unavailable profile or exposed private account data.");
