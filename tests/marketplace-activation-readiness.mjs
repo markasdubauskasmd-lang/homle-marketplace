@@ -78,7 +78,7 @@ const [adminPage, adminScript, server] = await Promise.all([
 ]);
 for (const key of ["privateMedia", "transactionalEmail", "realtimeUpdates", "matchingPricing"]) assert(adminPage.includes(`data-activation-check="${key}"`), `The Administrator activation panel omitted ${key}.`);
 assert(adminPage.includes('id="technical-readiness-score">0/10'), "The Administrator activation panel retained the old bundled score.");
-for (const binding of ["emailReady: marketplaceAttachment.emailReady", "mediaReady: marketplaceAttachment.mediaReady", "realtimeReady: marketplaceAttachment.realtimeReady", "matchingReady: marketplaceAttachment.matchingReady"]) assert(server.includes(binding), `The Administrator readiness response omitted ${binding}.`);
+for (const binding of ["emailReady: marketplaceAttachment.emailReady", "mediaReady: marketplaceAttachment.mediaReady", "realtimeReady: marketplaceAttachment.realtimeReady", "geocodingReady: marketplaceAttachment.geocodingReady", "matchingReady: marketplaceAttachment.matchingReady"]) assert(server.includes(binding), `The Administrator readiness response omitted ${binding}.`);
 assert(adminScript.includes("technical service and matching checks"), "The Administrator completed state lost its separate technical-evidence boundary.");
 
 console.log("Marketplace activation readiness tests passed.");

@@ -4734,6 +4734,7 @@ async function getAdminConfig(request, response) {
     emailReady: marketplaceAttachment.emailReady,
     mediaReady: marketplaceAttachment.mediaReady,
     realtimeReady: marketplaceAttachment.realtimeReady,
+    geocodingReady: marketplaceAttachment.geocodingReady,
     matchingReady: marketplaceAttachment.matchingReady,
     authenticationReady: accountAttachment.authenticationHttpReady,
     providers: accountAttachment.authenticationCapabilities,
@@ -5358,6 +5359,7 @@ async function handleHttpRequest(request, response) {
           emailReady: marketplaceAttachment.emailReady === true,
           mediaReady: marketplaceAttachment.mediaReady === true,
           realtimeReady: marketplaceAttachment.realtimeReady === true,
+          geocodingReady: marketplaceAttachment.geocodingReady === true,
           matchingReady: marketplaceAttachment.matchingReady === true,
           paymentsReady: marketplaceAttachment.paymentsReady === true
         },
