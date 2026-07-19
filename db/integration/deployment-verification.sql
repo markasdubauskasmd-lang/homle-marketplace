@@ -23,6 +23,7 @@ DECLARE
   participant_response_deadline_installed boolean := false;
   apple_sign_in_migration_installed boolean := false;
   rate_limit_scope_migration_installed boolean := false;
+  cleaner_verification_migration_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -203,6 +204,8 @@ BEGIN
       INTO apple_sign_in_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 61)'
       INTO rate_limit_scope_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 62)'
+      INTO cleaner_verification_migration_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -245,6 +248,12 @@ BEGIN
       WHERE procedure.oid=to_regprocedure('tideway_private.consume_rate_limit(text,bytea)')
         AND position('session-recovery' IN procedure.prosrc)>0
     ) INTO rate_limit_scope_migration_installed;
+    cleaner_verification_migration_installed := EXISTS (
+      SELECT 1 FROM pg_trigger trigger_row
+      WHERE trigger_row.tgrelid='public.cleaner_profiles'::regclass
+        AND trigger_row.tgname='cleaner_verification_admin_only'
+        AND NOT trigger_row.tgisinternal
+    );
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -471,6 +480,24 @@ BEGIN
         AND position('marketplace-public:cleaner-profile' IN pg_get_constraintdef(constraint_record.oid))>0
     ) THEN
       RAISE EXCEPTION 'Shared rate-limit scope CHECK constraint does not admit the session-recovery or public Cleaner profile scope';
+    END IF;
+  END IF;
+  IF cleaner_verification_migration_installed THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_trigger trigger_row
+      WHERE trigger_row.tgrelid='public.cleaner_profiles'::regclass
+        AND trigger_row.tgname='cleaner_verification_admin_only'
+        AND NOT trigger_row.tgisinternal
+    ) THEN
+      RAISE EXCEPTION 'Cleaner verification-authority trigger is missing';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.enforce_cleaner_verification_authority()');
+    IF selected_source IS NULL
+       OR position('identity_check_status' IN selected_source)=0
+       OR position('background_check_status' IN selected_source)=0
+       OR position('has_role(''administrator'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
+      RAISE EXCEPTION 'Cleaner verification-authority guard does not restrict identity/background status to Administrators';
     END IF;
   END IF;
   IF scope_handoff_migration_installed THEN
