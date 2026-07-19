@@ -44,6 +44,7 @@ const bookingReviewResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuid
 const bookingPaymentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/payment$`);
 const adminPaymentCommandPath = new RegExp(`^/api/marketplace/admin/payments/(${uuidPattern})/(capture|cancel|refund|transfer)$`);
 const adminRequestMatchingReadinessPath = new RegExp(`^/api/marketplace/admin/cleaning-requests/(${uuidPattern})/matching-readiness$`);
+const adminCleanerVerificationPath = new RegExp(`^/api/marketplace/admin/cleaner-verifications/(${uuidPattern})$`);
 const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
 const bookingDisputePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/dispute$`);
 const adminDisputePath = new RegExp(`^/api/marketplace/admin/disputes/(${uuidPattern})$`);
@@ -94,6 +95,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const reviews = dependencies?.reviewService;
   const disputes = dependencies?.disputeService;
   const administratorBookings = dependencies?.administratorBookingService;
+  const administratorVerification = dependencies?.administratorVerificationService;
   const privacyRequests = dependencies?.privacyRequestService;
   const payments = dependencies?.paymentService || null;
   const cleanerPayouts = dependencies?.cleanerPayoutService || null;
@@ -163,6 +165,24 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { roles: ["administrator"] });
           const page = await administratorBookings.list(context.actor, { view: url.searchParams.get("view"), limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
           sendJson(response, 200, { ok: true, ...page });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/cleaner-verifications") {
+          if (!administratorVerification) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const page = await administratorVerification.list(context.actor, { view: url.searchParams.get("view"), limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
+          sendJson(response, 200, { ok: true, ...page });
+          return true;
+        }
+        const selectedAdminVerification = pathname.match(adminCleanerVerificationPath);
+        if (selectedAdminVerification) {
+          if (!administratorVerification) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const input = await readJsonObject(request);
+          const result = await administratorVerification.set(context.actor, selectedAdminVerification[1], input);
+          sendJson(response, 200, { ok: true, verification: result });
           return true;
         }
         const selectedAdminMatchingReadiness = pathname.match(adminRequestMatchingReadinessPath);

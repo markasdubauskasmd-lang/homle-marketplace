@@ -95,6 +95,8 @@ GRANT EXECUTE ON FUNCTION tideway_private.read_booking_payment(uuid) TO tideway_
 GRANT EXECUTE ON FUNCTION tideway_private.list_administrator_payment_operations(text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_administrator_booking_payment_operation(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_administrator_booking_operations(text,integer,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_cleaner_verification_queue(text,integer,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.set_cleaner_verification(uuid,text,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.current_booking_payment_authorized(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.open_booking_dispute(uuid,uuid,uuid,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_dispute(uuid) TO tideway_app;

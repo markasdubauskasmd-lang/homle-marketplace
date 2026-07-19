@@ -224,7 +224,11 @@ const rateLimiter = {
 const administratorBookingService = {
   async list(actor, input) { calls.push({ kind: "administrator-booking-list", actor, input }); return { operations: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; }
 };
-const dependencies = { security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const administratorVerificationService = {
+  async list(actor, input) { calls.push({ kind: "administrator-verification-list", actor, input }); return { cleaners: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; },
+  async set(actor, cleanerId, input) { calls.push({ kind: "administrator-verification-set", actor, cleanerId, input }); return { cleanerId, identityCheckStatus: input.identityCheckStatus || "pending", backgroundCheckStatus: input.backgroundCheckStatus || "not-checked" }; }
+};
+const dependencies = { security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -306,6 +310,16 @@ const capturedPayment = await dispatch(router, "POST", "/api/marketplace/admin/p
 const refundedPayment = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/refund", { headers: administratorAuthHeaders, body: { idempotencyKey: "admin_refund_retry_key_1234567890123", amountPence: 1500, destinationAccountId: "acct_browser_attack" } });
 assert(adminPaymentQueue.response.statusCode === 200 && adminPaymentQueue.body.testMode === true && calls.find((call) => call.kind === "payment-admin-list")?.input.status === "actionable" && landlordPaymentQueue.response.statusCode === 403 && missingAdminPaymentCsrf.response.statusCode === 403, "Administrator payment queue lost role isolation, exact filters, test-mode proof or CSRF protection.");
 assert(adminBookingQueue.response.statusCode === 200 && landlordAdminBookingQueue.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-booking-list")?.input.view === "attention", "Administrator booking operations lost role isolation or its exact view filter.");
+
+// Administrator cleaner-verification queue and status setting are administrator-only and CSRF-protected.
+const adminVerificationQueue = await dispatch(router, "GET", "/api/marketplace/admin/cleaner-verifications?view=awaiting&limit=25", { headers: { cookie: administratorAuthHeaders.cookie } });
+const landlordVerificationQueue = await dispatch(router, "GET", "/api/marketplace/admin/cleaner-verifications", { headers: { cookie: authHeaders.cookie } });
+assert(adminVerificationQueue.response.statusCode === 200 && landlordVerificationQueue.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-verification-list")?.input.view === "awaiting", "Cleaner verification queue lost role isolation or its view filter.");
+const verifyCleanerId = "22222222-2222-4222-8222-222222222222";
+const missingVerificationCsrf = await dispatch(router, "POST", `/api/marketplace/admin/cleaner-verifications/${verifyCleanerId}`, { headers: { cookie: administratorAuthHeaders.cookie, origin: administratorAuthHeaders.origin, "content-type": administratorAuthHeaders["content-type"] }, body: { identityCheckStatus: "verified" } });
+const setVerification = await dispatch(router, "POST", `/api/marketplace/admin/cleaner-verifications/${verifyCleanerId}`, { headers: administratorAuthHeaders, body: { identityCheckStatus: "verified", note: "Reviewed documents." } });
+const landlordSetVerification = await dispatch(router, "POST", `/api/marketplace/admin/cleaner-verifications/${verifyCleanerId}`, { headers: { ...authHeaders }, body: { identityCheckStatus: "verified" } });
+assert(missingVerificationCsrf.response.statusCode === 403 && setVerification.response.statusCode === 200 && setVerification.body.verification.identityCheckStatus === "verified" && landlordSetVerification.response.statusCode === 403 && calls.findLast((call) => call.kind === "administrator-verification-set")?.cleanerId === verifyCleanerId, "Administrator cleaner-verification setting lost CSRF, role isolation or its exact target.");
 assert(adminMatchingReadiness.response.statusCode === 200 && landlordAdminMatchingReadiness.response.statusCode === 403 && adminMatchingReadiness.body.matchingReadiness.candidateCount === 1 && adminMatchingReadiness.body.matchingReadiness.lowestCustomerPricePence === 12000 && !adminMatchingReadiness.response.body.includes("Private Cleaner") && !adminMatchingReadiness.response.body.includes("22222222-2222"), "Administrator matching readiness lost role isolation, exact pricing or identity redaction.");
 const emptyMatchingReadiness = administratorMatchingReadiness({ generatedAt: "2026-07-15T15:00:00.000Z", candidates: [] });
 assert(emptyMatchingReadiness.candidateCount === 0 && emptyMatchingReadiness.candidateLimit === 25 && emptyMatchingReadiness.lowestCustomerPricePence === null && emptyMatchingReadiness.highestCustomerPricePence === null, "Empty matching readiness invented Cleaner supply or prices.");
