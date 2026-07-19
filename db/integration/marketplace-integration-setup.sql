@@ -55,6 +55,11 @@ VALUES
   ('10000000-0000-4000-8000-000000000001', 'SW1A'),
   ('10000000-0000-4000-8000-000000000002', 'SW1A');
 
+-- A separate, geocoded area proves the exact SW1A fallback depends on the
+-- matching area's missing coordinates rather than every area being ungeocoded.
+INSERT INTO cleaner_service_areas (cleaner_user_id, outward_postcode, latitude, longitude)
+VALUES ('10000000-0000-4000-8000-000000000002', 'AB1', 57.1497, -2.0943);
+
 INSERT INTO cleaner_availability (cleaner_user_id, starts_at, ends_at, status)
 VALUES
   ('10000000-0000-4000-8000-000000000001', now() + interval '47 hours', now() + interval '55 hours', 'available'),

@@ -40,4 +40,21 @@ BEGIN
 END
 $public_cleaner_profile$;
 
+DO $public_cleaner_distance_fallback$
+DECLARE
+  matched_cleaners uuid[];
+BEGIN
+  SELECT COALESCE(array_agg(result.cleaner_id), ARRAY[]::uuid[])
+  INTO matched_cleaners
+  FROM tideway_private.search_cleaner_directory(
+    'SW1A', 'standard-clean', NULL, NULL, NULL, NULL, false,
+    51.501, -0.142, 25, 20, 0
+  ) result;
+
+  IF NOT ('10000000-0000-4000-8000-000000000002'::uuid = ANY(matched_cleaners)) THEN
+    RAISE EXCEPTION 'Exact declared outward coverage disappeared while a legacy Cleaner service area awaited coordinates';
+  END IF;
+END
+$public_cleaner_distance_fallback$;
+
 ROLLBACK;

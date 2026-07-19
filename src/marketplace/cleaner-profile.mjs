@@ -281,7 +281,7 @@ export function createCleanerProfileService(repository, options = {}) {
       if (geocoder && search.outwardPostcode && search.latitude == null) {
         try {
           const coordinates = await geocoder.geocodeOutcode(search.outwardPostcode);
-          if (coordinates) search = normalizedCleanerSearch({ ...search, outwardPostcode: null, latitude: coordinates.latitude, longitude: coordinates.longitude, maximumDistanceKm: 500 });
+          if (coordinates) search = normalizedCleanerSearch({ ...search, latitude: coordinates.latitude, longitude: coordinates.longitude, maximumDistanceKm: 500 });
         } catch {}
       }
       const rows = await repository.searchPublicProfiles(search);

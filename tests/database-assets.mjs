@@ -29,8 +29,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 63);
-  assert.equal(repositoryResult.migrations.at(-1), "063_administrator_cleaner_verification.sql");
+  assert.equal(repositoryResult.migrations.length, 64);
+  assert.equal(repositoryResult.migrations.at(-1), "064_public_cleaner_distance_fallback.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
@@ -73,7 +73,7 @@ try {
     "selected_providerNOTIN(''google'',''apple'',''facebook'')",
     "identity.providerIN(''google'',''apple'',''facebook'')"
   ]) assert(deploymentVerifier.includes(`position('${normalizedNeedle}' IN replace`), `Migration-60 verification compares normalized function source against a non-normalized needle: ${normalizedNeedle}`);
-  assert(integrationRunner.includes('publicCleanerProfile: "public-cleaner-profile-behaviour.sql"') && integrationRunner.includes('label: "Public Cleaner profile privacy test"') && publicCleanerProfileBehaviour.includes("get_public_cleaner_profile") && publicCleanerProfileBehaviour.includes("active, complete and public Cleaner profile") && publicCleanerProfileBehaviour.includes("email', 'phone', 'address") && publicCleanerProfileBehaviour.includes("account without a public Cleaner profile"), "The real PostgreSQL rehearsal must exercise the direct public Cleaner lookup, its projection and its visibility gates.");
+  assert(integrationRunner.includes('publicCleanerProfile: "public-cleaner-profile-behaviour.sql"') && integrationRunner.includes('label: "Public Cleaner profile privacy test"') && publicCleanerProfileBehaviour.includes("get_public_cleaner_profile") && publicCleanerProfileBehaviour.includes("active, complete and public Cleaner profile") && publicCleanerProfileBehaviour.includes("email', 'phone', 'address") && publicCleanerProfileBehaviour.includes("account without a public Cleaner profile") && publicCleanerProfileBehaviour.includes("Exact declared outward coverage disappeared"), "The real PostgreSQL rehearsal must exercise the direct public Cleaner lookup, its projection, visibility gates and safe coordinate-migration fallback.");
   assert(deploymentVerifier.includes("active_invite_function := CASE WHEN minimum_contribution_migration_installed") && deploymentVerifier.includes("active_dispatch_function := CASE WHEN minimum_contribution_migration_installed"), "Pre-upgrade verification must select the booking function signatures installed at the current migration level.");
   assert(deploymentVerifier.includes("app_functions || ARRAY[active_invite_function]") && deploymentVerifier.includes("worker_functions || ARRAY[active_dispatch_function]"), "Runtime privilege verification must follow the migration-aware booking function signatures.");
   assert(deploymentVerifier.includes("IF minimum_contribution_migration_installed THEN") && deploymentVerifier.includes("Superseded minimum-contribution function is missing"), "Post-migration verification must still prove that the older booking signatures are revoked.");
