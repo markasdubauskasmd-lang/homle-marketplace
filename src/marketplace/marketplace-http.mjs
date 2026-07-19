@@ -133,6 +133,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const signatureHeader = request.headers?.["stripe-signature"];
           const signature = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader;
           const result = await payments.handleWebhook(await readRawBody(request), signature);
+          // A signed, non-duplicate event that did not reconcile is a payment,
+          // command or state mismatch. Stripe must not retry a recorded event, so
+          // answer 200, but raise a privacy-safe operational signal so the money
+          // anomaly is not silently swallowed.
+          if (result?.accepted !== true && result?.duplicate !== true) {
+            onUnexpectedError(Object.assign(new Error("A signed payment webhook did not reconcile."), { code: "payment-webhook-unreconciled" }));
+          }
           sendJson(response, 200, { ok: true, accepted: result?.accepted === true, duplicate: result?.duplicate === true, ignored: result?.ignored === true });
           return true;
         }

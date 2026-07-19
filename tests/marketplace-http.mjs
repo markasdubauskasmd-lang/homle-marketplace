@@ -254,6 +254,19 @@ const paymentWebhookCall = calls.find((call) => call.kind === "payment-webhook")
 assert(signedWebhook.response.statusCode === 200 && signedWebhook.body.accepted === true && Buffer.compare(paymentWebhookCall.body, exactWebhookBody) === 0 && paymentWebhookCall.signature === "t=1,v1=signed", "Payment webhook routing changed the signed raw bytes or required an account session.");
 const rejectedWebhook = await dispatch(router, "POST", "/api/marketplace/payments/webhook", { body: Buffer.from("{}"), headers: { "stripe-signature": "bad" } });
 assert(rejectedWebhook.response.statusCode === 400 && rejectedWebhook.body.code === "invalid-payment-webhook" && !rejectedWebhook.response.body.includes("secret"), "Invalid Stripe signatures did not fail closed with a bounded response.");
+
+// A signed, non-duplicate event that does not reconcile raises a privacy-safe
+// operational signal but still answers 200 so Stripe does not retry a recorded event.
+unexpectedError = undefined;
+paymentService.handleWebhook = async (body, signature) => { calls.push({ kind: "payment-webhook", body, signature }); return { accepted: false, duplicate: false, ignored: false }; };
+const mismatchWebhook = await dispatch(router, "POST", "/api/marketplace/payments/webhook", { body: exactWebhookBody, headers: { "stripe-signature": "t=1,v1=signed" } });
+assert(mismatchWebhook.response.statusCode === 200 && mismatchWebhook.body.accepted === false && unexpectedError?.code === "payment-webhook-unreconciled", "An unreconciled signed payment webhook did not raise an operational signal while still answering 200.");
+unexpectedError = undefined;
+paymentService.handleWebhook = async (body, signature) => { calls.push({ kind: "payment-webhook", body, signature }); return { accepted: true, duplicate: true, ignored: false }; };
+const duplicateWebhook = await dispatch(router, "POST", "/api/marketplace/payments/webhook", { body: exactWebhookBody, headers: { "stripe-signature": "t=1,v1=signed" } });
+assert(duplicateWebhook.response.statusCode === 200 && unexpectedError === undefined, "A duplicate webhook must not raise an unreconciled-event alert.");
+delete paymentService.handleWebhook;
+paymentService.handleWebhook = async (body, signature) => { calls.push({ kind: "payment-webhook", body, signature }); if (signature === "bad") throw Object.assign(new Error("The payment webhook could not be verified."), { statusCode: 400, code: "invalid-payment-webhook" }); return { accepted: true, duplicate: false, ignored: false }; };
 const wrongWebhookMethod = await dispatch(router, "GET", "/api/marketplace/payments/webhook");
 assert(wrongWebhookMethod.response.statusCode === 405 && wrongWebhookMethod.response.headers.Allow === "POST", "Payment webhook accepted a non-POST method.");
 const noPaymentRouter = createMarketplaceHttpRouter({ ...dependencies, paymentService: null, cleanerPayoutService: null }, { clientKey: () => trustedClientKey });
