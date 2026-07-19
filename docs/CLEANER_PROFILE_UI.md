@@ -13,6 +13,8 @@ Neither page contains fixture people, ratings, prices, coverage or verification 
 
 The directory reads only `GET /api/marketplace/cleaners` through the existing shared public rate-limit boundary. Results originate from `tideway_private.search_cleaner_directory`, which admits only active, public, 100%-complete profiles.
 
+When a visitor supplies an outward postcode and the reviewed geocoder is attached, the server resolves that area privately and returns nearby profiles only when the distance falls inside each Cleaner's declared travel radius. The browser never supplies or receives service-area coordinates. If geocoding cannot resolve the outward code, the search fails safely to exact outward-area matching instead of guessing a distance or blocking the directory.
+
 Browser rendering uses DOM nodes and `textContent`; API values never enter `innerHTML`. Remote photos must use HTTPS, load without a referrer and fall back to generated initials. Public cards can contain professional profile fields, supported services, evidence-backed aggregate rating/completed-job values and a derived distance when the server supplies one. They cannot contain account email, phone, home address, service-area coordinates or internal acceptance data.
 
 The page distinguishes:
