@@ -46,7 +46,9 @@ const safeAccountEnvironment = {
   MARKETPLACE_ENABLED: "false",
   PAYMENTS_ENABLED: "false",
   PILOT_INTAKE_ENABLED: "false",
-  WORKER_AUTOMATIC_DISPATCH_ENABLED: "false"
+  WORKER_AUTOMATIC_DISPATCH_ENABLED: "false",
+  PUBLIC_MARKETPLACE_APPROVED: "false",
+  PUBLIC_PAYMENTS_APPROVED: "false"
 };
 
 const marketplaceRuntimeEnvironment = Object.freeze({
@@ -90,6 +92,25 @@ const mediaAndEmailOnly = renderEnvironmentActivationReport(entriesFrom({
 }));
 assert.equal(mediaAndEmailOnly.activation.marketplaceDependencies, false);
 assert.equal(mediaAndEmailOnly.next.key, "marketplace-runtime");
+
+const renderBootstrapRehearsal = renderEnvironmentActivationReport(entriesFrom({
+  ...safeAccountEnvironment,
+  ...marketplaceRuntimeEnvironment,
+  DATABASE_URL: "",
+  REALTIME_DATABASE_URL: "",
+  MARKETPLACE_ENABLED: "true",
+  RENDER_STAGING_BOOTSTRAP_ENABLED: "true"
+}));
+assert.equal(renderBootstrapRehearsal.ok, true);
+assert.equal(renderBootstrapRehearsal.mode, "restricted-marketplace-rehearsal");
+assert.equal(renderBootstrapRehearsal.checks.restrictedStagingBoundary, true);
+assert.equal(renderBootstrapRehearsal.checks.safeAccountPreview, false);
+assert.equal(renderBootstrapRehearsal.checks.safeMarketplaceRehearsal, true);
+assert.equal(renderBootstrapRehearsal.checks.renderBootstrapConfigured, true);
+assert.equal(renderBootstrapRehearsal.checks.marketplaceRuntimeConfigured, true);
+assert.equal(renderBootstrapRehearsal.next.key, "transactional-email");
+assert(!renderBootstrapRehearsal.missing.marketplaceRuntime.includes("DATABASE_URL"));
+assert(!renderBootstrapRehearsal.missing.marketplaceRuntime.includes("REALTIME_DATABASE_URL"));
 
 const marketplaceDependencies = renderEnvironmentActivationReport(entriesFrom({
   ...safeAccountEnvironment,
