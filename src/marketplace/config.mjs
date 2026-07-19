@@ -161,6 +161,7 @@ export function validateMarketplaceEnvironment(env = process.env) {
   if (present(env, "OBJECT_STORAGE_BUCKET") && (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(env.OBJECT_STORAGE_BUCKET.trim()) || env.OBJECT_STORAGE_BUCKET.includes("..") || /^\d+\.\d+\.\d+\.\d+$/.test(env.OBJECT_STORAGE_BUCKET.trim()))) errors.push("OBJECT_STORAGE_BUCKET must be a valid DNS-compatible private bucket name.");
   if (present(env, "OBJECT_STORAGE_FORCE_PATH_STYLE") && !["true", "false"].includes(env.OBJECT_STORAGE_FORCE_PATH_STYLE.trim().toLowerCase())) errors.push("OBJECT_STORAGE_FORCE_PATH_STYLE must be true or false.");
   if (present(env, "GEOCODING_PROVIDER") && !["none", "postcodes-io"].includes(env.GEOCODING_PROVIDER.trim().toLowerCase())) errors.push("GEOCODING_PROVIDER must be blank, none or postcodes-io.");
+  if (present(env, "ETA_PROVIDER") && !["none", "straight-line"].includes(env.ETA_PROVIDER.trim().toLowerCase())) errors.push("ETA_PROVIDER must be blank, none or straight-line.");
   if (present(env, "DATA_ENCRYPTION_KEY") && !state.encryptionConfigured) errors.push("DATA_ENCRYPTION_KEY must contain at least 32 characters.");
   if (state.production) {
     if (!state.appOrigin) errors.push("APP_ORIGIN is required in production.");

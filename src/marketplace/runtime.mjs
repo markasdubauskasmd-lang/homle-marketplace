@@ -31,6 +31,7 @@ import { createMarketplaceHttpRouter } from "./marketplace-http.mjs";
 import { createPropertyRepository } from "./property-repository.mjs";
 import { createPropertyService } from "./property-service.mjs";
 import { geocoderFromEnvironment } from "./postcode-geocoder.mjs";
+import { etaProviderFromEnvironment } from "./straight-line-eta.mjs";
 import { createProgressRepository } from "./progress-repository.mjs";
 import { createProgressService } from "./progress-service.mjs";
 import { createMediaRepository } from "./media-repository.mjs";
@@ -142,7 +143,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const matchingRepository = createMatchingRepository(database);
   const matchingService = createMatchingService(matchingRepository, { pricingPolicy: bookingPricingPolicy });
   const journeyRepository = createJourneyRepository(database);
-  const journeyService = createJourneyService(journeyRepository, { etaProvider: options.etaProvider });
+  const journeyService = createJourneyService(journeyRepository, { etaProvider: options.etaProvider === undefined ? etaProviderFromEnvironment(env) : options.etaProvider });
   const progressRepository = createProgressRepository(database);
   const progressService = createProgressService(progressRepository);
   const mediaRepository = createMediaRepository(database);
