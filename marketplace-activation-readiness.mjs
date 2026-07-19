@@ -46,6 +46,12 @@ const requirementDefinitions = Object.freeze([
     complete: (state) => state.realtimeReady === true
   },
   {
+    key: "postcodeGeocoding",
+    label: "Postcode distance matching",
+    missing: "Attach and verify postcode geocoding for real-distance Cleaner matching",
+    complete: (state) => state.geocodingReady === true
+  },
+  {
     key: "matchingPricing",
     label: "Cleaner matching and pricing",
     missing: "Configure and verify the complete founder-approved private booking pricing policy",

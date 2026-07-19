@@ -36,6 +36,12 @@ const marketplaceDatabaseKeys = Object.freeze([
   "REALTIME_DATABASE_URL"
 ]);
 
+const renderBootstrapKeys = Object.freeze([
+  "DATABASE_BOOTSTRAP_URL",
+  "TIDEWAY_APP_PASSWORD",
+  "TIDEWAY_WORKER_PASSWORD"
+]);
+
 function exact(value) {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -100,21 +106,31 @@ function boundedInteger(value, minimum, maximum) {
   return Number.isSafeInteger(parsed) && parsed >= minimum && parsed <= maximum;
 }
 
+function guardedRenderBootstrapConfigured(values) {
+  return exactFlag(values, "RENDER_STAGING_BOOTSTRAP_ENABLED", "true")
+    && missingPresentKeys(values, renderBootstrapKeys).length === 0
+    && validPostgresUrl(values.get("DATABASE_BOOTSTRAP_URL"));
+}
+
 function marketplaceRuntimeMissing(values) {
-  const missing = missingPresentKeys(values, marketplaceDatabaseKeys);
-  for (const key of marketplaceDatabaseKeys) {
-    if (exact(values.get(key)) && !validPostgresUrl(values.get(key))) missing.push(`valid ${key}`);
+  const bootstrapConfigured = guardedRenderBootstrapConfigured(values);
+  const missing = bootstrapConfigured ? [] : missingPresentKeys(values, marketplaceDatabaseKeys);
+  if (!bootstrapConfigured) {
+    for (const key of marketplaceDatabaseKeys) {
+      if (exact(values.get(key)) && !validPostgresUrl(values.get(key))) missing.push(`valid ${key}`);
+    }
   }
   for (const rule of bookingPricingEnvironmentRules) {
     if (!exact(values.get(rule.key))) missing.push(rule.key);
     else if (!boundedInteger(values.get(rule.key), rule.minimum, rule.maximum)) missing.push(`valid ${rule.key}`);
   }
+  if (exact(values.get("GEOCODING_PROVIDER")).toLowerCase() !== "postcodes-io") missing.push("GEOCODING_PROVIDER=postcodes-io");
   return [...new Set(missing)];
 }
 
 function nextAction(missing, checks) {
   if (missing.accounts.length) return Object.freeze({ key: "account-boundary", label: "Repair the restricted account boundary", missing: missing.accounts });
-  if (!checks.safeAccountPreview) return Object.freeze({ key: "preview-safety", label: "Close unsafe preview feature flags", missing: ["restricted account-only feature flags"] });
+  if (!checks.restrictedStagingBoundary) return Object.freeze({ key: "preview-safety", label: "Close unsafe staging feature flags", missing: ["restricted staging feature flags"] });
   if (missing.transactionalEmail.length) return Object.freeze({ key: "transactional-email", label: "Connect a verified transactional email sender", missing: missing.transactionalEmail });
   if (missing.privateMedia.length) return Object.freeze({ key: "private-media", label: "Connect private room-photo storage", missing: missing.privateMedia });
   if (missing.marketplaceRuntime.length) return Object.freeze({ key: "marketplace-runtime", label: "Connect runtime databases and approved booking economics", missing: missing.marketplaceRuntime });
@@ -152,6 +168,7 @@ export function renderEnvironmentActivationReport(entries) {
     stagingAccountsRestricted: exactFlag(values, "STAGING_ACCOUNTS_ONLY", "true"),
     authenticationEnabled: exactFlag(values, "AUTHENTICATION_ENABLED", "true"),
     marketplaceClosed: exactFlag(values, "MARKETPLACE_ENABLED", "false"),
+    marketplaceEnabled: exactFlag(values, "MARKETPLACE_ENABLED", "true"),
     paymentsClosed: exactFlag(values, "PAYMENTS_ENABLED", "false"),
     pilotIntakeClosed: exactFlag(values, "PILOT_INTAKE_ENABLED", "false"),
     automaticDispatchClosed: exactFlag(values, "WORKER_AUTOMATIC_DISPATCH_ENABLED", "false"),
@@ -160,10 +177,21 @@ export function renderEnvironmentActivationReport(entries) {
     privateMediaConfigured: privateMediaMissing.length === 0,
     marketplaceRuntimeConfigured: runtimeMissing.length === 0,
     testPaymentsConfigured: testPaymentsMissing.length === 0,
-    safeAccountPreview: false
+    renderBootstrapConfigured: guardedRenderBootstrapConfigured(values),
+    restrictedStagingBoundary: false,
+    safeAccountPreview: false,
+    safeMarketplaceRehearsal: false
   });
-  const safeAccountPreview = checks.stagingAccountsRestricted && checks.authenticationEnabled && checks.marketplaceClosed && checks.paymentsClosed && checks.pilotIntakeClosed && checks.automaticDispatchClosed;
-  const finalizedChecks = Object.freeze({ ...checks, safeAccountPreview });
+  const restrictedStagingBoundary = checks.stagingAccountsRestricted
+    && checks.authenticationEnabled
+    && checks.paymentsClosed
+    && checks.pilotIntakeClosed
+    && checks.automaticDispatchClosed
+    && exactFlag(values, "PUBLIC_MARKETPLACE_APPROVED", "false")
+    && exactFlag(values, "PUBLIC_PAYMENTS_APPROVED", "false");
+  const safeAccountPreview = restrictedStagingBoundary && checks.marketplaceClosed;
+  const safeMarketplaceRehearsal = restrictedStagingBoundary && checks.marketplaceEnabled;
+  const finalizedChecks = Object.freeze({ ...checks, restrictedStagingBoundary, safeAccountPreview, safeMarketplaceRehearsal });
   const missing = Object.freeze({
     accounts: Object.freeze([...new Set(missingAccounts)]),
     transactionalEmail: Object.freeze(transactionalEmailMissing),
@@ -173,12 +201,16 @@ export function renderEnvironmentActivationReport(entries) {
   });
 
   return Object.freeze({
-    ok: finalizedChecks.accountConfigurationComplete && finalizedChecks.safeAccountPreview,
+    ok: finalizedChecks.accountConfigurationComplete && finalizedChecks.restrictedStagingBoundary,
     environmentCount: values.size,
-    mode: finalizedChecks.safeAccountPreview ? "restricted-account-preview" : "unsafe-or-incomplete",
+    mode: finalizedChecks.safeMarketplaceRehearsal
+      ? "restricted-marketplace-rehearsal"
+      : finalizedChecks.safeAccountPreview
+        ? "restricted-account-preview"
+        : "unsafe-or-incomplete",
     checks: finalizedChecks,
     activation: Object.freeze({
-      accounts: finalizedChecks.accountConfigurationComplete && finalizedChecks.safeAccountPreview,
+      accounts: finalizedChecks.accountConfigurationComplete && finalizedChecks.restrictedStagingBoundary,
       marketplaceDependencies: finalizedChecks.accountConfigurationComplete && finalizedChecks.transactionalEmailConfigured && finalizedChecks.privateMediaConfigured && finalizedChecks.marketplaceRuntimeConfigured,
       testPaymentDependencies: finalizedChecks.testPaymentsConfigured
     }),

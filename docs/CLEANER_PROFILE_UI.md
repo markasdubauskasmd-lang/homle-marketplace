@@ -35,6 +35,8 @@ Editing outward postcodes preserves stored private coordinates only for unchange
 
 Unsaved changes are signalled and protected on navigation. The phone layout keeps the save action reachable with one hand. The page distinguishes missing authentication, wrong role, detached runtime and connection failure without exposing private server errors.
 
+The Cleaner dashboard treats a completed public profile as separate from marketplace matching readiness. It shows **Published for matching** and **You are ready for matching** only after the public health projection confirms both the approved private pricing policy and real postcode-distance geocoding. If either dependency is unavailable, or health cannot be checked, profile and availability editing remain available while the dashboard shows an honest pending or unavailable state instead of promising new requests.
+
 ## Activation evidence still required
 
 These interfaces are production-shaped source, not an activated account marketplace. Before real use:

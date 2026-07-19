@@ -13,37 +13,29 @@ secret below is entered in the Render dashboard only.
 Live service: **`homle-marketplace-preview`** → https://homle-marketplace-preview.onrender.com
 Database: **`homle-marketplace-staging-db`** (Render free PostgreSQL 16, Frankfurt).
 
-`GET /api/health` currently returns:
+`GET /api/health` was re-verified after the 19 July activation deploy and returns:
 
 ```json
 { "marketplace": { "enabled": true, "ready": true, "authenticationReady": true,
   "realtimeReady": true, "emailReady": false, "mediaReady": false,
-  "matchingReady": false, "paymentsReady": false },
-  "release": { "sourceCommit": "307eba6b", "migrationCount": 60 } }
+  "matchingReady": true, "paymentsReady": false },
+  "release": { "sourceCommit": "0f6a95c8", "migrationCount": 63 } }
 ```
 
-So accounts and live updates already work on the real database. Four capabilities
-are still off, and the deployed build is **stale**.
-
-**The deployed commit `307eba6b` predates 6 merged PRs** (#12–#17). The stale build
-still has the Apple sign-in 503 bug, no geocoding, and only 60 migrations.
-`autoDeployTrigger` is `off` by design, so it will not update itself.
-
-Merged since that build (all on `main`, all CI-green):
-- #12 — fixes 4 always-503 rate-limit scopes incl. **Apple sign-in**; Render IP-spoof fix (migration 061)
-- #13 — GitHub Actions CI (unit + real PostgreSQL)
-- #14 / #15 — postcode geocoding for properties and cleaner service areas
-- #16 — cleaner self-verify lockdown trigger (migration 062)
-- #17 — payment webhook mismatch alerting
+Accounts, live updates and matching now work on the restricted real staging database.
+The remaining provider-backed blockers are transactional email and private room-photo
+storage. Payments intentionally remain off. The deployed commit is current with
+`main`, and `autoDeployTrigger` remains off by design.
 
 ---
 
 ## 2. Actions on Render (in order)
 
-### Step 0 — Redeploy from `main` (required first)
+### Step 0 — Redeploy from `main` — COMPLETE
 Render → `homle-marketplace-preview` → **Manual Deploy → Deploy latest commit**.
-This ships #12–#17 and, via the staging bootstrap, applies migrations 61 and 62.
-After it deploys, `GET /api/health` should show `migrationCount: 62`.
+The completed deploy shipped through #21 and, via the staging bootstrap, verified all
+63 locked migrations. Do not redeploy merely to repeat this step; compare the live
+release commit with `main` first.
 
 ### Step 1 — Email  (turns `emailReady` → true)
 Environment tab, add either provider (pick one). **RESEND is easiest on Render free**
@@ -60,10 +52,11 @@ An S3-compatible private bucket (Cloudflare R2 / Backblaze B2 / AWS S3). Add:
 - `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY` *(secret)*
 - `OBJECT_STORAGE_FORCE_PATH_STYLE` = `true` if the provider needs path-style URLs (R2/B2 usually do)
 
-### Step 3 — Matching / pricing  (turns `matchingReady` → true)
-`matchingReady` requires the **complete** set of 13 `BOOKING_*` variables (all-or-nothing).
+### Step 3 — Matching / pricing — COMPLETE FOR STAGING
+`matchingReady` requires the **complete** set of 12 `BOOKING_*` variables (all-or-nothing).
 These set customer price and margin — **the founder must approve real values.** Starter
-values below are for testing only; they are a placeholder, not an approved price list.
+values below are now active for restricted testing only; they are a placeholder, not
+an approved price list and must not be used for live customer payments.
 
 | Variable | Starter (review) | Meaning |
 |---|---|---|
@@ -80,13 +73,22 @@ values below are for testing only; they are a placeholder, not an approved price
 | `BOOKING_OTHER_COST_PENCE` | `0` | other |
 | `BOOKING_INVITATION_TTL_MINUTES` | `120` | invite expiry |
 
-### Step 4 — Approved testers  (needed to create any account)
+### Step 3b — Real-distance matching — OPEN
+Add `GEOCODING_PROVIDER=postcodes-io` to the Render web service. This enables the
+reviewed UK postcode geocoder used to store property and Cleaner service-area
+coordinates before matching. It requires no provider account or API key. Do not call
+distance matching production-ready until the secret-safe environment preflight
+reports this exact setting.
+
+### Step 4 — Approved testers — COMPLETE
 `STAGING_ACCOUNTS_ONLY` is `true`, so signup is blocked until approved emails are listed.
 - `STAGING_ACCOUNT_EMAIL_SHA256` = comma-separated SHA-256 hashes of allowed tester emails.
 - Generate with `node tools/staging-account-email-hash.mjs <email>` (repo tool). Never commit the raw emails.
 
 ### Verify
-After Steps 0–3, `GET /api/health` should show `emailReady`, `mediaReady`, `matchingReady` all `true`.
+After Steps 1–2 and 3b, `GET /api/health` should show `emailReady`, `mediaReady`,
+`matchingReady` all `true`, and the Render environment preflight should report no
+marketplace-runtime omissions.
 Then create one landlord + one cleaner test account and run a booking end to end.
 
 ---

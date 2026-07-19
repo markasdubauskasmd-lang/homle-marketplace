@@ -39,6 +39,7 @@ assert.equal(disabled.ready, false);
 assert.equal(disabled.router, null);
 assert.equal(disabled.paymentsReady, false);
 assert.equal(disabled.matchingReady, false);
+assert.equal(disabled.geocodingReady, false);
 assert.equal(disabled.realtimeReady, false);
 assert.equal(adapterLoaded, false);
 assert.ok(Object.values(disabled.authenticationCapabilities).filter((value) => value === true).length === 0);
@@ -158,6 +159,7 @@ const attachment = await createMarketplaceAttachment({
       authenticationHttpReady: true,
       googleOidcReady: true,
       facebookLoginReady: true,
+      geocodingReady: true,
       matchingReady: true
     };
   }
@@ -182,6 +184,7 @@ assert.equal(attachment.paymentsReady, false, "Payments appeared attached withou
 assert.equal(attachment.emailReady, true);
 assert.equal(attachment.mediaReady, true);
 assert.equal(attachment.realtimeReady, true);
+assert.equal(attachment.geocodingReady, true);
 assert.equal(attachment.matchingReady, true);
 await attachment.close();
 await attachment.close();
@@ -218,7 +221,7 @@ const restrictedCore = await createMarketplaceAttachment({
   createRuntime(selectedPool, options) {
     assert.equal(options.emailDelivery, undefined);
     assert.equal(options.objectStorage, undefined);
-    return { router, authenticationHttpReady: false, googleOidcReady: false, facebookLoginReady: false, matchingReady: false };
+    return { router, authenticationHttpReady: false, googleOidcReady: false, facebookLoginReady: false, geocodingReady: false, matchingReady: false };
   }
 });
 assert.equal(restrictedCore.enabled, true);
@@ -227,6 +230,7 @@ assert.equal(restrictedCore.authenticationHttpReady, false);
 assert.equal(restrictedCore.emailReady, false);
 assert.equal(restrictedCore.mediaReady, false);
 assert.equal(restrictedCore.realtimeReady, true);
+assert.equal(restrictedCore.geocodingReady, false);
 assert.equal(restrictedCore.matchingReady, false);
 await restrictedCore.close();
 assert.equal(restrictedCoreClosed, 1);
@@ -258,7 +262,7 @@ const paymentAttachment = await createMarketplaceAttachment({
   },
   createRuntime(selectedPool, options) {
     assert.equal(options.paymentProvider.name, "stripe");
-    return { router, authenticationHttpReady: true, googleOidcReady: true, facebookLoginReady: true, paymentReady: true, matchingReady: true };
+    return { router, authenticationHttpReady: true, googleOidcReady: true, facebookLoginReady: true, paymentReady: true, geocodingReady: true, matchingReady: true };
   }
 });
 assert.equal(paymentAttachment.paymentsReady, true);

@@ -46,12 +46,15 @@ const safeAccountEnvironment = {
   MARKETPLACE_ENABLED: "false",
   PAYMENTS_ENABLED: "false",
   PILOT_INTAKE_ENABLED: "false",
-  WORKER_AUTOMATIC_DISPATCH_ENABLED: "false"
+  WORKER_AUTOMATIC_DISPATCH_ENABLED: "false",
+  PUBLIC_MARKETPLACE_APPROVED: "false",
+  PUBLIC_PAYMENTS_APPROVED: "false"
 };
 
 const marketplaceRuntimeEnvironment = Object.freeze({
   DATABASE_URL: privateValues.runtimeDatabase,
   REALTIME_DATABASE_URL: privateValues.realtimeDatabase,
+  GEOCODING_PROVIDER: "postcodes-io",
   BOOKING_TARGET_MARGIN_BPS: "2000",
   BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1800",
   BOOKING_LABOUR_ON_COST_BPS: "1000",
@@ -90,6 +93,25 @@ const mediaAndEmailOnly = renderEnvironmentActivationReport(entriesFrom({
 }));
 assert.equal(mediaAndEmailOnly.activation.marketplaceDependencies, false);
 assert.equal(mediaAndEmailOnly.next.key, "marketplace-runtime");
+
+const renderBootstrapRehearsal = renderEnvironmentActivationReport(entriesFrom({
+  ...safeAccountEnvironment,
+  ...marketplaceRuntimeEnvironment,
+  DATABASE_URL: "",
+  REALTIME_DATABASE_URL: "",
+  MARKETPLACE_ENABLED: "true",
+  RENDER_STAGING_BOOTSTRAP_ENABLED: "true"
+}));
+assert.equal(renderBootstrapRehearsal.ok, true);
+assert.equal(renderBootstrapRehearsal.mode, "restricted-marketplace-rehearsal");
+assert.equal(renderBootstrapRehearsal.checks.restrictedStagingBoundary, true);
+assert.equal(renderBootstrapRehearsal.checks.safeAccountPreview, false);
+assert.equal(renderBootstrapRehearsal.checks.safeMarketplaceRehearsal, true);
+assert.equal(renderBootstrapRehearsal.checks.renderBootstrapConfigured, true);
+assert.equal(renderBootstrapRehearsal.checks.marketplaceRuntimeConfigured, true);
+assert.equal(renderBootstrapRehearsal.next.key, "transactional-email");
+assert(!renderBootstrapRehearsal.missing.marketplaceRuntime.includes("DATABASE_URL"));
+assert(!renderBootstrapRehearsal.missing.marketplaceRuntime.includes("REALTIME_DATABASE_URL"));
 
 const marketplaceDependencies = renderEnvironmentActivationReport(entriesFrom({
   ...safeAccountEnvironment,
@@ -156,6 +178,15 @@ const invalidRuntimeDatabase = renderEnvironmentActivationReport(entriesFrom({
 }));
 assert(invalidRuntimeDatabase.missing.marketplaceRuntime.includes("valid DATABASE_URL"));
 assert(!JSON.stringify(invalidRuntimeDatabase).includes("not-a-database-url"));
+
+const missingGeocoding = renderEnvironmentActivationReport(entriesFrom({
+  ...safeAccountEnvironment,
+  ...marketplaceRuntimeEnvironment,
+  GEOCODING_PROVIDER: "none"
+}));
+assert.equal(missingGeocoding.checks.marketplaceRuntimeConfigured, false);
+assert(missingGeocoding.missing.marketplaceRuntime.includes("GEOCODING_PROVIDER=postcodes-io"));
+assert(!JSON.stringify(missingGeocoding).includes('"GEOCODING_PROVIDER":"none"'));
 
 const unsafe = renderEnvironmentActivationReport(entriesFrom({ ...safeAccountEnvironment, STAGING_ACCOUNTS_ONLY: "false", MARKETPLACE_ENABLED: "true", PAYMENTS_ENABLED: "true" }));
 assert.equal(unsafe.ok, false);

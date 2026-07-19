@@ -289,7 +289,7 @@ function renderPrivateDataStorage(storageSafety = {}) {
 
 function renderActivationReadiness(readiness = {}) {
   state.activationReadiness = readiness;
-  document.querySelector("#technical-readiness-score").textContent = `${Number(readiness.completed) || 0}/${Number(readiness.total) || 10}`;
+  document.querySelector("#technical-readiness-score").textContent = `${Number(readiness.completed) || 0}/${Number(readiness.total) || 11}`;
   document.querySelectorAll("#technical-readiness-list [data-activation-check]").forEach((item) => {
     const key = item.dataset.activationCheck;
     const complete = readiness.checks?.[key] === true;

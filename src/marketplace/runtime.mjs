@@ -204,6 +204,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     cleaningRequestService,
     bookingRepository,
     bookingWorkflowService,
+    geocodingReady: geocoder !== null,
     matchingReady: bookingPricingPolicy !== null,
     paymentRepository,
     paymentService,
