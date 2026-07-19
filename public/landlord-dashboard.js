@@ -87,6 +87,8 @@ let bookings = [];
 let favouriteCleaners = [];
 let landlordProfile = null;
 let recognition = null;
+let tasksManuallyEdited = false;
+let liveSummariseTimer = null;
 let listening = false;
 let speechFailed = false;
 let speechChangedDuringListen = false;
@@ -1816,21 +1818,41 @@ function useSavedChecklist() {
   showFeedback(requestFeedback, "Saved checklist copied. Review every task against the current room scan before saving.", "success");
 }
 
-function summariseSpeech({ automatic = false } = {}) {
+function summariseSpeech({ automatic = false, live = false } = {}) {
   const tasks = checklistFromTranscript(requestForm.elements.transcript.value);
   if (!tasks.length) {
-    showFeedback(requestFeedback, "No cleaning tasks could be summarised. Name each room and describe the cleaning action clearly.");
+    // Mid-sentence speech often has no complete task yet; a live pass stays
+    // quiet and simply waits for the next pause instead of raising an error.
+    if (!live) showFeedback(requestFeedback, "No cleaning tasks could be summarised. Name each room and describe the cleaning action clearly.");
     return false;
   }
   const value = tasks.join("\n");
+  if (requestForm.elements.tasks.value.trim() === value) return true;
   if (!automatic && requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this new concise speech summary?")) return false;
   invalidateScopeReview("The concise checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
+  tasksManuallyEdited = false;
   renderTaskPreview();
   requestDirty = true;
   scheduleWorkingRequestRecovery();
-  showFeedback(requestFeedback, `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} prepared${automatic ? " automatically" : ""}. Review every bullet before confirming.`, "success");
+  if (live) {
+    speechStatus.textContent = `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} so far — updating as you go. Review every bullet before confirming.`;
+  } else {
+    showFeedback(requestFeedback, `${tasks.length} concise room ${tasks.length === 1 ? "task" : "tasks"} prepared${automatic ? " automatically" : ""}. Review every bullet before confirming.`, "success");
+  }
   return true;
+}
+
+// Turn speech (or typing) into concise bullets automatically after a short
+// pause, without a separate action. Manual checklist edits switch the live
+// pass off so a later spoken sentence can never silently overwrite them; the
+// explicit summarise action with its confirmation still covers that case.
+function scheduleLiveSummarise() {
+  if (tasksManuallyEdited) return;
+  clearTimeout(liveSummariseTimer);
+  liveSummariseTimer = setTimeout(() => {
+    if (requestForm.elements.transcript.value.trim()) summariseSpeech({ automatic: true, live: true });
+  }, 900);
 }
 
 function configureSpeech() {
@@ -1879,6 +1901,7 @@ function configureSpeech() {
       requestForm.elements.transcript.value = `${requestForm.elements.transcript.value.trim()} ${finalText}`.trim().slice(0, 5000);
       speechChangedDuringListen = true;
       scheduleWorkingRequestRecovery();
+      scheduleLiveSummarise();
     }
     speechStatus.textContent = interimText ? `Listening: ${interimText.slice(0, 160)}` : "Listening…";
     requestDirty = true;
@@ -1910,8 +1933,8 @@ cleaningTypeSelect.addEventListener("change", () => {
   cleaningTypeHint.textContent = "Selected by you. Change it if the requested clean is different.";
 });
 speechButton.addEventListener("click", () => { if (!recognition) return; if (listening) recognition.stop(); else { try { recognition.start(); } catch { speechStatus.textContent = "Speech is already starting. Try again in a moment."; } } });
-requestForm.elements.transcript.addEventListener("input", () => { invalidateScopeReview("The walkthrough changed. Summarise again or manually reconcile every room task before confirming."); });
-requestForm.elements.tasks.addEventListener("input", () => { renderTaskPreview(); invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });
+requestForm.elements.transcript.addEventListener("input", () => { invalidateScopeReview("The walkthrough changed. Summarise again or manually reconcile every room task before confirming."); scheduleLiveSummarise(); });
+requestForm.elements.tasks.addEventListener("input", () => { tasksManuallyEdited = true; clearTimeout(liveSummariseTimer); renderTaskPreview(); invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });
 nextButton.addEventListener("click", () => {
   const action = nextButton.dataset.nextAction;
   if (action === "property") {
