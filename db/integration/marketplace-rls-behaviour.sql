@@ -158,6 +158,24 @@ DECLARE scan jsonb; object_record record; payout_first jsonb; payout_retry jsonb
 BEGIN
   IF (SELECT count(*) FROM bookings WHERE id::text LIKE '40000000-0000-4000-8000-%') <> 2 THEN RAISE EXCEPTION 'Assigned cleaner cannot read invitations'; END IF;
   IF (SELECT count(*) FROM properties WHERE id::text LIKE '20000000-0000-4000-8000-%') <> 0 THEN RAISE EXCEPTION 'Cleaner received access instructions before acceptance'; END IF;
+  -- A Cleaner must not be able to mark their own identity or background check verified.
+  BEGIN
+    UPDATE cleaner_profiles SET identity_check_status='verified' WHERE user_id='10000000-0000-4000-8000-000000000002';
+    RAISE EXCEPTION 'Cleaner self-verified their identity check';
+  EXCEPTION WHEN insufficient_privilege THEN
+    IF SQLERRM <> 'cleaner-verification-admin-only' THEN RAISE; END IF;
+  END;
+  BEGIN
+    UPDATE cleaner_profiles SET background_check_status='verified' WHERE user_id='10000000-0000-4000-8000-000000000002';
+    RAISE EXCEPTION 'Cleaner self-verified their background check';
+  EXCEPTION WHEN insufficient_privilege THEN
+    IF SQLERRM <> 'cleaner-verification-admin-only' THEN RAISE; END IF;
+  END;
+  -- An ordinary profile edit that leaves verification status untouched is still allowed.
+  UPDATE cleaner_profiles SET biography='Owner edit that leaves verification status untouched.' WHERE user_id='10000000-0000-4000-8000-000000000002';
+  IF (SELECT identity_check_status FROM cleaner_profiles WHERE user_id='10000000-0000-4000-8000-000000000002') <> 'not-checked' THEN
+    RAISE EXCEPTION 'Cleaner verification-authority guard blocked an ordinary profile edit or lost the protected status';
+  END IF;
   SELECT tideway_private.list_my_booking_summaries(50) INTO booking_summaries;
   IF (SELECT count(*) FROM jsonb_array_elements(booking_summaries) AS entry(summary)
       WHERE summary->>'status'='pending-cleaner-acceptance' AND summary->>'responseDeadline' IS NOT NULL AND (summary->>'canRespond')::boolean IS TRUE) <> 2 THEN
