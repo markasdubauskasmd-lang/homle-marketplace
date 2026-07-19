@@ -115,6 +115,34 @@ export function cleanerDashboardSummary(profile, availability, bookings, payout)
   });
 }
 
+export function cleanerMarketplaceCapabilityState(input = {}) {
+  const checked = input.checked === true;
+  const pricingReady = checked && input.pricingReady === true;
+  const geocodingReady = checked && input.geocodingReady === true;
+  const matchingReady = pricingReady && geocodingReady;
+  let notice = null;
+  if (!checked) {
+    notice = Object.freeze({
+      key: "checking",
+      title: "Matching status could not be checked",
+      copy: "Your profile and availability remain saved. Refresh before relying on new cleaning-request availability."
+    });
+  } else if (!pricingReady) {
+    notice = Object.freeze({
+      key: "private-pricing",
+      title: "Cleaner matching prices are being connected",
+      copy: "Your profile and availability remain saved. Homle will not send you new cleaning requests until the approved booking pricing checks are ready."
+    });
+  } else if (!geocodingReady) {
+    notice = Object.freeze({
+      key: "postcode-geocoding",
+      title: "Postcode distance matching is being connected",
+      copy: "Your profile and availability remain saved. Homle will not send you distance-priced requests until service-area and property postcodes can be checked by real distance."
+    });
+  }
+  return Object.freeze({ checked, pricingReady, geocodingReady, matchingReady, notice });
+}
+
 export function landlordDashboardSummary(bookings) {
   if (!Array.isArray(bookings)) throw new TypeError("Landlord dashboard records are unavailable.");
   const records = bookings.filter((booking) => booking?.participantRole === "landlord");

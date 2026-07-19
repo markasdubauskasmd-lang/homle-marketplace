@@ -1,4 +1,4 @@
-import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260718-5";
+import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, cleanerMarketplaceCapabilityState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260719-1";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 
@@ -19,6 +19,7 @@ let responding = false;
 let payoutStatus = null;
 let availabilityWindows = [];
 let cleanerProfile = null;
+let marketplaceCapabilities = cleanerMarketplaceCapabilityState();
 let invitationDeadlineTimer = null;
 let refreshingExpiredInvitations = false;
 let expiredInvitationRefreshNeeded = false;
@@ -330,8 +331,8 @@ function renderBookings() {
   document.querySelector("[data-cleaner-active-count]").textContent = String(buckets.active.length);
   document.querySelector("[data-cleaner-upcoming-count]").textContent = String(buckets.upcoming.length);
   document.querySelector("[data-cleaner-history-count]").textContent = String(buckets.history.length);
-  renderWorkOverview(cleanerDashboardSummary(cleanerProfile, availabilityWindows, bookings, payoutStatus));
-  renderNextAction(buckets, cleanerProfile, payoutStatus, availabilityWindows);
+  renderWorkOverview(cleanerDashboardSummary(cleanerProfile, availabilityWindows, bookings, payoutStatus), marketplaceCapabilities);
+  renderNextAction(buckets, cleanerProfile, payoutStatus, availabilityWindows, marketplaceCapabilities);
   updateInvitationDeadlines();
 }
 
@@ -339,9 +340,11 @@ function dashboardMoney(pence) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
 }
 
-function renderWorkOverview(summary) {
+function renderWorkOverview(summary, capabilities) {
   document.querySelector("[data-cleaner-profile-progress]").textContent = `${summary.profileCompletionPercent}%`;
-  document.querySelector("[data-cleaner-profile-state]").textContent = summary.profilePublished ? "Published for matching" : summary.profileCompletionPercent === 100 ? "Ready to publish" : "Profile incomplete";
+  document.querySelector("[data-cleaner-profile-state]").textContent = summary.profilePublished
+    ? capabilities.matchingReady ? "Published for matching" : capabilities.checked ? "Published · matching setup pending" : "Published · matching status unavailable"
+    : summary.profileCompletionPercent === 100 ? "Ready to publish" : "Profile incomplete";
   document.querySelector("[data-cleaner-availability-count]").textContent = String(summary.availableWindowCount);
   document.querySelector("[data-cleaner-rating]").textContent = summary.reviewCount > 0 ? `${summary.averageRating.toFixed(1)} ★` : "New";
   document.querySelector("[data-cleaner-review-count]").textContent = summary.reviewCount > 0 ? `${summary.reviewCount} approved ${summary.reviewCount === 1 ? "review" : "reviews"}` : "No approved reviews yet";
@@ -359,7 +362,7 @@ function renderWorkOverview(summary) {
   publicProfile.hidden = !summary.profilePublished;
 }
 
-function renderNextAction(buckets, profile, payout, availability) {
+function renderNextAction(buckets, profile, payout, availability, capabilities) {
   const title = document.querySelector("[data-cleaner-next-title]");
   const copy = document.querySelector("[data-cleaner-next-copy]");
   const link = document.querySelector("[data-cleaner-next-link]");
@@ -407,6 +410,13 @@ function renderNextAction(buckets, profile, payout, availability) {
     copy.textContent = "Use one secure Stripe form. Homle never receives your bank details.";
     link.href = "/cleaner/payouts";
     link.textContent = payout.status === "action-required" ? "Continue payout setup" : "Set up payouts";
+    return;
+  }
+  if (!capabilities.matchingReady) {
+    title.textContent = capabilities.notice.title;
+    copy.textContent = capabilities.notice.copy;
+    link.href = capabilities.notice.key === "postcode-geocoding" ? "/cleaner/profile" : "/cleaner/dashboard";
+    link.textContent = capabilities.notice.key === "postcode-geocoding" ? "Review service area" : "Refresh matching status";
     return;
   }
   title.textContent = "You are ready for matching";
@@ -533,11 +543,12 @@ async function loadDashboard() {
     dashboard.hidden = false;
     dashboard.setAttribute("aria-busy", "true");
 
-    const [bookingResult, profileResult, payoutResult, availabilityResult] = await Promise.allSettled([
+    const [bookingResult, profileResult, payoutResult, availabilityResult, healthResult] = await Promise.allSettled([
       requestJson("/api/marketplace/bookings?limit=50"),
       requestJson("/api/marketplace/cleaner/profile"),
       loadOptionalPayoutStatus(),
-      requestJson("/api/marketplace/cleaner/availability")
+      requestJson("/api/marketplace/cleaner/availability"),
+      requestJson("/api/health")
     ]);
     const failures = [bookingResult, profileResult, availabilityResult].filter((result) => result.status === "rejected");
     const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
@@ -546,6 +557,11 @@ async function loadDashboard() {
     if (profileResult.status === "fulfilled") cleanerProfile = profileResult.value.profile && typeof profileResult.value.profile === "object" ? profileResult.value.profile : null;
     if (payoutResult.status === "fulfilled") payoutStatus = payoutResult.value;
     if (availabilityResult.status === "fulfilled") availabilityWindows = Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability : [];
+    marketplaceCapabilities = cleanerMarketplaceCapabilityState({
+      checked: healthResult.status === "fulfilled",
+      pricingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.matchingReady === true,
+      geocodingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.geocodingReady === true
+    });
     document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
     document.querySelector("[data-cleaner-profile-link]").textContent = cleanerProfile?.profileCompletionPercent === 100 ? "Edit profile" : "Complete your profile";
     renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl);
