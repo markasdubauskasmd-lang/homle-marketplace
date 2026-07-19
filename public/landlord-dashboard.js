@@ -6,7 +6,7 @@ import { maximumRoomPhotos, validatedRoomPhotoSelection } from "./room-photo-sel
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { landlordDispatchAction, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260717-6";
+import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260719-1";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-5";
 
 const state = document.querySelector("[data-landlord-state]");
@@ -1636,20 +1636,16 @@ async function loadWorkspace() {
     landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";
     landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
     landlordProfileDirty = false;
-    mediaReady = healthResult.status === "fulfilled" && healthResult.value?.marketplace?.mediaReady === true;
-    pricingReady = healthResult.status === "fulfilled" && healthResult.value?.marketplace?.matchingReady === true;
-    geocodingReady = healthResult.status === "fulfilled" && healthResult.value?.marketplace?.geocodingReady === true;
-    matchingReady = pricingReady && geocodingReady;
-    mediaReadiness.hidden = mediaReady && matchingReady;
-    if (!mediaReady) {
-      capabilityTitle.textContent = "Private room-photo storage is being connected.";
-      capabilityCopy.textContent = "You can save the property, speak naturally and review the concise room checklist now. Camera upload and matching submission stay locked until Homle can store every photo privately.";
-    } else if (!pricingReady) {
-      capabilityTitle.textContent = "Private pricing and Cleaner matching are being connected.";
-      capabilityCopy.textContent = "You can complete and submit the private room scan now. Homle will keep it safely saved and will not invite a Cleaner or create a booking until the approved pricing checks are ready.";
-    } else if (!geocodingReady) {
-      capabilityTitle.textContent = "Postcode distance matching is being connected.";
-      capabilityCopy.textContent = "You can complete and submit the private room scan now. Homle will keep it safely saved and will not invite a Cleaner until property and service-area postcodes can be checked by real distance.";
+    const capabilities = landlordMarketplaceCapabilityState({
+      mediaReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.mediaReady === true,
+      pricingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.matchingReady === true,
+      geocodingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.geocodingReady === true
+    });
+    ({ mediaReady, pricingReady, geocodingReady, matchingReady } = capabilities);
+    mediaReadiness.hidden = capabilities.notice === null;
+    if (capabilities.notice) {
+      capabilityTitle.textContent = capabilities.notice.title;
+      capabilityCopy.textContent = capabilities.notice.copy;
     }
     renderProperties();
     restoreWorkingRequest();

@@ -75,3 +75,31 @@ export function landlordDispatchAction(request) {
   if (attemptCount < 5) return Object.freeze({ kind: "retry", attemptLimit: attemptCount + 1, attemptCount });
   return Object.freeze({ kind: "exhausted", attemptLimit: 5, attemptCount });
 }
+
+export function landlordMarketplaceCapabilityState(input = {}) {
+  const mediaReady = input.mediaReady === true;
+  const pricingReady = input.pricingReady === true;
+  const geocodingReady = input.geocodingReady === true;
+  const matchingReady = pricingReady && geocodingReady;
+  let notice = null;
+  if (!mediaReady) {
+    notice = Object.freeze({
+      key: "private-media",
+      title: "Private room-photo storage is being connected.",
+      copy: "You can save the property, speak naturally and review the concise room checklist now. Camera upload and matching submission stay locked until Homle can store every photo privately."
+    });
+  } else if (!pricingReady) {
+    notice = Object.freeze({
+      key: "private-pricing",
+      title: "Private pricing and Cleaner matching are being connected.",
+      copy: "You can complete and submit the private room scan now. Homle will keep it safely saved and will not invite a Cleaner or create a booking until the approved pricing checks are ready."
+    });
+  } else if (!geocodingReady) {
+    notice = Object.freeze({
+      key: "postcode-geocoding",
+      title: "Postcode distance matching is being connected.",
+      copy: "You can complete and submit the private room scan now. Homle will keep it safely saved and will not invite a Cleaner until property and service-area postcodes can be checked by real distance."
+    });
+  }
+  return Object.freeze({ mediaReady, pricingReady, geocodingReady, matchingReady, notice });
+}
