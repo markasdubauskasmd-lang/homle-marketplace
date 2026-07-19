@@ -214,3 +214,51 @@ export function elapsedLabel(seconds) {
   if (hours) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
 }
+
+const arrivedStatuses = new Set(["cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed"]);
+
+// Only a genuine arrival puts the Cleaner marker on the home. A journey still in
+// progress is capped short of it, so the picture can never imply the Cleaner is
+// at the door before the arrival is actually recorded.
+const travellingProgressCap = 0.94;
+
+// Journey progress is derived from the estimated arrival time rather than from
+// coordinates, so the customer's home position never has to reach the client to
+// draw the approach.
+//
+// `memory` carries what earlier renders established for this booking:
+// `baselineMinutes` (the longest remaining time seen, which only ever grows) and
+// `achievedPercent` (the furthest the marker has travelled). Progress is
+// monotonic — a journey that deteriorates holds its position and reports itself
+// as delayed rather than animating the Cleaner backwards down the road. The
+// remaining-minutes readout always tells the truth, so a delay is still visible
+// to the customer as a number even while the marker holds.
+export function journeyProgress(tracking = {}, memory = {}, now = Date.now()) {
+  const status = tracking?.status;
+  if (arrivedStatuses.has(status)) return Object.freeze({ known: true, arrived: true, delayed: false, percent: 1, remainingMinutes: 0, baselineMinutes: null, achievedPercent: null });
+  const live = tracking?.sharingState === "live" && tracking?.location;
+  const eta = live ? new Date(live.estimatedArrivalAt || "") : null;
+  if (!eta || Number.isNaN(eta.getTime())) return Object.freeze({ known: false, arrived: false, delayed: false, percent: 0, remainingMinutes: null, baselineMinutes: null, achievedPercent: null });
+  const remainingMinutes = Math.max(0, Math.ceil((eta.getTime() - now) / 60000));
+  const suppliedBaseline = Number(memory?.baselineMinutes);
+  const baseline = Number.isFinite(suppliedBaseline) && suppliedBaseline > remainingMinutes ? suppliedBaseline : remainingMinutes;
+  const travelled = baseline > 0 ? Math.min(travellingProgressCap, Math.max(0, 1 - remainingMinutes / baseline)) : travellingProgressCap;
+  const suppliedAchieved = Number(memory?.achievedPercent);
+  const achieved = Number.isFinite(suppliedAchieved) && suppliedAchieved > travelled ? suppliedAchieved : travelled;
+  return Object.freeze({
+    known: true,
+    arrived: false,
+    delayed: achieved > travelled,
+    percent: achieved,
+    remainingMinutes,
+    baselineMinutes: baseline,
+    achievedPercent: achieved
+  });
+}
+
+export function journeyDistanceLabel(progress = {}) {
+  if (progress.arrived) return "Arrived";
+  if (!progress.known || progress.remainingMinutes == null) return "Not available";
+  if (progress.remainingMinutes <= 1) return "Arriving now";
+  return `About ${progress.remainingMinutes} min away${progress.delayed ? " — running later than expected" : ""}`;
+}

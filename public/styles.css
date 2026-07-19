@@ -2077,7 +2077,9 @@ textarea { resize: vertical; }
 .active-location-route { position: absolute; z-index: 2; top: 90px; right: 19%; left: 20%; display: flex; justify-content: space-between; transform: rotate(-9deg); }
 .active-location-route i { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
 .active-location-cleaner, .active-location-home { position: absolute; z-index: 3; display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; box-shadow: 0 6px 18px rgba(16,36,33,.25); }
-.active-location-cleaner { top: 66px; left: 17%; color: #fff; background: var(--green-dark); animation: active-location-pulse 2s infinite; }
+/* The marker travels from its start to the home marker's own position, so full
+   progress lands on the home rather than stopping short at wider viewports. */
+.active-location-cleaner { top: calc(66px + (109px * var(--journey-progress, 0))); left: calc(17% + ((69% - 44px) * var(--journey-progress, 0))); color: #fff; background: var(--green-dark); transition: top .9s ease, left .9s ease; animation: active-location-pulse 2s infinite; }
 .active-location-home { right: 14%; bottom: 61px; color: #fff; background: var(--orange); font-size: 1.3rem; }
 .active-location-copy { position: absolute; z-index: 4; right: 18px; bottom: 17px; left: 18px; padding: 13px 15px; border: 1px solid rgba(255,255,255,.7); border-radius: 12px; background: rgba(255,255,255,.9); backdrop-filter: blur(8px); }
 .active-location-copy strong, .active-location-copy span { display: block; }
@@ -2086,7 +2088,7 @@ textarea { resize: vertical; }
 .active-location-surface[data-state="off"] .active-location-route, .active-location-surface[data-state="stopped"] .active-location-route { opacity: .25; }
 @keyframes active-location-pulse { 50% { box-shadow: 0 0 0 12px rgba(14,102,91,.12), 0 6px 18px rgba(16,36,33,.22); } }
 .active-map-boundary { margin: 10px 2px 0; color: #61726d; font-size: .7rem; }
-.active-journey-facts { display: grid; grid-template-columns: repeat(4, 1fr); margin: 22px 0 0; border: 1px solid var(--line); border-radius: 14px; }
+.active-journey-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 22px 0 0; border: 1px solid var(--line); border-radius: 14px; }
 .active-journey-facts div { min-width: 0; padding: 14px; border-right: 1px solid var(--line); }
 .active-journey-facts div:last-child { border-right: 0; }
 .active-journey-facts dt, .active-property-instructions dt { color: var(--muted); font-size: .62rem; font-weight: 800; text-transform: uppercase; }
@@ -2330,7 +2332,7 @@ textarea { resize: vertical; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .active-location-cleaner { animation: none; }
+  .active-location-cleaner { transition: none; animation: none; }
   .active-progress-track i { transition: none; }
 }
 
