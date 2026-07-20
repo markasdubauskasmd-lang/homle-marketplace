@@ -66,7 +66,8 @@
     { "order": 62, "file": "062_cleaner_verification_authority.sql", "sha256": "51f69f554f2c9db1a25202ffd998e2d8894f7abf93a90dad90a0cc318ba99760" },
     { "order": 63, "file": "063_administrator_cleaner_verification.sql", "sha256": "d2bb7d5a72038c62c5ad7d926ad3632e0ae278306b69f320cfc675304cf74b2f" },
     { "order": 64, "file": "064_public_cleaner_distance_fallback.sql", "sha256": "6f343797ae1cee6eb27e926eabfd7eaa0d01f8d60cff0097c15ea19a80fb0010" },
-    { "order": 65, "file": "065_scan_summary_rate_limit.sql", "sha256": "61051765e5ffab5182ee2aca27c7da9e92e51acbbc80cd8cb9a3d92419b37528" }
+    { "order": 65, "file": "065_scan_summary_rate_limit.sql", "sha256": "61051765e5ffab5182ee2aca27c7da9e92e51acbbc80cd8cb9a3d92419b37528" },
+    { "order": 66, "file": "066_room_reading_rate_limit.sql", "sha256": "d5fa4b88d3f1677a00bdc91c5bbb2b084ea2af69a6ed168ee722953fbabb0bb7" }
   ],
   "grantFiles": [
     { "file": "runtime-role-grants.sql", "sha256": "ef6a77231573710ea66e57021b6738333e49f8f0e34941654772aa2f476d8cc4" },

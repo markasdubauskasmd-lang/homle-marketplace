@@ -2,6 +2,9 @@ import { AccountHttpError } from "./account-security.mjs";
 
 export const maximumBodyBytes = 64 * 1024;
 export const maximumWebhookBodyBytes = 1024 * 1024;
+// One captured room photograph, base64-encoded inside a JSON body. Bounded well
+// below the webhook allowance and used only by the room-reading route.
+export const maximumRoomPhotoBodyBytes = 900 * 1024;
 
 export function sendJson(response, statusCode, body, headers = {}) {
   response.writeHead(statusCode, {
@@ -17,14 +20,14 @@ function contentType(request) {
   return Array.isArray(supplied) ? supplied[0] : String(supplied || "");
 }
 
-export async function readJsonObject(request) {
+export async function readJsonObject(request, limitBytes = maximumBodyBytes) {
   if (!/^application\/json(?:\s*;|$)/i.test(contentType(request))) throw Object.assign(new SyntaxError("Send a JSON request body."), { code: "json-content-type-required" });
   const chunks = [];
   let byteLength = 0;
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     byteLength += buffer.length;
-    if (byteLength > maximumBodyBytes) throw Object.assign(new Error("The request body is too large."), { statusCode: 413, code: "request-too-large" });
+    if (byteLength > limitBytes) throw Object.assign(new Error("The request body is too large."), { statusCode: 413, code: "request-too-large" });
     chunks.push(buffer);
   }
   let value;
