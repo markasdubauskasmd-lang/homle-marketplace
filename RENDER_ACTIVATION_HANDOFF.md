@@ -24,12 +24,49 @@ Database: **`homle-marketplace-staging-db`** (Render free PostgreSQL 16, Frankfu
 
 Accounts, live updates and matching now work on the restricted real staging database.
 The remaining provider-backed blockers are transactional email and private room-photo
-storage. Payments intentionally remain off. The deployed commit is current with
-`main`, and `autoDeployTrigger` remains off by design.
+storage. Payments intentionally remain off.
+
+> **The deployed commit is now BEHIND `main`.** `autoDeployTrigger` is off by design,
+> so the work listed below is merged and CI-verified but **not yet live**. One
+> **Manual Deploy → Deploy latest commit** ships all of it.
+
+### 1a. Merged since the deployed release — needs a redeploy to go live
+
+Read this before deploying, so you know what changes for the founder.
+
+| PR | What it changes | Needs a Render setting? |
+|---|---|---|
+| **#24** | Speaking the room walkthrough now turns into concise Cleaner bullets **live**, about a second after each pause. The separate summarise step is gone. Typing works the same way. Manual edits to the checklist switch the live pass off so they are never overwritten. | No |
+| **#26** | The tracking page now shows **how close the Cleaner is** — a marker that travels toward the home plus an "Approach" readout. Derived from the estimated arrival *time*, never from coordinates, so the customer's home position never reaches the browser. No map provider, no API key, no cost. Progress is monotonic: a delay holds position and says "running later than expected" rather than moving the Cleaner backwards. | No |
+| **#27** | **Background jobs can finally run** (see Step 2b — this one *does* need settings) and **customers can now read written reviews** on Cleaner profiles. | **Yes — Step 2b** |
+| **#25** | Documentation only: recorded that room-photo storage blocks the first real booking. | No |
+
+Two things in #27 are worth understanding because they were silent product failures:
+
+1. **Automatic matching never worked.** The background workers were fully built, but no
+   process anywhere ran them. A Landlord who chose automatic matching received a success
+   message and then waited forever with no error. Step 2b fixes this. `/api/health` now
+   reports `automaticDispatchReady`, so the feature cannot be offered with nothing behind it.
+2. **Written reviews were invisible.** They were collected and moderated but never
+   displayed; customers saw only an average star rating. They now appear on profiles.
+   The Cleaner's *reply* is deliberately still not shown — a reply is written after
+   moderation and screened only for contact details, so publishing it could still name
+   the customer. Do not "fix" this without adding moderation for replies.
 
 ---
 
 ## 2. Actions on Render (in order)
+
+### Step 0b — Redeploy for everything merged since — OPEN
+`main` has moved past the deployed release: **#24, #25, #26, #27** (see section 1a for
+what each one changes). Configure Steps 1, 2, 2b and 3b **first**, then do a single
+**Manual Deploy → Deploy latest commit** so one redeploy activates all of it at once.
+
+**Open draft PR #23** (`agent/nearby-cleaner-postcode-search`) — CI is green and the
+code assistant reviewed it: the geocode fallback is fail-safe, and the wide
+`maximumDistanceKm: 500` is correctly bounded by each Cleaner's own
+`travel_radius_km` via `LEAST(...)` in migration 006. It was left unmerged only
+because it is still marked **draft** — mark it ready when you are finished with it.
 
 ### Step 0 — Redeploy from `main` — COMPLETE
 Render → `homle-marketplace-preview` → **Manual Deploy → Deploy latest commit**.
@@ -46,11 +83,56 @@ Environment tab, add either provider (pick one). **RESEND is easiest on Render f
 
 *(SMTP alternative: `EMAIL_DELIVERY_PROVIDER=smtp`, `SMTP_URL=smtps://user:pass@host:465`.)*
 
-### Step 2 — Room photos  (turns `mediaReady` → true)
+### Step 2 — Room photos  (turns `mediaReady` → true) — **NOW THE CRITICAL BLOCKER**
+The founder attempted the first real end-to-end booking on 2026-07-20 and could not
+save a room photo. This is not a bug: `mediaReady` is `false` because no bucket is
+configured. It blocks the whole walkthrough, because
+`db/migrations/030_private_request_room_scans.sql` requires at least one stored photo
+to submit a request (`photo_count < 1` → `request-scan-incomplete`). **No booking can
+be completed end to end until this step is done.** Treat it as the top priority.
+
 An S3-compatible private bucket (Cloudflare R2 / Backblaze B2 / AWS S3). Add:
 - `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`, `OBJECT_STORAGE_REGION`
 - `OBJECT_STORAGE_ACCESS_KEY_ID`, `OBJECT_STORAGE_SECRET_ACCESS_KEY` *(secret)*
 - `OBJECT_STORAGE_FORCE_PATH_STYLE` = `true` if the provider needs path-style URLs (R2/B2 usually do)
+
+Backblaze B2 is the cheapest route on a free stack (10 GB free). Keep the bucket
+**private** — the app issues short-lived signed URLs and the room-photo privacy model
+depends on the objects never being publicly readable.
+
+### Step 2b — Background jobs  (turns `automaticDispatchReady` → true) — **NEW, IMPORTANT**
+
+Until now **nothing on Render ever ran the background workers.** `render.yaml` defines
+only a web service, and a separate worker service needs a paid plan. The consequence
+was a silent product failure: a Landlord who chose **automatic matching** got a success
+message, and then their request sat in `searching-for-cleaner` forever. Invitation
+expiry/requeue never ran either, so a non-responding Cleaner blocked a request
+indefinitely, and the email outbox filled without ever being sent.
+
+The web service can now host those same jobs in its own process. Add:
+
+- `MARKETPLACE_INLINE_WORKERS` = `true`  ← **the new flag; without it nothing changes**
+- `MARKETPLACE_WORKER_ENABLED` = `true`
+- `WORKER_DATABASE_URL` = the **`tideway_worker`** connection string *(secret — dashboard only)*
+- `WORKER_AUTOMATIC_DISPATCH_ENABLED` = `true`
+- `WORKER_EMAIL_ENABLED` = `true` *(only once Step 1 email is configured)*
+- `WORKER_MEDIA_ENABLED` = `true` *(only once Step 2 storage is configured)*
+
+Rules that matter:
+
+1. **Set `MARKETPLACE_INLINE_WORKERS=true` on exactly one process.** If a standalone
+   worker service is ever added later, remove this flag from the web service first —
+   otherwise every job runs twice.
+2. `WORKER_DATABASE_URL` **must** authenticate as `tideway_worker`, not `tideway_app`.
+   The process refuses to start otherwise, by design.
+3. A free Render instance sleeps when idle, which pauses these jobs. They catch up on
+   the next request, so due work is not lost, but **wall-clock timing is not guaranteed
+   on the free plan.** Do not promise customers timed automatic dispatch until the
+   service no longer sleeps.
+4. Verify with `GET /api/health` → `marketplace.automaticDispatchReady: true`. If it is
+   `false`, the flag, the worker URL or `WORKER_AUTOMATIC_DISPATCH_ENABLED` is missing;
+   the service log states which. A worker that cannot start is logged loudly and left
+   off — it never takes the website down.
 
 ### Step 3 — Matching / pricing — COMPLETE FOR STAGING
 `matchingReady` requires the **complete** set of 12 `BOOKING_*` variables (all-or-nothing).
@@ -86,10 +168,20 @@ reports this exact setting.
 - Generate with `node tools/staging-account-email-hash.mjs <email>` (repo tool). Never commit the raw emails.
 
 ### Verify
-After Steps 1–2 and 3b, `GET /api/health` should show `emailReady`, `mediaReady`,
-`matchingReady` all `true`, and the Render environment preflight should report no
-marketplace-runtime omissions.
+After Steps 1–2, 2b and 3b, `GET /api/health` should show `emailReady`, `mediaReady`,
+`matchingReady` and `automaticDispatchReady` all `true`, and the Render environment
+preflight should report no marketplace-runtime omissions.
 Then create one landlord + one cleaner test account and run a booking end to end.
+
+### Recommended order for one sitting
+1. **Step 2 storage** — without it no booking can be submitted at all.
+2. **Step 1 email** — unlocks verification and notification delivery.
+3. **Step 2b background jobs** — makes automatic matching and invitation expiry real.
+4. **Step 3b** `GEOCODING_PROVIDER=postcodes-io` — real-distance matching.
+5. **One redeploy**, then walk a booking end to end on a phone.
+
+Everything above is dashboard configuration. **No code change is required for any of
+it** — the code for all five is merged and CI-verified on `main`.
 
 ---
 

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { createMaintenanceRepository } from "../src/marketplace/maintenance-repository.mjs";
 import { createMarketplaceMaintenanceJobs } from "../src/marketplace/maintenance-worker.mjs";
 import { createMarketplaceWorkerAttachment, probeMarketplaceWorkerDatabase, requiredWorkerFunctions, workerPoolEnvironment } from "../src/marketplace/worker-attachment.mjs";
@@ -148,5 +149,21 @@ const verification = await runPostgresWorkerVerification({
 });
 assert.deepEqual(verification, { database: "acme_tideway_test", postgresqlVersionNumber: 160014, functionCount: 15, jobs: 7, verified: true });
 assert.equal(verificationPoolClosed, 1);
+
+// Background jobs have no service of their own on a single-service deployment,
+// so the web process must be able to host them deliberately. Without this a
+// Landlord who chooses automatic matching waits forever and is never told.
+{
+  const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
+  assert.ok(serverSource.includes('createMarketplaceWorkerAttachment') && serverSource.includes('MARKETPLACE_INLINE_WORKERS'), "The web process cannot host the marketplace background workers.");
+  assert.ok(serverSource.includes('!== "true") return null;'), "Inline marketplace workers are not strictly opt-in, so a second process could run every job twice.");
+  assert.ok(serverSource.includes('inlineWorkerAttachment.close(),'), "Inline marketplace workers are not closed during shutdown.");
+  const inlineIndex = serverSource.indexOf('Inline marketplace workers could not start.');
+  assert.ok(inlineIndex > 0 && serverSource.slice(inlineIndex - 400, inlineIndex).includes('catch'), "A background worker that cannot start would take the whole site down with it.");
+  // Offering automatic matching that nothing can act on is the exact failure
+  // these workers exist to prevent, so health must report the real capability.
+  assert.ok(serverSource.includes('automaticDispatchReady: inlineWorkerAttachment?.capabilities?.dispatch === true'), "Health reports automatic dispatch as available even when no process is running the dispatch job.");
+  assert.ok(serverSource.includes('did not stop within the shutdown budget'), "Worker shutdown is unbounded, so a slow in-flight job would outlive the deployment grace period.");
+}
 
 console.log("Marketplace worker tests passed: exact packaged release, restricted maintenance, non-overlap, monitored recovery, privacy-safe health, optional capabilities, clean shutdown and disposable PostgreSQL verification guard.");

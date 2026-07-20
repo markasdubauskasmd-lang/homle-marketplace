@@ -22,7 +22,9 @@ import {
   taskCanBeDecided,
   taskCanBeQuickCompleted,
   taskNeedsCleanerTermsConfirmation,
-  taskCanBeUpdated
+  taskCanBeUpdated,
+  journeyProgress,
+  journeyDistanceLabel
 } from "./active-job-model.js";
 
 const bookingId = activeBookingId(location.pathname, location.search);
@@ -59,7 +61,7 @@ const reviewResponseForm = document.querySelector("[data-review-response-form]")
 const reviewResponseSubmit = document.querySelector("[data-review-response-submit]");
 const disputeForm = document.querySelector("[data-dispute-form]");
 const disputeSubmit = document.querySelector("[data-dispute-submit]");
-const state = { account: null, role: "", status: "", tracking: null, progress: null, property: null, review: null, reviewLoading: false, reviewMutationInFlight: false, dispute: null, disputeLoading: false, disputeMutationInFlight: false, disputeRetry: null, messages: [], messageCursor: null, messagesHasMore: false, messageRetry: null, messageLoading: false, messageSending: false, photoFile: null, photoPreviewUrl: "", photoRetry: null, photoUploadInFlight: false, photoViewInFlight: false, eventSource: null, watchId: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false };
+const state = { account: null, role: "", status: "", tracking: null, progress: null, property: null, review: null, reviewLoading: false, reviewMutationInFlight: false, dispute: null, disputeLoading: false, disputeMutationInFlight: false, disputeRetry: null, messages: [], messageCursor: null, messagesHasMore: false, messageRetry: null, messageLoading: false, messageSending: false, photoFile: null, photoPreviewUrl: "", photoRetry: null, photoUploadInFlight: false, photoViewInFlight: false, eventSource: null, watchId: null, journeyTickTimer: null, journeyMemory: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false };
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 document.querySelector("[data-booking-reference]").textContent = bookingId ? bookingId.slice(0, 8).toUpperCase() : "Invalid";
@@ -70,6 +72,7 @@ function storedCsrf() {
 
 function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry = false } = {}) {
   stopLocationSharing();
+  stopJourneyTicks();
   closeLiveStream();
   workspace.hidden = true;
   gate.hidden = false;
@@ -187,13 +190,72 @@ function renderJourney() {
   document.querySelector("[data-scheduled-start]").textContent = safeDateTime(tracking.scheduledStartAt || state.progress?.scheduledStartAt);
   document.querySelector("[data-eta]").textContent = live?.estimatedArrivalAt ? safeDateTime(live.estimatedArrivalAt, { date: false }) : stopped ? "Arrived" : "Not available";
   document.querySelector("[data-location-time]").textContent = live?.recordedAt ? safeDateTime(live.recordedAt) : tracking.arrivedAt ? safeDateTime(tracking.arrivedAt) : "Not recorded";
-  document.querySelector("[data-location-marker]").hidden = !live;
   const surface = document.querySelector("[data-location-surface]");
   surface.dataset.state = live ? "live" : stopped ? "stopped" : "off";
   document.querySelector("[data-location-heading]").textContent = live ? "Live position received" : stopped ? "Location sharing stopped" : "Location sharing is off";
   document.querySelector("[data-location-copy]").textContent = live
     ? `Updated ${safeDateTime(live.recordedAt, { date: false })}. Only the latest point is retained.`
     : stopped ? "Homle no longer receives the Cleaner’s position for this booking." : "No Cleaner coordinates are being collected.";
+  renderJourneyApproach(tracking);
+}
+
+// The approach indicator shows how far along the journey is without ever
+// plotting a street position: the marker travels between the start and the
+// home marker in proportion to how much of the estimated journey time is left.
+function renderJourneyApproach(tracking) {
+  const progress = journeyProgress({ ...tracking, status: currentStatus() }, journeyMemory(), Date.now());
+  if (progress.arrived || !progress.known) clearJourneyMemory();
+  else rememberJourney({ baselineMinutes: progress.baselineMinutes, achievedPercent: progress.achievedPercent });
+  const surface = document.querySelector("[data-location-surface]");
+  surface.style.setProperty("--journey-progress", String(progress.known ? progress.percent : 0));
+  surface.dataset.approach = progress.arrived ? "arrived" : progress.delayed ? "delayed" : progress.known ? "travelling" : "unknown";
+  // Without a usable estimate the Cleaner cannot be placed honestly, so the
+  // marker is withheld rather than parked at the start of the road.
+  document.querySelector("[data-location-marker]").hidden = !progress.known || progress.arrived;
+  document.querySelector("[data-journey-approach]").textContent = journeyDistanceLabel(progress);
+  scheduleJourneyTick(progress);
+}
+
+// An absolute arrival time keeps counting down between server updates, and a
+// stationary Cleaner produces no location callbacks at all, so the readout is
+// re-derived on a timer instead of only when a snapshot happens to arrive.
+function scheduleJourneyTick(progress) {
+  clearTimeout(state.journeyTickTimer);
+  if (!progress.known || progress.arrived) return;
+  state.journeyTickTimer = setTimeout(() => renderJourneyApproach(state.tracking || {}), 30000);
+}
+
+function stopJourneyTicks() {
+  clearTimeout(state.journeyTickTimer);
+  state.journeyTickTimer = null;
+}
+
+function journeyMemoryKey() {
+  return `homle:journey-baseline:${bookingId || "unknown"}`;
+}
+
+// A browser that refuses storage (private mode, quota, blocked cookies) still
+// tracks correctly for the life of the page through the in-memory copy; it only
+// loses the smoothing across a reload.
+function journeyMemory() {
+  if (state.journeyMemory) return state.journeyMemory;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(journeyMemoryKey()) || "null");
+    if (parsed && typeof parsed === "object") state.journeyMemory = parsed;
+  } catch {}
+  return state.journeyMemory || {};
+}
+
+function rememberJourney(memory) {
+  state.journeyMemory = memory;
+  try { localStorage.setItem(journeyMemoryKey(), JSON.stringify(memory)); } catch {}
+}
+
+// The journey breadcrumb is removed as soon as it stops being useful, so a
+// finished booking leaves no reference behind on a shared browser.
+function clearJourneyMemory() {
+  state.journeyMemory = null;
+  try { localStorage.removeItem(journeyMemoryKey()); } catch {}
 }
 
 function labelledTaskStatus(value) {
