@@ -40,6 +40,31 @@ Read this before deploying, so you know what changes for the founder.
 | **#26** | The tracking page now shows **how close the Cleaner is** — a marker that travels toward the home plus an "Approach" readout. Derived from the estimated arrival *time*, never from coordinates, so the customer's home position never reaches the browser. No map provider, no API key, no cost. Progress is monotonic: a delay holds position and says "running later than expected" rather than moving the Cleaner backwards. | No |
 | **#27** | **Background jobs can finally run** (see Step 2b — this one *does* need settings) and **customers can now read written reviews** on Cleaner profiles. | **Yes — Step 2b** |
 | **#25** | Documentation only: recorded that room-photo storage blocks the first real booking. | No |
+| **#29** | **The spoken walkthrough now produces a usable checklist.** The founder reported the previous output was unusable, and it was — see the section below, because two of the defects affected price and contract terms. | No |
+
+**Thank you — Steps 2b and 3b are confirmed working on the live service.** `GET /api/health`
+now reports `automaticDispatchReady: true` and `geocodingReady: true`, so background jobs
+are genuinely running and matching is distance-aware. `emailReady` and `mediaReady` are
+still `false`; **Step 2 (room-photo storage) remains the one blocker preventing any
+booking from being completed end to end.**
+
+#### Why #29 matters more than a formatting fix
+
+Browser speech recognition emits a continuous stream with almost no punctuation, but the
+parser looked for clause boundaries in punctuation and only recognised a room change from
+a formal lead-in. Natural speech broke it. Two of the defects were safety-critical,
+because this checklist is the Cleaner's work order **and feeds pricing**:
+
+1. **An exclusion could be inverted.** "the oven has grease but don't clean it" produced
+   **"Degrease the oven"** — the opposite of the instruction, on a separately priced item.
+   It also failed on `don’t` written with a typographic apostrophe, which is exactly what
+   phone keyboards and speech engines emit.
+2. **Scope words that change the price were dropped.** "inside of the oven" became a
+   generic oven clean; "a quick clean" became "Clean thoroughly".
+
+Both are fixed and covered by tests. If anyone later edits `public/checklist.js`, the
+tests in `tests/spoken-scope.mjs` exist to stop these two classes of defect returning —
+do not weaken them.
 
 Two things in #27 are worth understanding because they were silent product failures:
 
@@ -58,15 +83,16 @@ Two things in #27 are worth understanding because they were silent product failu
 ## 2. Actions on Render (in order)
 
 ### Step 0b — Redeploy for everything merged since — OPEN
-`main` has moved past the deployed release: **#24, #25, #26, #27** (see section 1a for
-what each one changes). Configure Steps 1, 2, 2b and 3b **first**, then do a single
-**Manual Deploy → Deploy latest commit** so one redeploy activates all of it at once.
+`main` has moved past the deployed release: **#24, #25, #26, #27, #29** (see section 1a
+for what each one changes). Steps 2b and 3b are already done and live. The remaining
+sequence is:
 
-**Open draft PR #23** (`agent/nearby-cleaner-postcode-search`) — CI is green and the
-code assistant reviewed it: the geocode fallback is fail-safe, and the wide
-`maximumDistanceKm: 500` is correctly bounded by each Cleaner's own
-`travel_radius_km` via `LEAST(...)` in migration 006. It was left unmerged only
-because it is still marked **draft** — mark it ready when you are finished with it.
+1. **Step 2 — object storage.** The last blocker; no booking can be completed without it.
+2. **Step 1 — email**, once a Resend key is available.
+3. **One Manual Deploy → Deploy latest commit**, which also ships #24, #26 and #29.
+
+PR #23 (nearby Cleaner postcode search) is merged and deployed — thank you. The live
+release now includes migration 064 and reports 64 locked migrations.
 
 ### Step 0 — Redeploy from `main` — COMPLETE
 Render → `homle-marketplace-preview` → **Manual Deploy → Deploy latest commit**.
