@@ -8,16 +8,15 @@
   <title>Landlord dashboard | Homle</title>
   <link rel="icon" href="/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css?v=20260718-100">
-  <script src="/landlord-dashboard.js?v=20260718-31" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260721-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
-  <script src="/notification-badge.js?v=20260716-1" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
   <header class="site-header">
     <div class="shell nav-wrap">
       <div class="workspace-brand"><a class="brand" href="/landlord/dashboard" aria-label="Homle Landlord dashboard"><img src="/logo.svg" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill landlord-workspace-pill">Landlord</span></div>
-      <nav class="directory-nav landlord-dashboard-nav" aria-label="Landlord dashboard navigation"><a href="/landlord/dashboard" aria-current="page">Dashboard</a><a href="#landlord-properties" data-open-landlord-section="properties">Properties</a><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a><a href="/cleaners">Find a Cleaner</a></nav>
+      <nav class="directory-nav landlord-dashboard-nav" aria-label="Landlord dashboard navigation"><a href="/landlord/dashboard" aria-current="page">Dashboard</a><a href="#landlord-properties" data-open-landlord-section="properties">Properties</a><a href="#landlord-bookings">Bookings</a><a href="/cleaners">Find a Cleaner</a></nav>
       <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="#landlord-account" data-open-landlord-section="account">Landlord profile</a><a href="#landlord-properties" data-open-landlord-section="properties">Manage properties</a><a href="/settings">Sign-in and privacy</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details>
     </div>
   </header>
@@ -60,12 +59,6 @@
         <dl class="landlord-dashboard-stats"><div><dt>Properties</dt><dd data-property-count>0</dd></div><div><dt>Request drafts</dt><dd data-draft-count>0</dd></div><div><dt>Active bookings</dt><dd data-landlord-active-count>0</dd><small>Confirmed records only</small></div></dl>
       </section>
 
-      <section class="dashboard-next-action" data-landlord-next aria-labelledby="landlord-next-title">
-        <span class="dashboard-next-mark" aria-hidden="true">→</span>
-        <div><p class="eyebrow">Do this next</p><h2 id="landlord-next-title" data-landlord-next-title>Start your first clean</h2><p data-landlord-next-copy>Save the cleaning location, then speak and scan each room.</p></div>
-        <a class="button" href="#" data-landlord-next-link hidden>Continue</a><button class="button" type="button" data-landlord-next-button>Start now</button>
-      </section>
-
       <section class="landlord-capability-note" data-landlord-media-readiness role="status" hidden>
         <span aria-hidden="true">i</span><div><strong data-landlord-capability-title>Private room-photo storage is being connected.</strong><p data-landlord-capability-copy>You can save the property, speak naturally and review the concise room checklist now. Camera upload and matching submission stay locked until Homle can store every photo privately.</p></div>
       </section>
@@ -95,7 +88,7 @@
         </span>
       </a>
 
-      <section class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
+      <section id="landlord-bookings" class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
         <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p><h2 id="landlord-bookings-title">Active and upcoming bookings</h2></div><div class="landlord-booking-live"><span data-landlord-booking-live role="status" aria-live="polite">Checking private booking updates…</span><button class="text-button" type="button" data-landlord-booking-refresh>Refresh booking status</button></div></div>
         <section class="landlord-waiting-section" data-landlord-waiting-section aria-labelledby="landlord-waiting-title" hidden><div><p class="eyebrow">Cleaner decision pending</p><h3 id="landlord-waiting-title">Waiting for a Cleaner response <span data-landlord-waiting-count>0</span></h3><p>The exact deadline below is private booking state shared with you. Homle updates this page when the Cleaner responds.</p></div><div class="booking-dashboard-list landlord-waiting-list" data-landlord-waiting-list></div></section>
         <div class="booking-dashboard-list" data-landlord-booking-list></div>
@@ -109,7 +102,7 @@
         </section>
       </section>
 
-      <nav class="landlord-workspace-tabs" role="tablist" aria-label="Landlord workspace sections"><button type="button" class="current" role="tab" data-landlord-tab="properties" aria-controls="landlord-panel-properties" aria-selected="true">Properties</button><button type="button" role="tab" data-landlord-tab="requests" aria-controls="landlord-panel-requests" aria-selected="false" tabindex="-1">Request drafts</button><button type="button" role="tab" data-landlord-tab="account" aria-controls="landlord-panel-account" aria-selected="false" tabindex="-1">Account</button></nav>
+      <nav class="landlord-workspace-tabs" role="tablist" aria-label="Landlord workspace sections"><button type="button" class="current" role="tab" data-landlord-tab="properties" aria-controls="landlord-panel-properties" aria-selected="true">Properties</button><button type="button" role="tab" data-landlord-tab="account" aria-controls="landlord-panel-account" aria-selected="false" tabindex="-1">Account</button></nav>
 
       <section id="landlord-panel-properties" role="tabpanel" data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title">
         <div class="landlord-panel-heading"><div><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your properties</h2></div><button class="button button-outline" type="button" data-toggle-property-form>Add property</button></div>

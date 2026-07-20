@@ -7,7 +7,7 @@ import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-fra
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260719-1";
-import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordBookingNextAction, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-5";
+import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-5";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -63,10 +63,6 @@ const taskPreview = document.querySelector("[data-task-preview]");
 const taskReviewStatus = document.querySelector("[data-task-review-status]");
 const cleaningTypeSelect = requestForm.elements.cleaningType;
 const cleaningTypeHint = document.querySelector("[data-cleaning-type-hint]");
-const nextTitle = document.querySelector("[data-landlord-next-title]");
-const nextCopy = document.querySelector("[data-landlord-next-copy]");
-const nextLink = document.querySelector("[data-landlord-next-link]");
-const nextButton = document.querySelector("[data-landlord-next-button]");
 const mediaReadiness = document.querySelector("[data-landlord-media-readiness]");
 const capabilityTitle = document.querySelector("[data-landlord-capability-title]");
 const capabilityCopy = document.querySelector("[data-landlord-capability-copy]");
@@ -566,7 +562,6 @@ function renderProperties() {
     ? "Your room scan can be saved to the selected private property."
     : "Start speaking now. Add a property before saving the request; your unfinished walkthrough stays in this tab.";
   document.querySelector("[data-property-count]").textContent = String(properties.length);
-  renderNextAction();
 }
 
 function applySuggestedCleaningType() {
@@ -1118,7 +1113,6 @@ function renderRequests() {
   requestList.hidden = requests.length === 0;
   const draftCount = requests.filter((request) => request.status === "draft").length;
   document.querySelector("[data-draft-count]").textContent = String(draftCount);
-  renderNextAction();
 }
 
 async function authorizeNextCleaner(requestId, attemptLimit, button, feedback) {
@@ -1428,7 +1422,6 @@ function renderBookings() {
   document.querySelector("[data-landlord-history-section]").hidden = buckets.history.length === 0;
   document.querySelector("[data-landlord-active-count]").textContent = String(current.length);
   renderLandlordHistory(historySummary);
-  renderNextAction();
   syncInvitationStream();
 }
 
@@ -1537,73 +1530,6 @@ async function removeFavouriteCleaner(cleanerId, button) {
   } finally {
     button.disabled = false;
   }
-}
-
-function renderNextAction() {
-  const bookingAction = landlordBookingNextAction(bookings);
-  const booking = bookingAction.booking;
-  nextLink.hidden = true;
-  nextButton.hidden = true;
-  delete nextButton.dataset.nextRequestId;
-  if (bookingAction.kind === "active-job") {
-    nextTitle.textContent = bookingAction.active ? "Open your live clean" : "View your confirmed clean";
-    nextCopy.textContent = `${booking.propertyName || "Your property"} · ${formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)}`;
-    nextLink.href = `/bookings/${booking.bookingId}`;
-    nextLink.textContent = bookingAction.active ? "Open live progress" : "View booking";
-    nextLink.hidden = false;
-    return;
-  }
-  if (bookingAction.kind === "payment") {
-    nextTitle.textContent = "Secure your confirmed booking";
-    nextCopy.textContent = `${booking.propertyName || "Your property"} is ready for its booking-total authorization.`;
-    nextLink.href = `/booking-payment?bookingId=${encodeURIComponent(booking.bookingId)}`;
-    nextLink.textContent = "Authorize booking";
-    nextLink.hidden = false;
-    return;
-  }
-  if (bookingAction.kind === "payment-waiting") {
-    nextTitle.textContent = "Payment opens closer to your clean";
-    nextCopy.textContent = `You can authorize ${booking.propertyName || "your property"} from ${formatBookingMoment(booking.paymentStepOpensAt)}. No action is needed now.`;
-    nextLink.href = `/bookings/${booking.bookingId}`;
-    nextLink.textContent = "View confirmed booking";
-    nextLink.hidden = false;
-    return;
-  }
-  if (!properties.length) {
-    nextTitle.textContent = "Add the property to clean";
-    nextCopy.textContent = "Only the name and address are needed now. Extra property details can wait.";
-    nextButton.textContent = "Add property";
-    nextButton.dataset.nextAction = "property";
-    nextButton.hidden = false;
-    return;
-  }
-  const activeRequest = requests.find((request) => ["searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "matched"].includes(request.status));
-  if (activeRequest) {
-    const waitingForCleaner = ["cleaner-invited", "pending-cleaner-acceptance"].includes(activeRequest.status);
-    const dispatchAction = landlordDispatchAction(activeRequest);
-    const needsAuthorization = ["authorize", "retry"].includes(dispatchAction.kind);
-    const matchingUnavailable = needsAuthorization && !matchingReady;
-    nextTitle.textContent = matchingUnavailable ? "Your request is saved safely" : needsAuthorization ? (dispatchAction.kind === "authorize" ? "Find your Cleaner" : "Try one more eligible Cleaner") : waitingForCleaner ? "A Cleaner is reviewing your request" : activeRequest.status === "matched" ? "Your Cleaner is matched" : "Homle is looking for your Cleaner";
-    nextCopy.textContent = matchingUnavailable ? "Private pricing or postcode-distance matching is not connected yet. Review the submitted room scan now; Homle will not send an invitation or create a booking." : needsAuthorization ? "Authorize exactly one next invitation. Homle still rechecks availability, service fit and profitable pricing before anything is sent." : `${requestStatusLabel(activeRequest.status)} · Review the submitted rooms, tasks and current status in one place.`;
-    nextButton.textContent = matchingUnavailable ? "Review saved request" : needsAuthorization ? (dispatchAction.kind === "authorize" ? "Find my Cleaner" : "Review next Cleaner attempt") : "View request status";
-    nextButton.dataset.nextAction = matchingUnavailable ? "submitted" : needsAuthorization ? "dispatch" : "submitted";
-    nextButton.dataset.nextRequestId = activeRequest.requestId;
-    nextButton.hidden = false;
-    return;
-  }
-  if (requests.some((request) => request.status === "draft")) {
-    nextTitle.textContent = mediaReady ? "Finish your room scan" : "Review your spoken room checklist";
-    nextCopy.textContent = mediaReady ? (matchingReady ? "Add room photos, check the spoken-note summary and submit the private request." : "Add room photos and submit the reviewed scan. It will stay safely saved until private pricing and postcode-distance matching are connected.") : "Your draft is safe. You can test the phone camera and short-video scan locally now; saving visuals and matching unlock only after private storage is verified.";
-    nextButton.textContent = "Continue room scan";
-    nextButton.dataset.nextAction = "draft";
-    nextButton.hidden = false;
-    return;
-  }
-  nextTitle.textContent = "Speak and scan your rooms";
-  nextCopy.textContent = "Choose the property, say what needs cleaning, then review the concise checklist.";
-  nextButton.textContent = "Start room scan";
-  nextButton.dataset.nextAction = "request";
-  nextButton.hidden = false;
 }
 
 async function loadWorkspace() {
@@ -2024,36 +1950,6 @@ cleaningTypeSelect.addEventListener("change", () => {
 speechButton.addEventListener("click", () => { if (!recognition) return; if (listening) recognition.stop(); else { try { recognition.start(); } catch { speechStatus.textContent = "Speech is already starting. Try again in a moment."; } } });
 requestForm.elements.transcript.addEventListener("input", () => { invalidateScopeReview("The walkthrough changed. Summarise again or manually reconcile every room task before confirming."); scheduleLiveSummarise(); });
 requestForm.elements.tasks.addEventListener("input", () => { tasksManuallyEdited = true; clearTimeout(liveSummariseTimer); renderTaskPreview(); invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });
-nextButton.addEventListener("click", () => {
-  const action = nextButton.dataset.nextAction;
-  if (action === "property") {
-    openPropertyEditor();
-    return;
-  }
-  if (action === "request") {
-    beginRoomWalkthrough();
-    return;
-  }
-  selectWorkspaceTab("requests");
-  if (action === "submitted") {
-    openRequestScan(nextButton.dataset.nextRequestId);
-    return;
-  }
-  if (action === "dispatch") {
-    const panel = [...document.querySelectorAll("[data-dispatch-request-id]")].find((candidate) => candidate.dataset.dispatchRequestId === nextButton.dataset.nextRequestId);
-    panel?.scrollIntoView({ behavior: "smooth", block: "center" });
-    panel?.querySelector("button")?.focus({ preventScroll: true });
-    return;
-  }
-  if (action === "draft") {
-    requestList.scrollIntoView({ behavior: "smooth", block: "start" });
-    requestList.querySelector("details")?.setAttribute("open", "");
-    return;
-  }
-  if (properties.length === 1) propertySelect.value = properties[0].propertyId;
-  requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
-  (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
-});
 propertyForm.addEventListener("input", () => { propertyDirty = true; });
 landlordProfileForm.addEventListener("input", () => { landlordProfileDirty = true; });
 requestForm.addEventListener("input", () => { requestDirty = true; scheduleWorkingRequestRecovery(); });
