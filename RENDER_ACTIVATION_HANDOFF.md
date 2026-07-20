@@ -160,6 +160,35 @@ Rules that matter:
    the service log states which. A worker that cannot start is logged loudly and left
    off — it never takes the website down.
 
+### Step 2c — Assisted walkthrough summary — OPTIONAL, founder decision
+
+The rule-based checklist parser is good but cannot understand phrasing it was
+not written for. PR #31 adds an **optional** assisted summary that reads the
+dictated walkthrough properly. It is **off unless configured** — with no
+provider set, nothing is sent anywhere and there is no cost.
+
+To enable, add to the Render web service:
+- `SPEECH_SUMMARY_PROVIDER` = `anthropic`
+- `ANTHROPIC_API_KEY` = `sk-ant-…` *(secret — dashboard only)*
+- `SPEECH_SUMMARY_MODEL` — optional; defaults to `claude-opus-4-8`
+
+**Do not enable this without the founder's decision.** Two things they must
+weigh, neither of which is a defect:
+
+1. **Cost.** Every pause during a walkthrough can trigger one metered call.
+   Usage is small per booking but it is real, recurring, per-customer spend.
+   A reviewed rate-limit scope (migration 065) caps abuse at 30 calls per
+   15 minutes per client, but it does not make honest usage free.
+2. **Privacy.** The words the Landlord speaks about the inside of their
+   property are sent to Anthropic. Room photos, addresses, account and booking
+   details are **not** — only the transcript, and a test enforces that. Whether
+   sending the spoken description off-platform is acceptable is a founder call,
+   and it should be reflected in the privacy policy before enabling.
+
+Verify with `GET /api/health` → `marketplace.speechSummaryReady: true`. If the
+provider is missing, misconfigured, rate-limited or slow, the Landlord silently
+keeps the on-device checklist — the walkthrough is never blocked.
+
 ### Step 3 — Matching / pricing — COMPLETE FOR STAGING
 `matchingReady` requires the **complete** set of 12 `BOOKING_*` variables (all-or-nothing).
 These set customer price and margin — **the founder must approve real values.** Starter
