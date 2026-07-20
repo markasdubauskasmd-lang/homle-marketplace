@@ -490,7 +490,7 @@ function acceptScan() {
     return;
   }
   stopCamera();
-  location.assign("/landlord/dashboard?start=booking&from=scan");
+  location.assign("/landlord/book");
 }
 
 function resetScan() {
