@@ -395,8 +395,13 @@ async function refreshSelectedCleanerProfile() {
 }
 
 function workspaceTabFromHash() {
-  const match = /^#landlord-(properties|requests|account)$/.exec(location.hash);
+  const match = /^#landlord-(properties|account)$/.exec(location.hash);
   return match?.[1] || "";
+}
+
+function clearLegacyRequestHash() {
+  if (location.hash !== "#landlord-requests") return;
+  history.replaceState(null, "", `${location.pathname}${location.search}`);
 }
 
 function selectWorkspaceTab(name, { historyMode = "" } = {}) {
@@ -1891,6 +1896,7 @@ function configureSpeech() {
 
 document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addEventListener("click", () => { selectWorkspaceTab(button.dataset.landlordTab, { historyMode: "push" }); }));
 window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "properties"));
+clearLegacyRequestHash();
 selectWorkspaceTab(workspaceTabFromHash() || "properties");
 document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link.addEventListener("click", (event) => {
   event.preventDefault();
