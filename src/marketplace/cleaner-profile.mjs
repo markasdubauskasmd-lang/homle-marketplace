@@ -277,7 +277,14 @@ export function createCleanerProfileService(repository, options = {}) {
       return editableAvailabilityProjection(await repository.withdrawOwnAvailability(actor, availabilityId.toLowerCase(), now().toISOString()));
     },
     async searchPublicProfiles(filters) {
-      const rows = await repository.searchPublicProfiles(normalizedCleanerSearch(filters));
+      let search = normalizedCleanerSearch(filters);
+      if (geocoder && search.outwardPostcode && search.latitude == null) {
+        try {
+          const coordinates = await geocoder.geocodeOutcode(search.outwardPostcode);
+          if (coordinates) search = normalizedCleanerSearch({ ...search, latitude: coordinates.latitude, longitude: coordinates.longitude, maximumDistanceKm: 500 });
+        } catch {}
+      }
+      const rows = await repository.searchPublicProfiles(search);
       return rows.map(publicCleanerProjection);
     },
     async getPublicProfile(cleanerId) {

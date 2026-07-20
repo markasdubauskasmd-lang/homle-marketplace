@@ -96,7 +96,12 @@ assert(!JSON.stringify(ownProfile).includes("private@example.com") && await reje
 {
   const outcodeCalls = [];
   let savedProfile;
-  const geoRepo = { ...fakeServiceRepository, async saveOwnProfile(actor, profile) { savedProfile = profile; return { profileCompletionPercent: profile.profileCompletionPercent }; } };
+  let searchedFilters;
+  const geoRepo = {
+    ...fakeServiceRepository,
+    async saveOwnProfile(actor, profile) { savedProfile = profile; return { profileCompletionPercent: profile.profileCompletionPercent }; },
+    async searchPublicProfiles(filters) { searchedFilters = filters; return publicRows; }
+  };
   const resolvingGeocoder = {
     async geocodeOutcode(outcode) { outcodeCalls.push(outcode); return outcode === "SW1A" ? { latitude: 51.5, longitude: -0.14 } : { latitude: 51.52, longitude: -0.06 }; }
   };
@@ -107,11 +112,23 @@ assert(!JSON.stringify(ownProfile).includes("private@example.com") && await reje
   const byE1 = savedProfile.serviceAreas.find((area) => area.outwardPostcode === "E1");
   assert(bySw1a.latitude === 51.5 && bySw1a.longitude === -0.14, "A service area without coordinates was not geocoded from its outward postcode.");
   assert(byE1.latitude === 51.51 && byE1.longitude === -0.05 && !outcodeCalls.includes("E1"), "A Cleaner-supplied service-area coordinate was overwritten or geocoded unnecessarily.");
+  await geoService.searchPublicProfiles({ outwardPostcode: "sw1a", serviceCode: "regular-domestic" });
+  assert(searchedFilters.outwardPostcode === "SW1A" && searchedFilters.latitude === 51.5 && searchedFilters.longitude === -0.14 && searchedFilters.maximumDistanceKm === 500, "A public outward-postcode search was not converted into travel-radius-aware nearby matching with its declared-area fallback preserved.");
 
   const failingGeocoder = { async geocodeOutcode() { return null; } };
   const failService = createCleanerProfileService(geoRepo, { now: () => new Date("2026-07-16T12:00:00.000Z"), geocoder: failingGeocoder });
   await failService.saveOwnProfile(cleanerActor, { ...completeInput, serviceAreas: [{ outwardPostcode: "sw1a" }] });
   assert(savedProfile.serviceAreas[0].latitude == null && savedProfile.serviceAreas[0].outwardPostcode === "SW1A", "An unresolved service-area geocode did not fail safe with null coordinates.");
+  await failService.searchPublicProfiles({ outwardPostcode: "sw1a" });
+  assert(searchedFilters.outwardPostcode === "SW1A" && searchedFilters.latitude == null && searchedFilters.maximumDistanceKm == null, "An unresolved public postcode search did not fall back to the exact outward area safely.");
+
+  const throwingService = createCleanerProfileService(geoRepo, { geocoder: { async geocodeOutcode() { throw new Error("provider unavailable"); } } });
+  await throwingService.searchPublicProfiles({ outwardPostcode: "sw1a" });
+  assert(searchedFilters.outwardPostcode === "SW1A" && searchedFilters.latitude == null, "A failed public geocoder blocked the directory instead of using its exact-area fallback.");
+
+  const malformedService = createCleanerProfileService(geoRepo, { geocoder: { async geocodeOutcode() { return { latitude: "private", longitude: 500 }; } } });
+  await malformedService.searchPublicProfiles({ outwardPostcode: "sw1a" });
+  assert(searchedFilters.outwardPostcode === "SW1A" && searchedFilters.latitude == null, "Malformed provider coordinates reached public matching instead of using the exact-area fallback.");
 }
 assert(!serialisedPublicResult.includes("private@example.com") && !serialisedPublicResult.includes("07123456789") && !serialisedPublicResult.includes("Private address") && !serialisedPublicResult.includes("acceptance_rate"), "Public cleaner projection exposed private contact, address or internal acceptance data.");
 assert(publicProfile.cleanerId === publicRows[0].cleaner_id && publicProfile.displayName === "Careful Cleaner" && !JSON.stringify(publicProfile).includes("private@example.com") && serviceCalls.at(-1).kind === "get-public" && await rejects(() => service.getPublicProfile("invalid"), "valid Cleaner profile") && await rejects(() => service.getPublicProfile("33333333-3333-4333-8333-333333333333"), "no longer publicly available"), "A direct public Cleaner lookup accepted an invalid/unavailable profile or exposed private account data.");
@@ -164,11 +181,13 @@ assert(editableProjection.serviceAreas.length === 1 && !Object.hasOwn(editablePr
 
 const rlsSql = await readFile(new URL("../db/migrations/002_marketplace_row_level_security.sql", import.meta.url), "utf8");
 const directorySql = await readFile(new URL("../db/migrations/006_cleaner_directory.sql", import.meta.url), "utf8");
+const directoryFallbackSql = await readFile(new URL("../db/migrations/064_public_cleaner_distance_fallback.sql", import.meta.url), "utf8");
 const publicLookupSql = await readFile(new URL("../db/migrations/057_public_cleaner_profile_lookup.sql", import.meta.url), "utf8");
 const runtimeGrantsSql = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const returnedColumns = directorySql.slice(directorySql.indexOf("RETURNS TABLE"), directorySql.indexOf("LANGUAGE sql"));
 assert(!rlsSql.includes("CREATE POLICY public_cleaner_areas") && !rlsSql.includes("cleaner_service_areas FOR SELECT USING (true)"), "Cleaner service-area coordinates remain directly public under RLS.");
 assert(directorySql.includes("candidate_outward_postcode") && directorySql.includes("candidate_service_code") && directorySql.includes("candidate_start_at") && directorySql.includes("candidate_minimum_rating") && directorySql.includes("candidate_maximum_price_pence") && directorySql.includes("candidate_verified_only") && directorySql.includes("candidate_maximum_distance_km") && directorySql.includes("profile_completion_percent = 100"), "Cleaner directory omitted a required public discovery filter or completeness gate.");
+assert(directoryFallbackSql.includes("public-cleaner-distance-fallback-v1") && directoryFallbackSql.includes("CREATE OR REPLACE FUNCTION tideway_private.search_cleaner_directory") && directoryFallbackSql.includes("candidate_latitude IS NOT NULL AND candidate_longitude IS NOT NULL") && directoryFallbackSql.includes("csa.latitude IS NULL") && directoryFallbackSql.includes("csa.longitude IS NULL") && directoryFallbackSql.includes("csa.outward_postcode = replace(upper(btrim(candidate_outward_postcode)), ' ', '')") && directoryFallbackSql.includes("REVOKE ALL ON FUNCTION tideway_private.search_cleaner_directory") && directoryFallbackSql.includes("TO tideway_app"), "Nearby Cleaner search does not preserve its restricted exact-area fallback for profiles awaiting coordinates.");
 assert(!returnedColumns.includes("email") && !returnedColumns.includes("phone") && !returnedColumns.includes("latitude") && !returnedColumns.includes("longitude") && runtimeGrantsSql.includes("search_cleaner_directory(text, text, timestamptz"), "Cleaner directory returns private location/contact data or lacks its restricted grant.");
 assert(publicLookupSql.includes("SECURITY DEFINER") && publicLookupSql.includes("account.account_status = 'active'") && publicLookupSql.includes("profile.is_public") && publicLookupSql.includes("profile.profile_completion_percent = 100") && publicLookupSql.includes("service.is_active") && publicLookupSql.includes("REVOKE ALL ON FUNCTION tideway_private.get_public_cleaner_profile(uuid) FROM PUBLIC") && !publicLookupSql.includes("account.email") && !publicLookupSql.includes("phone") && runtimeGrantsSql.includes("get_public_cleaner_profile(uuid)"), "Direct public Cleaner lookup lacks active/public/completion gates, leaks private contact data or is executable outside the restricted application role.");
 
