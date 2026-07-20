@@ -29,8 +29,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 64);
-  assert.equal(repositoryResult.migrations.at(-1), "064_public_cleaner_distance_fallback.sql");
+  assert.equal(repositoryResult.migrations.length, 65);
+  assert.equal(repositoryResult.migrations.at(-1), "065_scan_summary_rate_limit.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
