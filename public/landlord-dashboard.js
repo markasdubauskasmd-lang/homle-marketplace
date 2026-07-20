@@ -1974,7 +1974,11 @@ document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link
   if (accountMenu) accountMenu.open = false;
   document.querySelector(`[data-landlord-panel="${selected}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }));
-document.querySelector("[data-open-request-tab]").addEventListener("click", () => {
+// The redesigned dashboard sends its scan hero straight to the guided booking
+// journey, so the legacy in-page request button is not present on every layout.
+// Keep the old progressive-enhancement hook when that button exists without
+// preventing the authenticated workspace from loading when it does not.
+document.querySelector("[data-open-request-tab]")?.addEventListener("click", () => {
   beginRoomWalkthrough();
 });
 
