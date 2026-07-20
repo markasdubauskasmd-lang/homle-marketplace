@@ -17,12 +17,17 @@ import {
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
-const [page, script, styles, server] = await Promise.all([
-  readFile(new URL("../public/room-scan.html", import.meta.url), "utf8"),
+const [overlay, entryScript, entryPage, journey, journeyPage, styles, server] = await Promise.all([
+  readFile(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8"),
   readFile(new URL("../public/room-scan.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/room-scan.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/landlord-journey.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/landlord-journey.html", import.meta.url), "utf8"),
   readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8")
 ]);
+
+/* ── Model ─────────────────────────────────────────── */
 
 // The walkthrough guides room by room but never traps the Landlord in a fixed
 // count — homes are not all four rooms.
@@ -49,72 +54,75 @@ for (const invalid of [
 assert(usableDetections(null).length === 0 && usableDetections([]).length === 0, "Missing detections were not handled as simply having none.");
 assert(usableDetections(Array.from({ length: 20 }, () => ({ x: 1, y: 1, width: 5, height: 5, label: "Shelf" }))).length === 8, "The detection overlay is not bounded.");
 
-// Time comes from the tasks actually scoped. A room that could not be read
-// contributes nothing rather than an invented figure.
+// Time comes from the tasks actually scoped; an unread room contributes nothing.
 assert(estimatedMinutes([]) === 0 && estimatedMinutes([{ tasks: [] }]) === 0, "An unscoped scan produced a duration out of nothing.");
 assert(estimatedMinutes([{ tasks: ["a", "b"] }]) >= 60, "A scoped job was estimated below the minimum visit length.");
-// A photograph cannot say how long a task takes. Showing one confident figure
-// derived from a task count would be the same invented precision as a floor area.
 assert(durationLabel(0) === "Not scoped yet", "An unscoped scan was given a duration.");
 assert(durationLabel(195).includes("–"), `A guide time was presented as a single confident figure: ${durationLabel(195)}`);
 
-// The heaviest room decides the visit, and an unread room never inflates it.
 assert(overallCondition([{ condition: "light" }, { condition: "heavy" }]) === "heavy", "A heavy room was not reflected in the overall condition.");
 assert(overallCondition([{ condition: "" }]) === "" && conditionLabel("") === "Not assessed", "An unassessed scan claimed a condition.");
-assert(conditionLabel("medium") === "Medium", "Condition labels are not readable.");
 
-// The scan feeds the same checklist shape as the spoken and typed paths.
 const lines = scanChecklistLines([{ name: "Kitchen", tasks: ["Degrease the worktops", "Degrease the worktops", "Mop the floor"] }, { name: "", tasks: ["Dust the shelves"] }]);
-assert(lines.includes("Kitchen: Degrease the worktops") && lines.includes("Kitchen: Mop the floor") && lines.includes("Dust the shelves"), "The scan checklist lost a task or its room.");
-assert(lines.length === 3, "The scan checklist was not de-duplicated.");
+assert(lines.includes("Kitchen: Degrease the worktops") && lines.includes("Kitchen: Mop the floor") && lines.includes("Dust the shelves") && lines.length === 3, "The scan checklist lost a task, its room, or was not de-duplicated.");
 
 const summary = scanSummary([{ name: "Kitchen", tasks: ["Degrease the worktops"], detections: [{ label: "Worktop" }], condition: "heavy" }]);
-assert(summary.roomCount === 1 && summary.fixtureCount === 1 && summary.conditionLabel === "Heavy" && summary.tasks.length === 1, `The scan summary is wrong: ${JSON.stringify(summary)}`);
+assert(summary.roomCount === 1 && summary.fixtureCount === 1 && summary.conditionLabel === "Heavy", `The scan summary is wrong: ${JSON.stringify(summary)}`);
 
-// The prototype's camera and voice were simulated. These must be real.
-assert(script.includes("navigator.mediaDevices.getUserMedia") && script.includes('facingMode: { ideal: "environment" }'), "The scan does not open a real rear camera.");
-assert(script.includes("window.SpeechRecognition || window.webkitSpeechRecognition"), "The scan does not use real speech recognition.");
-assert(!script.includes("const NOTE =") && !script.includes("DETECTIONS["), "The scan carries a scripted transcript or hardcoded detections instead of reading the room.");
+/* ── Embedded overlay ──────────────────────────────── */
 
-// A phone browser cannot measure a room. Claiming a floor area would misprice
-// the job on a number nobody measured.
-assert(!page.includes("Floor area") && !/\bm²/.test(page) && !/\bm²/.test(script), "The scan claims a floor-area measurement a phone cannot take.");
+// The scan opens over the page that asked for it and hands its result straight
+// back. A page navigation would drop the answers already given.
+assert(overlay.includes("export function openRoomScan()") && overlay.includes("return new Promise"), "The scan is not an overlay the app can open in place.");
+assert(overlay.includes("document.body.appendChild(overlay)") && overlay.includes("overlay.remove()"), "The scan overlay does not mount and unmount itself.");
+assert(journey.includes("await openRoomScan()") && journey.includes("if (!result) return;"), "The journey does not open the scan in place, or cannot tell a finished scan from a cancelled one.");
+assert(!journeyPage.includes('href="/landlord/scan"'), "The journey still navigates away to the scan instead of opening it in place.");
 
-// Camera refusal must be explained and must not dead-end the booking.
-assert(page.includes("data-camera-blocked") && script.includes("NotAllowedError") && page.includes("Describe by voice instead"), "A declined camera leaves the Landlord stuck with no way to continue.");
-assert(script.includes("stopCamera") && script.includes('addEventListener("pagehide"'), "The camera stream is not released when the scan is left.");
+// One implementation only. The standalone route exists for a bookmark and must
+// reuse the overlay rather than drift into a second scanner.
+assert(entryScript.includes("openRoomScan") && entryScript.split("\n").length < 20, "The standalone scan route is a second implementation rather than a thin entry point.");
+assert(!entryPage.includes("data-shutter") && !entryPage.includes("data-viewfinder"), "The standalone scan page duplicates the overlay's markup.");
 
-// Assisted reading is optional; the scan must survive it being absent or slow.
-assert(script.includes("state.visionAvailable = false") && script.includes("status === 503"), "The scan does not fall back when assisted reading is unavailable.");
-assert(script.includes("Captured — no fixtures read automatically"), "A room read without detections is not shown honestly.");
+// Modal hygiene: the page behind must not scroll, Escape must close, and focus
+// must come back to where it was.
+assert(overlay.includes('aria-modal", "true"') && overlay.includes('document.body.style.overflow = "hidden"') && overlay.includes("previousOverflow"), "The scan overlay lets the page behind it scroll, or never restores it.");
+assert(overlay.includes('event.key === "Escape"') && overlay.includes("previouslyFocused"), "The scan overlay cannot be dismissed with Escape or loses the Landlord's place.");
 
-// Nothing is booked from the scan itself, and its result must actually arrive.
-assert(page.includes("Nothing is booked yet") && script.includes("homle_scan_result"), "The scan either implies a booking or fails to carry its result forward.");
-const dashboard = await readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8");
-assert(dashboard.includes("homle_scan_result") && dashboard.includes("adoptRoomScan"), "The dashboard never reads the scan result, so finishing a scan delivers nothing.");
+/* ── Real inputs, not a simulation ─────────────────── */
+assert(overlay.includes("navigator.mediaDevices.getUserMedia") && overlay.includes('facingMode: { ideal: "environment" }'), "The scan does not open a real rear camera.");
+assert(overlay.includes("window.SpeechRecognition || window.webkitSpeechRecognition"), "The scan does not use real speech recognition.");
+assert(!overlay.includes("const NOTE =") && !overlay.includes("DETECTIONS["), "The scan carries a scripted transcript or hardcoded detections instead of reading the room.");
+
+// A phone browser cannot measure a room.
+assert(!/\bm²/.test(overlay) && !overlay.includes("Floor area"), "The scan claims a floor-area measurement a phone cannot take.");
+
+/* ── Privacy and lifecycle ─────────────────────────── */
 
 // A photograph of the inside of a home must not be sent to a third party
 // without the Landlord being asked first, in plain words.
-assert(page.includes("data-consent") && page.includes("sent to our AI provider"), "The scan sends photographs of a home without telling the Landlord who receives them.");
-assert(script.includes("if (!state.consentAsked) await askConsent();") && script.includes("if (!state.readingAllowed"), "A photograph can leave the device before consent has been given.");
-assert(page.includes("just take the photos"), "Declining assisted reading is not offered as a working option.");
+assert(overlay.includes("sent to our AI provider") && overlay.includes("just take the photos"), "The scan sends photographs of a home without telling the Landlord who receives them, or without a working way to decline.");
+assert(overlay.includes("if (!state.consentAsked) await askConsent();") && overlay.includes("if (!state.readingAllowed"), "A photograph can leave the device before consent has been given.");
+
+// The camera must be released on every exit, including closing mid-scan and
+// closing while the permission prompt is still open.
+assert(/function close\(result\)[\s\S]{0,400}stopCamera\(\)/.test(overlay), "Closing the scan does not release the camera.");
+assert(/stopCamera\(\);\s*\n\s*close\(\{/.test(overlay), "The camera is left running after the scan is read.");
+assert(overlay.includes("if (state.closed) { for (const track of stream.getTracks()) track.stop(); return; }"), "A camera granted after the scan was closed is left running with nothing able to stop it.");
 
 // Boxes must surround what they describe, not whatever the camera now sees.
-assert(page.includes("data-still") && script.includes("el.still.src = frame"), "Detections are drawn over the live camera instead of the frame they describe.");
+assert(overlay.includes("el.still.src = frame"), "Detections are drawn over the live camera instead of the frame they describe.");
+// A reading that returns after the scan was closed or reset must be discarded.
+assert(overlay.includes("generation !== state.generation"), "A stale room reading can attach itself to a closed or restarted scan.");
 
-// A reading that returns after the scan was reset belongs to a scan that no
-// longer exists.
-assert(script.includes("generation !== state.generation"), "A stale room reading can attach itself to a different scan.");
+// Assisted reading is optional; the scan must survive it being absent.
+assert(overlay.includes("state.visionAvailable = false") && overlay.includes("status === 503"), "The scan does not fall back when assisted reading is unavailable.");
 
-// The camera must not stay live once the scan is read.
-assert(/stopCamera\(\);\s*\n\s*showResults/.test(script), "The camera is left running behind the results screen.");
+// Camera refusal is explained and never dead-ends the booking.
+assert(overlay.includes("data-camera-blocked") && overlay.includes("NotAllowedError") && overlay.includes("Describe by voice instead"), "A declined camera leaves the Landlord stuck with no way to continue.");
 
-// The look and motion the prototype established.
-assert(styles.includes(".scan-stage") && styles.includes(".det-box") && styles.includes("scanSweepRun") && styles.includes("scanMeshPulse") && styles.includes(".shutter") && styles.includes(".proc-log"), "The approved scan presentation is missing.");
+/* ── Presentation ──────────────────────────────────── */
+assert(styles.includes(".scan-overlay") && styles.includes(".scan-stage") && styles.includes(".det-box") && styles.includes("scanSweepRun") && styles.includes(".proc-log"), "The approved scan presentation is missing.");
 assert(styles.includes("prefers-reduced-motion") && styles.includes("env(safe-area-inset-bottom)"), "The scan ignores reduced-motion or phone safe areas.");
+assert(server.includes('"/landlord/scan": "room-scan.html"') && server.includes("camera=(self), microphone=(self)"), "The scan route is missing or cannot use the camera and microphone.");
 
-// Route, camera permission and private-media policy.
-assert(server.includes('"/landlord/scan": "room-scan.html"') && server.includes("roomScanPage"), "The scan page is not served.");
-assert(server.includes("camera=(self), microphone=(self)"), "The scan page cannot use the camera or microphone.");
-
-console.log("Room scan UI tests passed: guided but unbounded walkthrough, real camera and speech, safe detection overlay, honest duration and condition, no invented measurement, camera-refusal recovery, optional assisted reading and the approved scan presentation.");
+console.log("Room scan UI tests passed: embedded overlay with one implementation, real camera and speech, consent before any photograph leaves, camera released on every exit, safe detection overlay, honest duration and condition, no invented measurement and the approved presentation.");

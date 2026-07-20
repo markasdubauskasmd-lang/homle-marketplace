@@ -16,6 +16,7 @@ import {
   checkoutMode,
   checkoutCopy
 } from "./landlord-journey-model.js";
+import { openRoomScan } from "./room-scan-overlay.js";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -219,11 +220,28 @@ function renderServices() {
   }
 }
 
-el.scanLink.addEventListener("click", (event) => {
+// The scan opens over the journey rather than navigating away, so the answers
+// already given stay on screen behind it and the result comes straight back
+// instead of being handed through storage across a page load.
+el.scanLink.addEventListener("click", async () => {
   readCurrentStep();
-  if (!canLeaveStep("service", state.draft)) {
-    event.preventDefault();
-    toast(blockedReason("service", state.draft));
+  if (!canLeaveStep("service", state.draft)) return toast(blockedReason("service", state.draft));
+  el.scanLink.disabled = true;
+  try {
+    const result = await openRoomScan();
+    // Closed without finishing: the journey is exactly where it was left.
+    if (!result) return;
+    state.draft.tasks = Array.isArray(result.tasks) ? result.tasks : [];
+    state.draft.transcript = typeof result.transcript === "string" ? result.transcript : "";
+    state.draft.rooms = Array.isArray(result.rooms) ? result.rooms : [];
+    state.draft.guideTime = typeof result.guideTime === "string" ? result.guideTime : "";
+    saveDraft();
+    show("results");
+    toast(state.draft.tasks.length
+      ? `${state.draft.tasks.length} ${state.draft.tasks.length === 1 ? "task" : "tasks"} from your scan. Check them before continuing.`
+      : "Your scan is saved. Add the checklist below before continuing.");
+  } finally {
+    el.scanLink.disabled = false;
   }
 });
 el.skipScan.addEventListener("click", () => {
