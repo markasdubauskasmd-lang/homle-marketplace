@@ -70,6 +70,31 @@
         <span aria-hidden="true">i</span><div><strong data-landlord-capability-title>Private room-photo storage is being connected.</strong><p data-landlord-capability-copy>You can save the property, speak naturally and review the concise room checklist now. Camera upload and matching submission stay locked until Homle can store every photo privately.</p></div>
       </section>
 
+      <!-- The scan is how a booking starts, so it leads the dashboard. The whole
+           banner is the target, and it opens the guided journey directly. -->
+      <a class="scan-hero" href="/landlord/book" data-scan-hero aria-labelledby="scan-hero-title">
+        <span class="scan-hero-glow" aria-hidden="true"></span>
+        <span class="scan-hero-grid" aria-hidden="true"></span>
+        <span class="scan-hero-sweep" aria-hidden="true"></span>
+        <span class="scan-hero-body">
+          <span class="scan-hero-eyebrow"><span class="scan-hero-dot" aria-hidden="true"></span>Start here</span>
+          <span class="scan-hero-title" id="scan-hero-title">Scan your rooms.<br>We'll write the checklist.</span>
+          <span class="scan-hero-copy">Walk through with your camera and talk normally. Homle turns it into the exact task list your Cleaner ticks off — then finds who's free near you.</span>
+          <span class="scan-hero-cta">
+            <span class="scan-hero-button">Start room scan
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </span>
+            <span class="scan-hero-time">About a minute</span>
+          </span>
+        </span>
+        <span class="scan-hero-frame" aria-hidden="true">
+          <span class="scan-hero-reticle"><i></i><i></i><i></i><i></i></span>
+          <span class="scan-hero-tag scan-hero-tag-1">Worktop<em>grease</em></span>
+          <span class="scan-hero-tag scan-hero-tag-2">Shower screen<em>limescale</em></span>
+          <span class="scan-hero-tag scan-hero-tag-3">Floor<em>mop</em></span>
+        </span>
+      </a>
+
       <section class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
         <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p><h2 id="landlord-bookings-title">Active and upcoming bookings</h2></div><div class="landlord-booking-live"><span data-landlord-booking-live role="status" aria-live="polite">Checking private booking updates…</span><button class="text-button" type="button" data-landlord-booking-refresh>Refresh booking status</button></div></div>
         <section class="landlord-waiting-section" data-landlord-waiting-section aria-labelledby="landlord-waiting-title" hidden><div><p class="eyebrow">Cleaner decision pending</p><h3 id="landlord-waiting-title">Waiting for a Cleaner response <span data-landlord-waiting-count>0</span></h3><p>The exact deadline below is private booking state shared with you. Homle updates this page when the Cleaner responds.</p></div><div class="booking-dashboard-list landlord-waiting-list" data-landlord-waiting-list></div></section>
@@ -82,10 +107,6 @@
           <div class="landlord-previous-cleaners"><strong>Cleaners you have booked before</strong><div class="landlord-previous-cleaner-list" data-landlord-previous-cleaners></div><p data-landlord-previous-empty>Previous Cleaners appear here after a completed clean. Their personal contact details are never shown.</p></div>
           <div class="landlord-favourite-cleaners"><div class="landlord-favourite-heading"><div><strong>Favourite Cleaners</strong><p>Save public profiles for a quicker future cleaning request.</p></div><a class="text-button" href="/cleaners">Find a Cleaner</a></div><div class="landlord-favourite-list" data-landlord-favourite-cleaners></div><p data-landlord-favourite-empty>No saved Cleaners yet. Saving a Cleaner never creates a booking or shares private contact details.</p><div class="landlord-form-feedback" data-landlord-favourite-feedback role="status" aria-live="polite" hidden></div></div>
         </section>
-      </section>
-
-      <section class="landlord-scan-boundary" aria-labelledby="scan-boundary-title">
-        <span aria-hidden="true">01</span><div><p class="eyebrow">Room scan is the core booking input</p><h2 id="scan-boundary-title">Speak first. Homle makes the checklist.</h2><p>Start the room walkthrough immediately, even before adding a property. Homle turns the spoken notes into concise Cleaner tasks; timing, private photos and deliberate submission follow.</p></div><button class="button" type="button" data-open-request-tab>Start speaking room scan</button>
       </section>
 
       <nav class="landlord-workspace-tabs" role="tablist" aria-label="Landlord workspace sections"><button type="button" class="current" role="tab" data-landlord-tab="properties" aria-controls="landlord-panel-properties" aria-selected="true">Properties</button><button type="button" role="tab" data-landlord-tab="requests" aria-controls="landlord-panel-requests" aria-selected="false" tabindex="-1">Request drafts</button><button type="button" role="tab" data-landlord-tab="account" aria-controls="landlord-panel-account" aria-selected="false" tabindex="-1">Account</button></nav>
