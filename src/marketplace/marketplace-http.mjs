@@ -90,6 +90,8 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const media = dependencies?.mediaService;
   const requestMedia = dependencies?.requestMediaService;
   const messages = dependencies?.messageService;
+  // Optional by design — absent means the on-device parser stays the only path.
+  const speechSummary = dependencies?.speechSummary || null;
   const realtime = dependencies?.realtimeService;
   const notifications = dependencies?.notificationService;
   const reviews = dependencies?.reviewService;
@@ -563,6 +565,31 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request);
           security.requireOrigin(request);
           await realtime.openStream(context.actor, selectedEvents[1], request, response, request.headers?.["last-event-id"] || url.searchParams.get("afterEventId") || 0, context.expiresAt);
+          return true;
+        }
+        // Understanding a dictated walkthrough happens server-side so the
+        // provider credential never reaches the browser. It is optional: with
+        // no provider configured the Landlord keeps the on-device parser, which
+        // is also what the browser falls back to if this call fails.
+        if (pathname === "/api/marketplace/landlord/scan-summary") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          // This call spends money with a metered provider, so an authenticated
+          // Landlord replaying their own valid session must not be able to
+          // drive unbounded provider cost.
+          await limitPublicRead(request, "marketplace-landlord:scan-summary");
+          if (!speechSummary) {
+            sendJson(response, 503, { ok: false, error: "Assisted walkthrough summaries are not configured." });
+            return true;
+          }
+          const body = await readJsonObject(request);
+          try {
+            sendJson(response, 200, { ok: true, tasks: await speechSummary.summarise(body?.transcript) });
+          } catch (error) {
+            // The provider being unavailable must never block the walkthrough,
+            // and its internal error text is never surfaced to the Landlord.
+            sendJson(response, 502, { ok: false, error: "The walkthrough could not be summarised automatically." });
+          }
           return true;
         }
         if (pathname === "/api/marketplace/landlord/favourite-cleaners") {

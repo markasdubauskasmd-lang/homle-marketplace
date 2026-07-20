@@ -89,6 +89,10 @@ let landlordProfile = null;
 let recognition = null;
 let tasksManuallyEdited = false;
 let liveSummariseTimer = null;
+let assistedSummariseTimer = null;
+let assistedSummaryInFlight = false;
+let assistedSummaryUnavailable = false;
+let assistedSummaryTranscript = "";
 let listening = false;
 let speechFailed = false;
 let speechChangedDuringListen = false;
@@ -1853,6 +1857,56 @@ function scheduleLiveSummarise() {
   liveSummariseTimer = setTimeout(() => {
     if (requestForm.elements.transcript.value.trim()) summariseSpeech({ automatic: true, live: true });
   }, 900);
+  // The on-device pass keeps the bullets moving while the Landlord is still
+  // talking; the assisted pass refines them once they pause, because it needs
+  // a round trip and only settled speech is worth sending.
+  clearTimeout(assistedSummariseTimer);
+  assistedSummariseTimer = setTimeout(requestAssistedSummary, 2500);
+}
+
+// Assisted understanding is optional and best-effort. Any failure — not
+// configured, offline, provider down, slow — leaves the on-device bullets
+// exactly as they are. The Landlord is never blocked and never sees an error
+// for a feature they did not ask for.
+async function requestAssistedSummary() {
+  if (tasksManuallyEdited || assistedSummaryInFlight || assistedSummaryUnavailable) return;
+  const transcript = requestForm.elements.transcript.value.trim();
+  if (transcript.length < 20 || transcript === assistedSummaryTranscript) return;
+  const csrf = storedCsrf();
+  // This is a background convenience, so it never triggers the interactive
+  // token-recovery flow — a missing token simply means no assisted pass.
+  if (!csrf) return;
+  assistedSummaryInFlight = true;
+  try {
+    const result = await requestJson("/api/marketplace/landlord/scan-summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ transcript })
+    });
+    const tasks = Array.isArray(result?.tasks) ? result.tasks.filter((task) => typeof task === "string" && task.trim()) : [];
+    // Re-check every guard against the state as it is NOW, not as it was when
+    // the request was sent. The Landlord may have kept speaking, started
+    // editing, loaded a saved checklist or reset the form while this was in
+    // flight — applying a stale answer would discard whichever of those is
+    // newer than the transcript this response was built from.
+    if (!tasks.length || tasksManuallyEdited) return;
+    if (requestForm.elements.transcript.value.trim() !== transcript) return;
+    assistedSummaryTranscript = transcript;
+    const value = tasks.join("\n");
+    if (requestForm.elements.tasks.value.trim() === value) return;
+    invalidateScopeReview("The concise checklist changed. Review every room task again before saving.");
+    requestForm.elements.tasks.value = value;
+    renderTaskPreview();
+    requestDirty = true;
+    scheduleWorkingRequestRecovery();
+    speechStatus.textContent = `${tasks.length} room ${tasks.length === 1 ? "task" : "tasks"} understood from your walkthrough. Review every bullet before confirming.`;
+  } catch (error) {
+    // A 503 means no provider is configured on this deployment; stop asking for
+    // the rest of the session rather than retrying on every pause.
+    if (error?.statusCode === 503) assistedSummaryUnavailable = true;
+  } finally {
+    assistedSummaryInFlight = false;
+  }
 }
 
 function configureSpeech() {
