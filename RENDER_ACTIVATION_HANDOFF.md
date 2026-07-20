@@ -24,18 +24,43 @@ Database: **`homle-marketplace-staging-db`** (Render free PostgreSQL 16, Frankfu
 
 Accounts, live updates and matching now work on the restricted real staging database.
 The remaining provider-backed blockers are transactional email and private room-photo
-storage. Payments intentionally remain off. The deployed commit is current with
-`main`, and `autoDeployTrigger` remains off by design.
+storage. Payments intentionally remain off.
+
+> **The deployed commit is now BEHIND `main`.** `autoDeployTrigger` is off by design,
+> so the work listed below is merged and CI-verified but **not yet live**. One
+> **Manual Deploy → Deploy latest commit** ships all of it.
+
+### 1a. Merged since the deployed release — needs a redeploy to go live
+
+Read this before deploying, so you know what changes for the founder.
+
+| PR | What it changes | Needs a Render setting? |
+|---|---|---|
+| **#24** | Speaking the room walkthrough now turns into concise Cleaner bullets **live**, about a second after each pause. The separate summarise step is gone. Typing works the same way. Manual edits to the checklist switch the live pass off so they are never overwritten. | No |
+| **#26** | The tracking page now shows **how close the Cleaner is** — a marker that travels toward the home plus an "Approach" readout. Derived from the estimated arrival *time*, never from coordinates, so the customer's home position never reaches the browser. No map provider, no API key, no cost. Progress is monotonic: a delay holds position and says "running later than expected" rather than moving the Cleaner backwards. | No |
+| **#27** | **Background jobs can finally run** (see Step 2b — this one *does* need settings) and **customers can now read written reviews** on Cleaner profiles. | **Yes — Step 2b** |
+| **#25** | Documentation only: recorded that room-photo storage blocks the first real booking. | No |
+
+Two things in #27 are worth understanding because they were silent product failures:
+
+1. **Automatic matching never worked.** The background workers were fully built, but no
+   process anywhere ran them. A Landlord who chose automatic matching received a success
+   message and then waited forever with no error. Step 2b fixes this. `/api/health` now
+   reports `automaticDispatchReady`, so the feature cannot be offered with nothing behind it.
+2. **Written reviews were invisible.** They were collected and moderated but never
+   displayed; customers saw only an average star rating. They now appear on profiles.
+   The Cleaner's *reply* is deliberately still not shown — a reply is written after
+   moderation and screened only for contact details, so publishing it could still name
+   the customer. Do not "fix" this without adding moderation for replies.
 
 ---
 
 ## 2. Actions on Render (in order)
 
-### Step 0b — Redeploy again for the live-speech fix — OPEN
-`main` has moved past the deployed release. Merged since: **#24** (walkthrough speech
-now turns into concise bullets live, from the founder's first-run feedback) and **#22**.
-Deploy latest commit so the founder sees the fix they asked for. Combine this with
-Step 2 below in a single redeploy if the bucket is configured first.
+### Step 0b — Redeploy for everything merged since — OPEN
+`main` has moved past the deployed release: **#24, #25, #26, #27** (see section 1a for
+what each one changes). Configure Steps 1, 2, 2b and 3b **first**, then do a single
+**Manual Deploy → Deploy latest commit** so one redeploy activates all of it at once.
 
 **Open draft PR #23** (`agent/nearby-cleaner-postcode-search`) — CI is green and the
 code assistant reviewed it: the geocode fallback is fail-safe, and the wide
