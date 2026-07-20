@@ -82,9 +82,9 @@ assert(page.includes("data-rail") && page.includes("data-step-label") && page.in
 assert(styles.includes(".rail-seg") && styles.includes(".rail-lbl") && styles.includes(".jstep"), "The journey presentation is missing.");
 
 // The scan is an interstitial in the journey, not a dead end.
-assert(page.includes('href="/landlord/scan"'), "The journey never offers the room scan.");
-assert(scanPage.includes('href="/landlord/book"'), "Leaving the scan does not return to the journey.");
-assert(script.includes("homle_scan_result") && script.includes("adoptScan"), "A finished scan does not hand its checklist to the journey.");
+assert(page.includes("data-scan-link") && script.includes("openRoomScan"), "The journey never offers the room scan.");
+assert(scanPage.includes("/landlord/book") || script.includes("await openRoomScan()"), "Leaving the scan does not return to the journey.");
+assert(script.includes("await openRoomScan()") && script.includes("state.draft.tasks = Array.isArray(result.tasks)"), "A finished scan does not hand its checklist straight back to the journey.");
 
 // A long journey must survive a refresh or an interruption.
 assert(script.includes("homle_journey_draft") && script.includes("restoreDraft"), "Answers are lost if the Landlord refreshes or is interrupted.");

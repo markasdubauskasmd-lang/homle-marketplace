@@ -7,144 +7,17 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Room scan — Homle</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/styles.css?v=scan1">
+<link rel="stylesheet" href="/styles.css?v=scan2">
 </head>
 <body class="scan-page">
-<main class="scan-stage" data-scan-stage>
-
-  <!-- Live camera. The frame never leaves the device unless the Landlord
-       captures a photo, and even then only if assisted reading is enabled. -->
-  <div class="vf" data-viewfinder>
-    <video class="vf-feed" data-camera playsinline muted autoplay></video>
-    <canvas class="vf-capture" data-capture-canvas hidden></canvas>
-    <div class="mesh" data-mesh></div>
-    <div data-detection-layer></div>
-    <div class="sweep" data-sweep></div>
-    <div class="reticle" aria-hidden="true">
-      <div class="ret-c ret-tl"></div><div class="ret-c ret-tr"></div>
-      <div class="ret-c ret-bl"></div><div class="ret-c ret-br"></div>
-    </div>
-    <!-- The still that was actually read. Detection boxes are drawn over this,
-         never over the live feed, so a box always surrounds what it describes
-         even if the phone has moved on. -->
-    <img class="vf-still" data-still hidden alt="">
-    <div class="flash" data-flash></div>
-    <div class="vf-blocked" data-camera-blocked hidden>
-      <h2>Homle needs your camera</h2>
-      <p data-camera-blocked-reason>Allow camera access to scan your rooms, or describe them by voice instead.</p>
-      <div class="vf-blocked-actions">
-        <button class="button" type="button" data-camera-retry>Try camera again</button>
-        <a class="button ghost" href="/landlord/book">Describe by voice instead</a>
-      </div>
-    </div>
-  </div>
-
-  <div class="scan-top">
-    <a class="scan-close" href="/landlord/book" aria-label="Leave the room scan">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-    </a>
-    <div class="scan-room-lbl"><span class="rec-dot" aria-hidden="true"></span><span data-room-label>Living room</span></div>
-    <div class="scan-count"><span data-shot-count>0</span> captured</div>
-  </div>
-
-  <!-- Voice note. Real speech recognition, not a simulation. -->
-  <section class="voice" data-voice-panel aria-live="polite">
-    <div class="voice-head">
-      <span class="rec-dot" aria-hidden="true"></span><span>Voice note · recording</span>
-      <span class="voice-time" data-voice-time>0:00</span>
-    </div>
-    <div class="wave" data-wave aria-hidden="true"></div>
-    <p class="voice-txt" data-voice-text><span class="cur" aria-hidden="true"></span></p>
-    <div class="voice-tags" data-voice-tags></div>
-  </section>
-
-  <div class="deck">
-    <p class="deck-hint" data-hint role="status">Point at the room and tap the shutter</p>
-    <div class="shots" data-shots></div>
-    <div class="deck-row">
-      <button class="deck-btn" type="button" data-mic aria-pressed="false">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>
-        <span class="deck-btn-lbl">Voice note</span>
-      </button>
-      <button class="shutter" type="button" data-shutter aria-label="Capture this room"><i aria-hidden="true"></i></button>
-      <button class="deck-btn" type="button" data-done disabled>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
-        <span class="deck-btn-lbl">Done</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- Reading the scan. Every line appears only once that step has actually
-       finished, so the progress shown is real work, not a timed animation. -->
-  <!-- Assisted reading sends a photograph of the inside of a home to a third
-       party. That is asked for explicitly, before the first photo is taken,
-       and declining leaves a fully working scan. -->
-  <div class="scan-consent" data-consent hidden>
-    <div class="scan-consent-in">
-      <h2>Read my rooms automatically?</h2>
-      <p>Homle can look at each photo and pick out the fixtures and how dirty each room is, so your checklist fills itself in.</p>
-      <p class="scan-consent-detail">To do that, <strong>the photo of each room is sent to our AI provider (Anthropic) to be read</strong>, along with what you say. Photos are read and discarded — they are not stored there. Nothing else about you, your address or your account is sent.</p>
-      <div class="scan-consent-actions">
-        <button class="button" type="button" data-consent-allow>Yes, read my rooms</button>
-        <button class="button ghost" type="button" data-consent-decline>No — just take the photos</button>
-      </div>
-      <p class="scan-consent-note">You can scan either way. Declining only means you write the checklist yourself.</p>
-    </div>
-  </div>
-
-  <div class="proc" data-processing>
-    <div class="proc-in">
-      <div class="ring">
-        <svg width="112" height="112" aria-hidden="true"><circle class="bg" cx="56" cy="56" r="52"/><circle class="fg" data-ring cx="56" cy="56" r="52"/></svg>
-        <div class="ring-pct" data-ring-percent>0%</div>
-      </div>
-      <h3>Reading your home</h3>
-      <p class="proc-step" data-processing-step>Preparing your photos</p>
-      <div class="proc-log" data-processing-log></div>
-    </div>
-  </div>
+<!-- The scan itself is an overlay owned by room-scan-overlay.js, so it is the
+     same experience wherever it is opened from. This page is only a direct
+     entry point for a bookmark or a shared link; it opens the overlay and
+     returns to the booking journey. -->
+<main class="scan-entry">
+  <p class="scan-entry-copy">Opening your camera…</p>
+  <noscript><p class="scan-entry-copy">The room scan needs JavaScript. <a href="/landlord/book">Continue without scanning</a>.</p></noscript>
 </main>
-
-<!-- Results. Shown only after the scan is read; every figure comes from the
-     photos and the spoken note, never from a placeholder. -->
-<section class="scan-results" data-results hidden>
-  <div class="scan-results-in">
-    <p class="eyebrow">Scan complete</p>
-    <h2>Here's what<br>we found.</h2>
-    <p class="scan-results-lede">You never had to guess a duration. Change anything below if we've read it wrong — nothing is booked yet.</p>
-
-    <div class="res-hero">
-      <div class="res-hero-top">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3"><path d="M20 6 9 17l-5-5"/></svg>
-        <span data-scoped-from>Scoped from your photos</span>
-      </div>
-      <div class="res-grid">
-        <div class="res-cell"><b data-result-time>—</b><span>Est. time</span></div>
-        <div class="res-cell"><b data-result-rooms>0</b><span>Rooms</span></div>
-        <div class="res-cell"><b data-result-condition>—</b><span>Condition</span></div>
-      </div>
-      <p class="res-hero-note" data-result-note></p>
-    </div>
-
-    <h3 class="scan-results-h">Detected in your home</h3>
-    <div class="det-list" data-result-list></div>
-
-    <div class="note-card" data-note-card hidden>
-      <p class="lbl"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#D91435" stroke-width="2.3"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>Your voice note</p>
-      <p data-note-echo></p>
-    </div>
-
-    <p class="scan-results-boundary">Nothing is booked yet. You'll confirm the checklist, timing and price before anything is sent to a Cleaner.</p>
-
-    <div class="scan-results-actions">
-      <button class="button" type="button" data-accept-scan>Use this checklist</button>
-      <button class="button ghost" type="button" data-rescan>Scan again</button>
-    </div>
-  </div>
-</section>
-
-<div class="scan-toast" data-toast role="status" aria-live="polite" hidden></div>
-
-<script type="module" src="/room-scan.js?v=scan1"></script>
+<script type="module" src="/room-scan.js?v=scan2"></script>
 </body>
 </html>
