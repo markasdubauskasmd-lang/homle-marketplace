@@ -120,6 +120,7 @@ assert(!/(Jane|Sarah|Maria|John|five-star|fully insured|background checked|DBS c
   // The whole banner is the target, and it opens the guided journey rather
   // than scrolling to a panel further down the same page.
   assert(/<a class="scan-hero" href="\/landlord\/book"/.test(page), "The scan banner is not a single link into the guided journey.");
+  assert(script.includes('document.querySelector("[data-open-request-tab]")?.addEventListener'), "Removing the legacy in-page request button can crash the dashboard before its secure session check finishes.");
   assert(styles.includes(".scan-hero") && styles.includes("scanHeroSweep") && styles.includes("scanHeroIn"), "The scan banner has no presentation or motion.");
   // Motion is decoration; it must never be the thing that makes the banner work.
   const reducedMotion = styles.slice(styles.indexOf(".scan-hero"));
