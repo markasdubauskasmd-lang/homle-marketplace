@@ -173,6 +173,72 @@ function favouriteControl(cleaner, name) {
   return wrapper;
 }
 
+function reviewDate(value) {
+  const date = new Date(value || "");
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(date);
+}
+
+// Written reviews are only ever moderated evidence from completed jobs, so they
+// carry no reviewer identity — the projection deliberately omits it and nothing
+// here reintroduces one.
+function reviewEntry(review) {
+  const entry = element("article", "directory-review");
+  const header = element("div", "directory-review-header");
+  header.append(element("strong", "", `${Number(review.rating).toFixed(0)} ★`), element("span", "", reviewDate(review.createdAt)));
+  entry.append(header);
+  if (review.writtenReview) entry.append(element("p", "directory-review-body", review.writtenReview));
+  // The Cleaner's reply is deliberately not shown publicly. Review bodies pass
+  // Administrator moderation before they are published; a reply is written
+  // afterwards and is only screened for contact details, so it could still name
+  // the customer. It stays private until replies are moderated in their own right.
+  return entry;
+}
+
+// Reviews load only when a profile is actually expanded: fetching them for every
+// card would issue a request per Cleaner on a directory the customer is still
+// skimming.
+function reviewsSection(cleaner) {
+  const section = element("section", "directory-reviews");
+  section.append(element("h4", "", "Reviews from completed jobs"));
+  const state = element("p", "directory-review-state", Number(cleaner.reviewCount) > 0 ? "Loading reviews…" : "No completed-job reviews yet.");
+  section.append(state);
+  if (!(Number(cleaner.reviewCount) > 0)) return section;
+
+  let loaded = false;
+  const load = async () => {
+    if (loaded) return;
+    loaded = true;
+    try {
+      // A request that never settles would otherwise leave the panel reading
+      // "Loading reviews…" forever with no way back, because reopening the
+      // profile would see the load as already done.
+      const response = await fetch(`/api/marketplace/cleaners/${encodeURIComponent(cleaner.cleanerId)}/reviews`, { headers: { Accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error("unavailable");
+      const page = await response.json();
+      // Every returned review is rendered, including rating-only ones. Filtering
+      // to reviews with text could otherwise report "no written reviews" while
+      // an unfetched later page still held some.
+      const reviews = Array.isArray(page?.reviews) ? page.reviews : [];
+      if (!reviews.length) {
+        state.textContent = "No published reviews yet.";
+        return;
+      }
+      state.remove();
+      for (const review of reviews) section.append(reviewEntry(review));
+      if (page.hasMore === true) section.append(element("p", "directory-review-state", "Showing the most recent reviews."));
+    } catch {
+      // A directory that cannot reach reviews still shows the profile; it must
+      // not imply the Cleaner has none.
+      loaded = false;
+      state.textContent = "Reviews could not be loaded right now. Open this profile again to retry.";
+    }
+  };
+  section.dataset.reviewLoader = "pending";
+  section.addEventListener("homle:load-reviews", load);
+  return section;
+}
+
 function cleanerCard(cleaner) {
   const card = element("article", "directory-cleaner-card");
   const identity = element("div", "directory-cleaner-identity");
@@ -205,7 +271,9 @@ function cleanerCard(cleaner) {
     detail("Preferred work", [cleaner.residentialPreference ? "Residential" : "", cleaner.commercialPreference ? "Commercial" : ""].filter(Boolean).join(" and ") || "Not supplied")
   );
   const boundary = element("p", "directory-profile-boundary", "Requesting a Cleaner does not confirm a booking. Homle must recheck the room checklist, date, price and availability.");
-  details.append(summary, facts, boundary);
+  const reviews = reviewsSection(cleaner);
+  details.append(summary, facts, reviews, boundary);
+  details.addEventListener("toggle", () => { if (details.open) reviews.dispatchEvent(new CustomEvent("homle:load-reviews")); });
   const requestLink = element("a", "button directory-cleaner-action", "Start a cleaning request");
   requestLink.href = accountEntryPath("book", cleaner.cleanerId);
   requestLink.setAttribute("aria-label", `Start a cleaning request with ${name}`);

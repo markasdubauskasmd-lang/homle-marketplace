@@ -75,6 +75,40 @@ Backblaze B2 is the cheapest route on a free stack (10 GB free). Keep the bucket
 **private** — the app issues short-lived signed URLs and the room-photo privacy model
 depends on the objects never being publicly readable.
 
+### Step 2b — Background jobs  (turns `automaticDispatchReady` → true) — **NEW, IMPORTANT**
+
+Until now **nothing on Render ever ran the background workers.** `render.yaml` defines
+only a web service, and a separate worker service needs a paid plan. The consequence
+was a silent product failure: a Landlord who chose **automatic matching** got a success
+message, and then their request sat in `searching-for-cleaner` forever. Invitation
+expiry/requeue never ran either, so a non-responding Cleaner blocked a request
+indefinitely, and the email outbox filled without ever being sent.
+
+The web service can now host those same jobs in its own process. Add:
+
+- `MARKETPLACE_INLINE_WORKERS` = `true`  ← **the new flag; without it nothing changes**
+- `MARKETPLACE_WORKER_ENABLED` = `true`
+- `WORKER_DATABASE_URL` = the **`tideway_worker`** connection string *(secret — dashboard only)*
+- `WORKER_AUTOMATIC_DISPATCH_ENABLED` = `true`
+- `WORKER_EMAIL_ENABLED` = `true` *(only once Step 1 email is configured)*
+- `WORKER_MEDIA_ENABLED` = `true` *(only once Step 2 storage is configured)*
+
+Rules that matter:
+
+1. **Set `MARKETPLACE_INLINE_WORKERS=true` on exactly one process.** If a standalone
+   worker service is ever added later, remove this flag from the web service first —
+   otherwise every job runs twice.
+2. `WORKER_DATABASE_URL` **must** authenticate as `tideway_worker`, not `tideway_app`.
+   The process refuses to start otherwise, by design.
+3. A free Render instance sleeps when idle, which pauses these jobs. They catch up on
+   the next request, so due work is not lost, but **wall-clock timing is not guaranteed
+   on the free plan.** Do not promise customers timed automatic dispatch until the
+   service no longer sleeps.
+4. Verify with `GET /api/health` → `marketplace.automaticDispatchReady: true`. If it is
+   `false`, the flag, the worker URL or `WORKER_AUTOMATIC_DISPATCH_ENABLED` is missing;
+   the service log states which. A worker that cannot start is logged loudly and left
+   off — it never takes the website down.
+
 ### Step 3 — Matching / pricing — COMPLETE FOR STAGING
 `matchingReady` requires the **complete** set of 12 `BOOKING_*` variables (all-or-nothing).
 These set customer price and margin — **the founder must approve real values.** Starter
@@ -109,10 +143,20 @@ reports this exact setting.
 - Generate with `node tools/staging-account-email-hash.mjs <email>` (repo tool). Never commit the raw emails.
 
 ### Verify
-After Steps 1–2 and 3b, `GET /api/health` should show `emailReady`, `mediaReady`,
-`matchingReady` all `true`, and the Render environment preflight should report no
-marketplace-runtime omissions.
+After Steps 1–2, 2b and 3b, `GET /api/health` should show `emailReady`, `mediaReady`,
+`matchingReady` and `automaticDispatchReady` all `true`, and the Render environment
+preflight should report no marketplace-runtime omissions.
 Then create one landlord + one cleaner test account and run a booking end to end.
+
+### Recommended order for one sitting
+1. **Step 2 storage** — without it no booking can be submitted at all.
+2. **Step 1 email** — unlocks verification and notification delivery.
+3. **Step 2b background jobs** — makes automatic matching and invitation expiry real.
+4. **Step 3b** `GEOCODING_PROVIDER=postcodes-io` — real-distance matching.
+5. **One redeploy**, then walk a booking end to end on a phone.
+
+Everything above is dashboard configuration. **No code change is required for any of
+it** — the code for all five is merged and CI-verified on `main`.
 
 ---
 
