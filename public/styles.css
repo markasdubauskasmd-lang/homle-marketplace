@@ -1593,6 +1593,16 @@ textarea { resize: vertical; }
 .directory-profile-facts div { padding: 12px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .directory-profile-facts dt { color: var(--muted); font-size: .68rem; font-weight: 820; text-transform: uppercase; }
 .directory-profile-facts dd { margin: 3px 0 0; font-size: .83rem; font-weight: 680; }
+.directory-reviews { margin: 0 0 17px; }
+.directory-reviews h4 { margin: 0 0 9px; color: var(--green-dark); font-size: .8rem; font-weight: 820; }
+.directory-review-state { margin: 0; color: var(--muted); font-size: .77rem; }
+.directory-review { margin-top: 10px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 11px; }
+.directory-review-header { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: .72rem; }
+.directory-review-header strong { color: var(--green-dark); font-size: .8rem; }
+.directory-review-body { margin: 6px 0 0; font-size: .81rem; overflow-wrap: anywhere; }
+.directory-review-response { margin-top: 9px; padding-left: 10px; border-left: 2px solid var(--line); }
+.directory-review-response span { color: var(--muted); font-size: .7rem; font-weight: 820; text-transform: uppercase; }
+.directory-review-response p { margin: 3px 0 0; font-size: .79rem; overflow-wrap: anywhere; }
 .directory-profile-boundary { padding: 12px; color: #6b5a46; border-left: 3px solid var(--orange); background: #fff9ea; font-size: .77rem; }
 .directory-cleaner-action { width: 100%; margin-top: 18px; }
 .directory-cleaner-actions { display: grid; grid-template-columns: minmax(0,1fr) minmax(165px,.45fr); gap: 10px; align-items: start; margin-top: 18px; }

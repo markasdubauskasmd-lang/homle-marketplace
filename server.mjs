@@ -20,6 +20,7 @@ import { cleanerEquipmentPlanLabel, cleanerProfileStarterCaptured, normalizeClea
 import { buildRoomScanFollowupDraft } from "./request-followup-draft.mjs";
 import { validateMarketplaceEnvironment } from "./src/marketplace/config.mjs";
 import { createMarketplaceAttachment } from "./src/marketplace/attachment.mjs";
+import { createMarketplaceWorkerAttachment } from "./src/marketplace/worker-attachment.mjs";
 import { createAuthenticationAttachment } from "./src/marketplace/authentication-attachment.mjs";
 import { createTrustedClientAddressResolver } from "./src/marketplace/trusted-client-key.mjs";
 import { createTrackingTestStore } from "./tracking-test-store.mjs";
@@ -76,6 +77,33 @@ const objectStorageOrigins = (() => {
   return [...new Set(origins)];
 })();
 const marketplaceAttachment = await createMarketplaceAttachment({ env: process.env });
+
+// Background jobs (automatic dispatch, invitation expiry/requeue, the email
+// outbox) live in their own worker service, which needs a paid Render plan. On
+// a single-service deployment nothing would ever run them, so a Landlord who
+// chooses automatic matching would wait forever with no error. This opt-in flag
+// hosts the same supervisor inside the web process instead. Set it on exactly
+// one process: enabling it alongside a standalone worker would run every job
+// twice. A free instance that sleeps pauses these jobs until the next request.
+const inlineWorkerAttachment = await (async () => {
+  if (String(process.env.MARKETPLACE_INLINE_WORKERS || "false").trim().toLowerCase() !== "true") return null;
+  try {
+    const attachment = await createMarketplaceWorkerAttachment({ releaseIdentity });
+    if (!attachment.enabled || !attachment.ready) {
+      console.error(`Inline marketplace workers were requested but are not ready: ${attachment.reason || "unavailable"}.`);
+      await attachment.close();
+      return null;
+    }
+    attachment.start();
+    console.log(`Inline marketplace workers started with ${attachment.snapshot().jobs.length} scheduled jobs.`);
+    return attachment;
+  } catch (error) {
+    // Serving the site matters more than running background jobs, so a worker
+    // that cannot start is reported loudly and left off rather than fatal.
+    console.error("Inline marketplace workers could not start.", error?.message || error);
+    return null;
+  }
+})();
 const standaloneAuthenticationAttachment = marketplaceAttachment.authenticationHttpReady
   ? null
   : await createAuthenticationAttachment({ env: process.env, workspaceReady: marketplaceAttachment.ready === true });
@@ -5361,7 +5389,11 @@ async function handleHttpRequest(request, response) {
           realtimeReady: marketplaceAttachment.realtimeReady === true,
           geocodingReady: marketplaceAttachment.geocodingReady === true,
           matchingReady: marketplaceAttachment.matchingReady === true,
-          paymentsReady: marketplaceAttachment.paymentsReady === true
+          paymentsReady: marketplaceAttachment.paymentsReady === true,
+          // Automatic dispatch is only real when a process is actually running
+          // the dispatch job. Without this the Landlord dashboard would keep
+          // offering automatic matching that nothing can ever act on.
+          automaticDispatchReady: inlineWorkerAttachment?.capabilities?.dispatch === true
         },
         localDemosEnabled: localDemoEnabled
       });
@@ -5575,6 +5607,19 @@ async function shutdown() {
   shutdownStarted = true;
   if (trackingTestExpiryTimer) clearInterval(trackingTestExpiryTimer);
   trackingTestStore?.close();
+  // Workers drain in-flight jobs, and a slow database query has no execution
+  // timeout, so an unbounded wait here would outlive the platform's shutdown
+  // grace period and get the process killed mid-drain instead.
+  if (inlineWorkerAttachment) {
+    try {
+      let workerShutdownTimer;
+      await Promise.race([
+        inlineWorkerAttachment.close(),
+        new Promise((resolve) => { workerShutdownTimer = setTimeout(() => { console.error("Inline marketplace workers did not stop within the shutdown budget."); resolve(); }, 8000); })
+      ]);
+      clearTimeout(workerShutdownTimer);
+    } catch (error) { console.error("Inline marketplace worker shutdown failed.", error); }
+  }
   try { await standaloneAuthenticationAttachment?.close(); } catch (error) { console.error("Authentication shutdown failed.", error); }
   try { await marketplaceAttachment.close(); } catch (error) { console.error("Marketplace shutdown failed.", error); }
   let remaining = lanServer ? 2 : 1;
