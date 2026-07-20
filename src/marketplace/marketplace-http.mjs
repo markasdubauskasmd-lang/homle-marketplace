@@ -1,4 +1,4 @@
-import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson } from "./http-support.mjs";
+import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
@@ -92,6 +92,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const messages = dependencies?.messageService;
   // Optional by design — absent means the on-device parser stays the only path.
   const speechSummary = dependencies?.speechSummary || null;
+  const roomVision = dependencies?.roomVision || null;
   const realtime = dependencies?.realtimeService;
   const notifications = dependencies?.notificationService;
   const reviews = dependencies?.reviewService;
@@ -589,6 +590,26 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             // The provider being unavailable must never block the walkthrough,
             // and its internal error text is never surfaced to the Landlord.
             sendJson(response, 502, { ok: false, error: "The walkthrough could not be summarised automatically." });
+          }
+          return true;
+        }
+        // Reads one captured room photo. The photo is held in memory for the
+        // request only — nothing here writes it anywhere.
+        if (pathname === "/api/marketplace/landlord/room-reading") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          await limitPublicRead(request, "marketplace-landlord:room-reading");
+          if (!roomVision) {
+            sendJson(response, 503, { ok: false, error: "Assisted room reading is not configured." });
+            return true;
+          }
+          const body = await readJsonObject(request);
+          try {
+            const result = await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript });
+            sendJson(response, 200, { ok: true, ...result });
+          } catch (error) {
+            // The scan must never be blocked by the reader being unavailable.
+            sendJson(response, 502, { ok: false, error: "This room could not be read automatically." });
           }
           return true;
         }

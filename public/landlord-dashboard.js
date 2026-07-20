@@ -1977,6 +1977,37 @@ document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link
 document.querySelector("[data-open-request-tab]").addEventListener("click", () => {
   beginRoomWalkthrough();
 });
+
+// A completed room scan hands its checklist and spoken note back here. Without
+// this the scan would finish, say "use this checklist", and deliver nothing.
+function adoptRoomScan() {
+  let scan = null;
+  try {
+    const stored = sessionStorage.getItem("homle_scan_result");
+    if (!stored) return;
+    sessionStorage.removeItem("homle_scan_result");
+    scan = JSON.parse(stored);
+  } catch { return; }
+  const tasks = Array.isArray(scan?.tasks) ? scan.tasks.filter((task) => typeof task === "string" && task.trim()) : [];
+  const transcript = typeof scan?.transcript === "string" ? scan.transcript.trim() : "";
+  if (!tasks.length && !transcript) return;
+
+  selectWorkspaceTab("requests", { historyMode: "replace" });
+  if (transcript) requestForm.elements.transcript.value = transcript.slice(0, 5000);
+  if (tasks.length) {
+    requestForm.elements.tasks.value = tasks.join("\n");
+    // The scan is a fresh scope, so any earlier approval no longer applies.
+    invalidateScopeReview("This checklist came from your room scan. Review every room task before saving.");
+    renderTaskPreview();
+    tasksManuallyEdited = false;
+  }
+  requestDirty = true;
+  scheduleWorkingRequestRecovery();
+  showFeedback(requestFeedback, tasks.length
+    ? `${tasks.length} room ${tasks.length === 1 ? "task" : "tasks"} brought over from your scan. Review every bullet before confirming.`
+    : "Your spoken walkthrough was brought over from the scan. Review the checklist before confirming.", "success");
+}
+adoptRoomScan();
 document.querySelector("[data-toggle-property-form]").addEventListener("click", () => openPropertyEditor());
 document.querySelector("[data-close-property-form]").addEventListener("click", closePropertyEditor);
 document.querySelector("[data-use-saved-checklist]").addEventListener("click", useSavedChecklist);
