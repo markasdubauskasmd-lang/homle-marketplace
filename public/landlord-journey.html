@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="robots" content="noindex, nofollow">
+<title>Book a clean — Homle</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/styles.css?v=journey1">
+</head>
+<body class="journey-page">
+
+<!-- The rail is the whole navigation. One question per screen, always visible
+     progress, and a back step that never loses what was already answered. -->
+<header class="rail">
+  <div class="rail-in">
+    <button class="rail-back" type="button" data-back aria-label="Go back a step">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+    <div class="rail-steps" data-rail role="progressbar" aria-valuemin="1" aria-valuemax="6" aria-valuenow="1"></div>
+    <span class="rail-lbl" data-step-label>Step 1 / 6</span>
+  </div>
+</header>
+
+<main class="journey-main">
+
+  <!-- ══ 1. POSTCODE ══ -->
+  <section class="jstep" data-step="postcode">
+    <div class="wrap-n">
+      <p class="eyebrow">Where are we cleaning</p>
+      <h2 class="pg">Let's check who's<br>near you.</h2>
+      <p class="pgs">Just a postcode. No name, no address, no card — not until you've seen the price and picked your cleaner.</p>
+
+      <div class="field">
+        <label for="postcode">Your postcode</label>
+        <input class="inp" id="postcode" name="postcode" data-postcode placeholder="SM4 4LE" autocomplete="postal-code" spellcheck="false" inputmode="text" maxlength="9">
+        <p class="err" data-postcode-error hidden></p>
+      </div>
+
+      <!-- Only ever states what the directory actually returned. Zero cleaners
+           is a real answer, not something to paper over. -->
+      <div class="supply" data-supply hidden>
+        <span class="supply-dot" aria-hidden="true"></span>
+        <div>
+          <p class="supply-head" data-supply-head></p>
+          <p class="supply-detail" data-supply-detail></p>
+        </div>
+      </div>
+
+      <button class="btn btn-p btn-full btn-lg" type="button" data-next>Continue</button>
+
+      <div class="trust">
+        <span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#149E52" stroke-width="2.3"><path d="M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6l-8-4Z"/></svg>Enhanced DBS</span>
+        <span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#149E52" stroke-width="2.3"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Insured incl. theft</span>
+        <span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#149E52" stroke-width="2.3"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Free cancellation 24h</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 2. SERVICE ══ -->
+  <section class="jstep" data-step="service" hidden>
+    <div class="wrap-n">
+      <p class="eyebrow">What needs doing</p>
+      <h2 class="pg">What kind of<br>clean is it?</h2>
+      <p class="pgs">Pick the closest one. The room scan fills in the detail, so you don't have to describe everything now.</p>
+
+      <div class="opt-list" data-services role="radiogroup" aria-label="Kind of clean"></div>
+
+      <div class="scan-invite">
+        <p class="scan-invite-h">Scan your rooms</p>
+        <p class="scan-invite-p">Walk through with your camera and Homle writes the checklist for you. Takes about a minute.</p>
+        <a class="btn btn-p btn-full" href="/landlord/scan" data-scan-link>Start room scan</a>
+        <button class="btn-ghost" type="button" data-skip-scan>Skip — I'll write the checklist myself</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 3. RESULTS ══ -->
+  <section class="jstep" data-step="results" hidden>
+    <div class="wrap-n">
+      <p class="eyebrow" data-results-eyebrow>Scan complete</p>
+      <h2 class="pg">Here's what<br>we found.</h2>
+      <p class="pgs">Change anything below if we've read it wrong. Nothing is booked yet.</p>
+
+      <div class="res-hero">
+        <div class="res-hero-top">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.3"><path d="M20 6 9 17l-5-5"/></svg>
+          <span data-results-source>Your checklist</span>
+        </div>
+        <div class="res-grid">
+          <div class="res-cell"><b data-results-time>—</b><span>Guide time</span></div>
+          <div class="res-cell"><b data-results-rooms>0</b><span>Rooms</span></div>
+          <div class="res-cell"><b data-results-tasks>0</b><span>Tasks</span></div>
+        </div>
+        <p class="res-hero-note">Guide time comes from the work listed, not from measuring your home. Your cleaner confirms the final time.</p>
+      </div>
+
+      <div class="field">
+        <label for="tasks">Room checklist</label>
+        <textarea class="inp" id="tasks" name="tasks" data-tasks rows="9" placeholder="Kitchen: degrease the worktops&#10;Bathroom: remove limescale from the shower screen"></textarea>
+        <p class="hint">One task per line. This is exactly what your cleaner will see and tick off.</p>
+      </div>
+
+      <button class="btn btn-p btn-full btn-lg" type="button" data-next>Continue</button>
+    </div>
+  </section>
+
+  <!-- ══ 4. WHEN ══ -->
+  <section class="jstep" data-step="when" hidden>
+    <div class="wrap-n">
+      <p class="eyebrow">When suits you</p>
+      <h2 class="pg">Pick a day<br>and a time.</h2>
+      <p class="pgs">Your cleaner arrives within the hour you choose. You can move or cancel free up to 24 hours before.</p>
+
+      <div class="field">
+        <label>Day</label>
+        <div class="day-strip" data-days role="radiogroup" aria-label="Day"></div>
+      </div>
+
+      <div class="field">
+        <label>Arrival window</label>
+        <div class="chips" data-times role="radiogroup" aria-label="Arrival window"></div>
+      </div>
+
+      <div class="field">
+        <label>How often?</label>
+        <div class="chips" data-frequencies role="radiogroup" aria-label="How often"></div>
+        <p class="hint">No contract. Skip or cancel any clean, any time.</p>
+      </div>
+
+      <button class="btn btn-p btn-full btn-lg" type="button" data-next>Continue</button>
+    </div>
+  </section>
+
+  <!-- ══ 5. CLEANER ══ -->
+  <section class="jstep" data-step="cleaner" hidden>
+    <div class="wrap-n">
+      <p class="eyebrow">Who's cleaning</p>
+      <h2 class="pg">Choose your<br>cleaner.</h2>
+      <p class="pgs" data-cleaner-lede>These cleaners cover your area and are free at the time you picked.</p>
+
+      <div class="cleaner-list" data-cleaners role="radiogroup" aria-label="Cleaner"></div>
+      <p class="jstate" data-cleaner-state hidden></p>
+
+      <button class="btn btn-p btn-full btn-lg" type="button" data-next>Continue</button>
+    </div>
+  </section>
+
+  <!-- ══ 6. CHECKOUT ══ -->
+  <section class="jstep" data-step="checkout" hidden>
+    <div class="wrap-n">
+      <p class="eyebrow">Confirm</p>
+      <h2 class="pg">One last<br>look.</h2>
+      <p class="pgs" data-checkout-lede></p>
+
+      <dl class="summary" data-summary></dl>
+
+      <div class="checkout-note" data-checkout-note></div>
+
+      <button class="btn btn-p btn-full btn-lg" type="button" data-confirm>Confirm</button>
+      <p class="jstate" data-checkout-state hidden></p>
+    </div>
+  </section>
+
+  <!-- Shown once the journey is finished, in place of a fake receipt. -->
+  <section class="jstep" data-step="done" hidden>
+    <div class="wrap-n">
+      <p class="eyebrow">Saved</p>
+      <h2 class="pg" data-done-title>That's everything.</h2>
+      <p class="pgs" data-done-body></p>
+      <a class="btn btn-p btn-full btn-lg" href="/landlord/dashboard">Go to my dashboard</a>
+    </div>
+  </section>
+</main>
+
+<div class="jtoast" data-toast role="status" aria-live="polite" hidden></div>
+
+<script type="module" src="/landlord-journey.js?v=journey1"></script>
+</body>
+</html>

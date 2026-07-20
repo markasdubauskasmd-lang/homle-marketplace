@@ -225,6 +225,7 @@ function setSecurityHeaders(response, requestPath = "") {
   const landlordDashboardPage = requestPath === "/landlord/dashboard";
   // The guided scan is a camera and microphone surface in its own right.
   const roomScanPage = requestPath === "/landlord/scan";
+  const journeyPage = requestPath === "/landlord/book";
   const privateMediaPage = activeJobPage || landlordDashboardPage || roomScanPage;
   const activeJobStorage = privateMediaPage && objectStorageOrigins.length ? ` ${objectStorageOrigins.join(" ")}` : "";
   const trustedAccountAvatars = " https://*.googleusercontent.com https://*.fbcdn.net https://platform-lookaside.fbsbx.com";
@@ -5318,6 +5319,7 @@ async function serveFile(requestPath, response) {
     "/cleaner/payouts": "cleaner-payouts.html",
     "/landlord/dashboard": "landlord-dashboard.html",
     "/landlord/scan": "room-scan.html",
+    "/landlord/book": "landlord-journey.html",
     "/booking-payment": "booking-payment.html",
     "/marketplace-preview": "marketplace-preview.html",
     "/tracking-test": "tracking-test.html",
