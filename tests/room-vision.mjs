@@ -92,6 +92,8 @@ for (const [label, reply] of [
 
 // The prompt must forbid the one thing a photograph cannot support.
 const { default: source } = await import("node:fs").then((fs) => ({ default: fs.readFileSync(new URL("../src/marketplace/room-vision.mjs", import.meta.url), "utf8") }));
+const { default: marketplaceHttpSource } = await import("node:fs").then((fs) => ({ default: fs.readFileSync(new URL("../src/marketplace/marketplace-http.mjs", import.meta.url), "utf8") }));
+assert(/pathname === "\/api\/marketplace\/landlord\/room-reading"[\s\S]{0,1200}readJsonObject\(request, maximumRoomPhotoBodyBytes\)/.test(marketplaceHttpSource), "The room-reading route still uses the ordinary 64 KB JSON limit, so a resized phone photo can be rejected before vision runs.");
 assert(source.includes("Never estimate floor area"), "The reader is not told to refuse measurements it cannot take from a photograph.");
 assert(source.includes("Do not describe people"), "The reader is not told to leave people and identifying detail out of a photograph of someone's home.");
 
