@@ -210,6 +210,9 @@ function requestSiteScope(record, brief = null) {
 }
 
 const mimeTypes = {
+  // Weight shards for the on-device room detector. They would fall through to
+  // application/octet-stream anyway; naming them says they are expected.
+  ".bin": "application/octet-stream",
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
   ".ico": "image/x-icon",
@@ -5350,9 +5353,15 @@ async function serveFile(requestPath, response) {
     if (!fileStat.isFile()) return false;
     const body = await readFile(filePath);
     const extension = path.extname(filePath).toLowerCase();
+    // Everything else is served `no-cache` with no validator, so it comes back
+    // in full on every request. That is fine for a 20 KB script and ruinous for
+    // the vendored detector, which is several megabytes: uncached it would be
+    // re-downloaded every time a Landlord opened the scan, on mobile data. Its
+    // contents never change without the path changing, so it is safe to pin.
+    const vendored = requestPath.startsWith("/vendor/");
     response.writeHead(200, {
       "Content-Type": mimeTypes[extension] || "application/octet-stream",
-      "Cache-Control": extension === ".html" ? "no-store" : "no-cache"
+      "Cache-Control": extension === ".html" ? "no-store" : vendored ? "public, max-age=31536000, immutable" : "no-cache"
     });
     response.end(body);
     return true;

@@ -605,7 +605,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           }
           const body = await readJsonObject(request, maximumRoomPhotoBodyBytes);
           try {
-            const result = await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript });
+            // Two shapes, one route. When the device has already found and
+            // boxed the objects it sends them for naming only. When it has not —
+            // the phone-camera fallback has no live viewfinder and so no boxes —
+            // the whole frame is read exactly as before.
+            const selectedItems = Array.isArray(body?.items) ? body.items : [];
+            const result = selectedItems.length
+              ? await roomVision.readSelectedItems({ image: body?.image, items: selectedItems, roomName: body?.roomName, transcript: body?.transcript })
+              : await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript });
             sendJson(response, 200, { ok: true, ...result });
           } catch (error) {
             // The scan must never be blocked by the reader being unavailable.

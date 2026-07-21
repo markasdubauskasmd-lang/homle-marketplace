@@ -3166,7 +3166,15 @@ dialog::backdrop { background: rgba(11,9,10,.74) !important; }
 .vf-blocked p{font-size:14px;color:var(--scan-dim);line-height:1.6;max-width:34ch;margin:0 auto}
 .vf-blocked-actions{display:grid;gap:10px;justify-items:center;margin-top:6px}
 
+/* The detection layer must sit above the frozen still (z-index 2), or the boxes
+   are painted behind the photograph they describe and are never seen. */
+[data-detection-layer]{position:absolute;inset:0;z-index:3;pointer-events:none}
 .det-box{position:absolute;border:1.5px solid var(--scan-red-hot);border-radius:6px;background:rgba(217,20,53,.09);opacity:0;transform:scale(.94);transition:opacity .5s var(--scan-ease),transform .5s var(--scan-ease);pointer-events:none}
+/* A box only becomes a target once the frame is frozen and there is something
+   stable to aim at. */
+.det-box.pickable{pointer-events:auto;cursor:pointer}
+.det-box.picked{border-color:var(--scan-ok);border-width:2.5px;background:rgba(46,212,122,.16)}
+.det-box.picked .det-tag{background:var(--scan-ok);color:#0A0A0B}
 .det-box.show{opacity:1;transform:scale(1)}
 .det-box::before,.det-box::after{content:"";position:absolute;width:11px;height:11px;border:2px solid var(--scan-red-hot)}
 .det-box::before{top:-2px;left:-2px;border-right:0;border-bottom:0}
@@ -3296,6 +3304,12 @@ dialog::backdrop { background: rgba(11,9,10,.74) !important; }
 }
 
 .vf-still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2}
+/* Choosing what the room gets read for. */
+.pick{display:grid;gap:10px;margin-bottom:14px}
+.pick-hint{margin:0;font-size:12.5px;line-height:1.5;color:var(--scan-dim);text-align:center}
+.pick-row{display:flex;gap:10px;justify-content:center}
+.pick-row .button{min-height:44px}
+.vf.picking{cursor:crosshair}
 .scan-consent{position:absolute;inset:0;z-index:25;background:rgba(5,5,6,.97);backdrop-filter:blur(22px);display:grid;place-items:center;padding:26px}
 .scan-consent-in{max-width:430px;text-align:left}
 .scan-consent h2{font-size:22px;font-weight:800;letter-spacing:-.03em;margin-bottom:12px}
