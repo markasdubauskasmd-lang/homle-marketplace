@@ -5398,7 +5398,13 @@ async function handleHttpRequest(request, response) {
           // Automatic dispatch is only real when a process is actually running
           // the dispatch job. Without this the Landlord dashboard would keep
           // offering automatic matching that nothing can ever act on.
-          automaticDispatchReady: inlineWorkerAttachment?.capabilities?.dispatch === true
+          automaticDispatchReady: inlineWorkerAttachment?.capabilities?.dispatch === true,
+          // Both scan providers fall back silently by design, so a misconfigured
+          // deployment looks identical to a working one: photos capture, no
+          // objects appear, nothing errors. Without these two fields the only
+          // way to tell the difference is reading server logs.
+          speechSummaryReady: marketplaceAttachment.speechSummaryReady === true,
+          roomVisionReady: marketplaceAttachment.roomVisionReady === true
         },
         localDemosEnabled: localDemoEnabled
       });
