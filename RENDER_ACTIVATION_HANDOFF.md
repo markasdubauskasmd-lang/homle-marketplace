@@ -50,6 +50,46 @@ photo can be read by a language model that returns the **objects** it can see
 (fixtures, appliances including small ones like an air fryer, furniture), the
 room's condition, and cleaning tasks — drawn as boxes on the photo.
 
+> #### CHANGED by PR #49 (2026-07-21) — not yet merged at time of writing
+>
+> **Object detection now runs on the phone, not in the cloud.** Read this before
+> deploying anything after #49, because it changes what to check when the scan
+> misbehaves.
+>
+> - A vendored TensorFlow.js COCO-SSD model (`public/vendor/`, ~5.65 MB) draws
+>   boxes on the **live viewfinder**, before any capture. The first tap freezes
+>   the frame; the Landlord taps boxes to choose them, and taps empty space to
+>   add anything the detector cannot see — air fryer, shower, worktop, radiator,
+>   hob, extractor are all outside COCO's 80 classes.
+> - Anthropic is then asked only to **name the selected items and grade the
+>   room**. It no longer returns coordinates at all; the device owns the geometry.
+> - **No new environment variables.** The five above are unchanged, and the
+>   on-device half needs none — it is served from this origin and works with the
+>   Anthropic key absent (you get boxes you can tap, just no names).
+> - **`roomVisionReady` still means the same thing** and is still the right field
+>   to check. If boxes appear but never get named, that is the Anthropic half; if
+>   no boxes appear at all on a live viewfinder, that is the on-device half and
+>   Render logs will show nothing, because nothing was sent.
+> - **The boxes were previously invisible.** `.vf-still` sits above the box layer,
+>   so every box was painted behind the photograph. This is almost certainly why
+>   the "NOT verified" note below says nobody ever saw object recognition work —
+>   a real scan would have shown no boxes **even with a correctly configured key**.
+>   Fixed in #49. Do not conclude from earlier testing that the model was at fault.
+> - **`/vendor/` is served `Cache-Control: immutable` for one year** from
+>   versioned paths (`/vendor/tfjs-4.22.0/`, `/vendor/coco-ssd-lite-v1/`). If the
+>   detector is ever re-vendored it **must** go to a new versioned path —
+>   overwriting those filenames would strand every browser that already cached
+>   them, permanently. `tools/vendor-room-detector.mjs` is the script that
+>   produces them and records where they came from.
+> - **Cost per scan drops**, because only the chosen items are read rather than
+>   every photo at full resolution. The migration 066 rate limit is unchanged.
+> - **Still unverified, and this is the important one:** nobody has loaded the
+>   model in a real browser or pointed a phone at a real room. The logic and the
+>   weight quantisation are tested; the runtime is not. The failure mode is soft
+>   by design — if the detector does not load, the scan behaves exactly as it does
+>   today and the booking flow is unaffected — but expect the first real run to
+>   surface problems.
+
 ### Environment variables (already entered by the founder, not yet deployed)
 
 ```

@@ -117,6 +117,78 @@ assert(overlay.includes("generation !== state.generation"), "A stale room readin
 // Assisted reading is optional; the scan must survive it being absent.
 assert(overlay.includes("state.visionAvailable = false") && overlay.includes("status === 503"), "The scan does not fall back when assisted reading is unavailable.");
 
+/* ── On-device detection ───────────────────────────── */
+
+// The detector runs in the browser, so the obvious shortcut is a CDN tag and a
+// model fetched from a third party. Both are forbidden: the CSP is
+// script-src 'self', and an off-origin model fetch would tell that third party
+// which homes are being scanned and when.
+assert(!/https?:\/\//.test(overlay), "The scan overlay loads code or a model from off-origin.");
+assert(!server.includes("unsafe-eval"), "The Content-Security-Policy was weakened to run the on-device detector.");
+assert(!server.includes("wasm-unsafe-eval"), "The TensorFlow.js WASM backend was enabled by weakening the CSP; the WebGL backend runs under the existing policy unchanged.");
+
+// The library's own default is an off-origin model that connect-src blocks
+// silently — no boxes, no error, nothing in the console to explain it.
+assert(overlay.includes('const detectorModelUrl = "/vendor/coco-ssd-lite-v1/model.json"') && overlay.includes("modelUrl: detectorModelUrl"), "The detector falls back to the library's off-origin model URL, which the CSP blocks silently.");
+
+// /vendor/ is served immutable for a year, so every asset under it must carry a
+// version in its path. Overwriting one of these names would strand every
+// browser that already holds it on the old file, permanently.
+for (const path of overlay.match(/"\/vendor\/[^"]+"/g) || []) {
+  assert(/\/vendor\/[a-z-]+-(?:v\d+|\d+\.\d+\.\d+)\//.test(path), `A vendored asset is served immutable from an unversioned path and could never be replaced: ${path}`);
+}
+assert(overlay.includes('setBackend("webgl")'), "The detector does not pin the WebGL backend, so it may select one the CSP forbids.");
+
+// Running the detector before the consent question is deliberate, and the
+// reason has to survive someone reading this later and 'fixing' it: the model
+// is local, so nothing has left the phone. Consent governs the network call.
+assert(/if \(!state\.readingAllowed[\s\S]{0,2000}fetch\("\/api\/marketplace\/landlord\/room-reading"/.test(overlay), "The room reading is no longer gated on consent.");
+assert(overlay.includes("if (!state.consentAsked) await askConsent();"), "A photograph can be read before consent has been given.");
+
+// A detector that cannot load must leave the scan exactly as good as it was
+// before any of this existed.
+assert(overlay.includes("state.liveDetectionAvailable = false") && overlay.includes('state.detectorState = "unavailable"'), "A detector that fails to load is not degraded away cleanly.");
+assert(/catch[\s\S]{0,500}state\.liveDetectionAvailable = false/.test(overlay), "A detector that starts failing mid-scan can wedge the loop.");
+// A rejection arriving from a previous run must not wipe the boxes off a frame
+// the Landlord has since frozen and is choosing on.
+assert(/catch \{[\s\S]{0,400}generation !== state\.detectionGeneration\) return;/.test(overlay), "A failed inference from an earlier run can clear a frozen frame's boxes.");
+
+/* ── Freezing before choosing ──────────────────────── */
+
+// Selecting on a live feed and cropping at send time would cut the crop from
+// whatever the phone had moved on to. The frame is frozen first, always.
+assert(overlay.includes("function freezeFrame") && /if \(state\.frozen\) return confirmSelection\(\)/.test(overlay), "The scan reads the room without freezing the frame that was chosen from.");
+assert(/function freezeFrame[\s\S]{0,200}stopDetection\(\)/.test(overlay), "Freezing a frame leaves the detector running over the top of it.");
+assert(overlay.includes("function drawVisibleRegion"), "The capture no longer matches the cropped region the viewfinder actually shows, so boxes and pixels can disagree.");
+
+// Tapping empty space adds a box. Without this the scan loses every fixture
+// COCO has no class for — air fryer, shower, worktop, radiator, extractor.
+assert(overlay.includes("function onViewfinderTap") && overlay.includes('kind: "manual"'), "There is no way to mark something the detector cannot see.");
+assert(/cropFor[\s\S]{0,220}if \(box\.kind !== "manual"\) return ""/.test(overlay), "Every selected item is cropped and sent, including ones already visible in the room frame.");
+
+// Rotating the phone while choosing changes the viewfinder's aspect ratio.
+// Unless the still and the boxes are pinned to one rectangle with the captured
+// frame's aspect ratio, `object-fit: cover` re-crops the photograph underneath
+// boxes that have not moved, and the crop sent for naming is of a different
+// object than the one that was tapped.
+assert(overlay.includes("function layoutFrozen") && /window\.addEventListener\("orientationchange"/.test(overlay), "Rotating the phone while choosing can leave the boxes over different pixels than the crop.");
+assert(/tapPoint[\s\S]{0,320}state\.frozen \? el\.detections : el\.viewfinder/.test(overlay), "Taps are measured against a different rectangle than the boxes are drawn in.");
+
+// The cap must count what was chosen, not what the detector found, or twelve
+// stray detections lock out the hand-picked box the feature exists for. It must
+// also apply on both ways of choosing: selecting an existing box as well as
+// adding one, or a thirteenth is accepted here and silently truncated server-side.
+assert(/function atSelectionLimit\(\)[\s\S]{0,120}selectionCount\(\) >= maximumSelectedItems/.test(overlay), "A full set of detections can block the Landlord from marking anything by hand.");
+assert((overlay.match(/if \(atSelectionLimit\(\)\) return toast\(selectionLimitMessage\)/g) || []).length === 2, "The selection cap is enforced when adding a box by hand but not when tapping one the detector found.");
+
+// The detector is shared across overlays, so the guard against overlapping
+// inference has to be shared too.
+assert(overlay.includes("let detectorBusy = false") && !overlay.includes("state.detecting = true"), "Overlapping inference is guarded per overlay while the model is shared between them.");
+
+// The detector's loop and its listeners must not outlive the overlay.
+assert(/function close\(result\)[\s\S]{0,700}stopDetection\(\)/.test(overlay), "Closing the scan leaves the detection loop running.");
+assert(overlay.includes('document.removeEventListener("visibilitychange"') && overlay.includes('window.removeEventListener("resize"'), "A listener is left on document or window, holding the camera and the model alive for the life of the page.");
+
 // Camera refusal is explained and never dead-ends the booking.
 assert(overlay.includes("data-camera-blocked") && overlay.includes("NotAllowedError") && overlay.includes("Describe by voice instead"), "A declined camera leaves the Landlord stuck with no way to continue.");
 assert(overlay.includes("data-camera-fallback") && overlay.includes("data-camera-fallback-input") && overlay.includes('capture="environment"') && overlay.includes("selectedPhotoFrame") && overlay.includes("captureSelectedPhoto"), "A denied live-camera permission no longer has a native phone-camera fallback.");
@@ -124,6 +196,17 @@ assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch
 
 /* ── Presentation ──────────────────────────────────── */
 assert(styles.includes(".scan-overlay") && styles.includes(".scan-stage") && styles.includes(".det-box") && styles.includes("scanSweepRun") && styles.includes(".proc-log"), "The approved scan presentation is missing.");
+
+// The frozen still is z-index 2. A detection layer below it paints the boxes
+// behind the photograph they describe, which is how this feature managed to
+// look configured and show nothing.
+assert(/\[data-detection-layer\]\{[^}]*z-index:3/.test(styles), "The detection layer sits under the frozen still, so the boxes are invisible.");
+assert(styles.includes(".det-box.pickable") && styles.includes(".det-box.picked"), "Selectable and selected boxes are indistinguishable.");
+
+// Several megabytes served no-cache would be re-downloaded every time the scan
+// was opened, on a phone, on mobile data.
+assert(/vendored[\s\S]{0,400}max-age=31536000, immutable/.test(server), "The vendored detector is served without a long-lived cache policy.");
+assert(server.includes('".bin"'), "Weight shards have no declared content type.");
 assert(styles.includes("prefers-reduced-motion") && styles.includes("env(safe-area-inset-bottom)"), "The scan ignores reduced-motion or phone safe areas.");
 assert(server.includes('"/landlord/scan": "room-scan.html"') && server.includes("camera=(self), microphone=(self)"), "The scan route is missing or cannot use the camera and microphone.");
 assert(/requestPath === "\/brief" \|\| landlordDashboardPage \|\| roomScanPage \|\| journeyPage[\s\S]{0,120}\? "camera=\(self\), microphone=\(self\), geolocation=\(\)"/.test(server), "The embedded scanner is rendered on /landlord/book, but that real phone journey still blocks its own camera and microphone in Permissions-Policy.");
