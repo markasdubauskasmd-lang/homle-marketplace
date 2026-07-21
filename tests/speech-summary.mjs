@@ -125,4 +125,19 @@ for (const [label, reply] of [
 
 assert(await rejects(async () => createAnthropicSpeechSummary({ apiKey: "test-key", client: stubClient(jsonReply({ tasks: [] })) }).summarise("   "), "A spoken walkthrough is required"), "An empty walkthrough was sent to the provider.");
 
+// Verified against the live API: Haiku rejects the effort parameter with a 400,
+// so sending it unconditionally failed every call on the cheapest tier — and the
+// caller only saw a silent fallback with no reason.
+{
+  const capture = {};
+  await createAnthropicSpeechSummary({ apiKey: "k", model: "claude-haiku-4-5", client: stubClient(jsonReply({ tasks: [{ room: "", task: "Mop the floor", excluded: false }] }), capture) }).summarise("mop the floor");
+  assert(!("effort" in capture.request.output_config), "An effort hint was sent to a model that rejects it, which fails every call.");
+  assert(capture.request.output_config.format.type === "json_schema", "Dropping the effort hint also dropped the output schema.");
+}
+{
+  const capture = {};
+  await createAnthropicSpeechSummary({ apiKey: "k", model: "claude-opus-4-8", client: stubClient(jsonReply({ tasks: [{ room: "", task: "Mop the floor", excluded: false }] }), capture) }).summarise("mop the floor");
+  assert(capture.request.output_config.effort === "low", "A model that supports the effort hint no longer receives it.");
+}
+
 console.log("Speech summary tests passed: optional capability, exclusion safety, walkthrough-only requests, bounded input and output, and clean failure for every provider fault.");

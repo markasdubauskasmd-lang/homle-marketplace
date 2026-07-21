@@ -97,6 +97,17 @@ function reading(payload) {
   return Object.freeze({ condition, detections: Object.freeze(detections), tasks: Object.freeze(tasks) });
 }
 
+
+// Not every model accepts an effort hint — Haiku rejects the parameter with a
+// 400. Sending it regardless would fail every call on the cheapest tier, and
+// the caller would only see a silent fallback with no reason.
+function outputConfig(model, schema) {
+  const supportsEffort = /^claude-(?:opus-4-[5-9]|sonnet-[5-9]|sonnet-4-[6-9]|fable-|mythos-)/.test(model);
+  return supportsEffort
+    ? { effort: "low", format: { type: "json_schema", schema } }
+    : { format: { type: "json_schema", schema } };
+}
+
 export function createAnthropicRoomVision(options = {}) {
   const apiKey = String(options.apiKey || "").trim();
   if (!apiKey) throw new TypeError("ANTHROPIC_API_KEY is required for the room vision provider.");
@@ -115,7 +126,7 @@ export function createAnthropicRoomVision(options = {}) {
         model,
         max_tokens: 2048,
         system: instructions,
-        output_config: { effort: "low", format: { type: "json_schema", schema: readingSchema } },
+        output_config: outputConfig(model, readingSchema),
         messages: [{ role: "user", content: [imagePayload(image), { type: "text", text: context }] }]
       });
       if (response.stop_reason === "refusal") throw new Error("The room photograph could not be read.");
