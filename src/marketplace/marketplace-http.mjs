@@ -603,7 +603,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             sendJson(response, 503, { ok: false, error: "Assisted room reading is not configured." });
             return true;
           }
-          const body = await readJsonObject(request);
+          const body = await readJsonObject(request, maximumRoomPhotoBodyBytes);
           try {
             const result = await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript });
             sendJson(response, 200, { ok: true, ...result });
