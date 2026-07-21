@@ -86,14 +86,16 @@ assert(cocoLabel("") === "Item" && cocoLabel(null) === "Item", "An unnamed class
 
 // A 413 reaches the Landlord as a generic failure with no way to act on it, so
 // the budget is enforced before the request is made.
+// Only hand-picked items ever carry a crop: a detected one is already visible
+// in the room frame, so sending it twice would be waste.
 const bigCrop = `data:image/jpeg;base64,${"A".repeat(40_000)}`;
 const budgeted = roomReadingPayload({
   roomName: "Kitchen",
   roomFrame: `data:image/jpeg;base64,${"B".repeat(200_000)}`,
   items: [
-    { id: "m1", kind: "manual", label: "", box: { x: 1, y: 1, width: 5, height: 5 }, score: 0.2, crop: bigCrop },
-    { id: "d1", kind: "detected", label: "Sofa", box: { x: 2, y: 2, width: 5, height: 5 }, score: 0.9, crop: bigCrop },
-    { id: "d2", kind: "detected", label: "Fridge", box: { x: 3, y: 3, width: 5, height: 5 }, score: 0.4, crop: bigCrop }
+    { id: "m1", kind: "manual", label: "", box: { x: 1, y: 1, width: 5, height: 5 }, score: 0.9, crop: bigCrop },
+    { id: "m2", kind: "manual", label: "", box: { x: 2, y: 2, width: 5, height: 5 }, score: 0.2, crop: bigCrop },
+    { id: "d1", kind: "detected", label: "Sofa", box: { x: 3, y: 3, width: 5, height: 5 }, score: 0.8 }
   ]
 }, { limitBytes: 260_000, safetyMargin: 1 });
 
@@ -101,15 +103,24 @@ assert(budgeted.bytes <= 260_000 && budgeted.withinLimit, `The request was allow
 // The room frame is what condition is read from, and condition changes the
 // price. It is never what gets dropped.
 assert(budgeted.body.image.length > 100_000, "The room frame was dropped to save bytes, taking the condition grade with it.");
-// Detected items are visible in the room frame anyway; a manual box is the one
-// case the reader genuinely cannot do without help, so it survives longest.
-assert(budgeted.droppedCropIds.includes("d2") && budgeted.droppedCropIds[0] === "d2", `Crops were dropped in the wrong order: ${JSON.stringify(budgeted.droppedCropIds)}`);
-assert(!budgeted.droppedCropIds.includes("m1"), "A manual box lost its crop before the detected ones did.");
+// The least confident crop goes first.
+assert(budgeted.droppedCropIds[0] === "m2", `Crops were dropped in the wrong order: ${JSON.stringify(budgeted.droppedCropIds)}`);
 assert(roomReadingLimitBytes === 900 * 1024, "The client budget no longer matches the route's body limit.");
 
 // An oversized room frame on its own must be reported, not silently sent.
 const impossible = roomReadingPayload({ roomFrame: `data:image/jpeg;base64,${"C".repeat(400_000)}`, items: [] }, { limitBytes: 100_000, safetyMargin: 1 });
 assert(!impossible.withinLimit, "A request too large to send was reported as sendable.");
+
+// The limit is counted in bytes, but a spoken or typed note can hold characters
+// that take more than one. Measuring characters would let a request through
+// that the route then rejects as too large.
+const unicode = roomReadingPayload({ roomName: "Kitchen", transcript: "£".repeat(500), roomFrame: "data:image/jpeg;base64,AAAA", items: [] }, { limitBytes: 900 * 1024 });
+assert(unicode.bytes >= 1000, `A multi-byte transcript was measured as if it were ASCII: ${unicode.bytes}`);
+
+// Coordinates never cross the wire. The device owns the geometry, and a reader
+// that cannot see a box cannot place one over the wrong thing.
+const wire = roomReadingPayload({ roomFrame: "data:image/jpeg;base64,AAAA", items: [{ id: "m1", kind: "manual", label: "", box: { x: 1, y: 2, width: 3, height: 4 }, crop: "data:image/jpeg;base64,BBBB" }] });
+assert(!("box" in wire.body.items[0]) && !JSON.stringify(wire.body).includes('"x"'), `Geometry was sent to the reader: ${JSON.stringify(wire.body.items[0])}`);
 
 /* ── Joining the reply back to what was selected ────── */
 
@@ -129,6 +140,12 @@ assert(merged[0].note === "visible soiling", "An observation from the reader was
 // An item the reader did not mention keeps the label the device already knew.
 assert(merged[1].label === "Fridge" && merged[1].note === "", "An unmentioned item lost the label the device already had.");
 assert(mergeItemReadings(null, null).length === 0, "Missing selections were not handled as simply having none.");
+
+// A hand-picked box has no label of its own — naming it is why it was sent. If
+// the reader says nothing about it, the box must survive anyway: the Landlord
+// chose it deliberately, and dropping it would lose that choice silently.
+const unnamed = mergeItemReadings([{ id: "m1", kind: "manual", x: 1, y: 1, width: 5, height: 5, label: "" }], { items: [] });
+assert(unnamed.length === 1 && unnamed[0].label === "Needs a name", `A hand-picked item vanished when the reader did not name it: ${JSON.stringify(unnamed)}`);
 
 /* ── Keeping live boxes steady ──────────────────────── */
 

@@ -237,27 +237,32 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
   })).filter((item) => item.id);
 
   const dropped = [];
+  // Coordinates are deliberately not sent. The device owns the geometry, the
+  // reader never returns any, and a box it cannot see is a box it cannot place
+  // over the wrong thing.
   const body = () => ({
     roomName: String(request?.roomName || "").slice(0, 60),
     transcript: String(request?.transcript || "").slice(0, 1200),
     image: roomFrame,
-    items: items.map(({ id, kind, label, box, crop }) => (crop ? { id, kind, label, box, crop } : { id, kind, label, box }))
+    items: items.map(({ id, kind, label, crop }) => (crop ? { id, kind, label, crop } : { id, kind, label }))
   });
-  // Base64 and JSON are ASCII, so string length is byte length here.
-  const measure = () => JSON.stringify(body()).length;
+  // The room name and the transcript are whatever the customer typed or said,
+  // so they can hold characters that take more than one byte. Measuring
+  // characters would put the request over a limit that is counted in bytes.
+  const encoder = new TextEncoder();
+  const measure = () => encoder.encode(JSON.stringify(body())).length;
 
   // The room frame is never dropped: it is what the condition grade is read
   // from, and condition changes what the customer is charged. Bytes come off the
-  // crops instead — a detected item is already visible in the room frame, and a
-  // manual box is the one case the model genuinely cannot infer without help, so
-  // detected crops go first and the least confident go before the rest.
+  // crops instead, least confident first. An item that loses its crop is still
+  // sent — the reader may recognise it in the room frame — and if it comes back
+  // unnamed, `mergeItemReadings` keeps it rather than discarding the choice.
   const droppableOrder = items
-    .map((item, index) => ({ item, index }))
-    .filter(({ item }) => item.crop)
-    .sort((a, b) => (a.item.kind === b.item.kind ? a.item.score - b.item.score : a.item.kind === "detected" ? -1 : 1));
+    .filter((item) => item.crop)
+    .sort((a, b) => a.score - b.score);
 
   let bytes = measure();
-  for (const { item } of droppableOrder) {
+  for (const item of droppableOrder) {
     if (bytes <= budget) break;
     item.crop = "";
     dropped.push(item.id);
@@ -286,7 +291,12 @@ export function mergeItemReadings(selected, response) {
   return (Array.isArray(selected) ? selected : [])
     .map((item) => {
       const reading = named.get(String(item?.id || "")) || {};
-      const label = String(reading.label || item?.label || "").trim().slice(0, 28);
+      // A hand-picked box has no label of its own — naming it is the whole
+      // reason it was sent. If the reader does not come back with one, the box
+      // still stands: the Landlord chose it deliberately, and silently dropping
+      // it would lose that choice with nothing said.
+      const fallback = item?.kind === "manual" ? "Needs a name" : "";
+      const label = String(reading.label || item?.label || fallback).trim().slice(0, 28);
       if (!label) return null;
       return Object.freeze({
         id: String(item?.id || ""),

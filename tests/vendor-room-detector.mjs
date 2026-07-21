@@ -73,7 +73,7 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 
 /* ── What actually shipped ──────────────────────────── */
 
-const model = JSON.parse(await readFile(new URL("../public/vendor/coco-ssd/model.json", import.meta.url), "utf8"));
+const model = JSON.parse(await readFile(new URL("../public/vendor/coco-ssd-lite-v1/model.json", import.meta.url), "utf8"));
 
 // The vendored model must be self-contained. A leftover absolute URL would be
 // blocked by connect-src 'self' and the detector would simply never load.

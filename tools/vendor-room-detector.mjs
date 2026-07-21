@@ -100,7 +100,10 @@ export function quantizeManifest(manifest, source) {
 async function main() {
   const [sourceDirectory, outputDirectory] = process.argv.slice(2);
   if (!sourceDirectory) throw new TypeError("Usage: node tools/vendor-room-detector.mjs <source-model-dir> [output-dir]");
-  const destination = outputDirectory || fileURLToPath(new URL("../public/vendor/coco-ssd/", import.meta.url));
+  // Versioned on purpose: /vendor/ is served `immutable` for a year, so a new
+  // model must land at a new path rather than overwriting one browsers have
+  // already cached and will never revalidate. Bump this when re-vendoring.
+  const destination = outputDirectory || fileURLToPath(new URL("../public/vendor/coco-ssd-lite-v1/", import.meta.url));
 
   const model = JSON.parse(await readFile(resolve(sourceDirectory, "model.json"), "utf8"));
   const shardNames = model.weightsManifest.flatMap((group) => group.paths);

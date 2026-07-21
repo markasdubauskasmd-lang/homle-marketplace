@@ -132,12 +132,17 @@ function storedCsrf() {
 // is `script-src 'self'` with `connect-src 'self'`, so a CDN tag or the
 // library's default model URL would simply be blocked — and vendoring also means
 // no third party is told which homes are being scanned, or when.
+// The version is in the path on purpose. These files are served `immutable`
+// with a one-year lifetime, so a replacement must arrive at a new URL or
+// browsers that already hold the old one will never ask again. Re-vendoring
+// means a new directory, never an overwrite.
 const detectorScripts = Object.freeze([
-  "/vendor/tfjs/tf-core.min.js",
-  "/vendor/tfjs/tf-converter.min.js",
-  "/vendor/tfjs/tf-backend-webgl.min.js",
-  "/vendor/tfjs/coco-ssd.min.js"
+  "/vendor/tfjs-4.22.0/tf-core.min.js",
+  "/vendor/tfjs-4.22.0/tf-converter.min.js",
+  "/vendor/tfjs-4.22.0/tf-backend-webgl.min.js",
+  "/vendor/tfjs-4.22.0/coco-ssd.min.js"
 ]);
+const detectorModelUrl = "/vendor/coco-ssd-lite-v1/model.json";
 
 function loadDetectorScript(source) {
   return new Promise((done, fail) => {
@@ -166,6 +171,10 @@ function loadDetectorScript(source) {
 // remembered rather than retried — a phone without a working WebGL backend will
 // not grow one, and retrying just costs battery.
 let detectorLoad = null;
+// The model is shared, so the guard against overlapping inference has to be
+// shared too. An overlay closed and reopened mid-inference would otherwise have
+// two callers inside `detect()` on the same model at once.
+let detectorBusy = false;
 
 function loadDetectorOnce() {
   if (detectorLoad) return detectorLoad;
@@ -181,7 +190,7 @@ function loadDetectorOnce() {
     await runtime.ready();
     // Without `modelUrl` this fetches from storage.googleapis.com, which
     // connect-src blocks — the scan would show no boxes and report no error.
-    return await detection.load({ base: "lite_mobilenet_v2", modelUrl: "/vendor/coco-ssd/model.json" });
+    return await detection.load({ base: "lite_mobilenet_v2", modelUrl: detectorModelUrl });
   })();
   return detectorLoad;
 }
@@ -402,6 +411,46 @@ export function openRoomScan() {
       return state.selectedIds.size;
     }
 
+    // While live, boxes are percentages of the viewfinder and the video fills it
+    // through `object-fit: cover`. A frozen frame cannot rely on that: rotating
+    // the phone changes the viewfinder's aspect ratio, `cover` re-crops the
+    // still to suit, and every box — still a percentage of the viewfinder —
+    // would then sit over different pixels than the crop cut from the canvas.
+    //
+    // So the frozen still and the box layer are pinned to one letterboxed
+    // rectangle with the captured frame's exact aspect ratio. A percentage of
+    // that rectangle is a percentage of the canvas, at any window size, and the
+    // two can no longer disagree.
+    function layoutFrozen() {
+      if (!state.frozen || !el.canvas.width || !el.canvas.height) return;
+      const rect = el.viewfinder.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const scale = Math.min(rect.width / el.canvas.width, rect.height / el.canvas.height);
+      const width = el.canvas.width * scale;
+      const height = el.canvas.height * scale;
+      const left = (rect.width - width) / 2;
+      const top = (rect.height - height) / 2;
+      for (const node of [el.still, el.detections]) {
+        node.style.left = `${left}px`;
+        node.style.top = `${top}px`;
+        node.style.width = `${width}px`;
+        node.style.height = `${height}px`;
+        node.style.right = "auto";
+        node.style.bottom = "auto";
+      }
+      // The rectangle already has the image's aspect ratio, so filling it
+      // neither crops nor distorts.
+      el.still.style.objectFit = "fill";
+    }
+
+    function resetLayout() {
+      for (const node of [el.still, el.detections]) node.removeAttribute("style");
+    }
+
+    function onViewportResize() {
+      if (state.frozen) layoutFrozen();
+    }
+
     function refreshSelection() {
       paintBoxes(state.candidates, { selectable: true });
       const chosen = selectionCount();
@@ -429,6 +478,7 @@ export function openRoomScan() {
         label: track.label, kind: "detected", score: track.score
       })));
       state.selectedIds = new Set(preselect ? [preselect] : []);
+      layoutFrozen();
       refreshSelection();
     }
 
@@ -443,6 +493,8 @@ export function openRoomScan() {
       el.selection.hidden = true;
       el.viewfinder.classList.remove("picking");
       el.detections.innerHTML = "";
+      // Back to full-bleed: live boxes are percentages of the viewfinder again.
+      resetLayout();
       if (state.stream) startDetection();
     }
 
@@ -452,12 +504,16 @@ export function openRoomScan() {
     // actually being asked about.
     const manualBoxSize = 18;
     function tapPoint(event) {
-      const rect = el.viewfinder.getBoundingClientRect();
+      // Frozen, the boxes live in the letterboxed rectangle rather than the
+      // whole viewfinder, so a tap has to be measured against the same thing the
+      // boxes were drawn in or every hit test is offset.
+      const rect = (state.frozen ? el.detections : el.viewfinder).getBoundingClientRect();
       if (!rect.width || !rect.height) return null;
-      return {
-        x: ((event.clientX - rect.left) / rect.width) * 100,
-        y: ((event.clientY - rect.top) / rect.height) * 100
-      };
+      const x = ((event.clientX - rect.left) / rect.width) * 100;
+      const y = ((event.clientY - rect.top) / rect.height) * 100;
+      // A tap in the letterbox margin is outside the photograph entirely.
+      if (x < 0 || y < 0 || x > 100 || y > 100) return null;
+      return { x, y };
     }
 
     function onViewfinderTap(event) {
@@ -483,7 +539,11 @@ export function openRoomScan() {
         refreshSelection();
         return;
       }
-      if (state.candidates.length >= 12) return toast("That's as many items as one room can carry.");
+      // The cap counts what has been chosen, not what the detector happened to
+      // find. Counting candidates meant twelve irrelevant detections could block
+      // the Landlord from marking the air fryer — the exact case hand-picked
+      // boxes exist for.
+      if (selectionCount() >= 12) return toast("That's as many items as one room can carry.");
       state.manualCount += 1;
       const id = `m${state.manualCount}`;
       const [box] = usableLiveBoxes([{
@@ -729,7 +789,7 @@ export function openRoomScan() {
         state.rafId = 0;
         if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
         state.rafId = requestAnimationFrame(step);
-        if (state.detectorState !== "ready" || state.detecting) return;
+        if (state.detectorState !== "ready" || detectorBusy) return;
         const now = Date.now();
         if (now - state.lastDetectionAt < state.detectionInterval) return;
         state.lastDetectionAt = now;
@@ -750,7 +810,7 @@ export function openRoomScan() {
       const video = el.camera;
       // Mobile Safari reports zero dimensions until metadata has loaded.
       if (!video.videoWidth || !video.videoHeight) return;
-      state.detecting = true;
+      detectorBusy = true;
       const startedAt = Date.now();
       try {
         const found = await state.detector.detect(video, 12);
@@ -771,13 +831,16 @@ export function openRoomScan() {
         paintBoxes(liveBoxes());
       } catch {
         // A detector that starts failing mid-scan must not wedge the loop or
-        // leave stale boxes floating over a live camera.
+        // leave stale boxes floating over a live camera. Guarded like the
+        // success path, so a rejection arriving from a previous run cannot wipe
+        // the boxes off a frame the Landlord has since frozen and is choosing on.
+        if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
         state.detectorState = "unavailable";
         state.liveDetectionAvailable = false;
         state.tracks = [];
         el.detections.innerHTML = "";
       } finally {
-        state.detecting = false;
+        detectorBusy = false;
         // A phone that needs 400ms a frame is asked for fewer, rather than
         // being pinned at full load until the viewfinder itself stutters.
         state.detectionInterval = nextDetectionDelay(Date.now() - startedAt);
@@ -925,9 +988,11 @@ export function openRoomScan() {
       state.detector = null;
       clearTimeout(toastTimer);
       document.removeEventListener("keydown", onKeyDown);
-      // A listener left on `document` keeps this whole closure alive — the video
-      // element and the model with it — for the lifetime of the page.
+      // A listener left on `document` or `window` keeps this whole closure alive
+      // — the video element and the model with it — for the lifetime of the page.
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("resize", onViewportResize);
+      window.removeEventListener("orientationchange", onViewportResize);
       document.body.style.overflow = previousOverflow;
       overlay.remove();
       if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus({ preventScroll: true });
@@ -957,6 +1022,8 @@ export function openRoomScan() {
     for (const button of $$("[data-close]")) button.addEventListener("click", () => close(null));
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("resize", onViewportResize);
+    window.addEventListener("orientationchange", onViewportResize);
 
     el.roomLabel.textContent = guidedRooms[0];
     startCamera();
