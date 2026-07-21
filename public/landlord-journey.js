@@ -32,6 +32,7 @@ const el = {
   supplyDetail: $("[data-supply-detail]"),
   services: $("[data-services]"),
   scanLink: $("[data-scan-link]"),
+  scanPrereq: $("[data-scan-prereq]"),
   skipScan: $("[data-skip-scan]"),
   resultsEyebrow: $("[data-results-eyebrow]"),
   resultsSource: $("[data-results-source]"),
@@ -218,6 +219,9 @@ function renderServices() {
     });
     el.services.appendChild(option);
   }
+  const serviceSelected = Boolean(state.draft.serviceCode);
+  el.scanLink.disabled = !serviceSelected;
+  el.scanPrereq.hidden = serviceSelected;
 }
 
 // The scan opens over the journey rather than navigating away, so the answers
@@ -225,7 +229,11 @@ function renderServices() {
 // instead of being handed through storage across a page load.
 el.scanLink.addEventListener("click", async () => {
   readCurrentStep();
-  if (!canLeaveStep("service", state.draft)) return toast(blockedReason("service", state.draft));
+  if (!canLeaveStep("service", state.draft)) {
+    toast(blockedReason("service", state.draft));
+    el.services.querySelector(".opt")?.focus();
+    return;
+  }
   el.scanLink.disabled = true;
   try {
     const result = await openRoomScan();

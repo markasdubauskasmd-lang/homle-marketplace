@@ -609,6 +609,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             sendJson(response, 200, { ok: true, ...result });
           } catch (error) {
             // The scan must never be blocked by the reader being unavailable.
+            // Keep photographs and provider messages out of logs, but retain a
+            // bounded diagnostic signature so a broken model call is visible.
+            console.error("[room-reading] provider request failed", {
+              name: String(error?.name || "Error").slice(0, 80),
+              status: Number.isInteger(error?.status) ? error.status : null,
+              type: String(error?.error?.type || error?.type || "").slice(0, 80)
+            });
             sendJson(response, 502, { ok: false, error: "This room could not be read automatically." });
           }
           return true;

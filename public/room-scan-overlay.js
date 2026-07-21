@@ -33,9 +33,11 @@ const markup = `
       <h2>Homle needs your camera</h2>
       <p data-camera-blocked-reason>Allow camera access to scan your rooms, or describe them by voice instead.</p>
       <div class="vf-blocked-actions">
-        <button class="button" type="button" data-camera-retry>Try camera again</button>
+        <button class="button" type="button" data-camera-fallback>Open phone camera</button>
+        <button class="button ghost" type="button" data-camera-retry>Try live camera again</button>
         <button class="button ghost" type="button" data-close>Describe by voice instead</button>
       </div>
+      <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-camera-fallback-input hidden>
     </div>
   </div>
 
@@ -131,6 +133,7 @@ export function openRoomScan() {
     const el = {
       viewfinder: $("[data-viewfinder]"), camera: $("[data-camera]"), canvas: $("[data-capture-canvas]"),
       blocked: $("[data-camera-blocked]"), blockedReason: $("[data-camera-blocked-reason]"), retry: $("[data-camera-retry]"),
+      fallback: $("[data-camera-fallback]"), fallbackInput: $("[data-camera-fallback-input]"),
       mesh: $("[data-mesh]"), detections: $("[data-detection-layer]"), sweep: $("[data-sweep]"), flash: $("[data-flash]"),
       still: $("[data-still]"), roomLabel: $("[data-room-label]"), shotCount: $("[data-shot-count]"), hint: $("[data-hint]"),
       shots: $("[data-shots]"), mic: $("[data-mic]"), shutter: $("[data-shutter]"), done: $("[data-done]"),
@@ -185,8 +188,8 @@ export function openRoomScan() {
       } catch (error) {
         const denied = error?.name === "NotAllowedError" || error?.name === "SecurityError";
         blockCamera(denied
-          ? "Camera access was declined. Allow it in your browser settings, or describe each room by voice instead."
-          : "No camera could be opened on this device. You can still describe each room by voice.");
+          ? "Live camera permission is blocked. Open the phone camera below, or allow Camera in your browser settings and retry."
+          : "No live camera could be opened. Use the phone camera below to take each room photo instead.");
       }
     }
 
@@ -210,6 +213,34 @@ export function openRoomScan() {
       el.canvas.height = Math.round(video.videoHeight * scale);
       el.canvas.getContext("2d").drawImage(video, 0, 0, el.canvas.width, el.canvas.height);
       return el.canvas.toDataURL("image/jpeg", 0.82);
+    }
+
+    function selectedPhotoFrame(file) {
+      return new Promise((resolveFrame, rejectFrame) => {
+        if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 15 * 1024 * 1024) {
+          rejectFrame(new TypeError("Choose a JPEG, PNG or WebP room photo up to 15 MB."));
+          return;
+        }
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+        const finish = () => URL.revokeObjectURL(objectUrl);
+        image.onload = () => {
+          try {
+            const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
+            el.canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+            el.canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+            el.canvas.getContext("2d").drawImage(image, 0, 0, el.canvas.width, el.canvas.height);
+            const frame = el.canvas.toDataURL("image/jpeg", 0.82);
+            finish();
+            resolveFrame(frame);
+          } catch (error) {
+            finish();
+            rejectFrame(error);
+          }
+        };
+        image.onerror = () => { finish(); rejectFrame(new TypeError("That photo could not be opened.")); };
+        image.src = objectUrl;
+      });
     }
 
     function paintDetections(detections) {
@@ -261,12 +292,10 @@ export function openRoomScan() {
       });
     }
 
-    async function capture() {
+    async function captureFrame(frame) {
       if (state.capturing || state.shots.length >= maximumShots || state.closed) return;
       if (!state.consentAsked) await askConsent();
       if (state.closed) return;
-      const frame = currentFrame();
-      if (!frame) return toast("The camera is still warming up — try again in a moment.");
       const generation = state.generation;
       state.capturing = true;
       el.shutter.disabled = true;
@@ -284,7 +313,13 @@ export function openRoomScan() {
       el.still.hidden = false;
 
       let reading = { detections: [], tasks: [], condition: "" };
-      try { reading = await readRoom(frame, roomName); } catch { state.visionAvailable = false; }
+      let readingError = "";
+      try { reading = await readRoom(frame, roomName); } catch (error) {
+        state.visionAvailable = false;
+        readingError = error?.code === "sign-in-required"
+          ? "Photo saved. Sign in to let Homle read rooms automatically; you can still finish with voice notes."
+          : "Photo saved, but automatic room reading is unavailable. Keep scanning and review the checklist yourself.";
+      }
       if (generation !== state.generation || state.closed) return;
 
       const detections = usableDetections(reading.detections);
@@ -303,7 +338,11 @@ export function openRoomScan() {
         el.still.hidden = true;
         el.still.removeAttribute("src");
         state.capturing = false;
-        el.shutter.disabled = !el.blocked.hidden || state.shots.length >= maximumShots;
+        if (!state.stream && state.shots.length < maximumShots) {
+          blockCamera("Room photo added. Open the phone camera again for the next room.");
+        } else {
+          el.shutter.disabled = !el.blocked.hidden || state.shots.length >= maximumShots;
+        }
         el.shotCount.textContent = String(state.shots.length);
         el.roomLabel.textContent = nextRoomName(state.shots.length);
         el.hint.innerHTML = scanHint(state.shots.length, { voiceUsed: state.voiceUsed });
@@ -311,13 +350,46 @@ export function openRoomScan() {
           el.done.disabled = false;
           el.done.classList.add("ready");
         }
+        if (readingError) toast(readingError);
       }, detections.length ? 1800 : 900);
+    }
+
+    async function capture() {
+      const frame = currentFrame();
+      if (!frame) return toast("The camera is still warming up — try again in a moment.");
+      await captureFrame(frame);
+    }
+
+    async function captureSelectedPhoto(file) {
+      try {
+        const frame = await selectedPhotoFrame(file);
+        el.blocked.hidden = true;
+        await captureFrame(frame);
+      } catch (error) {
+        blockCamera(error?.message || "That room photo could not be opened. Try another one.");
+      }
+    }
+
+    async function recoverCsrf() {
+      const current = storedCsrf();
+      if (current) return current;
+      try {
+        const response = await fetch("/api/marketplace/auth/session", {
+          method: "POST", credentials: "same-origin", cache: "no-store",
+          headers: { "Content-Type": "application/json", Accept: "application/json" }, body: "{}"
+        });
+        if (!response.ok) return "";
+        const result = await response.json();
+        if (!result?.csrfToken) return "";
+        sessionStorage.setItem("tideway_csrf", result.csrfToken);
+        return sessionStorage.getItem("tideway_csrf") || "";
+      } catch { return ""; }
     }
 
     async function readRoom(image, roomName) {
       if (!state.readingAllowed || !state.visionAvailable) return { detections: [], tasks: [], condition: "" };
-      const csrf = storedCsrf();
-      if (!csrf) { state.visionAvailable = false; return { detections: [], tasks: [], condition: "" }; }
+      const csrf = await recoverCsrf();
+      if (!csrf) throw Object.assign(new Error("A signed-in Landlord session is required."), { code: "sign-in-required" });
       const response = await fetch("/api/marketplace/landlord/room-reading", {
         method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRF-Token": csrf },
@@ -474,6 +546,14 @@ export function openRoomScan() {
     el.mic.addEventListener("click", () => (state.voiceOn ? stopVoice() : startVoice()));
     el.done.addEventListener("click", finishScan);
     el.retry.addEventListener("click", startCamera);
+    el.fallback.addEventListener("click", () => {
+      el.fallbackInput.value = "";
+      el.fallbackInput.click();
+    });
+    el.fallbackInput.addEventListener("change", () => {
+      const [file] = el.fallbackInput.files || [];
+      if (file) captureSelectedPhoto(file);
+    });
     for (const button of $$("[data-close]")) button.addEventListener("click", () => close(null));
     document.addEventListener("keydown", onKeyDown);
 

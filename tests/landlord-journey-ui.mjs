@@ -83,6 +83,7 @@ assert(styles.includes(".rail-seg") && styles.includes(".rail-lbl") && styles.in
 
 // The scan is an interstitial in the journey, not a dead end.
 assert(page.includes("data-scan-link") && script.includes("openRoomScan"), "The journey never offers the room scan.");
+assert(page.includes("data-scan-prereq") && script.includes("el.scanLink.disabled = !serviceSelected") && script.includes("el.scanPrereq.hidden = serviceSelected"), "The scan button still looks broken before the required cleaning type is selected.");
 assert(scanPage.includes("/landlord/book") || script.includes("await openRoomScan()"), "Leaving the scan does not return to the journey.");
 assert(script.includes("await openRoomScan()") && script.includes("state.draft.tasks = Array.isArray(result.tasks)"), "A finished scan does not hand its checklist straight back to the journey.");
 

@@ -119,6 +119,8 @@ assert(overlay.includes("state.visionAvailable = false") && overlay.includes("st
 
 // Camera refusal is explained and never dead-ends the booking.
 assert(overlay.includes("data-camera-blocked") && overlay.includes("NotAllowedError") && overlay.includes("Describe by voice instead"), "A declined camera leaves the Landlord stuck with no way to continue.");
+assert(overlay.includes("data-camera-fallback") && overlay.includes("data-camera-fallback-input") && overlay.includes('capture="environment"') && overlay.includes("selectedPhotoFrame") && overlay.includes("captureSelectedPhoto"), "A denied live-camera permission no longer has a native phone-camera fallback.");
+assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch("/api/marketplace/auth/session"') && overlay.includes('code: "sign-in-required"') && overlay.includes("automatic room reading is unavailable"), "The room reader silently fails when a signed-in phone loses its in-memory security token or when the provider fails.");
 
 /* ── Presentation ──────────────────────────────────── */
 assert(styles.includes(".scan-overlay") && styles.includes(".scan-stage") && styles.includes(".det-box") && styles.includes("scanSweepRun") && styles.includes(".proc-log"), "The approved scan presentation is missing.");
