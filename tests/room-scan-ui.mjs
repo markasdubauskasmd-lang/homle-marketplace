@@ -175,8 +175,11 @@ assert(overlay.includes("function layoutFrozen") && /window\.addEventListener\("
 assert(/tapPoint[\s\S]{0,320}state\.frozen \? el\.detections : el\.viewfinder/.test(overlay), "Taps are measured against a different rectangle than the boxes are drawn in.");
 
 // The cap must count what was chosen, not what the detector found, or twelve
-// stray detections lock out the hand-picked box the feature exists for.
-assert(/if \(selectionCount\(\) >= 12\) return toast/.test(overlay), "A full set of detections can block the Landlord from marking anything by hand.");
+// stray detections lock out the hand-picked box the feature exists for. It must
+// also apply on both ways of choosing: selecting an existing box as well as
+// adding one, or a thirteenth is accepted here and silently truncated server-side.
+assert(/function atSelectionLimit\(\)[\s\S]{0,120}selectionCount\(\) >= maximumSelectedItems/.test(overlay), "A full set of detections can block the Landlord from marking anything by hand.");
+assert((overlay.match(/if \(atSelectionLimit\(\)\) return toast\(selectionLimitMessage\)/g) || []).length === 2, "The selection cap is enforced when adding a box by hand but not when tapping one the detector found.");
 
 // The detector is shared across overlays, so the guard against overlapping
 // inference has to be shared too.

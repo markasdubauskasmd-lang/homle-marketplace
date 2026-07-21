@@ -411,6 +411,16 @@ export function openRoomScan() {
       return state.selectedIds.size;
     }
 
+    // The reader takes twelve items. The cap counts what has been chosen, not
+    // what the detector happened to find: counting candidates meant twelve
+    // irrelevant detections could block the Landlord from marking the air fryer,
+    // the exact case hand-picked boxes exist for.
+    const maximumSelectedItems = 12;
+    const selectionLimitMessage = "That's as many items as one room can carry.";
+    function atSelectionLimit() {
+      return selectionCount() >= maximumSelectedItems;
+    }
+
     // While live, boxes are percentages of the viewfinder and the video fills it
     // through `object-fit: cover`. A frozen frame cannot rely on that: rotating
     // the phone changes the viewfinder's aspect ratio, `cover` re-crops the
@@ -535,15 +545,17 @@ export function openRoomScan() {
       const hit = boxAtPoint(state.candidates, point.x, point.y);
       if (hit) {
         if (state.selectedIds.has(hit.id)) state.selectedIds.delete(hit.id);
-        else state.selectedIds.add(hit.id);
+        else {
+          // The cap applies here too. Without it a thirteenth item could be
+          // selected and then silently truncated server-side, so the Landlord
+          // would see it chosen and never learn it was dropped.
+          if (atSelectionLimit()) return toast(selectionLimitMessage);
+          state.selectedIds.add(hit.id);
+        }
         refreshSelection();
         return;
       }
-      // The cap counts what has been chosen, not what the detector happened to
-      // find. Counting candidates meant twelve irrelevant detections could block
-      // the Landlord from marking the air fryer — the exact case hand-picked
-      // boxes exist for.
-      if (selectionCount() >= 12) return toast("That's as many items as one room can carry.");
+      if (atSelectionLimit()) return toast(selectionLimitMessage);
       state.manualCount += 1;
       const id = `m${state.manualCount}`;
       const [box] = usableLiveBoxes([{

@@ -103,8 +103,14 @@ assert(budgeted.bytes <= 260_000 && budgeted.withinLimit, `The request was allow
 // The room frame is what condition is read from, and condition changes the
 // price. It is never what gets dropped.
 assert(budgeted.body.image.length > 100_000, "The room frame was dropped to save bytes, taking the condition grade with it.");
-// The least confident crop goes first.
-assert(budgeted.droppedCropIds[0] === "m2", `Crops were dropped in the wrong order: ${JSON.stringify(budgeted.droppedCropIds)}`);
+// The least confident hand-picked item goes first.
+assert(budgeted.droppedItemIds[0] === "m2", `Items were dropped in the wrong order: ${JSON.stringify(budgeted.droppedItemIds)}`);
+// It leaves the request entirely rather than travelling without its close-up.
+// No coordinates are sent, so an unnamed id with no crop gives the reader
+// nothing to identify — in a kitchen holding a kettle, a toaster and an air
+// fryer it would not be unsure, it would confidently name the wrong one.
+assert(!budgeted.body.items.some((item) => item.id === "m2"), "A hand-picked item was sent with nothing to identify it by.");
+assert(budgeted.body.items.every((item) => item.kind !== "manual" || item.crop), "A hand-picked item was sent without its close-up.");
 assert(roomReadingLimitBytes === 900 * 1024, "The client budget no longer matches the route's body limit.");
 
 // An oversized room frame on its own must be reported, not silently sent.

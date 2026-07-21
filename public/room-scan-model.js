@@ -236,7 +236,7 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
     crop: typeof item?.crop === "string" ? item.crop : ""
   })).filter((item) => item.id);
 
-  const dropped = [];
+  const dropped = new Set();
   // Coordinates are deliberately not sent. The device owns the geometry, the
   // reader never returns any, and a box it cannot see is a box it cannot place
   // over the wrong thing.
@@ -244,7 +244,9 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
     roomName: String(request?.roomName || "").slice(0, 60),
     transcript: String(request?.transcript || "").slice(0, 1200),
     image: roomFrame,
-    items: items.map(({ id, kind, label, crop }) => (crop ? { id, kind, label, crop } : { id, kind, label }))
+    items: items
+      .filter((item) => !dropped.has(item.id))
+      .map(({ id, kind, label, crop }) => (crop ? { id, kind, label, crop } : { id, kind, label }))
   });
   // The room name and the transcript are whatever the customer typed or said,
   // so they can hold characters that take more than one byte. Measuring
@@ -254,9 +256,14 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
 
   // The room frame is never dropped: it is what the condition grade is read
   // from, and condition changes what the customer is charged. Bytes come off the
-  // crops instead, least confident first. An item that loses its crop is still
-  // sent — the reader may recognise it in the room frame — and if it comes back
-  // unnamed, `mergeItemReadings` keeps it rather than discarding the choice.
+  // hand-picked items instead, least confident first.
+  //
+  // Such an item is removed from the request outright rather than sent without
+  // its crop. No coordinates cross the wire, so an unnamed id with no close-up
+  // gives the reader nothing to identify — in a kitchen holding a kettle, a
+  // toaster and an air fryer it would not be unsure, it would confidently name
+  // the wrong one. Left out of the request, the item keeps its local placeholder
+  // and is shown as needing a name, which is true.
   const droppableOrder = items
     .filter((item) => item.crop)
     .sort((a, b) => a.score - b.score);
@@ -264,8 +271,7 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
   let bytes = measure();
   for (const item of droppableOrder) {
     if (bytes <= budget) break;
-    item.crop = "";
-    dropped.push(item.id);
+    dropped.add(item.id);
     bytes = measure();
   }
 
@@ -275,7 +281,7 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
     // False means even the room frame alone exceeds the budget; the caller must
     // re-encode it smaller rather than send a request that will 413.
     withinLimit: bytes <= budget,
-    droppedCropIds: Object.freeze(dropped)
+    droppedItemIds: Object.freeze([...dropped])
   });
 }
 
