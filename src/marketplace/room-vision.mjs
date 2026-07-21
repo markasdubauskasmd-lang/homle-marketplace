@@ -114,7 +114,10 @@ function outputConfig(model, schema) {
 export function createAnthropicRoomVision(options = {}) {
   const apiKey = String(options.apiKey || "").trim();
   if (!apiKey) throw new TypeError("ANTHROPIC_API_KEY is required for the room vision provider.");
-  const model = String(options.model || "claude-opus-4-8").trim();
+  // Haiku by default: a room scan is a high-volume, low-stakes read, and the
+  // cheaper tier is what makes per-scan cost sane. A blank ROOM_VISION_MODEL
+  // must not silently select the model that costs five times more.
+  const model = String(options.model || "claude-haiku-4-5").trim();
   const client = options.client || new Anthropic({ apiKey, maxRetries: 1, timeout: 30_000 });
 
   return Object.freeze({
@@ -141,9 +144,19 @@ export function createAnthropicRoomVision(options = {}) {
   });
 }
 
+// The credential is the switch. Requiring a separate ROOM_VISION_PROVIDER flag
+// meant three variables all had to be right for the reader to exist, and a
+// single blank one disabled it with no visible reason — which is exactly how
+// this shipped configured-but-dead. A key that is present is an intent to use
+// it; ROOM_VISION_PROVIDER=off remains the way to opt out.
 export function roomVisionFromEnvironment(env = process.env) {
   const provider = String(env.ROOM_VISION_PROVIDER || "").trim().toLowerCase();
-  if (!provider || provider === "off" || provider === "false") return null;
-  if (provider !== "anthropic") throw new TypeError("ROOM_VISION_PROVIDER must be 'anthropic' when set.");
-  return createAnthropicRoomVision({ apiKey: env.ANTHROPIC_API_KEY, model: env.ROOM_VISION_MODEL });
+  if (provider === "off" || provider === "false") return null;
+  if (provider && provider !== "anthropic") throw new TypeError("ROOM_VISION_PROVIDER must be 'anthropic' or 'off' when set.");
+  const apiKey = String(env.ANTHROPIC_API_KEY || "").trim();
+  // A missing credential disables the reader rather than failing the boot. This
+  // runs during runtime construction, so throwing here took the whole service
+  // down over one blank optional variable.
+  if (!apiKey) return null;
+  return createAnthropicRoomVision({ apiKey, model: env.ROOM_VISION_MODEL });
 }
