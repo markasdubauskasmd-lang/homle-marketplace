@@ -22,7 +22,16 @@ const jsonReply = (payload) => ({ stop_reason: "end_turn", content: [{ type: "te
 assert(roomVisionFromEnvironment({}) === null, "An unconfigured room vision provider was not treated as disabled.");
 assert(roomVisionFromEnvironment({ ROOM_VISION_PROVIDER: "off" }) === null, "An explicitly disabled room vision provider was still constructed.");
 assert(await rejects(async () => roomVisionFromEnvironment({ ROOM_VISION_PROVIDER: "acme" }), "must be 'anthropic'"), "An unrecognised room vision provider was accepted.");
-assert(await rejects(async () => roomVisionFromEnvironment({ ROOM_VISION_PROVIDER: "anthropic" }), "ANTHROPIC_API_KEY is required"), "The provider was enabled without the credential it needs.");
+// A blank credential disables the reader rather than failing the boot. This runs
+// during runtime construction, so throwing took the entire service down over one
+// blank optional variable.
+assert(roomVisionFromEnvironment({ ROOM_VISION_PROVIDER: "anthropic" }) === null, "A missing credential failed the boot instead of disabling the reader.");
+
+// The credential alone switches the reader on. Requiring ROOM_VISION_PROVIDER as
+// well meant a deployment could hold a valid key and still read nothing, with no
+// error anywhere — which is exactly how this shipped configured-but-dead.
+assert(roomVisionFromEnvironment({ ANTHROPIC_API_KEY: "test-key" }) !== null, "A present credential did not enable the reader.");
+assert(roomVisionFromEnvironment({ ANTHROPIC_API_KEY: "test-key", ROOM_VISION_PROVIDER: "off" }) === null, "An explicit opt-out was ignored when a credential was present.");
 
 {
   const capture = {};
