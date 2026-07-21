@@ -30,6 +30,92 @@ storage. Payments intentionally remain off.
 > so the work listed below is merged and CI-verified but **not yet live**. One
 > **Manual Deploy → Deploy latest commit** ships all of it.
 
+## 0. READ FIRST — the room scanner (added 2026-07-21)
+
+The Landlord side was rebuilt around a guided booking journey with a camera
+room scanner. **The founder has already saved the environment variables for it
+in Render but has NOT deployed.** Deploying the latest `main` is the remaining
+step.
+
+### What was added
+
+| Route | What it is |
+|---|---|
+| `/landlord/dashboard` | Now leads with a room-scan banner; bookings, then properties below |
+| `/landlord/book` | The six-step guided journey: postcode → service → results → when → cleaner → confirm |
+| `/landlord/scan` | Direct entry to the scanner; normally it opens as an overlay inside the journey |
+
+The scanner uses the real rear camera and real speech recognition. Each captured
+photo can be read by a language model that returns the **objects** it can see
+(fixtures, appliances including small ones like an air fryer, furniture), the
+room's condition, and cleaning tasks — drawn as boxes on the photo.
+
+### Environment variables (already entered by the founder, not yet deployed)
+
+```
+ROOM_VISION_PROVIDER    = anthropic
+SPEECH_SUMMARY_PROVIDER = anthropic
+ANTHROPIC_API_KEY       = sk-ant-…   (secret)
+ROOM_VISION_MODEL       = claude-haiku-4-5
+SPEECH_SUMMARY_MODEL    = claude-haiku-4-5
+```
+
+Both features are **capability-gated**: with these unset the scan still captures
+photos and still scopes from the spoken note, it simply shows no object boxes.
+Nothing breaks.
+
+### Three things that will cost you hours if you don't know them
+
+1. **Deploy `b362411` or later, never anything older.** Haiku returns
+   `400 "This model does not support the effort parameter"`. Both adapters used
+   to send it unconditionally, so on Haiku *every* call failed — and because
+   they fall back silently by design, the scan would have looked configured and
+   simply shown no boxes. Fixed in `2470ba6`; do not roll back past it.
+2. **The room-reading route has its own request body limit** (900 KB, in
+   `http-support.mjs`). The global limit is 64 KB and a room photo is 150–400 KB,
+   so before this every capture 413'd silently. If you touch body limits, keep
+   `maximumRoomPhotoBodyBytes` on that route.
+3. **`GET /api/health` reports the truth.** Check `speechSummaryReady` and
+   `roomVisionReady` after deploying. If a scan shows photos but no boxes, the
+   Render logs for `/api/marketplace/landlord/room-reading` are the first place
+   to look — the client is deliberately given a generic message.
+
+### What is verified and what is not
+
+- **Verified against the live API:** the spoken-walkthrough summary. Real output,
+  correct handling of exclusions ("don't clean inside the oven" stays an
+  exclusion), preserved qualifiers ("a quick mop"), and phrasing the rule-based
+  parser cannot handle.
+- **NOT verified:** object recognition on a real photograph. It has only been
+  run against a synthetic test image, where it correctly returned no boxes and
+  no condition rather than guessing. Nobody has yet pointed a phone at a real
+  room. Expect the first real run to surface problems.
+- **NOT verified:** the camera path on a physical device.
+
+### Cost and safety
+
+On Haiku a four-room scan is roughly 1.5p; on Opus roughly 8p. Migration 066
+adds a reviewed rate-limit scope capping image reads at 40 per 15 minutes.
+Photos are read in memory and never stored by the reader. A consent screen asks
+the Landlord before the first photograph is sent anywhere, and declining leaves
+a fully working scan.
+
+**The API key currently in Render was shared in a chat transcript and should be
+rotated.**
+
+### Deliberate omissions — do not "fix" these
+
+- **No floor area or room dimensions anywhere.** A phone browser cannot measure
+  a room; iOS does not expose LiDAR to web pages. The design prototype showed
+  "62 m²" as a hardcoded constant. Reproducing it would misprice jobs on a
+  number nobody measured.
+- **Guide time is a range, not a single figure.** It comes from the number of
+  tasks scoped, which cannot support a precise duration.
+- **A room the model could not judge reads "Not assessed"**, never a confident
+  "Light".
+
+---
+
 ### 1a. Merged since the deployed release — needs a redeploy to go live
 
 Read this before deploying, so you know what changes for the founder.
