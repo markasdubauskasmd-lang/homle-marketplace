@@ -52,7 +52,7 @@ for (const invalid of [
   assert(usableDetections([invalid]).length === 0, `A malformed detection was drawn over the photograph: ${JSON.stringify(invalid)}`);
 }
 assert(usableDetections(null).length === 0 && usableDetections([]).length === 0, "Missing detections were not handled as simply having none.");
-assert(usableDetections(Array.from({ length: 20 }, () => ({ x: 1, y: 1, width: 5, height: 5, label: "Shelf" }))).length === 8, "The detection overlay is not bounded.");
+assert(usableDetections(Array.from({ length: 30 }, () => ({ x: 1, y: 1, width: 5, height: 5, label: "Shelf" }))).length === 12, "The detection overlay is not bounded.");
 
 // Time comes from the tasks actually scoped; an unread room contributes nothing.
 assert(estimatedMinutes([]) === 0 && estimatedMinutes([{ tasks: [] }]) === 0, "An unscoped scan produced a duration out of nothing.");

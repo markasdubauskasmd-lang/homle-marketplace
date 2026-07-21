@@ -55,7 +55,7 @@ export function usableDetections(detections) {
       return x >= 0 && y >= 0 && x + width <= 100 && y + height <= 100;
     })
     .filter((detection) => String(detection.label || "").trim())
-    .slice(0, 8)
+    .slice(0, 12)
     .map((detection) => Object.freeze({
       x: detection.x,
       y: detection.y,
