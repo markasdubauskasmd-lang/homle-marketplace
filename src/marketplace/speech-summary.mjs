@@ -98,6 +98,17 @@ function checklistLines(payload) {
   return lines;
 }
 
+
+// Not every model accepts an effort hint — Haiku rejects the parameter with a
+// 400. Sending it regardless would fail every call on the cheapest tier, and
+// the caller would only see a silent fallback with no reason.
+function outputConfig(model, schema) {
+  const supportsEffort = /^claude-(?:opus-4-[5-9]|sonnet-[5-9]|sonnet-4-[6-9]|fable-|mythos-)/.test(model);
+  return supportsEffort
+    ? { effort: "low", format: { type: "json_schema", schema } }
+    : { format: { type: "json_schema", schema } };
+}
+
 export function createAnthropicSpeechSummary(options = {}) {
   const apiKey = String(options.apiKey || "").trim();
   if (!apiKey) throw new TypeError("ANTHROPIC_API_KEY is required for the speech summary provider.");
@@ -111,9 +122,9 @@ export function createAnthropicSpeechSummary(options = {}) {
         model,
         max_tokens: 2048,
         system: instructions,
-        // Low effort keeps this fast enough to sit in the walkthrough: the task
-        // is extraction from a short transcript, not open-ended reasoning.
-        output_config: { effort: "low", format: { type: "json_schema", schema: checklistSchema } },
+        // Low effort where the model accepts it: this is extraction from a short
+        // transcript, not open-ended reasoning.
+        output_config: outputConfig(model, checklistSchema),
         messages: [{ role: "user", content: transcriptText(transcript) }]
       });
       // A safety refusal returns a successful response with no usable content;
