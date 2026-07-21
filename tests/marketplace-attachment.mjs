@@ -160,6 +160,8 @@ const attachment = await createMarketplaceAttachment({
       googleOidcReady: true,
       facebookLoginReady: true,
       geocodingReady: true,
+      speechSummaryReady: true,
+      roomVisionReady: true,
       matchingReady: true
     };
   }
@@ -185,6 +187,8 @@ assert.equal(attachment.emailReady, true);
 assert.equal(attachment.mediaReady, true);
 assert.equal(attachment.realtimeReady, true);
 assert.equal(attachment.geocodingReady, true);
+assert.equal(attachment.speechSummaryReady, true);
+assert.equal(attachment.roomVisionReady, true);
 assert.equal(attachment.matchingReady, true);
 await attachment.close();
 await attachment.close();
@@ -221,7 +225,7 @@ const restrictedCore = await createMarketplaceAttachment({
   createRuntime(selectedPool, options) {
     assert.equal(options.emailDelivery, undefined);
     assert.equal(options.objectStorage, undefined);
-    return { router, authenticationHttpReady: false, googleOidcReady: false, facebookLoginReady: false, geocodingReady: false, matchingReady: false };
+    return { router, authenticationHttpReady: false, googleOidcReady: false, facebookLoginReady: false, geocodingReady: false, speechSummaryReady: false, roomVisionReady: false, matchingReady: false };
   }
 });
 assert.equal(restrictedCore.enabled, true);
@@ -231,6 +235,8 @@ assert.equal(restrictedCore.emailReady, false);
 assert.equal(restrictedCore.mediaReady, false);
 assert.equal(restrictedCore.realtimeReady, true);
 assert.equal(restrictedCore.geocodingReady, false);
+assert.equal(restrictedCore.speechSummaryReady, false);
+assert.equal(restrictedCore.roomVisionReady, false);
 assert.equal(restrictedCore.matchingReady, false);
 await restrictedCore.close();
 assert.equal(restrictedCoreClosed, 1);
