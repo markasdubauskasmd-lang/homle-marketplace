@@ -124,5 +124,6 @@ assert(overlay.includes("data-camera-blocked") && overlay.includes("NotAllowedEr
 assert(styles.includes(".scan-overlay") && styles.includes(".scan-stage") && styles.includes(".det-box") && styles.includes("scanSweepRun") && styles.includes(".proc-log"), "The approved scan presentation is missing.");
 assert(styles.includes("prefers-reduced-motion") && styles.includes("env(safe-area-inset-bottom)"), "The scan ignores reduced-motion or phone safe areas.");
 assert(server.includes('"/landlord/scan": "room-scan.html"') && server.includes("camera=(self), microphone=(self)"), "The scan route is missing or cannot use the camera and microphone.");
+assert(/requestPath === "\/brief" \|\| landlordDashboardPage \|\| roomScanPage \|\| journeyPage[\s\S]{0,120}\? "camera=\(self\), microphone=\(self\), geolocation=\(\)"/.test(server), "The embedded scanner is rendered on /landlord/book, but that real phone journey still blocks its own camera and microphone in Permissions-Policy.");
 
 console.log("Room scan UI tests passed: embedded overlay with one implementation, real camera and speech, consent before any photograph leaves, camera released on every exit, safe detection overlay, honest duration and condition, no invented measurement and the approved presentation.");

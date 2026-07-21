@@ -240,7 +240,7 @@ function setSecurityHeaders(response, requestPath = "") {
   if (process.env.NODE_ENV === "production") response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   response.setHeader("Permissions-Policy", requestPath === "/booking-payment"
     ? "camera=(), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\" \"https://hooks.stripe.com\")"
-    : requestPath === "/brief" || landlordDashboardPage || roomScanPage
+    : requestPath === "/brief" || landlordDashboardPage || roomScanPage || journeyPage
     ? "camera=(self), microphone=(self), geolocation=()"
     : activeJobPage
       ? "camera=(self), microphone=(), geolocation=(self)"
