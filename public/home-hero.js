@@ -83,12 +83,12 @@ if (wrap && stage) {
     }
   }
 
-  const compact = window.matchMedia("(max-width: 1024px)");
   const still = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-  // Where the scene is not pinned (compact layout) or motion is unwelcome, the
-  // scan cannot be scrubbed — show the calm, finished room and stop.
-  function isStatic() { return compact.matches || still.matches; }
+  // The scan is scroll-scrubbed on every screen size — the stage stays pinned on
+  // mobile too. Only when motion is unwelcome is it skipped, showing the calm,
+  // finished room instead.
+  function isStatic() { return still.matches; }
 
   function progress() {
     const range = wrap.offsetHeight - window.innerHeight;
@@ -119,9 +119,8 @@ if (wrap && stage) {
   }
 
   bind();
-  // Rotating the phone or resizing can flip between pinned and stacked layouts.
+  // Rotating the phone or resizing changes the pinned range; recompute against it.
   window.addEventListener("resize", bind, { passive: true });
   const watch = (query) => (query.addEventListener ? query.addEventListener("change", bind) : query.addListener(bind));
-  watch(compact);
   watch(still);
 }
