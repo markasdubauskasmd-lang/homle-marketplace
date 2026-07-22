@@ -640,15 +640,20 @@ body.landing .footer-bottom { display: flex; justify-content: space-between; gap
      stage, so the beam still sweeps the room clean as you scroll. */
   body.landing .lp-scan-wrap { height: 300vh; }
   body.landing .lp-spacer { height: 200vh; }
-  body.landing .lp-scene { width: 100%; height: 52%; top: auto; bottom: 0; }
-  /* The foreground phone is too large for a narrow band; the progress bar in the
-     copy carries the count on mobile instead. */
+  /* The room takes the lower ~44% of the stage; the copy sits in the space above
+     it. Copy is trimmed to headline + lead + CTA so it cannot run into the room —
+     the foreground phone, progress bar and pilot note are hidden on mobile
+     (the scan itself is the count, and the note stays in the DOM for no-JS). */
+  body.landing .lp-scene { width: 100%; height: 44%; top: auto; bottom: 0; }
   body.landing .lp-phone { display: none; }
-  body.landing .lp-scrim { background: linear-gradient(180deg, oklch(0.98 0.01 95 / 0.94) 0%, oklch(0.98 0.01 95 / 0.6) 42%, transparent 72%); }
-  body.landing .lp-hero-copy { top: 86px; left: 22px; right: 22px; bottom: auto; max-width: none; }
-  body.landing .lp-h1 { font-size: clamp(38px, 10vw, 60px); }
-  body.landing .lp-lead { font-size: 16px; margin: 20px 0 20px; }
-  body.landing .lp-progress { max-width: none; margin-bottom: 20px; }
+  body.landing .lp-progress { display: none; }
+  body.landing .pilot-note { display: none; }
+  body.landing .lp-scrim { background: linear-gradient(180deg, oklch(0.98 0.01 95 / 0.96) 0%, oklch(0.98 0.01 95 / 0.7) 40%, oklch(0.98 0.01 95 / 0.15) 60%, transparent 74%); }
+  body.landing .lp-hero-copy { top: 74px; left: 22px; right: 22px; bottom: auto; max-width: none; }
+  body.landing .lp-eyebrow { margin-bottom: 14px; }
+  body.landing .lp-h1 { font-size: clamp(30px, 8vw, 50px); }
+  body.landing .lp-lead { font-size: 15px; margin: 14px 0 18px; }
+  body.landing .lp-hero-secondary { margin-top: 14px; }
   body.landing .lp-scrollcue { right: 20px; bottom: 18px; }
   body.landing .lp-cards { grid-template-columns: 1fr; }
   body.landing .lp-details { padding: 80px 22px 96px; }
