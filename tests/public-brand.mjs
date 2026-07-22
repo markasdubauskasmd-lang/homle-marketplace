@@ -23,6 +23,7 @@ const [home, account, logo, manifest, server, emailWorker] = await Promise.all([
 ]);
 
 assert(home.includes("Homle") && account.includes("Homle") && logo.includes("<title id=\"title\">Homle</title>"), "The homepage, account entry or logo does not use the Homle public brand.");
+assert(logo.includes('id="brand-red"') && logo.includes('id="mark-shadow"') && !logo.includes('<rect x="14.6"'), "The public logo fell back to the flat placeholder instead of the reviewed curved split-home mark.");
 const parsedManifest = JSON.parse(manifest);
 assert(parsedManifest.name === "Homle Cleaning" && parsedManifest.short_name === "Homle", "The installable web-app name is not Homle.");
 assert(parsedManifest.id === "/" && parsedManifest.scope === "/" && parsedManifest.display === "standalone" && parsedManifest.lang === "en-GB", "The installed Homle identity or navigation scope is incomplete.");
