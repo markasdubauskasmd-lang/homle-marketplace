@@ -56,6 +56,19 @@ assert(page.includes('data-year') && page.includes("apple-mobile-web-app-capable
 assert(!page.includes('href="#how-it-works"') && !page.includes(">How it works<"), "The removed How it works tab still has a link or a dead anchor.");
 assert(!page.includes("data-guided-kind") && !page.includes("/app.js"), "The landing page pulled in the pilot forms or the heavy intake script.");
 
+// The header carries only Work as a cleaner and the book button; Find a cleaner
+// moved to the footer but keeps its directory hook so home.js still wires it.
+assert(/<nav[\s\S]*?<\/nav>/.test(page), "The primary nav is missing.");
+const nav = page.match(/<nav[\s\S]*?<\/nav>/)[0];
+assert(nav.includes("data-cleaner-entry") && nav.includes("data-book-entry") && !nav.includes("data-directory-entry"), "The header should show only Work as a cleaner and the book button, with Find a cleaner moved out of the nav.");
+assert(page.includes('href="/request" data-directory-entry>Find a cleaner</a>'), "Find a cleaner lost its directory hook that home.js drives.");
+
+// The scan animation must run on phones too, not fall back to a static image:
+// the stage is never un-pinned by CSS and the script only skips motion for
+// prefers-reduced-motion, never for screen width.
+assert(!/\.lp-scene\s*\{[^}]*display:\s*none/.test(css) && !/\.lp-stage\s*\{[^}]*position:\s*static/.test(css), "The scan scene or stage is switched off on small screens, so the animation cannot run on a phone.");
+assert(hero.includes("return still.matches") && !hero.includes('matchMedia("(max-width'), "The scroll script disables the animation by screen width instead of only for reduced motion.");
+
 // Nothing here overwrites the shared home.js contract.
 assert(homeScript.includes("applyEntryMode") && homeScript.includes("[data-book-entry]"), "The shared home.js entry logic was disturbed.");
 
