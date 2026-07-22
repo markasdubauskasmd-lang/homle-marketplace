@@ -1,0 +1,686 @@
+/*
+ * Homle landing page — "scroll to scan" hero.
+ *
+ * Everything here is scoped under `body.landing` so it cannot leak into the
+ * other pages, which share styles.css. Static styling lives here; the
+ * scroll-driven values (beam position, clutter fade, furniture straightening,
+ * progress) are set from home-hero.js via element.style, which the site's
+ * Content-Security-Policy (style-src 'self', no unsafe-inline) allows — inline
+ * style attributes in markup would not be, which is why none are used.
+ */
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/vendor/fonts/bricolage-grotesque-wght.woff2") format("woff2");
+  font-weight: 600 800;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: "DM Sans";
+  src: url("/vendor/fonts/dm-sans-wght.woff2") format("woff2");
+  font-weight: 400 600;
+  font-display: swap;
+  font-style: normal;
+}
+
+body.landing {
+  --lp-cream: oklch(0.975 0.015 95);
+  --lp-dim: oklch(0.66 0.015 65);
+  --lp-ink: oklch(0.2 0.03 60);
+  --lp-ink-2: oklch(0.24 0.03 60);
+  --lp-muted: oklch(0.42 0.02 60);
+  --lp-muted-2: oklch(0.46 0.02 60);
+  --lp-coral: oklch(0.62 0.19 25);
+  --lp-mint: oklch(0.78 0.17 150);
+  --lp-beam: oklch(0.86 0.16 150);
+  --lp-sky: oklch(0.83 0.14 190);
+  --lp-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --lp-body: "DM Sans", system-ui, -apple-system, sans-serif;
+
+  margin: 0;
+  background: var(--lp-cream);
+  color: var(--lp-ink);
+  font-family: var(--lp-body);
+}
+
+body.landing a { color: inherit; text-decoration: none; }
+body.landing .skip-link { z-index: 60; }
+
+/* ── Header / nav ─────────────────────────────────────────────────────── */
+
+body.landing .site-header {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 40;
+  background: oklch(0.17 0.006 60);
+  border-bottom: 2px solid var(--lp-coral);
+  box-shadow: 0 10px 30px oklch(0.15 0.02 60 / 0.35);
+}
+body.landing .site-header .shell.nav-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 15px 40px;
+}
+body.landing .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--lp-display);
+  font-weight: 700;
+  font-size: 24px;
+  color: #fff;
+}
+body.landing .brand img {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px oklch(0.62 0.19 25 / 0.4);
+}
+body.landing .main-nav {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+body.landing .main-nav > a:not(.button) {
+  color: oklch(0.95 0.01 90);
+  font-size: 15.5px;
+  font-weight: 600;
+  transition: color 0.18s ease;
+}
+body.landing .main-nav > a:not(.button):hover { color: var(--lp-coral); }
+body.landing .main-nav .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 11px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+body.landing .main-nav .button:not(.button-outline) {
+  background: var(--lp-coral);
+  color: #fff;
+  box-shadow: 0 8px 22px oklch(0.62 0.19 25 / 0.35);
+}
+/* Arrows/dots are pseudo-elements, not child nodes: home.js rewrites the link
+   text with textContent, which would delete any real child element. */
+body.landing .main-nav .button:not(.button-outline)::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--lp-mint);
+  box-shadow: 0 0 0 4px oklch(0.78 0.17 150 / 0.3);
+}
+body.landing .main-nav .button:not(.button-outline)::after { content: "↗"; font-size: 16px; }
+body.landing .main-nav .button.button-outline {
+  background: transparent;
+  color: #fff;
+  border-color: oklch(1 0 0 / 0.55);
+}
+body.landing .main-nav .button.button-outline:hover { border-color: #fff; }
+body.landing .header-sign-in { color: #fff; font-weight: 600; }
+body.landing .menu-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid oklch(1 0 0 / 0.4);
+  color: #fff;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+body.landing .public-account-menu summary { list-style: none; cursor: pointer; }
+body.landing .public-account-menu summary::-webkit-details-marker { display: none; }
+body.landing .account-avatar {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--lp-coral);
+  color: #fff;
+  font-weight: 800;
+  overflow: hidden;
+}
+body.landing .account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ── Buttons used in page body ────────────────────────────────────────── */
+
+body.landing .lp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 16.5px;
+  padding: 16px 28px;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+body.landing .lp-btn-primary {
+  background: var(--lp-coral);
+  color: #fff;
+  box-shadow: 0 14px 30px oklch(0.62 0.19 25 / 0.4);
+}
+body.landing .lp-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 18px 38px oklch(0.62 0.19 25 / 0.45); }
+body.landing .lp-btn-primary::after { content: "↗"; font-size: 19px; }
+body.landing .lp-btn-dark {
+  background: var(--lp-ink);
+  color: #fff;
+  font-family: var(--lp-display);
+  font-weight: 700;
+  font-size: 20px;
+  padding: 12px 12px 12px 34px;
+  box-shadow: 0 18px 40px oklch(0.2 0.03 60 / 0.3);
+}
+body.landing .lp-btn-dark:hover { transform: translateY(-2px); }
+/* The white circle-arrow is a pseudo-element for the same textContent reason. */
+body.landing .lp-btn-dark::after {
+  content: "↗";
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--lp-ink);
+  font-size: 20px;
+}
+
+/* ── Scan stage (pinned, scroll-scrubbed) ─────────────────────────────── */
+
+body.landing .lp-scan-wrap { position: relative; height: 340vh; }
+body.landing .lp-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--lp-dim);
+  color: var(--lp-ink);
+}
+body.landing .lp-spacer { height: 240vh; }
+
+/* Background brighten overlay (opacity driven by scroll). */
+body.landing .lp-bright {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(1200px 700px at 78% 10%, oklch(0.95 0.07 190) 0%, transparent 60%),
+    radial-gradient(1100px 850px at 6% 96%, oklch(0.95 0.08 95) 0%, transparent 55%),
+    var(--lp-cream);
+}
+/* Constant left scrim so the text stays legible in every state. */
+body.landing .lp-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, oklch(0.98 0.01 95 / 0.92) 0%, oklch(0.98 0.01 95 / 0.5) 34%, transparent 62%);
+}
+
+/* Left column: eyebrow, headline, subcopy, progress, CTA. */
+body.landing .lp-hero-copy {
+  position: absolute;
+  z-index: 10;
+  top: 120px;
+  bottom: 40px;
+  left: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  max-width: 520px;
+}
+body.landing .lp-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 22px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  font-size: 13px;
+  text-transform: uppercase;
+  color: oklch(0.5 0.08 30);
+}
+body.landing .lp-eyebrow::before {
+  content: "";
+  width: 34px;
+  height: 2px;
+  background: var(--lp-coral);
+}
+body.landing .lp-h1 {
+  font-family: var(--lp-display);
+  font-weight: 800;
+  font-size: clamp(44px, 6.2vw, 96px);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--lp-ink);
+}
+body.landing .lp-mark { color: var(--lp-coral); position: relative; white-space: nowrap; }
+body.landing .lp-coral-text { color: var(--lp-coral); }
+body.landing .lp-underline {
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 100%;
+  height: 15px;
+}
+body.landing .lp-lead {
+  max-width: 400px;
+  margin: 32px 0 26px;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--lp-muted);
+}
+body.landing .lp-progress { width: 100%; max-width: 340px; margin-bottom: 28px; }
+body.landing .lp-progress-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  color: oklch(0.3 0.03 60);
+}
+body.landing .lp-progress-track {
+  height: 10px;
+  border-radius: 999px;
+  background: oklch(0.5 0.02 60 / 0.15);
+  overflow: hidden;
+}
+body.landing .lp-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, oklch(0.7 0.16 150), oklch(0.83 0.14 190));
+}
+body.landing .lp-hero-secondary {
+  margin-top: 16px;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--lp-ink-2);
+  border-bottom: 2px solid oklch(0.62 0.19 25 / 0.4);
+  padding-bottom: 2px;
+}
+body.landing .lp-hero-secondary:hover { color: var(--lp-coral); border-bottom-color: var(--lp-coral); }
+body.landing .pilot-note {
+  margin: 18px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--lp-muted);
+  max-width: 380px;
+}
+body.landing .lp-details-cleaner {
+  margin: 44px 0 0;
+  font-size: 17px;
+  color: var(--lp-muted-2);
+}
+body.landing .lp-details-cleaner a {
+  color: var(--lp-coral);
+  font-weight: 700;
+  border-bottom: 2px solid oklch(0.62 0.19 25 / 0.35);
+  padding-bottom: 1px;
+}
+body.landing .lp-details-cleaner a:hover { border-bottom-color: var(--lp-coral); }
+
+/* Scroll cue. */
+body.landing .lp-scrollcue {
+  position: absolute;
+  z-index: 10;
+  right: 34px;
+  bottom: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+body.landing .lp-scrollcue span.lbl {
+  font-size: 12px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--lp-muted);
+  font-weight: 600;
+}
+body.landing .lp-scrollcue .mouse {
+  width: 26px;
+  height: 42px;
+  border-radius: 14px;
+  border: 2px solid oklch(0.4 0.02 60 / 0.5);
+  display: flex;
+  justify-content: center;
+  padding-top: 7px;
+}
+body.landing .lp-scrollcue .mouse i {
+  width: 4px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--lp-muted);
+  animation: lp-nudge 1.6s ease-in-out infinite;
+}
+
+/* ── Living-room scene (pure CSS shapes) ──────────────────────────────── */
+
+body.landing .lp-scene { position: absolute; right: 0; top: 0; width: 56%; height: 100%; }
+
+body.landing .lp-window {
+  position: absolute;
+  top: 13%;
+  right: 9%;
+  width: 190px;
+  height: 150px;
+  border-radius: 10px;
+  background: oklch(0.9 0.05 200);
+  border: 8px solid oklch(0.28 0.02 60);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+  padding: 6px;
+  overflow: hidden;
+}
+body.landing .lp-window i:nth-child(odd) { background: oklch(0.86 0.06 205); }
+body.landing .lp-window i:nth-child(even) { background: oklch(0.82 0.07 210); }
+
+body.landing .lp-frame { position: absolute; z-index: 3; top: 13%; left: 6%; transform-origin: center; }
+body.landing .lp-frame-inner {
+  width: 118px;
+  height: 148px;
+  border-radius: 8px;
+  background: oklch(0.88 0.04 90);
+  border: 7px solid oklch(0.32 0.03 55);
+  overflow: hidden;
+  position: relative;
+}
+body.landing .lp-frame-mountain {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 55%;
+  background: oklch(0.7 0.09 150);
+  clip-path: polygon(0 100%, 34% 30%, 62% 70%, 100% 20%, 100% 100%);
+}
+body.landing .lp-frame-sun {
+  position: absolute;
+  top: 16%;
+  right: 18%;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: oklch(0.82 0.14 85);
+}
+
+body.landing .lp-rug {
+  position: absolute;
+  bottom: 8%;
+  left: 48%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 76px;
+  border-radius: 50%;
+  background: oklch(0.8 0.05 60);
+  opacity: 0.45;
+}
+
+/* Sofa */
+body.landing .lp-sofa { position: absolute; z-index: 4; bottom: 15%; left: 7%; width: 320px; height: 150px; }
+body.landing .lp-sofa i { position: absolute; }
+body.landing .lp-sofa .base { bottom: 0; left: -6px; width: 332px; height: 88px; border-radius: 20px; background: oklch(0.7 0.05 40); }
+body.landing .lp-sofa .back { bottom: 34px; left: -6px; width: 332px; height: 80px; border-radius: 22px 22px 8px 8px; background: oklch(0.78 0.05 40); }
+body.landing .lp-sofa .arm-l { bottom: 20px; left: -22px; width: 44px; height: 100px; border-radius: 16px; background: oklch(0.74 0.05 40); }
+body.landing .lp-sofa .arm-r { bottom: 20px; right: -22px; width: 44px; height: 100px; border-radius: 16px; background: oklch(0.74 0.05 40); }
+body.landing .lp-sofa .seat-l { bottom: 28px; left: 28px; width: 128px; height: 42px; border-radius: 12px; background: oklch(0.82 0.05 40); }
+body.landing .lp-sofa .seat-r { bottom: 28px; right: 28px; width: 128px; height: 42px; border-radius: 12px; background: oklch(0.82 0.05 40); }
+body.landing .lp-cushion { position: absolute; bottom: 58px; width: 72px; height: 72px; border-radius: 16px; box-shadow: 0 8px 14px oklch(0.3 0.05 60 / 0.2); transform-origin: bottom center; }
+body.landing .lp-cushion.a { left: 30px; background: oklch(0.7 0.09 30); }
+body.landing .lp-cushion.b { right: 30px; background: oklch(0.72 0.08 210); }
+
+/* Coffee table */
+body.landing .lp-table { position: absolute; z-index: 5; bottom: 9%; left: 22%; width: 150px; height: 58px; }
+body.landing .lp-table .top { position: absolute; top: 0; left: 0; width: 100%; height: 15px; border-radius: 8px; background: oklch(0.5 0.06 50); }
+body.landing .lp-table .leg-l { position: absolute; top: 15px; left: 12px; width: 8px; height: 40px; background: oklch(0.42 0.05 45); }
+body.landing .lp-table .leg-r { position: absolute; top: 15px; right: 12px; width: 8px; height: 40px; background: oklch(0.42 0.05 45); }
+
+/* Floor lamp */
+body.landing .lp-lamp { position: absolute; z-index: 4; bottom: 15%; right: 13%; width: 64px; height: 204px; transform-origin: bottom center; }
+body.landing .lp-lamp .base { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 56px; height: 16px; border-radius: 50%; background: oklch(0.45 0.03 60); }
+body.landing .lp-lamp .pole { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 7px; height: 150px; background: oklch(0.5 0.03 60); }
+body.landing .lp-lamp .shade { position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%); width: 64px; height: 52px; border-radius: 6px 6px 14px 14px; background: oklch(0.84 0.11 85); clip-path: polygon(18% 0, 82% 0, 100% 100%, 0 100%); }
+
+/* Plant */
+body.landing .lp-plant { position: absolute; z-index: 4; bottom: 13%; right: 3%; width: 98px; height: 166px; transform-origin: bottom center; }
+body.landing .lp-plant .pot { position: absolute; bottom: 0; left: 26px; width: 46px; height: 54px; border-radius: 0 0 12px 12px; background: oklch(0.55 0.09 40); }
+body.landing .lp-plant .stem { position: absolute; bottom: 46px; left: 44px; width: 11px; height: 74px; background: oklch(0.48 0.08 140); }
+body.landing .lp-plant .leaf-1 { position: absolute; bottom: 94px; left: 6px; width: 48px; height: 48px; border-radius: 50% 50% 50% 10%; background: oklch(0.6 0.11 150); }
+body.landing .lp-plant .leaf-2 { position: absolute; bottom: 98px; left: 44px; width: 48px; height: 48px; border-radius: 50% 50% 10% 50%; background: oklch(0.53 0.12 150); }
+body.landing .lp-plant .leaf-3 { position: absolute; bottom: 122px; left: 26px; width: 42px; height: 42px; border-radius: 50%; background: oklch(0.64 0.11 152); }
+
+/* Clutter — each positioned absolutely; JS drives opacity + transform. */
+body.landing .lp-clutter { position: absolute; z-index: 6; transform-origin: bottom center; will-change: transform, opacity; }
+body.landing .lp-clutter .blanket { width: 128px; height: 58px; border-radius: 42% 58% 50% 46% / 62% 50% 56% 44%; background: oklch(0.66 0.07 90); }
+body.landing .lp-clutter .pillow1 { width: 70px; height: 70px; border-radius: 18px; background: oklch(0.68 0.1 30); box-shadow: 0 8px 16px oklch(0.3 0.05 60 / 0.25); }
+body.landing .lp-clutter .pillow2 { width: 64px; height: 64px; border-radius: 18px; background: oklch(0.66 0.09 205); box-shadow: 0 8px 16px oklch(0.3 0.05 60 / 0.25); }
+body.landing .lp-mags { position: relative; width: 90px; height: 30px; }
+body.landing .lp-mags i { position: absolute; height: 10px; border-radius: 3px; }
+body.landing .lp-mags .m1 { bottom: 0; left: 0; width: 88px; background: oklch(0.6 0.11 260); transform: rotate(-3deg); }
+body.landing .lp-mags .m2 { bottom: 7px; left: 5px; width: 84px; background: oklch(0.66 0.1 40); transform: rotate(4deg); }
+body.landing .lp-mags .m3 { bottom: 14px; left: 2px; width: 80px; background: oklch(0.7 0.1 150); transform: rotate(-2deg); }
+body.landing .lp-clutter .paper { width: 30px; height: 28px; border-radius: 48% 52% 55% 45% / 50% 48% 52% 50%; background: oklch(0.92 0.02 90); box-shadow: inset -3px -3px 6px oklch(0.72 0.02 90); }
+body.landing .lp-mug { position: relative; width: 34px; height: 36px; }
+body.landing .lp-mug .cup { position: absolute; left: 0; top: 4px; width: 28px; height: 30px; border-radius: 5px 5px 9px 9px; background: oklch(0.6 0.12 25); }
+body.landing .lp-mug .handle { position: absolute; right: -6px; top: 10px; width: 14px; height: 16px; border: 4px solid oklch(0.6 0.12 25); border-radius: 50%; }
+body.landing .lp-box { position: relative; width: 56px; height: 44px; border-radius: 5px; background: oklch(0.82 0.06 80); box-shadow: 0 6px 12px oklch(0.3 0.05 60 / 0.2); }
+body.landing .lp-box i { position: absolute; top: 50%; left: 0; width: 100%; height: 3px; background: oklch(0.68 0.06 70); }
+body.landing .lp-clutter .glass { width: 22px; height: 34px; border-radius: 4px 4px 7px 7px; background: oklch(0.82 0.05 210 / 0.7); border: 2px solid oklch(0.7 0.04 210); }
+body.landing .lp-clutter .sock { width: 48px; height: 20px; border-radius: 999px; background: oklch(0.72 0.06 300); }
+body.landing .lp-remote { position: relative; width: 22px; height: 56px; border-radius: 8px; background: oklch(0.3 0.02 60); }
+body.landing .lp-remote .btn { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 8px; height: 8px; border-radius: 50%; background: oklch(0.7 0.15 25); }
+body.landing .lp-remote .bar { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); width: 10px; height: 4px; border-radius: 2px; background: oklch(0.6 0.02 60); }
+
+/* Resting positions of each clutter item (the scroll only drives its fade and
+   settle, so its anchor stays in CSS). */
+body.landing [data-clutter="blanket"] { top: 83%; left: 12%; }
+body.landing [data-clutter="pillow1"] { top: 72%; left: 3%; }
+body.landing [data-clutter="pillow2"] { top: 79%; left: 27%; }
+body.landing [data-clutter="mags"] { top: 76%; left: 43%; }
+body.landing [data-clutter="paper"] { top: 69%; left: 54%; }
+body.landing [data-clutter="mug"] { top: 64%; left: 27%; }
+body.landing [data-clutter="box"] { top: 64%; left: 36%; }
+body.landing [data-clutter="glass"] { top: 66%; left: 22%; }
+body.landing [data-clutter="sock"] { top: 84%; right: 32%; }
+body.landing [data-clutter="remote"] { top: 82%; right: 22%; }
+
+/* Scanned wash + beam. */
+body.landing .lp-scanned { position: absolute; z-index: 1; top: 0; bottom: 0; left: 0; width: 0%; background: linear-gradient(90deg, transparent, oklch(0.9 0.12 155 / 0.14)); pointer-events: none; }
+body.landing .lp-beam { position: absolute; z-index: 14; top: 5%; bottom: 5%; left: -8%; width: 4px; border-radius: 4px; background: var(--lp-beam); box-shadow: 0 0 26px 7px oklch(0.8 0.18 150 / 0.7); opacity: 0; pointer-events: none; }
+
+/* Sparkles. */
+body.landing .lp-sparkles { position: absolute; inset: 0; pointer-events: none; z-index: 7; opacity: 0; }
+body.landing .lp-sparkles span { position: absolute; animation: lp-twinkle 2.6s ease-in-out infinite; }
+body.landing .lp-sparkles .s1 { top: 24%; left: 24%; font-size: 26px; }
+body.landing .lp-sparkles .s2 { top: 54%; right: 12%; font-size: 32px; animation-delay: 0.4s; }
+body.landing .lp-sparkles .s3 { bottom: 24%; left: 18%; font-size: 20px; animation-delay: 0.8s; }
+body.landing .lp-sparkles .s4 { top: 38%; left: 52%; font-size: 16px; animation-delay: 0.2s; }
+
+/* "Spotless" badge. */
+body.landing .lp-badge {
+  position: absolute;
+  z-index: 17;
+  top: 10%;
+  left: 2%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px 18px;
+  box-shadow: 0 18px 40px oklch(0.3 0.05 60 / 0.18);
+  opacity: 0;
+  animation: lp-bob 4s ease-in-out infinite;
+}
+body.landing .lp-badge .chk { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: oklch(0.92 0.06 150); font-size: 20px; }
+body.landing .lp-badge strong { display: block; font-family: var(--lp-display); font-weight: 700; font-size: 17px; color: var(--lp-ink-2); line-height: 1.2; }
+body.landing .lp-badge small { color: oklch(0.5 0.02 60); font-size: 12.5px; }
+
+/* Foreground phone. */
+body.landing .lp-phone {
+  position: absolute;
+  z-index: 16;
+  left: 53%;
+  bottom: -26px;
+  width: 152px;
+  height: 306px;
+  border-radius: 32px;
+  background: oklch(0.17 0.02 60);
+  box-shadow: 0 34px 66px oklch(0.2 0.03 60 / 0.5);
+  transform: rotate(-6deg);
+  padding: 8px;
+}
+body.landing .lp-phone-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 28px;
+  overflow: hidden;
+  background: linear-gradient(158deg, oklch(0.36 0.04 205), oklch(0.24 0.03 265));
+}
+body.landing .lp-phone-glow { position: absolute; inset: 0; background: radial-gradient(130px 96px at 50% 42%, oklch(0.55 0.06 150 / 0.4), transparent 72%); }
+body.landing .lp-phone-reticle { position: absolute; width: 26px; height: 26px; }
+body.landing .lp-phone-reticle.tl { top: 18px; left: 18px; border-top: 3px solid var(--lp-mint); border-left: 3px solid var(--lp-mint); border-radius: 7px 0 0 0; }
+body.landing .lp-phone-reticle.tr { top: 18px; right: 18px; border-top: 3px solid var(--lp-mint); border-right: 3px solid var(--lp-mint); border-radius: 0 7px 0 0; }
+body.landing .lp-phone-reticle.bl { bottom: 18px; left: 18px; border-bottom: 3px solid var(--lp-mint); border-left: 3px solid var(--lp-mint); border-radius: 0 0 0 7px; }
+body.landing .lp-phone-reticle.br { bottom: 18px; right: 18px; border-bottom: 3px solid var(--lp-mint); border-right: 3px solid var(--lp-mint); border-radius: 0 0 7px 0; }
+body.landing .lp-phone-scanline { position: absolute; left: 14px; right: 14px; height: 3px; border-radius: 3px; background: var(--lp-mint); box-shadow: 0 0 18px 4px oklch(0.8 0.18 150 / 0.85); animation: lp-scanline 2.2s ease-in-out infinite; }
+body.landing .lp-phone-read { position: absolute; left: 0; right: 0; bottom: 30px; text-align: center; color: #fff; }
+body.landing .lp-phone-read .pct { font-family: var(--lp-display); font-weight: 800; font-size: 32px; line-height: 1; }
+body.landing .lp-phone-read .status { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.85; margin-top: 5px; }
+body.landing .lp-phone-notch { position: absolute; top: 17px; left: 50%; transform: translateX(-50%); width: 48px; height: 6px; border-radius: 6px; background: oklch(0.09 0.01 60); }
+
+/* ── "Come home to calm" section ──────────────────────────────────────── */
+
+body.landing .lp-calm {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 96px 24px;
+  background:
+    radial-gradient(1000px 520px at 82% -4%, oklch(0.92 0.06 25 / 0.5) 0%, transparent 62%),
+    radial-gradient(900px 500px at 8% 104%, oklch(0.93 0.06 190 / 0.4) 0%, transparent 60%),
+    var(--lp-cream);
+  color: var(--lp-ink);
+}
+body.landing .lp-calm-lockup { display: flex; align-items: center; gap: 16px; margin-bottom: 44px; }
+body.landing .lp-calm-lockup img { width: 58px; height: 58px; border-radius: 16px; box-shadow: 0 12px 28px oklch(0.62 0.19 25 / 0.35); }
+body.landing .lp-calm-lockup span { font-family: var(--lp-display); font-weight: 700; font-size: 44px; }
+body.landing .lp-h2 {
+  font-family: var(--lp-display);
+  font-weight: 800;
+  font-size: clamp(52px, 8.5vw, 122px);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+body.landing .lp-calm p {
+  max-width: 520px;
+  margin: 38px 0 40px;
+  font-size: 20px;
+  line-height: 1.55;
+  color: var(--lp-muted-2);
+}
+body.landing .lp-calm .fineprint { margin-top: 22px; font-size: 14.5px; color: oklch(0.5 0.02 60); }
+
+/* ── "Small details" section ──────────────────────────────────────────── */
+
+body.landing .lp-details { padding: 110px 8% 130px; background: var(--lp-cream); }
+body.landing .lp-h3 {
+  font-family: var(--lp-display);
+  font-weight: 800;
+  font-size: clamp(40px, 5.6vw, 84px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  margin: 0 0 18px;
+}
+body.landing .lp-details .lead { max-width: 460px; margin: 0 0 56px; font-size: 18px; line-height: 1.55; color: var(--lp-muted-2); }
+body.landing .lp-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+body.landing .lp-card { background: #fff; border-radius: 24px; padding: 34px; box-shadow: 0 20px 50px oklch(0.3 0.05 60 / 0.08); }
+body.landing .lp-card .chip { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 16px; font-size: 26px; margin-bottom: 22px; }
+body.landing .lp-card .chip.mint { background: oklch(0.9 0.07 150); }
+body.landing .lp-card .chip.sky { background: oklch(0.9 0.07 195); }
+body.landing .lp-card .chip.citrus { background: oklch(0.92 0.08 95); }
+body.landing .lp-card h4 { font-family: var(--lp-display); font-weight: 700; font-size: 22px; margin: 0 0 10px; }
+body.landing .lp-card p { margin: 0; font-size: 16px; line-height: 1.55; color: var(--lp-muted-2); }
+
+/* ── Footer ───────────────────────────────────────────────────────────── */
+
+body.landing .site-footer { background: var(--lp-ink); color: oklch(0.9 0.01 90); padding: 56px 0 40px; }
+body.landing .site-footer .shell { max-width: 1240px; margin: 0 auto; padding: 0 40px; }
+body.landing .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 32px; }
+body.landing .footer-brand { color: #fff; font-family: var(--lp-display); font-weight: 700; font-size: 22px; }
+body.landing .footer-grid > div { display: flex; flex-direction: column; gap: 8px; }
+body.landing .footer-grid strong { color: #fff; margin-bottom: 4px; }
+body.landing .footer-grid a { color: oklch(0.85 0.01 90); font-size: 15px; }
+body.landing .footer-grid a:hover { color: var(--lp-coral); }
+body.landing .footer-bottom { display: flex; justify-content: space-between; gap: 16px; margin-top: 40px; padding-top: 20px; border-top: 1px solid oklch(1 0 0 / 0.12); font-size: 13px; color: oklch(0.75 0.01 90); }
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  body.landing .lp-scene { display: none; }
+  body.landing .lp-scan-wrap { height: auto; }
+  body.landing .lp-stage { position: static; height: auto; min-height: 100vh; display: flex; align-items: center; }
+  body.landing .lp-spacer { display: none; }
+  body.landing .lp-bright { opacity: 1; }
+  body.landing .lp-hero-copy { position: static; max-width: 640px; margin: 0 auto; padding: 140px 24px 80px; }
+  body.landing .lp-progress { display: none; }
+  body.landing .lp-scrollcue { display: none; }
+  body.landing .lp-cards { grid-template-columns: 1fr; }
+  body.landing .footer-grid { grid-template-columns: 1fr; }
+  body.landing .footer-bottom { flex-direction: column; }
+}
+
+@media (max-width: 720px) {
+  body.landing .site-header .shell.nav-wrap { padding: 12px 18px; }
+  body.landing .menu-toggle { display: inline-block; }
+  body.landing .main-nav {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 14px 18px 20px;
+    background: oklch(0.17 0.006 60);
+    border-bottom: 2px solid var(--lp-coral);
+    display: none;
+  }
+  body.landing .main-nav.open { display: flex; }
+  body.landing .lp-hero-copy { padding-top: 120px; }
+}
+
+/* ── Reduced motion: no idle loops; JS also jumps the scan to its end. ─── */
+
+@media (prefers-reduced-motion: reduce) {
+  body.landing .lp-scrollcue .mouse i,
+  body.landing .lp-sparkles span,
+  body.landing .lp-badge,
+  body.landing .lp-phone-scanline { animation: none; }
+  body.landing .lp-btn { transition: none; }
+}
+
+@keyframes lp-twinkle { 0%, 100% { transform: scale(0.7); opacity: 0.5; } 50% { transform: scale(1.15); opacity: 1; } }
+@keyframes lp-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+@keyframes lp-nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
+@keyframes lp-scanline { 0%, 100% { top: 14%; } 50% { top: 80%; } }
