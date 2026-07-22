@@ -10,7 +10,14 @@ import {
   mergeItemReadings,
   trackDetections,
   drawableTracks,
-  nextDetectionDelay
+  nextDetectionDelay,
+  roomPresets,
+  normaliseRoomName,
+  findRoom,
+  canAddRoom,
+  upsertRoom,
+  rosterSummary,
+  maximumShots
 } from "../public/room-scan-model.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
@@ -197,4 +204,32 @@ assert(nextDetectionDelay(400) === 600, `A slow phone was asked for frames it ca
 assert(nextDetectionDelay(5000) === 700, "The detection interval is unbounded on a very slow device.");
 assert(nextDetectionDelay(0) === 200 && nextDetectionDelay(NaN) === 200, "A missing timing produced an invalid interval.");
 
-console.log("Room scan detection tests passed: viewfinder geometry under object-fit, padded crops inside the frame, clipped live boxes kept where asserted ones are rejected, smallest-box tap selection, free label translation, request budget that never drops the condition frame, replies joined only to selected items, and steady bounded live tracking.");
+/* ── Rooms the Landlord chooses and returns to ──────── */
+
+assert(roomPresets.includes("Kitchen") && roomPresets.includes("Bathroom") && roomPresets.length === 4, "The offered rooms no longer match what the spec asks for.");
+
+// A typed room name is cleaned, bounded and capitalised, never left blank.
+assert(normaliseRoomName("  utility  room ") === "Utility room", `A typed room name was not tidied: ${normaliseRoomName("  utility  room ")}`);
+assert(normaliseRoomName("") === "" && normaliseRoomName(null) === "", "A blank room name was not handled as simply having none.");
+
+// A room is matched by name case-insensitively, so returning to it edits the
+// same room rather than stacking a duplicate.
+const oneRoom = [{ name: "Kitchen", detections: [{ label: "Oven" }], tasks: ["Clean the oven"], condition: "heavy" }];
+assert(findRoom(oneRoom, "kitchen")?.name === "Kitchen" && !findRoom(oneRoom, "Bathroom"), "A scanned room could not be found again by name.");
+
+const revisited = upsertRoom(oneRoom, { name: "kitchen", detections: [{ label: "Oven" }, { label: "Hob" }], tasks: ["Clean the oven", "Degrease the hob"], condition: "heavy" });
+assert(revisited.length === 1 && revisited[0].detections.length === 2, "Editing a room stacked a duplicate instead of replacing it.");
+const added = upsertRoom(revisited, { name: "Bathroom", detections: [], tasks: [], condition: "" });
+assert(added.length === 2 && added[1].name === "Bathroom", "Adding a new room did not append it.");
+
+// Returning to an existing room is always allowed; the limit only stops a scan
+// sprawling into new rooms beyond what one booking can carry.
+const full = Array.from({ length: maximumShots }, (_, index) => ({ name: `Room ${index + 1}`, detections: [], tasks: [] }));
+assert(!canAddRoom(full, "One more room") && canAddRoom(full, "Room 1"), "The room limit either let a scan sprawl or blocked returning to a room already in it.");
+
+// The hub shows what each room holds without opening it.
+const roster = rosterSummary(added);
+assert(roster[0].name === "Kitchen" && roster[0].itemCount === 2 && roster[0].conditionLabel === "Heavy", `The room roster is wrong: ${JSON.stringify(roster[0])}`);
+assert(roster[1].itemCount === 0 && roster[1].conditionLabel === "Not assessed", "An empty room was summarised as if it had been assessed.");
+
+console.log("Room scan detection tests passed: viewfinder geometry under object-fit, padded crops inside the frame, clipped live boxes kept where asserted ones are rejected, smallest-box tap selection, free label translation, request budget that never drops the condition frame, replies joined only to selected items, steady bounded live tracking, and chosen rooms that can be found, edited in place and reviewed at a glance.");
