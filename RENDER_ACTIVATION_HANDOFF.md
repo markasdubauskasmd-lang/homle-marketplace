@@ -8,6 +8,38 @@ secret below is entered in the Render dashboard only.
 
 ---
 
+## 0. READ FIRST — UI work merged since the last deploy (added 2026-07-22)
+
+Three UI changes are now merged to `main` and **need one deploy to go live**.
+**None of them need any new environment variable, secret, database change or
+migration** — they are front-end and, for the scanner, a same-origin vendored
+model. To ship them: Render → `homle-marketplace-preview` →
+**Manual Deploy → Deploy latest commit**. That is the whole task.
+
+| PR | What changed | New env vars? |
+|---|---|---|
+| **#49** | On-device object detection in the room scanner (vendored TensorFlow.js COCO-SSD; boxes drawn live, tap to select, Anthropic names only the chosen items). | No |
+| **#51** | Room scanner rebuilt around a **room hub**: pick a room → scan objects → confirm → next room, with the ability to return to a room and edit it. | No |
+| **#52** | **Landing page (`/`) redesigned** as the "scroll to scan" hero — a room that a beam wipes clean as you scroll, then "Come home to calm." and a features section. New Homle logo (red square, white house) applied everywhere including the app icons. | No |
+
+Notes that will save you time:
+
+- **The on-device detector is served from `/vendor/` and is cached `immutable`.**
+  A normal deploy serves the new files fine. If the scanner ever shows no live
+  boxes, it is the on-device half (check the browser console), not a Render env
+  var — the Anthropic key only affects the *naming* of selected items.
+- **The landing redesign uses self-hosted fonts under `/vendor/fonts`** and no
+  external requests, so it works under the existing CSP with no change.
+- **`GET /api/health` is unaffected** by all three — same fields, same meaning.
+  The marketplace-activation blockers below (email, room-photo storage) are
+  unchanged and still the real gating work.
+
+Everything under the horizontal rule below is the **older, still-current**
+marketplace activation guide (email, object storage, background jobs, matching).
+It is unchanged by the UI work above.
+
+---
+
 ## 1. Current state (verified against the live service)
 
 Live service: **`homle-marketplace-preview`** → https://homle-marketplace-preview.onrender.com
