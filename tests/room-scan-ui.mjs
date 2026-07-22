@@ -101,7 +101,7 @@ assert(!/\bm²/.test(overlay) && !overlay.includes("Floor area"), "The scan clai
 // A photograph of the inside of a home must not be sent to a third party
 // without the Landlord being asked first, in plain words.
 assert(overlay.includes("sent to our AI provider") && overlay.includes("just take the photos"), "The scan sends photographs of a home without telling the Landlord who receives them, or without a working way to decline.");
-assert(overlay.includes("if (!state.consentAsked) await askConsent();") && overlay.includes("if (!state.readingAllowed"), "A photograph can leave the device before consent has been given.");
+assert(overlay.includes("!state.consentAsked) await askConsent();") && overlay.includes("if (!state.readingAllowed"), "A photograph can leave the device before consent has been given.");
 
 // The camera must be released on every exit, including closing mid-scan and
 // closing while the permission prompt is still open.
@@ -111,8 +111,9 @@ assert(overlay.includes("if (state.closed) { for (const track of stream.getTrack
 
 // Boxes must surround what they describe, not whatever the camera now sees.
 assert(overlay.includes("el.still.src = frame"), "Detections are drawn over the live camera instead of the frame they describe.");
-// A reading that returns after the scan was closed or reset must be discarded.
-assert(overlay.includes("generation !== state.generation"), "A stale room reading can attach itself to a closed or restarted scan.");
+// A reading that returns after the scan was closed, or after the Landlord moved
+// to another room, must be discarded rather than saved under the wrong room.
+assert(overlay.includes("session !== state.roomSession"), "A stale room reading can attach itself to a closed scan or a room the Landlord has left.");
 
 // Assisted reading is optional; the scan must survive it being absent.
 assert(overlay.includes("state.visionAvailable = false") && overlay.includes("status === 503"), "The scan does not fall back when assisted reading is unavailable.");
@@ -143,7 +144,7 @@ assert(overlay.includes('setBackend("webgl")'), "The detector does not pin the W
 // reason has to survive someone reading this later and 'fixing' it: the model
 // is local, so nothing has left the phone. Consent governs the network call.
 assert(/if \(!state\.readingAllowed[\s\S]{0,2000}fetch\("\/api\/marketplace\/landlord\/room-reading"/.test(overlay), "The room reading is no longer gated on consent.");
-assert(overlay.includes("if (!state.consentAsked) await askConsent();"), "A photograph can be read before consent has been given.");
+assert(overlay.includes("!state.consentAsked) await askConsent();"), "A photograph can be read before consent has been given.");
 
 // A detector that cannot load must leave the scan exactly as good as it was
 // before any of this existed.
@@ -158,7 +159,7 @@ assert(/catch \{[\s\S]{0,400}generation !== state\.detectionGeneration\) return;
 // Selecting on a live feed and cropping at send time would cut the crop from
 // whatever the phone had moved on to. The frame is frozen first, always.
 assert(overlay.includes("function freezeFrame") && /if \(state\.frozen\) return confirmSelection\(\)/.test(overlay), "The scan reads the room without freezing the frame that was chosen from.");
-assert(/function freezeFrame[\s\S]{0,200}stopDetection\(\)/.test(overlay), "Freezing a frame leaves the detector running over the top of it.");
+assert(/function freezeFrame[\s\S]{0,400}stopDetection\(\)/.test(overlay), "Freezing a frame leaves the detector running over the top of it.");
 assert(overlay.includes("function drawVisibleRegion"), "The capture no longer matches the cropped region the viewfinder actually shows, so boxes and pixels can disagree.");
 
 // Tapping empty space adds a box. Without this the scan loses every fixture
@@ -191,11 +192,71 @@ assert(overlay.includes('document.removeEventListener("visibilitychange"') && ov
 
 // Camera refusal is explained and never dead-ends the booking.
 assert(overlay.includes("data-camera-blocked") && overlay.includes("NotAllowedError") && overlay.includes("Describe by voice instead"), "A declined camera leaves the Landlord stuck with no way to continue.");
-assert(overlay.includes("data-camera-fallback") && overlay.includes("data-camera-fallback-input") && overlay.includes('capture="environment"') && overlay.includes("selectedPhotoFrame") && overlay.includes("captureSelectedPhoto"), "A denied live-camera permission no longer has a native phone-camera fallback.");
-assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch("/api/marketplace/auth/session"') && overlay.includes('code: "sign-in-required"') && overlay.includes("automatic room reading is unavailable"), "The room reader silently fails when a signed-in phone loses its in-memory security token or when the provider fails.");
+assert(overlay.includes("data-camera-fallback") && overlay.includes("data-camera-fallback-input") && overlay.includes('capture="environment"') && overlay.includes("decodePhoto") && overlay.includes("captureSelectedPhoto"), "A denied live-camera permission no longer has a native phone-camera fallback.");
+assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch("/api/marketplace/auth/session"') && overlay.includes('code: "sign-in-required"') && overlay.includes("automatic reading is unavailable"), "The room reader silently fails when a signed-in phone loses its in-memory security token or when the provider fails.");
+
+/* ── The room hub: choose, review, return, finish ──── */
+
+// The room is chosen, not counted off in order of capture. The old
+// order-assigned naming must be gone from the flow.
+assert(overlay.includes("function enterRoom") && overlay.includes("[data-hub]") && overlay.includes("data-hub-choices"), "There is no hub to choose a room from before scanning.");
+assert(!overlay.includes("nextRoomName"), "Rooms are still assigned by capture order instead of chosen.");
+assert(/for \(const preset of roomPresets\)[\s\S]{0,300}el\.hubChoices\.appendChild/.test(overlay), "The offered rooms (kitchen, bathroom, bedroom, living room) are not presented as choices.");
+
+// Confirming a room saves it and returns to the hub — the hub is the one place
+// to pick, review, revisit and finish.
+assert(overlay.includes("state.rooms = upsertRoom(state.rooms, room)") && /function toHub\(\)/.test(overlay), "A confirmed room is not saved back into the roster, or there is no way back to the hub.");
+assert(/for \(const button of el\.roomsOpen\)[\s\S]{0,120}toHub\(\)/.test(overlay), "There is no one-tap way back to the hub to switch or review rooms.");
+
+// Returning to a scanned room reopens its saved photo and its objects.
+assert(/function openRevisit\(room, session\)[\s\S]{0,1800}room\.detections/.test(overlay), "Returning to a room does not reopen the objects it already held.");
+// An unchanged save reads nothing; a change — an object added OR removed — reads
+// again, so a task like "clean the oven" cannot outlive the oven and keep
+// pricing a job for it.
+assert(overlay.includes("const changed = chosen.some((box) => box.kind === \"manual\") || keptCount < originalCount") && overlay.includes("const mustRead = (!revisit || changed) && !clearedRevisit"), "Editing a saved room either always calls the reader (slow) or leaves orphaned tasks pricing a removed object.");
+
+// Async work is scoped to the room it started in. A read or a photo decode that
+// resolves after the Landlord has moved on must be dropped, never saved under
+// the room now on screen.
+assert(overlay.includes("state.roomSession") && /function enterRoom[\s\S]{0,500}state\.roomSession \+= 1/.test(overlay) && /function toHub[\s\S]{0,400}state\.roomSession \+= 1/.test(overlay), "Room navigation does not invalidate a read still in flight for the room just left.");
+assert((overlay.match(/session !== state\.roomSession/g) || []).length >= 3, "A read or photo decode that resolves after leaving its room is not dropped.");
+// Crops are cut from the canvas before the network await, so a later capture
+// redrawing the shared canvas cannot corrupt the crop mid-request.
+assert(/const selected = items\.map[\s\S]{0,400}cropFor\(item\)[\s\S]{0,900}await recoverCsrf\(\)/.test(overlay), "Crops are taken after an await, so a later capture can cut them from the wrong frame.");
+// Rescanning a revisited room takes a fresh photo, which must read on save.
+// `revisiting` (edit-a-stored-frame) is cleared whenever a fresh frame is
+// frozen — a live capture or a phone-camera photo — so neither skips the read.
+assert(/function freezeFrame[\s\S]{0,400}state\.revisiting = false/.test(overlay), "A phone-camera photo or live capture can be saved on the free-edit path and skip the read it needs.");
+
+// The phone-camera decode must not draw onto the shared canvas until the
+// Landlord is confirmed still in this room — otherwise an abandoned decode
+// corrupts a later crop.
+assert(overlay.includes("function decodePhoto") && /decodePhoto\(file\)[\s\S]{0,260}session !== state\.roomSession[\s\S]{0,200}drawVisibleRegion/.test(overlay), "A phone-camera photo draws to the shared canvas before confirming the room.");
+
+// A tap during the revisit photo load must not start a fresh capture that the
+// load then overwrites.
+assert(overlay.includes("state.loadingRoom") && /function capture\(\)[\s\S]{0,120}state\.loadingRoom/.test(overlay), "A shutter tap while a revisited room is still loading can race the load.");
+
+// Removing every object on a revisit saves an empty room, rather than reading
+// the whole frame again and rediscovering exactly what was removed.
+assert(overlay.includes("const clearedRevisit = revisit && chosen.length === 0") && /clearedRevisit[\s\S]{0,200}detections: \[\], tasks: \[\], condition: ""/.test(overlay), "Clearing every object re-reads the whole room and brings the removed objects back.");
+
+// The in-progress flag is claimed before the consent prompt is awaited, so a
+// second activation during that await cannot slip in and save an empty room
+// over this one while the read is not yet permitted.
+assert(overlay.includes("state.capturing = true;") && overlay.indexOf("state.capturing = true;") < overlay.indexOf("await askConsent()"), "A second confirm during the consent prompt can overwrite the room with an empty reading.");
+
+// Finishing is instant: every room was read as it was confirmed, so there is
+// nothing left to load and no reason to animate loading.
+assert(!overlay.includes("Reading your home") && !/setTimeout\(\s*\(?\s*(?:wait|resolve)\)?\s*,\s*(?:340|700)\s*\)/.test(overlay), "The finish step still plays a loading animation over work that has already happened.");
+assert(/function finishScan\(\)[\s\S]{0,400}stopCamera\(\);\s*\n\s*close\(\{/.test(overlay), "Finishing no longer closes cleanly with the gathered rooms.");
+
+// Behind the hub the camera stays warm but detection is paused — no point
+// running inference at a menu.
+assert(/function startDetection\(\)[\s\S]{0,200}state\.screen !== "live"/.test(overlay), "The detector keeps running while the hub covers the camera.");
 
 /* ── Presentation ──────────────────────────────────── */
-assert(styles.includes(".scan-overlay") && styles.includes(".scan-stage") && styles.includes(".det-box") && styles.includes("scanSweepRun") && styles.includes(".proc-log"), "The approved scan presentation is missing.");
+assert(styles.includes(".scan-overlay") && styles.includes(".scan-stage") && styles.includes(".det-box") && styles.includes("scanSweepRun") && styles.includes(".hub-room"), "The approved scan presentation is missing.");
 
 // The frozen still is z-index 2. A detection layer below it paints the boxes
 // behind the photograph they describe, which is how this feature managed to

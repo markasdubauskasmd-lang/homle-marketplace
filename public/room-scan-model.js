@@ -508,3 +508,62 @@ export function scanSummary(rooms) {
     tasks: scanChecklistLines(scoped)
   });
 }
+
+/* ── Rooms the Landlord chooses, not rooms counted off in order ─────────── */
+
+// The rooms offered up front. "such as the kitchen, bedroom, bathroom, living
+// room" — a starting set, not a limit; any other room is typed in.
+export const roomPresets = Object.freeze(["Kitchen", "Living room", "Bathroom", "Bedroom"]);
+
+export function normaliseRoomName(raw) {
+  const text = String(raw || "").replace(/\s+/g, " ").trim().slice(0, 40);
+  if (!text) return "";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function roomKey(name) {
+  return normaliseRoomName(name).toLowerCase();
+}
+
+// A room is matched by name, case-insensitively, so "kitchen" and "Kitchen" are
+// the same room to return to rather than two.
+export function findRoom(rooms, name) {
+  const key = roomKey(name);
+  if (!key) return null;
+  return (Array.isArray(rooms) ? rooms : []).find((room) => roomKey(room?.name) === key) || null;
+}
+
+// Returning to a room already scanned is always allowed; the limit only stops a
+// scan sprawling into a new room beyond what one booking can carry.
+export function canAddRoom(rooms, name, { limit = maximumShots } = {}) {
+  if (findRoom(rooms, name)) return true;
+  return (Array.isArray(rooms) ? rooms.length : 0) < limit;
+}
+
+// Replace the room of the same name, or add it. This is what lets a revisit
+// overwrite a room's objects in place instead of stacking a duplicate.
+export function upsertRoom(rooms, room) {
+  const list = Array.isArray(rooms) ? rooms.slice() : [];
+  const name = normaliseRoomName(room?.name);
+  if (!name) return list;
+  const record = { ...room, name };
+  const index = list.findIndex((existing) => roomKey(existing?.name) === roomKey(name));
+  if (index >= 0) list[index] = record;
+  else list.push(record);
+  return list;
+}
+
+// One line per scanned room for the hub: what it is, how much was found, how
+// dirty it read. The hub is where the Landlord picks, reviews and returns, so it
+// must show all three at a glance without opening anything.
+export function rosterSummary(rooms) {
+  return (Array.isArray(rooms) ? rooms : []).map((room) => {
+    const items = Array.isArray(room?.detections) ? room.detections : [];
+    return Object.freeze({
+      name: normaliseRoomName(room?.name),
+      itemCount: items.length,
+      taskCount: Array.isArray(room?.tasks) ? room.tasks.length : 0,
+      conditionLabel: conditionLabel(room?.condition)
+    });
+  });
+}
