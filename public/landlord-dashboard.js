@@ -71,6 +71,7 @@ const loadStatus = document.querySelector("[data-landlord-load-status]");
 const loadRetry = document.querySelector("[data-landlord-load-retry]");
 const bookingLiveStatus = document.querySelector("[data-landlord-booking-live]");
 const bookingRefresh = document.querySelector("[data-landlord-booking-refresh]");
+const landlordSectionToggles = document.querySelectorAll("[data-landlord-section-toggle]");
 const selectedCleanerSummary = document.querySelector("[data-landlord-selected-cleaner]");
 const selectedCleanerAvatar = document.querySelector("[data-landlord-selected-cleaner-avatar]");
 const selectedCleanerName = document.querySelector("[data-landlord-selected-cleaner-name]");
@@ -1041,7 +1042,8 @@ function requestScanPanel(request) {
 
 function renderRequests() {
   requestList.replaceChildren();
-  for (const request of requests) {
+  const visibleRequests = requests.filter((request) => request.status !== "cancelled");
+  for (const request of visibleRequests) {
     const card = element("article", "landlord-request-card");
     const property = properties.find((item) => item.propertyId === request.propertyId);
     const heading = element("div", "landlord-request-card-heading");
@@ -1104,9 +1106,9 @@ function renderRequests() {
     }
     requestList.append(card);
   }
-  requestEmpty.hidden = requests.length > 0;
-  requestList.hidden = requests.length === 0;
-  const draftCount = requests.filter((request) => request.status === "draft").length;
+  requestEmpty.hidden = visibleRequests.length > 0;
+  requestList.hidden = visibleRequests.length === 0;
+  const draftCount = visibleRequests.filter((request) => request.status === "draft").length;
   document.querySelector("[data-draft-count]").textContent = String(draftCount);
 }
 
@@ -1416,8 +1418,19 @@ function renderBookings() {
   document.querySelector("[data-landlord-history-count]").textContent = String(buckets.history.length);
   document.querySelector("[data-landlord-history-section]").hidden = buckets.history.length === 0;
   document.querySelector("[data-landlord-active-count]").textContent = String(current.length);
+  document.querySelector("[data-landlord-booking-reveal-count]").textContent = String(current.length + buckets.waiting.length);
+  document.querySelector("[data-landlord-history-reveal-count]").textContent = String(historySummary.completedCleanCount);
   renderLandlordHistory(historySummary);
   syncInvitationStream();
+}
+
+function toggleLandlordSection(button) {
+  const contentId = button.getAttribute("aria-controls");
+  const content = contentId ? document.getElementById(contentId) : null;
+  if (!content) return;
+  const expanded = button.getAttribute("aria-expanded") === "true";
+  button.setAttribute("aria-expanded", String(!expanded));
+  content.hidden = expanded;
 }
 
 function renderLandlordHistory(summary) {
@@ -1966,6 +1979,7 @@ requestWithdrawDialog.addEventListener("close", () => {
   requestWithdrawForm.reset();
   requestWithdrawFeedback.hidden = true;
 });
+landlordSectionToggles.forEach((button) => button.addEventListener("click", () => toggleLandlordSection(button)));
 retry.addEventListener("click", loadWorkspace);
 bookingRefresh.addEventListener("click", () => { void refreshBookingTransition({ manual: true }); });
 document.querySelector("[data-request-complete-another]").addEventListener("click", () => {
