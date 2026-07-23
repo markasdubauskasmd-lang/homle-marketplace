@@ -20,6 +20,11 @@
   --shadow: 0 18px 60px rgba(66, 15, 21, .12);
   --shadow-lg: 0 28px 80px rgba(20, 16, 17, .17);
   --ease: cubic-bezier(.2, .7, .2, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1); /* slight overshoot — rewards only */
+  --dur-tap: 120ms;
+  --dur-fast: 180ms;
+  --dur-base: 260ms;
+  --dur-reveal: 450ms;
   --radius: 22px;
   --shell: 1180px;
   --green: var(--brand);
@@ -3543,3 +3548,38 @@ textarea.inp{resize:vertical;line-height:1.6;font-size:15px}
 @keyframes scanOverlayIn{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}
 .scan-overlay .scan-stage{height:100%}
 @media (prefers-reduced-motion: reduce){.scan-overlay{animation:none}}
+
+/* ── Feel upgrades (site-wide, matched to the upgrade kit) ──────────────── */
+
+/* Press: a real touch on every button family. .985 read as nothing. */
+.button, .deck-btn { transition: transform var(--dur-fast) var(--ease-spring), box-shadow .25s var(--ease); }
+.button:active { transform: translateY(0) scale(.96); transition-duration: var(--dur-tap); }
+.deck-btn:active:not(:disabled) { transform: scale(.94); transition-duration: var(--dur-tap); }
+
+/* The account menu should land, not snap, when it opens. */
+.account-menu[open] .account-menu-panel { transform-origin: top right; animation: homle-dialog-in .18s var(--ease); }
+
+/* Toasts fade and lift instead of blinking in and out. */
+.scan-toast, .jtoast { transition: opacity .2s var(--ease), transform .2s var(--ease); }
+.scan-toast[hidden], .jtoast[hidden] { display: block; visibility: hidden; opacity: 0; transform: translateX(-50%) translateY(8px); pointer-events: none; }
+
+/* Waiting states read as imminent, not broken. */
+@keyframes homle-shimmer { to { background-position: -200% 0; } }
+.skeleton { background: linear-gradient(90deg, #ece7e2 25%, #f7f3ef 37%, #ece7e2 63%); background-size: 200% 100%; animation: homle-shimmer 1.2s linear infinite; border-radius: 10px; min-height: 14px; }
+
+/* A blocked field answers back. */
+@keyframes homle-field-shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+.field-error { animation: homle-field-shake .3s var(--ease); border-color: var(--brand) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .button, .deck-btn { transition: none; }
+  .account-menu[open] .account-menu-panel { animation: none; }
+  .scan-toast, .jtoast { transition: none; }
+  .skeleton { animation: none; }
+  .field-error { animation: none; }
+}
+
+/* Cross-page navigation: a soft crossfade instead of a white flash. Progressive
+   enhancement — same-origin, Chrome/Edge today, ignored elsewhere. */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .25s; }
