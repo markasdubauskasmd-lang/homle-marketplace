@@ -1,6 +1,6 @@
 import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent, saveSelectedCleaner, selectedCleanerFromSearch } from "./account-intent.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
-import { accountReadyPresentation } from "./account-ready-model.js";
+import { accountReadyPresentation, availableAccountMethodLabel } from "./account-ready-model.js?v=20260723-1";
 
 const modes = Object.freeze({
   "/login": { form: "login", title: "Sign in to Homle", lead: "Use your verified account to open the correct private workspace." },
@@ -55,10 +55,8 @@ const accountRequestTimeoutMs = 15_000;
 
 if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
 document.title = `${selectedMode.title} — Homle`;
-if (title) title.textContent = `${selectedMode.title} is not open yet.`;
-if (lead) lead.textContent = location.pathname === "/login"
-  ? "Existing pilot requests use their protected private tracker links while account sign-in is being prepared."
-  : "Cleaner and landlord onboarding is being built behind Homle's secure database boundary.";
+if (title) title.textContent = "Checking secure account access";
+if (lead) lead.textContent = "Homle is confirming the sign-in methods available on this deployment.";
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 
 if (bookingIntent && ["login", "signup"].includes(selectedMode.form)) {
@@ -128,18 +126,24 @@ function activateForm(providers) {
   runtime.hidden = false;
   title.textContent = selectedMode.title;
   lead.textContent = selectedMode.lead;
+  const availableMethods = availableAccountMethodLabel(providers);
+  if (selectedMode.form === "signup" && availableMethods) {
+    lead.textContent = `Continue with ${availableMethods}. Homle creates a new account automatically, then asks you to choose a Cleaner or Landlord workspace.`;
+  } else if (selectedMode.form === "login" && availableMethods) {
+    lead.textContent = `Use ${availableMethods} to open the correct private workspace.`;
+  }
   if (bookingIntent && selectedMode.form === "signup") {
     title.textContent = "Create an account to book a clean";
-    lead.textContent = "Continue with Google, Apple or Facebook for the quickest setup. Homle automatically creates your account when the verified provider is new, then asks you to confirm the Landlord workspace.";
+    lead.textContent = `Continue with ${availableMethods}. Homle automatically creates your account when the verified provider is new, then asks you to confirm the Landlord workspace.`;
   } else if (bookingIntent && selectedMode.form === "login") {
     title.textContent = "Sign in to book a clean";
-    lead.textContent = "Use Google, Apple, Facebook or your verified email account, then continue to your private Landlord workspace.";
+    lead.textContent = `Use ${availableMethods}, then continue to your private Landlord workspace.`;
   } else if (bookingIntent && selectedMode.form === "onboarding") {
     title.textContent = "Confirm your booking workspace";
     lead.textContent = "Continue as a Landlord or Property Manager to add the property, scan rooms and request the clean.";
   } else if (cleanerIntent && selectedMode.form === "signup") {
     title.textContent = "Create your Cleaner profile";
-    lead.textContent = "Continue with Google, Apple or Facebook. Homle creates your account automatically, then opens the Cleaner workspace setup.";
+    lead.textContent = `Continue with ${availableMethods}. Homle creates your account automatically, then opens the Cleaner workspace setup.`;
   } else if (cleanerIntent && selectedMode.form === "login") {
     title.textContent = "Sign in to work as a Cleaner";
     lead.textContent = "Use your existing secure account and continue to the Cleaner workspace.";
