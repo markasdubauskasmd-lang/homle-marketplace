@@ -68,6 +68,7 @@ assert(page.includes('href="/request" data-directory-entry>Find a cleaner</a>'),
 // prefers-reduced-motion, never for screen width.
 assert(!/\.lp-scene\s*\{[^}]*display:\s*none/.test(css) && !/\.lp-stage\s*\{[^}]*position:\s*static/.test(css), "The scan scene or stage is switched off on small screens, so the animation cannot run on a phone.");
 assert(hero.includes("return still.matches") && !hero.includes('matchMedia("(max-width'), "The scroll script disables the animation by screen width instead of only for reduced motion.");
+assert(hero.includes("if (still.matches) { firedMilestones.clear(); return; }"), "Reduced-motion mode can still trigger landing-page milestone haptics.");
 
 // Nothing here overwrites the shared home.js contract.
 assert(homeScript.includes("applyEntryMode") && homeScript.includes("[data-book-entry]"), "The shared home.js entry logic was disturbed.");
