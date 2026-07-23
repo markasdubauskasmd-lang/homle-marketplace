@@ -3551,8 +3551,10 @@ textarea.inp{resize:vertical;line-height:1.6;font-size:15px}
 
 /* ── Feel upgrades (site-wide, matched to the upgrade kit) ──────────────── */
 
-/* Press: a real touch on every button family. .985 read as nothing. */
-.button, .deck-btn { transition: transform var(--dur-fast) var(--ease-spring), box-shadow .25s var(--ease); }
+/* Press: a real touch on every button family. Keep each component's existing
+   colour feedback while making transform timing consistent. */
+.button { transition: transform var(--dur-fast) var(--ease-spring), box-shadow .25s var(--ease), background .2s var(--ease), border-color .2s var(--ease), color .2s var(--ease); }
+.deck-btn { transition: transform var(--dur-fast) var(--ease-spring), box-shadow .25s var(--ease), background .3s var(--scan-ease, var(--ease)), border-color .3s var(--scan-ease, var(--ease)), opacity .3s var(--scan-ease, var(--ease)); }
 .button:active { transform: translateY(0) scale(.96); transition-duration: var(--dur-tap); }
 .deck-btn:active:not(:disabled) { transform: scale(.94); transition-duration: var(--dur-tap); }
 
@@ -3572,11 +3574,13 @@ textarea.inp{resize:vertical;line-height:1.6;font-size:15px}
 .field-error { animation: homle-field-shake .3s var(--ease); border-color: var(--brand) !important; }
 
 @media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
   .button, .deck-btn { transition: none; }
   .account-menu[open] .account-menu-panel { animation: none; }
   .scan-toast, .jtoast { transition: none; }
   .skeleton { animation: none; }
   .field-error { animation: none; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .001ms; }
 }
 
 /* Cross-page navigation: a soft crossfade instead of a white flash. Progressive

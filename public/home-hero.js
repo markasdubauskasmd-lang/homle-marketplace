@@ -54,6 +54,9 @@ if (wrap && stage) {
   // is what turns a passive scrub into "I did that".
   const firedMilestones = new Set();
   function fireMilestones(pct, target) {
+    // Reduced-motion is also a request to avoid attention-grabbing sensory
+    // feedback. The static end state must not vibrate four times on page load.
+    if (still.matches) { firedMilestones.clear(); return; }
     if (target < 0.02) firedMilestones.clear();
     for (const m of [25, 50, 75, 100]) {
       if (pct < m || firedMilestones.has(m)) continue;
