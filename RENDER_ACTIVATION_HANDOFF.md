@@ -25,6 +25,7 @@ model. To ship them: Render → `homle-marketplace-preview` →
 | **#57** | The manual **"Cleaning request drafts" workspace is hidden** on the landlord dashboard (one CSS rule; markup and JS kept). Landlords use the guided room scan at `/landlord/book` instead. | No |
 | **#58** | An **animation/"feel" layer**: button press feedback, a liquid-lerped scan scrub with milestone ticks + a 100% payoff, scroll reveals, and cross-page View Transitions. Pure front-end, all behind `prefers-reduced-motion`. | No |
 | **landlord dashboard** | The **landlord dashboard restyled** to the sidebar / card design (new `public/landlord-dashboard.css`, loaded only there). CSS only — the markup, every data-* hook and `landlord-dashboard.js` are untouched, so all data loading and flows are unchanged. | No |
+| **#63** | **Landing hero premium/smoothness pass**: depth shadows, vignette + light, a volumetric scanner beam, ambient dust motes, a 100% particle burst, mouse-parallax depth, tighter pacing, and a compositor-only (translateX/scaleX) rewrite so the scrub is 60fps. Front-end only, all behind `prefers-reduced-motion`. | No |
 
 Notes that will save you time:
 
