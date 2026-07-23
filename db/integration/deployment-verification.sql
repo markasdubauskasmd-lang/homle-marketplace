@@ -102,7 +102,6 @@ DECLARE
     'tideway_private.purge_expired_rate_limits(integer)',
     'tideway_private.purge_expired_pending_social_identities(integer)',
     'tideway_private.claim_due_automatic_dispatch(uuid,integer,integer)',
-    'tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer,boolean)',
     'tideway_private.release_automatic_dispatch_lease(uuid,uuid,text,timestamp with time zone)'
   ];
 BEGIN
@@ -717,7 +716,7 @@ SELECT json_build_object(
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
   'appFunctionChecks', 48,
-  'workerFunctionChecks', 15
+  'workerFunctionChecks', 14
 ) AS tideway_deployment_verification;
 
 ROLLBACK;

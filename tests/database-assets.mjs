@@ -90,6 +90,7 @@ try {
   const workerBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("worker_functions constant"), deploymentVerifier.indexOf("BEGIN", deploymentVerifier.indexOf("worker_functions constant")));
   const advertisedAppChecks = Number(deploymentVerifier.match(/'appFunctionChecks',\s*(\d+)/)?.[1]);
   const advertisedWorkerChecks = Number(deploymentVerifier.match(/'workerFunctionChecks',\s*(\d+)/)?.[1]);
+  assert.doesNotMatch(workerBlock, /get_automatic_dispatch_candidates\(uuid,uuid,integer,boolean\)/, "Pre-upgrade verification required migration 68's paid-dispatch function before the locked migration could be applied.");
   assert.equal(advertisedAppChecks, [...appBlock.matchAll(/'tideway_private\./g)].length + 3, "deployment report must count core functions plus the migration-aware invitation, migration-48 workspace and paid direct-invitation checks");
   assert.equal(advertisedWorkerChecks, [...workerBlock.matchAll(/'tideway_private\./g)].length + 1, "deployment report must count core worker functions plus the migration-aware automatic-dispatch function");
 
