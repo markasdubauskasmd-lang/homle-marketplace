@@ -27,7 +27,9 @@ if (wrap && stage) {
     plant: document.querySelector("[data-plant]"),
     cushionA: document.querySelector('[data-cushion="a"]'),
     cushionB: document.querySelector('[data-cushion="b"]'),
-    clutter: [...document.querySelectorAll("[data-clutter]")]
+    clutter: [...document.querySelectorAll("[data-clutter]")],
+    scene: document.querySelector(".lp-scene"),
+    phone: document.querySelector(".lp-phone")
   };
 
   // Each object's horizontal position in the scene (0–100) and, for clutter,
@@ -49,6 +51,35 @@ if (wrap && stage) {
   const clamp = (x) => Math.max(0, Math.min(1, x));
   const ease = (t) => t * t * (3 - 2 * t);
 
+  // A burst of particles flung from the phone the moment the scan completes —
+  // the payoff that makes 100% feel earned.
+  const burstColors = ["oklch(0.85 0.16 150)", "oklch(0.83 0.14 190)", "oklch(0.86 0.15 95)", "oklch(0.62 0.19 25)"];
+  function spawnBurst() {
+    const host = el.scene;
+    if (!host || still.matches) return;
+    const sr = host.getBoundingClientRect();
+    let ox = sr.width * 0.6;
+    let oy = sr.height * 0.72;
+    if (el.phone) {
+      const pr = el.phone.getBoundingClientRect();
+      ox = pr.left - sr.left + pr.width / 2;
+      oy = pr.top - sr.top + pr.height * 0.4;
+    }
+    for (let i = 0; i < 18; i += 1) {
+      const p = document.createElement("div");
+      p.className = "lp-burst";
+      const angle = (Math.PI * 2 * i) / 18 + Math.random() * 0.35;
+      const dist = 90 + Math.random() * 90;
+      p.style.left = `${ox}px`;
+      p.style.top = `${oy}px`;
+      p.style.setProperty("--lp-burst-dx", `${Math.cos(angle) * dist}px`);
+      p.style.setProperty("--lp-burst-dy", `${Math.sin(angle) * dist - 50}px`);
+      p.style.setProperty("--lp-burst-color", burstColors[i % burstColors.length]);
+      host.appendChild(p);
+      p.addEventListener("animationend", () => p.remove(), { once: true });
+    }
+  }
+
   // Milestones fire once each as the count crosses them: a tick on the counter
   // and a short haptic, re-armed if the Landlord scrolls back to the top. This
   // is what turns a passive scrub into "I did that".
@@ -65,6 +96,7 @@ if (wrap && stage) {
         node.classList.remove("tick"); void node.offsetWidth; node.classList.add("tick");
       }
       if (navigator.vibrate) { try { navigator.vibrate(m === 100 ? [12, 40, 18] : 8); } catch {} }
+      if (m === 100) spawnBurst();
     }
   }
 
@@ -79,8 +111,10 @@ if (wrap && stage) {
     const at = (x) => ease(clamp((beamPct - x) / 12));
 
     if (el.bright) el.bright.style.opacity = String(ep);
-    if (el.beam) { el.beam.style.left = `${beamPct}%`; el.beam.style.opacity = String(beamOpacity); }
-    if (el.scanned) el.scanned.style.width = `${Math.max(0, beamPct)}%`;
+    // Beam and wash move on the compositor (translateX / scaleX) rather than
+    // `left`/`width`, so no frame triggers layout — the scrub stays 60fps.
+    if (el.beam) { el.beam.style.transform = `translateX(${(beamPct / 100) * sceneW}px)`; el.beam.style.opacity = String(beamOpacity); }
+    if (el.scanned) el.scanned.style.transform = `scaleX(${Math.max(0, beamPct) / 100})`;
     if (el.sparkles) el.sparkles.style.opacity = String(clamp((p - 0.5) * 2.4));
     if (el.badge) el.badge.style.opacity = String(badgeIn);
     if (el.scrollcue) el.scrollcue.style.opacity = String(clamp(1 - p * 3));
@@ -126,6 +160,8 @@ if (wrap && stage) {
   let target = 0;
   let current = 0;
   let raf = null;
+  // Cached so the per-frame beam translate never reads layout; refreshed on bind.
+  let sceneW = el.scene ? el.scene.getBoundingClientRect().width : window.innerWidth;
   function tick() {
     current += (target - current) * 0.16;
     if (Math.abs(target - current) < 0.001) { current = target; raf = null; }
@@ -138,6 +174,7 @@ if (wrap && stage) {
   }
 
   function bind() {
+    sceneW = el.scene ? el.scene.getBoundingClientRect().width : window.innerWidth;
     if (isStatic()) {
       window.removeEventListener("scroll", onScroll);
       if (raf) { cancelAnimationFrame(raf); raf = null; }
@@ -176,5 +213,50 @@ if (wrap && stage) {
       }, { threshold: 0.18 });
       for (const node of reveals) io.observe(node);
     }
+  }
+
+  // Depth + life: dust motes drifting in the light, a cursor-following glow, and
+  // mouse parallax that gives the flat scene real depth. Pointer-only and off
+  // for reduced motion — the whole layer is decoration.
+  const coarse = window.matchMedia("(pointer: coarse)");
+  if (el.scene && !still.matches && !coarse.matches) {
+    const glow = document.createElement("div");
+    glow.className = "lp-cursorglow";
+    el.scene.appendChild(glow);
+
+    for (let i = 0; i < 7; i += 1) {
+      const mote = document.createElement("div");
+      mote.className = "lp-mote";
+      mote.style.left = `${10 + Math.random() * 80}%`;
+      mote.style.top = `${25 + Math.random() * 60}%`;
+      mote.style.setProperty("--lp-mote-dur", `${7 + Math.random() * 7}s`);
+      mote.style.setProperty("--lp-mote-delay", `${Math.random() * 6}s`);
+      mote.style.setProperty("--lp-mote-dx", `${(Math.random() - 0.5) * 80}px`);
+      mote.style.setProperty("--lp-mote-dy", `${-40 - Math.random() * 60}px`);
+      el.scene.appendChild(mote);
+    }
+
+    let parallaxRaf = null;
+    let px = 0;
+    let py = 0;
+    function applyParallax() {
+      parallaxRaf = null;
+      el.scene.style.transform = `translate(${px * -14}px, ${py * -10}px)`;
+      if (el.phone) el.phone.style.transform = `translate(${px * -30}px, ${py * -20}px)`;
+    }
+    el.stage = stage;
+    stage.addEventListener("mousemove", (event) => {
+      const rect = stage.getBoundingClientRect();
+      px = (event.clientX - rect.left) / rect.width - 0.5;
+      py = (event.clientY - rect.top) / rect.height - 0.5;
+      const sceneRect = el.scene.getBoundingClientRect();
+      el.scene.style.setProperty("--lp-mx", `${event.clientX - sceneRect.left}px`);
+      el.scene.style.setProperty("--lp-my", `${event.clientY - sceneRect.top}px`);
+      if (!parallaxRaf) parallaxRaf = requestAnimationFrame(applyParallax);
+    }, { passive: true });
+    stage.addEventListener("mouseleave", () => {
+      el.scene.style.transform = "";
+      if (el.phone) el.phone.style.transform = "";
+    });
   }
 }
