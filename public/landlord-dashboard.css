@@ -680,6 +680,39 @@ body.landlord-dashboard-page .landlord-booking-section {
   background: transparent;
   box-shadow: none;
 }
+body.landlord-dashboard-page .landlord-section-toggle {
+  width: 100%;
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 14px;
+  padding: 16px 20px;
+  border: 1px solid var(--ld-line);
+  border-radius: 18px;
+  background: #fff;
+  color: var(--ld-ink);
+  box-shadow: var(--ld-card-shadow);
+  font-family: var(--ld-display);
+  font-size: clamp(18px, 2.3vw, 23px);
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+body.landlord-dashboard-page .landlord-section-toggle:hover,
+body.landlord-dashboard-page .landlord-section-toggle:focus-visible { border-color: var(--ld-coral); }
+body.landlord-dashboard-page .landlord-section-toggle-meta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ld-coral);
+  font-family: var(--ld-body);
+  font-size: 15px;
+}
+body.landlord-dashboard-page .landlord-section-toggle[aria-expanded="true"] .landlord-section-toggle-meta > :last-child { transform: rotate(180deg); }
+body.landlord-dashboard-page [data-landlord-section-content] { margin-bottom: 22px; }
 body.landlord-dashboard-page .booking-section-heading { margin-bottom: 15px; }
 body.landlord-dashboard-page .booking-section-heading .eyebrow { display: none; }
 body.landlord-dashboard-page .booking-section-heading h2 { font-size: 25px; }
@@ -723,6 +756,7 @@ body.landlord-dashboard-page .landlord-booking-live [data-landlord-booking-live]
   body.landlord-dashboard-page .landlord-builder-reveal { justify-self: start; }
   body.landlord-dashboard-page .landlord-prepare-actions { grid-column: 1; align-items: flex-start; flex-direction: column; }
   body.landlord-dashboard-page .landlord-prepare-actions .button { width: 100%; }
+  body.landlord-dashboard-page .landlord-section-toggle { min-height: 56px; padding: 14px 16px; }
 }
 
 @media (max-width: 460px) {
