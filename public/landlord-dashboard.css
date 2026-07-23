@@ -737,3 +737,211 @@ body.landlord-dashboard-page .landlord-booking-live [data-landlord-booking-live]
 @media (prefers-reduced-motion: reduce) {
   body.landlord-dashboard-page .scan-hero-beam { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * "Prepare a clean" stepped wizard (Landlord Dashboard design).
+ *
+ * The requests panel is presented as the design's single white card with a
+ * step-dot header, one visible step at a time, Back/Next and a live draft
+ * summary. All step-hiding is gated on `.pac-wizard-on`, which the wizard JS
+ * adds — with JS off, every step is visible and the form works as one page.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* The panel itself stops being a card so `.pac-card` can be the single card. */
+body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"] {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+body.landlord-dashboard-page .pac-card {
+  background: #fff;
+  border: 1px solid var(--ld-line);
+  border-radius: 26px;
+  box-shadow: 0 20px 50px oklch(0.3 0.05 60 / 0.06);
+  padding: clamp(22px, 3vw, 34px);
+  margin-bottom: 22px;
+}
+
+body.landlord-dashboard-page .pac-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+body.landlord-dashboard-page .pac-card-head h2 { font-weight: 800; font-size: clamp(23px, 2.6vw, 28px); margin: 2px 0 0; }
+body.landlord-dashboard-page .pac-sub { margin: 8px 0 0; color: var(--ld-muted); font-size: 15px; max-width: 46ch; }
+body.landlord-dashboard-page .pac-head-aside { display: flex; align-items: center; gap: 12px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+body.landlord-dashboard-page .pac-head-aside .landlord-private-pill {
+  background: oklch(0.92 0.05 150);
+  color: oklch(0.4 0.1 150);
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+body.landlord-dashboard-page .pac-reveal {
+  border: 1.5px solid oklch(0.4 0.02 60 / 0.22);
+  background: transparent;
+  color: var(--ld-ink-2);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+/* Collapse toggle hides the working area, keeps the header + saved drafts. */
+body.landlord-dashboard-page.pac-collapsed-host .pac-layout { display: none; }
+body.landlord-dashboard-page .pac-card.pac-collapsed .pac-layout { display: none; }
+body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-layout { display: none; }
+
+/* Two-column layout (main + summary) only once JS enables the wizard. */
+body.landlord-dashboard-page .pac-layout { margin-top: 18px; }
+body.landlord-dashboard-page.pac-wizard-host .pac-layout,
+body.landlord-dashboard-page .pac-wizard-on .pac-layout,
+body.landlord-dashboard-page .landlord-workspace-panel.pac-wizard-on .pac-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: clamp(18px, 2.4vw, 28px);
+  align-items: start;
+}
+body.landlord-dashboard-page .pac-main { min-width: 0; }
+
+/* Step-dot header. */
+body.landlord-dashboard-page .pac-stepper { margin-bottom: 20px; }
+body.landlord-dashboard-page .pac-dots { display: flex; gap: 7px; margin-bottom: 14px; }
+body.landlord-dashboard-page .pac-dot {
+  width: 22px;
+  height: 6px;
+  border-radius: 999px;
+  border: 0;
+  padding: 0;
+  background: oklch(0.5 0.02 60 / 0.18);
+  cursor: pointer;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+body.landlord-dashboard-page .pac-dot.is-done { background: oklch(0.62 0.19 25 / 0.45); }
+body.landlord-dashboard-page .pac-dot.is-current { width: 32px; background: var(--ld-coral); }
+body.landlord-dashboard-page .pac-step-count {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ld-muted-2);
+}
+body.landlord-dashboard-page .pac-step-title { font-weight: 800; font-size: clamp(20px, 2.4vw, 26px); margin: 0; }
+
+/* Steps: stacked spacing, and one-at-a-time only when the wizard is on. */
+body.landlord-dashboard-page .pac-step { display: flex; flex-direction: column; gap: 15px; }
+body.landlord-dashboard-page .pac-step + .pac-step { margin-top: 22px; }
+body.landlord-dashboard-page .pac-wizard-on .pac-step { margin-top: 0; }
+body.landlord-dashboard-page .pac-wizard-on .pac-step:not(.is-active) { display: none; }
+body.landlord-dashboard-page .pac-step-hint { margin: 0; color: var(--ld-muted-2); font-size: 14px; }
+
+/* Back / Next. */
+body.landlord-dashboard-page .pac-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 26px;
+}
+body.landlord-dashboard-page .pac-nav .pac-back { min-height: 44px; }
+body.landlord-dashboard-page .pac-nav .pac-next { min-height: 44px; margin-left: auto; }
+body.landlord-dashboard-page .pac-nav .pac-back:disabled { opacity: 0.4; cursor: default; }
+
+/* Live draft summary (the design's "My basket", without an invented price). */
+body.landlord-dashboard-page .pac-basket {
+  background: oklch(0.98 0.008 90);
+  border-radius: 22px;
+  padding: 24px;
+  box-shadow: inset 0 0 0 1px oklch(0.5 0.02 60 / 0.09);
+  position: sticky;
+  top: 20px;
+}
+body.landlord-dashboard-page .pac-basket-title {
+  margin: 0 0 16px;
+  text-align: center;
+  font-family: var(--ld-display);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--ld-ink);
+}
+body.landlord-dashboard-page .pac-basket-lines { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; }
+body.landlord-dashboard-page .pac-basket-lines dt { color: var(--ld-muted-2); font-size: 13.5px; }
+body.landlord-dashboard-page .pac-basket-lines dd { margin: 0; text-align: right; font-weight: 600; font-size: 14px; color: var(--ld-ink-2); }
+body.landlord-dashboard-page .pac-basket-note {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--ld-line);
+  font-size: 12.5px;
+  color: var(--ld-muted-2);
+  line-height: 1.5;
+}
+
+/* Speech card → the design's dashed green walkthrough panel. */
+body.landlord-dashboard-page .landlord-speech-scope {
+  border: 1px dashed oklch(0.5 0.14 150 / 0.4);
+  border-radius: 20px;
+  padding: 20px;
+  background: oklch(0.98 0.02 150 / 0.4);
+}
+body.landlord-dashboard-page .landlord-speech-scope [data-speech-toggle] {
+  background: oklch(0.7 0.16 150);
+  color: #06301f;
+  border: 0;
+  box-shadow: 0 10px 22px oklch(0.7 0.16 150 / 0.32);
+}
+body.landlord-dashboard-page .landlord-speech-scope [data-speech-toggle]::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #06301f;
+  vertical-align: middle;
+  animation: pac-pulse 1.8s ease-in-out infinite;
+}
+
+/* Checklist bullets as clean rows with a coral marker. */
+body.landlord-dashboard-page .landlord-checklist-review { padding-top: 2px; }
+body.landlord-dashboard-page .landlord-task-preview { display: flex; flex-direction: column; gap: 8px; }
+body.landlord-dashboard-page .landlord-task-preview [role="listitem"] {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 14.5px;
+  color: var(--ld-muted);
+}
+body.landlord-dashboard-page .landlord-task-preview [role="listitem"]::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--ld-coral);
+}
+
+@keyframes pac-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 oklch(0.7 0.16 150 / 0.5); }
+  50% { transform: scale(1.25); box-shadow: 0 0 0 6px oklch(0.7 0.16 150 / 0); }
+}
+
+@media (max-width: 820px) {
+  body.landlord-dashboard-page .pac-wizard-on .pac-layout,
+  body.landlord-dashboard-page .landlord-workspace-panel.pac-wizard-on .pac-layout { grid-template-columns: 1fr; }
+  body.landlord-dashboard-page .pac-basket { position: static; }
+  body.landlord-dashboard-page .pac-card-head { flex-direction: column; }
+  body.landlord-dashboard-page .pac-head-aside { justify-content: flex-start; }
+  body.landlord-dashboard-page .pac-nav .button { flex: 1 1 auto; min-width: 44%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.landlord-dashboard-page .landlord-speech-scope [data-speech-toggle]::before { animation: none; }
+  body.landlord-dashboard-page .pac-dot { transition: none; }
+}
