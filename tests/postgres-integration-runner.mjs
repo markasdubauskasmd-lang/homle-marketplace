@@ -41,6 +41,8 @@ assert.match(sources.get("paid-matching-payout-readiness.sql"), /Paid matching e
 assert.match(sources.get("paid-matching-payout-readiness.sql"), /A Cleaner could inspect the paid-booking payout-readiness boundary/);
 assert.doesNotMatch(sources.get("paid-matching-payout-readiness.sql"), /https?:\/\//, "The paid matching rehearsal must not contact an external payout provider.");
 assert.match(sources.get("automatic-dispatch-rehearsal-setup.sql"), /configure_automatic_dispatch[\s\S]*true,2::smallint/);
+assert.match(sources.get("automatic-dispatch-first-invite-core.sql"), /get_automatic_dispatch_candidates\([\s\S]*selected_lease,25,false/);
+assert.match(sources.get("automatic-dispatch-requeue.sql"), /get_automatic_dispatch_candidates\([\s\S]*000000000003',25,false/);
 assert.match(sources.get("automatic-dispatch-claim-a.sql"), /AUTOMATIC_DISPATCH_CLAIM_A\|/);
 assert.match(sources.get("automatic-dispatch-claim-b.sql"), /AUTOMATIC_DISPATCH_CLAIM_B\|/);
 assert.match(sources.get("automatic-dispatch-first-invite-core.sql"), /exactly two independent eligible Cleaners/);
