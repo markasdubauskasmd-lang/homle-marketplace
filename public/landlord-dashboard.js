@@ -1910,9 +1910,9 @@ document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link
 // journey, so the legacy in-page request button is not present on every layout.
 // Keep the old progressive-enhancement hook when that button exists without
 // preventing the authenticated workspace from loading when it does not.
-document.querySelector("[data-open-request-tab]")?.addEventListener("click", () => {
+document.querySelectorAll("[data-open-request-tab]").forEach((button) => button.addEventListener("click", () => {
   beginRoomWalkthrough();
-});
+}));
 
 // A completed room scan hands its checklist and spoken note back here. Without
 // this the scan would finish, say "use this checklist", and deliver nothing.

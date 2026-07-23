@@ -8,17 +8,23 @@
   <title>Landlord dashboard | Homle</title>
   <link rel="icon" href="/homle-logo.png" type="image/png">
   <link rel="stylesheet" href="/styles.css?v=20260718-100">
-  <link rel="stylesheet" href="/landlord-dashboard.css?v=20260722-1">
-  <script src="/landlord-dashboard.js?v=20260721-2" type="module"></script>
+  <link rel="stylesheet" href="/landlord-dashboard.css?v=20260723-2">
+  <script src="/landlord-dashboard.js?v=20260723-3" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
   <header class="site-header">
     <div class="shell nav-wrap">
-      <div class="workspace-brand"><a class="brand" href="/landlord/dashboard" aria-label="Homle Landlord dashboard"><img src="/homle-logo.png" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill landlord-workspace-pill">Landlord</span></div>
-      <nav class="directory-nav landlord-dashboard-nav" aria-label="Landlord dashboard navigation"><a href="/landlord/dashboard" aria-current="page">Dashboard</a><a href="#landlord-properties" data-open-landlord-section="properties">Properties</a><a href="#landlord-bookings">Bookings</a><a href="/cleaners">Find a Cleaner</a></nav>
-      <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="#landlord-account" data-open-landlord-section="account">Landlord profile</a><a href="#landlord-properties" data-open-landlord-section="properties">Manage properties</a><a href="/settings">Sign-in and privacy</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details>
+      <div class="workspace-brand"><a class="brand" href="/landlord/dashboard" aria-label="Homle Landlord dashboard"><img src="/homle-logo.png" alt="" width="44" height="44"><span class="workspace-brand-copy"><strong>Homle</strong><small>Landlord</small></span></a></div>
+      <nav class="directory-nav landlord-dashboard-nav" aria-label="Landlord dashboard navigation">
+        <a href="/landlord/dashboard" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg><span>Dashboard</span></a>
+        <a href="#landlord-properties" data-open-landlord-section="properties"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"></path><path d="M5.5 10.5V20h13v-9.5"></path></svg><span>Properties</span></a>
+        <a href="#landlord-bookings"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M8 3v4M16 3v4M3 10h18"></path></svg><span>Bookings</span></a>
+        <a href="/cleaners"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.5 15.5 5 5"></path></svg><span>Find a Cleaner</span></a>
+      </nav>
+      <a class="button landlord-sidebar-cta" href="/landlord/book">Prepare a clean <span aria-hidden="true">↗</span></a>
+      <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span><span class="account-summary-copy"><strong data-account-name>Landlord</strong><small>Signed in · secure</small></span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="#landlord-account" data-open-landlord-section="account">Landlord profile</a><a href="#landlord-properties" data-open-landlord-section="properties">Manage properties</a><a href="/settings">Sign-in and privacy</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details>
     </div>
   </header>
 
@@ -54,10 +60,11 @@
         <span aria-hidden="true">!</span><div><strong>Your Landlord account is open, but some information could not be refreshed.</strong><p>No property, request or booking was changed. Try again to load the complete dashboard.</p></div><button class="button button-outline" type="button" data-landlord-load-retry>Try again</button>
       </section>
       <section class="landlord-dashboard-heading landlord-dashboard-identity">
-        <div class="role-dashboard-person landlord-dashboard-person"><span class="role-account-avatar landlord-role-avatar" data-account-avatar aria-hidden="true">H</span><div><p class="eyebrow">Signed in as Landlord</p><strong data-account-name>Your account</strong><small data-account-email></small></div></div>
-        <div class="role-dashboard-welcome"><p class="eyebrow">Landlord dashboard</p><h1>Welcome, <span data-landlord-name>Landlord</span>.</h1><p>Manage properties, scan rooms, book a Cleaner and track every confirmed clean from one private account.</p></div>
-        <p class="role-dashboard-boundary">Only your properties, cleaning requests and booking progress appear here. Cleaner availability, job decisions and professional-profile controls stay in the separate Cleaner dashboard.</p>
-        <dl class="landlord-dashboard-stats"><div><dt>Properties</dt><dd data-property-count>0</dd></div><div><dt>Request drafts</dt><dd data-draft-count>0</dd></div><div><dt>Active bookings</dt><dd data-landlord-active-count>0</dd><small>Confirmed records only</small></div></dl>
+        <div class="role-dashboard-welcome"><span class="landlord-secure-badge"><span aria-hidden="true">●</span> Secure landlord access</span><h1>Welcome, <span data-landlord-name>Landlord</span>.</h1><p>Scan a room, review the checklist, approve one clear price.<br>Everything you book and confirm lives here.</p></div>
+        <a class="button landlord-new-request" href="/landlord/book">+ New request</a>
+        <div class="role-dashboard-person landlord-dashboard-person" hidden><span class="role-account-avatar landlord-role-avatar" data-account-avatar aria-hidden="true">H</span><div><p class="eyebrow">Signed in as Landlord</p><strong data-account-name>Your account</strong><small data-account-email></small></div></div>
+        <p class="role-dashboard-boundary" hidden>Only your properties, cleaning requests and booking progress appear here. Cleaner availability, job decisions and professional-profile controls stay in the separate Cleaner dashboard.</p>
+        <dl class="landlord-dashboard-stats" hidden><div><dt>Properties</dt><dd data-property-count>0</dd></div><div><dt>Request drafts</dt><dd data-draft-count>0</dd></div><div><dt>Active bookings</dt><dd data-landlord-active-count>0</dd><small>Confirmed records only</small></div></dl>
       </section>
 
       <section class="landlord-capability-note" data-landlord-media-readiness role="status" hidden>
@@ -73,21 +80,26 @@
         <span class="scan-hero-body">
           <span class="scan-hero-eyebrow"><span class="scan-hero-dot" aria-hidden="true"></span>Start here</span>
           <span class="scan-hero-title" id="scan-hero-title">Scan your rooms.<br>We'll write the checklist.</span>
-          <span class="scan-hero-copy">Walk through with your camera and talk normally. Homle turns it into the exact task list your Cleaner ticks off — then finds who's free near you.</span>
+          <span class="scan-hero-copy">Walk through each room and talk. Homle turns your words into a concise, room-by-room task list — ready to price and book. Takes about a minute.</span>
           <span class="scan-hero-cta">
             <span class="scan-hero-button">Start room scan
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
             </span>
-            <span class="scan-hero-time">About a minute</span>
+            <span class="scan-hero-time">About a minute · nothing shared until you approve</span>
           </span>
+          <span class="scan-hero-tags" aria-hidden="true"><span>Worktop <em>· grease</em></span><span>Shower screen <em>· limescale</em></span><span>Floor <em>· mop</em></span></span>
         </span>
         <span class="scan-hero-frame" aria-hidden="true">
           <span class="scan-hero-reticle"><i></i><i></i><i></i><i></i></span>
-          <span class="scan-hero-tag scan-hero-tag-1">Worktop<em>grease</em></span>
-          <span class="scan-hero-tag scan-hero-tag-2">Shower screen<em>limescale</em></span>
-          <span class="scan-hero-tag scan-hero-tag-3">Floor<em>mop</em></span>
+          <span class="scan-hero-beam"></span><strong>Scanning</strong>
         </span>
       </a>
+
+      <section class="landlord-prepare-card" aria-labelledby="landlord-prepare-title">
+        <div><h2 id="landlord-prepare-title">Prepare a clean</h2><p>Set the basics, walk through the rooms by voice, then approve one exact price.</p></div>
+        <button class="landlord-builder-reveal" type="button" data-open-request-tab>Reveal builder ↓</button>
+        <div class="landlord-prepare-actions"><button class="button" type="button" data-open-request-tab>Open the builder ↓</button><span>Private draft · nothing sent until you approve</span></div>
+      </section>
 
       <section id="landlord-bookings" class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
         <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p><h2 id="landlord-bookings-title">Active and upcoming bookings</h2></div><div class="landlord-booking-live"><span data-landlord-booking-live role="status" aria-live="polite">Checking private booking updates…</span><button class="text-button" type="button" data-landlord-booking-refresh>Refresh booking status</button></div></div>
