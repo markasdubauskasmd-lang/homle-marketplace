@@ -34,11 +34,12 @@ assert(missingPricing.matchingReady === false && missingPricing.notice?.key === 
 assert(missingGeocoding.matchingReady === false && missingGeocoding.notice?.key === "postcode-geocoding" && missingGeocoding.notice.copy.includes("real distance"), "Missing postcode geocoding did not block distance-priced Cleaner invitations with an exact explanation.");
 assert(completeCapabilities.matchingReady === true && completeCapabilities.notice === null && Object.isFrozen(completeCapabilities), "Complete marketplace capabilities did not remove the activation warning or remain immutable.");
 
-const [page, script, model, styles, server, authEntry] = await Promise.all([
+const [page, script, model, styles, designStyles, server, authEntry] = await Promise.all([
   readFile(new URL("../public/landlord-dashboard.html", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard-model.js", import.meta.url), "utf8"),
   readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
+  readFile(new URL("../public/landlord-dashboard.css", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8"),
   readFile(new URL("../public/auth-entry.js", import.meta.url), "utf8")
 ]);
@@ -104,7 +105,7 @@ const speechErrorEnd = script.indexOf("recognition.onresult =", speechErrorStart
 const speechErrorFlow = script.slice(speechErrorStart, speechErrorEnd);
 assert(speechErrorStart >= 0 && speechErrorEnd > speechErrorStart && speechErrorFlow.includes("speechChangedDuringListen") && speechErrorFlow.includes("summariseSpeech({ automatic: true })") && speechErrorFlow.includes("Captured room notes were preserved and concise tasks were updated automatically") && speechErrorFlow.indexOf("speechFailed = true") < speechErrorFlow.indexOf("summariseSpeech({ automatic: true })"), "A recognition failure can preserve final Landlord speech without updating the concise Cleaner checklist, or a later end event can summarise it twice.");
 assert(page.includes("data-task-review-status") && /name="scopeReviewed"[^>]+disabled/.test(page) && script.includes("requestTasksFromLines(lines.join") && script.includes("confirmation.disabled = false") && script.includes("confirmation.disabled = true") && script.includes("reviewedTasks.length") && script.includes("roomCount"), "The Landlord can approve a spoken summary before every bullet has a room and a clear Cleaner action.");
-assert(!page.includes("data-landlord-next") && !script.includes("function renderNextAction()") && !script.includes("nextButton") && page.includes('href="#landlord-bookings">Bookings</a>') && page.includes('id="landlord-bookings"') && !page.includes('data-landlord-tab="requests"') && page.includes("Add property details later") && page.includes("Add budget or recurring preference"), "The Landlord dashboard still includes the duplicate next-action banner or Request drafts tab, does not link Bookings directly, or moved optional fields into the main path.");
+assert(!page.includes("data-landlord-next") && !script.includes("function renderNextAction()") && !script.includes("nextButton") && /href="#landlord-bookings"[^>]*>/.test(page) && page.includes('id="landlord-bookings"') && !page.includes('data-landlord-tab="requests"') && page.includes("Add property details later") && page.includes("Add budget or recurring preference"), "The Landlord dashboard still includes the duplicate next-action banner or Request drafts tab, does not link Bookings directly, or moved optional fields into the main path.");
 assert(page.includes("Private property label") && page.includes("never the street address") && !/name="name"[^>]*required/.test(page) && page.includes("data-sole-property") && script.includes("propertySelectLabel.hidden = hasSoleProperty") && script.includes("propertySelect.value = properties[0].propertyId"), "Property setup still requires an invented label, risks deriving it from the exact address, or asks a Landlord to choose their only property.");
 assert(page.includes("data-cleaning-type-hint") && script.includes("function applySuggestedCleaningType()") && script.includes('cleaningTypeSelect.dataset.selectionSource = "user"') && script.includes("suggestedCleaningType(property?.propertyType)"), "The request form does not suggest an obvious cleaning category or can overwrite an explicit Landlord choice.");
 assert(styles.includes(".landlord-dashboard-page") && styles.includes(".landlord-speech-scope") && styles.includes(".landlord-request-scan-body") && styles.includes("@media (max-width: 720px)") && styles.includes(".landlord-property-actions .button { width: 100%; }") && styles.includes(".landlord-request-actions .text-button { width: 100%; }") && page.includes('aria-live="polite"'), "The Landlord room-scan workspace, property editor or withdrawal control lacks mobile or accessible feedback styling.");
@@ -121,11 +122,15 @@ assert(!/(Jane|Sarah|Maria|John|five-star|fully insured|background checked|DBS c
   // The whole banner is the target, and it opens the guided journey rather
   // than scrolling to a panel further down the same page.
   assert(/<a class="scan-hero" href="\/landlord\/book"/.test(page), "The scan banner is not a single link into the guided journey.");
-  assert(script.includes('document.querySelector("[data-open-request-tab]")?.addEventListener'), "Removing the legacy in-page request button can crash the dashboard before its secure session check finishes.");
+  assert(script.includes('document.querySelectorAll("[data-open-request-tab]").forEach'), "The two reference-layout builder actions are not progressively enhanced into the real request workflow.");
   assert(styles.includes(".scan-hero") && styles.includes("scanHeroSweep") && styles.includes("scanHeroIn"), "The scan banner has no presentation or motion.");
   // Motion is decoration; it must never be the thing that makes the banner work.
   const reducedMotion = styles.slice(styles.indexOf(".scan-hero"));
   assert(reducedMotion.includes("prefers-reduced-motion") && reducedMotion.includes(".scan-hero-tag{opacity:1;transform:none}"), "Reduced motion hides the banner's content instead of just stilling it.");
 }
+
+assert(page.includes("Secure landlord access") && page.includes("+ New request") && page.includes("landlord-prepare-card") && page.includes("Private draft · nothing sent until you approve"), "The Landlord dashboard no longer matches the approved welcome, request and clean-builder composition.");
+assert(page.includes("workspace-brand-copy") && page.includes("landlord-sidebar-cta") && page.includes("scan-hero-beam") && page.includes("scan-hero-tags"), "The approved sidebar or scanning-phone presentation is missing from the real dashboard markup.");
+assert(designStyles.includes("grid-template-columns: minmax(0, 1fr) 180px") && designStyles.includes("landlordPhoneScan") && designStyles.includes("@media (max-width: 700px)") && designStyles.includes("overflow-x: auto"), "The reference dashboard styling lost its desktop scan composition or mobile adaptation.");
 
 console.log("Landlord dashboard UI tests passed: simplified navigation, selected-Cleaner continuation, voice-first scope, grouped bullet review, accessible fallbacks, owner APIs, direct room-scan continuation, safe rendering and mobile accessibility.");
