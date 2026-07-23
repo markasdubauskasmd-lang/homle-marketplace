@@ -410,12 +410,6 @@ function workspaceTabFromHash() {
 
 function selectWorkspaceTab(name, { historyMode = "" } = {}) {
   const selected = ["properties", "requests", "account"].includes(name) ? name : "properties";
-  document.querySelectorAll("[data-landlord-tab]").forEach((button) => {
-    const active = button.dataset.landlordTab === selected;
-    button.classList.toggle("current", active);
-    button.setAttribute("aria-selected", String(active));
-    button.tabIndex = active ? 0 : -1;
-  });
   document.querySelectorAll("[data-landlord-panel]").forEach((panel) => { panel.hidden = panel.dataset.landlordPanel !== selected; });
   if (historyMode === "push") history.pushState({ landlordTab: selected }, "", `#landlord-${selected}`);
 }
@@ -1916,7 +1910,6 @@ function configureSpeech() {
   speechStatus.textContent = "Speech is available. Your browser may use its own speech-to-text service.";
 }
 
-document.querySelectorAll("[data-landlord-tab]").forEach((button) => button.addEventListener("click", () => { selectWorkspaceTab(button.dataset.landlordTab, { historyMode: "push" }); }));
 window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "properties"));
 selectWorkspaceTab(workspaceTabFromHash() || "properties");
 document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link.addEventListener("click", (event) => {

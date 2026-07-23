@@ -60,8 +60,8 @@ function showWorkspace(account) {
   for (const link of workspaceLinks) link.href = workspace.path;
   for (const navigation of workspaceNavigations) navigation.hidden = navigation.dataset.workspaceNav !== workspace.role;
   if (workspaceBrand) {
-    workspaceBrand.href = workspace.path;
-    workspaceBrand.setAttribute("aria-label", `Homle ${workspace.label} dashboard`);
+    workspaceBrand.href = "/";
+    workspaceBrand.setAttribute("aria-label", "Homle home");
   }
   if (workspacePill) workspacePill.textContent = workspace.label;
   if (workspaceHeading) workspaceHeading.textContent = `${workspace.label} updates`;
