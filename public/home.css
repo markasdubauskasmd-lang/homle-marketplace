@@ -685,17 +685,63 @@ body.landing .footer-bottom { display: flex; justify-content: space-between; gap
   body.landing .lp-hero-copy { top: 78px; }
 }
 
+/* ── Feel: press, breath, hover lift, reveal, milestone tick, 100% payoff ── */
+
+/* Press feedback on every landing button (a real touch, not the old .985). */
+body.landing .lp-btn,
+body.landing .main-nav .button {
+  transition: transform var(--dur-fast) var(--ease-spring), box-shadow 0.25s var(--ease);
+}
+body.landing .lp-btn:active,
+body.landing .main-nav .button:active {
+  transform: scale(0.96);
+  transition-duration: var(--dur-tap);
+}
+
+/* One gentle attractor breath on the single primary CTA only. */
+body.landing .lp-btn-primary { animation: lp-cta-breath 3.2s var(--ease) infinite; }
+body.landing .lp-btn-primary:hover,
+body.landing .lp-btn-primary:active { animation-play-state: paused; }
+
+/* Feature cards lift on hover. */
+body.landing .lp-card { transition: transform 0.2s var(--ease), box-shadow 0.25s var(--ease); }
+body.landing .lp-card:hover { transform: translateY(-4px); box-shadow: 0 26px 60px oklch(0.3 0.05 60 / 0.14); }
+
+/* Scroll reveals for everything below the hero. The reveal only hides content
+   once home-hero.js has added `lp-reveals` to the body, so with no JS (or a
+   failed load) everything stays visible — the animation is pure enhancement. */
+body.landing.lp-reveals .reveal { opacity: 0; }
+body.landing.lp-reveals .reveal.in { animation: homle-rise-in var(--dur-reveal) var(--ease) forwards; }
+body.landing.lp-reveals .lp-cards .lp-card.reveal.in:nth-child(2) { animation-delay: 70ms; }
+body.landing.lp-reveals .lp-cards .lp-card.reveal.in:nth-child(3) { animation-delay: 140ms; }
+
+/* The scan counter ticks each time it crosses a milestone. */
+body.landing .pct.tick { display: inline-block; animation: lp-counter-tick 0.35s var(--ease-spring); }
+
+/* At 100% the room is done, so the book button lights up — the reward and the
+   next action are the same thing. */
+body.landing .lp-stage.scan-done .lp-btn-primary {
+  box-shadow: 0 0 0 6px oklch(0.78 0.17 150 / 0.25), 0 18px 38px oklch(0.62 0.19 25 / 0.45);
+}
+
 /* ── Reduced motion: no idle loops; JS also jumps the scan to its end. ─── */
 
 @media (prefers-reduced-motion: reduce) {
   body.landing .lp-scrollcue .mouse i,
   body.landing .lp-sparkles span,
   body.landing .lp-badge,
-  body.landing .lp-phone-scanline { animation: none; }
-  body.landing .lp-btn { transition: none; }
+  body.landing .lp-phone-scanline,
+  body.landing .lp-btn-primary { animation: none; }
+  body.landing .lp-btn,
+  body.landing .lp-card { transition: none; }
+  body.landing.lp-reveals .reveal { opacity: 1; }
+  body.landing.lp-reveals .reveal.in { animation: none; }
+  body.landing .pct.tick { animation: none; }
 }
 
 @keyframes lp-twinkle { 0%, 100% { transform: scale(0.7); opacity: 0.5; } 50% { transform: scale(1.15); opacity: 1; } }
 @keyframes lp-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
 @keyframes lp-nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
 @keyframes lp-scanline { 0%, 100% { top: 14%; } 50% { top: 80%; } }
+@keyframes lp-cta-breath { 50% { transform: scale(1.015); } }
+@keyframes lp-counter-tick { 30% { transform: scale(1.22); color: oklch(0.7 0.16 150); } }

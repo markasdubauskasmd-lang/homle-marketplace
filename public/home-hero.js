@@ -49,7 +49,23 @@ if (wrap && stage) {
   const clamp = (x) => Math.max(0, Math.min(1, x));
   const ease = (t) => t * t * (3 - 2 * t);
 
-  function render(p) {
+  // Milestones fire once each as the count crosses them: a tick on the counter
+  // and a short haptic, re-armed if the Landlord scrolls back to the top. This
+  // is what turns a passive scrub into "I did that".
+  const firedMilestones = new Set();
+  function fireMilestones(pct, target) {
+    if (target < 0.02) firedMilestones.clear();
+    for (const m of [25, 50, 75, 100]) {
+      if (pct < m || firedMilestones.has(m)) continue;
+      firedMilestones.add(m);
+      for (const node of el.pct) {
+        node.classList.remove("tick"); void node.offsetWidth; node.classList.add("tick");
+      }
+      if (navigator.vibrate) { try { navigator.vibrate(m === 100 ? [12, 40, 18] : 8); } catch {} }
+    }
+  }
+
+  function render(p, target = p) {
     const ep = ease(p);
     const pct = Math.round(p * 100);
     const beamPct = -8 + p * 128;
@@ -81,6 +97,11 @@ if (wrap && stage) {
       node.style.opacity = String(1 - s);
       node.style.transform = `translateY(${18 * s}px) scale(${1 - 0.28 * s}) rotate(${config.rot}deg)`;
     }
+
+    // The loop ends *in* the button: at 100% the primary CTA lights up so the
+    // reward and the next action are the same thing.
+    stage.classList.toggle("scan-done", pct >= 100);
+    fireMilestones(pct, target);
   }
 
   const still = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -97,24 +118,32 @@ if (wrap && stage) {
     return clamp(scrolled / range);
   }
 
-  let ticking = false;
+  // The scrub follows the scroll with a short lag instead of snapping to each
+  // wheel tick, so it reads as liquid rather than stepped.
+  let target = 0;
+  let current = 0;
+  let raf = null;
+  function tick() {
+    current += (target - current) * 0.16;
+    if (Math.abs(target - current) < 0.001) { current = target; raf = null; }
+    else raf = requestAnimationFrame(tick);
+    render(current, target);
+  }
   function onScroll() {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(() => {
-      ticking = false;
-      if (isStatic()) { render(1); return; }
-      render(progress());
-    });
+    target = progress();
+    if (!raf) raf = requestAnimationFrame(tick);
   }
 
   function bind() {
     if (isStatic()) {
       window.removeEventListener("scroll", onScroll);
-      render(1);
+      if (raf) { cancelAnimationFrame(raf); raf = null; }
+      target = current = 1;
+      render(1, 1);
     } else {
       window.addEventListener("scroll", onScroll, { passive: true });
-      render(progress());
+      target = current = progress();
+      render(current, target);
     }
   }
 
@@ -123,4 +152,26 @@ if (wrap && stage) {
   window.addEventListener("resize", bind, { passive: true });
   const watch = (query) => (query.addEventListener ? query.addEventListener("change", bind) : query.addListener(bind));
   watch(still);
+
+  // Scroll reveals for the sections below the hero — the unused homle-rise-in
+  // keyframe finally gets applied, once per element, with a stagger set in CSS.
+  // `lp-reveals` is added only now, so if this script never runs the content is
+  // simply visible: the reveal is enhancement, never a requirement.
+  const reveals = [...document.querySelectorAll(".reveal")];
+  if (reveals.length) {
+    if (still.matches || !("IntersectionObserver" in window)) {
+      document.body.classList.add("lp-reveals");
+      for (const node of reveals) node.classList.add("in");
+    } else {
+      document.body.classList.add("lp-reveals");
+      const io = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add("in");
+          io.unobserve(entry.target);
+        }
+      }, { threshold: 0.18 });
+      for (const node of reveals) io.observe(node);
+    }
+  }
 }
