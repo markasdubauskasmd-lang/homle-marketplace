@@ -33,6 +33,14 @@ const coreBookingCapabilityNames = Object.freeze([
   "speechSummaryReady",
   "roomVisionReady"
 ]);
+const accountProviderNames = Object.freeze([
+  "emailPassword",
+  "passwordReset",
+  "emailVerification",
+  "google",
+  "apple",
+  "facebook"
+]);
 
 function exact(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -66,11 +74,26 @@ function action(key, copy) {
   return Object.freeze({ key, action: copy });
 }
 
+function accountAccessProjection(payload) {
+  const root = object(payload, "Account provider response");
+  if (root.ok !== true) throw new Error("The public account provider endpoint is not healthy.");
+  const providers = object(root.providers, "Account provider projection");
+  const projection = {};
+  for (const name of accountProviderNames) projection[name] = boolean(providers[name], `providers.${name}`);
+  if (!Array.isArray(providers.roles) || providers.roles.length !== 2 || new Set(providers.roles).size !== 2 || !providers.roles.includes("cleaner") || !providers.roles.includes("landlord")) {
+    throw new TypeError("Account provider roles must expose exactly Cleaner and Landlord.");
+  }
+  return Object.freeze({ ...projection, roles: Object.freeze(["cleaner", "landlord"]) });
+}
+
 function remainingActions(snapshot) {
   const actions = [];
   if (snapshot.dataIntegrity !== "healthy" || snapshot.writesAllowed !== true) actions.push(action("data-integrity", "Repair the managed database integrity gate before any account or booking rehearsal."));
   if (!snapshot.capabilities.enabled || !snapshot.capabilities.ready) actions.push(action("marketplace-runtime", "Restore the marketplace runtime and restricted database attachment before testing private journeys."));
   if (!snapshot.capabilities.authenticationReady) actions.push(action("authentication", "Restore secure account authentication before testing either role workspace."));
+  if (!snapshot.accountAccess.google) actions.push(action("google-sign-in", "Configure and verify Google sign-in with Homle's exact HTTPS callback before accepting Google accounts."));
+  if (!snapshot.accountAccess.facebook) actions.push(action("facebook-sign-in", "Configure and verify Facebook Login with Homle's exact HTTPS callback before offering Facebook accounts."));
+  if (!snapshot.accountAccess.apple) actions.push(action("apple-sign-in", "Configure and verify Sign in with Apple for the Homle web service before offering Apple accounts."));
   if (!snapshot.capabilities.mediaReady) actions.push(action("private-media", "Configure and verify private object storage before submitting room photos or videos."));
   if (!snapshot.capabilities.realtimeReady) actions.push(action("realtime", "Restore participant-only live updates before journey tracking or cleaning-progress rehearsal."));
   if (!snapshot.capabilities.geocodingReady) actions.push(action("geocoding", "Configure postcode geocoding before distance-based Cleaner matching."));
@@ -78,7 +101,7 @@ function remainingActions(snapshot) {
   if (!snapshot.capabilities.automaticDispatchReady) actions.push(action("automatic-dispatch", "Restore the background dispatch worker before testing automatic Cleaner matching."));
   if (!snapshot.capabilities.speechSummaryReady) actions.push(action("speech-summary", "Restore the configured speech-summary provider before testing concise spoken room notes."));
   if (!snapshot.capabilities.roomVisionReady) actions.push(action("room-vision", "Restore the configured room-reading provider before testing assisted scan labels."));
-  if (!snapshot.capabilities.emailReady) actions.push(action("transactional-email", "Configure an approved transactional email provider and verified sender, then test only with approved staging inboxes."));
+  if (!snapshot.capabilities.emailReady || !snapshot.accountAccess.emailPassword || !snapshot.accountAccess.emailVerification || !snapshot.accountAccess.passwordReset) actions.push(action("transactional-email", "Configure an approved transactional email provider and verified sender, enable email/password verification and reset, then test only with approved staging inboxes."));
   if (!snapshot.capabilities.paymentsReady) actions.push(action("test-payments", "Configure Stripe test credentials, keep live keys prohibited, enable the test gate and run pnpm run preflight:staging-activation before a payment rehearsal."));
   return Object.freeze(actions);
 }
@@ -95,20 +118,26 @@ export function liveActivationSnapshot(payload, options = {}) {
   const capabilities = {};
   const marketplace = object(root.marketplace, "Marketplace capability projection");
   for (const name of capabilityNames) capabilities[name] = boolean(marketplace[name], `marketplace.${name}`);
+  const accountAccess = accountAccessProjection(options.providers);
   const snapshot = {
     origin,
     release: Object.freeze({ sourceCommit, migrationCount: Number.isInteger(release.migrationCount) ? release.migrationCount : null }),
     dataIntegrity: root.dataIntegrity,
     writesAllowed: boolean(root.writesAllowed, "writesAllowed"),
-    capabilities: Object.freeze(capabilities)
+    capabilities: Object.freeze(capabilities),
+    accountAccess
   };
   const coreReady = snapshot.writesAllowed === true && coreBookingCapabilityNames.every((name) => capabilities[name] === true);
+  const emailFallbackReady = capabilities.emailReady && accountAccess.emailPassword && accountAccess.emailVerification && accountAccess.passwordReset;
+  const requestedAccountEntryReady = emailFallbackReady && accountAccess.google && accountAccess.facebook && accountAccess.apple;
   return Object.freeze({
     ok: true,
     ...snapshot,
     readiness: Object.freeze({
       coreBookingRehearsal: coreReady,
       transactionalNotifications: capabilities.emailReady,
+      emailFallback: emailFallbackReady,
+      requestedAccountEntry: requestedAccountEntryReady,
       testPaymentRehearsal: coreReady && capabilities.emailReady && capabilities.paymentsReady,
       realPayments: false
     }),
@@ -148,21 +177,26 @@ export async function fetchLiveActivationSnapshot(options = {}) {
   const timer = setTimeout(() => controller.abort(), options.timeoutMs || 10_000);
   timer.unref?.();
   try {
+    const requestJson = async (url, label) => {
+      const response = await fetchImplementation(url, {
+        method: "GET",
+        redirect: "error",
+        signal: controller.signal,
+        headers: { accept: "application/json", "user-agent": "Homle-Live-Activation-Snapshot/1.0" }
+      });
+      if (response.status !== 200 || !/^application\/json\b/i.test(response.headers.get("content-type") || "")) throw new Error(`${label} did not return a successful JSON response.`);
+      if (!/(?:^|,)\s*no-store\b/i.test(response.headers.get("cache-control") || "")) throw new Error(`${label} must be non-cacheable.`);
+      try { return JSON.parse(await boundedText(response)); } catch (error) {
+        if (error instanceof SyntaxError) throw new Error(`${label} returned invalid JSON.`);
+        throw error;
+      }
+    };
     const query = expectedRelease ? `?release=${encodeURIComponent(expectedRelease)}` : "";
-    const response = await fetchImplementation(`${origin}/api/health${query}`, {
-      method: "GET",
-      redirect: "error",
-      signal: controller.signal,
-      headers: { accept: "application/json", "user-agent": "Homle-Live-Activation-Snapshot/1.0" }
-    });
-    if (response.status !== 200 || !/^application\/json\b/i.test(response.headers.get("content-type") || "")) throw new Error("Public health endpoint did not return a successful JSON response.");
-    if (!/(?:^|,)\s*no-store\b/i.test(response.headers.get("cache-control") || "")) throw new Error("Public health endpoint must be non-cacheable.");
-    let payload;
-    try { payload = JSON.parse(await boundedText(response)); } catch (error) {
-      if (error instanceof SyntaxError) throw new Error("Public health endpoint returned invalid JSON.");
-      throw error;
-    }
-    return liveActivationSnapshot(payload, { origin, expectedRelease });
+    const [payload, providers] = await Promise.all([
+      requestJson(`${origin}/api/health${query}`, "Public health endpoint"),
+      requestJson(`${origin}/api/auth/providers`, "Public account provider endpoint")
+    ]);
+    return liveActivationSnapshot(payload, { origin, expectedRelease, providers });
   } finally {
     clearTimeout(timer);
   }
