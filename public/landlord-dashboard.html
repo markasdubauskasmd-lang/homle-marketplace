@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/styles.css?v=20260723-1">
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260723-2">
   <script src="/landlord-dashboard.js?v=20260723-6" type="module"></script>
+  <script src="/landlord-prepare-wizard.js?v=20260723-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
@@ -120,7 +121,7 @@
         </section>
       </section>
 
-      <nav class="landlord-workspace-tabs" role="tablist" aria-label="Landlord workspace sections"><button type="button" class="current" role="tab" data-landlord-tab="properties" aria-controls="landlord-panel-properties" aria-selected="true">Properties</button><button type="button" role="tab" data-landlord-tab="account" aria-controls="landlord-panel-account" aria-selected="false" tabindex="-1">Account</button></nav>
+      <nav class="landlord-workspace-tabs" role="tablist" aria-label="Landlord workspace sections"><button type="button" class="current" role="tab" data-landlord-tab="properties" aria-controls="landlord-panel-properties" aria-selected="true">Properties</button><button type="button" role="tab" data-landlord-tab="requests" aria-controls="landlord-panel-requests" aria-selected="false" tabindex="-1">Prepare a clean</button><button type="button" role="tab" data-landlord-tab="account" aria-controls="landlord-panel-account" aria-selected="false" tabindex="-1">Account</button></nav>
 
       <section id="landlord-panel-properties" role="tabpanel" data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title">
         <div class="landlord-panel-heading"><div><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your properties</h2></div><button class="button button-outline" type="button" data-toggle-property-form>Add property</button></div>
@@ -167,11 +168,16 @@
       </section>
 
       <section id="landlord-panel-requests" role="tabpanel" data-landlord-panel="requests" class="landlord-workspace-panel" aria-labelledby="requests-title" hidden>
-        <div class="landlord-panel-heading"><div><p class="eyebrow">Not sent for matching</p><h2 id="requests-title">Cleaning request drafts</h2></div><span class="landlord-private-pill">Private drafts only</span></div>
+        <div class="pac-card" data-pac-card>
+        <div class="landlord-panel-heading pac-card-head"><div><p class="eyebrow">Not sent for matching · private draft</p><h2 id="requests-title">Prepare a clean</h2><p class="pac-sub">Set the basics, walk through the rooms by voice, then approve one exact price.</p></div><div class="pac-head-aside"><span class="landlord-private-pill">Matching stays off</span><button type="button" class="pac-reveal" data-pac-toggle aria-controls="pac-body" aria-expanded="true" hidden>Hide ↑</button></div></div>
 
+        <div class="pac-body" id="pac-body" data-pac-body>
         <form class="landlord-record-form landlord-request-form" data-request-form novalidate>
           <fieldset data-request-controls>
-            <div class="landlord-form-title"><div><p class="eyebrow">Prepare scope</p><h3>Save a cleaning request draft</h3></div><span>Matching stays off</span></div>
+            <div class="pac-layout">
+            <div class="pac-main">
+            <div class="pac-stepper" data-pac-stepper hidden><div class="pac-dots" data-pac-dots role="group" aria-label="Prepare a clean steps"></div><p class="pac-step-count">Step <span data-pac-step-num>1</span> of <span data-pac-step-total>6</span></p><h3 class="pac-step-title" data-pac-step-title></h3></div>
+            <div class="pac-step" data-wizard-step data-step-title="Choose the property">
             <section class="landlord-selected-cleaner" data-landlord-selected-cleaner hidden aria-labelledby="selected-cleaner-title">
               <span class="landlord-selected-cleaner-avatar" data-landlord-selected-cleaner-avatar aria-hidden="true">C</span>
               <div><p class="eyebrow">Selected Cleaner</p><h4 id="selected-cleaner-title" data-landlord-selected-cleaner-name>Checking current public profile…</h4><p data-landlord-selected-cleaner-evidence>Homle is verifying this selection before it can be invited.</p><small data-landlord-selected-cleaner-status role="status" aria-live="polite"></small></div>
@@ -179,11 +185,18 @@
             </section>
             <div class="landlord-sole-property" data-sole-property hidden><span>Cleaning property</span><strong data-sole-property-name></strong><small>Your only saved property is selected automatically.</small></div>
             <label data-property-select-label>Property<select name="propertyId" required data-property-select><option value="">Add a property first</option></select></label>
+            </div>
+            <div class="pac-step" data-wizard-step data-step-title="Time &amp; cleaning type">
             <div class="field-row"><label>Date<input name="requestedDate" type="date" required></label><label>Start time<input name="requestedTime" type="time" required></label></div>
             <label>Estimated duration<select name="durationMinutes" required><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="300">5 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></label>
             <label>Primary cleaning type<select name="cleaningType" required><option value="">Choose one</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select><small data-cleaning-type-hint>Choose a property to receive a sensible default.</small></label>
+            </div>
+            <div class="pac-step" data-wizard-step data-step-title="Extras &amp; preferences">
+            <p class="pac-step-hint">Optional — skip if the basics are all you need.</p>
             <details class="dashboard-optional-fields"><summary>Add budget or recurring preference <span>Optional</span></summary><div><div class="field-row"><label>Frequency<select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select></label><label>Budget (£) <span>(optional)</span><input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01"></label></div><label>Special instructions <span>(optional)</span><textarea name="specialInstructions" rows="3" maxlength="5000"></textarea></label></div></details>
 
+            </div>
+            <div class="pac-step" data-wizard-step data-step-title="Walk through the rooms">
             <section class="landlord-speech-scope" aria-labelledby="speech-scope-title">
               <p class="landlord-scan-property-status" data-scan-property-status role="status">You can start speaking before adding a property.</p>
               <div class="landlord-speech-heading"><div><p class="eyebrow">Speech to concise bullets</p><h3 id="speech-scope-title">Walk through each room naturally.</h3></div><button class="button button-outline" type="button" data-speech-toggle>Start speaking</button></div>
@@ -196,6 +209,8 @@
               </div></details>
             </section>
 
+            </div>
+            <div class="pac-step" data-wizard-step data-step-title="Review the checklist">
             <section class="landlord-checklist-review" aria-labelledby="request-tasks-title">
               <div class="landlord-checklist-heading"><div><p class="eyebrow">Cleaner instructions</p><h3 id="request-tasks-title">Review the concise bullets</h3></div><button class="text-button" type="button" data-use-saved-checklist>Use saved checklist</button></div>
               <div class="landlord-task-preview" data-task-preview role="list" aria-live="polite"><p role="listitem">No tasks yet. Start speaking or type the room walkthrough.</p></div>
@@ -203,16 +218,29 @@
               <p class="landlord-task-review-status" data-task-review-status role="status">Add at least one room-labelled cleaning action before approval.</p>
               <label class="checkbox landlord-review-confirmation"><input name="scopeReviewed" type="checkbox" required disabled><span>I reviewed every bullet and confirm this is the work I want quoted.</span></label>
             </section>
-            <p class="landlord-request-recovery-status" data-request-recovery-status role="status">An unfinished walkthrough stays only in this browser tab for up to 30 minutes. Approval and photos are never restored.</p>
-            <div class="landlord-form-feedback" data-request-feedback role="status" aria-live="polite" hidden></div>
+            </div>
+            <div class="pac-step" data-wizard-step data-step-title="Save your private draft">
             <button class="button" type="submit" data-save-request>Save private draft</button>
             <small class="landlord-draft-boundary">This action sets <strong>Draft</strong>. It cannot invite a Cleaner, confirm a booking or take payment.</small>
+            </div>
+            <p class="landlord-request-recovery-status" data-request-recovery-status role="status">An unfinished walkthrough stays only in this browser tab for up to 30 minutes. Approval and photos are never restored.</p>
+            <div class="landlord-form-feedback" data-request-feedback role="status" aria-live="polite" hidden></div>
+            <div class="pac-nav" data-pac-nav hidden><button type="button" class="button button-outline pac-back" data-pac-back>Back</button><button type="button" class="button pac-next" data-pac-next>Next</button></div>
+            </div>
+            <aside class="pac-basket" data-pac-basket hidden aria-label="Draft summary">
+              <p class="pac-basket-title">Your clean so far</p>
+              <dl class="pac-basket-lines" data-pac-basket-lines></dl>
+              <p class="pac-basket-note">Exact price is shown when you approve a Cleaner. No payment is taken now.</p>
+            </aside>
+            </div>
           </fieldset>
         </form>
 
         <div class="landlord-empty-card" data-request-empty><strong>No account request drafts yet.</strong><p>Drafts appear here after you save a property and review a room checklist.</p></div>
         <div class="landlord-request-list" data-request-list hidden></div>
         <div class="landlord-form-feedback" data-request-status role="status" aria-live="polite" tabindex="-1" hidden></div>
+        </div>
+        </div>
       </section>
     </div>
   </main>

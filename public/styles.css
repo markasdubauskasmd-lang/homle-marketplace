@@ -1780,11 +1780,6 @@ textarea { resize: vertical; }
 .landlord-workspace-tabs button { min-height: 46px; padding: .65rem 1rem; color: var(--muted); border: 0; border-radius: 10px; background: transparent; font-weight: 830; cursor: pointer; }
 .landlord-workspace-tabs button.current { color: var(--green-dark); background: #fff; box-shadow: 0 4px 16px rgba(16,36,33,.09); }
 .landlord-workspace-panel { min-height: 380px; padding: clamp(22px, 4vw, 34px); border: 1px solid var(--line); border-radius: 24px; background: #fff; box-shadow: 0 14px 42px rgba(16,36,33,.055); }
-/* The manual "Cleaning request drafts" workspace (draft form, speech-to-bullets
-   walkthrough and checklist review) is intentionally hidden from the dashboard —
-   landlords use the guided room scan at /landlord/book instead. The markup and
-   its JS are kept in place, so removing this one rule restores it. */
-.landlord-workspace-panel[data-landlord-panel="requests"] { display: none !important; }
 .landlord-panel-heading, .landlord-form-title { display: flex; justify-content: space-between; gap: 18px; align-items: center; }
 .landlord-panel-heading { margin-bottom: 20px; }
 .landlord-panel-heading h2 { margin: 4px 0 0; font-size: clamp(1.8rem, 4vw, 2.55rem); }
