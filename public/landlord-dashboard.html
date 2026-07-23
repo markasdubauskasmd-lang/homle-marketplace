@@ -14,7 +14,7 @@
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260723-1">
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260723-3">
-  <script src="/landlord-dashboard.js?v=20260723-7" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260723-8" type="module"></script>
   <script src="/landlord-prepare-wizard.js?v=20260723-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
 </head>
@@ -111,6 +111,9 @@
         <button class="landlord-section-toggle" type="button" data-landlord-section-toggle aria-expanded="false" aria-controls="landlord-booking-content"><span id="landlord-bookings-title">Active and upcoming bookings</span><span class="landlord-section-toggle-meta"><span data-landlord-booking-reveal-count>0</span><span aria-hidden="true">↓</span></span></button>
         <div id="landlord-booking-content" data-landlord-section-content hidden>
           <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p></div><div class="landlord-booking-live"><span data-landlord-booking-live role="status" aria-live="polite">Checking private booking updates…</span><button class="text-button" type="button" data-landlord-booking-refresh>Refresh booking status</button></div></div>
+          <div class="landlord-empty-card" data-request-empty><strong>No requests or upcoming bookings yet.</strong><p>Saved cleaning requests appear here first, then become confirmed bookings only after a Cleaner accepts the frozen time, scope and price.</p></div>
+          <div class="landlord-request-list" data-request-list hidden></div>
+          <div class="landlord-form-feedback" data-request-status role="status" aria-live="polite" tabindex="-1" hidden></div>
           <section class="landlord-waiting-section" data-landlord-waiting-section aria-labelledby="landlord-waiting-title" hidden><div><p class="eyebrow">Cleaner decision pending</p><h3 id="landlord-waiting-title">Waiting for a Cleaner response <span data-landlord-waiting-count>0</span></h3><p>The exact deadline below is private booking state shared with you. Homle updates this page when the Cleaner responds.</p></div><div class="booking-dashboard-list landlord-waiting-list" data-landlord-waiting-list></div></section>
           <div class="booking-dashboard-list" data-landlord-booking-list></div>
           <div class="booking-dashboard-empty" data-landlord-booking-empty><strong>No confirmed marketplace bookings yet.</strong><p>Private request drafts below do not become bookings until a Cleaner accepts the frozen time, scope and price.</p></div>
@@ -242,9 +245,6 @@
           </fieldset>
         </form>
 
-        <div class="landlord-empty-card" data-request-empty><strong>No account request drafts yet.</strong><p>Drafts appear here after you save a property and review a room checklist.</p></div>
-        <div class="landlord-request-list" data-request-list hidden></div>
-        <div class="landlord-form-feedback" data-request-status role="status" aria-live="polite" tabindex="-1" hidden></div>
         </div>
         </div>
       </section>
