@@ -45,11 +45,15 @@ export function activeJobStage(status) {
   return status === "cancelled" || status === "disputed" ? activeJobStages.length : 0;
 }
 
-export function activeJobAction(role, tracking = {}, progress = {}) {
+export function activeJobAction(role, tracking = {}, progress = {}, journeyReadiness = {}) {
   if (role !== "cleaner") return Object.freeze({ kind: "none", label: "Live booking updates", enabled: false });
   const candidates = [tracking.status, progress.status].filter(Boolean);
   const status = candidates.sort((left, right) => activeJobStage(right) - activeJobStage(left))[0] || "";
-  if (status === "confirmed") return Object.freeze({ kind: "start-journey", label: "Start journey", enabled: true });
+  if (status === "confirmed") {
+    if (journeyReadiness.checked !== true) return Object.freeze({ kind: "journey-readiness", label: "Check booking authorization", enabled: true });
+    if (journeyReadiness.canStartJourney !== true) return Object.freeze({ kind: "waiting-authorization", label: "Check booking authorization", enabled: true });
+    return Object.freeze({ kind: "start-journey", label: "Start journey", enabled: true });
+  }
   if (status === "cleaner-en-route") {
     if (tracking.sharingState !== "live") return Object.freeze({ kind: "resume-location", label: "Resume location sharing", enabled: true });
     return Object.freeze({ kind: "arrive", label: "I have arrived", enabled: true });

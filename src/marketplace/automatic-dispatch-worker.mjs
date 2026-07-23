@@ -26,6 +26,7 @@ export function createAutomaticDispatchWorker(repository, pricingPolicy, options
   const leaseSeconds = integer(options.leaseSeconds, 30, 600, 120, "Automatic-matching lease duration");
   const retryMinutes = integer(options.retryMinutes, 1, 1440, 15, "Automatic-matching retry delay");
   const candidateLimit = integer(options.candidateLimit, 1, 50, 25, "Automatic-matching candidate limit");
+  const requirePayoutReady = options.requirePayoutReady === true;
 
   async function release(claim, leaseToken, outcome, now) {
     const retryAt = new Date(now.getTime() + retryMinutes * 60000).toISOString();
@@ -47,7 +48,7 @@ export function createAutomaticDispatchWorker(repository, pricingPolicy, options
         }
         let ranked;
         try {
-          ranked = rankRequestCandidates(await repository.getCandidates(claim.cleaningRequestId, leaseToken, candidateLimit), pricingPolicy, now, { requireApprovedMaximum: true });
+          ranked = rankRequestCandidates(await repository.getCandidates(claim.cleaningRequestId, leaseToken, candidateLimit, requirePayoutReady), pricingPolicy, now, { requireApprovedMaximum: true });
         } catch (error) {
           if (!closedRequestCodes.has(error?.code)) await release(claim, leaseToken, "transient-failure", now);
           result.deferred += 1;

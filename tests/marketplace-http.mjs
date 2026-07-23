@@ -121,6 +121,7 @@ const matchingService = {
   async recommendForRequest(actor, cleaningRequestId) { calls.push({ kind: "request-matches", actor, cleaningRequestId }); return { cleaningRequestId, generatedAt: "2026-07-15T15:00:00.000Z", candidates: [{ cleanerId: "22222222-2222-4222-8222-222222222222", displayName: "Private Cleaner", rank: 1, estimatedCustomerPricePence: 12000 }] }; }
 };
 const journeyService = {
+  async getJourneyReadiness(actor, bookingId) { calls.push({ kind: "journey-readiness", actor, bookingId }); return { bookingId, canStartJourney: true }; },
   async startJourney(actor, bookingId, input) { calls.push({ kind: "journey-start", actor, bookingId, input }); return { bookingId, status: "cleaner-en-route", sharingState: "live" }; },
   async updateLocation(actor, bookingId, input) { calls.push({ kind: "journey-location", actor, bookingId, input }); return { bookingId, status: "cleaner-en-route", sharingState: "live", location: input }; },
   async markArrived(actor, bookingId) { calls.push({ kind: "journey-arrive", actor, bookingId }); return { bookingId, status: "cleaner-arrived", sharingState: "arrived", location: null }; },
@@ -463,8 +464,9 @@ const realtimeStream = await dispatch(router, "GET", `/api/marketplace/bookings/
 assert(missingRealtimeOrigin.response.statusCode === 403 && missingRealtimeOrigin.body.code === "origin-rejected" && realtimeStream.response.statusCode === 200 && calls.at(-1).kind === "realtime-open" && calls.at(-1).lastEventId === "7", "Real-time booking stream did not require exact origin or preserve its durable reconnect cursor.");
 const requestRealtimeStream = await dispatch(router, "GET", "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/events?afterEventId=11", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin } });
 assert(requestRealtimeStream.response.statusCode === 200 && calls.at(-1).kind === "request-realtime-open" && calls.at(-1).requestId === "66666666-6666-4666-8666-666666666666" && calls.at(-1).lastEventId === "11", "The private Landlord request stream lost role, exact-origin, resource or durable cursor binding.");
+const landlordJourneyReadiness = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/journey/readiness`, { headers: { cookie: authHeaders.cookie } });
 const landlordJourneyStart = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/journey/start`, { headers: authHeaders, body: { consentGranted: true, latitude: 51.5, longitude: -0.1 } });
-assert(landlordJourneyStart.response.statusCode === 403 && landlordJourneyStart.body.code === "role-rejected", "A Landlord could start the Cleaner journey.");
+assert(landlordJourneyReadiness.response.statusCode === 403 && landlordJourneyStart.response.statusCode === 403 && landlordJourneyStart.body.code === "role-rejected", "A Landlord could inspect or start the Cleaner journey.");
 const landlordProgress = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/cleaning-progress`, { headers: { cookie: authHeaders.cookie } });
 const progressTaskId = "77777777-7777-4777-8777-777777777777";
 const taskDecision = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/cleaning-progress/tasks/${progressTaskId}/decision`, { headers: authHeaders, body: { decision: "approved", priceUnchangedConfirmed: true } });
@@ -477,6 +479,8 @@ const bookingResponse = await dispatch(router, "POST", `/api/marketplace/booking
 assert(bookingResponse.response.statusCode === 200 && bookingResponse.body.booking.status === "confirmed" && calls.at(-1).kind === "booking-response" && calls.at(-1).actor.userId === cleanerId, "Cleaner invitation response was not actor-bound or did not return the confirmed state.");
 const cleanerReviewResponse = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/reviews/response`, { headers: authHeaders, body: { response: "Thank you." } });
 assert(cleanerReviewResponse.response.statusCode === 200 && calls.at(-1).kind === "review-respond" && calls.at(-1).actor.userId === cleanerId, "Cleaner review response route lost assigned-role binding.");
+const journeyReadiness = await dispatch(router, "GET", `/api/marketplace/bookings/${bookingId}/journey/readiness`, { headers: { cookie: authHeaders.cookie } });
+assert(journeyReadiness.response.statusCode === 200 && journeyReadiness.body.readiness.canStartJourney === true && calls.at(-1).kind === "journey-readiness" && calls.at(-1).actor.userId === cleanerId, "Cleaner journey readiness lost role, booking or current-authorization binding.");
 const journeyStarted = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/journey/start`, { headers: authHeaders, body: { consentGranted: true, latitude: 51.501, longitude: -0.142, estimatedArrivalAt: "2099-01-01T00:00:00.000Z" } });
 const journeyUpdated = await dispatch(router, "PUT", `/api/marketplace/bookings/${bookingId}/journey/location`, { headers: authHeaders, body: { latitude: 51.502, longitude: -0.141, accuracyMetres: 12 } });
 const journeyArrived = await dispatch(router, "POST", `/api/marketplace/bookings/${bookingId}/journey/arrive`, { headers: authHeaders, body: {} });

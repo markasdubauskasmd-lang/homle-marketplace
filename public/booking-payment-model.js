@@ -18,7 +18,7 @@ export function paymentPresentation(payment) {
     "requires-customer-action": { action: "continue", title: "Payment details needed", copy: "Complete the protected test payment form to authorize the booking total." },
     "authorization-failed": { action: "retry", title: "Payment was not authorized", copy: "Review the message and try the protected payment form again." },
     processing: { action: "waiting", title: "Authorization is being verified", copy: "Homle is waiting for the signed payment update. Do not submit another payment." },
-    authorized: { action: "complete", title: "Payment authorized", copy: "The booking total is authorized but has not been captured." },
+    authorized: { action: "complete", title: "Payment authorized", copy: "The booking total is authorized but has not been captured. The confirmed booking is ready for the agreed journey time." },
     captured: { action: "complete", title: "Payment captured", copy: "The completed booking payment has been captured." },
     "partially-refunded": { action: "complete", title: "Payment partially refunded", copy: "A verified partial refund is recorded for this booking." },
     refunded: { action: "complete", title: "Payment refunded", copy: "The captured payment has been refunded." },

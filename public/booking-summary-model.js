@@ -81,8 +81,8 @@ export function formatBookingMoment(value) {
 
 export function bookingSummaryPrimaryAction(booking, role, now = Date.now()) {
   if (role === "cleaner" && ["open", "urgent"].includes(cleanerInvitationDeadlineState(booking, now).kind)) return Object.freeze({ kind: "respond", label: "Review request" });
-  if (booking?.activeJobAvailable === true) return Object.freeze({ kind: "active-job", label: ["awaiting-review", "completed"].includes(booking.status) ? "View job record" : "Open active job" });
   if (role === "landlord" && booking?.paymentStepAvailable === true) return Object.freeze({ kind: "payment", label: "Authorize booking total" });
+  if (booking?.activeJobAvailable === true) return Object.freeze({ kind: "active-job", label: ["awaiting-review", "completed"].includes(booking.status) ? "View job record" : "Open active job" });
   return Object.freeze({ kind: "none", label: "No action required" });
 }
 
@@ -190,4 +190,24 @@ export function landlordBookingNextAction(bookings) {
 
 export function bookingSummaryPriceLabel(role) {
   return role === "cleaner" ? "Your agreed pay" : "Your booking total";
+}
+
+export function bookingSummaryMoneyBoundary(booking, role) {
+  if (role !== "cleaner" && role !== "landlord") throw new TypeError("Choose a booking participant role.");
+  const status = String(booking?.status || "");
+  if (role === "cleaner") {
+    if (status === "pending-cleaner-acceptance") return "This is the offered Cleaner pay. Nothing is earned or transferred unless you accept and complete the booking.";
+    if (status === "completed") return "This is completed job value, not proof of transfer. Payout evidence is verified separately.";
+    if (status === "cancelled") return "This cancelled booking is not earned pay and is not proof of a transfer.";
+    if (status === "disputed") return "This agreed pay is under review. It is not proof of a transfer.";
+    return "This is your agreed Cleaner pay, not a payout receipt. Transfer status is verified separately after completion.";
+  }
+  if (status === "pending-cleaner-acceptance") return "This is the frozen booking total. No payment has been taken while the Cleaner decides.";
+  if (status === "completed") return "This completed booking total is not a receipt or refund record. Final payment evidence is verified separately.";
+  if (status === "cancelled") return "This cancelled booking total is not proof that a charge was made.";
+  if (status === "disputed") return "This booking total is under review and is not proof of a final charge or refund.";
+  if (booking?.paymentAuthorizationReady === true) return "This total is authorized for this booking. Authorization is not a completed charge or Cleaner payout.";
+  if (booking?.paymentStepAvailable === true) return "This total still needs authorization. No charge or Cleaner payout has been completed.";
+  if (booking?.paymentStepOpensAt) return "Authorization is not open yet. No payment action is required.";
+  return "This is your agreed booking total. Final payment and payout evidence is verified separately.";
 }

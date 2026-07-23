@@ -29,8 +29,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 66);
-  assert.equal(repositoryResult.migrations.at(-1), "066_room_reading_rate_limit.sql");
+  assert.equal(repositoryResult.migrations.length, 68);
+  assert.equal(repositoryResult.migrations.at(-1), "068_paid_matching_payout_readiness.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
@@ -50,6 +50,8 @@ try {
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 60\)'/, "Deployment verification must detect the Apple sign-in migration dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 61\)'/, "Deployment verification must detect the missing rate-limit scope migration dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 62\)'/, "Deployment verification must detect the Cleaner verification-authority migration dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 67\)'/, "Deployment verification must detect the Apple Administrator-bootstrap migration dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 68\)'/, "Deployment verification must detect paid matching payout readiness dynamically.");
   assert(deploymentVerifier.includes("A fully manual fresh install has no private migration ledger") && deploymentVerifier.includes("activate_my_workspace(user_role)") && deploymentVerifier.includes("recommend_cleaners_for_request_v2(uuid,integer)") && deploymentVerifier.includes("position('avatar_url' IN pg_get_function_result(procedure.oid))") && deploymentVerifier.includes("get_public_cleaner_profile(uuid)') IS NOT NULL"), "A ledger-free fresh install can still be mistaken for the historical migration-45 baseline instead of detecting its actual schema level.");
   const migration48VerificationStart = deploymentVerifier.indexOf("IF latest_migration_installed THEN");
   assert(migration48VerificationStart >= 0 && deploymentVerifier.indexOf("conname='bookings_distinct_participants'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its new constraint check until after that locked migration is installed.");
@@ -67,6 +69,8 @@ try {
   assert(deploymentVerifier.includes("Apple sign-in rate limits are missing or unsafe") && deploymentVerifier.includes("Apple provider connection does not require a verified provider email") && deploymentVerifier.includes("Apple provider removal or last-method protection is not installed"), "Migration-60 verification must prove Apple rate limiting, verified-email connection, step-up and last-method protection.");
   assert(deploymentVerifier.includes("Shared rate limiter is missing the session-recovery, public Cleaner profile or Apple sign-in policy") && deploymentVerifier.includes("Shared rate-limit scope CHECK constraint does not admit the session-recovery or public Cleaner profile scope"), "Migration-61 verification must prove the session-recovery and public Cleaner profile rate-limit policies and scope CHECK constraint are installed.");
   assert(deploymentVerifier.includes("Cleaner verification-authority trigger is missing") && deploymentVerifier.includes("cleaner_verification_admin_only") && deploymentVerifier.includes("enforce_cleaner_verification_authority()"), "Migration-62 verification must prove the Cleaner verification-authority trigger and guard are installed.");
+  assert(deploymentVerifier.includes("Administrator bootstrap does not admit verified Apple identities") && deploymentVerifier.includes("provision_bootstrap_administrator(citext,uuid,text,text)") && deploymentVerifier.includes("password'',''google'',''apple'',''facebook"), "Migration-67 verification must prove Apple-only verified accounts remain eligible for the owner-only Administrator bootstrap.");
+  assert(deploymentVerifier.includes("Paid matching does not enforce the private payout-readiness boundary") && deploymentVerifier.includes("recommend_cleaners_for_request_v3(uuid,integer,boolean)") && deploymentVerifier.includes("Direct paid Cleaner invitation payout check is missing, overprivileged or not actor-bound") && deploymentVerifier.includes("cleaner_payout_ready_for_paid_booking(uuid)") && deploymentVerifier.includes("Paid automatic dispatch can bypass payout-ready Cleaner filtering"), "Migration-68 verification must prove matched, directly selected and automatically dispatched paid Cleaners exclude payout-unready accounts without exposing provider records.");
   for (const normalizedNeedle of [
     "asserted_providerNOTIN(''google'',''apple'',''facebook'')",
     "asserted_providerIN(''google'',''apple'')",
@@ -86,7 +90,7 @@ try {
   const workerBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("worker_functions constant"), deploymentVerifier.indexOf("BEGIN", deploymentVerifier.indexOf("worker_functions constant")));
   const advertisedAppChecks = Number(deploymentVerifier.match(/'appFunctionChecks',\s*(\d+)/)?.[1]);
   const advertisedWorkerChecks = Number(deploymentVerifier.match(/'workerFunctionChecks',\s*(\d+)/)?.[1]);
-  assert.equal(advertisedAppChecks, [...appBlock.matchAll(/'tideway_private\./g)].length + 2, "deployment report must count core functions plus the migration-aware invitation and migration-48 workspace functions");
+  assert.equal(advertisedAppChecks, [...appBlock.matchAll(/'tideway_private\./g)].length + 3, "deployment report must count core functions plus the migration-aware invitation, migration-48 workspace and paid direct-invitation checks");
   assert.equal(advertisedWorkerChecks, [...workerBlock.matchAll(/'tideway_private\./g)].length + 1, "deployment report must count core worker functions plus the migration-aware automatic-dispatch function");
 
   await freshFixture();

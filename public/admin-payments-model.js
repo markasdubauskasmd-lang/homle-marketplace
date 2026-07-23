@@ -61,6 +61,31 @@ export function paymentActionLabel(value) {
   return ({ capture: "Capture completed clean", cancel: "Cancel authorization", refund: "Issue refund", transfer: "Pay Cleaner" })[value] || "Payment action";
 }
 
+export function paymentNextAction(record) {
+  if (!record || !paymentStatuses.has(record.paymentStatus) || !bookingStatuses.has(record.bookingStatus)) {
+    return Object.freeze({ kind: "refresh", title: "Refresh verified status", copy: "No payment action is safe until Homle can verify the current booking and provider state." });
+  }
+  if (record.awaitingProvider === true) {
+    return Object.freeze({ kind: "refresh", title: "Refresh signed provider status", copy: "A previous command is still being reconciled. Do not repeat it or start another payment action." });
+  }
+  if (record.canCapture === true) {
+    return Object.freeze({ kind: "capture", title: "Next: capture the completed clean", copy: "Confirm the Landlord has completed the job review, then capture the exact frozen customer total once." });
+  }
+  if (record.canTransfer === true) {
+    return Object.freeze({ kind: "transfer", title: "Next: pay the Cleaner", copy: "Customer capture is reconciled and the Cleaner payout account is provider verified. Transfer only the frozen Cleaner pay." });
+  }
+  if (record.bookingStatus === "completed" && record.paymentStatus === "captured" && record.payoutReady !== true) {
+    return Object.freeze({ kind: "payout-wait", title: "Waiting for Cleaner payout setup", copy: "The customer total is captured. Do not refund as routine settlement; wait until the Cleaner finishes the secure payout form, then refresh." });
+  }
+  if (record.canCancel === true) {
+    return Object.freeze({ kind: "cancel", title: "Next: cancel the unused authorization", copy: "The journey has not started. Cancel only this unused authorization after confirming the booking will not proceed." });
+  }
+  if (record.canRefund === true) {
+    return Object.freeze({ kind: "refund-review", title: "Refund is an exception, not settlement", copy: "Review the booking case and captured balance before issuing any refund. Cleaner payout must not be treated as a refund." });
+  }
+  return Object.freeze({ kind: "none", title: "No payment action is currently due", copy: "This verified state has no eligible Administrator command. Refresh after the booking or provider state changes." });
+}
+
 export function shortPaymentReference(value) {
   if (!uuidPattern.test(value || "")) return "Payment";
   return `Payment ${value.slice(0, 8).toUpperCase()}`;

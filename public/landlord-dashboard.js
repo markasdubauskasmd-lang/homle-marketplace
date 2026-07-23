@@ -7,7 +7,7 @@ import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-fra
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260719-1";
-import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260718-5";
+import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260723-3";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -288,6 +288,13 @@ function approveInvitationQuote(quote, cleanerName) {
     invitationQuoteDialog.addEventListener("close", () => resolve(invitationQuoteDialog.returnValue === "approve"), { once: true });
     invitationQuoteDialog.showModal();
   });
+}
+
+function selectedCleanerInvitationRecovery(error) {
+  if (error?.code === "cleaner-payout-not-ready") {
+    return "The room scan is safely submitted, but the selected Cleaner is not currently ready to receive this paid booking. No invitation or payment was created. Open the saved request and use the best eligible match instead.";
+  }
+  return `The room scan is safely submitted, but Homle could not verify the selected-Cleaner invitation: ${error.message} Track the saved request before taking another action; Homle will not repeat an invitation automatically.`;
 }
 
 function automaticMaximumPrice(request) {
@@ -1037,7 +1044,7 @@ function requestScanPanel(request) {
           clearCleanerSelection();
           renderRequests();
           showRequestCompletion(submission, { warning: selectedInvitationFailed
-            ? `The room scan is safely submitted, but Homle could not verify the selected-Cleaner invitation: ${error.message} Track the saved request before taking another action; Homle will not repeat an invitation automatically.`
+            ? selectedCleanerInvitationRecovery(error)
             : `The room scan is safely submitted, but Homle could not verify automatic invitation authorisation: ${error.message} Check the request before retrying.` });
         } else showFeedback(requestFeedback, error.message);
       } finally { setPending(submit, false, "Submit cleaning request"); }
@@ -1328,17 +1335,17 @@ function renderBookingCard(booking) {
     facts.append(wrapper);
   }
   const actions = element("div", "booking-summary-actions");
-  if (booking.activeJobAvailable) {
-    const link = element("a", "button", ["awaiting-review", "completed"].includes(booking.status) ? "View job record" : "Open live booking");
-    link.href = `/bookings/${booking.bookingId}`;
-    actions.append(link);
-  }
   if (booking.paymentStepAvailable) {
-    const payment = element("a", "button button-outline", "Authorize booking total");
+    const payment = element("a", "button", "Authorize booking total");
     payment.href = `/booking-payment?bookingId=${encodeURIComponent(booking.bookingId)}`;
     actions.append(payment);
   }
-  card.append(heading, facts);
+  if (booking.activeJobAvailable) {
+    const link = element("a", booking.paymentStepAvailable ? "button button-outline" : "button", ["awaiting-review", "completed"].includes(booking.status) ? "View job record" : booking.paymentStepAvailable ? "View booking details" : "Open live booking");
+    link.href = `/bookings/${booking.bookingId}`;
+    actions.append(link);
+  }
+  card.append(heading, facts, element("p", "booking-money-boundary", bookingSummaryMoneyBoundary(booking, "landlord")));
   if (booking.status === "pending-cleaner-acceptance") {
     const deadline = bookingInvitationDeadlineState(booking);
     const boundary = element("p", "landlord-waiting-deadline");

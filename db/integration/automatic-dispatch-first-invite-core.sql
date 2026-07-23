@@ -18,7 +18,7 @@ BEGIN
          bool_or((candidate->>'cleaner_id')::uuid='10000000-0000-4000-8000-000000000005')
     INTO candidate_count,has_first,has_second
   FROM tideway_private.get_automatic_dispatch_candidates(
-    '30000000-0000-4000-8000-000000000004',selected_lease,25
+    '30000000-0000-4000-8000-000000000004',selected_lease,25,false
   ) AS candidate;
   IF candidate_count<>2 OR has_first IS NOT TRUE OR has_second IS NOT TRUE THEN
     RAISE EXCEPTION 'The first automatic-dispatch lease did not see exactly two independent eligible Cleaners';

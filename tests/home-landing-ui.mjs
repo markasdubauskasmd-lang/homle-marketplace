@@ -29,6 +29,7 @@ for (const file of ["bricolage-grotesque-wght.woff2", "dm-sans-wght.woff2", "OFL
 /* ── The design is actually wired in ────────────────── */
 
 assert(page.includes('<body class="landing">') && page.includes('href="/home.css') && page.includes('src="/home-hero.js'), "The landing page does not load its scoped stylesheet and scroll script.");
+assert(page.includes('href="/styles.css?v=20260723-1"') && page.includes('href="/home.css?v=20260723-1"') && page.includes('src="/home-hero.js?v=20260723-1"'), "The landing page still advertises stale shared, animation or landing-style assets, so browsers can miss the latest motion.");
 // Every rule is scoped under body.landing so nothing leaks into the pages that
 // share styles.css. A top-level selector would begin a line with `.` or `#`.
 assert(css.includes("body.landing") && !/\n[.#][a-zA-Z]/.test(css), "A landing CSS rule is not scoped under body.landing and could leak into other pages.");
@@ -69,6 +70,7 @@ assert(page.includes('href="/request" data-directory-entry>Find a cleaner</a>'),
 assert(!/\.lp-scene\s*\{[^}]*display:\s*none/.test(css) && !/\.lp-stage\s*\{[^}]*position:\s*static/.test(css), "The scan scene or stage is switched off on small screens, so the animation cannot run on a phone.");
 assert(hero.includes("return still.matches") && !hero.includes('matchMedia("(max-width'), "The scroll script disables the animation by screen width instead of only for reduced motion.");
 assert(hero.includes("if (still.matches) { firedMilestones.clear(); return; }"), "Reduced-motion mode can still trigger landing-page milestone haptics.");
+assert(css.includes("translate(var(--lp-phone-x, 0px), var(--lp-phone-y, 0px)) rotate(-6deg)") && hero.includes('style.setProperty("--lp-phone-x"') && hero.includes('style.removeProperty("--lp-phone-x")') && !hero.includes("el.phone.style.transform ="), "Desktop parallax replaces the phone's designed tilt instead of composing with it and restoring it on pointer exit.");
 
 // Nothing here overwrites the shared home.js contract.
 assert(homeScript.includes("applyEntryMode") && homeScript.includes("[data-book-entry]"), "The shared home.js entry logic was disturbed.");

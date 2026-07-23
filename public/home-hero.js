@@ -242,7 +242,10 @@ if (wrap && stage) {
     function applyParallax() {
       parallaxRaf = null;
       el.scene.style.transform = `translate(${px * -14}px, ${py * -10}px)`;
-      if (el.phone) el.phone.style.transform = `translate(${px * -30}px, ${py * -20}px)`;
+      if (el.phone) {
+        el.phone.style.setProperty("--lp-phone-x", `${px * -30}px`);
+        el.phone.style.setProperty("--lp-phone-y", `${py * -20}px`);
+      }
     }
     el.stage = stage;
     stage.addEventListener("mousemove", (event) => {
@@ -256,7 +259,10 @@ if (wrap && stage) {
     }, { passive: true });
     stage.addEventListener("mouseleave", () => {
       el.scene.style.transform = "";
-      if (el.phone) el.phone.style.transform = "";
+      if (el.phone) {
+        el.phone.style.removeProperty("--lp-phone-x");
+        el.phone.style.removeProperty("--lp-phone-y");
+      }
     });
   }
 }

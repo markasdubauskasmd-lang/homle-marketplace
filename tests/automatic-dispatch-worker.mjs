@@ -23,7 +23,7 @@ const actions = [];
 const ids = [leaseId, firstBookingId, secondBookingId];
 const repository = {
   async claimDue(token, limit, seconds) { actions.push({ kind: "claim", token, limit, seconds }); return [{ cleaningRequestId: requestId, leaseExpiresAt: "2026-07-16T08:02:00.000Z" }]; },
-  async getCandidates(id, token, limit) { actions.push({ kind: "candidates", id, token, limit }); return [backup, manual, best]; },
+  async getCandidates(id, token, limit, requirePayoutReady) { actions.push({ kind: "candidates", id, token, limit, requirePayoutReady }); return [backup, manual, best]; },
   async complete(input) { actions.push({ kind: "complete", input }); if (input.cleanerId === best.cleaner_id) throw Object.assign(new Error("stale"), { code: "candidate-stale" }); return { bookingId: input.bookingId }; },
   async release(id, token, outcome, retryAt) { actions.push({ kind: "release", id, token, outcome, retryAt }); }
 };
@@ -37,6 +37,17 @@ assert.equal(attempts[1].input.cleanerId, backup.cleaner_id, "A stale best match
 assert.ok(Number.isInteger(attempts[1].input.customerPricePence) && attempts[1].input.customerPricePence > attempts[1].input.cleanerPayPence && !actions.some((action) => action.kind === "release"), "Automatic invitation lost private margin terms or released a successful lease.");
 assert.equal(attempts[1].input.travelCostPence, 640, "Automatic dispatch did not freeze the backup Cleaner's two-kilometre travel cost into its invitation terms.");
 assert.equal(attempts[1].input.targetContributionPence, 1800, "Automatic dispatch lost the founder-approved minimum pounds per booking.");
+assert.equal(actions.find((action) => action.kind === "candidates").requirePayoutReady, false, "No-payment automatic matching unexpectedly required payout setup.");
+
+let paidCandidateFilter = null;
+const paidWorker = createAutomaticDispatchWorker({
+  async claimDue() { return [{ cleaningRequestId: requestId, leaseExpiresAt: "2026-07-16T08:02:00.000Z" }]; },
+  async getCandidates(id, token, limit, requirePayoutReady) { paidCandidateFilter = requirePayoutReady; return []; },
+  async complete() { throw new Error("must not invite"); },
+  async release() {}
+}, pricing, { createId: () => leaseId, clock: () => new Date(now), requirePayoutReady: true });
+await paidWorker.runOnce();
+assert.equal(paidCandidateFilter, true, "Paid automatic dispatch did not filter out payout-unready Cleaners.");
 
 let uncappedCompletionAttempted = false;
 const uncappedWorker = createAutomaticDispatchWorker({
@@ -112,6 +123,7 @@ await databaseRepository.complete({ cleaningRequestId: requestId, leaseToken: le
 await databaseRepository.release(requestId, leaseId, "transient-failure", "2026-07-16T08:15:00.000Z");
 assert.equal(databaseCalls.length, 4);
 assert.ok(databaseCalls.every((call) => call.text.includes("$1") && !call.text.includes(requestId) && !call.text.includes(leaseId)), "The worker repository interpolated request or lease identifiers into SQL.");
+assert.equal(databaseCalls[1].values[3], false, "The worker repository did not bind its payout-readiness mode as a parameter.");
 assert.deepEqual(databaseCalls[2].values.slice(0, 4), [requestId, leaseId, firstBookingId, best.cleaner_id]);
 assert.equal(databaseCalls[2].values.length, 14);
 assert.equal(databaseCalls[2].values[13], 1800);
@@ -123,10 +135,12 @@ const [migration, runtimeGrants, workerGrants] = await Promise.all([
 ]);
 const contributionFloorMigration = await readFile(new URL("../db/migrations/056_booking_minimum_contribution.sql", import.meta.url), "utf8");
 const customerCapMigration = await readFile(new URL("../db/migrations/058_automatic_dispatch_customer_cap.sql", import.meta.url), "utf8");
+const paidMatchingMigration = await readFile(new URL("../db/migrations/068_paid_matching_payout_readiness.sql", import.meta.url), "utf8");
 for (const required of ["automatic_dispatch_authorized_at", "automatic_dispatch_attempt_limit BETWEEN 1 AND 5", "FOR UPDATE SKIP LOCKED", "automatic_dispatch_lease_token=lease_token", "prior.cleaner_user_id=candidate.cleaner_id", "tideway_private.invite_cleaner", "change_source='system'", "automatic-dispatch-authorized", "REVOKE ALL ON FUNCTION tideway_private.complete_automatic_dispatch"]) assert.ok(migration.includes(required), `Automatic dispatch migration omitted ${required}.`);
 assert.ok(runtimeGrants.includes("configure_automatic_dispatch(uuid,boolean,smallint)") && runtimeGrants.includes("REVOKE UPDATE, DELETE ON cleaning_requests"), "The web role can bypass consent-controlled request updates.");
-for (const signature of ["claim_due_automatic_dispatch(uuid,integer,integer)", "get_automatic_dispatch_candidates(uuid,uuid,integer)", "complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamptz,integer,integer,integer,integer,integer,integer,integer,integer,integer)", "release_automatic_dispatch_lease(uuid,uuid,text,timestamptz)"]) assert.ok(workerGrants.includes(signature), `The dedicated worker role cannot execute ${signature}.`);
+for (const signature of ["claim_due_automatic_dispatch(uuid,integer,integer)", "get_automatic_dispatch_candidates(uuid,uuid,integer,boolean)", "complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamptz,integer,integer,integer,integer,integer,integer,integer,integer,integer)", "release_automatic_dispatch_lease(uuid,uuid,text,timestamptz)"]) assert.ok(workerGrants.includes(signature), `The dedicated worker role cannot execute ${signature}.`);
+assert.ok(workerGrants.includes("REVOKE ALL ON FUNCTION tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)") && paidMatchingMigration.includes("recommend_cleaners_for_request_v3(request_record.id,50,require_payout_ready)"), "Paid automatic dispatch can bypass payout readiness through the superseded candidate function.");
 assert.ok(contributionFloorMigration.includes("proposed_target_contribution_pence") && contributionFloorMigration.includes("complete_automatic_dispatch") && !workerGrants.includes("GRANT EXECUTE ON FUNCTION tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamptz,integer,integer,integer,integer,integer,integer,integer,integer) TO tideway_worker"), "Automatic dispatch can bypass the minimum-contribution floor.");
 for (const required of ["approved_maximum_customer_price_pence", "proposed_customer_price_pence>approved_maximum_customer_price_pence", "automatic-dispatch-price-cap-required", "approvedMaximumCustomerPricePence", "maximumCustomerPricePence"]) assert.ok(customerCapMigration.includes(required), `Automatic dispatch customer-cap migration omitted ${required}.`);
 
-console.log("Automatic dispatch tests passed: explicit maximum-price consent, two-floor profitable ranking, bounded concurrent leases/attempts, stale fallback, retry handling, parameterized worker access and function-only permissions.");
+console.log("Automatic dispatch tests passed: explicit maximum-price consent, paid-mode payout readiness, two-floor profitable ranking, bounded concurrent leases/attempts, stale fallback, retry handling, parameterized worker access and function-only permissions.");

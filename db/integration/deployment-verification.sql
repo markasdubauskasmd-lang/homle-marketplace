@@ -24,6 +24,8 @@ DECLARE
   apple_sign_in_migration_installed boolean := false;
   rate_limit_scope_migration_installed boolean := false;
   cleaner_verification_migration_installed boolean := false;
+  apple_administrator_bootstrap_migration_installed boolean := false;
+  paid_matching_payout_readiness_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -100,7 +102,7 @@ DECLARE
     'tideway_private.purge_expired_rate_limits(integer)',
     'tideway_private.purge_expired_pending_social_identities(integer)',
     'tideway_private.claim_due_automatic_dispatch(uuid,integer,integer)',
-    'tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)',
+    'tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer,boolean)',
     'tideway_private.release_automatic_dispatch_lease(uuid,uuid,text,timestamp with time zone)'
   ];
 BEGIN
@@ -206,6 +208,10 @@ BEGIN
       INTO rate_limit_scope_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 62)'
       INTO cleaner_verification_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 67)'
+      INTO apple_administrator_bootstrap_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 68)'
+      INTO paid_matching_payout_readiness_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -254,6 +260,12 @@ BEGIN
         AND trigger_row.tgname='cleaner_verification_admin_only'
         AND NOT trigger_row.tgisinternal
     );
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.provision_bootstrap_administrator(citext,uuid,text,text)')
+        AND position('password'',''google'',''apple'',''facebook' IN replace(procedure.prosrc, ' ', ''))>0
+    ) INTO apple_administrator_bootstrap_migration_installed;
+    paid_matching_payout_readiness_installed := to_regprocedure('tideway_private.recommend_cleaners_for_request_v3(uuid,integer,boolean)') IS NOT NULL;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -346,6 +358,51 @@ BEGIN
     WHERE procedure.oid=to_regprocedure('tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)');
     IF position('recommend_cleaners_for_request_v2' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Automatic dispatch bypasses the shared self-excluding matching candidate boundary';
+    END IF;
+  END IF;
+  IF paid_matching_payout_readiness_installed THEN
+    selected_name := 'tideway_private.recommend_cleaners_for_request_v3(uuid,integer,boolean)';
+    selected_function := to_regprocedure(selected_name);
+    IF selected_function IS NULL THEN RAISE EXCEPTION 'Required protected function is missing: %', selected_name; END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=selected_function AND procedure.prosecdef
+        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+    ) OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('public', selected_function, 'EXECUTE')
+      OR position('cleaner_payout_accounts' IN COALESCE(selected_source,''))=0
+      OR position('payout.details_submitted IS TRUE' IN COALESCE(selected_source,''))=0
+      OR position('payout.payouts_enabled IS TRUE' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Paid matching does not enforce the private payout-readiness boundary';
+    END IF;
+    selected_name := 'tideway_private.cleaner_payout_ready_for_paid_booking(uuid)';
+    selected_function := to_regprocedure(selected_name);
+    IF selected_function IS NULL THEN RAISE EXCEPTION 'Required protected function is missing: %', selected_name; END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=selected_function AND procedure.prosecdef
+        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+    ) OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('public', selected_function, 'EXECUTE')
+      OR position('current_user_id()' IN COALESCE(selected_source,''))=0
+      OR position('has_role(''landlord'')' IN COALESCE(selected_source,''))=0
+      OR position('has_role(''administrator'')' IN COALESCE(selected_source,''))=0
+      OR position('cleaner_payout_accounts' IN COALESCE(selected_source,''))=0
+      OR position('payout.details_submitted IS TRUE' IN COALESCE(selected_source,''))=0
+      OR position('payout.payouts_enabled IS TRUE' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Direct paid Cleaner invitation payout check is missing, overprivileged or not actor-bound';
+    END IF;
+    selected_name := 'tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer,boolean)';
+    selected_function := to_regprocedure(selected_name);
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF selected_function IS NULL
+      OR NOT has_function_privilege('tideway_worker', selected_function, 'EXECUTE')
+      OR has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR position('recommend_cleaners_for_request_v3' IN COALESCE(selected_source,''))=0
+      OR has_function_privilege('tideway_worker', 'tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)', 'EXECUTE') THEN
+      RAISE EXCEPTION 'Paid automatic dispatch can bypass payout-ready Cleaner filtering';
     END IF;
   END IF;
   IF request_realtime_migration_installed THEN
@@ -500,6 +557,13 @@ BEGIN
       RAISE EXCEPTION 'Cleaner verification-authority guard does not restrict identity/background status to Administrators';
     END IF;
   END IF;
+  IF apple_administrator_bootstrap_migration_installed THEN
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.provision_bootstrap_administrator(citext,uuid,text,text)');
+    IF position('identity.providerIN(''password'',''google'',''apple'',''facebook'')' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
+      RAISE EXCEPTION 'Administrator bootstrap does not admit verified Apple identities';
+    END IF;
+  END IF;
   IF scope_handoff_migration_installed THEN
     SELECT procedure.prosrc INTO selected_source
     FROM pg_proc procedure
@@ -652,7 +716,7 @@ SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
-  'appFunctionChecks', 47,
+  'appFunctionChecks', 48,
   'workerFunctionChecks', 15
 ) AS tideway_deployment_verification;
 

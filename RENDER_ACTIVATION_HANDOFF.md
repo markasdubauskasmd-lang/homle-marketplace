@@ -1,5 +1,24 @@
 # Render activation handoff
 
+## Local verified improvement awaiting publication
+
+- The guided Landlord journey now survives payout-readiness races both while obtaining the exact quote and at the final invitation write. Quote recovery excludes the failed selection and verifies no more than five server-ranked alternatives, skipping only the specific payout-readiness result. If the approved Cleaner then loses readiness before the atomic invitation write, Homle quote-verifies one final different Cleaner and requires a second named exact-price approval. Declining sends nothing; a repeated commit-boundary failure stops safely. Publish `landlord-journey.js?v=journey8` and `landlord-journey-model.js?v=journey7` together with their HTML reference.
+- The guarded disposable-PostgreSQL rehearsal now includes the paid matching boundary introduced by migration 068. It checks no-payment eligibility, payout-unready exclusion, provider-verified re-entry, role denial and payout-data projection privacy. The harness contract passes locally, but this computer has no configured `psql` client or disposable database credentials; execute the guarded database run before treating the new SQL behaviour as provider-backed release evidence.
+- The Landlord dashboard still handles a directly selected payout-unready Cleaner as a saved-request recovery, not a technical dead end. It states that no invitation or payment was created, directs the Landlord to the best eligible match and clears the unusable direct selection. Publish `landlord-dashboard.js?v=20260723-6` with its HTML reference.
+- Paid interactive matching, direct Cleaner quote/invite and consent-bound automatic dispatch now filter through private payout-readiness boundaries whenever test payments are enabled. A manually selected payout-unready Cleaner fails before any invitation write, and the Landlord receives only a safe unavailable result—never a payout flag, provider account or bank detail. No-payment rehearsals remain unchanged, and Cleaner acceptance retains its independent race-safe readiness recheck.
+- Paid invitation acceptance now requires the Cleaner’s server-verified payout readiness whenever the test-payment provider is attached. Missing or temporarily unverifiable payout setup performs no booking transition; the Cleaner receives a direct **Set up payouts** recovery action. Declines and no-payment rehearsals remain available.
+- Cleaner and Landlord booking cards now distinguish role-specific job value from authorization, final payment evidence and Cleaner transfer evidence. The wording is generated from the existing participant-safe booking summary only; it exposes no provider identifier or banking data and performs no payment action.
+- Administrator settlement cards now expose one explicit safe next step. Capture leads to Cleaner transfer only after provider reconciliation and payout readiness; an unfinished Cleaner payout account produces a wait-and-refresh instruction, while refund is always secondary exception handling. The browser cannot run capture, refund or transfer automatically.
+- Claude's latest animations now have a shared current cache key across every shipped page, while `home.css` and `home-hero.js` have an explicit current landing key. The Landlord journey and direct scanner no longer point at older shared-style keys, so a phone cannot legitimately retain the previous animation layer after publication.
+- The active Cleaner/Landlord booking screen now includes **Refresh booking**. It reloads only participant-authorised read models, preserves the last verified state on an ordinary connection failure, reopens durable live updates and cannot issue a booking, payment, location, message or media mutation.
+- A completed verified review now gives each participant one clear exit: **Return to Landlord bookings** for the Landlord and **Return to Cleaner jobs** for the Cleaner. It appears only after the server returns a review and changes navigation only.
+- A server-verified complete test-payment state now reveals **Open confirmed booking**, taking the Landlord directly from secure authorization into the participant-protected booking screen. Non-final or uncertain payment states cannot show that action, and opening it sends no payment request.
+- A confirmed Cleaner booking now checks current server-side payment readiness before the browser can request location permission. Unpaid or unchecked bookings offer **Check booking authorization**, a read-only retry that never opens the location prompt; an authorized booking then receives **Start journey** as a separate deliberate action.
+- The Landlord booking card now presents **Authorize booking total** before the live-job link whenever authorization is available; the second link is labelled **View booking details** until that boundary is complete.
+- Claude's latest landing/Landlord animation pass is present and verified: the hero pointer motion composes with the permanent phone tilt, the scan line stays animated, and mobile/reduced-motion behavior remains intact.
+- Focused journey, HTTP, active-job, progress, messaging, review, dashboard and animation tests and the full `pnpm run check` plus `pnpm test` suites pass locally.
+- These local changes have not been committed, pushed or deployed.
+
 ## CURRENT LIVE TRUTH - verify this before following older notes
 
 Verified on **2026-07-23** against
@@ -23,7 +42,7 @@ founder setup, Stripe test credentials.
 Run the source-controlled, secret-safe verifier before and after every deploy:
 
 ```powershell
-pnpm run verify:live-activation -- https://homle-marketplace-preview.onrender.com --expect-release=746d0599
+pnpm run verify:live-activation https://homle-marketplace-preview.onrender.com --expect-release=746d0599
 ```
 
 The verifier makes bounded no-credential requests to the public health and
@@ -33,6 +52,99 @@ changes a booking or prints environment variables. Sections below are retained
 as implementation history; where they contradict this section or the verifier,
 the verifier is authoritative.
 
+### Local scanner improvements waiting for a future approved release
+
+- Account booking intent now opens `/landlord/book` directly after the verified
+  account/role handoff instead of detouring through the management dashboard.
+  Direct links and installed-app scan shortcuts stay behind an account gate:
+  signed-out visitors return to signup, Cleaner-only accounts confirm the
+  separate Landlord workspace, and temporary service faults show a retry action
+  without revealing camera controls. The new account guard and booking repair
+  use the `journey4` cache key.
+- The normal **Find the best available Cleaner** choice no longer stops after
+  submitting an unmatched request. Once the reviewed scan is safely submitted,
+  Homle resolves the current first-ranked eligible Cleaner through the private
+  request-specific matching service, obtains a fresh server-owned invitation
+  quote and asks the Landlord to approve that exact total before one invitation
+  is sent. Empty or stale matching results leave the request open without an
+  invitation or payment. Direct Cleaner choices retain the same quote boundary.
+- The redesigned `/landlord/book` journey now uses the real authenticated
+  property/request/media contract. It creates retry-stable private drafts,
+  uploads only the current in-memory room photos through signed storage,
+  submits the Landlord-reviewed checklist, and obtains a server-owned exact
+  quote before a selected Cleaner can be invited. It never writes room photos
+  into the browser recovery draft, never claims a booking before acceptance and
+  never takes payment at this step. Mobile uploads time out with a recoverable
+  message instead of spinning forever. Deploying this code still requires the normal approved
+  release process and a physical signed-in two-phone rehearsal.
+- Confirmed rooms in the scan hub now have a separate **Remove** control. It
+  opens a deliberate **Keep room / Remove room** decision rather than deleting
+  on the first tap. Confirmation removes that room's in-memory photo, corrected
+  note and checklist contribution together, refreshes the room count and
+  finish gate, and leaves every other room untouched.
+- Closing a scan with any room, photo or note now requires an explicit
+  **Keep scanning** or **Discard scan** decision, and browser navigation receives
+  a standard unsaved-work warning. Nothing private is copied into browser
+  storage. A local blocked-camera rehearsal also found that its recovery panel
+  physically covered the close and room-count controls; their tap layer is now
+  above that panel. Keeping the scan preserves the corrected note, while an
+  explicit discard tears down the camera and overlay cleanly.
+- The transcript is now an editable per-room note instead of a temporary card
+  that disappears after listening. It has a one-tap typed fallback when browser
+  speech is unsupported or fails, retains ordinary spaces while typing, and is
+  normalised only when saved. Camera-recovery mode exposes only its recovery
+  actions to keyboard and assistive navigation while preserving this fallback.
+- Spoken notes are now isolated per room instead of being appended to one global
+  walkthrough and resent with every room read. A note change re-scopes that
+  room, revisits restore its note, the final transcript keeps room labels, and
+  stale mobile speech callbacks cannot stop a new recording or write into the
+  next room.
+- The guided scanner now treats `visibilitychange`, `pagehide` and `pageshow` as
+  camera privacy/lifecycle boundaries. It releases camera/detection and active
+  speech while backgrounded, stops a late permission result before attachment,
+  and reacquires only when a live frame is still needed. Native photo/video
+  decoding blocks the resume until it finishes, a frozen result never has a
+  hidden stream reopened behind it, and Retake can reacquire after mobile Safari
+  or Chrome ended the previous stream. A physical installed-mode phone rehearsal
+  remains required.
+- Every shipped HTML page now uses the hash-locked approved
+  `/homle-logo.png` tab icon. The booking journey, scanner and Administrator
+  payment page previously referenced a nonexistent `/favicon.svg`, and the
+  Facebook deletion page had no icon. The public-brand test now rejects either
+  condition across the complete public HTML set.
+- The installable Homle manifest now leads with secure **Scan rooms** and
+  **Cleaner jobs** shortcuts. The Landlord/Cleaner dashboards, guided booking
+  journey, direct scanner and active-job view all expose the same manifest and
+  iPhone standalone metadata. The destinations retain their existing
+  authentication/role gates, and no offline service worker was added, so private
+  workspace or booking data is not cached for offline use.
+- Claude's premium landing animation is present. A later visual audit found that
+  desktop pointer parallax replaced the phone's permanent six-degree tilt.
+  Parallax now writes temporary CSS coordinates which compose with that tilt
+  and removes them on pointer exit. The regression is covered by the landing UI
+  contract and remains disabled under `prefers-reduced-motion`.
+- The guided scanner now detects a returned camera stream that never produces a
+  current frame, releases it after six seconds and exposes a working retry
+  instead of remaining blank and “warming up”. A native **Open your phone
+  camera** escape remains visible even while the stream claims to be live, so a
+  black-but-open browser camera cannot trap the Landlord.
+- The same guided scanner now offers short room-video capture. It validates the
+  existing 1–30 second MP4/MOV/WebM boundary, extracts the beginning, middle and
+  end locally and combines them into one portrait/landscape-aware contact sheet;
+  the raw video and its audio are not uploaded. One resulting JPEG then uses the
+  existing photo consent, review and room-reading boundary, so coverage improves
+  without tripling provider requests.
+- Native mobile photo capture keeps the broad `image/*` picker needed by iPhone
+  and Android, but the decoder now rejects SVG/XML and disguised non-photo files,
+  empty/oversized files, decoded sides above 16,384 pixels and images above
+  50 megapixels. Normal 48-megapixel phone photographs remain supported.
+- The complete local syntax and product suites pass with these scanner,
+  animation and account-first booking changes. They remain uncommitted,
+  unpushed and undeployed pending the normal approved release process and a
+  physical signed-in two-phone rehearsal.
+  A deliberate physical iPhone/Android camera and video rehearsal is still
+  required after an approved release.
+
 **For the Render-connected assistant.** Written 2026-07-19 by the code assistant
 (GitHub side). The code side is done and merged to `main`. The steps below are
 Render-dashboard actions to finish activating the marketplace on the existing
@@ -41,9 +153,11 @@ secret below is entered in the Render dashboard only.
 
 ---
 
-## 0. READ FIRST — UI work merged since the last deploy (updated 2026-07-22)
+## ARCHIVE — UI work that was waiting before the 23 July deploy
 
-A run of UI changes is now merged to `main` and **needs one deploy to go live**.
+A run of UI changes was merged to `main` and needed one deploy to go live.
+Release `746d0599` now contains this work; this section is retained only to
+explain the source history.
 **None of them need any new environment variable, secret, database change or
 migration** — they are front-end and, for the scanner, a same-origin vendored
 model. To ship them: Render → `homle-marketplace-preview` →
@@ -69,25 +183,24 @@ Notes that will save you time:
 - **The landing redesign uses self-hosted fonts under `/vendor/fonts`** and no
   external requests, so it works under the existing CSP with no change.
 - **`GET /api/health` is unaffected** by any of these — same fields, same
-  meaning. The marketplace-activation blockers below (email, room-photo storage)
-  are unchanged and still the real gating work.
+  meaning. Use the current verifier at the top of this document for the actual
+  provider gaps; private room-photo storage is now healthy.
 - **The hidden requests panel (#57) is CSS-only and reversible.** If the founder
   ever wants that manual draft flow back, delete the single
   `.landlord-workspace-panel[data-landlord-panel="requests"]` rule in
   `public/styles.css` — no code was removed.
 
-Everything under the horizontal rule below is the **older, still-current**
-marketplace activation guide (email, object storage, background jobs, matching).
-It is unchanged by the UI work above.
+Everything under the horizontal rule below is historical activation evidence.
+It explains how the current service was assembled but is not an action list.
 
 ---
 
-## 1. Current state (verified against the live service)
+## ARCHIVE — 19 July activation snapshot (superseded)
 
 Live service: **`homle-marketplace-preview`** → https://homle-marketplace-preview.onrender.com
 Database: **`homle-marketplace-staging-db`** (Render free PostgreSQL 16, Frankfurt).
 
-`GET /api/health` was re-verified after the 19 July activation deploy and returns:
+This was the 19 July snapshot. It is not the current service state:
 
 ```json
 { "marketplace": { "enabled": true, "ready": true, "authenticationReady": true,
@@ -96,13 +209,13 @@ Database: **`homle-marketplace-staging-db`** (Render free PostgreSQL 16, Frankfu
   "release": { "sourceCommit": "0f6a95c8", "migrationCount": 63 } }
 ```
 
-Accounts, live updates and matching now work on the restricted real staging database.
-The remaining provider-backed blockers are transactional email and private room-photo
-storage. Payments intentionally remain off.
+Accounts, live updates and matching work on the restricted real staging
+database. Private room-photo storage has since been configured and is healthy.
+Current provider-backed blockers are listed at the top of this document.
+Payments intentionally remain off.
 
-> **The deployed commit is now BEHIND `main`.** `autoDeployTrigger` is off by design,
-> so the work listed below is merged and CI-verified but **not yet live**. One
-> **Manual Deploy → Deploy latest commit** ships all of it.
+> This paragraph originally recorded a deploy gap that has since been closed.
+> `autoDeployTrigger` remains off by design.
 
 ## 0. READ FIRST — the room scanner (added 2026-07-21)
 
@@ -204,7 +317,11 @@ Nothing breaks.
   run against a synthetic test image, where it correctly returned no boxes and
   no condition rather than guessing. Nobody has yet pointed a phone at a real
   room. Expect the first real run to surface problems.
-- **NOT verified:** the camera path on a physical device.
+- **NOT verified:** the camera path on a physical device. The current source now
+  verifies that a returned stream produces a real frame within six seconds; a
+  stalled stream is released and hands the user to a retryable native rear-camera
+  capture (`image/*`, `capture="environment"`) instead of warming forever. This
+  reliability guard still needs a deliberate iPhone/Android permission rehearsal.
 
 ### Cost and safety
 
@@ -280,9 +397,9 @@ Two things in #27 are worth understanding because they were silent product failu
 
 ---
 
-## 2. Actions on Render (in order)
+## 2. ARCHIVE — completed Render activation history (do not execute)
 
-### Step 0b — Redeploy for everything merged since — OPEN
+### Step 0b — Redeploy for everything merged since — COMPLETE (historical)
 `main` has moved past the deployed release: **#24, #25, #26, #27, #29** (see section 1a
 for what each one changes). Steps 2b and 3b are already done and live. The remaining
 sequence is:
@@ -309,7 +426,7 @@ Environment tab, add either provider (pick one). **RESEND is easiest on Render f
 
 *(SMTP alternative: `EMAIL_DELIVERY_PROVIDER=smtp`, `SMTP_URL=smtps://user:pass@host:465`.)*
 
-### Step 2 — Room photos  (turns `mediaReady` → true) — **NOW THE CRITICAL BLOCKER**
+### Step 2 — Room photos — COMPLETE (historical)
 The founder attempted the first real end-to-end booking on 2026-07-20 and could not
 save a room photo. This is not a bug: `mediaReady` is `false` because no bucket is
 configured. It blocks the whole walkthrough, because
@@ -410,7 +527,7 @@ an approved price list and must not be used for live customer payments.
 | `BOOKING_OTHER_COST_PENCE` | `0` | other |
 | `BOOKING_INVITATION_TTL_MINUTES` | `120` | invite expiry |
 
-### Step 3b — Real-distance matching — OPEN
+### Step 3b — Real-distance matching — COMPLETE (historical)
 Add `GEOCODING_PROVIDER=postcodes-io` to the Render web service. This enables the
 reviewed UK postcode geocoder used to store property and Cleaner service-area
 coordinates before matching. It requires no provider account or API key. Do not call
@@ -428,7 +545,7 @@ After Steps 1–2, 2b and 3b, `GET /api/health` should show `emailReady`, `media
 preflight should report no marketplace-runtime omissions.
 Then create one landlord + one cleaner test account and run a booking end to end.
 
-### Recommended order for one sitting
+### Historical recommended order (already executed where applicable)
 1. **Step 2 storage** — without it no booking can be submitted at all.
 2. **Step 1 email** — unlocks verification and notification delivery.
 3. **Step 2b background jobs** — makes automatic matching and invitation expiry real.

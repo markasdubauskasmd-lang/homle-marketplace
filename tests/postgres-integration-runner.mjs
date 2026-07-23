@@ -9,7 +9,7 @@ import { postgresIntegrationConfirmation, requiredLifecycleRealtimeKinds, runCon
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const integrationDirectory = path.join(projectRoot, "db", "integration");
 const requiredFiles = [
-  "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "public-cleaner-profile-behaviour.sql", "matching-self-exclusion.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql",
+  "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "public-cleaner-profile-behaviour.sql", "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql",
   "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-claim-a.sql", "automatic-dispatch-claim-b.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-invite-b.sql", "automatic-dispatch-first-invite-core.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql",
   "accept-booking-a.sql", "accept-booking-b.sql", "marketplace-post-concurrency.sql",
   "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql",
@@ -34,7 +34,15 @@ assert.match(sources.get("public-cleaner-profile-behaviour.sql"), /Public Cleane
 assert.match(sources.get("public-cleaner-profile-behaviour.sql"), /Public Cleaner lookup returned an account without a public Cleaner profile/);
 assert.match(sources.get("matching-self-exclusion.sql"), /A landlord was recommended as a cleaner for their own request/);
 assert.match(sources.get("matching-self-exclusion.sql"), /The independent eligible cleaner was not recommended/);
+assert.match(sources.get("paid-matching-payout-readiness.sql"), /No-payment matching incorrectly required Cleaner payout setup/);
+assert.match(sources.get("paid-matching-payout-readiness.sql"), /Paid matching included a Cleaner without provider-verified payout setup/);
+assert.match(sources.get("paid-matching-payout-readiness.sql"), /Provider-verified Cleaner was missing from paid matching/);
+assert.match(sources.get("paid-matching-payout-readiness.sql"), /Paid matching exposed private payout or banking material/);
+assert.match(sources.get("paid-matching-payout-readiness.sql"), /A Cleaner could inspect the paid-booking payout-readiness boundary/);
+assert.doesNotMatch(sources.get("paid-matching-payout-readiness.sql"), /https?:\/\//, "The paid matching rehearsal must not contact an external payout provider.");
 assert.match(sources.get("automatic-dispatch-rehearsal-setup.sql"), /configure_automatic_dispatch[\s\S]*true,2::smallint/);
+assert.match(sources.get("automatic-dispatch-first-invite-core.sql"), /get_automatic_dispatch_candidates\([\s\S]*selected_lease,25,false/);
+assert.match(sources.get("automatic-dispatch-requeue.sql"), /get_automatic_dispatch_candidates\([\s\S]*000000000003',25,false/);
 assert.match(sources.get("automatic-dispatch-claim-a.sql"), /AUTOMATIC_DISPATCH_CLAIM_A\|/);
 assert.match(sources.get("automatic-dispatch-claim-b.sql"), /AUTOMATIC_DISPATCH_CLAIM_B\|/);
 assert.match(sources.get("automatic-dispatch-first-invite-core.sql"), /exactly two independent eligible Cleaners/);
@@ -141,10 +149,10 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, matchingSelfExclusion: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "public-cleaner-profile-behaviour.sql",
-  "matching-self-exclusion.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
+  "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);
 for (const call of calls) {
@@ -284,4 +292,4 @@ const spawnFailure = await runConcurrentPsql([{ file: "accept-booking-a.sql", en
 assert.equal(spawnFailure[0].status, null);
 assert.equal(spawnFailure[0].error.code, "ENOENT");
 
-console.log("PostgreSQL integration harness tests passed: disposable-target guard, separate owner/app/worker credentials, two-worker dispatch lease evidence, RLS fixtures, concurrent overlap outcome, cleanup and secret-free process arguments.");
+console.log("PostgreSQL integration harness tests passed: disposable-target guard, separate owner/app/worker credentials, paid-mode payout-ready matching, two-worker dispatch lease evidence, RLS fixtures, concurrent overlap outcome, cleanup and secret-free process arguments.");

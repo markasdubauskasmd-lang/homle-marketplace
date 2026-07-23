@@ -12,10 +12,10 @@ function mapMatchingError(error) {
 export function createMatchingRepository(database) {
   if (!database || typeof database.withUserTransaction !== "function") throw new TypeError("The marketplace database boundary is required.");
   return Object.freeze({
-    recommendForRequest(actor, requestId, limit) {
+    recommendForRequest(actor, requestId, limit, requirePayoutReady = false) {
       return database.withUserTransaction(actor, async (client) => {
         try {
-          const result = await client.query("SELECT * FROM tideway_private.recommend_cleaners_for_request_v2($1::uuid, $2::integer)", [requestId, limit]);
+          const result = await client.query("SELECT * FROM tideway_private.recommend_cleaners_for_request_v3($1::uuid, $2::integer, $3::boolean)", [requestId, limit, requirePayoutReady === true]);
           return result.rows;
         } catch (error) { throw mapMatchingError(error); }
       });

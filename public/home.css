@@ -544,7 +544,7 @@ body.landing .lp-phone {
   border-radius: 32px;
   background: oklch(0.17 0.02 60);
   box-shadow: 0 34px 66px oklch(0.2 0.03 60 / 0.5);
-  transform: rotate(-6deg);
+  transform: translate(var(--lp-phone-x, 0px), var(--lp-phone-y, 0px)) rotate(-6deg);
   padding: 8px;
 }
 body.landing .lp-phone-screen {

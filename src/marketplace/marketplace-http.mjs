@@ -15,6 +15,7 @@ const requestPhotoIntentPath = new RegExp(`^/api/marketplace/cleaning-requests/(
 const requestPhotoCompletionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/complete$`);
 const requestPhotoAccessPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/access$`);
 const bookingTrackingPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/tracking$`);
+const journeyReadinessPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/readiness$`);
 const journeyStartPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/start$`);
 const journeyLocationPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/location$`);
 const journeyArrivalPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/journey/arrive$`);
@@ -110,7 +111,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.previewInvitation !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
   if (!matching || typeof matching.recommendForRequest !== "function") throw new TypeError("Marketplace HTTP routes require the request matching service.");
-  if (!journeys || !["startJourney", "updateLocation", "markArrived", "getTracking"].every((method) => typeof journeys[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking journey service.");
+  if (!journeys || !["getJourneyReadiness", "startJourney", "updateLocation", "markArrived", "getTracking"].every((method) => typeof journeys[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking journey service.");
   if (!progress || !["getProgress", "startCleaning", "setPause", "updateTask", "addUnexpectedTask", "confirmUnexpectedTaskTerms", "decideUnexpectedTask", "finishCleaning"].every((method) => typeof progress[method] === "function")) throw new TypeError("Marketplace HTTP routes require the cleaning-progress service.");
   if (!media || !["createUploadIntent", "completeUpload", "getPhotoAccess"].every((method) => typeof media[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private job-media service.");
   if (!requestMedia || !["createUploadIntent", "completeUpload", "getScan", "getPhotoAccess"].every((method) => typeof requestMedia[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private request-media service.");
@@ -647,6 +648,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { roles: ["landlord"] });
           security.requireOrigin(request);
           await realtime.openRequestStream(context.actor, selectedRequestEvents[1], request, response, request.headers?.["last-event-id"] || url.searchParams.get("afterEventId") || 0, context.expiresAt);
+          return true;
+        }
+        const selectedJourneyReadiness = pathname.match(journeyReadinessPath);
+        if (selectedJourneyReadiness) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["cleaner"] });
+          const readiness = await journeys.getJourneyReadiness(context.actor, selectedJourneyReadiness[1]);
+          sendJson(response, 200, { ok: true, readiness });
           return true;
         }
         const selectedJourneyStart = pathname.match(journeyStartPath);

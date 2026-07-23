@@ -1,4 +1,4 @@
-import { bookingSummaryBuckets, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, cleanerMarketplaceCapabilityState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260719-1";
+import { bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, cleanerMarketplaceCapabilityState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260723-3";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 
@@ -68,6 +68,16 @@ function showFeedback(message, kind = "info") {
   feedback.hidden = !message;
   feedback.dataset.kind = kind;
   feedback.textContent = message;
+  feedback.focus?.();
+}
+
+function showPayoutSetupRequired(message) {
+  const copy = element("span", "", message);
+  const link = element("a", "button button-outline", "Set up payouts");
+  link.href = "/cleaner/payouts";
+  feedback.hidden = false;
+  feedback.dataset.kind = "error";
+  feedback.replaceChildren(copy, link);
   feedback.focus?.();
 }
 
@@ -273,7 +283,7 @@ function bookingCard(booking, pending = false) {
   const pay = element("div", "booking-summary-price");
   pay.append(element("small", "", bookingSummaryPriceLabel("cleaner")), element("strong", "", formatBookingMoney(booking.pricePence)));
   heading.append(title, pay);
-  card.append(heading, bookingFacts(booking));
+  card.append(heading, bookingFacts(booking), element("p", "booking-money-boundary", bookingSummaryMoneyBoundary(booking, "cleaner")));
   if (pending) {
     card.dataset.invitationBookingId = booking.bookingId;
     const deadline = element("p", "booking-response-deadline");
@@ -487,6 +497,14 @@ async function respondToBooking(bookingId, decision, reason, button) {
     }
     return true;
   } catch (error) {
+    if (error.code === "payout-setup-required") {
+      showPayoutSetupRequired(error.message);
+      return false;
+    }
+    if (error.code === "payout-readiness-unavailable") {
+      showFeedback(error.message, "error");
+      return false;
+    }
     if ((error.uncertain === true || error.statusCode === 409) && !browserOffline()) {
       try { return await reconcileDecision(bookingId, decision); }
       catch { showFeedback("Homle could not verify whether that decision completed. Refresh the dashboard to check its current status before trying again.", "error"); return false; }

@@ -24,6 +24,25 @@ export function roomVideoFrameTimes(durationSeconds, frameCount = maximumRoomVid
   return Object.freeze(Array.from({ length: count }, (_, index) => Number((duration * (index + 1) / (count + 1)).toFixed(3))));
 }
 
+export function roomVideoContactSheetLayout({ frameCount, sourceWidth, sourceHeight, canvasWidth, canvasHeight } = {}) {
+  const count = boundedInteger(frameCount, 1, maximumRoomVideoFrames, "Room-video frame count");
+  const dimensions = [sourceWidth, sourceHeight, canvasWidth, canvasHeight].map(Number);
+  if (!dimensions.every((value) => Number.isFinite(value) && value > 0 && value <= 7680)) throw new TypeError("Room-video contact-sheet dimensions are unsupported.");
+  const [sourceW, sourceH, canvasW, canvasH] = dimensions;
+  const candidates = [{ columns: count, rows: 1 }, { columns: 1, rows: count }];
+  const score = ({ columns, rows }) => {
+    const scale = Math.min((canvasW / columns) / sourceW, (canvasH / rows) / sourceH);
+    return sourceW * scale * sourceH * scale;
+  };
+  const selected = score(candidates[0]) >= score(candidates[1]) ? candidates[0] : candidates[1];
+  return Object.freeze({
+    columns: selected.columns,
+    rows: selected.rows,
+    cellWidth: canvasW / selected.columns,
+    cellHeight: canvasH / selected.rows
+  });
+}
+
 function waitFor(target, successEvent, failureEvent, timeoutMs, timeoutMessage) {
   return new Promise((resolve, reject) => {
     let settled = false;

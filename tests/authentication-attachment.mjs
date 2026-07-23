@@ -123,6 +123,36 @@ assert.equal(googleOnlyAttachment.authenticationCapabilities.facebook, false);
 assert.equal(googleOnlyEmailFactoryCalled, false);
 await googleOnlyAttachment.close();
 
+const appleOnlyEnvironment = Object.freeze({
+  ...googleOnlyEnvironment,
+  GOOGLE_CLIENT_ID: "",
+  GOOGLE_CLIENT_SECRET: "",
+  APPLE_CLIENT_ID: environment.APPLE_CLIENT_ID,
+  APPLE_TEAM_ID: environment.APPLE_TEAM_ID,
+  APPLE_KEY_ID: environment.APPLE_KEY_ID,
+  APPLE_PRIVATE_KEY: environment.APPLE_PRIVATE_KEY
+});
+let appleOnlyEmailFactoryCalled = false;
+const appleOnlyAttachment = await createAuthenticationAttachment({
+  env: appleOnlyEnvironment,
+  adapters: { onUnexpectedError() {}, async close() {} },
+  createClientKeyResolver() { return () => "direct:ipv4:198.51.100.10"; },
+  async createEmailDelivery() { appleOnlyEmailFactoryCalled = true; throw new Error("Apple-only activation must not compose email delivery."); },
+  async createPool() { return { async end() {} }; },
+  async probeDatabase() {},
+  createRateLimiter() { return { async consume() { return { allowed: true }; } }; },
+  createRuntime() {
+    return { router, authenticationHttpReady: true, emailPasswordReady: false, googleOidcReady: false, appleSignInReady: true, facebookLoginReady: false };
+  }
+});
+assert.equal(appleOnlyAttachment.ready, true);
+assert.equal(appleOnlyAttachment.authenticationCapabilities.emailPassword, false);
+assert.equal(appleOnlyAttachment.authenticationCapabilities.google, false);
+assert.equal(appleOnlyAttachment.authenticationCapabilities.apple, true);
+assert.equal(appleOnlyAttachment.authenticationCapabilities.facebook, false);
+assert.equal(appleOnlyEmailFactoryCalled, false);
+await appleOnlyAttachment.close();
+
 let failedEmailClosed = 0;
 let failedPoolClosed = 0;
 await assert.rejects(createAuthenticationAttachment({

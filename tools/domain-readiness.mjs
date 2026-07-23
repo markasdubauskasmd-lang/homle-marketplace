@@ -245,6 +245,33 @@ export async function probeGoogleProviderRegistration(locationValue, origin, opt
   }
 }
 
+export async function probeAppleProviderRegistration(locationValue, origin, options = {}) {
+  if (!validSocialStartLocation(locationValue, "apple", origin)) throw new TypeError("A valid Homle Apple authorization start URL is required.");
+  const fetchImplementation = options.fetch || globalThis.fetch;
+  if (typeof fetchImplementation !== "function") throw new TypeError("A fetch implementation is required.");
+  const response = await request(fetchImplementation, locationValue);
+  try {
+    if (response.status === 200) return Object.freeze({ ok: true, detail: "Apple accepted the Services ID and registered return URL and continued to its sign-in flow." });
+    if (![301, 302, 303, 307, 308].includes(response.status)) {
+      return Object.freeze({ ok: false, detail: `Apple did not accept the authorization request before sign-in. Confirm the Services ID and exact return URL ${origin}/api/marketplace/auth/apple/callback in Apple Developer.` });
+    }
+    let destination;
+    try { destination = new URL(response.headers.get("location") || ""); } catch {
+      return Object.freeze({ ok: false, detail: "Apple returned an invalid sign-in continuation." });
+    }
+    const trustedAppleDestination = destination.protocol === "https:"
+      && destination.hostname === "appleid.apple.com"
+      && !destination.username
+      && !destination.password;
+    if (!trustedAppleDestination || /(?:^|\/)(?:error|errors)(?:\/|$)/i.test(destination.pathname)) {
+      return Object.freeze({ ok: false, detail: `Apple rejected the authorization request before sign-in. Confirm the Services ID and exact return URL ${origin}/api/marketplace/auth/apple/callback in Apple Developer.` });
+    }
+    return Object.freeze({ ok: true, detail: "Apple accepted the Services ID and registered return URL and continued to its sign-in flow." });
+  } finally {
+    await response.body?.cancel?.();
+  }
+}
+
 export async function verifyDomainReadiness(origin, options = {}) {
   const target = exactPublicOrigin(origin);
   const fetchImplementation = options.fetch || globalThis.fetch;
@@ -320,7 +347,7 @@ export async function verifyDomainReadiness(origin, options = {}) {
     const expectedStatePossible = expectedSocial.size === 0 || marketplaceAuthReady;
     const typesValid = authenticationNames.every((name) => typeof providers?.[name] === "boolean");
     const expectation = expectedSocial.size ? [...expectedSocial].join(" and ") : "no social provider";
-    record("authentication-capabilities", response.status === 200 && rolesValid && emailStateValid && socialStateValid && expectedStatePossible && typesValid && !containsSecretName, `Authentication discovery must match runtime readiness, advertise exactly ${expectation}, keep Apple closed and expose no secret names.`);
+    record("authentication-capabilities", response.status === 200 && rolesValid && emailStateValid && socialStateValid && expectedStatePossible && typesValid && !containsSecretName, `Authentication discovery must match runtime readiness, advertise exactly ${expectation} and expose no secret names.`);
     record("authentication-cache", /(?:^|,)\s*no-store\b/i.test(response.headers.get("cache-control") || ""), "Authentication capability endpoint must use Cache-Control: no-store.");
   } catch (error) { record("authentication-capabilities", false, error.message); }
 
@@ -343,6 +370,18 @@ export async function verifyDomainReadiness(origin, options = {}) {
               record("google-provider-registration", providerRegistration.ok, providerRegistration.detail);
             } catch (error) {
               record("google-provider-registration", false, error.message);
+            }
+          }
+        }
+        if (provider === "apple") {
+          if (!valid) {
+            record("apple-provider-registration", false, "Apple registration was not probed because Homle's sign-in start response was invalid.");
+          } else {
+            try {
+              const providerRegistration = await probeAppleProviderRegistration(location, target.origin, { fetch: fetchImplementation });
+              record("apple-provider-registration", providerRegistration.ok, providerRegistration.detail);
+            } catch (error) {
+              record("apple-provider-registration", false, error.message);
             }
           }
         }

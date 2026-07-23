@@ -12,13 +12,17 @@ import {
   overallCondition,
   conditionLabel,
   scanChecklistLines,
-  scanSummary
+  scanTranscript,
+  scanSummary,
+  removeRoom
 } from "../public/room-scan-model.js";
+import { waitForCameraFrame } from "../public/room-scan-overlay.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
-const [overlay, entryScript, entryPage, journey, journeyPage, styles, server] = await Promise.all([
+const [overlay, photoSelection, entryScript, entryPage, journey, journeyPage, styles, server] = await Promise.all([
   readFile(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/room-photo-selection.js", import.meta.url), "utf8"),
   readFile(new URL("../public/room-scan.js", import.meta.url), "utf8"),
   readFile(new URL("../public/room-scan.html", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-journey.js", import.meta.url), "utf8"),
@@ -69,6 +73,52 @@ assert(lines.includes("Kitchen: Degrease the worktops") && lines.includes("Kitch
 const summary = scanSummary([{ name: "Kitchen", tasks: ["Degrease the worktops"], detections: [{ label: "Worktop" }], condition: "heavy" }]);
 assert(summary.roomCount === 1 && summary.fixtureCount === 1 && summary.conditionLabel === "Heavy", `The scan summary is wrong: ${JSON.stringify(summary)}`);
 
+const spokenRooms = scanTranscript([
+  { name: "Kitchen", transcript: "Do not clean inside the oven." },
+  { name: "Bathroom", transcript: "Please scrub the shower screen." }
+]);
+assert(spokenRooms === "Kitchen: Do not clean inside the oven.\nBathroom: Please scrub the shower screen.", `Spoken notes lost their room ownership: ${JSON.stringify(spokenRooms)}`);
+
+const removableRooms = [
+  { name: "Kitchen", image: "private-kitchen", transcript: "Wipe the worktops.", tasks: ["Wipe the worktops"] },
+  { name: "Bathroom", image: "private-bathroom", transcript: "Clean the shower.", tasks: ["Clean the shower"] }
+];
+const roomsAfterRemoval = removeRoom(removableRooms, " kitchen ");
+assert(removableRooms.length === 2 && roomsAfterRemoval.length === 1 && roomsAfterRemoval[0].name === "Bathroom", "Removing one room mutates the source roster, misses a case-insensitive match or removes another room.");
+assert(scanTranscript(roomsAfterRemoval) === "Bathroom: Clean the shower." && scanChecklistLines(roomsAfterRemoval).length === 1, "A removed room's note or checklist task remains in the final scan handoff.");
+assert(removeRoom(removableRooms, "").length === 2 && removeRoom(null, "Kitchen").length === 0, "An invalid room-removal request corrupts or invents a scan roster.");
+
+/* ── Mobile camera readiness ───────────────────────── */
+
+class FakeCameraVideo extends EventTarget {
+  constructor(width = 0, height = 0, readyState = 0) {
+    super();
+    this.videoWidth = width;
+    this.videoHeight = height;
+    this.readyState = readyState;
+  }
+}
+
+await waitForCameraFrame(new FakeCameraVideo(1280, 720, 2), 5);
+
+const delayedCamera = new FakeCameraVideo();
+const delayedFrame = waitForCameraFrame(delayedCamera, 100);
+setTimeout(() => {
+  delayedCamera.videoWidth = 1920;
+  delayedCamera.videoHeight = 1080;
+  delayedCamera.readyState = 2;
+  delayedCamera.dispatchEvent(new Event("canplay"));
+}, 0);
+await delayedFrame;
+
+let dimensionsOnlyError = null;
+try { await waitForCameraFrame(new FakeCameraVideo(1280, 720, 0), 5); } catch (error) { dimensionsOnlyError = error; }
+assert(dimensionsOnlyError?.name === "CameraNotReadyError", "Camera dimensions without a current video frame were treated as a usable picture.");
+
+let stalledCameraError = null;
+try { await waitForCameraFrame(new FakeCameraVideo(), 5); } catch (error) { stalledCameraError = error; }
+assert(stalledCameraError?.name === "CameraNotReadyError", "A camera stream that never produced a frame was treated as usable.");
+
 /* ── Embedded overlay ──────────────────────────────── */
 
 // The scan opens over the page that asked for it and hands its result straight
@@ -83,15 +133,30 @@ assert(!journeyPage.includes('href="/landlord/scan"'), "The journey still naviga
 assert(entryScript.includes("openRoomScan") && entryScript.split("\n").length < 20, "The standalone scan route is a second implementation rather than a thin entry point.");
 assert(!entryPage.includes("data-shutter") && !entryPage.includes("data-viewfinder"), "The standalone scan page duplicates the overlay's markup.");
 
-// Modal hygiene: the page behind must not scroll, Escape must close, and focus
-// must come back to where it was.
+// Modal hygiene: the page behind must not scroll, Escape must offer a safe exit,
+// and focus must come back to where it was.
 assert(overlay.includes('aria-modal", "true"') && overlay.includes('document.body.style.overflow = "hidden"') && overlay.includes("previousOverflow"), "The scan overlay lets the page behind it scroll, or never restores it.");
-assert(overlay.includes('event.key === "Escape"') && overlay.includes("previouslyFocused"), "The scan overlay cannot be dismissed with Escape or loses the Landlord's place.");
+assert(overlay.includes('event.key !== "Escape"') && overlay.includes("requestClose()") && overlay.includes("previouslyFocused"), "The scan overlay cannot be safely dismissed with Escape or loses the Landlord's place.");
+assert(overlay.includes('data-discard hidden role="alertdialog"') && overlay.includes("Keep scanning") && overlay.includes("Discard scan"), "Closing a room scan with progress has no clear keep-or-discard decision.");
+assert(/function requestClose\(\)[\s\S]{0,180}hasScanProgress\(\)[\s\S]{0,80}showDiscard\(\)[\s\S]{0,80}close\(null\)/.test(overlay) && /for \(const button of \$\$\("\[data-close\]"\)\) button\.addEventListener\("click", requestClose\)/.test(overlay), "A close button can still destroy confirmed rooms or notes without the discard safeguard.");
+assert(/function setScanBackgroundInert\(inert\)[\s\S]{0,320}child\.inert = inert/.test(overlay) && /function openDiscardDecision\([\s\S]{0,700}setScanBackgroundInert\(true\)[\s\S]{0,120}discardKeep\.focus/.test(overlay), "The discard decision leaves covered camera controls interactive or does not move focus to its safe action.");
+assert(overlay.includes('window.addEventListener("beforeunload", onBeforeUnload)') && overlay.includes('window.removeEventListener("beforeunload", onBeforeUnload)') && /function onBeforeUnload\(event\)[\s\S]{0,220}!hasScanProgress\(\)[\s\S]{0,320}event\.returnValue = ""/.test(overlay), "Browser navigation can silently erase an in-progress room scan or leaves a permanent leave-page warning after teardown.");
+assert(!overlay.includes("localStorage") && !overlay.includes("JSON.stringify(state.rooms"), "The discard safeguard persists private room photos or the scan roster in browser storage.");
+assert(/function finishScan\(\)[\s\S]{0,850}photos: state\.rooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(overlay), "A completed scan does not hand its current room photos directly to the authenticated booking journey.");
+assert(!/sessionStorage\.setItem\([^)]*state\.rooms/.test(overlay) && !/sessionStorage\.setItem\([^)]*photos/.test(overlay), "Private room photos are written into browser storage instead of staying in the in-memory booking handoff.");
 
 /* ── Real inputs, not a simulation ─────────────────── */
 assert(overlay.includes("navigator.mediaDevices.getUserMedia") && overlay.includes('facingMode: { ideal: "environment" }'), "The scan does not open a real rear camera.");
 assert(overlay.includes("window.SpeechRecognition || window.webkitSpeechRecognition"), "The scan does not use real speech recognition.");
 assert(!overlay.includes("const NOTE =") && !overlay.includes("DETECTIONS["), "The scan carries a scripted transcript or hardcoded detections instead of reading the room.");
+assert(overlay.includes("roomTranscripts: new Map()") && overlay.includes("transcript: spokenNote") && overlay.includes("transcript: scanTranscript(state.rooms)"), "Spoken notes are not retained separately for each room and labelled in the final handoff.");
+assert(/async function readRoom\(image, roomName, items = \[\], transcript = ""\)[\s\S]{0,1200}roomReadingPayload\(\{ roomName, transcript: String\(transcript/.test(overlay), "A room read still receives the global walkthrough instead of only that room's spoken note.");
+assert(overlay.includes("state.recognition !== recognition || generation !== state.voiceGeneration") && overlay.includes("recognition.onend = null"), "A delayed mobile speech callback can overwrite another room or stop a newly started recording.");
+assert(overlay.includes("data-room-note") && overlay.includes("Check what Homle heard") && overlay.includes("Correct anything before confirming this room"), "A Landlord cannot review or correct the transcript before it becomes the Cleaner work order.");
+assert(overlay.includes("data-note-open") && overlay.includes("Describe by voice or typing") && /if \(!Recognition\)[\s\S]{0,260}openNoteEditor\(\{ focus: true \}\)/.test(overlay), "A browser without speech recognition has no typed room-note path inside the scanner.");
+assert(/async function saveRoom[\s\S]{0,220}setRoomTranscript\(el\.note\.value\)/.test(overlay) && /el\.note\.addEventListener\("input"[\s\S]{0,220}setRoomTranscriptDraft\(el\.note\.value\)/.test(overlay), "The corrected room note is displayed but not retained for the room read.");
+assert(/function setRoomTranscriptDraft[\s\S]{0,260}String\(value \|\| ""\)\.slice\(0, 5000\)/.test(overlay) && !/el\.note\.addEventListener\("input"[\s\S]{0,220}renderVoiceTranscript\(\)/.test(overlay), "The room note is trimmed and rewritten on every keystroke, so phone typing can join adjacent words.");
+assert(overlay.includes('data-voice-panel aria-label="Room note" hidden') && /function openNoteEditor[\s\S]{0,180}el\.voice\.hidden = false/.test(overlay) && /function closeNoteEditor[\s\S]{0,260}el\.voice\.hidden = true/.test(overlay), "The editable room note remains keyboard- or screen-reader-focusable while visually closed.");
 
 // A phone browser cannot measure a room.
 assert(!/\bm²/.test(overlay) && !overlay.includes("Floor area"), "The scan claims a floor-area measurement a phone cannot take.");
@@ -107,7 +172,11 @@ assert(overlay.includes("!state.consentAsked) await askConsent();") && overlay.i
 // closing while the permission prompt is still open.
 assert(/function close\(result\)[\s\S]{0,400}stopCamera\(\)/.test(overlay), "Closing the scan does not release the camera.");
 assert(/stopCamera\(\);\s*\n\s*close\(\{/.test(overlay), "The camera is left running after the scan is read.");
-assert(overlay.includes("if (state.closed) { for (const track of stream.getTracks()) track.stop(); return; }"), "A camera granted after the scan was closed is left running with nothing able to stop it.");
+assert(/if \(state\.closed \|\| document\.hidden\)[\s\S]{0,100}for \(const track of stream\.getTracks\(\)\) track\.stop\(\)/.test(overlay), "A camera granted after the scan was closed is left running with nothing able to stop it.");
+assert(/if \(state\.closed \|\| document\.hidden\)[\s\S]{0,180}track\.stop\(\)[\s\S]{0,120}resumeCameraOnVisible/.test(overlay), "A camera permission result that arrives while the installed app is backgrounded can attach an invisible live stream.");
+assert(/function pauseForBackground\(\)[\s\S]{0,260}stopDetection\(\);[\s\S]{0,100}stopCamera\(\);[\s\S]{0,120}stopVoice\(\{ silent: true \}\)/.test(overlay), "Backgrounding the scanner does not release its camera, detector and active microphone.");
+assert(/function resumeAfterBackground\(\)[\s\S]{0,220}scheduleCameraResume\(\)/.test(overlay) && /function scheduleCameraResume\(\)[\s\S]{0,520}state\.frozen[\s\S]{0,240}state\.photoProcessing \|\| state\.videoProcessing[\s\S]{0,240}startCamera\(\)/.test(overlay), "Returning from a native camera or installed-app suspension can reopen a stale stream, race media decoding or resume behind a frozen photo.");
+assert(overlay.includes('window.addEventListener("pagehide", onPageHide)') && overlay.includes('window.addEventListener("pageshow", onPageShow)') && overlay.includes('window.removeEventListener("pagehide", onPageHide)') && overlay.includes('window.removeEventListener("pageshow", onPageShow)'), "The installed-app page lifecycle is not paired, so camera hardware may survive navigation or fail after a back-forward restoration.");
 
 // Boxes must surround what they describe, not whatever the camera now sees.
 assert(overlay.includes("el.still.src = frame"), "Detections are drawn over the live camera instead of the frame they describe.");
@@ -191,8 +260,20 @@ assert(/function close\(result\)[\s\S]{0,700}stopDetection\(\)/.test(overlay), "
 assert(overlay.includes('document.removeEventListener("visibilitychange"') && overlay.includes('window.removeEventListener("resize"'), "A listener is left on document or window, holding the camera and the model alive for the life of the page.");
 
 // Camera refusal is explained and never dead-ends the booking.
-assert(overlay.includes("data-camera-blocked") && overlay.includes("NotAllowedError") && overlay.includes("Describe by voice instead"), "A declined camera leaves the Landlord stuck with no way to continue.");
+assert(overlay.includes("data-camera-blocked") && overlay.includes("NotAllowedError") && overlay.includes("Describe by voice or typing"), "A declined camera leaves the Landlord stuck with no way to continue.");
+assert(overlay.includes("data-camera-deck") && /function blockCamera[\s\S]{0,700}el\.deck\.hidden = true[\s\S]{0,120}el\.deck\.inert = true[\s\S]{0,120}setAttribute\("aria-hidden", "true"\)/.test(overlay) && (overlay.match(/el\.deck\.hidden = false/g) || []).length >= 2 && (overlay.match(/el\.deck\.inert = false/g) || []).length >= 2 && (overlay.match(/removeAttribute\("aria-hidden"\)/g) || []).length >= 2, "The camera-recovery card leaves covered duplicate controls keyboard- and screen-reader-focusable, or never restores them.");
 assert(overlay.includes("data-camera-fallback") && overlay.includes("data-camera-fallback-input") && overlay.includes('capture="environment"') && overlay.includes("decodePhoto") && overlay.includes("captureSelectedPhoto"), "A denied live-camera permission no longer has a native phone-camera fallback.");
+assert(overlay.includes("Live camera blank? Open your phone camera") && overlay.includes("for (const button of el.fallbacks)"), "The native phone-camera fallback is hidden until the live camera fails, leaving a black-but-open stream with no escape.");
+assert(overlay.includes('accept="image/*"') && photoSelection.includes('startsWith("image/")'), "The native rear-camera fallback is restricted to a MIME list that can make phones open only the photo library or reject their own camera format.");
+assert(/function captureSelectedPhoto\(file\)[\s\S]{0,220}state\.photoProcessing[\s\S]{0,180}aria-busy[\s\S]{0,1500}finally[\s\S]{0,180}state\.photoProcessing = false/.test(overlay), "A native photo decode can be started twice, gives no busy state or leaves the camera-resume gate permanently locked.");
+assert(overlay.includes('import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js"') && overlay.includes("data-video-fallback") && overlay.includes('accept="video/*"') && overlay.includes('capture="environment"'), "The main guided scanner cannot open a phone's rear video recorder or reuse the validated private video-frame extractor.");
+assert(overlay.includes("function videoContactSheet(frames)") && /function captureSelectedVideo\(file\)[\s\S]{0,1400}extractRoomVideoFrames\(file, \{ frameCount: maximumRoomVideoFrames \}\)[\s\S]{0,300}videoContactSheet\(frames\)/.test(overlay) && overlay.includes("The raw video and audio stayed on this phone"), "A guided room video is uploaded raw, exposes its audio, or does not combine its beginning, middle and end into one locally extracted review frame.");
+assert(overlay.includes("roomVideoContactSheetLayout({") && overlay.includes("sourceWidth: first.naturalWidth") && overlay.includes("canvasWidth: canvas.width"), "The video contact sheet ignores the tested portrait/landscape layout and can turn every frame into an unreadable thumbnail.");
+assert(overlay.includes("state.videoProcessing") && /for \(const button of el\.videoFallbacks\)[\s\S]{0,220}aria-busy/.test(overlay) && /if \(state\.videoProcessing \|\| state\.capturing \|\| state\.loadingRoom\) return/.test(overlay), "Video preparation can race a live capture, revisit load or second video selection, or gives no busy state.");
+assert(overlay.includes("function waitForCameraFrame") && overlay.includes('error.name = "CameraNotReadyError"') && overlay.includes("await waitForCameraFrame(el.camera)"), "A mobile camera stream that never produces a frame can leave the scanner warming up forever.");
+assert(overlay.includes("Number(video.readyState) >= 2") && overlay.includes("Number(video.readyState) < 2"), "The scanner treats camera dimensions as a usable picture before the browser has delivered a current video frame.");
+assert(/catch \(error\) \{[\s\S]{0,80}stopCamera\(\);[\s\S]{0,420}blockCamera\(/.test(overlay) && /function stopCamera\(\)[\s\S]{0,180}el\.camera\.srcObject = null/.test(overlay), "A failed or stalled camera stream is not released, so Try live camera again cannot recover.");
+assert(/function unfreeze\(\)[\s\S]{0,650}if \(state\.stream\) startDetection\(\);\s*\n\s*else startCamera\(\)/.test(overlay), "Retaking after a backgrounded native capture cannot reacquire the live camera.");
 assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch("/api/marketplace/auth/session"') && overlay.includes('code: "sign-in-required"') && overlay.includes("automatic reading is unavailable"), "The room reader silently fails when a signed-in phone loses its in-memory security token or when the provider fails.");
 
 /* ── The room hub: choose, review, return, finish ──── */
@@ -207,18 +288,23 @@ assert(/for \(const preset of roomPresets\)[\s\S]{0,300}el\.hubChoices\.appendCh
 // to pick, review, revisit and finish.
 assert(overlay.includes("state.rooms = upsertRoom(state.rooms, room)") && /function toHub\(\)/.test(overlay), "A confirmed room is not saved back into the roster, or there is no way back to the hub.");
 assert(/for \(const button of el\.roomsOpen\)[\s\S]{0,120}toHub\(\)/.test(overlay), "There is no one-tap way back to the hub to switch or review rooms.");
+assert(overlay.includes('remove.className = "hub-room-remove"') && overlay.includes("remove.dataset.roomRemove = room.name") && overlay.includes("Remove ${room.name} from this scan"), "A Landlord cannot remove a room scanned by mistake from the room hub.");
+assert(/function showRoomRemoval\(rawName\)[\s\S]{0,520}mode: "room"[\s\S]{0,500}keepLabel: "Keep room"[\s\S]{0,140}confirmLabel: "Remove room"/.test(overlay), "Removing a scanned room happens immediately instead of requiring one clear keep-or-remove decision.");
+assert(/function confirmDiscardDecision\(\)[\s\S]{0,700}state\.rooms = removeRoom\(state\.rooms, removedName\)[\s\S]{0,180}state\.roomTranscripts\.delete\(key\)[\s\S]{0,280}renderHub\(\)/.test(overlay), "Confirmed room removal leaves its image in the roster, its note in the final transcript, or the visible room list stale.");
+assert(/el\.hub\.addEventListener\("click"[\s\S]{0,180}\[data-room-remove\][\s\S]{0,160}showRoomRemoval[\s\S]{0,140}\[data-room\]/.test(overlay), "The room hub treats the Remove control as an Edit action before opening its safety decision.");
+assert(styles.includes(".hub-room-row") && styles.includes(".hub-room-remove"), "The room-removal control has no mobile room-row presentation.");
 
 // Returning to a scanned room reopens its saved photo and its objects.
 assert(/function openRevisit\(room, session\)[\s\S]{0,1800}room\.detections/.test(overlay), "Returning to a room does not reopen the objects it already held.");
 // An unchanged save reads nothing; a change — an object added OR removed — reads
 // again, so a task like "clean the oven" cannot outlive the oven and keep
 // pricing a job for it.
-assert(overlay.includes("const changed = chosen.some((box) => box.kind === \"manual\") || keptCount < originalCount") && overlay.includes("const mustRead = (!revisit || changed) && !clearedRevisit"), "Editing a saved room either always calls the reader (slow) or leaves orphaned tasks pricing a removed object.");
+assert(overlay.includes("const changed = chosen.some((box) => box.kind === \"manual\") || keptCount < originalCount || spokenChanged") && overlay.includes("const mustRead = (!revisit || changed) && !clearedRevisit"), "Editing a saved room either always calls the reader (slow) or leaves orphaned tasks or changed spoken notes out of its scope.");
 
 // Async work is scoped to the room it started in. A read or a photo decode that
 // resolves after the Landlord has moved on must be dropped, never saved under
 // the room now on screen.
-assert(overlay.includes("state.roomSession") && /function enterRoom[\s\S]{0,500}state\.roomSession \+= 1/.test(overlay) && /function toHub[\s\S]{0,400}state\.roomSession \+= 1/.test(overlay), "Room navigation does not invalidate a read still in flight for the room just left.");
+assert(overlay.includes("state.roomSession") && /function enterRoom[\s\S]{0,700}state\.roomSession \+= 1/.test(overlay) && /function toHub[\s\S]{0,700}state\.roomSession \+= 1/.test(overlay), "Room navigation does not invalidate a read still in flight for the room just left.");
 assert((overlay.match(/session !== state\.roomSession/g) || []).length >= 3, "A read or photo decode that resolves after leaving its room is not dropped.");
 // Crops are cut from the canvas before the network await, so a later capture
 // redrawing the shared canvas cannot corrupt the crop mid-request.
@@ -232,6 +318,7 @@ assert(/function freezeFrame[\s\S]{0,400}state\.revisiting = false/.test(overlay
 // Landlord is confirmed still in this room — otherwise an abandoned decode
 // corrupts a later crop.
 assert(overlay.includes("function decodePhoto") && /decodePhoto\(file\)[\s\S]{0,260}session !== state\.roomSession[\s\S]{0,200}drawVisibleRegion/.test(overlay), "A phone-camera photo draws to the shared canvas before confirming the room.");
+assert(overlay.includes("validatedGuidedRoomPhotoFile(file)") && overlay.includes("validatedGuidedRoomPhotoDimensions(image.naturalWidth, image.naturalHeight)"), "The broad native phone-camera picker can pass vector or oversized decoded images into the scanner.");
 
 // A tap during the revisit photo load must not start a fresh capture that the
 // load then overwrites.
@@ -257,6 +344,7 @@ assert(/function startDetection\(\)[\s\S]{0,200}state\.screen !== "live"/.test(o
 
 /* ── Presentation ──────────────────────────────────── */
 assert(styles.includes(".scan-overlay") && styles.includes(".scan-stage") && styles.includes(".det-box") && styles.includes("scanSweepRun") && styles.includes(".hub-room"), "The approved scan presentation is missing.");
+assert(/\.scan-top\{[^}]*z-index:10/.test(styles) && /\.vf-blocked\{[^}]*z-index:9/.test(styles), "The camera-recovery panel covers the close button and room counter, trapping a Landlord whose camera permission is blocked.");
 
 // The frozen still is z-index 2. A detection layer below it paints the boxes
 // behind the photograph they describe, which is how this feature managed to

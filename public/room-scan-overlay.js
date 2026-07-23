@@ -12,13 +12,17 @@ import {
   drawableTracks,
   nextDetectionDelay,
   scanSummary,
+  scanTranscript,
   roomPresets,
   normaliseRoomName,
   findRoom,
   canAddRoom,
   upsertRoom,
+  removeRoom,
   rosterSummary
 } from "./room-scan-model.js";
+import { validatedGuidedRoomPhotoDimensions, validatedGuidedRoomPhotoFile } from "./room-photo-selection.js";
+import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js";
 
 // The room scan as an overlay any page can open in place. It builds and owns
 // its own DOM, so nothing has to be duplicated into every host page, and it
@@ -44,10 +48,12 @@ const markup = `
       <p data-camera-blocked-reason>Allow camera access to scan your rooms, or describe them by voice instead.</p>
       <div class="vf-blocked-actions">
         <button class="button" type="button" data-camera-fallback>Open phone camera</button>
+        <button class="button ghost" type="button" data-video-fallback>Record short room video</button>
         <button class="button ghost" type="button" data-camera-retry>Try live camera again</button>
-        <button class="button ghost" type="button" data-close>Describe by voice instead</button>
+        <button class="button ghost" type="button" data-note-open>Describe by voice or typing</button>
       </div>
-      <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-camera-fallback-input hidden>
+      <input type="file" accept="image/*" capture="environment" data-camera-fallback-input hidden>
+      <input type="file" accept="video/*" capture="environment" data-video-fallback-input hidden>
     </div>
   </div>
 
@@ -59,17 +65,19 @@ const markup = `
     <button class="scan-count" type="button" data-rooms-open><span data-shot-count>0</span> rooms</button>
   </div>
 
-  <section class="voice" data-voice-panel aria-live="polite">
+  <section class="voice" data-voice-panel aria-label="Room note" hidden>
     <div class="voice-head">
-      <span class="rec-dot" aria-hidden="true"></span><span>Voice note · recording</span>
+      <span class="rec-dot" aria-hidden="true"></span><span data-voice-status>Room note</span>
       <span class="voice-time" data-voice-time>0:00</span>
+      <button class="voice-done" type="button" data-note-done>Done</button>
     </div>
     <div class="wave" data-wave aria-hidden="true"></div>
-    <p class="voice-txt" data-voice-text><span class="cur" aria-hidden="true"></span></p>
-    <div class="voice-tags" data-voice-tags></div>
+    <label class="voice-note-label" for="homle-room-note">Check what Homle heard</label>
+    <textarea class="voice-txt" id="homle-room-note" data-room-note maxlength="5000" rows="4" placeholder="For example: Do not clean inside the oven. Wipe the worktops."></textarea>
+    <p class="voice-note-help">Speak naturally or type. Correct anything before confirming this room.</p>
   </section>
 
-  <div class="deck">
+  <div class="deck" data-camera-deck>
     <p class="deck-hint" data-hint role="status">Point at the room and tap the shutter</p>
     <div class="pick" data-selection hidden>
       <p class="pick-hint" data-selection-hint role="status">Tap what needs cleaning. Tap anywhere else to add something we missed.</p>
@@ -84,11 +92,13 @@ const markup = `
         <span class="deck-btn-lbl">Voice note</span>
       </button>
       <button class="shutter" type="button" data-shutter aria-label="Capture this room"><i aria-hidden="true"></i></button>
-      <button class="deck-btn" type="button" data-rooms-open>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M9 21V9M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/></svg>
-        <span class="deck-btn-lbl">Rooms</span>
+      <button class="deck-btn" type="button" data-video-fallback aria-label="Record a short room video">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>
+        <span class="deck-btn-lbl">Video</span>
       </button>
     </div>
+    <button class="deck-note-alt" type="button" data-note-open>Type or review this room’s note</button>
+    <button class="deck-camera-alt" type="button" data-camera-fallback>Live camera blank? Open your phone camera</button>
   </div>
 
   <div class="hub" data-hub hidden>
@@ -123,6 +133,18 @@ const markup = `
         <button class="button ghost" type="button" data-consent-decline>No — just take the photos</button>
       </div>
       <p class="scan-consent-note">You can scan either way. Declining only means you write the checklist yourself.</p>
+    </div>
+  </div>
+
+  <div class="scan-discard" data-discard hidden role="alertdialog" aria-modal="true" aria-labelledby="homle-discard-title" aria-describedby="homle-discard-copy">
+    <div class="scan-discard-in">
+      <p class="scan-discard-eyebrow" data-discard-eyebrow>Unsaved room scan</p>
+      <h2 id="homle-discard-title" data-discard-title>Leave this room scan?</h2>
+      <p id="homle-discard-copy" data-discard-copy>Your confirmed rooms and notes are only held on this screen.</p>
+      <div class="scan-discard-actions">
+        <button class="button" type="button" data-discard-keep>Keep scanning</button>
+        <button class="button ghost" type="button" data-discard-confirm>Discard scan</button>
+      </div>
     </div>
   </div>
 
@@ -203,6 +225,43 @@ function loadDetectorOnce() {
   return detectorLoad;
 }
 
+// Some mobile browsers resolve getUserMedia() before the video element has
+// received a usable frame. Treating the stream object alone as success leaves a
+// blank viewfinder whose shutter can only say "warming up" forever. Exporting
+// the readiness boundary keeps that browser-specific failure directly tested.
+export function waitForCameraFrame(video, timeoutMs = 6000) {
+  const hasFrame = () => video.videoWidth > 0
+    && video.videoHeight > 0
+    && Number(video.readyState) >= 2;
+  if (hasFrame()) return Promise.resolve();
+  return new Promise((resolveFrame, rejectFrame) => {
+    let settled = false;
+    let timer = null;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      video.removeEventListener("loadedmetadata", check);
+      video.removeEventListener("canplay", check);
+      video.removeEventListener("playing", check);
+      if (error) rejectFrame(error);
+      else resolveFrame();
+    };
+    const check = () => {
+      if (hasFrame()) finish();
+    };
+    video.addEventListener("loadedmetadata", check);
+    video.addEventListener("canplay", check);
+    video.addEventListener("playing", check);
+    timer = setTimeout(() => {
+      const error = new Error("The live camera opened but did not provide a picture.");
+      error.name = "CameraNotReadyError";
+      finish(error);
+    }, timeoutMs);
+    check();
+  });
+}
+
 /**
  * Opens the room scan over the current page.
  * Resolves with the scan result, or null if the Landlord closed it without
@@ -225,9 +284,10 @@ export function openRoomScan() {
     const $ = (selector) => overlay.querySelector(selector);
     const $$ = (selector) => [...overlay.querySelectorAll(selector)];
     const el = {
-      viewfinder: $("[data-viewfinder]"), camera: $("[data-camera]"), canvas: $("[data-capture-canvas]"),
+      stage: $("[data-scan-stage]"), viewfinder: $("[data-viewfinder]"), camera: $("[data-camera]"), canvas: $("[data-capture-canvas]"),
       blocked: $("[data-camera-blocked]"), blockedReason: $("[data-camera-blocked-reason]"), retry: $("[data-camera-retry]"),
-      fallback: $("[data-camera-fallback]"), fallbackInput: $("[data-camera-fallback-input]"),
+      fallbacks: $$("[data-camera-fallback]"), fallbackInput: $("[data-camera-fallback-input]"),
+      videoFallbacks: $$("[data-video-fallback]"), videoFallbackInput: $("[data-video-fallback-input]"),
       mesh: $("[data-mesh]"), detections: $("[data-detection-layer]"), sweep: $("[data-sweep]"), flash: $("[data-flash]"),
       still: $("[data-still]"), roomLabel: $("[data-room-label]"), shotCount: $("[data-shot-count]"), hint: $("[data-hint]"),
       mic: $("[data-mic]"), shutter: $("[data-shutter]"),
@@ -235,15 +295,22 @@ export function openRoomScan() {
       hub: $("[data-hub]"), hubTitle: $("[data-hub-title]"), hubSub: $("[data-hub-sub]"), hubRooms: $("[data-hub-rooms]"),
       hubAddLabel: $("[data-hub-add-lbl]"), hubChoices: $("[data-hub-choices]"), hubOtherForm: $("[data-hub-other-form]"),
       hubOther: $("[data-hub-other]"), hubFinish: $("[data-hub-finish]"), roomsOpen: $$("[data-rooms-open]"),
-      voice: $("[data-voice-panel]"), voiceTime: $("[data-voice-time]"), wave: $("[data-wave]"), voiceText: $("[data-voice-text]"),
+      voice: $("[data-voice-panel]"), voiceTime: $("[data-voice-time]"), wave: $("[data-wave]"),
+      voiceStatus: $("[data-voice-status]"), note: $("[data-room-note]"), noteDone: $("[data-note-done]"), noteOpen: $$("[data-note-open]"),
+      deck: $("[data-camera-deck]"),
       consent: $("[data-consent]"), consentAllow: $("[data-consent-allow]"), consentDecline: $("[data-consent-decline]"),
+      discard: $("[data-discard]"), discardEyebrow: $("[data-discard-eyebrow]"),
+      discardTitle: $("[data-discard-title]"), discardCopy: $("[data-discard-copy]"),
+      discardKeep: $("[data-discard-keep]"), discardConfirm: $("[data-discard-confirm]"),
       toast: $("[data-toast]")
     };
 
     const state = {
-      stream: null, cameraStarting: false, rooms: [], capturing: false,
-      voiceOn: false, voiceUsed: false, transcript: "", seconds: 0,
-      timers: { wave: null, clock: null }, recognition: null,
+      stream: null, cameraStarting: false, resumeCameraOnVisible: false,
+      rooms: [], capturing: false, photoProcessing: false, videoProcessing: false,
+      voiceOn: false, voiceUsed: false, roomTranscripts: new Map(), seconds: 0,
+      voiceGeneration: 0,
+      timers: { wave: null, clock: null, cameraResume: null }, recognition: null,
       visionAvailable: true, readingAllowed: false, consentAsked: false,
       generation: 0, closed: false,
       // Which screen is showing, and which room is being worked on. The hub is
@@ -267,11 +334,175 @@ export function openRoomScan() {
     };
 
     let toastTimer = null;
+    let discardPreviousFocus = null;
+    let discardMode = "scan";
+    let discardRoomName = "";
     function toast(message) {
       el.toast.textContent = message;
       el.toast.hidden = false;
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => { el.toast.hidden = true; }, 2600);
+    }
+
+    function hasScanProgress() {
+      if (state.rooms.length || state.frozenFrame || state.photoProcessing || state.videoProcessing) return true;
+      return [...state.roomTranscripts.values()].some((note) => String(note || "").trim());
+    }
+
+    function setScanBackgroundInert(inert) {
+      for (const child of el.stage.children) {
+        if (child === el.discard) continue;
+        child.inert = inert;
+        if (inert) child.setAttribute("aria-hidden", "true");
+        else child.removeAttribute("aria-hidden");
+      }
+    }
+
+    function hideDiscard({ restoreFocus = true } = {}) {
+      if (el.discard.hidden) return;
+      el.discard.hidden = true;
+      setScanBackgroundInert(false);
+      const focusTarget = discardPreviousFocus;
+      discardPreviousFocus = null;
+      if (restoreFocus && focusTarget instanceof HTMLElement && overlay.contains(focusTarget)) {
+        focusTarget.focus({ preventScroll: true });
+      }
+    }
+
+    function openDiscardDecision({ mode, roomName = "", eyebrow, title, copy, keepLabel, confirmLabel }) {
+      if (!el.discard.hidden || state.closed) return;
+      discardMode = mode;
+      discardRoomName = roomName;
+      el.discardEyebrow.textContent = eyebrow;
+      el.discardTitle.textContent = title;
+      el.discardCopy.textContent = copy;
+      el.discardKeep.textContent = keepLabel;
+      el.discardConfirm.textContent = confirmLabel;
+      discardPreviousFocus = document.activeElement;
+      setScanBackgroundInert(true);
+      el.discard.hidden = false;
+      el.discardKeep.focus({ preventScroll: true });
+    }
+
+    function showDiscard() {
+      if (!el.discard.hidden || state.closed) return;
+      // Stop listening before displaying a decision over the camera. The exact
+      // visible draft is retained, including a final word still on screen.
+      if (!el.voice.hidden) setRoomTranscriptDraft(el.note.value);
+      if (state.voiceOn) stopVoice({ silent: true });
+      const roomCount = state.rooms.length;
+      const roomLabel = `${roomCount} confirmed room${roomCount === 1 ? "" : "s"}`;
+      const hasCurrentWork = Boolean(state.frozenFrame || roomTranscript().trim());
+      openDiscardDecision({
+        mode: "scan",
+        eyebrow: "Unsaved room scan",
+        title: "Leave this room scan?",
+        copy: roomCount
+          ? `Your ${roomLabel}${hasCurrentWork ? " and current edits" : ""} are only held on this screen. Discarding removes them.`
+          : "Your current room photo or note is only held on this screen. Discarding removes it.",
+        keepLabel: "Keep scanning",
+        confirmLabel: "Discard scan"
+      });
+    }
+
+    function showRoomRemoval(rawName) {
+      const room = findRoom(state.rooms, rawName);
+      if (!room || state.closed) return;
+      openDiscardDecision({
+        mode: "room",
+        roomName: room.name,
+        eyebrow: "Change room scan",
+        title: `Remove ${room.name}?`,
+        copy: `Its photo, note and checklist tasks will be removed from this scan. Your other rooms stay unchanged.`,
+        keepLabel: "Keep room",
+        confirmLabel: "Remove room"
+      });
+    }
+
+    function confirmDiscardDecision() {
+      if (discardMode !== "room") return close(null);
+      const removedName = discardRoomName;
+      const key = transcriptKey(removedName);
+      state.rooms = removeRoom(state.rooms, removedName);
+      state.roomTranscripts.delete(key);
+      if (transcriptKey(state.currentRoom) === key) state.currentRoom = "";
+      discardMode = "scan";
+      discardRoomName = "";
+      hideDiscard({ restoreFocus: false });
+      renderHub();
+      el.hubOther.focus({ preventScroll: true });
+      toast(`${removedName} removed from this scan.`);
+    }
+
+    function requestClose() {
+      if (state.closed) return;
+      if (hasScanProgress()) showDiscard();
+      else close(null);
+    }
+
+    function onBeforeUnload(event) {
+      if (state.closed || !hasScanProgress()) return;
+      event.preventDefault();
+      // Browsers deliberately replace this with their own privacy-safe copy.
+      event.returnValue = "";
+    }
+
+    function transcriptKey(roomName = state.currentRoom) {
+      return normaliseRoomName(roomName).toLowerCase();
+    }
+
+    function roomTranscript(roomName = state.currentRoom) {
+      const key = transcriptKey(roomName);
+      if (!key) return "";
+      if (state.roomTranscripts.has(key)) return state.roomTranscripts.get(key);
+      return String(findRoom(state.rooms, roomName)?.transcript || "").replace(/\s+/g, " ").trim().slice(0, 5000);
+    }
+
+    function setRoomTranscript(value, roomName = state.currentRoom) {
+      const key = transcriptKey(roomName);
+      if (!key) return "";
+      const note = String(value || "").replace(/\s+/g, " ").trim().slice(0, 5000);
+      state.roomTranscripts.set(key, note);
+      return note;
+    }
+
+    function setRoomTranscriptDraft(value, roomName = state.currentRoom) {
+      const key = transcriptKey(roomName);
+      if (!key) return "";
+      const note = String(value || "").slice(0, 5000);
+      state.roomTranscripts.set(key, note);
+      return note;
+    }
+
+    function renderRoomNoteControls(note = roomTranscript()) {
+      const hasNote = Boolean(String(note || "").trim());
+      el.mic.classList.toggle("ready", hasNote && !state.voiceOn);
+      const micLabel = el.mic.querySelector(".deck-btn-lbl");
+      if (micLabel) micLabel.textContent = hasNote ? "Add voice" : "Voice note";
+      for (const button of el.noteOpen) button.textContent = hasNote ? "Review this room’s note" : "Type a room note";
+    }
+
+    function renderVoiceTranscript(interim = "") {
+      el.note.value = `${roomTranscript()} ${String(interim || "").trim()}`.trim();
+      renderRoomNoteControls(el.note.value);
+    }
+
+    function openNoteEditor({ focus = false } = {}) {
+      renderVoiceTranscript();
+      el.voice.hidden = false;
+      el.voice.classList.add("on");
+      if (focus) setTimeout(() => el.note.focus({ preventScroll: true }), 0);
+    }
+
+    function closeNoteEditor() {
+      if (state.voiceOn) stopVoice({ silent: true });
+      setRoomTranscript(el.note.value);
+      renderVoiceTranscript();
+      el.voice.classList.remove("on", "recording");
+      el.voice.hidden = true;
+      el.hint.innerHTML = roomTranscript()
+        ? "<b>Room note ready</b> — check the photo, then confirm"
+        : "Point at the room and tap the shutter";
     }
 
     /* ── The hub: choose a room, review the scan, return to a room ── */
@@ -301,6 +532,7 @@ export function openRoomScan() {
       el.hubRooms.innerHTML = "";
       for (const room of rooms) {
         const li = document.createElement("li");
+        li.className = "hub-room-row";
         const button = document.createElement("button");
         button.type = "button";
         button.className = "hub-room";
@@ -313,7 +545,13 @@ export function openRoomScan() {
           Object.assign(document.createElement("span"), { className: "hub-room-meta", textContent: meta }),
           Object.assign(document.createElement("span"), { className: "hub-room-edit", textContent: "Edit" })
         );
-        li.appendChild(button);
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "hub-room-remove";
+        remove.dataset.roomRemove = room.name;
+        remove.textContent = "Remove";
+        remove.setAttribute("aria-label", `Remove ${room.name} from this scan`);
+        li.append(button, remove);
         el.hubRooms.appendChild(li);
       }
 
@@ -331,6 +569,10 @@ export function openRoomScan() {
     }
 
     function toHub() {
+      // A late result from the phone's speech service must not land after the
+      // current room changes. The note itself is already retained in the room
+      // map before the recogniser is released.
+      if (state.voiceOn) stopVoice({ silent: true });
       // Leaving a room invalidates any read or photo decode still in flight for
       // it, and clears the in-progress flag so an abandoned one cannot wedge it.
       state.roomSession += 1;
@@ -351,10 +593,14 @@ export function openRoomScan() {
     function enterRoom(rawName) {
       const name = normaliseRoomName(rawName);
       if (!name || state.closed || state.capturing) return;
+      if (state.voiceOn) stopVoice({ silent: true });
       const existing = findRoom(state.rooms, name);
       if (!existing && !canAddRoom(state.rooms, name)) return toast("That's as many rooms as one scan can carry.");
       state.roomSession += 1;
       state.currentRoom = name;
+      const key = transcriptKey(name);
+      if (!state.roomTranscripts.has(key)) setRoomTranscript(existing?.transcript || "", name);
+      renderVoiceTranscript();
       showScreen("live");
       if (existing) openRevisit(existing, state.roomSession);
       else prepareLiveRoom();
@@ -435,33 +681,72 @@ export function openRoomScan() {
           audio: false
         });
         // The overlay may have been closed while the permission prompt was open.
-        if (state.closed) { for (const track of stream.getTracks()) track.stop(); return; }
+        if (state.closed || document.hidden) {
+          for (const track of stream.getTracks()) track.stop();
+          state.resumeCameraOnVisible = !state.closed;
+          return;
+        }
         state.stream = stream;
         el.camera.srcObject = stream;
         el.blocked.hidden = true;
+        el.deck.hidden = false;
+        el.deck.inert = false;
+        el.deck.removeAttribute("aria-hidden");
         el.shutter.disabled = false;
-        await el.camera.play().catch(() => {});
+        await el.camera.play();
+        await waitForCameraFrame(el.camera);
+        if (state.closed) { stopCamera(); return; }
         // Nothing has left the device at this point and nothing will: the
         // detector is local, and starting it now is what gives the Landlord
         // boxes to tap the moment they freeze a frame.
         startDetection();
       } catch (error) {
+        stopCamera();
+        if (state.closed) return;
         const denied = error?.name === "NotAllowedError" || error?.name === "SecurityError";
+        const stalled = error?.name === "CameraNotReadyError" || error?.name === "AbortError";
         blockCamera(denied
           ? "Live camera permission is blocked. Open the phone camera below, or allow Camera in your browser settings and retry."
-          : "No live camera could be opened. Use the phone camera below to take each room photo instead.");
+          : stalled
+            ? "The live camera opened but no picture arrived. Open the phone camera below, or try the live camera again."
+            : "No live camera could be opened. Use the phone camera below to take each room photo instead.");
       }
     }
 
     function blockCamera(reason) {
       el.blockedReason.textContent = reason;
       el.blocked.hidden = false;
+      // The recovery card sits over the camera deck. Inert keeps the covered
+      // mic, shutter and duplicate fallback actions out of keyboard and screen
+      // reader navigation until a usable frame exists again.
+      el.deck.hidden = true;
+      el.deck.inert = true;
+      el.deck.setAttribute("aria-hidden", "true");
       el.shutter.disabled = true;
     }
 
     function stopCamera() {
       for (const track of state.stream?.getTracks?.() || []) track.stop();
       state.stream = null;
+      try { el.camera.pause(); } catch {}
+      el.camera.srcObject = null;
+    }
+
+    function scheduleCameraResume() {
+      window.clearTimeout(state.timers.cameraResume);
+      state.timers.cameraResume = window.setTimeout(() => {
+        if (state.closed || document.hidden || !state.resumeCameraOnVisible) return;
+        if (state.frozen) {
+          state.resumeCameraOnVisible = false;
+          return;
+        }
+        if (state.photoProcessing || state.videoProcessing || state.loadingRoom || state.capturing) {
+          scheduleCameraResume();
+          return;
+        }
+        state.resumeCameraOnVisible = false;
+        startCamera();
+      }, 350);
     }
 
     /* ── Capture ── */
@@ -499,7 +784,7 @@ export function openRoomScan() {
 
     function currentFrame() {
       const video = el.camera;
-      if (!video.videoWidth || !video.videoHeight) return null;
+      if (!video.videoWidth || !video.videoHeight || Number(video.readyState) < 2) return null;
       return drawVisibleRegion(video, video.videoWidth, video.videoHeight);
     }
 
@@ -509,13 +794,23 @@ export function openRoomScan() {
     // later crop is cut from.
     function decodePhoto(file) {
       return new Promise((resolveImage, rejectImage) => {
-        if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 15 * 1024 * 1024) {
-          rejectImage(new TypeError("Choose a JPEG, PNG or WebP room photo up to 15 MB."));
+        try {
+          validatedGuidedRoomPhotoFile(file);
+        } catch (error) {
+          rejectImage(error);
           return;
         }
         const objectUrl = URL.createObjectURL(file);
         const image = new Image();
-        image.onload = () => { URL.revokeObjectURL(objectUrl); resolveImage(image); };
+        image.onload = () => {
+          URL.revokeObjectURL(objectUrl);
+          try {
+            validatedGuidedRoomPhotoDimensions(image.naturalWidth, image.naturalHeight);
+            resolveImage(image);
+          } catch (error) {
+            rejectImage(error);
+          }
+        };
         image.onerror = () => { URL.revokeObjectURL(objectUrl); rejectImage(new TypeError("That photo could not be opened.")); };
         image.src = objectUrl;
       });
@@ -649,6 +944,7 @@ export function openRoomScan() {
       // Back to full-bleed: live boxes are percentages of the viewfinder again.
       resetLayout();
       if (state.stream) startDetection();
+      else startCamera();
     }
 
     // A tap that misses every box adds one. This is the whole reason the scan
@@ -757,6 +1053,8 @@ export function openRoomScan() {
     // artificial delay, the only wait is the network read when one is needed.
     async function saveRoom(frame, chosen, { revisit = false } = {}) {
       if (state.capturing || state.closed) return;
+      if (state.voiceOn) stopVoice({ silent: true });
+      setRoomTranscript(el.note.value);
       // Claimed before the consent prompt is awaited, not after: otherwise a
       // second activation during that await would slip past — consent already
       // asked, reading not yet allowed — and save an empty room over this one.
@@ -770,6 +1068,7 @@ export function openRoomScan() {
       const session = state.roomSession;
       const roomName = state.currentRoom;
       const existing = findRoom(state.rooms, roomName) || {};
+      const spokenNote = roomTranscript(roomName);
 
       // A fresh capture always reads — its boxes are raw detections that need
       // naming, grading and notes. A revisit reads only when the set of objects
@@ -778,11 +1077,12 @@ export function openRoomScan() {
       // and quietly keep pricing a job for it. An unchanged save reads nothing.
       const originalCount = Array.isArray(existing.detections) ? existing.detections.length : 0;
       const keptCount = chosen.filter((box) => box.kind !== "manual").length;
-      const changed = chosen.some((box) => box.kind === "manual") || keptCount < originalCount;
+      const spokenChanged = spokenNote !== String(existing.transcript || "").replace(/\s+/g, " ").trim();
+      const changed = chosen.some((box) => box.kind === "manual") || keptCount < originalCount || spokenChanged;
       // Clearing every object on a revisit means the room genuinely has none —
       // it must not fall through to a whole-room read, which would rediscover
       // exactly what the Landlord just removed.
-      const clearedRevisit = revisit && chosen.length === 0;
+      const clearedRevisit = revisit && chosen.length === 0 && !spokenNote;
       const mustRead = (!revisit || changed) && !clearedRevisit;
 
       if (mustRead && !state.consentAsked) await askConsent();
@@ -791,7 +1091,7 @@ export function openRoomScan() {
       let room;
       if (clearedRevisit) {
         // An emptied room: no objects, and so no scoped tasks and no grade.
-        room = { name: roomName, image: frame, detections: [], tasks: [], condition: "" };
+        room = { name: roomName, image: frame, detections: [], tasks: [], condition: "", transcript: spokenNote };
       } else if (mustRead) {
         el.flash.classList.remove("pop"); void el.flash.offsetWidth; el.flash.classList.add("pop");
         el.mesh.classList.add("on");
@@ -799,7 +1099,7 @@ export function openRoomScan() {
         el.hint.innerHTML = "<b>Reading the room…</b> one moment";
         let reading = { detections: [], tasks: [], condition: "" };
         let readingError = "";
-        try { reading = await readRoom(frame, roomName, chosen); } catch (error) {
+        try { reading = await readRoom(frame, roomName, chosen, spokenNote); } catch (error) {
           state.visionAvailable = false;
           readingError = error?.code === "sign-in-required"
             ? "Room saved. Sign in to let Homle name objects automatically; you can still finish by hand."
@@ -810,7 +1110,8 @@ export function openRoomScan() {
           name: roomName, image: frame,
           detections: reading.detections,
           tasks: Array.isArray(reading.tasks) ? reading.tasks : [],
-          condition: reading.condition || ""
+          condition: reading.condition || "",
+          transcript: spokenNote
         };
         if (readingError) toast(readingError);
       } else {
@@ -823,7 +1124,8 @@ export function openRoomScan() {
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: Array.isArray(existing.tasks) ? existing.tasks : [],
-          condition: existing.condition || ""
+          condition: existing.condition || "",
+          transcript: spokenNote
         };
       }
 
@@ -851,7 +1153,12 @@ export function openRoomScan() {
     }
 
     async function captureSelectedPhoto(file) {
-      if (state.loadingRoom || state.capturing) return;
+      if (state.loadingRoom || state.capturing || state.photoProcessing) return;
+      state.photoProcessing = true;
+      for (const button of el.fallbacks) {
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+      }
       const session = state.roomSession;
       try {
         const image = await decodePhoto(file);
@@ -861,12 +1168,122 @@ export function openRoomScan() {
         const frame = drawVisibleRegion(image, image.naturalWidth, image.naturalHeight);
         if (!frame) throw new TypeError("That photo could not be opened.");
         el.blocked.hidden = true;
+        el.deck.hidden = false;
+        el.deck.inert = false;
+        el.deck.removeAttribute("aria-hidden");
         // A photo chosen from the phone's own camera never had a live
         // viewfinder, so there are no detected boxes to start from — but it can
         // still be marked up by hand before it is read.
         freezeFrame(frame);
       } catch (error) {
         if (session === state.roomSession) blockCamera(error?.message || "That room photo could not be opened. Try another one.");
+      } finally {
+        state.photoProcessing = false;
+        if (!state.closed) {
+          for (const button of el.fallbacks) {
+            button.disabled = false;
+            button.removeAttribute("aria-busy");
+          }
+          if (state.resumeCameraOnVisible) scheduleCameraResume();
+        }
+      }
+    }
+
+    function videoContactSheet(frames) {
+      return Promise.all(frames.map((frame) => decodePhoto(frame))).then((images) => new Promise((resolve, reject) => {
+        if (!images.length) return reject(new TypeError("No readable room frames were found in that video."));
+        const rect = el.viewfinder.getBoundingClientRect();
+        const first = images[0];
+        const fallbackAspect = first.naturalWidth / first.naturalHeight;
+        const aspect = rect.width > 0 && rect.height > 0 ? rect.width / rect.height : fallbackAspect;
+        const canvas = document.createElement("canvas");
+        if (aspect >= 1) {
+          canvas.width = 1280;
+          canvas.height = Math.max(1, Math.round(1280 / aspect));
+        } else {
+          canvas.height = 1280;
+          canvas.width = Math.max(1, Math.round(1280 * aspect));
+        }
+        const context = canvas.getContext("2d", { alpha: false });
+        if (!context) return reject(new TypeError("This browser cannot prepare the room video. Use room photos instead."));
+        context.fillStyle = "#050506";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Pick the grid that preserves the greatest number of source pixels.
+        // Portrait and landscape clips therefore both stay useful instead of
+        // being forced through a layout that turns every frame into a thumbnail.
+        const layout = roomVideoContactSheetLayout({
+          frameCount: images.length,
+          sourceWidth: first.naturalWidth,
+          sourceHeight: first.naturalHeight,
+          canvasWidth: canvas.width,
+          canvasHeight: canvas.height
+        });
+        const { cellWidth, cellHeight } = layout;
+        images.forEach((image, index) => {
+          const column = index % layout.columns;
+          const row = Math.floor(index / layout.columns);
+          const scale = Math.min(cellWidth / image.naturalWidth, cellHeight / image.naturalHeight);
+          const width = image.naturalWidth * scale;
+          const height = image.naturalHeight * scale;
+          const x = column * cellWidth + (cellWidth - width) / 2;
+          const y = row * cellHeight + (cellHeight - height) / 2;
+          context.drawImage(image, x, y, width, height);
+          if (index > 0) {
+            context.strokeStyle = "rgba(255,255,255,.45)";
+            context.lineWidth = 2;
+            context.strokeRect(column * cellWidth, row * cellHeight, cellWidth, cellHeight);
+          }
+        });
+        const timer = window.setTimeout(() => reject(new TypeError("The room video took too long to prepare. Try a shorter clip.")), 10_000);
+        canvas.toBlob((blob) => {
+          window.clearTimeout(timer);
+          if (!blob?.size || blob.type !== "image/jpeg") return reject(new TypeError("The room video could not be prepared. Use room photos instead."));
+          if (typeof File === "function") return resolve(new File([blob], "room-video-scan.jpg", { type: "image/jpeg", lastModified: Date.now() }));
+          Object.defineProperty(blob, "name", { configurable: true, value: "room-video-scan.jpg" });
+          resolve(blob);
+        }, "image/jpeg", 0.8);
+      }));
+    }
+
+    // A short room video is an input convenience, not another private record.
+    // The raw clip and its audio never leave the phone: three frames are
+    // extracted and combined locally into one reviewable room sheet, which then
+    // follows the exact same consent and room-reading path as a photograph. One
+    // provider request sees the beginning, middle and end without tripling cost.
+    async function captureSelectedVideo(file) {
+      if (state.loadingRoom || state.capturing || state.videoProcessing || !file) return;
+      state.videoProcessing = true;
+      el.shutter.disabled = true;
+      for (const button of el.videoFallbacks) {
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+      }
+      const previousHint = el.hint.textContent;
+      el.hint.innerHTML = "<b>Preparing the room video…</b> raw video stays on this phone";
+      try {
+        const frames = await extractRoomVideoFrames(file, { frameCount: maximumRoomVideoFrames });
+        if (state.closed) return;
+        const sheet = await videoContactSheet(frames);
+        if (state.closed) return;
+        await captureSelectedPhoto(sheet);
+        if (!state.closed) toast("Three room views are ready. The raw video and audio stayed on this phone.");
+      } catch (error) {
+        if (!state.closed) {
+          const message = error?.message || "That room video could not be opened. Record a shorter clip or use a photo.";
+          if (!el.blocked.hidden) el.blockedReason.textContent = message;
+          toast(message);
+        }
+      } finally {
+        state.videoProcessing = false;
+        if (!state.closed) {
+          el.shutter.disabled = !el.blocked.hidden;
+          for (const button of el.videoFallbacks) {
+            button.disabled = false;
+            button.removeAttribute("aria-busy");
+          }
+          if (!state.frozen) el.hint.textContent = previousHint || "Point at the room and tap the shutter";
+        }
       }
     }
 
@@ -886,7 +1303,7 @@ export function openRoomScan() {
       } catch { return ""; }
     }
 
-    async function readRoom(image, roomName, items = []) {
+    async function readRoom(image, roomName, items = [], transcript = "") {
       if (!state.readingAllowed || !state.visionAvailable) return { detections: [], tasks: [], condition: "" };
 
       // Crops are cut from the capture canvas up front, before any await. Once
@@ -901,7 +1318,7 @@ export function openRoomScan() {
       // The route rejects anything over its body limit with a 413 the Landlord
       // could only ever read as a generic failure, so the budget is settled here
       // rather than discovered on the way back.
-      const payload = roomReadingPayload({ roomName, transcript: state.transcript.slice(-1200), roomFrame: image, items: selected });
+      const payload = roomReadingPayload({ roomName, transcript: String(transcript || "").slice(-1200), roomFrame: image, items: selected });
       if (!payload.withinLimit) throw new Error("reading-too-large");
 
       const csrf = await recoverCsrf();
@@ -1022,10 +1439,26 @@ export function openRoomScan() {
       }
     }
 
-    function onVisibility() {
-      if (document.hidden) stopDetection();
-      else startDetection();
+    function pauseForBackground() {
+      state.resumeCameraOnVisible ||= Boolean(state.stream) && !state.frozen;
+      stopDetection();
+      stopCamera();
+      if (state.voiceOn) stopVoice({ silent: true });
     }
+
+    function resumeAfterBackground() {
+      if (state.closed || document.hidden) return;
+      if (state.resumeCameraOnVisible) scheduleCameraResume();
+      else if (state.stream) startDetection();
+    }
+
+    function onVisibility() {
+      if (document.hidden) pauseForBackground();
+      else resumeAfterBackground();
+    }
+
+    function onPageHide() { pauseForBackground(); }
+    function onPageShow() { resumeAfterBackground(); }
 
     /* ── Voice ── */
     function buildWave() {
@@ -1035,12 +1468,19 @@ export function openRoomScan() {
 
     function startVoice() {
       const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!Recognition) return toast("This browser cannot listen. Type your notes after the scan instead.");
+      if (!Recognition) {
+        openNoteEditor({ focus: true });
+        el.hint.textContent = "Voice listening is unavailable here. Type the room note instead.";
+        return toast("Type the room note, then tap Done.");
+      }
       const recognition = new Recognition();
+      const generation = state.voiceGeneration + 1;
+      state.voiceGeneration = generation;
       recognition.lang = document.documentElement.lang || "en-GB";
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.onresult = (event) => {
+        if (state.recognition !== recognition || generation !== state.voiceGeneration) return;
         let finalText = "";
         let interim = "";
         for (let index = event.resultIndex; index < event.results.length; index += 1) {
@@ -1048,19 +1488,29 @@ export function openRoomScan() {
           if (result.isFinal) finalText += result[0].transcript;
           else interim += result[0].transcript;
         }
-        if (finalText) state.transcript = `${state.transcript} ${finalText}`.trim().slice(0, 5000);
-        el.voiceText.textContent = `${state.transcript} ${interim}`.trim();
-        el.voiceText.appendChild(Object.assign(document.createElement("span"), { className: "cur" }));
+        if (finalText) setRoomTranscript(`${roomTranscript()} ${finalText}`);
+        renderVoiceTranscript(interim);
       };
-      recognition.onerror = () => stopVoice({ failed: true });
-      recognition.onend = () => { if (state.voiceOn) stopVoice(); };
-      try { recognition.start(); } catch { return toast("Listening could not start — try again in a moment."); }
+      recognition.onerror = () => {
+        if (state.recognition === recognition && generation === state.voiceGeneration) stopVoice({ failed: true });
+      };
+      recognition.onend = () => {
+        if (state.recognition === recognition && generation === state.voiceGeneration && state.voiceOn) stopVoice();
+      };
+      try { recognition.start(); } catch {
+        openNoteEditor({ focus: true });
+        el.hint.textContent = "Listening could not start. Type the room note or try the microphone again.";
+        return toast("Listening could not start. Your typed note still works.");
+      }
 
       state.recognition = recognition;
       state.voiceOn = true;
       state.voiceUsed = true;
       state.seconds = 0;
-      el.voice.classList.add("on");
+      el.voice.hidden = false;
+      el.voice.classList.add("on", "recording");
+      el.voiceStatus.textContent = "Voice note · recording";
+      el.mic.classList.remove("ready");
       el.mic.classList.add("rec");
       el.mic.setAttribute("aria-pressed", "true");
       el.hint.innerHTML = "<b>Listening…</b> just talk normally";
@@ -1081,20 +1531,33 @@ export function openRoomScan() {
 
     function stopVoice({ silent = false, failed = false } = {}) {
       state.voiceOn = false;
+      state.voiceGeneration += 1;
       clearInterval(state.timers.wave);
       clearInterval(state.timers.clock);
-      try { state.recognition?.stop(); } catch {}
+      const recognition = state.recognition;
       state.recognition = null;
+      if (recognition) {
+        recognition.onresult = null;
+        recognition.onerror = null;
+        recognition.onend = null;
+        try { recognition.stop(); } catch {}
+      }
       el.mic.classList.remove("rec");
       el.mic.setAttribute("aria-pressed", "false");
+      el.voice.classList.remove("recording");
+      el.voiceStatus.textContent = failed ? "Room note · listening stopped" : "Room note · review";
       for (const bar of $$("[data-wave] b")) bar.style.height = "18%";
-      if (silent) { el.voice.classList.remove("on"); return; }
-      if (failed) el.hint.textContent = "Listening stopped. Your notes so far are kept.";
-      else if (state.transcript.trim()) {
-        el.hint.innerHTML = "<b>Voice note saved</b> — added to your checklist";
-        toast("Voice note attached to this scan");
+      if (silent) {
+        el.voice.classList.remove("on");
+        el.voice.hidden = true;
+        return;
       }
-      setTimeout(() => el.voice.classList.remove("on"), 1400);
+      if (failed) el.hint.textContent = "Listening stopped. Your notes so far are kept.";
+      else if (roomTranscript()) {
+        el.hint.innerHTML = "<b>Check the room note</b> — correct anything before confirming";
+        toast("Check what Homle heard, then tap Done");
+      }
+      openNoteEditor();
     }
 
     /* ── Finishing the scan ── */
@@ -1111,8 +1574,23 @@ export function openRoomScan() {
       stopCamera();
       close({
         tasks: summary.tasks,
-        transcript: state.transcript.trim(),
-        rooms: state.rooms.map((room) => ({ name: room.name, condition: room.condition, fixtures: (room.detections || []).map((detection) => detection.label) })),
+        transcript: scanTranscript(state.rooms),
+        // These compressed JPEGs stay only in this in-memory return value. The
+        // guided booking journey can upload them after it has created the
+        // authenticated private draft, but saveDraft() never serialises them
+        // into sessionStorage. A refresh therefore cannot leave photographs of
+        // a home in browser storage.
+        photos: state.rooms.filter((room) => Array.isArray(room.tasks) && room.tasks.length).map((room) => ({
+          roomName: room.name,
+          note: String(room.transcript || "").trim(),
+          dataUrl: room.image
+        })),
+        rooms: state.rooms.map((room) => ({
+          name: room.name,
+          condition: room.condition,
+          fixtures: (room.detections || []).map((detection) => detection.label),
+          note: String(room.transcript || "").trim()
+        })),
         guideTime: summary.durationLabel,
         capturedAt: new Date().toISOString()
       });
@@ -1131,12 +1609,16 @@ export function openRoomScan() {
       stopDetection();
       state.detector = null;
       clearTimeout(toastTimer);
+      window.clearTimeout(state.timers.cameraResume);
       document.removeEventListener("keydown", onKeyDown);
       // A listener left on `document` or `window` keeps this whole closure alive
       // — the video element and the model with it — for the lifetime of the page.
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("resize", onViewportResize);
       window.removeEventListener("orientationchange", onViewportResize);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("beforeunload", onBeforeUnload);
       document.body.style.overflow = previousOverflow;
       overlay.remove();
       if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus({ preventScroll: true });
@@ -1144,7 +1626,9 @@ export function openRoomScan() {
     }
 
     function onKeyDown(event) {
-      if (event.key === "Escape") close(null);
+      if (event.key !== "Escape") return;
+      if (!el.discard.hidden) hideDiscard();
+      else requestClose();
     }
 
     buildWave();
@@ -1155,14 +1639,34 @@ export function openRoomScan() {
     el.retake.addEventListener("click", () => (state.revisiting ? prepareLiveRoom() : unfreeze()));
     el.readRoom.addEventListener("click", confirmSelection);
     el.mic.addEventListener("click", () => (state.voiceOn ? stopVoice() : startVoice()));
-    el.retry.addEventListener("click", startCamera);
-    el.fallback.addEventListener("click", () => {
-      el.fallbackInput.value = "";
-      el.fallbackInput.click();
+    for (const button of el.noteOpen) button.addEventListener("click", () => openNoteEditor({ focus: true }));
+    el.noteDone.addEventListener("click", closeNoteEditor);
+    el.note.addEventListener("focus", () => { if (state.voiceOn) stopVoice(); });
+    el.note.addEventListener("input", () => {
+      // Keep the exact in-progress value. Trimming here would erase the space
+      // after each word before the phone keyboard can enter the next one.
+      setRoomTranscriptDraft(el.note.value);
+      renderRoomNoteControls(el.note.value);
     });
+    el.retry.addEventListener("click", startCamera);
+    for (const button of el.fallbacks) {
+      button.addEventListener("click", () => {
+        el.fallbackInput.value = "";
+        el.fallbackInput.click();
+      });
+    }
     el.fallbackInput.addEventListener("change", () => {
       const [file] = el.fallbackInput.files || [];
       if (file) captureSelectedPhoto(file);
+    });
+    for (const button of el.videoFallbacks) button.addEventListener("click", () => {
+      if (state.videoProcessing || state.capturing || state.loadingRoom) return;
+      el.videoFallbackInput.value = "";
+      el.videoFallbackInput.click();
+    });
+    el.videoFallbackInput.addEventListener("change", () => {
+      const [file] = el.videoFallbackInput.files || [];
+      if (file) captureSelectedVideo(file);
     });
 
     // The hub: the count in the top bar and the deck button both open it, one tap
@@ -1172,6 +1676,8 @@ export function openRoomScan() {
     // the room the Landlord just confirmed.
     for (const button of el.roomsOpen) button.addEventListener("click", () => { if (state.screen === "live" && !state.capturing) toHub(); });
     el.hub.addEventListener("click", (event) => {
+      const remove = event.target.closest("[data-room-remove]");
+      if (remove) return showRoomRemoval(remove.dataset.roomRemove);
       const target = event.target.closest("[data-room]");
       if (target) enterRoom(target.dataset.room);
     });
@@ -1183,11 +1689,16 @@ export function openRoomScan() {
     });
     el.hubFinish.addEventListener("click", finishScan);
 
-    for (const button of $$("[data-close]")) button.addEventListener("click", () => close(null));
+    for (const button of $$("[data-close]")) button.addEventListener("click", requestClose);
+    el.discardKeep.addEventListener("click", hideDiscard);
+    el.discardConfirm.addEventListener("click", confirmDiscardDecision);
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("resize", onViewportResize);
     window.addEventListener("orientationchange", onViewportResize);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("beforeunload", onBeforeUnload);
 
     // Open on the hub so the first thing asked is which room — and warm the
     // camera and detector behind it so entering that room is instant.

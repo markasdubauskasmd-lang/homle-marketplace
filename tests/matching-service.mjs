@@ -36,11 +36,11 @@ const candidates = [
   { ...common, cleaner_id: "55555555-5555-4555-8555-555555555555", public_slug: "manual-quote", display_name: "Manual Quote", profile_photo_url: null, biography: "Needs review", distance_km: "3.00", exact_postcode_area: false, base_match_score: "75", services: [{ serviceCode: "regular-domestic", pricingModel: "quote", pricePence: null }] }
 ];
 const calls = [];
-const repository = { async recommendForRequest(actor, suppliedRequestId, limit) { calls.push({ actor, suppliedRequestId, limit }); return candidates; } };
+const repository = { async recommendForRequest(actor, suppliedRequestId, limit, requirePayoutReady) { calls.push({ actor, suppliedRequestId, limit, requirePayoutReady }); return candidates; } };
 const pricingPolicy = createBookingPricingPolicy({ targetMarginBasisPoints: 2000, minimumContributionPence: 1800, labourOnCostBasisPoints: 1000, paymentFeeBasisPoints: 300, paymentFeeFixedPence: 20, travelCostPence: 500, travelCostPerKmPence: 35, travelDistanceMultiplierBasisPoints: 20000, suppliesCostPence: 250, otherCostPence: 0, invitationTtlMinutes: 180 });
 const service = createMatchingService(repository, { pricingPolicy, clock: () => new Date(now) });
 const result = await service.recommendForRequest(landlord, requestId);
-assert(calls[0].actor.userId === landlord.userId && calls[0].suppliedRequestId === requestId && calls[0].limit === 25, "Matching did not bind the authenticated Landlord and bounded request query.");
+assert(calls[0].actor.userId === landlord.userId && calls[0].suppliedRequestId === requestId && calls[0].limit === 25 && calls[0].requirePayoutReady === false, "Matching did not bind the authenticated Landlord, bounded request query and no-payment rehearsal mode.");
 assert(result.generatedAt === now.toISOString() && result.candidates.length === 3 && result.candidates[0].cleanerId === cleaner.userId && result.candidates[0].rank === 1 && result.candidates[0].estimatedCustomerPricePence < result.candidates.find((candidate) => candidate.publicSlug === "far-same-rate").estimatedCustomerPricePence, "Matching did not exclude unpriceable/out-of-budget Cleaners or charge and rank the same Cleaner rate using frozen travel distance.");
 assert(result.candidates.every((candidate) => candidate.cleanerId !== landlord.userId), "A dual-workspace Landlord was shown their own Cleaner profile as a match.");
 assert(result.candidates[0].matchReasons.some((reason) => reason.includes("previous")) && result.candidates[0].matchReasons.some((reason) => reason.includes("postcode")), "Safe match explanations omitted prior relationship or declared coverage.");
@@ -50,21 +50,27 @@ assert(await rejects(() => service.recommendForRequest(cleaner, requestId), "Lan
 assert(await rejects(() => service.recommendForRequest(landlord, "not-a-request"), "valid cleaning request"), "Matching accepted an invalid request identifier.");
 const disabled = createMatchingService(repository);
 assert(await rejects(() => disabled.recommendForRequest(landlord, requestId), "pricing policy"), "Matching did not fail closed without private profitability inputs.");
+const paidService = createMatchingService(repository, { pricingPolicy, clock: () => new Date(now), requirePayoutReady: true });
+await paidService.recommendForRequest(landlord, requestId);
+assert(calls.at(-1).requirePayoutReady === true, "Paid matching did not require a payout-ready Cleaner pool.");
 
 const databaseCalls = [];
 let failure = null;
 const database = { async withUserTransaction(actor, operation) { return operation({ async query(text, values) { databaseCalls.push({ actor, text, values }); if (failure) throw failure; return { rows: candidates }; } }); } };
 const databaseRepository = createMatchingRepository(database);
 const rows = await databaseRepository.recommendForRequest(landlord, requestId, 25);
-assert(rows.length === candidates.length && databaseCalls[0].text.includes("tideway_private.recommend_cleaners_for_request_v2($1::uuid, $2::integer)") && databaseCalls[0].values[0] === requestId && databaseCalls[0].values[1] === 25, "Matching repository bypassed the hardened request-specific function or interpolation-safe parameters.");
+assert(rows.length === candidates.length && databaseCalls[0].text.includes("tideway_private.recommend_cleaners_for_request_v3($1::uuid, $2::integer, $3::boolean)") && databaseCalls[0].values[0] === requestId && databaseCalls[0].values[1] === 25 && databaseCalls[0].values[2] === false, "Matching repository bypassed the hardened request-specific payout filter or interpolation-safe parameters.");
 failure = new Error("request-not-matchable");
 assert(await rejects(() => databaseRepository.recommendForRequest(landlord, requestId, 25), "no longer open"), "Closed requests did not map to a safe matching conflict.");
 
 const migration = await readFile(new URL("../db/migrations/010_request_cleaner_matching.sql", import.meta.url), "utf8");
 const selfExclusionMigration = await readFile(new URL("../db/migrations/053_matching_self_exclusion.sql", import.meta.url), "utf8");
+const paidMatchingMigration = await readFile(new URL("../db/migrations/068_paid_matching_payout_readiness.sql", import.meta.url), "utf8");
 const grants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 for (const required of ["SECURITY DEFINER", "request.landlord_user_id = actor_id", "profile.profile_completion_percent = 100", "account.account_status = 'active'", "service.pricing_model <> 'quote'", "availability.status = 'available'", "tstzrange(occupied.scheduled_start_at", "coverage.distance_km <= profile.travel_radius_km", "previous_completed_jobs", "profile.acceptance_rate", "request_record.budget_pence"]) assert(migration.includes(required), `Request-specific matching omitted ${required}.`);
 assert(grants.includes("recommend_cleaners_for_request(uuid, integer)"), "The restricted runtime role cannot execute request-specific matching.");
 assert(grants.includes("recommend_cleaners_for_request_v2(uuid, integer)") && selfExclusionMigration.includes("candidate.cleaner_id<>request_landlord_id") && selfExclusionMigration.includes("LEAST(result_limit + 1,50)") && selfExclusionMigration.includes("LIMIT result_limit") && selfExclusionMigration.includes("recommend_cleaners_for_request_v2(request_record.id,50)"), "Administrator and automatic-dispatch matching do not share bounded database-enforced self-exclusion.");
+for (const required of ["recommend_cleaners_for_request_v3", "require_payout_ready", "cleaner_payout_accounts", "payout.details_submitted IS TRUE", "payout.payouts_enabled IS TRUE", "LIMIT result_limit", "REVOKE ALL"]) assert(paidMatchingMigration.includes(required), `Paid matching omitted ${required}.`);
+assert(grants.includes("recommend_cleaners_for_request_v3(uuid, integer, boolean)") && !paidMatchingMigration.includes("destination_account_id"), "Paid matching lacks restricted execution or exposes private payout destination data.");
 
-console.log("Matching tests passed: owner-only request ranking, dual-workspace self-exclusion, full eligibility/availability/coverage filters, profitable budget-aware pricing, prior-relationship scoring, safe explanations and private-factor projection.");
+console.log("Matching tests passed: owner-only request ranking, dual-workspace self-exclusion, paid-mode payout readiness, full eligibility/availability/coverage filters, profitable budget-aware pricing, prior-relationship scoring, safe explanations and private-factor projection.");

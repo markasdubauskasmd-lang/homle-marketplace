@@ -31,7 +31,8 @@ GRANT EXECUTE ON FUNCTION tideway_private.purge_expired_sessions(integer) TO tid
 GRANT EXECUTE ON FUNCTION tideway_private.purge_expired_rate_limits(integer) TO tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.purge_expired_pending_social_identities(integer) TO tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.claim_due_automatic_dispatch(uuid,integer,integer) TO tideway_worker;
-GRANT EXECUTE ON FUNCTION tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer) TO tideway_worker;
+REVOKE ALL ON FUNCTION tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer) FROM tideway_worker;
+GRANT EXECUTE ON FUNCTION tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer,boolean) TO tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamptz,integer,integer,integer,integer,integer,integer,integer,integer,integer) TO tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.release_automatic_dispatch_lease(uuid,uuid,text,timestamptz) TO tideway_worker;
 REVOKE ALL ON TABLE tideway_private.request_rate_limits FROM tideway_worker;

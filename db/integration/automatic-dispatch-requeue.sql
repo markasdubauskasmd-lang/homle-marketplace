@@ -20,7 +20,7 @@ BEGIN
          bool_or((candidate->>'cleaner_id')::uuid='10000000-0000-4000-8000-000000000002')
     INTO candidate_count,has_next,has_prior
   FROM tideway_private.get_automatic_dispatch_candidates(
-    '30000000-0000-4000-8000-000000000004','74000000-0000-4000-8000-000000000003',25
+    '30000000-0000-4000-8000-000000000004','74000000-0000-4000-8000-000000000003',25,false
   ) AS candidate;
   IF candidate_count<>1 OR has_next IS NOT TRUE OR has_prior IS TRUE THEN
     RAISE EXCEPTION 'Requeued matching did not exclude the tried Cleaner and select the next eligible Cleaner';
