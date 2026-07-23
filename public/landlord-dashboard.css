@@ -632,48 +632,6 @@ body.landlord-dashboard-page .scan-hero-frame strong {
 }
 @keyframes landlordPhoneScan { 0%, 100% { transform: translateY(-42px); opacity: .5; } 50% { transform: translateY(46px); opacity: 1; } }
 
-body.landlord-dashboard-page .landlord-prepare-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 15px 28px;
-  align-items: start;
-  padding: 31px 34px;
-  margin-bottom: 33px;
-  border: 1px solid rgba(87, 56, 43, .05);
-  border-radius: 25px;
-  background: rgba(255,255,255,.84);
-  box-shadow: var(--ld-card-shadow);
-}
-body.landlord-dashboard-page .landlord-prepare-card h2 { margin: 0 0 6px; font-size: 24px; }
-body.landlord-dashboard-page .landlord-prepare-card p { margin: 0; color: #705f57; font-size: 14px; }
-body.landlord-dashboard-page .landlord-builder-reveal {
-  align-self: start;
-  padding: 10px 17px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--ld-coral);
-  color: #fff;
-  font-family: var(--ld-display);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-body.landlord-dashboard-page .landlord-prepare-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-body.landlord-dashboard-page .landlord-prepare-actions .button {
-  min-height: 44px;
-  padding-inline: 22px;
-  border: 0;
-  background: var(--ld-coral);
-  color: #fff;
-}
-body.landlord-dashboard-page .landlord-prepare-actions > span { color: #8a665c; font-size: 12px; }
-
 body.landlord-dashboard-page .landlord-booking-section {
   padding: 0;
   border: 0;
@@ -752,10 +710,6 @@ body.landlord-dashboard-page .landlord-booking-live [data-landlord-booking-live]
   body.landlord-dashboard-page .scan-hero-copy { font-size: 15px; }
   body.landlord-dashboard-page .scan-hero-button { width: 100%; justify-content: center; }
   body.landlord-dashboard-page .scan-hero-time { max-width: none; }
-  body.landlord-dashboard-page .landlord-prepare-card { grid-template-columns: 1fr; padding: 25px 22px; }
-  body.landlord-dashboard-page .landlord-builder-reveal { justify-self: start; }
-  body.landlord-dashboard-page .landlord-prepare-actions { grid-column: 1; align-items: flex-start; flex-direction: column; }
-  body.landlord-dashboard-page .landlord-prepare-actions .button { width: 100%; }
   body.landlord-dashboard-page .landlord-section-toggle { min-height: 56px; padding: 14px 16px; }
 }
 

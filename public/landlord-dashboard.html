@@ -13,9 +13,9 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260723-1">
-  <link rel="stylesheet" href="/landlord-dashboard.css?v=20260723-3">
-  <script src="/landlord-dashboard.js?v=20260723-9" type="module"></script>
-  <script src="/landlord-prepare-wizard.js?v=20260723-1" type="module"></script>
+  <link rel="stylesheet" href="/landlord-dashboard.css?v=20260723-4">
+  <script src="/landlord-dashboard.js?v=20260723-10" type="module"></script>
+  <script src="/landlord-prepare-wizard.js?v=20260723-2" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
@@ -29,7 +29,7 @@
         <a href="#landlord-bookings"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M8 3v4M16 3v4M3 10h18"></path></svg><span>Bookings</span></a>
         <a href="/cleaners"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="m15.5 15.5 5 5"></path></svg><span>Find a Cleaner</span></a>
       </nav>
-      <a class="button landlord-sidebar-cta" href="/landlord/book">Prepare a clean <span aria-hidden="true">↗</span></a>
+      <a class="button landlord-sidebar-cta" href="#landlord-requests" data-open-request-tab>Prepare a clean <span aria-hidden="true">↗</span></a>
       <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span><span class="account-summary-copy"><strong data-account-name>Landlord</strong><small>Signed in · secure</small></span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="#landlord-account" data-open-landlord-section="account">Landlord profile</a><a href="#landlord-properties" data-open-landlord-section="properties">Manage properties</a><a href="/settings">Sign-in and privacy</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details>
     </div>
   </header>
@@ -67,7 +67,7 @@
       </section>
       <section class="landlord-dashboard-heading landlord-dashboard-identity">
         <div class="role-dashboard-welcome"><span class="landlord-secure-badge"><span aria-hidden="true">●</span> Secure landlord access</span><h1>Welcome, <span data-landlord-name>Landlord</span>.</h1><p>Scan a room, review the checklist, approve one clear price.<br>Everything you book and confirm lives here.</p></div>
-        <a class="button landlord-new-request" href="/landlord/book">+ New request</a>
+        <a class="button landlord-new-request" href="#landlord-requests" data-open-request-tab>+ New request</a>
         <div class="role-dashboard-person landlord-dashboard-person" hidden><span class="role-account-avatar landlord-role-avatar" data-account-avatar aria-hidden="true">H</span><div><p class="eyebrow">Signed in as Landlord</p><strong data-account-name>Your account</strong><small data-account-email></small></div></div>
         <p class="role-dashboard-boundary" hidden>Only your properties, cleaning requests and booking progress appear here. Cleaner availability, job decisions and professional-profile controls stay in the separate Cleaner dashboard.</p>
         <dl class="landlord-dashboard-stats" hidden><div><dt>Properties</dt><dd data-property-count>0</dd></div><div><dt>Request drafts</dt><dd data-draft-count>0</dd></div><div><dt>Active bookings</dt><dd data-landlord-active-count>0</dd><small>Confirmed records only</small></div></dl>
@@ -101,11 +101,9 @@
         </span>
       </a>
 
-      <section class="landlord-prepare-card" aria-labelledby="landlord-prepare-title">
-        <div><h2 id="landlord-prepare-title">Prepare a clean</h2><p>Set the basics, walk through the rooms by voice, then approve one exact price.</p></div>
-        <button class="landlord-builder-reveal" type="button" data-open-request-tab>Reveal builder ↓</button>
-        <div class="landlord-prepare-actions"><button class="button" type="button" data-open-request-tab>Open the builder ↓</button><span>Private draft · nothing sent until you approve</span></div>
-      </section>
+      <!-- The working builder is mounted here by landlord-dashboard.js. Keeping
+           one builder avoids a duplicate teaser that opens a detached form. -->
+      <div data-request-builder-mount></div>
 
       <section id="landlord-bookings" class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
         <button class="landlord-section-toggle" type="button" data-landlord-section-toggle aria-expanded="false" aria-controls="landlord-booking-content"><span id="landlord-bookings-title">Active and upcoming bookings</span><span class="landlord-section-toggle-meta"><span data-landlord-booking-reveal-count>0</span><span aria-hidden="true">↓</span></span></button>
@@ -172,9 +170,9 @@
         <aside class="landlord-account-security"><div><p class="eyebrow">Account security</p><h3>Sign-in methods and privacy</h3><p>Connect Google or Facebook, review privacy requests and manage secure access separately from property and Cleaner information.</p></div><a class="button button-outline" href="/settings">Open account security</a></aside>
       </section>
 
-      <section id="landlord-panel-requests" data-landlord-panel="requests" class="landlord-workspace-panel" aria-labelledby="requests-title" hidden>
+      <section id="landlord-panel-requests" data-landlord-panel="requests" class="landlord-workspace-panel pac-collapsed" aria-labelledby="requests-title">
         <div class="pac-card" data-pac-card>
-        <div class="landlord-panel-heading pac-card-head"><div><p class="eyebrow">Not sent for matching · private draft</p><h2 id="requests-title">Prepare a clean</h2><p class="pac-sub">Set the basics, walk through the rooms by voice, then approve one exact price.</p></div><div class="pac-head-aside"><span class="landlord-private-pill">Matching stays off</span><button type="button" class="pac-reveal" data-pac-toggle aria-controls="pac-body" aria-expanded="true" hidden>Hide ↑</button></div></div>
+        <div class="landlord-panel-heading pac-card-head"><div><p class="eyebrow">Not sent for matching · private draft</p><h2 id="requests-title">Prepare a clean</h2><p class="pac-sub">Set the basics, walk through the rooms by voice, then approve one exact price.</p></div><div class="pac-head-aside"><span class="landlord-private-pill">Matching stays off</span><button type="button" class="pac-reveal" data-pac-toggle aria-controls="pac-body" aria-expanded="false" hidden>Reveal builder ↓</button></div></div>
 
         <div class="pac-body" id="pac-body" data-pac-body>
         <form class="landlord-record-form landlord-request-form" data-request-form novalidate>

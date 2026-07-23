@@ -408,10 +408,29 @@ function workspaceTabFromHash() {
   return match?.[1] || "";
 }
 
+const requestBuilderMount = document.querySelector("[data-request-builder-mount]");
+const requestBuilderPanel = document.querySelector('[data-landlord-panel="requests"]');
+if (requestBuilderMount && requestBuilderPanel) requestBuilderMount.replaceWith(requestBuilderPanel);
+
+function setRequestBuilderExpanded(expanded) {
+  if (!requestBuilderPanel) return;
+  requestBuilderPanel.hidden = false;
+  requestBuilderPanel.classList.toggle("pac-collapsed", !expanded);
+  const toggle = requestBuilderPanel.querySelector("[data-pac-toggle]");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", String(expanded));
+    toggle.textContent = expanded ? "Hide ↑" : "Reveal builder ↓";
+  }
+}
+
 function selectWorkspaceTab(name, { historyMode = "" } = {}) {
   const selected = ["properties", "requests", "account"].includes(name) ? name : "properties";
-  document.querySelectorAll("[data-landlord-panel]").forEach((panel) => { panel.hidden = panel.dataset.landlordPanel !== selected; });
+  document.querySelectorAll('[data-landlord-panel]:not([data-landlord-panel="requests"])').forEach((panel) => {
+    panel.hidden = selected === "requests" ? panel.dataset.landlordPanel !== "properties" : panel.dataset.landlordPanel !== selected;
+  });
+  setRequestBuilderExpanded(selected === "requests");
   if (historyMode === "push") history.pushState({ landlordTab: selected }, "", `#landlord-${selected}`);
+  if (historyMode === "replace") history.replaceState({ landlordTab: selected }, "", `#landlord-${selected}`);
 }
 
 function continueBookingStart() {
@@ -1924,13 +1943,13 @@ document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link
 // journey, so the legacy in-page request button is not present on every layout.
 // Keep the old progressive-enhancement hook when that button exists without
 // preventing the authenticated workspace from loading when it does not.
-document.querySelectorAll("[data-open-request-tab]").forEach((button) => button.addEventListener("click", () => {
+document.querySelectorAll("[data-open-request-tab]").forEach((button) => button.addEventListener("click", (event) => {
+  event.preventDefault();
   // Open (expand) the Prepare-a-clean builder at its first step. Voice capture
   // is never auto-started here — the landlord taps "Start speaking" on the
   // walkthrough step when they are ready.
   selectWorkspaceTab("requests", { historyMode: "push" });
-  const requestsPanel = document.querySelector('[data-landlord-panel="requests"]');
-  if (requestsPanel) requestsPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (requestBuilderPanel) requestBuilderPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }));
 
 // A completed room scan hands its checklist and spoken note back here. Without
