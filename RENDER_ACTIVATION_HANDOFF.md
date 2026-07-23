@@ -8,9 +8,9 @@ secret below is entered in the Render dashboard only.
 
 ---
 
-## 0. READ FIRST — UI work merged since the last deploy (added 2026-07-22)
+## 0. READ FIRST — UI work merged since the last deploy (updated 2026-07-22)
 
-Three UI changes are now merged to `main` and **need one deploy to go live**.
+A run of UI changes is now merged to `main` and **needs one deploy to go live**.
 **None of them need any new environment variable, secret, database change or
 migration** — they are front-end and, for the scanner, a same-origin vendored
 model. To ship them: Render → `homle-marketplace-preview` →
@@ -20,7 +20,10 @@ model. To ship them: Render → `homle-marketplace-preview` →
 |---|---|---|
 | **#49** | On-device object detection in the room scanner (vendored TensorFlow.js COCO-SSD; boxes drawn live, tap to select, Anthropic names only the chosen items). | No |
 | **#51** | Room scanner rebuilt around a **room hub**: pick a room → scan objects → confirm → next room, with the ability to return to a room and edit it. | No |
-| **#52** | **Landing page (`/`) redesigned** as the "scroll to scan" hero — a room that a beam wipes clean as you scroll, then "Come home to calm." and a features section. New Homle logo (red square, white house) applied everywhere including the app icons. | No |
+| **#52 / #53** | **Landing page (`/`) redesigned** as the "scroll to scan" hero — a room that a beam wipes clean as you scroll, then "Come home to calm." and a features section. Header restyled and the mobile scan animation fixed. | No |
+| **#54 / #56** | The Homle **logo** finalised (red square, white house) and applied everywhere, including the app icons. | No |
+| **#57** | The manual **"Cleaning request drafts" workspace is hidden** on the landlord dashboard (one CSS rule; markup and JS kept). Landlords use the guided room scan at `/landlord/book` instead. | No |
+| **#58** | An **animation/"feel" layer**: button press feedback, a liquid-lerped scan scrub with milestone ticks + a 100% payoff, scroll reveals, and cross-page View Transitions. Pure front-end, all behind `prefers-reduced-motion`. | No |
 
 Notes that will save you time:
 
@@ -30,9 +33,13 @@ Notes that will save you time:
   var — the Anthropic key only affects the *naming* of selected items.
 - **The landing redesign uses self-hosted fonts under `/vendor/fonts`** and no
   external requests, so it works under the existing CSP with no change.
-- **`GET /api/health` is unaffected** by all three — same fields, same meaning.
-  The marketplace-activation blockers below (email, room-photo storage) are
-  unchanged and still the real gating work.
+- **`GET /api/health` is unaffected** by any of these — same fields, same
+  meaning. The marketplace-activation blockers below (email, room-photo storage)
+  are unchanged and still the real gating work.
+- **The hidden requests panel (#57) is CSS-only and reversible.** If the founder
+  ever wants that manual draft flow back, delete the single
+  `.landlord-workspace-panel[data-landlord-panel="requests"]` rule in
+  `public/styles.css` — no code was removed.
 
 Everything under the horizontal rule below is the **older, still-current**
 marketplace activation guide (email, object storage, background jobs, matching).
