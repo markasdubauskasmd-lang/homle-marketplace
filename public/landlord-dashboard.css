@@ -439,13 +439,22 @@ body.landlord-dashboard-page .account-footer { margin-left: 255px; }
 
 body.landlord-dashboard-page .landlord-dashboard-heading {
   display: grid;
+  grid-template-areas: none;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 24px;
+  padding: 0;
   margin-bottom: 28px;
+  color: var(--ld-ink);
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
+body.landlord-dashboard-page .landlord-dashboard-identity > .role-dashboard-welcome { grid-area: auto; }
 body.landlord-dashboard-page .role-dashboard-welcome h1 {
   margin: 18px 0 15px;
+  color: var(--ld-ink);
   font-size: clamp(42px, 4.2vw, 58px);
   letter-spacing: -.045em;
   line-height: .97;
