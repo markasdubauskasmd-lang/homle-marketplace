@@ -945,3 +945,141 @@ body.landlord-dashboard-page .landlord-task-preview [role="listitem"]::before {
   body.landlord-dashboard-page .landlord-speech-scope [data-speech-toggle]::before { animation: none; }
   body.landlord-dashboard-page .pac-dot { transition: none; }
 }
+
+/* ── Design step inputs: cards, duration grid, calendar, time slots ────── */
+
+/* The native control each widget replaces stays in the DOM (so it still
+ * submits and existing JS/tests keep working) but is visually removed. */
+body.landlord-dashboard-page .pac-enhanced-native { display: none; }
+
+body.landlord-dashboard-page .pac-field-error { margin: 10px 2px 0; color: var(--ld-coral); font-size: 13.5px; font-weight: 600; }
+
+/* Cleaning-session cards. */
+body.landlord-dashboard-page .pac-cards { display: flex; flex-direction: column; gap: 12px; }
+body.landlord-dashboard-page .pac-card-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1.5px solid var(--ld-line);
+  border-radius: 16px;
+  padding: 15px 18px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+body.landlord-dashboard-page .pac-card-option:hover { border-color: oklch(0.5 0.02 60 / 0.32); }
+body.landlord-dashboard-page .pac-card-option.is-selected {
+  border-color: var(--ld-coral);
+  box-shadow: inset 0 0 0 1px var(--ld-coral), 0 10px 26px oklch(0.62 0.19 25 / 0.14);
+  background: oklch(0.985 0.014 25);
+}
+body.landlord-dashboard-page .pac-card-emoji {
+  width: 44px; height: 44px; flex-shrink: 0;
+  border-radius: 12px;
+  background: oklch(0.94 0.05 25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+body.landlord-dashboard-page .pac-card-body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+body.landlord-dashboard-page .pac-card-name { font-family: var(--ld-display); font-weight: 700; font-size: 16.5px; color: var(--ld-ink-2); }
+body.landlord-dashboard-page .pac-card-desc { font-size: 13.5px; color: var(--ld-muted-2); }
+body.landlord-dashboard-page .pac-card-badge {
+  flex-shrink: 0;
+  font-size: 11.5px; font-weight: 700;
+  padding: 5px 11px; border-radius: 8px;
+  background: oklch(0.9 0.13 95); color: oklch(0.44 0.12 78);
+}
+
+/* Duration grid. */
+body.landlord-dashboard-page .pac-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+body.landlord-dashboard-page .pac-chip {
+  padding: 16px 8px;
+  border-radius: 14px;
+  border: 1.5px solid var(--ld-line);
+  background: #fff;
+  font-family: var(--ld-display); font-weight: 700; font-size: 15px;
+  color: var(--ld-ink-2);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+body.landlord-dashboard-page .pac-chip:hover { border-color: oklch(0.5 0.02 60 / 0.32); }
+body.landlord-dashboard-page .pac-chip.is-selected { border-color: var(--ld-coral); background: var(--ld-coral); color: #fff; }
+body.landlord-dashboard-page .pac-tip {
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: oklch(0.96 0.03 95);
+  color: oklch(0.42 0.05 70);
+  font-size: 14px; line-height: 1.5;
+}
+
+/* Time slots. */
+body.landlord-dashboard-page .pac-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 10px; }
+body.landlord-dashboard-page .pac-slot {
+  padding: 12px 6px;
+  border-radius: 12px;
+  border: 1.5px solid var(--ld-line);
+  background: #fff;
+  font-weight: 600; font-size: 14px;
+  color: var(--ld-ink-2);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+body.landlord-dashboard-page .pac-slot:hover { border-color: oklch(0.5 0.02 60 / 0.32); }
+body.landlord-dashboard-page .pac-slot.is-selected { border-color: var(--ld-coral); background: var(--ld-coral); color: #fff; }
+
+/* Calendar. */
+body.landlord-dashboard-page .pac-cal {
+  background: oklch(0.98 0.006 90);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: inset 0 0 0 1px oklch(0.5 0.02 60 / 0.09);
+  max-width: 380px;
+}
+body.landlord-dashboard-page .pac-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+body.landlord-dashboard-page .pac-cal-title { font-family: var(--ld-display); font-weight: 700; font-size: 16px; color: var(--ld-ink-2); }
+body.landlord-dashboard-page .pac-cal-nav {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid oklch(0.5 0.02 60 / 0.25);
+  background: #fff;
+  color: var(--ld-muted);
+  font-size: 18px; line-height: 1;
+  cursor: pointer;
+}
+body.landlord-dashboard-page .pac-cal-nav:disabled { opacity: 0.35; cursor: default; }
+body.landlord-dashboard-page .pac-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+body.landlord-dashboard-page .pac-cal-weekday { text-align: center; font-size: 11.5px; font-weight: 700; color: var(--ld-muted-2); padding: 4px 0; }
+body.landlord-dashboard-page .pac-cal-day {
+  aspect-ratio: 1;
+  border: 0; background: transparent;
+  border-radius: 10px;
+  font-size: 14px; color: var(--ld-ink-2);
+  cursor: pointer;
+}
+body.landlord-dashboard-page .pac-cal-day:hover:not(:disabled) { background: oklch(0.92 0.04 25); }
+body.landlord-dashboard-page .pac-cal-day.is-disabled { color: oklch(0.72 0.02 60); cursor: default; }
+body.landlord-dashboard-page .pac-cal-day.is-selected { background: var(--ld-coral); color: #fff; font-weight: 700; }
+
+/* "My basket" summary (address + cleaning bullets, no invented price). */
+body.landlord-dashboard-page .pac-basket-address {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 0 0 14px; padding-bottom: 14px;
+  border-bottom: 1px solid var(--ld-line);
+  font-weight: 600; font-size: 14px; color: var(--ld-ink-2);
+}
+body.landlord-dashboard-page .pac-basket-pin { width: 10px; height: 10px; border-radius: 50%; border: 3px solid var(--ld-coral); margin-top: 4px; flex-shrink: 0; }
+body.landlord-dashboard-page .pac-basket-section { padding-bottom: 16px; border-bottom: 1px solid var(--ld-line); }
+body.landlord-dashboard-page .pac-basket-heading { display: flex; align-items: center; gap: 9px; margin: 0 0 12px; font-family: var(--ld-display); font-weight: 700; font-size: 15.5px; color: var(--ld-ink-2); }
+body.landlord-dashboard-page .pac-basket-cart { width: 26px; height: 26px; border-radius: 8px; background: oklch(0.94 0.05 25); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+body.landlord-dashboard-page .pac-basket-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+body.landlord-dashboard-page .pac-basket-lines li { display: flex; gap: 9px; align-items: flex-start; font-size: 14px; color: var(--ld-muted); }
+body.landlord-dashboard-page .pac-basket-lines li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--ld-coral); margin-top: 7px; flex-shrink: 0; }
+body.landlord-dashboard-page .pac-basket-lines li.pac-basket-empty { color: var(--ld-muted-2); font-style: italic; }
+body.landlord-dashboard-page .pac-basket-lines li.pac-basket-empty::before { display: none; }
+
+@media (max-width: 820px) {
+  body.landlord-dashboard-page .pac-chips { grid-template-columns: repeat(2, 1fr); }
+}
