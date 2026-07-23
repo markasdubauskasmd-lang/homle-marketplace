@@ -41,3 +41,20 @@ export function accountReadyPresentation(account, workspaceReady = false) {
         actionLabel: "Prepare a cleaning request"
       };
 }
+
+const accountProviderLabels = Object.freeze([
+  ["google", "Google"],
+  ["apple", "Apple"],
+  ["facebook", "Facebook"],
+  ["emailPassword", "verified email"]
+]);
+
+export function availableAccountMethodLabel(providers = {}) {
+  const labels = accountProviderLabels
+    .filter(([key]) => providers?.[key] === true)
+    .map(([, label]) => label);
+  if (labels.length === 0) return "";
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} or ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")} or ${labels.at(-1)}`;
+}
