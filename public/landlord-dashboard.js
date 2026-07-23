@@ -72,6 +72,7 @@ const loadRetry = document.querySelector("[data-landlord-load-retry]");
 const bookingLiveStatus = document.querySelector("[data-landlord-booking-live]");
 const bookingRefresh = document.querySelector("[data-landlord-booking-refresh]");
 const landlordSectionToggles = document.querySelectorAll("[data-landlord-section-toggle]");
+const upcomingSectionToggle = document.querySelector('[data-landlord-section-toggle][aria-controls="landlord-booking-content"]');
 const selectedCleanerSummary = document.querySelector("[data-landlord-selected-cleaner]");
 const selectedCleanerAvatar = document.querySelector("[data-landlord-selected-cleaner-avatar]");
 const selectedCleanerName = document.querySelector("[data-landlord-selected-cleaner-name]");
@@ -1110,6 +1111,7 @@ function renderRequests() {
   requestList.hidden = visibleRequests.length === 0;
   const draftCount = visibleRequests.filter((request) => request.status === "draft").length;
   document.querySelector("[data-draft-count]").textContent = String(draftCount);
+  updateUpcomingRevealCount();
 }
 
 async function authorizeNextCleaner(requestId, attemptLimit, button, feedback) {
@@ -1418,7 +1420,7 @@ function renderBookings() {
   document.querySelector("[data-landlord-history-count]").textContent = String(buckets.history.length);
   document.querySelector("[data-landlord-history-section]").hidden = buckets.history.length === 0;
   document.querySelector("[data-landlord-active-count]").textContent = String(current.length);
-  document.querySelector("[data-landlord-booking-reveal-count]").textContent = String(current.length + buckets.waiting.length);
+  updateUpcomingRevealCount();
   document.querySelector("[data-landlord-history-reveal-count]").textContent = String(historySummary.completedCleanCount);
   renderLandlordHistory(historySummary);
   syncInvitationStream();
@@ -1431,6 +1433,21 @@ function toggleLandlordSection(button) {
   const expanded = button.getAttribute("aria-expanded") === "true";
   button.setAttribute("aria-expanded", String(!expanded));
   content.hidden = expanded;
+}
+
+function setLandlordSectionExpanded(button, expanded) {
+  const contentId = button?.getAttribute("aria-controls");
+  const content = contentId ? document.getElementById(contentId) : null;
+  if (!button || !content) return;
+  button.setAttribute("aria-expanded", String(expanded));
+  content.hidden = !expanded;
+}
+
+function updateUpcomingRevealCount() {
+  const visibleRequestCount = requests.filter((request) => request.status !== "cancelled").length;
+  const buckets = bookingSummaryBuckets(bookings, "landlord");
+  const bookingCount = buckets.active.length + buckets.upcoming.length + buckets.waiting.length;
+  document.querySelector("[data-landlord-booking-reveal-count]").textContent = String(visibleRequestCount + bookingCount);
 }
 
 function renderLandlordHistory(summary) {
@@ -1721,7 +1738,9 @@ async function createRequestDraft(event) {
     renderTaskPreview();
     showFeedback(requestFeedback, `Private draft ${result.cleaningRequest.requestId} saved. It was not sent for matching.`, "success");
     requestDirty = false;
+    setLandlordSectionExpanded(upcomingSectionToggle, true);
     openRequestScan(result.cleaningRequest.requestId);
+    requestList.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) { showFeedback(requestFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message); }
   finally { setPending(requestSave, false, "Save private draft"); }
 }
