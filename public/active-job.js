@@ -25,7 +25,7 @@ import {
   taskCanBeUpdated,
   journeyProgress,
   journeyDistanceLabel
-} from "./active-job-model.js";
+} from "./active-job-model.js?v=20260723-2";
 
 const bookingId = activeBookingId(location.pathname, location.search);
 const gate = document.querySelector("[data-job-gate]");
@@ -61,7 +61,8 @@ const reviewResponseForm = document.querySelector("[data-review-response-form]")
 const reviewResponseSubmit = document.querySelector("[data-review-response-submit]");
 const disputeForm = document.querySelector("[data-dispute-form]");
 const disputeSubmit = document.querySelector("[data-dispute-submit]");
-const state = { account: null, role: "", status: "", tracking: null, progress: null, property: null, review: null, reviewLoading: false, reviewMutationInFlight: false, dispute: null, disputeLoading: false, disputeMutationInFlight: false, disputeRetry: null, messages: [], messageCursor: null, messagesHasMore: false, messageRetry: null, messageLoading: false, messageSending: false, photoFile: null, photoPreviewUrl: "", photoRetry: null, photoUploadInFlight: false, photoViewInFlight: false, eventSource: null, watchId: null, journeyTickTimer: null, journeyMemory: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false };
+const connectionRefresh = document.querySelector("[data-connection-refresh]");
+const state = { account: null, role: "", status: "", tracking: null, progress: null, property: null, journeyReadiness: { checked: false, canStartJourney: false }, journeyReadinessLoading: false, review: null, reviewLoading: false, reviewMutationInFlight: false, dispute: null, disputeLoading: false, disputeMutationInFlight: false, disputeRetry: null, messages: [], messageCursor: null, messagesHasMore: false, messageRetry: null, messageLoading: false, messageSending: false, photoFile: null, photoPreviewUrl: "", photoRetry: null, photoUploadInFlight: false, photoViewInFlight: false, eventSource: null, watchId: null, journeyTickTimer: null, journeyMemory: null, lastLocationAt: 0, locationRequestInFlight: false, mutationInFlight: false, refreshInFlight: false };
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 document.querySelector("[data-booking-reference]").textContent = bookingId ? bookingId.slice(0, 8).toUpperCase() : "Invalid";
@@ -490,6 +491,10 @@ function reviewScoreItem(label, value) {
 function renderReviewSummary(review) {
   const summary = document.querySelector("[data-review-summary]");
   summary.hidden = !review;
+  const workspaceLink = document.querySelector("[data-review-workspace]");
+  workspaceLink.hidden = !review;
+  workspaceLink.href = state.role === "cleaner" ? "/cleaner/dashboard#jobs" : "/landlord/dashboard#landlord-bookings";
+  workspaceLink.textContent = state.role === "cleaner" ? "Return to Cleaner jobs" : "Return to Landlord bookings";
   if (!review) return;
   const stars = document.querySelector("[data-review-stars]");
   stars.textContent = `${"★".repeat(review.rating)}${"☆".repeat(5 - review.rating)}`;
@@ -655,14 +660,20 @@ function renderMessages({ forceBottom = false } = {}) {
 }
 
 function renderActions() {
-  const action = activeJobAction(state.role, state.tracking, state.progress);
+  const action = activeJobAction(state.role, state.tracking, state.progress, state.journeyReadiness);
   primaryAction.textContent = action.label;
   primaryAction.disabled = !action.enabled || state.mutationInFlight;
   primaryAction.dataset.action = action.kind;
+  if (["journey-readiness", "waiting-authorization"].includes(action.kind)) primaryAction.dataset.pendingLabel = "Checking authorization…";
+  else delete primaryAction.dataset.pendingLabel;
   document.querySelector("[data-action-eyebrow]").textContent = state.role === "cleaner" ? "Cleaner action" : "Landlord view";
   document.querySelector("[data-action-title]").textContent = state.role === "cleaner" ? action.label : "Watch the clean live";
   document.querySelector("[data-action-copy]").textContent = state.role === "cleaner"
-    ? "Every action is checked against your assigned booking and written to its audit history."
+    ? action.kind === "waiting-authorization"
+      ? "The confirmed checklist stays available, but Homle will not request your location until the booking authorization is ready."
+      : action.kind === "journey-readiness"
+        ? "Homle is checking the confirmed booking before it requests any location permission."
+        : "Every action is checked against your assigned booking and written to its audit history."
     : "Journey and task updates arrive automatically. Only the assigned Cleaner can change their work status.";
   const cleaning = currentStatus() === "cleaning-in-progress";
   pauseAction.hidden = state.role !== "cleaner" || !cleaning;
@@ -729,6 +740,24 @@ async function loadDispute({ quiet = false } = {}) {
   } finally { state.disputeLoading = false; }
 }
 
+async function refreshJourneyReadiness({ required = false } = {}) {
+  if (state.role !== "cleaner" || currentStatus() !== "confirmed" || state.journeyReadinessLoading) return;
+  state.journeyReadinessLoading = true;
+  try {
+    const result = await requestJson(`/api/marketplace/bookings/${bookingId}/journey/readiness`);
+    state.journeyReadiness = {
+      checked: true,
+      canStartJourney: result.readiness?.bookingId === bookingId && result.readiness?.canStartJourney === true
+    };
+  } catch (error) {
+    state.journeyReadiness = { checked: false, canStartJourney: false };
+    if (required && [401, 403, 404].includes(error.statusCode)) throw error;
+  } finally {
+    state.journeyReadinessLoading = false;
+    if (!workspace.hidden) renderActions();
+  }
+}
+
 function openLiveStream() {
   closeLiveStream();
   if (!bookingId || typeof EventSource !== "function") return setConnection("offline", "Live connection unavailable", "Use Try again to refresh the booking safely.");
@@ -744,6 +773,7 @@ function openLiveStream() {
       if (snapshot.progress) state.progress = snapshot.progress;
       if (snapshot.messages) applyMessagePage(snapshot.messages, { preserveCursor: true });
       render();
+      if (state.role === "cleaner" && currentStatus() === "confirmed") void refreshJourneyReadiness();
       if (["awaiting-review", "completed"].includes(currentStatus())) void loadReview({ quiet: true });
       if (state.dispute || currentStatus() === "disputed") void loadDispute({ quiet: true });
       if (["completed", "cancelled"].includes(snapshot.status)) {
@@ -888,7 +918,12 @@ function handleReviewResponse(event) {
 async function handlePrimaryAction() {
   const action = primaryAction.dataset.action;
   await runMutation(primaryAction, async () => {
-    if (action === "start-journey" || action === "resume-location") {
+    if (action === "journey-readiness" || action === "waiting-authorization") {
+      await refreshJourneyReadiness({ required: true });
+      if (!state.journeyReadiness.checked) showFeedback("Homle could not check booking authorization. No location permission was requested; try again when your connection is ready.", "error");
+      else if (state.journeyReadiness.canStartJourney) showFeedback("Booking authorization confirmed. Start journey is now ready.", "success");
+      else showFeedback("The Landlord has not authorized this booking yet. No location permission was requested.", "info");
+    } else if (action === "start-journey" || action === "resume-location") {
       showLocationFeedback("Requesting your current location…");
       let position;
       try { position = await currentPosition(); } catch (error) { locationFailure(error); return; }
@@ -1181,6 +1216,49 @@ function updateNetworkState() {
   if (!navigator.onLine) setConnection("offline", "Offline", "The last verified booking state remains visible.");
 }
 
+async function refreshParticipantSnapshot({ quiet = false } = {}) {
+  const [trackingResult, progressResult, propertyResult, messageResult, disputeResult] = await Promise.all([
+    requestJson(`/api/marketplace/bookings/${bookingId}/tracking`),
+    requestJson(`/api/marketplace/bookings/${bookingId}/cleaning-progress`),
+    requestJson(`/api/marketplace/bookings/${bookingId}/property`).catch(() => ({ property: null })),
+    requestJson(messagePagePath()),
+    requestJson(`/api/marketplace/bookings/${bookingId}/dispute`)
+  ]);
+  state.tracking = trackingResult.tracking;
+  state.progress = progressResult.progress;
+  state.status = disputeResult.dispute?.status === "open" || disputeResult.dispute?.status === "reviewing" ? "disputed" : [state.tracking?.status, state.progress?.status].filter(Boolean).sort((left, right) => activeJobStage(right) - activeJobStage(left))[0] || "confirmed";
+  await refreshJourneyReadiness({ required: true });
+  state.property = propertyResult.property;
+  applyMessagePage(messageResult);
+  state.dispute = disputeResult.dispute || null;
+  if (["awaiting-review", "completed"].includes(currentStatus())) await loadReview({ quiet });
+}
+
+async function refreshBooking() {
+  if (state.refreshInFlight || workspace.hidden || !bookingId) return;
+  state.refreshInFlight = true;
+  const originalLabel = connectionRefresh.textContent;
+  connectionRefresh.disabled = true;
+  connectionRefresh.setAttribute("aria-busy", "true");
+  connectionRefresh.textContent = "Refreshing…";
+  setConnection("connecting", "Refreshing booking", "Checking the latest verified journey, checklist and messages.");
+  try {
+    await refreshParticipantSnapshot({ quiet: true });
+    render();
+    openLiveStream();
+    showFeedback("Booking refreshed from Homle. No booking action, payment or location update was sent.", "success");
+  } catch (error) {
+    if (error.statusCode === 401) showGate("Sign in to refresh this booking", "Your session expired. No booking action, payment or location update was sent.", { kind: "authentication", allowSignIn: true });
+    else if (error.statusCode === 403 || error.statusCode === 404) showGate("This account cannot refresh the booking", "Use the assigned Cleaner or owning Landlord account. Homle has not revealed any new booking details.", { kind: "authentication", allowSignIn: true });
+    else setConnection("offline", "Refresh interrupted", "The last verified booking state remains visible. Check the connection and try again.");
+  } finally {
+    state.refreshInFlight = false;
+    connectionRefresh.disabled = false;
+    connectionRefresh.removeAttribute("aria-busy");
+    connectionRefresh.textContent = originalLabel;
+  }
+}
+
 async function load() {
   if (!bookingId) return showGate("Open a valid private booking link", "This address does not contain a valid booking reference. No booking or location information was requested.", { kind: "error" });
   showGate("Opening your private booking…", "Homle is checking your account and participant access.");
@@ -1192,20 +1270,7 @@ async function load() {
     }
     state.role = activeJobRole(state.account);
     if (!state.role) return showGate("Choose a Cleaner or Landlord workspace", "This account has not completed role onboarding for active bookings.", { kind: "authentication", allowSignIn: true });
-    const [trackingResult, progressResult, propertyResult, messageResult, disputeResult] = await Promise.all([
-      requestJson(`/api/marketplace/bookings/${bookingId}/tracking`),
-      requestJson(`/api/marketplace/bookings/${bookingId}/cleaning-progress`),
-      requestJson(`/api/marketplace/bookings/${bookingId}/property`).catch(() => ({ property: null })),
-      requestJson(messagePagePath()),
-      requestJson(`/api/marketplace/bookings/${bookingId}/dispute`)
-    ]);
-    state.tracking = trackingResult.tracking;
-    state.progress = progressResult.progress;
-    state.status = disputeResult.dispute?.status === "open" || disputeResult.dispute?.status === "reviewing" ? "disputed" : [state.tracking?.status, state.progress?.status].filter(Boolean).sort((left, right) => activeJobStage(right) - activeJobStage(left))[0] || "confirmed";
-    state.property = propertyResult.property;
-    applyMessagePage(messageResult);
-    state.dispute = disputeResult.dispute || null;
-    if (["awaiting-review", "completed"].includes(currentStatus())) await loadReview();
+    await refreshParticipantSnapshot();
     showFeedback("");
     render();
     openLiveStream();
@@ -1224,6 +1289,7 @@ reviewComplete.addEventListener("click", handleCompletionConfirmation);
 reviewForm.addEventListener("submit", handleReviewSubmission);
 reviewResponseForm.addEventListener("submit", handleReviewResponse);
 retry.addEventListener("click", load);
+connectionRefresh.addEventListener("click", refreshBooking);
 window.addEventListener("online", () => { updateNetworkState(); if (!state.eventSource && !workspace.hidden) openLiveStream(); });
 window.addEventListener("offline", updateNetworkState);
 window.addEventListener("pagehide", () => { stopLocationSharing(); closeLiveStream(); clearPhotoSelection(); photoViewerImage.removeAttribute("src"); });

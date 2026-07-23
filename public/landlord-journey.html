@@ -5,15 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#FFFFFF">
 <meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Homle">
 <title>Book a clean — Homle</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/styles.css?v=journey1">
+<link rel="icon" href="/homle-logo.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" href="/styles.css?v=20260723-1">
 </head>
 <body class="journey-page">
 
+<section class="journey-access" data-access-gate aria-live="polite">
+  <div class="journey-access-card">
+    <img src="/homle-logo.png" alt="" width="54" height="54">
+    <p class="eyebrow">Private Landlord workspace</p>
+    <h1 data-access-title>Checking your secure account…</h1>
+    <p data-access-copy>Your room scan opens only after Homle confirms this browser has a signed-in Landlord workspace.</p>
+    <div class="journey-access-actions">
+      <a class="btn btn-p" href="/signup?intent=book" data-access-sign-in hidden>Sign in to book a clean</a>
+      <button class="btn btn-p" type="button" data-access-retry hidden>Try again</button>
+      <a class="btn-ghost" href="/">Back to Homle</a>
+    </div>
+  </div>
+</section>
+
 <!-- The rail is the whole navigation. One question per screen, always visible
      progress, and a back step that never loses what was already answered. -->
-<header class="rail">
+<header class="rail" data-journey-shell hidden>
   <div class="rail-in">
     <button class="rail-back" type="button" data-back aria-label="Go back a step">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
@@ -23,14 +42,14 @@
   </div>
 </header>
 
-<main class="journey-main">
+<main class="journey-main" data-journey-shell hidden>
 
   <!-- ══ 1. POSTCODE ══ -->
   <section class="jstep" data-step="postcode">
     <div class="wrap-n">
       <p class="eyebrow">Where are we cleaning</p>
       <h2 class="pg">Let's check who's<br>near you.</h2>
-      <p class="pgs">Just a postcode. No name, no address, no card — not until you've seen the price and picked your cleaner.</p>
+      <p class="pgs">Just a postcode first. Your exact address stays private, and no payment is taken while you build the request.</p>
 
       <div class="field">
         <label for="postcode">Your postcode</label>
@@ -51,9 +70,9 @@
       <button class="btn btn-p btn-full btn-lg" type="button" data-next>Continue</button>
 
       <div class="trust">
-        <span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#149E52" stroke-width="2.3"><path d="M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6l-8-4Z"/></svg>Enhanced DBS</span>
-        <span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#149E52" stroke-width="2.3"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Insured incl. theft</span>
-        <span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#149E52" stroke-width="2.3"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Free cancellation 24h</span>
+        <span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#149E52" stroke-width="2.3"><path d="M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6l-8-4Z"/></svg>Private account</span>
+        <span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#149E52" stroke-width="2.3"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Nothing sent before approval</span>
+        <span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#149E52" stroke-width="2.3"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>No payment on this step</span>
       </div>
     </div>
   </section>
@@ -112,7 +131,7 @@
     <div class="wrap-n">
       <p class="eyebrow">When suits you</p>
       <h2 class="pg">Pick a day<br>and a time.</h2>
-      <p class="pgs">Your cleaner arrives within the hour you choose. You can move or cancel free up to 24 hours before.</p>
+      <p class="pgs">Choose the arrival window you want to request. It becomes confirmed only after an eligible Cleaner accepts the exact work, time and price.</p>
 
       <div class="field">
         <label>Day</label>
@@ -127,7 +146,20 @@
       <div class="field">
         <label>How often?</label>
         <div class="chips" data-frequencies role="radiogroup" aria-label="How often"></div>
-        <p class="hint">No contract. Skip or cancel any clean, any time.</p>
+        <p class="hint">This is still a request. Recurring terms are not confirmed until a Cleaner accepts the exact booking.</p>
+      </div>
+
+      <div class="field">
+        <label for="duration">Time to reserve</label>
+        <select class="inp" id="duration" name="duration" data-duration>
+          <option value="120">2 hours</option>
+          <option value="180">3 hours</option>
+          <option value="240">4 hours</option>
+          <option value="300">5 hours</option>
+          <option value="360">6 hours</option>
+          <option value="480">8 hours</option>
+        </select>
+        <p class="hint">Homle suggests a starting point from the checklist. You control the requested duration before it is priced.</p>
       </div>
 
       <button class="btn btn-p btn-full btn-lg" type="button" data-next>Continue</button>
@@ -157,6 +189,39 @@
 
       <dl class="summary" data-summary></dl>
 
+      <section class="journey-property" data-property-section aria-labelledby="journey-property-title">
+        <div class="journey-property-heading">
+          <div><p class="eyebrow">Private cleaning location</p><h3 id="journey-property-title">Which property is this for?</h3></div>
+          <span data-property-account-state>Checking your saved properties…</span>
+        </div>
+        <div class="journey-property-options" data-property-options role="radiogroup" aria-label="Saved properties"></div>
+        <button class="btn-ghost journey-property-new-toggle" type="button" data-property-new-toggle hidden>Use another property</button>
+        <div class="journey-property-new" data-property-new hidden>
+          <p>Add only the address needed for this cleaning request. Exact access instructions stay separate until a Cleaner accepts.</p>
+          <div class="field">
+            <label for="property-type">Property type</label>
+            <select class="inp" id="property-type" data-property-type>
+              <option value="">Choose one</option>
+              <option value="flat">Flat</option>
+              <option value="house">House</option>
+              <option value="studio">Studio</option>
+              <option value="office">Office</option>
+              <option value="retail">Retail</option>
+              <option value="clinic">Clinic</option>
+              <option value="communal">Communal area</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field"><label for="address-line-1">Address line 1</label><input class="inp" id="address-line-1" data-address-line-1 autocomplete="address-line1" maxlength="240"></div>
+          <div class="field"><label for="locality">Town or locality</label><input class="inp" id="locality" data-locality autocomplete="address-level2" maxlength="120"></div>
+          <div class="field"><label for="full-postcode">Full UK postcode</label><input class="inp" id="full-postcode" data-full-postcode autocomplete="postal-code" maxlength="12"></div>
+        </div>
+        <a class="btn btn-p btn-full" href="/login?intent=book" target="_blank" rel="noopener" data-property-sign-in hidden>Sign in in a new tab, then retry</a>
+        <p class="jstate" data-property-state hidden></p>
+      </section>
+
+      <label class="journey-photo-consent"><input type="checkbox" data-cleaner-photo-preview> Allow the one invited Cleaner to privately preview the room photos while deciding. My identity, exact address and access details stay hidden.</label>
+      <p class="journey-media-state" data-media-state></p>
       <div class="checkout-note" data-checkout-note></div>
 
       <button class="btn btn-p btn-full btn-lg" type="button" data-confirm>Confirm</button>
@@ -177,6 +242,6 @@
 
 <div class="jtoast" data-toast role="status" aria-live="polite" hidden></div>
 
-<script type="module" src="/landlord-journey.js?v=journey1"></script>
+<script type="module" src="/landlord-journey.js?v=journey8"></script>
 </body>
 </html>

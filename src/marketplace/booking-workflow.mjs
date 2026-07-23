@@ -223,14 +223,20 @@ export function createBookingWorkflowService(repository, options = {}) {
   if (!repository || typeof repository.listParticipantBookings !== "function" || typeof repository.getInvitationCandidate !== "function" || typeof repository.inviteCleaner !== "function" || typeof repository.respondToInvitation !== "function") throw new TypeError("A complete booking workflow repository is required.");
   const pricingPolicy = options.pricingPolicy || null;
   const clock = options.clock || (() => new Date());
+  const requirePayoutReady = options.requirePayoutReady === true;
+  const getPayoutReadiness = options.getPayoutReadiness;
+  if (requirePayoutReady && typeof getPayoutReadiness !== "function") throw new TypeError("Paid booking acceptance requires a Cleaner payout-readiness boundary.");
   async function invitationQuote(actor, input = {}) {
     if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.some((role) => role === "landlord" || role === "administrator")) throw new TypeError("A Landlord account is required to price a Cleaner invitation.");
     if (!pricingPolicy || typeof pricingPolicy.quote !== "function") throw Object.assign(new Error("Booking invitations are unavailable until the private pricing policy is configured."), { statusCode: 503, code: "pricing-not-configured" });
     const requestId = uuid(input.cleaningRequestId, "cleaning request id");
     const cleanerId = uuid(input.cleanerId, "cleaner id");
     if (cleanerId === actor.userId.toLowerCase()) throw Object.assign(new Error("Your Cleaner workspace cannot be invited to your own cleaning request."), { statusCode: 409, code: "self-booking-not-allowed" });
-    const candidate = await repository.getInvitationCandidate(actor, requestId, cleanerId);
+    const candidate = await repository.getInvitationCandidate(actor, requestId, cleanerId, requirePayoutReady);
     if (!candidate) throw Object.assign(new Error("The cleaning request or cleaner was not found."), { statusCode: 404, code: "candidate-not-found" });
+    if (requirePayoutReady && candidate.payout_ready !== true) {
+      throw Object.assign(new Error("This Cleaner is not ready to receive a test payout yet. Choose another available Cleaner; no invitation or payment was created."), { statusCode: 409, code: "cleaner-payout-not-ready" });
+    }
     return Object.freeze({ requestId, cleanerId, terms: pricingPolicy.quote(candidate, clock()) });
   }
   return Object.freeze({
@@ -255,10 +261,19 @@ export function createBookingWorkflowService(repository, options = {}) {
     },
     async respondToInvitation(actor, bookingId, input = {}) {
       if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.includes("cleaner")) throw new TypeError("A Cleaner account is required to answer an invitation.");
+      const selectedBookingId = uuid(bookingId, "booking id");
       const decision = boundedText(input.decision, 20, "Invitation decision").toLowerCase();
       if (decision !== "accept" && decision !== "decline") throw new TypeError("Choose accept or decline.");
       const reason = boundedText(input.reason, 1000, "Decline reason") || null;
-      const record = await repository.respondToInvitation(actor, uuid(bookingId, "booking id"), { decision, reason });
+      if (decision === "accept" && requirePayoutReady) {
+        let payout;
+        try { payout = await getPayoutReadiness(actor); }
+        catch (error) {
+          throw Object.assign(new Error("Homle could not verify your payout setup, so this paid request was not accepted. Try again when the payout service is available."), { statusCode: 503, code: "payout-readiness-unavailable", cause: error });
+        }
+        if (payout?.ready !== true) throw Object.assign(new Error("Finish secure payout setup before accepting a paid cleaning request. No booking was confirmed."), { statusCode: 409, code: "payout-setup-required" });
+      }
+      const record = await repository.respondToInvitation(actor, selectedBookingId, { decision, reason });
       return bookingProjection(record, actor);
     }
   });

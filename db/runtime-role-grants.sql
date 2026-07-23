@@ -46,6 +46,8 @@ GRANT EXECUTE ON FUNCTION tideway_private.respond_to_cleaner_invitation(uuid, te
 GRANT EXECUTE ON FUNCTION tideway_private.list_my_booking_summaries(integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.recommend_cleaners_for_request(uuid, integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.recommend_cleaners_for_request_v2(uuid, integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.recommend_cleaners_for_request_v3(uuid, integer, boolean) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.cleaner_payout_ready_for_paid_booking(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.configure_automatic_dispatch(uuid,boolean,smallint) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.create_request_photo_upload_intent(uuid,uuid,text,text,text,text,text,integer,text,timestamptz) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_request_photo_upload_for_completion(uuid) TO tideway_app;

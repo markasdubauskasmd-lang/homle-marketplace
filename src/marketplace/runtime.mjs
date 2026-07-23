@@ -142,13 +142,17 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const cleaningRequestService = createCleaningRequestService(cleaningRequestRepository);
   const bookingRepository = createBookingRepository(database);
   const bookingPricingPolicy = options.bookingPricingPolicy || bookingPricingPolicyFromEnvironment(env);
-  const bookingWorkflowService = createBookingWorkflowService(bookingRepository, { pricingPolicy: bookingPricingPolicy });
   const paymentRepository = createPaymentRepository(database);
   const paymentService = options.paymentProvider ? createPaymentService(paymentRepository, options.paymentProvider, { publishableKey: env.STRIPE_PUBLISHABLE_KEY }) : null;
   const cleanerPayoutRepository = createCleanerPayoutRepository(database);
   const cleanerPayoutService = options.paymentProvider ? createCleanerPayoutService(cleanerPayoutRepository, options.paymentProvider, { appOrigin: environment.appOrigin }) : null;
+  const bookingWorkflowService = createBookingWorkflowService(bookingRepository, {
+    pricingPolicy: bookingPricingPolicy,
+    requirePayoutReady: paymentService !== null,
+    getPayoutReadiness: cleanerPayoutService ? (actor) => cleanerPayoutService.getStatus(actor) : undefined
+  });
   const matchingRepository = createMatchingRepository(database);
-  const matchingService = createMatchingService(matchingRepository, { pricingPolicy: bookingPricingPolicy });
+  const matchingService = createMatchingService(matchingRepository, { pricingPolicy: bookingPricingPolicy, requirePayoutReady: paymentService !== null });
   const journeyRepository = createJourneyRepository(database);
   const journeyService = createJourneyService(journeyRepository, { etaProvider: options.etaProvider === undefined ? etaProviderFromEnvironment(env) : options.etaProvider });
   const progressRepository = createProgressRepository(database);

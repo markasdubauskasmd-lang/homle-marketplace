@@ -31,6 +31,32 @@
   ],
   "shortcuts": [
     {
+      "name": "Scan rooms for a clean",
+      "short_name": "Scan rooms",
+      "description": "Open the secure Landlord booking and room-scan journey.",
+      "url": "/landlord/book",
+      "icons": [
+        {
+          "src": "/app-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "View Cleaner jobs",
+      "short_name": "Cleaner jobs",
+      "description": "Open the secure Cleaner workspace.",
+      "url": "/cleaner/dashboard",
+      "icons": [
+        {
+          "src": "/app-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
       "name": "Request a clean",
       "short_name": "Request clean",
       "url": "/request"

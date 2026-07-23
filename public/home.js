@@ -26,7 +26,7 @@ function applyEntryMode(mode) {
   currentEntryMode = mode;
   const presentation = homeEntryPresentation(mode);
   document.querySelectorAll("[data-book-entry]").forEach((link) => {
-    link.href = signedInWorkspace?.role === "landlord" ? "/landlord/dashboard?start=booking" : presentation.bookingPath;
+    link.href = signedInWorkspace?.role === "landlord" ? "/landlord/book" : presentation.bookingPath;
     link.textContent = signedInWorkspace?.role === "landlord" ? "Book a clean" : presentation.bookingLabel;
   });
   document.querySelectorAll("[data-cleaner-entry]").forEach((link) => {

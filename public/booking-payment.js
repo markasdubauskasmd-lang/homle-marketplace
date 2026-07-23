@@ -13,6 +13,7 @@ const form = document.querySelector("[data-payment-form]");
 const submit = document.querySelector("[data-payment-submit]");
 const feedback = document.querySelector("[data-payment-feedback]");
 const statusRefresh = document.querySelector("[data-payment-status-refresh]");
+const completion = document.querySelector("[data-payment-complete]");
 const networkStatus = document.querySelector("[data-payment-network]");
 let stripe;
 let elements;
@@ -138,6 +139,9 @@ function renderPayment(payment) {
   submit.textContent = formattedAmount === "Amount unavailable" ? "Authorize booking total" : `Authorize ${formattedAmount}`;
   form.hidden = true;
   statusRefresh.hidden = !["waiting", "complete", "blocked"].includes(view.action);
+  completion.hidden = view.action !== "complete";
+  completion.href = `/bookings/${encodeURIComponent(bookingId)}`;
+  completion.textContent = ["authorized", "captured"].includes(payment?.status) ? "Open confirmed booking" : "Open booking record";
   if (!["continue", "retry"].includes(view.action)) destroyPaymentElement();
   if (view.action === "complete") clearRetryKey();
   showFeedback("");

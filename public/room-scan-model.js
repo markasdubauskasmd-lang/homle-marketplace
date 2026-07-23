@@ -494,6 +494,20 @@ export function scanChecklistLines(rooms) {
   return lines;
 }
 
+// Spoken notes belong to the room in which they were recorded. Keeping those
+// labels in the handoff prevents a Kitchen instruction from becoming an
+// unscoped note that a Cleaner could reasonably apply to the Bathroom.
+export function scanTranscript(rooms, maximumCharacters = 5000) {
+  const lines = [];
+  for (const room of Array.isArray(rooms) ? rooms : []) {
+    const note = String(room?.transcript || "").replace(/\s+/g, " ").trim();
+    if (!note) continue;
+    const roomName = normaliseRoomName(room?.name);
+    lines.push(roomName ? `${roomName}: ${note}` : note);
+  }
+  return lines.join("\n").slice(0, Math.max(0, Number(maximumCharacters) || 0)).trim();
+}
+
 export function scanSummary(rooms) {
   const scoped = (Array.isArray(rooms) ? rooms : []).filter((room) => Array.isArray(room?.tasks) && room.tasks.length);
   const fixtures = scoped.reduce((sum, room) => sum + (Array.isArray(room.detections) ? room.detections.length : 0), 0);
@@ -551,6 +565,15 @@ export function upsertRoom(rooms, room) {
   if (index >= 0) list[index] = record;
   else list.push(record);
   return list;
+}
+
+// Remove exactly the chosen room without mutating the roster. A mistaken room
+// must leave no image, note, detection or task behind in the final aggregation.
+export function removeRoom(rooms, name) {
+  const list = Array.isArray(rooms) ? rooms : [];
+  const key = roomKey(name);
+  if (!key) return list.slice();
+  return list.filter((room) => roomKey(room?.name) !== key);
 }
 
 // One line per scanned room for the hub: what it is, how much was found, how

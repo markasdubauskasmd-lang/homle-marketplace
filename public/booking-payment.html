@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#d7182a" />
   <title>Secure booking payment | Homle</title>
   <link rel="icon" href="/homle-logo.png" type="image/png">
-  <link rel="stylesheet" href="/styles.css?v=20260718-100">
-  <script src="/booking-payment.js?v=20260717-3" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260723-1">
+  <script src="/booking-payment.js?v=20260723-1" type="module"></script>
 </head>
 <body class="booking-payment-page">
   <a class="skip-link" href="#payment-main">Skip to booking payment</a>
@@ -35,6 +35,7 @@
       <div class="booking-payment-message" data-payment-message role="status" aria-live="polite"><strong data-payment-message-title></strong><p data-payment-message-copy></p></div>
       <button class="text-button booking-payment-refresh" type="button" data-payment-status-refresh hidden>Refresh payment status</button>
       <button class="button booking-payment-prepare" type="button" data-payment-prepare hidden>Enter secure payment details</button>
+      <a class="button booking-payment-complete" data-payment-complete href="/landlord/dashboard" hidden>Open confirmed booking</a>
 
       <form class="booking-payment-form" data-payment-form hidden novalidate>
         <div class="booking-payment-element" data-payment-element aria-label="Secure payment details"></div>

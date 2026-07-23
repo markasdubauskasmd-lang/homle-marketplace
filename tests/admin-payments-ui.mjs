@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "../public/admin-payments-model.js";
+import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "../public/admin-payments-model.js";
 
 const paymentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const bookingId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -17,6 +17,12 @@ assert.equal(shortPaymentBookingReference(bookingId), "BKG-BBBBBBBB");
 assert.throws(() => adminPaymentBookingFilter("not-a-booking"), /related booking payment link/i);
 assert.equal(paymentStatusLabel("captured"), "Captured");
 assert.equal(paymentActionLabel("transfer"), "Pay Cleaner");
+assert.equal(paymentNextAction(queue.payments[0]).kind, "transfer");
+const payoutNotReady = adminPaymentQueue({ ok: true, payments: [{ ...record, payoutReady: false, canTransfer: false }], limit: 50, offset: 0, testMode: true }).payments[0];
+assert.equal(paymentNextAction(payoutNotReady).kind, "payout-wait");
+assert.match(paymentNextAction(payoutNotReady).copy, /Do not refund as routine settlement/i);
+assert.equal(paymentNextAction({ ...record, paymentStatus: "authorized", amountCapturedPence: 0, payoutReady: false, canCapture: true, canRefund: false, canTransfer: false }).kind, "capture");
+assert.equal(paymentNextAction({ ...record, paymentStatus: "partially-refunded", amountRefundedPence: 1_000, canRefund: true, canTransfer: false }).kind, "refund-review");
 const key = "admin_payment_retry_key_123456789012345";
 assert.deepEqual(paymentActionPayload("capture", { idempotencyKey: key, confirmed: true }), { idempotencyKey: key });
 assert.deepEqual(paymentActionPayload("refund", { idempotencyKey: key, amountPence: 1500, confirmed: true }), { idempotencyKey: key, amountPence: 1500 });
@@ -43,11 +49,13 @@ const [page, script, caseScript, styles, server, admin, packageJson, router, ser
 assert(page.includes("Administrator · test payments only") && page.includes("Every button contacts the configured test payment provider") && page.includes("Live Stripe keys remain rejected") && page.includes("data-admin-payments-workspace hidden"), "The payment screen lost its truthful, fail-closed test-provider boundary.");
 assert(page.includes("data-admin-payment-dialog") && page.includes("data-admin-payment-refund-field") && page.includes("I reviewed the exact server totals") && page.includes("data-network-status"), "The payment screen omitted exact confirmation, bounded refund or offline controls.");
 assert(page.includes("data-admin-payment-related") && page.includes("Review the booking case evidence first") && page.includes('name="referrer" content="no-referrer"'), "The related-case payment view lost its evidence-first or referrer-private boundary.");
+assert(page.includes('/admin-payments.js?v=20260723-1'), "The safer settlement guidance can remain hidden behind an older cached Administrator controller.");
 assert(!page.includes("provider_payment_id") && !page.includes("destination_account_id") && !page.includes("client_secret"), "The Administrator page exposes private payment-provider material.");
 assert(script.includes('requestJson("/api/marketplace/auth/session"') && script.includes('"X-CSRF-Token": csrf') && script.includes("60_000") && script.includes("uncertainPayments.add") && script.includes("refresh the signed status") && script.includes("crypto.randomUUID"), "Administrator payment actions lost CSRF recovery, bounded waits, uncertain-result protection or private idempotency.");
 assert(script.includes("accepted by Homle") && script.includes("queue = previousQueue") && script.includes("locked until you refresh the queue successfully"), "An accepted payment command can be mistaken for a failed command when its read-only status refresh loses connection.");
 assert(script.includes("adminPaymentBookingFilter") && script.includes("bookingId: selectedBookingId") && script.includes("Invalid related payment link") && caseScript.includes("Review related test payment") && caseScript.includes("/admin/payments?bookingId="), "The booking-case handoff is not exact, fail-closed or discoverable only after review starts.");
 assert(script.includes("amountCapturedPence - actionRecord.amountRefundedPence") && script.includes("amountPence > maximumRefund") && script.includes("paymentActionPayload") && script.includes("textContent"), "Refunds lost the remaining-capture boundary or the page stopped using validated/safe rendering.");
+assert(script.includes("paymentNextAction(record)") && script.includes('actionButton(record, "refund", true)') && styles.includes(".admin-payment-next-payout-wait") && styles.includes(".admin-payment-next-refund-review"), "Routine settlement can still present refund as the normal primary action while Cleaner payout setup is incomplete.");
 assert(styles.includes(".admin-payment-confirmation-facts") && styles.includes(".admin-payment-warning") && styles.includes("@media (max-width: 680px)") && styles.includes("min-height: 3rem"), "Payment operations lost mobile, uncertainty or one-hand action styling.");
 assert(server.includes('"/admin/payments": "admin-payments.html"') && admin.includes('href="/admin/payments"'), "The protected settlement route is not served or linked from the control desk.");
 assert(packageJson.includes('"check:admin-payments"') && packageJson.includes('"test:admin-payments"') && packageJson.includes("tests/admin-payments-ui.mjs"), "Payment-operation UI checks are absent from repository quality gates.");

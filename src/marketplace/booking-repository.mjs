@@ -53,11 +53,12 @@ export function createBookingRepository(database) {
         } catch (error) { throw mappedDatabaseError(error); }
       });
     },
-    getInvitationCandidate(actor, requestId, cleanerId) {
+    getInvitationCandidate(actor, requestId, cleanerId, requirePayoutReady = false) {
       return database.withUserTransaction(actor, async (client) => {
         const result = await client.query(
           `SELECT request.id, request.requested_start_at, request.requested_end_at, request.required_services,
                   request.budget_pence, coverage.distance_km,
+                  CASE WHEN $4::boolean THEN tideway_private.cleaner_payout_ready_for_paid_booking($2::uuid) ELSE TRUE END AS payout_ready,
                   COALESCE(jsonb_agg(jsonb_build_object('serviceCode', service.service_code, 'pricingModel', service.pricing_model, 'pricePence', service.price_pence) ORDER BY service.service_code) FILTER (WHERE service.id IS NOT NULL), '[]'::jsonb) AS services
              FROM cleaning_requests request
              JOIN properties property ON property.id=request.property_id AND property.archived_at IS NULL
@@ -77,7 +78,7 @@ export function createBookingRepository(database) {
              LEFT JOIN cleaner_services service ON service.cleaner_user_id=profile.user_id AND service.is_active
             WHERE request.id=$1::uuid AND request.landlord_user_id=$3::uuid AND profile.user_id<>request.landlord_user_id AND request.status='searching-for-cleaner'
             GROUP BY request.id, coverage.distance_km`,
-          [requestId, cleanerId, actor.userId]
+          [requestId, cleanerId, actor.userId, requirePayoutReady === true]
         );
         return result.rows[0] || null;
       });

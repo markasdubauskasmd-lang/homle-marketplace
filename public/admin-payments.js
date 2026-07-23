@@ -1,4 +1,4 @@
-import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "./admin-payments-model.js";
+import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "./admin-payments-model.js";
 
 const pageSize = 50;
 const gate = document.querySelector("[data-admin-payments-gate]");
@@ -169,13 +169,16 @@ function paymentCard(record) {
   heading.append(title, element("time", "", date(record.updatedAt)));
   const facts = element("dl", "admin-case-facts admin-payment-facts");
   facts.append(fact("Customer total", money(record.amountPence)), fact("Captured", money(record.amountCapturedPence)), fact("Refunded", money(record.amountRefundedPence)), fact("Cleaner pay", money(record.cleanerPayPence)), fact("Clean starts", date(record.scheduledStartAt)), fact("Payout account", record.payoutReady ? "Provider verified" : "Not ready"));
-  card.append(heading, facts);
+  const guidance = paymentNextAction(record);
+  const nextAction = element("div", `admin-payment-next admin-payment-next-${guidance.kind}`);
+  nextAction.append(element("strong", "", guidance.title), element("p", "", guidance.copy));
+  card.append(heading, facts, nextAction);
   if (record.awaitingProvider) card.append(element("p", "admin-payment-waiting", "Waiting for a signed provider update. Refresh status; do not repeat the action."));
   if (uncertainPayments.has(record.paymentId)) card.append(element("p", "admin-payment-warning", "The previous action has an uncertain result. Refresh the signed status before any retry."));
   const actions = element("div", "booking-summary-actions");
   if (record.canCapture) actions.append(actionButton(record, "capture"));
   if (record.canTransfer) actions.append(actionButton(record, "transfer"));
-  if (record.canRefund) actions.append(actionButton(record, "refund", record.canTransfer));
+  if (record.canRefund) actions.append(actionButton(record, "refund", true));
   if (record.canCancel) actions.append(actionButton(record, "cancel", true));
   if (actions.childElementCount) card.append(actions);
   return card;

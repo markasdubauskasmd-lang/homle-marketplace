@@ -69,9 +69,9 @@ export function supplyMessage(count, outward) {
    booking engine cannot quote. */
 export const services = Object.freeze([
   Object.freeze({ code: "regular-domestic", name: "Regular clean", detail: "Kitchen, bathrooms, floors and surfaces throughout." }),
-  Object.freeze({ code: "deep-clean", name: "Deep clean", detail: "Everything in a regular clean, plus inside appliances and detailed work." }),
+  Object.freeze({ code: "deep-cleans", name: "Deep clean", detail: "Everything in a regular clean, plus agreed detailed work." }),
   Object.freeze({ code: "end-of-tenancy", name: "End of tenancy", detail: "A full property reset to handover standard." }),
-  Object.freeze({ code: "after-builders", name: "After builders", detail: "Dust removal and finish clean after work is finished." })
+  Object.freeze({ code: "workplaces", name: "Workplace clean", detail: "Offices, clinics and customer-facing workspaces." })
 ]);
 
 export function isKnownService(code) {
@@ -100,23 +100,99 @@ export const arrivalWindows = Object.freeze(["08:00", "09:00", "10:00", "11:00",
 export const frequencies = Object.freeze([
   Object.freeze({ code: "weekly", label: "Weekly" }),
   Object.freeze({ code: "fortnightly", label: "Fortnightly" }),
-  Object.freeze({ code: "monthly", label: "Monthly" }),
-  Object.freeze({ code: "once", label: "Just once" })
+  Object.freeze({ code: "every-four-weeks", label: "Every four weeks" }),
+  Object.freeze({ code: "one-time", label: "Just once" })
 ]);
 
 export function isKnownFrequency(code) {
   return frequencies.some((frequency) => frequency.code === code);
 }
 
+export const durationChoices = Object.freeze([120, 180, 240, 300, 360, 480]);
+
+export function suggestedDurationMinutes(tasks) {
+  const count = Array.isArray(tasks) ? tasks.length : 0;
+  if (!count) return 120;
+  const estimated = Math.max(60, Math.round((count * 12) / 30) * 30);
+  return durationChoices.find((minutes) => minutes >= estimated) || durationChoices.at(-1);
+}
+
+export function isKnownDuration(value) {
+  return durationChoices.includes(Number(value));
+}
+
+export function matchingProperties(properties, postcodeValue) {
+  const parsed = normalisedPostcode(postcodeValue);
+  if (!parsed) return Object.freeze([]);
+  return Object.freeze((Array.isArray(properties) ? properties : []).filter((property) => {
+    const propertyPostcode = normalisedPostcode(property?.exactAddress?.postcode);
+    if (!propertyPostcode) return false;
+    if (parsed.full) return propertyPostcode.full === parsed.full;
+    return propertyPostcode.outward === parsed.outward;
+  }));
+}
+
+export function journeyAccountState(account) {
+  if (!account || typeof account !== "object") return "signed-out";
+  return Array.isArray(account.roles) && account.roles.includes("landlord")
+    ? "ready"
+    : "role-required";
+}
+
+const cleanerIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function rankedAvailableCleaners(matches, { excludeCleanerIds = [] } = {}) {
+  const excluded = new Set((Array.isArray(excludeCleanerIds) ? excludeCleanerIds : [])
+    .map((cleanerId) => String(cleanerId || "").toLowerCase())
+    .filter((cleanerId) => cleanerIdPattern.test(cleanerId)));
+  const seen = new Set();
+  const candidates = [];
+  for (const entry of Array.isArray(matches?.candidates) ? matches.candidates : []) {
+    const candidateId = String(entry?.cleanerId || "");
+    const normalizedId = candidateId.toLowerCase();
+    if (!cleanerIdPattern.test(candidateId) || excluded.has(normalizedId) || seen.has(normalizedId)) continue;
+    seen.add(normalizedId);
+    candidates.push(Object.freeze({
+      cleanerId: normalizedId,
+      displayName: String(entry.displayName || "Best available Cleaner").trim().slice(0, 120) || "Best available Cleaner"
+    }));
+  }
+  return Object.freeze(candidates);
+}
+
+export function bestAvailableCleaner(matches, { excludeCleanerId = "", excludeCleanerIds = [] } = {}) {
+  const exclusions = Array.isArray(excludeCleanerIds) ? excludeCleanerIds : [];
+  const candidates = rankedAvailableCleaners(matches, { excludeCleanerIds: [...exclusions, excludeCleanerId] });
+  return candidates[0] || null;
+}
+
 /* ── Progress gate ────────────────────────────────────
    A step can only be left once it holds what the next
    one needs, so the journey cannot reach checkout with
    a gap in it. */
+/* A replacement is usable only after its current server-owned quote succeeds.
+   Payout-readiness races may skip a candidate; every other failure stops. */
+export async function firstQuoteVerifiedCleaner(candidates, quoteCleaner, { maximumAttempts = 5 } = {}) {
+  if (typeof quoteCleaner !== "function") throw new TypeError("A Cleaner quote verifier is required.");
+  const attemptLimit = Number.isInteger(maximumAttempts) && maximumAttempts >= 1 && maximumAttempts <= 5 ? maximumAttempts : 5;
+  for (const cleaner of (Array.isArray(candidates) ? candidates : []).slice(0, attemptLimit)) {
+    try {
+      const customerPricePence = Number(await quoteCleaner(cleaner));
+      if (!Number.isInteger(customerPricePence) || customerPricePence < 1) throw new Error("The exact Cleaner invitation total could not be verified.");
+      return Object.freeze({ cleaner, customerPricePence });
+    } catch (error) {
+      if (error?.code !== "cleaner-payout-not-ready") throw error;
+    }
+  }
+  return null;
+}
+
+/* A step can only be left once it holds what the next one needs. */
 export function canLeaveStep(id, draft = {}) {
   if (id === "postcode") return Boolean(normalisedPostcode(draft.postcode));
   if (id === "service") return isKnownService(draft.serviceCode);
   if (id === "results") return Array.isArray(draft.tasks) && draft.tasks.length > 0;
-  if (id === "when") return Boolean(draft.date) && arrivalWindows.includes(draft.time) && isKnownFrequency(draft.frequency);
+  if (id === "when") return Boolean(draft.date) && arrivalWindows.includes(draft.time) && isKnownFrequency(draft.frequency) && isKnownDuration(draft.durationMinutes);
   if (id === "cleaner") return Boolean(draft.cleanerId);
   return true;
 }
@@ -135,23 +211,18 @@ export function blockedReason(id, draft = {}) {
    Payments are a deliberate deployment switch. When they
    are off the journey must say what will actually happen
    rather than showing a pay button that cannot charge. */
-export function checkoutMode({ paymentsReady = false, matchingReady = false } = {}) {
-  if (paymentsReady) return "pay";
+export function checkoutMode({ matchingReady = false } = {}) {
   if (matchingReady) return "request";
   return "save";
 }
 
 export function checkoutCopy(mode) {
-  if (mode === "pay") return Object.freeze({
-    action: "Confirm and pay",
-    note: "Your card is authorised now and charged after the clean is finished."
-  });
   if (mode === "request") return Object.freeze({
-    action: "Send this request",
-    note: "Your cleaner is invited now. No payment is taken — we'll ask for that once card payments are switched on."
+    action: "Save and review request",
+    note: "Homle saves the private request and verifies the room photos first. A Cleaner is invited only after you approve an exact quoted total. No payment is taken here."
   });
   return Object.freeze({
-    action: "Save this request",
-    note: "Your scan and checklist are saved. Nothing is sent to a cleaner and no payment is taken yet."
+    action: "Save private draft",
+    note: "Your checklist is saved as a private draft. Nothing is sent to a Cleaner and no payment is taken."
   });
 }

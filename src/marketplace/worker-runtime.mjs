@@ -35,7 +35,8 @@ export function createMarketplaceWorkerRuntime(pool, options = {}) {
     const worker = createAutomaticDispatchWorker((options.createDispatchRepository || createAutomaticDispatchRepository)(pool), options.dispatchPricingPolicy, {
       batchLimit: integer(options.dispatchBatchLimit, 1, 50, 10, "Automatic-dispatch batch limit"),
       leaseSeconds: integer(options.dispatchLeaseSeconds, 30, 600, 120, "Automatic-dispatch lease duration"),
-      retryMinutes: integer(options.dispatchRetryMinutes, 1, 1440, 15, "Automatic-dispatch retry delay")
+      retryMinutes: integer(options.dispatchRetryMinutes, 1, 1440, 15, "Automatic-dispatch retry delay"),
+      requirePayoutReady: options.requirePayoutReady === true
     });
     jobs.push(Object.freeze({ name: "automatic-dispatch", intervalMs: integer(options.dispatchIntervalMs, 1000, 3_600_000, 60_000, "Automatic-dispatch interval"), runOnce: () => worker.runOnce() }));
   }

@@ -17,6 +17,7 @@ const scripts = Object.freeze({
   setup: "marketplace-integration-setup.sql",
   publicCleanerProfile: "public-cleaner-profile-behaviour.sql",
   matchingSelfExclusion: "matching-self-exclusion.sql",
+  paidMatchingPayoutReadiness: "paid-matching-payout-readiness.sql",
   automaticDispatchSetup: "automatic-dispatch-rehearsal-setup.sql",
   automaticDispatchClaimA: "automatic-dispatch-claim-a.sql",
   automaticDispatchClaimB: "automatic-dispatch-claim-b.sql",
@@ -204,6 +205,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     fixturesCreated = true;
     runPsqlSync({ label: "Public Cleaner profile privacy test", file: scripts.publicCleanerProfile, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Matching self-exclusion behaviour test", file: scripts.matchingSelfExclusion, environment: appEnvironment, command, execute });
+    runPsqlSync({ label: "Paid matching payout-readiness test", file: scripts.paidMatchingPayoutReadiness, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Automatic-dispatch rehearsal setup", file: scripts.automaticDispatchSetup, environment: ownerEnvironment, command, execute });
     const dispatchClaims = await executeConcurrent([
       { file: scripts.automaticDispatchClaimA, environment: workerEnvironment },
@@ -257,7 +259,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, matchingSelfExclusion: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {
@@ -273,7 +275,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
 if (process.argv[1] && path.resolve(process.argv[1]) === toolPath) {
   try {
     const result = await runPostgresMarketplaceIntegration();
-    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, privacy-safe public Cleaner profiles, signed-provider deletion persistence, RLS, privacy, two-worker automatic dispatch with expiry/requeue, concurrent booking overlap protection, a complete synthetic Landlord-to-Cleaner lifecycle with committed cross-connection real-time signals and private two-way messaging, audited disputes, current-payment journey gating and exactly-once payment ordering verified and fixtures removed.`);
+    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, privacy-safe public Cleaner profiles, paid-mode payout-ready matching, signed-provider deletion persistence, RLS, privacy, two-worker automatic dispatch with expiry/requeue, concurrent booking overlap protection, a complete synthetic Landlord-to-Cleaner lifecycle with committed cross-connection real-time signals and private two-way messaging, audited disputes, current-payment journey gating and exactly-once payment ordering verified and fixtures removed.`);
   } catch (error) {
     console.error(error.message);
     if (error.integrationOutput) console.error(error.integrationOutput.trim());

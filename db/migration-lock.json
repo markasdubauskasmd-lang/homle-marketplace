@@ -67,10 +67,12 @@
     { "order": 63, "file": "063_administrator_cleaner_verification.sql", "sha256": "d2bb7d5a72038c62c5ad7d926ad3632e0ae278306b69f320cfc675304cf74b2f" },
     { "order": 64, "file": "064_public_cleaner_distance_fallback.sql", "sha256": "6f343797ae1cee6eb27e926eabfd7eaa0d01f8d60cff0097c15ea19a80fb0010" },
     { "order": 65, "file": "065_scan_summary_rate_limit.sql", "sha256": "61051765e5ffab5182ee2aca27c7da9e92e51acbbc80cd8cb9a3d92419b37528" },
-    { "order": 66, "file": "066_room_reading_rate_limit.sql", "sha256": "d5fa4b88d3f1677a00bdc91c5bbb2b084ea2af69a6ed168ee722953fbabb0bb7" }
+    { "order": 66, "file": "066_room_reading_rate_limit.sql", "sha256": "d5fa4b88d3f1677a00bdc91c5bbb2b084ea2af69a6ed168ee722953fbabb0bb7" },
+    { "order": 67, "file": "067_apple_administrator_bootstrap.sql", "sha256": "cf7cc46e770a9425f9ef143e6f9be4f4598180c5e0232b4109e20d54765bf7fb" },
+    { "order": 68, "file": "068_paid_matching_payout_readiness.sql", "sha256": "6f3816c5ffd57cd931726ee269daf068204ab3225e6e0d419e1f38c08c5fd987" }
   ],
   "grantFiles": [
-    { "file": "runtime-role-grants.sql", "sha256": "ef6a77231573710ea66e57021b6738333e49f8f0e34941654772aa2f476d8cc4" },
-    { "file": "worker-role-grants.sql", "sha256": "c0e6047e87d173bc9988058dd4a8df2b5b3dc083daa5e1adbba5c4902bbf40fe" }
+    { "file": "runtime-role-grants.sql", "sha256": "1c8768ae266a5bb9418db60f15d1abe99e1dbdced160d49c2029fb2fe119ac08" },
+    { "file": "worker-role-grants.sql", "sha256": "37a558f9ff8339f3f7105fbebe7005fb554fb9a861018462f18b664dee464c5c" }
   ]
 }

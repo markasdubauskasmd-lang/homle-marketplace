@@ -44,9 +44,9 @@ export function createAutomaticDispatchRepository(pool) {
         return Object.freeze((result?.rows || []).map((row) => Object.freeze({ cleaningRequestId: row.cleaning_request_id, leaseExpiresAt: new Date(row.lease_expires_at).toISOString() })));
       } catch (error) { throw mappedError(error); }
     },
-    async getCandidates(cleaningRequestId, leaseToken, resultLimit) {
+    async getCandidates(cleaningRequestId, leaseToken, resultLimit, requirePayoutReady = false) {
       try {
-        const result = await pool.query("SELECT * FROM tideway_private.get_automatic_dispatch_candidates($1::uuid,$2::uuid,$3::integer)", [cleaningRequestId, leaseToken, resultLimit]);
+        const result = await pool.query("SELECT * FROM tideway_private.get_automatic_dispatch_candidates($1::uuid,$2::uuid,$3::integer,$4::boolean)", [cleaningRequestId, leaseToken, resultLimit, requirePayoutReady === true]);
         return Object.freeze((result?.rows || []).map(candidateValue));
       } catch (error) { throw mappedError(error); }
     },

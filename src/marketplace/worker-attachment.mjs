@@ -5,6 +5,7 @@ import { createS3ObjectStorage } from "./s3-object-storage.mjs";
 import { createTransactionalEmailDelivery, emailDeliveryEnvironment } from "./email-delivery.mjs";
 import { createMarketplaceWorkerRuntime } from "./worker-runtime.mjs";
 import { normalizeExpectedReleaseCommit, packagedReleaseIdentityMatches } from "../../release-identity.mjs";
+import { marketplaceEnvironment } from "./config.mjs";
 
 function booleanValue(env, name, fallback = false) {
   const supplied = String(env[name] ?? "").trim().toLowerCase();
@@ -54,7 +55,7 @@ const requiredWorkerFunctions = Object.freeze([
   "purge_expired_rate_limits(integer)",
   "purge_expired_pending_social_identities(integer)",
   "claim_due_automatic_dispatch(uuid,integer,integer)",
-  "get_automatic_dispatch_candidates(uuid,uuid,integer)",
+  "get_automatic_dispatch_candidates(uuid,uuid,integer,boolean)",
   "complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)",
   "release_automatic_dispatch_lease(uuid,uuid,text,timestamp with time zone)"
 ]);
@@ -122,11 +123,13 @@ export async function createMarketplaceWorkerAttachment(options = {}) {
     }
     const dispatchPricingPolicy = dispatchEnabled ? bookingPricingPolicyFromEnvironment(env) : null;
     if (dispatchEnabled && !dispatchPricingPolicy) throw new TypeError("Automatic dispatch requires complete approved private booking pricing.");
+    const requirePayoutReady = marketplaceEnvironment(env).payments.requested;
     supervisor = (options.createRuntime || createMarketplaceWorkerRuntime)(pool, {
       onUnexpectedError: adapters.onUnexpectedError,
       emailDelivery,
       objectStorage,
       dispatchPricingPolicy,
+      requirePayoutReady,
       appOrigin: env.APP_ORIGIN
     });
   } catch (error) {

@@ -40,7 +40,7 @@ export async function createAuthenticationAttachment(options = {}) {
   if (!environment.authTokenConfigured) required.push("AUTH_TOKEN_SECRET");
   if (!environment.appOrigin) required.push("APP_ORIGIN");
   if (required.length) throw new TypeError(`Authentication attachment requires ${required.join(", ")}.`);
-  if (!environment.emailConfigured && !environment.capabilities.google) throw new TypeError("Authentication attachment requires one configured email provider or a complete Google OAuth client.");
+  if (!environment.emailConfigured && !environment.capabilities.google && !environment.capabilities.apple) throw new TypeError("Authentication attachment requires one configured email provider or a complete Google or Apple client.");
 
   const clientKey = (options.createClientKeyResolver || createTrustedClientKeyResolver)(env);
   const adapters = options.adapters || await (options.loadAdapters || loadMarketplaceDeploymentAdapters)(env);

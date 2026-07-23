@@ -72,14 +72,16 @@ await assert.rejects(runAdministratorProvisioning({
 assert.equal(failureCalls.at(-1), "ROLLBACK");
 assert(failureReleased && failureEnded, "Failed provisioning did not roll back and close resources.");
 
-const [migration, runtimeGrants, workerGrants, packageJson] = await Promise.all([
+const [migration, appleEligibilityMigration, runtimeGrants, workerGrants, packageJson] = await Promise.all([
   readFile(new URL("../db/migrations/034_bootstrap_administrator_provisioning.sql", import.meta.url), "utf8"),
+  readFile(new URL("../db/migrations/067_apple_administrator_bootstrap.sql", import.meta.url), "utf8"),
   readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8"),
   readFile(new URL("../db/worker-role-grants.sql", import.meta.url), "utf8"),
   readFile(new URL("../package.json", import.meta.url), "utf8")
 ]);
 assert(migration.includes("session_user::text <> owner_name") && migration.includes("administrator-already-provisioned") && migration.includes("administrator-bootstrap-account-ineligible"), "Bootstrap function lost owner-only, first-only or verified-account checks.");
 assert(migration.includes("provider IN ('password','google','facebook')") && migration.includes("SET revoked_at=COALESCE(revoked_at,now())") && migration.includes("administrator.bootstrap.provisioned"), "Bootstrap function lost supported-identity, session-revocation or audit evidence.");
+assert(appleEligibilityMigration.includes("CREATE OR REPLACE FUNCTION tideway_private.provision_bootstrap_administrator") && appleEligibilityMigration.includes("provider IN ('password','google','apple','facebook')") && appleEligibilityMigration.includes("session_user::text <> owner_name") && appleEligibilityMigration.includes("administrator.bootstrap.provisioned"), "Current bootstrap function does not give a verified Apple identity the same owner-only audited eligibility as the other account providers.");
 assert(migration.includes("audit_logs_administrator_bootstrap_request_idx") && migration.includes("already-provisioned") && migration.includes("administrator-bootstrap-request-reused"), "Bootstrap retries are not exact or idempotent.");
 assert(runtimeGrants.includes("REVOKE ALL ON FUNCTION tideway_private.provision_bootstrap_administrator") && workerGrants.includes("REVOKE ALL ON FUNCTION tideway_private.provision_bootstrap_administrator"), "A restricted runtime role can provision an Administrator.");
 assert(packageJson.includes('"provision:administrator"') && packageJson.includes('"test:administrator-provisioning"') && packageJson.includes("tests/bootstrap-administrator.mjs"), "Administrator provisioning is outside repository quality gates.");

@@ -76,6 +76,16 @@ export function createJourneyService(repository, options = {}) {
   }
 
   return Object.freeze({
+    async getJourneyReadiness(actor, bookingId) {
+      if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.includes("cleaner")) throw new TypeError("A Cleaner account is required to check journey readiness.");
+      const selectedBookingId = uuid(bookingId, "booking id");
+      const context = await repository.getJourneyContext(actor, selectedBookingId);
+      if (!context) throw Object.assign(new Error("The confirmed Cleaner booking was not found."), { statusCode: 404, code: "booking-not-found" });
+      return Object.freeze({
+        bookingId: selectedBookingId,
+        canStartJourney: context.payment_authorized === true
+      });
+    },
     async startJourney(actor, bookingId, input = {}) {
       if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.includes("cleaner")) throw new TypeError("A Cleaner account is required to start a journey.");
       if (input.consentGranted !== true) throw new TypeError("Explicit location-sharing consent is required before starting the journey.");

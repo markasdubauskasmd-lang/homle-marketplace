@@ -85,11 +85,12 @@ export function createMatchingService(repository, options = {}) {
   if (!repository || typeof repository.recommendForRequest !== "function") throw new TypeError("A request matching repository is required.");
   const pricingPolicy = options.pricingPolicy || null;
   const clock = options.clock || (() => new Date());
+  const requirePayoutReady = options.requirePayoutReady === true;
   return Object.freeze({
     async recommendForRequest(actor, cleaningRequestId) {
       if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.some((role) => role === "landlord" || role === "administrator")) throw new TypeError("A Landlord account is required to match a cleaning request.");
       const requestId = uuid(cleaningRequestId, "cleaning request id");
-      const records = (await repository.recommendForRequest(actor, requestId, 25)).filter((record) => String(record.cleaner_id || "").toLowerCase() !== actor.userId.toLowerCase());
+      const records = (await repository.recommendForRequest(actor, requestId, 25, requirePayoutReady)).filter((record) => String(record.cleaner_id || "").toLowerCase() !== actor.userId.toLowerCase());
       const now = clock();
       const ranked = rankRequestCandidates(records, pricingPolicy, now);
       return {

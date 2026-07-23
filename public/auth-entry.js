@@ -222,7 +222,7 @@ function clearStoredCsrf() {
 
 function workspacePath(account) {
   let destination = "";
-  if (accountIntent === "book") destination = account?.roles?.includes("landlord") ? "/landlord/dashboard?start=booking" : "";
+  if (accountIntent === "book") destination = account?.roles?.includes("landlord") ? "/landlord/book" : "";
   else if (accountIntent === "work") destination = account?.roles?.includes("cleaner") ? "/cleaner/profile" : "";
   else if (account?.selectedRole === "cleaner" && account?.roles?.includes("cleaner")) destination = "/cleaner/dashboard";
   else if (account?.selectedRole === "landlord" && account?.roles?.includes("landlord")) destination = "/landlord/dashboard";

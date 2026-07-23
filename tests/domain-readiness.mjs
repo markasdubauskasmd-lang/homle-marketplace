@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { normalizeExpectedReleaseCommit } from "../release-identity.mjs";
-import { probeGoogleProviderRegistration, resolvePublicAddresses, verifyDomainReadiness } from "../tools/domain-readiness.mjs";
+import { probeAppleProviderRegistration, probeGoogleProviderRegistration, resolvePublicAddresses, verifyDomainReadiness } from "../tools/domain-readiness.mjs";
 
 const securityHeaders = {
   "content-security-policy": "default-src 'self'; img-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
@@ -50,6 +50,12 @@ function privateBoundaryResponse(url) {
 function googleStartLocation(origin = "https://tidewaycleaning.co.uk") {
   const location = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   location.search = new URLSearchParams({ response_type: "code", client_id: "public-google-client-id", redirect_uri: `${origin}/api/marketplace/auth/google/callback`, scope: "openid email profile", state: "s".repeat(43), nonce: "n".repeat(43), code_challenge: "c".repeat(43), code_challenge_method: "S256" }).toString();
+  return location.toString();
+}
+
+function appleStartLocation(origin = "https://tidewaycleaning.co.uk") {
+  const location = new URL("https://appleid.apple.com/auth/authorize");
+  location.search = new URLSearchParams({ response_type: "code", response_mode: "form_post", client_id: "co.uk.homle.web", redirect_uri: `${origin}/api/marketplace/auth/apple/callback`, scope: "name email", state: "a".repeat(43), nonce: "n".repeat(43) }).toString();
   return location.toString();
 }
 
@@ -124,6 +130,43 @@ const rejectedGoogleRegistration = await probeGoogleProviderRegistration(googleS
 assert.equal(rejectedGoogleRegistration.ok, false);
 assert.match(rejectedGoogleRegistration.detail, /exact Authorized redirect URI https:\/\/tidewaycleaning\.co\.uk\/api\/marketplace\/auth\/google\/callback/);
 await assert.rejects(probeGoogleProviderRegistration("https://attacker.example/oauth", "https://tidewaycleaning.co.uk", { async fetch() { throw new Error("must not be called"); } }), /valid Homle Google authorization/i);
+
+const appleOnlyRequests = [];
+const appleOnlyAuthentication = await verifyDomainReadiness("https://tidewaycleaning.co.uk", {
+  expectedSocialProviders: ["apple"],
+  async resolveAddresses() { return ["93.184.216.34"]; },
+  async tlsProbe() { return { daysRemaining: 60, validUntil: "2026-09-14T00:00:00.000Z" }; },
+  async fetch(url, options) {
+    appleOnlyRequests.push({ url, options });
+    if (url === "http://tidewaycleaning.co.uk/") return new Response(null, { status: 308, headers: { location: "https://tidewaycleaning.co.uk/" } });
+    if (url === "https://tidewaycleaning.co.uk/") return new Response("<!doctype html><title>Homle</title>", { status: 200, headers: { ...securityHeaders, "content-type": "text/html; charset=utf-8" } });
+    if (url.endsWith("/api/health")) return jsonResponse({ ok: true, service: "tideway-marketplace", dataIntegrity: "healthy", writesAllowed: true, localDemosEnabled: false, marketplace: { enabled: false, ready: false, authenticationReady: true } });
+    const boundary = privateBoundaryResponse(url);
+    if (boundary) return boundary;
+    if (url.endsWith("/api/auth/providers")) return jsonResponse({ ok: true, providers: { emailPassword: false, passwordReset: false, emailVerification: false, google: false, apple: true, facebook: false, roles: ["cleaner", "landlord"] } });
+    if (url.endsWith("/api/marketplace/auth/google/start")) return new Response(null, { status: 404 });
+    if (url.endsWith("/api/marketplace/auth/apple/start")) return new Response(null, { status: 302, headers: { location: appleStartLocation(), "set-cookie": `__Host-tideway_apple_flow=${"a".repeat(50)}; Path=/; HttpOnly; SameSite=None; Secure`, "cache-control": "no-store" } });
+    if (url.startsWith("https://appleid.apple.com/auth/authorize?")) return new Response("<!doctype html><title>Sign in with Apple</title>", { status: 200, headers: { "content-type": "text/html" } });
+    if (url.endsWith("/api/marketplace/auth/facebook/start")) return new Response(null, { status: 404 });
+    throw new Error(`Unexpected URL: ${url}`);
+  }
+});
+assert.equal(appleOnlyAuthentication.ok, true, "Apple-only account staging was not externally verifiable.");
+assert.equal(appleOnlyAuthentication.checks.find((check) => check.name === "apple-sign-in-start")?.ok, true);
+assert.equal(appleOnlyAuthentication.checks.find((check) => check.name === "apple-provider-registration")?.ok, true);
+const appleProviderProbe = appleOnlyRequests.find((entry) => entry.url.startsWith("https://appleid.apple.com/auth/authorize?"));
+assert(appleProviderProbe && !appleProviderProbe.options.headers.cookie && !appleProviderProbe.options.headers.authorization, "Provider registration probe sent credentials or an existing session to Apple.");
+
+const rejectedAppleRegistration = await probeAppleProviderRegistration(appleStartLocation(), "https://tidewaycleaning.co.uk", {
+  async fetch(url, options) {
+    assert.equal(url, appleStartLocation());
+    assert.equal(options.redirect, "manual");
+    return new Response(null, { status: 302, headers: { location: "https://appleid.apple.com/auth/error?code=invalid_redirect_uri" } });
+  }
+});
+assert.equal(rejectedAppleRegistration.ok, false);
+assert.match(rejectedAppleRegistration.detail, /exact return URL https:\/\/tidewaycleaning\.co\.uk\/api\/marketplace\/auth\/apple\/callback/);
+await assert.rejects(probeAppleProviderRegistration("https://attacker.example/oauth", "https://tidewaycleaning.co.uk", { async fetch() { throw new Error("must not be called"); } }), /valid Homle Apple authorization/i);
 
 const googleOnlyAuthentication = await verifyDomainReadiness("https://tidewaycleaning.co.uk", {
   expectedSocialProviders: ["google"],
@@ -216,4 +259,4 @@ for (const name of ["dns", "tls", "http-redirect", "homepage", "security-headers
   assert.equal(bad.checks.find((check) => check.name === name)?.ok, false, `${name} failure was not detected.`);
 }
 
-console.log("Domain readiness tests passed: exact public origin, public DNS, trusted TLS, canonical redirect, security headers, exact packaged release identity, closed private/local surfaces, truthful authentication discovery, Google callback registration and closed/enabled social start-route proof.");
+console.log("Domain readiness tests passed: exact public origin, public DNS, trusted TLS, canonical redirect, security headers, exact packaged release identity, closed private/local surfaces, truthful authentication discovery, Google/Apple registration and closed/enabled social start-route proof.");
