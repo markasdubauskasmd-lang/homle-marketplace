@@ -1,5 +1,37 @@
 # Render activation handoff
 
+## CURRENT LIVE TRUTH - verify this before following older notes
+
+Verified on **2026-07-23** against
+`https://homle-marketplace-preview.onrender.com`:
+
+- live release: **`746d0599`**, database migrations: **66**
+- data integrity: healthy; restricted staging writes: allowed
+- ready: accounts, authentication, private photo/video storage, participant-only
+  realtime updates, postcode geocoding, matching/pricing, automatic dispatch,
+  speech summarisation and room reading
+- not ready: transactional email and Stripe **test** payments
+- real payments: deliberately not approved or enabled
+
+**Private object storage is complete and healthy. Do not create another bucket or
+replace its credentials because an older section below says `mediaReady: false`.**
+That snapshot is historical. The only provider credentials still needed are an
+approved transactional-email provider/sender and, after explicit founder setup,
+Stripe test credentials.
+
+Run the source-controlled, secret-safe verifier before and after every deploy:
+
+```powershell
+pnpm run verify:live-activation -- https://homle-marketplace-preview.onrender.com --expect-release=746d0599
+```
+
+The verifier makes one no-credential request to the public health endpoint,
+requires the exact packaged release, projects only approved boolean capability
+fields and names the remaining provider actions. It never activates payments,
+changes a booking or prints environment variables. Sections below are retained
+as implementation history; where they contradict this section or the verifier,
+the verifier is authoritative.
+
 **For the Render-connected assistant.** Written 2026-07-19 by the code assistant
 (GitHub side). The code side is done and merged to `main`. The steps below are
 Render-dashboard actions to finish activating the marketplace on the existing
