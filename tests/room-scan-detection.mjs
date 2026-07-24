@@ -10,6 +10,7 @@ import {
   mergeItemReadings,
   trackDetections,
   drawableTracks,
+  frameQualityAdvice,
   nextDetectionDelay,
   roomPresets,
   normaliseRoomName,
@@ -206,6 +207,19 @@ assert(nextDetectionDelay(400) === 600, `A slow phone was asked for frames it ca
 assert(nextDetectionDelay(5000) === 700, "The detection interval is unbounded on a very slow device.");
 assert(nextDetectionDelay(0) === 100 && nextDetectionDelay(NaN) === 100, "A missing timing produced an invalid interval.");
 
+/* ── Framing guidance ──────── */
+// A usable room gets no cue at all: guidance that fires on an ordinary frame
+// teaches the Landlord to ignore it.
+assert(frameQualityAdvice({ luma: 120, detail: 22 }) === null, "A perfectly usable frame was nagged about.");
+assert(frameQualityAdvice({ luma: 20, detail: 30 })?.kind === "dark", "An unlit room was not called out.");
+assert(frameQualityAdvice({ luma: 240, detail: 30 })?.kind === "bright", "A blown-out frame was not called out.");
+assert(frameQualityAdvice({ luma: 120, detail: 1.2 })?.kind === "soft", "A blurred or smeared frame was not called out.");
+// Darkness outranks softness: a dark frame has low detail *because* it is dark, so
+// telling the Landlord to hold still would send them after the wrong problem.
+assert(frameQualityAdvice({ luma: 20, detail: 1 })?.kind === "dark", "A dark frame was blamed on camera shake.");
+assert(frameQualityAdvice({}) === null && frameQualityAdvice({ luma: NaN, detail: 5 }) === null, "Missing frame statistics invented advice.");
+assert(Object.isFrozen(frameQualityAdvice({ luma: 20, detail: 30 })), "Framing advice is mutable.");
+
 /* ── Rooms the Landlord chooses and returns to ──────── */
 
 assert(roomPresets.includes("Kitchen") && roomPresets.includes("Bathroom") && roomPresets.length === 4, "The offered rooms no longer match what the spec asks for.");
@@ -233,5 +247,12 @@ assert(!canAddRoom(full, "One more room") && canAddRoom(full, "Room 1"), "The ro
 const roster = rosterSummary(added);
 assert(roster[0].name === "Kitchen" && roster[0].itemCount === 2 && roster[0].conditionLabel === "Heavy", `The room roster is wrong: ${JSON.stringify(roster[0])}`);
 assert(roster[1].itemCount === 0 && roster[1].conditionLabel === "Not assessed", "An empty room was summarised as if it had been assessed.");
+// The review lists what was actually picked, so a wrong room is visible without
+// reopening it — and says when a spoken note is attached.
+assert(Array.isArray(roster[0].itemLabels) && roster[0].itemLabels.length === roster[0].itemCount, `The review does not list the objects it counted: ${JSON.stringify(roster[0])}`);
+assert(roster[1].itemLabels.length === 0 && roster[1].hasNote === false, "An empty room claimed objects or a note.");
+const noted = rosterSummary([{ name: "Bathroom", detections: [{ label: "Sink" }, { label: "" }], tasks: [], transcript: "  limescale on the screen  " }])[0];
+assert(noted.itemLabels.length === 1 && noted.itemLabels[0] === "Sink", "An unnamed object padded the review with a placeholder.");
+assert(noted.hasNote === true && rosterSummary([{ name: "Hall", detections: [], transcript: "   " }])[0].hasNote === false, "A whitespace-only note was treated as a spoken note.");
 
 console.log("Room scan detection tests passed: viewfinder geometry under object-fit, padded crops inside the frame, clipped live boxes kept where asserted ones are rejected, smallest-box tap selection, free label translation, request budget that never drops the condition frame, replies joined only to selected items, steady bounded live tracking, and chosen rooms that can be found, edited in place and reviewed at a glance.");

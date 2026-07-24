@@ -10,6 +10,7 @@ import {
   mergeItemReadings,
   trackDetections,
   drawableTracks,
+  frameQualityAdvice,
   nextDetectionDelay,
   scanSummary,
   scanTranscript,
@@ -178,6 +179,13 @@ const detectorModelUrl = "/vendor/coco-ssd-lite-v1/model.json";
 // upload on every pass. Frames longer than this on their longest edge are copied
 // down first; the aspect ratio is preserved so box geometry is unaffected.
 const DETECT_INPUT_SIZE = 320;
+// Framing guidance is sampled at most this often. A pixel readback is synchronous,
+// and advice that changes faster than a person can react is just flicker.
+const QUALITY_SAMPLE_MS = 900;
+// Small enough that the readback and the loop over it are trivial, large enough to
+// tell a dim or smeared room from a sharp one.
+const QUALITY_SAMPLE_WIDTH = 64;
+const QUALITY_SAMPLE_HEIGHT = 48;
 
 function loadDetectorScript(source) {
   return new Promise((done, fail) => {
@@ -339,6 +347,8 @@ export function openRoomScan() {
       // resolution, and the viewfinder box is measured once rather than on every
       // pass. Both are recreated on demand, so an orientation change is safe.
       detectCanvas: null, viewRect: null,
+      // Framing guidance, sampled off the detector's own frame.
+      lastQualityAt: 0, qualityKind: "", qualityMessage: "", qualityCanvas: null,
       // Detection boxes, reused between passes and keyed by tracker id.
       boxNodes: new Map(),
       // Kept separate from `generation`: pausing detection must never discard a
@@ -557,11 +567,17 @@ export function openRoomScan() {
         const meta = room.itemCount
           ? `${room.itemCount} object${room.itemCount === 1 ? "" : "s"} · ${room.conditionLabel}`
           : "No objects yet";
+        // What was picked, and whether a spoken note is attached — the two things
+        // the review was missing, so a room can be checked without reopening it.
+        const shown = room.itemLabels.slice(0, 4).join(", ");
+        const extra = room.itemLabels.length > 4 ? ` +${room.itemLabels.length - 4} more` : "";
+        const detail = [shown ? shown + extra : "", room.hasNote ? "Voice note added" : ""].filter(Boolean).join(" · ");
         button.append(
           Object.assign(document.createElement("span"), { className: "hub-room-name", textContent: room.name }),
-          Object.assign(document.createElement("span"), { className: "hub-room-meta", textContent: meta }),
-          Object.assign(document.createElement("span"), { className: "hub-room-edit", textContent: "Edit" })
+          Object.assign(document.createElement("span"), { className: "hub-room-meta", textContent: meta })
         );
+        if (detail) button.append(Object.assign(document.createElement("span"), { className: "hub-room-detail", textContent: detail }));
+        button.append(Object.assign(document.createElement("span"), { className: "hub-room-edit", textContent: "Edit" }));
         const remove = document.createElement("button");
         remove.type = "button";
         remove.className = "hub-room-remove";
@@ -629,6 +645,10 @@ export function openRoomScan() {
       state.revisiting = false;
       state.loadingRoom = false;
       state.tracks = [];
+      // Advice about the last room's lighting must not carry into this one.
+      state.qualityKind = "";
+      state.qualityMessage = "";
+      state.lastQualityAt = 0;
       unfreeze();
       el.hint.innerHTML = "Point at the room and tap the shutter";
       if (!state.stream) startCamera();
@@ -1185,10 +1205,24 @@ export function openRoomScan() {
       }
 
       if (session !== state.roomSession || state.closed) return;
+      const replacing = Boolean(existing);
       state.rooms = upsertRoom(state.rooms, room);
       state.tracks = [];
       state.capturing = false;
       toHub();
+      // Saving a room used to be silent: the only sign it had worked was a new row
+      // appearing on the hub. Confirm it explicitly, and say what the next room
+      // would be so the walkthrough keeps its momentum.
+      if (!readingError) {
+        const count = room.detections.length;
+        const items = count ? `${count} ${count === 1 ? "item" : "items"}` : "photo";
+        // Suggested from the rooms not yet covered, never from how many have been
+        // captured: which room comes next is the Landlord's choice, and a home is
+        // not a fixed list. Silent once the common rooms are all done.
+        const remaining = roomPresets.filter((preset) => !findRoom(state.rooms, preset));
+        const upcoming = remaining.length ? ` Next: ${remaining[0].toLowerCase()}?` : "";
+        toast(`${room.name} saved — ${items}${replacing ? " updated" : ""}.${upcoming}`);
+      }
     }
 
     // The shutter freezes first and saves second, so there is always a chance to
@@ -1439,8 +1473,21 @@ export function openRoomScan() {
     function renderDetectorState() {
       if (!el.detectorState) return;
       const live = state.screen === "live";
-      if (!live || state.detectorState === "ready") {
+      if (!live || state.frozen) {
         el.detectorState.hidden = true;
+        return;
+      }
+      // Once the detector is up, this line is where framing guidance goes: it is
+      // the more useful thing to say about a live frame, and only one of the two
+      // ever needs saying at a time.
+      if (state.detectorState === "ready") {
+        if (!state.qualityMessage) {
+          el.detectorState.hidden = true;
+          return;
+        }
+        el.detectorState.hidden = false;
+        el.detectorState.dataset.kind = "guide";
+        el.detectorState.textContent = state.qualityMessage;
         return;
       }
       if (state.detectorState === "unavailable") {
@@ -1505,6 +1552,50 @@ export function openRoomScan() {
       return canvas;
     }
 
+    // Brightness and detail, read off the small frame already drawn for the
+    // detector, so guidance costs one `getImageData` on a few hundred pixels rather
+    // than any extra work on the camera path. Sampled every few passes, not every
+    // pass — a readback is the one genuinely synchronous thing here.
+    function sampleFrameQuality(source) {
+      if (!source) return;
+      const now = Date.now();
+      if (now - state.lastQualityAt < QUALITY_SAMPLE_MS) return;
+      state.lastQualityAt = now;
+      // Its own small canvas, flagged for readback. Reading pixels back off the
+      // detector's canvas would push that one off the GPU path it is there to use.
+      let canvas = state.qualityCanvas;
+      if (!canvas) {
+        canvas = state.qualityCanvas = document.createElement("canvas");
+        canvas.width = QUALITY_SAMPLE_WIDTH;
+        canvas.height = QUALITY_SAMPLE_HEIGHT;
+      }
+      let pixels;
+      try {
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        context.drawImage(source, 0, 0, canvas.width, canvas.height);
+        pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      } catch { return; }
+      const stride = 4;
+      let total = 0;
+      let deltas = 0;
+      let count = 0;
+      let previous = null;
+      for (let index = 0; index < pixels.length; index += stride) {
+        const luma = pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
+        total += luma;
+        if (previous !== null) deltas += Math.abs(luma - previous);
+        previous = luma;
+        count += 1;
+      }
+      if (!count) return;
+      const advice = frameQualityAdvice({ luma: total / count, detail: count > 1 ? deltas / (count - 1) : 0 });
+      const key = advice ? advice.kind : "";
+      if (key === state.qualityKind) return;
+      state.qualityKind = key;
+      state.qualityMessage = advice ? advice.message : "";
+      renderDetectorState();
+    }
+
     // Measuring the viewfinder forces layout. It only changes when the window or
     // orientation does, so it is measured once and reused until invalidated.
     function viewfinderRect() {
@@ -1520,6 +1611,7 @@ export function openRoomScan() {
       const startedAt = Date.now();
       try {
         const source = inferenceFrame(video);
+        sampleFrameQuality(source);
         const found = await state.detector.detect(source, 12);
         if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
         const rect = viewfinderRect();

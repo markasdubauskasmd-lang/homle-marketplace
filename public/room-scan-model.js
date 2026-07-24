@@ -415,6 +415,25 @@ export function drawableTracks(tracks) {
 // that needs 400ms per frame must not be asked for one every 200ms — it would
 // pin the main thread and make the viewfinder itself stutter, which is worse
 // than fewer boxes.
+// What a frame looks like, judged from cheap statistics the overlay samples off
+// the small frame it already draws for the detector. Deliberately conservative:
+// a cue that fires on a frame that is merely a bit dim trains the Landlord to
+// ignore it, so only clearly unusable frames are called out, one thing at a time,
+// worst first. `null` means "say nothing", which is the common case.
+//
+// `luma` is mean brightness 0-255. `detail` is the mean absolute difference
+// between neighbouring samples — high on a crisp room, near zero on a frame that
+// is blurred, smeared by motion, or pointed at a blank wall.
+export function frameQualityAdvice({ luma, detail } = {}) {
+  if (![luma, detail].every((value) => Number.isFinite(value))) return null;
+  if (luma < 42) return Object.freeze({ kind: "dark", message: "Too dark to read the room — turn a light on." });
+  if (luma > 218) return Object.freeze({ kind: "bright", message: "Too bright to make out detail — try facing away from the window." });
+  // Only trusted once the frame is bright enough for low detail to mean blur
+  // rather than simply a dark picture.
+  if (detail < 4.5) return Object.freeze({ kind: "soft", message: "Hold still, or step back to get the whole room in frame." });
+  return null;
+}
+
 // Inference runs on a downscaled copy of the frame, so a capable phone finishes
 // in tens of milliseconds and can be asked for roughly ten passes a second —
 // which is what makes the boxes track an object instead of stepping after it. The
@@ -591,7 +610,12 @@ export function rosterSummary(rooms) {
       name: normaliseRoomName(room?.name),
       itemCount: items.length,
       taskCount: Array.isArray(room?.tasks) ? room.tasks.length : 0,
-      conditionLabel: conditionLabel(room?.condition)
+      conditionLabel: conditionLabel(room?.condition),
+      // What was actually picked, so the review reads "Sofa, TV, Rug" rather than
+      // "3 objects" and a Landlord can spot a wrong room without reopening it.
+      // Unnamed items are left out rather than padding the line with placeholders.
+      itemLabels: Object.freeze(items.map((item) => String(item?.label || "").trim()).filter(Boolean)),
+      hasNote: Boolean(String(room?.transcript || "").trim())
     });
   });
 }
