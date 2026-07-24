@@ -415,7 +415,12 @@ export function drawableTracks(tracks) {
 // that needs 400ms per frame must not be asked for one every 200ms — it would
 // pin the main thread and make the viewfinder itself stutter, which is worse
 // than fewer boxes.
-export function nextDetectionDelay(lastDurationMs, { targetFps = 5, minIntervalMs = 120, maxIntervalMs = 700 } = {}) {
+// Inference runs on a downscaled copy of the frame, so a capable phone finishes
+// in tens of milliseconds and can be asked for roughly ten passes a second —
+// which is what makes the boxes track an object instead of stepping after it. The
+// `duration * 1.5` term still keeps a slow device honest: it is asked for fewer
+// frames, never pinned at a rate it cannot deliver.
+export function nextDetectionDelay(lastDurationMs, { targetFps = 10, minIntervalMs = 90, maxIntervalMs = 700 } = {}) {
   const duration = Number.isFinite(lastDurationMs) && lastDurationMs > 0 ? lastDurationMs : 0;
   const target = 1000 / Math.max(1, targetFps);
   return Math.max(minIntervalMs, Math.min(maxIntervalMs, Math.max(target, duration * 1.5)));

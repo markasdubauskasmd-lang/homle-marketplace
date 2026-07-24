@@ -36,7 +36,7 @@ const markup = `
     <canvas class="vf-capture" data-capture-canvas hidden></canvas>
     <div class="mesh" data-mesh></div>
     <div data-detection-layer></div>
-    <div class="sweep" data-sweep></div>
+    <p class="scan-detector-state" data-detector-state role="status" aria-live="polite" hidden></p>
     <div class="reticle" aria-hidden="true">
       <div class="ret-c ret-tl"></div><div class="ret-c ret-tr"></div>
       <div class="ret-c ret-bl"></div><div class="ret-c ret-br"></div>
@@ -173,6 +173,11 @@ const detectorScripts = Object.freeze([
   "/vendor/tfjs-4.22.0/coco-ssd.min.js"
 ]);
 const detectorModelUrl = "/vendor/coco-ssd-lite-v1/model.json";
+// The detector's own input is a few hundred pixels square, so there is nothing
+// to gain from handing it a full 720p+ camera frame — only a larger texture to
+// upload on every pass. Frames longer than this on their longest edge are copied
+// down first; the aspect ratio is preserved so box geometry is unaffected.
+const DETECT_INPUT_SIZE = 320;
 
 function loadDetectorScript(source) {
   return new Promise((done, fail) => {
@@ -209,7 +214,10 @@ let detectorBusy = false;
 function loadDetectorOnce() {
   if (detectorLoad) return detectorLoad;
   detectorLoad = (async () => {
-    for (const source of detectorScripts) await loadDetectorScript(source);
+    // Requested together rather than one after the next. Each tag already sets
+    // `async = false`, so the browser still executes them in this order — it just
+    // stops waiting for one megabyte to arrive before asking for the next file.
+    await Promise.all(detectorScripts.map(loadDetectorScript));
     const runtime = globalThis.tf;
     const detection = globalThis.cocoSsd;
     if (!runtime || !detection) throw new Error("detector-unavailable");
@@ -288,7 +296,7 @@ export function openRoomScan() {
       blocked: $("[data-camera-blocked]"), blockedReason: $("[data-camera-blocked-reason]"), retry: $("[data-camera-retry]"),
       fallbacks: $$("[data-camera-fallback]"), fallbackInput: $("[data-camera-fallback-input]"),
       videoFallbacks: $$("[data-video-fallback]"), videoFallbackInput: $("[data-video-fallback-input]"),
-      mesh: $("[data-mesh]"), detections: $("[data-detection-layer]"), sweep: $("[data-sweep]"), flash: $("[data-flash]"),
+      mesh: $("[data-mesh]"), detections: $("[data-detection-layer]"), detectorState: $("[data-detector-state]"), flash: $("[data-flash]"),
       still: $("[data-still]"), roomLabel: $("[data-room-label]"), shotCount: $("[data-shot-count]"), hint: $("[data-hint]"),
       mic: $("[data-mic]"), shutter: $("[data-shutter]"),
       selection: $("[data-selection]"), selectionHint: $("[data-selection-hint]"), retake: $("[data-retake]"), readRoom: $("[data-read-room]"),
@@ -327,6 +335,12 @@ export function openRoomScan() {
       // frame it looks at leaves the phone.
       detector: null, detectorState: "idle", detecting: false,
       rafId: 0, lastDetectionAt: 0, detectionInterval: 200,
+      // Inference runs on a small copy of the frame, not the full camera
+      // resolution, and the viewfinder box is measured once rather than on every
+      // pass. Both are recreated on demand, so an orientation change is safe.
+      detectCanvas: null, viewRect: null,
+      // Detection boxes, reused between passes and keyed by tracker id.
+      boxNodes: new Map(),
       // Kept separate from `generation`: pausing detection must never discard a
       // room reading that is still in flight.
       detectionGeneration: 0,
@@ -513,8 +527,11 @@ export function openRoomScan() {
     function showScreen(name) {
       state.screen = name;
       el.hub.hidden = name === "live";
+      // Showing or hiding the hub changes the viewfinder's box.
+      state.viewRect = null;
       if (name === "live") { el.roomLabel.textContent = state.currentRoom; startDetection(); }
       else stopDetection();
+      renderDetectorState();
     }
 
     function renderHub() {
@@ -820,20 +837,56 @@ export function openRoomScan() {
 
     // Live boxes and selectable boxes are drawn the same way; only whether they
     // respond to a tap and whether they read as chosen differs.
+    // The live loop repaints several times a second, so the boxes are pooled and
+    // keyed by the tracker's stable id: a box that is still there is moved rather
+    // than destroyed and rebuilt. That removes ~24 element allocations per pass,
+    // and — because the nodes now survive between passes — the fade in the
+    // stylesheet finally has something to transition, which it never did while
+    // every node was created already carrying its final class.
     function paintBoxes(boxes, { selectable = false } = {}) {
-      el.detections.innerHTML = "";
+      const pool = state.boxNodes;
+      const keep = new Set();
       for (const item of boxes) {
-        const box = document.createElement("div");
-        box.className = `det-box show${selectable ? " pickable" : ""}${state.selectedIds.has(item.id) ? " picked" : ""}`;
-        box.style.cssText = `left:${item.x}%;top:${item.y}%;width:${item.width}%;height:${item.height}%`;
-        if (item.label) {
+        keep.add(item.id);
+        let node = pool.get(item.id);
+        if (!node) {
+          const box = document.createElement("div");
           const tag = document.createElement("span");
           tag.className = "det-tag";
-          tag.textContent = item.label;
           box.appendChild(tag);
+          node = { box, tag, className: "", geometry: "", label: null };
+          pool.set(item.id, node);
+          el.detections.appendChild(box);
         }
-        el.detections.appendChild(box);
+        const className = `det-box show${selectable ? " pickable" : ""}${state.selectedIds.has(item.id) ? " picked" : ""}`;
+        if (node.className !== className) {
+          node.box.className = className;
+          node.className = className;
+        }
+        const geometry = `left:${item.x}%;top:${item.y}%;width:${item.width}%;height:${item.height}%`;
+        if (node.geometry !== geometry) {
+          node.box.style.cssText = geometry;
+          node.geometry = geometry;
+        }
+        const label = item.label || "";
+        if (node.label !== label) {
+          node.tag.textContent = label;
+          node.tag.hidden = !label;
+          node.label = label;
+        }
       }
+      for (const [id, node] of pool) {
+        if (keep.has(id)) continue;
+        node.box.remove();
+        pool.delete(id);
+      }
+    }
+
+    // Anything that empties the layer directly has to drop the pool with it, or
+    // the next paint would reuse nodes that are no longer in the document.
+    function clearBoxes() {
+      state.boxNodes.clear();
+      el.detections.innerHTML = "";
     }
 
     function selectionCount() {
@@ -887,6 +940,8 @@ export function openRoomScan() {
     }
 
     function onViewportResize() {
+      // The cached viewfinder box is only valid for the current layout.
+      state.viewRect = null;
       if (state.frozen) layoutFrozen();
     }
 
@@ -940,7 +995,7 @@ export function openRoomScan() {
       el.still.removeAttribute("src");
       el.selection.hidden = true;
       el.viewfinder.classList.remove("picking");
-      el.detections.innerHTML = "";
+      clearBoxes();
       // Back to full-bleed: live boxes are percentages of the viewfinder again.
       resetLayout();
       if (state.stream) startDetection();
@@ -1355,25 +1410,56 @@ export function openRoomScan() {
       })));
     }
 
+    // Begins the one-time detector load. Safe to call repeatedly and safe to call
+    // before the camera exists: `loadDetectorOnce` is idempotent. Called as soon
+    // as the overlay opens so the megabytes travel while the Landlord is still
+    // choosing a room and granting camera permission, instead of after.
+    function warmDetector() {
+      if (state.detectorState !== "idle") return;
+      state.detectorState = "loading";
+      renderDetectorState();
+      loadDetectorOnce().then((model) => {
+        if (state.closed) return;
+        state.detector = model;
+        state.detectorState = "ready";
+        renderDetectorState();
+      }).catch(() => {
+        // The scan carries on exactly as it did before any of this existed:
+        // photographs, voice notes and boxes added by hand.
+        state.detectorState = "unavailable";
+        state.liveDetectionAvailable = false;
+        renderDetectorState();
+      });
+    }
+
+    // Until now the detector's state was never shown, so a Landlord on a slow
+    // connection watched a camera that simply did not find anything and had no
+    // way to know why. The badge says what is happening and disappears once
+    // boxes can actually appear.
+    function renderDetectorState() {
+      if (!el.detectorState) return;
+      const live = state.screen === "live";
+      if (!live || state.detectorState === "ready") {
+        el.detectorState.hidden = true;
+        return;
+      }
+      if (state.detectorState === "unavailable") {
+        el.detectorState.hidden = false;
+        el.detectorState.dataset.kind = "off";
+        el.detectorState.textContent = "Automatic object finding is unavailable — tap anything in the frame to mark it yourself.";
+        return;
+      }
+      el.detectorState.hidden = false;
+      el.detectorState.dataset.kind = "loading";
+      el.detectorState.textContent = "Getting the object finder ready… you can already photograph the room or tap to mark items.";
+    }
+
     function startDetection() {
       // Only while the Landlord is actually pointing at a room. Behind the hub
       // the camera is warm but there is nothing to detect, so the loop stays off.
       if (state.screen !== "live" || state.closed || state.frozen || !state.stream) return;
       if (!state.liveDetectionAvailable || state.rafId) return;
-
-      if (state.detectorState === "idle") {
-        state.detectorState = "loading";
-        loadDetectorOnce().then((model) => {
-          if (state.closed) return;
-          state.detector = model;
-          state.detectorState = "ready";
-        }).catch(() => {
-          // The scan carries on exactly as it did before any of this existed:
-          // photographs, voice notes and boxes added by hand.
-          state.detectorState = "unavailable";
-          state.liveDetectionAvailable = false;
-        });
-      }
+      warmDetector();
 
       state.detectionGeneration += 1;
       const generation = state.detectionGeneration;
@@ -1398,6 +1484,34 @@ export function openRoomScan() {
       state.detectionGeneration += 1;
     }
 
+    // A phone camera hands us 720p or more. The detector only ever sees a few
+    // hundred pixels a side, so uploading the full frame to the GPU and letting
+    // the model shrink it is work paid for on every pass. Copying into one
+    // reusable small canvas first keeps the aspect ratio — which is what makes
+    // the box maths below scale-invariant — and cuts the per-frame cost sharply.
+    function inferenceFrame(video) {
+      const longest = Math.max(video.videoWidth, video.videoHeight);
+      if (longest <= DETECT_INPUT_SIZE) return video;
+      const scale = DETECT_INPUT_SIZE / longest;
+      const width = Math.max(1, Math.round(video.videoWidth * scale));
+      const height = Math.max(1, Math.round(video.videoHeight * scale));
+      let canvas = state.detectCanvas;
+      if (!canvas) canvas = state.detectCanvas = document.createElement("canvas");
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      canvas.getContext("2d").drawImage(video, 0, 0, width, height);
+      return canvas;
+    }
+
+    // Measuring the viewfinder forces layout. It only changes when the window or
+    // orientation does, so it is measured once and reused until invalidated.
+    function viewfinderRect() {
+      if (!state.viewRect) state.viewRect = el.viewfinder.getBoundingClientRect();
+      return state.viewRect;
+    }
+
     async function runDetection(generation) {
       const video = el.camera;
       // Mobile Safari reports zero dimensions until metadata has loaded.
@@ -1405,14 +1519,18 @@ export function openRoomScan() {
       detectorBusy = true;
       const startedAt = Date.now();
       try {
-        const found = await state.detector.detect(video, 12);
+        const source = inferenceFrame(video);
+        const found = await state.detector.detect(source, 12);
         if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
-        const rect = el.viewfinder.getBoundingClientRect();
+        const rect = viewfinderRect();
         const mapped = [];
         for (const item of found) {
           const [x, y, width, height] = Array.isArray(item?.bbox) ? item.bbox : [];
           const box = fitBoxToFrame({ x, y, width, height }, {
-            videoWidth: video.videoWidth, videoHeight: video.videoHeight,
+            // The boxes come back in the coordinates of whatever was inferred on,
+            // so the frame it was measured against is the one to map from.
+            videoWidth: source.width || video.videoWidth,
+            videoHeight: source.height || video.videoHeight,
             frameWidth: rect.width, frameHeight: rect.height
           });
           if (box) mapped.push({ ...box, className: item.class, score: item.score });
@@ -1430,7 +1548,7 @@ export function openRoomScan() {
         state.detectorState = "unavailable";
         state.liveDetectionAvailable = false;
         state.tracks = [];
-        el.detections.innerHTML = "";
+        clearBoxes();
       } finally {
         detectorBusy = false;
         // A phone that needs 400ms a frame is asked for fewer, rather than
@@ -1518,9 +1636,12 @@ export function openRoomScan() {
       const bars = $$("[data-wave] b");
       state.timers.wave = setInterval(() => {
         for (const [index, bar] of bars.entries()) {
-          const base = Math.sin((Date.now() / 170) + index * 0.55);
-          bar.style.height = `${Math.min(100, 20 + Math.abs(base) * 55 + Math.random() * 24)}%`;
-          bar.style.opacity = String(0.45 + Math.abs(base) * 0.55);
+          const base = Math.abs(Math.sin((Date.now() / 170) + index * 0.55));
+          // scaleY rather than height: a transform does not lay out, and the
+          // per-bar randomness is gone — it forced a fresh value every tick for
+          // every bar and the sine already reads as a moving wave.
+          bar.style.transform = `scaleY(${(0.2 + base * 0.72).toFixed(3)})`;
+          bar.style.opacity = String(0.45 + base * 0.55);
         }
       }, 70);
       state.timers.clock = setInterval(() => {
@@ -1705,6 +1826,10 @@ export function openRoomScan() {
     renderHub();
     showScreen("hub");
     startCamera();
+    // The several megabytes of detector start moving now, in parallel with the
+    // camera permission prompt and the room choice, so entering the first room is
+    // not the moment the download begins.
+    warmDetector();
     el.hubOther.focus?.({ preventScroll: true });
   });
 }
