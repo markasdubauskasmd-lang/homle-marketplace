@@ -200,12 +200,15 @@ assert(trackDetections(null, null).tracks.length === 0, "Missing tracking input 
 
 // A slow device is asked for fewer frames rather than being pinned at 100%,
 // because a stuttering viewfinder is worse than fewer boxes.
-// Inference runs on a downscaled frame now, so a phone finishing in 80ms is asked
-// for ~8 passes a second rather than being held at the old 5-per-second ceiling.
-assert(nextDetectionDelay(80) === 120, `A capable phone was throttled unnecessarily: ${nextDetectionDelay(80)}`);
-assert(nextDetectionDelay(400) === 600, `A slow phone was asked for frames it cannot deliver: ${nextDetectionDelay(400)}`);
+// Inference runs on a downscaled frame now, so a phone is asked for more than the
+// old five passes a second — but the interval is start-to-start, so `duration * 2`
+// also caps the detector at roughly half duty. A scan that pins the GPU buys
+// smoother boxes for a minute and then loses them to thermal throttling.
+assert(nextDetectionDelay(40) === 125, `A capable phone was throttled unnecessarily: ${nextDetectionDelay(40)}`);
+assert(nextDetectionDelay(80) === 160 && 80 / nextDetectionDelay(80) <= 0.5, `The detector was allowed to run more than half the time: ${nextDetectionDelay(80)}`);
+assert(nextDetectionDelay(300) === 600, `A slow phone was asked for frames it cannot deliver: ${nextDetectionDelay(300)}`);
 assert(nextDetectionDelay(5000) === 700, "The detection interval is unbounded on a very slow device.");
-assert(nextDetectionDelay(0) === 100 && nextDetectionDelay(NaN) === 100, "A missing timing produced an invalid interval.");
+assert(nextDetectionDelay(0) === 125 && nextDetectionDelay(NaN) === 125, "A missing timing produced an invalid interval.");
 
 /* ── Framing guidance ──────── */
 // A usable room gets no cue at all: guidance that fires on an ordinary frame

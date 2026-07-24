@@ -434,15 +434,19 @@ export function frameQualityAdvice({ luma, detail } = {}) {
   return null;
 }
 
-// Inference runs on a downscaled copy of the frame, so a capable phone finishes
-// in tens of milliseconds and can be asked for roughly ten passes a second —
-// which is what makes the boxes track an object instead of stepping after it. The
-// `duration * 1.5` term still keeps a slow device honest: it is asked for fewer
-// frames, never pinned at a rate it cannot deliver.
-export function nextDetectionDelay(lastDurationMs, { targetFps = 10, minIntervalMs = 90, maxIntervalMs = 700 } = {}) {
+// Inference runs on a downscaled copy of the frame, so a capable phone finishes in
+// tens of milliseconds and can be asked for more passes than the old five a second
+// — which is what makes boxes track an object instead of stepping after it.
+//
+// The interval is start-to-start, so the `duration * 2` term is also a duty-cycle
+// ceiling: the detector is never asked to work more than about half the time. That
+// matters more than raw frame rate. A phone is held in a warm hand, and a scan that
+// pins the GPU wins smoother boxes for a minute and then loses them to thermal
+// throttling — as well as spending battery a Landlord walking round a flat needs.
+export function nextDetectionDelay(lastDurationMs, { targetFps = 8, minIntervalMs = 90, maxIntervalMs = 700 } = {}) {
   const duration = Number.isFinite(lastDurationMs) && lastDurationMs > 0 ? lastDurationMs : 0;
   const target = 1000 / Math.max(1, targetFps);
-  return Math.max(minIntervalMs, Math.min(maxIntervalMs, Math.max(target, duration * 1.5)));
+  return Math.max(minIntervalMs, Math.min(maxIntervalMs, Math.max(target, duration * 2)));
 }
 
 // Time is counted from the tasks that were actually scoped. A photograph cannot

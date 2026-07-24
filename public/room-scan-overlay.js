@@ -515,6 +515,11 @@ export function openRoomScan() {
       renderVoiceTranscript();
       el.voice.hidden = false;
       el.voice.classList.add("on");
+      // Nothing is being aimed at while the note panel covers the viewfinder, and
+      // on a phone the keyboard is about to take the screen. Inference here would
+      // only cost battery and compete with typing.
+      stopDetection();
+      renderDetectorState();
       if (focus) setTimeout(() => el.note.focus({ preventScroll: true }), 0);
     }
 
@@ -524,6 +529,10 @@ export function openRoomScan() {
       renderVoiceTranscript();
       el.voice.classList.remove("on", "recording");
       el.voice.hidden = true;
+      // The keyboard closing changes the viewfinder's box, and aiming resumes.
+      state.viewRect = null;
+      startDetection();
+      renderDetectorState();
       el.hint.innerHTML = roomTranscript()
         ? "<b>Room note ready</b> — check the photo, then confirm"
         : "Point at the room and tap the shutter";
@@ -571,7 +580,7 @@ export function openRoomScan() {
         // the review was missing, so a room can be checked without reopening it.
         const shown = room.itemLabels.slice(0, 4).join(", ");
         const extra = room.itemLabels.length > 4 ? ` +${room.itemLabels.length - 4} more` : "";
-        const detail = [shown ? shown + extra : "", room.hasNote ? "Voice note added" : ""].filter(Boolean).join(" · ");
+        const detail = [shown ? shown + extra : "", room.hasNote ? "Room note added" : ""].filter(Boolean).join(" · ");
         button.append(
           Object.assign(document.createElement("span"), { className: "hub-room-name", textContent: room.name }),
           Object.assign(document.createElement("span"), { className: "hub-room-meta", textContent: meta })
@@ -1007,6 +1016,11 @@ export function openRoomScan() {
 
     function unfreeze() {
       state.frozen = false;
+      // Stale guidance from before the freeze must not reappear with the live feed.
+      state.qualityKind = "";
+      state.qualityMessage = "";
+      state.lastQualityAt = 0;
+      renderDetectorState();
       state.frozenFrame = "";
       state.candidates = [];
       state.selectedIds = new Set();
@@ -1529,6 +1543,9 @@ export function openRoomScan() {
       // A detection resolving from a previous run must not paint over a frame
       // the Landlord has since frozen.
       state.detectionGeneration += 1;
+      // Every freeze goes through here, so this is where guidance about a live
+      // frame stops being true — "too dark" must not sit over a frozen photo.
+      renderDetectorState();
     }
 
     // A phone camera hands us 720p or more. The detector only ever sees a few
@@ -1575,20 +1592,26 @@ export function openRoomScan() {
         context.drawImage(source, 0, 0, canvas.width, canvas.height);
         pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
       } catch { return; }
-      const stride = 4;
+      const { width, height } = canvas;
       let total = 0;
       let deltas = 0;
-      let count = 0;
-      let previous = null;
-      for (let index = 0; index < pixels.length; index += stride) {
-        const luma = pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
-        total += luma;
-        if (previous !== null) deltas += Math.abs(luma - previous);
-        previous = luma;
-        count += 1;
+      let pairs = 0;
+      // Walked as a grid rather than a flat array: comparing the last pixel of one
+      // row with the first of the next is not a neighbouring pair, and those
+      // wrap-around edges inflate "detail" enough to let a blurred frame pass.
+      for (let y = 0; y < height; y += 1) {
+        let previous = null;
+        for (let x = 0; x < width; x += 1) {
+          const index = (y * width + x) * 4;
+          const luma = pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
+          total += luma;
+          if (previous !== null) { deltas += Math.abs(luma - previous); pairs += 1; }
+          previous = luma;
+        }
       }
-      if (!count) return;
-      const advice = frameQualityAdvice({ luma: total / count, detail: count > 1 ? deltas / (count - 1) : 0 });
+      const samples = width * height;
+      if (!samples || !pairs) return;
+      const advice = frameQualityAdvice({ luma: total / samples, detail: deltas / pairs });
       const key = advice ? advice.kind : "";
       if (key === state.qualityKind) return;
       state.qualityKind = key;
@@ -1759,7 +1782,10 @@ export function openRoomScan() {
       el.mic.setAttribute("aria-pressed", "false");
       el.voice.classList.remove("recording");
       el.voiceStatus.textContent = failed ? "Room note · listening stopped" : "Room note · review";
-      for (const bar of $$("[data-wave] b")) bar.style.height = "18%";
+      // Reset the transform, not the height: the bars are full height and scaled.
+      // Leaving an inline `height` here would shrink the bar the scale applies to,
+      // so every later recording drew a flatter and flatter wave.
+      for (const bar of $$("[data-wave] b")) bar.style.transform = "scaleY(.2)";
       if (silent) {
         el.voice.classList.remove("on");
         el.voice.hidden = true;
@@ -1820,6 +1846,7 @@ export function openRoomScan() {
       // is deliberately left loaded rather than rebuilt on every open — see
       // `loadDetectorOnce`.
       stopDetection();
+      clearBoxes();
       state.detector = null;
       clearTimeout(toastTimer);
       window.clearTimeout(state.timers.cameraResume);
@@ -1829,6 +1856,7 @@ export function openRoomScan() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("resize", onViewportResize);
       window.removeEventListener("orientationchange", onViewportResize);
+      window.visualViewport?.removeEventListener("resize", onViewportResize);
       window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("pageshow", onPageShow);
       window.removeEventListener("beforeunload", onBeforeUnload);
@@ -1909,6 +1937,9 @@ export function openRoomScan() {
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("resize", onViewportResize);
     window.addEventListener("orientationchange", onViewportResize);
+    // A mobile keyboard can resize the visual viewport without firing a window
+    // resize, which would leave the boxes mapped against the pre-keyboard layout.
+    window.visualViewport?.addEventListener("resize", onViewportResize);
     window.addEventListener("pagehide", onPageHide);
     window.addEventListener("pageshow", onPageShow);
     window.addEventListener("beforeunload", onBeforeUnload);
