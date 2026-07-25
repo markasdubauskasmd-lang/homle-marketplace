@@ -1,4 +1,5 @@
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
+import { createRequestJson } from "./request-json.js";
 
 const buttons = [...document.querySelectorAll("[data-account-sign-out]")];
 const accountMenus = [...document.querySelectorAll("[data-account-menu]")];
@@ -16,22 +17,7 @@ function saveCsrf(value) {
   } catch {}
 }
 
-async function requestJson(path, options = {}, timeoutMs = 15_000) {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(path, { credentials: "same-origin", cache: "no-store", signal: controller.signal, ...options });
-    let result = {};
-    try { result = await response.json(); } catch {}
-    if (!response.ok || result.ok !== true) throw Object.assign(new Error(result.error || "Account action failed."), { status: response.status });
-    return result;
-  } catch (error) {
-    if (error?.name === "AbortError") throw Object.assign(new Error("Sign out took too long. It may have completed; reload before trying again."), { code: "request-timeout" });
-    throw error;
-  } finally {
-    window.clearTimeout(timer);
-  }
-}
+const requestJson = createRequestJson({ failureMessage: "Account action failed.", timeoutMs: 15_000, timeoutMessage: "Sign out took too long. It may have completed; reload before trying again." });
 
 function workspaceFor(account) {
   const roles = Array.isArray(account?.roles) ? account.roles : [];

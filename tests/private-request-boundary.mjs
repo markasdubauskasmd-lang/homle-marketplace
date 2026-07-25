@@ -1,0 +1,94 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+// The page modules used to inline their own `fetch`, and each UI suite asserted on that
+// module's source that the call carried `credentials: "same-origin"` and `cache:
+// "no-store"`. Those are real guarantees — a private request that drops its session
+// cookie, or that a proxy is allowed to cache, is a security problem, not a style one.
+//
+// Now that the request has one owner, asserting the literals against each page module
+// would fail, and deleting those assertions would silently stop guarding the property in
+// several suites at once. So the guarantee is asserted here, against the module that
+// implements it, and every module that should be delegating is checked below — by this
+// file rather than by each suite, so a module cannot be forgotten the way
+// `admin-verifications` was in the first version of this test.
+
+const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+const sharedSource = read("public/request-json.js");
+
+/* ── The guarantees, asserted where they are implemented ── */
+
+assert.match(sharedSource, /credentials: "same-origin"/, "The shared private request no longer sends the session cookie, so authenticated page requests would be answered as if signed out.");
+assert.match(sharedSource, /cache: "no-store"/, "The shared private request no longer sets no-store, so a proxy or the browser may cache private account responses.");
+assert.match(sharedSource, /Accept: "application\/json"/, "The shared private request no longer asks for JSON, so an HTML error page can arrive and fail to parse as a generic failure.");
+// Both spellings of the status. Eleven modules read `statusCode` and three read `status`;
+// setting only one would silently send the other group down the wrong branch.
+assert.match(sharedSource, /status: response\.status/, "The shared private request stopped setting `status`, which three page modules read.");
+assert.match(sharedSource, /statusCode: response\.status/, "The shared private request stopped setting `statusCode`, which eleven page modules read.");
+
+/* ── Timeouts stay opt-in ── */
+
+// An earlier version defaulted every module to a 15-second bound. Seven had none, and a
+// bare timeout is the wrong fix for a mutation: aborting the fetch does not stop the
+// server, `active-job`'s "add unexpected task" carries no idempotency key, and the
+// message said "try again" — so the abort could produce a duplicate task. `cleaner-payouts`
+// reaches Stripe, which the server bounds at 10s with two retries, so 15s in the browser
+// is shorter than the server's own valid budget and would abort onboarding that was
+// working. Closing that gap needs uncertain-result wording, not just a timer.
+assert.doesNotMatch(sharedSource, /timeoutMs\s*=\s*\d/, "The shared private request has given `timeoutMs` a default again. Seven modules had no timeout, and a bare bound on a non-idempotent mutation risks a duplicate write while telling the person to try again.");
+
+/* ── Every module that should delegate, does ── */
+
+// Listed here rather than in each UI suite so a module cannot be missed. The six absent
+// from this list keep their own request on purpose: they detect offline state, word
+// failures differently for a mutation than a read, and for payments set an `uncertain`
+// flag meaning a step may already have been prepared.
+const delegating = ["account-menu", "active-job", "admin-cases", "admin-verifications", "cleaner-availability", "cleaner-payouts", "notifications", "settings"];
+const ownRequest = ["admin-bookings", "admin-payments", "booking-payment", "cleaner-dashboard", "landlord-dashboard", "landlord-journey"];
+
+for (const name of delegating) {
+  const source = read(`public/${name}.js`);
+  assert.ok(
+    source.includes('from "./request-json.js"') && source.includes("createRequestJson("),
+    `${name} no longer routes its private requests through public/request-json.js. Same-origin credentials, no-store and the JSON Accept header are guaranteed there — a module that inlines its own fetch again gets none of them.`
+  );
+  assert.ok(
+    !source.includes("async function requestJson"),
+    `${name} has both the shared request and a local \`requestJson\` again. One of them is dead code, and which one the call sites reach depends on declaration order.`
+  );
+}
+
+for (const name of ownRequest) {
+  const source = read(`public/${name}.js`);
+  assert.ok(
+    source.includes("async function requestJson"),
+    `${name} lost its own request helper. It carries offline detection and mutation-versus-read wording — for payments, an \`uncertain\` flag meaning a step may already have been prepared — that the shared helper deliberately does not have.`
+  );
+}
+
+/* ── No page module hand-rolls a private request ── */
+
+// The delegation check above proves the shared helper is imported; it does not by itself
+// stop a module adding a bare `fetch("/api/...")` alongside it. This catches that: any
+// same-origin API call must either go through the helper or state its own credentials.
+const exempt = new Map([
+  // The signed upload goes to object storage cross-origin and must NOT carry credentials.
+  ["active-job", /credentials: "omit"/]
+]);
+
+for (const name of delegating) {
+  const source = read(`public/${name}.js`);
+  // A window after the call rather than a balanced match: the first `)` is often inside
+  // `encodeURIComponent(...)` in the path, and stopping there reported a call that does
+  // set `credentials` two lines further down. 400 characters comfortably covers the
+  // options object of every call in this tree.
+  const rawApiFetches = [...source.matchAll(/fetch\(\s*[`"']\/api\//g)].map((match) => source.slice(match.index, match.index + 400));
+  const unguarded = rawApiFetches.filter((call) => !/credentials:/.test(call) && !(exempt.get(name) || /$^/).test(call));
+  assert.deepEqual(
+    unguarded,
+    [],
+    `${name} calls a private /api route with a bare fetch instead of the shared request, so it sends no session cookie and may be cached:\n  ${unguarded.join("\n  ")}`
+  );
+}
+
+console.log(`Private request boundary tests passed: the shared owner still sends same-origin credentials, no-store and a JSON Accept header and reports the status under both names; timeouts stay opt-in; all ${delegating.length} delegating modules route through it with no leftover local copy and no bare /api fetch; and all ${ownRequest.length} modules that need offline and uncertain-result handling keep their own.`);

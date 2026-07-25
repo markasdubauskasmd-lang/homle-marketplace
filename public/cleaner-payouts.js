@@ -1,3 +1,4 @@
+import { createRequestJson } from "./request-json.js";
 const state = document.querySelector("[data-payout-state]");
 const title = document.querySelector("[data-payout-title]");
 const copy = document.querySelector("[data-payout-copy]");
@@ -22,13 +23,7 @@ function show(kind, heading, message, { allowAction = false, allowRetry = false,
   signIn.hidden = !allowSignIn;
 }
 
-async function requestJson(path, options = {}) {
-  const { headers = {}, ...rest } = options;
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers } });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(result.error || "Payout setup could not be verified."), { statusCode: response.status, code: result.code });
-  return result;
-}
+const requestJson = createRequestJson({ failureMessage: "Payout setup could not be verified.", requireResultOk: false });
 
 function renderPayout(payout) {
   if (payout?.ready) return show("ready", "Payouts are ready", "Homle can use this verified destination after an approved completed job. Your bank details remain with Stripe.");

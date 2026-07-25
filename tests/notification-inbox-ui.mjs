@@ -44,7 +44,7 @@ assert(page.includes('data-workspace-nav="cleaner"') && page.includes('data-work
 assert(script.includes('/api/marketplace/notifications?') && script.includes('/api/marketplace/notifications/read-all') && script.includes('/read`'), "The inbox is not connected to list and read APIs.");
 assert(script.includes('readSignedInAccount()') && script.includes('showWorkspace(accountResult.account)') && script.includes('workspace.role === "cleaner"') && script.includes('workspace.role === "landlord"'), "The Updates page does not restore the exact signed-in workspace without a second account request.");
 assert(accountMenu.includes("export function readSignedInAccount()") && accountMenu.includes("signedInAccountRequest = null") && accountMenu.includes('requestJson("/api/marketplace/account"'), "Shared account hydration cannot recover after a temporary account-read failure.");
-assert(script.includes('"X-CSRF-Token"') && script.includes('credentials: "same-origin"') && script.includes("keepalive: true"), "Read mutations lost session, CSRF or navigation-safe delivery.");
+assert(script.includes('"X-CSRF-Token"') && script.includes("keepalive: true"), "Read mutations lost session, CSRF or navigation-safe delivery.");
 assert(script.includes("replaceChildren") && script.includes("textContent") && !script.includes("innerHTML"), "Notification content is not rendered with safe DOM operations.");
 assert(script.includes("inboxCutoff") && script.includes("cutoffCreatedAt"), "Mark-all-read is not protected by a race-safe cutoff.");
 assert(model.includes("No price changes automatically") && model.includes("private message") && model.includes("Private booking case opened") && !model.includes("address"), "Public update copy leaks details or omits the private booking-case state.");
@@ -70,5 +70,6 @@ assert(badgeScript.includes('/api/marketplace/notifications?limit=1') && badgeSc
 assert(badgeScript.includes("textContent") && !badgeScript.includes("innerHTML") && !badgeScript.includes("setInterval"), "The dashboard badge uses unsafe rendering or constant polling.");
 assert(styles.includes(".cleaner-workspace-page .directory-nav, .landlord-dashboard-page .directory-nav") && styles.includes(".cleaner-workspace-page .directory-nav a, .landlord-dashboard-page .directory-nav a") && styles.includes(".notifications-page .directory-nav a") && styles.includes(".workspace-role-nav[hidden]"), "Mobile navigation can hide the Updates or workspace return action.");
 assert(packageFile.includes("tests/notification-inbox-ui.mjs"), "Notification inbox verification is not part of the project gate.");
+
 
 console.log("Notification inbox UI tests passed: private role return, safe event copy, pagination, read controls, mobile states and booking actions.");
