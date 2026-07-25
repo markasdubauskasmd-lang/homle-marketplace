@@ -114,6 +114,18 @@ GRANT EXECUTE ON FUNCTION tideway_private.attach_my_cleaner_payout_account(uuid,
 GRANT EXECUTE ON FUNCTION tideway_private.sync_my_cleaner_payout_account(text,boolean,boolean,boolean) TO tideway_app;
 REVOKE ALL ON FUNCTION tideway_private.provision_bootstrap_administrator(citext,uuid,text,text) FROM tideway_app;
 
+-- Roles and account state are only writable through the onboarding and administrator
+-- functions above, which restrict what may be granted. The row-level policies on these
+-- two tables scope writes to the caller's *own* row but say nothing about the value
+-- being written, so an ownership check alone would let a session insert
+-- ('my user id', 'administrator') into user_roles, or mark its own email verified —
+-- which gates password reset, social-identity linking and administrator bootstrap.
+-- No application code writes either table directly, so removing the privilege costs
+-- nothing and closes the gap regardless of code path. This is the same reasoning
+-- migration 062 applied to cleaner self-verification.
+REVOKE INSERT, UPDATE, DELETE ON user_roles FROM tideway_app;
+REVOKE INSERT, UPDATE, DELETE ON users FROM tideway_app;
+
 -- Booking transitions are only writable through the audited, actor-aware functions above.
 REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, task_updates, job_pauses, unexpected_task_decisions, booking_progress_events, job_photos, job_photo_uploads, cleaner_locations, conversations, messages, notifications, audit_logs FROM tideway_app;
 REVOKE INSERT, UPDATE, DELETE ON disputes FROM tideway_app;

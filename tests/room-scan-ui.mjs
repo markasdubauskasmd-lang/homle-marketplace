@@ -193,9 +193,16 @@ assert(overlay.includes("state.visionAvailable = false") && overlay.includes("st
 // model fetched from a third party. Both are forbidden: the CSP is
 // script-src 'self', and an off-origin model fetch would tell that third party
 // which homes are being scanned and when.
-assert(!/https?:\/\//.test(overlay), "The scan overlay loads code or a model from off-origin.");
+// Every URL the overlay names must be same-origin, so no third party learns which homes
+// are being scanned. Protocol-relative (`//host/…`) is checked too: it is off-origin
+// but contains no scheme, so a `https?://` test alone would wave it through.
+assert(!/https?:\/\//.test(overlay) && !/["'`]\/\/[a-z0-9]/i.test(overlay), "The scan overlay loads code or a model from off-origin.");
+// `wasm-unsafe-eval` contains `unsafe-eval`, so asserting both proves nothing twice:
+// the second could never fail while the first passed. What actually needs saying is
+// that the policy still names the directive, and still grants it nothing but 'self' —
+// an absent directive would satisfy a bare "does not contain" check just as well.
 assert(!server.includes("unsafe-eval"), "The Content-Security-Policy was weakened to run the on-device detector.");
-assert(!server.includes("wasm-unsafe-eval"), "The TensorFlow.js WASM backend was enabled by weakening the CSP; the WebGL backend runs under the existing policy unchanged.");
+assert(/script-src\s+'self'/.test(server), "The script-src directive no longer pins scripts to 'self', so the no-eval guarantee above is checking a policy that may not exist.");
 
 // The library's own default is an off-origin model that connect-src blocks
 // silently — no boxes, no error, nothing in the console to explain it.
