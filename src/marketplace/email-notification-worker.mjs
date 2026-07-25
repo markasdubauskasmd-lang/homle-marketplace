@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { uuidPattern } from "./validation.mjs";
 
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const eventCopy = Object.freeze({
   "new-booking-request": ["New cleaning request", "A new cleaning request is waiting for your response."],

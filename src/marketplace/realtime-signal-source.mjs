@@ -1,6 +1,6 @@
+import { uuidPattern } from "./validation.mjs";
 const bookingChannel = "tideway_booking_events";
 const requestChannel = "tideway_request_events";
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function unavailable(cause) {
   return Object.assign(new Error("Real-time booking updates are temporarily unavailable."), { statusCode: 503, code: "realtime-unavailable", cause });

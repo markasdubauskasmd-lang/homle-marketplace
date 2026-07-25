@@ -1,4 +1,4 @@
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { uuidPattern } from "./validation.mjs";
 const views = new Set(["attention", "active", "finished"]);
 const requestStatuses = new Set(["searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "matched", "cancelled"]);
 const bookingStatuses = new Set(["draft", "searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "cancelled", "disputed"]);

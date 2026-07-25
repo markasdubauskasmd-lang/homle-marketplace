@@ -1,7 +1,7 @@
+import { uuidPattern } from "./validation.mjs";
 const serviceCodes = Object.freeze(["regular-domestic", "rental-turnovers", "end-of-tenancy", "workplaces", "communal-areas", "deep-cleans"]);
 const pricingModels = Object.freeze(["hourly", "fixed", "quote"]);
 const outwardPostcodePattern = /^[A-Z]{1,2}[0-9][A-Z0-9]?$/;
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const timezoneIsoPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 function boundedText(value, maximum, label, minimum = 0) {

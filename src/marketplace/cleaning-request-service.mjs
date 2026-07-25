@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { serviceCodes } from "./cleaner-profile.mjs";
 import { cleanerTaskGuidance, cleanerTaskQuality } from "../../public/task-quality.js";
+import { uuid, uuidPattern } from "./validation.mjs";
 
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const recurrenceRules = Object.freeze({
   "one-time": null,
   weekly: "FREQ=WEEKLY;INTERVAL=1",
@@ -15,11 +15,6 @@ function boundedText(value, maximum, label, minimum = 0) {
   const normalized = typeof value === "string" ? value.trim().replace(/[\u0000-\u001f\u007f]/g, "") : "";
   if (normalized.length < minimum || normalized.length > maximum) throw new TypeError(`${label} must contain ${minimum} to ${maximum} characters.`);
   return normalized;
-}
-
-function uuid(value, label) {
-  if (!uuidPattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
-  return value.toLowerCase();
 }
 
 function instant(value, label) {

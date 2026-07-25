@@ -1,10 +1,5 @@
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { uuid, uuidPattern } from "./validation.mjs";
 const taskStatuses = Object.freeze(["not-started", "in-progress", "completed", "skipped", "issue-reported"]);
-
-function uuid(value, label) {
-  if (!uuidPattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
-  return value.toLowerCase();
-}
 
 function text(value, maximum, label, minimum = 0) {
   const normalized = typeof value === "string" ? value.trim().replace(/[\u0000-\u001f\u007f]/g, "") : "";
