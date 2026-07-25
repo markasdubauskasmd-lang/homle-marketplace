@@ -51,10 +51,30 @@ saveRoomNotesDraft(leaky, [{
   tasks: ["Kitchen: wipe"]
 }], now);
 const written = leaky.dump();
-assert(!written.includes("data:image") && !written.includes("base64") && !written.includes("AAAABBBB"), `A room photograph reached browser storage: ${written}`);
-assert(!written.includes("Sofa") && !written.includes("detections") && !written.includes("heavy") && !written.includes("condition"), `Detected objects or a condition grade reached browser storage: ${written}`);
-const recovered = readRoomNotesDraft(leaky, now);
-assert(Object.keys(recovered.notes[0]).sort().join(",") === "note,room", `A recovered note carries more than the room and its note: ${JSON.stringify(recovered.notes[0])}`);
+for (const forbidden of ["data:image", "base64", "AAAABBBB", "Sofa", "detections", "heavy", "condition", "tasks", "Kitchen: wipe"]) {
+  assert(!written.includes(forbidden), `"${forbidden}" reached browser storage: ${written}`);
+}
+// The raw serialized shape is asserted, not just what comes back out. A read that
+// sanitises would hide a write that had already stored too much.
+const raw = JSON.parse(written);
+assert(Object.keys(raw).sort().join(",") === "expiresAt,notes,savedAt,version", `The stored draft carries unexpected top-level fields: ${Object.keys(raw)}`);
+assert(raw.notes.every((entry) => Object.keys(entry).sort().join(",") === "note,room"), `A stored note carries more than the room and its note: ${JSON.stringify(raw.notes)}`);
+
+// Non-string shapes are refused, not coerced. `String(["a","b"])` would persist task
+// text, and an object with its own toString could hand over a data URL.
+const coerced = fakeStorage();
+saveRoomNotesDraft(coerced, [
+  { room: "Kitchen", note: ["Clean the oven", "Wipe the hob"] },
+  { room: "Lounge", note: { toString: () => "data:image/jpeg;base64,SECRET" } },
+  { room: ["Bath"], note: "Descale" },
+  { room: "Hall", note: "data:image/jpeg;base64,SECRET2" },
+  { room: "Study", note: 42 }
+], now);
+const coercedDump = coerced.dump();
+for (const forbidden of ["Clean the oven", "Wipe the hob", "SECRET", "SECRET2", "42", "data:image"]) {
+  assert(!coercedDump.includes(forbidden), `A non-string note was coerced into storage ("${forbidden}"): ${coercedDump}`);
+}
+assert(coerced.size === 0, `Only unusable shapes were supplied, yet something was stored: ${coercedDump}`);
 
 /* ── Spoken access details are never written down ── */
 // A Landlord talking through a flat may say where a spare key is. That is the one
@@ -105,4 +125,11 @@ assert(directWrites.every((argument) => /csrf/i.test(argument)), `The scan overl
 assert(!/JSON\.stringify\(state\.rooms/.test(overlay) && !/setItem\([^)]*(photos|frozenFrame|state\.rooms)/.test(overlay), "The scan overlay serialises room photographs or its roster into storage.");
 assert(overlay.includes("saveRoomNotesDraft") && overlay.includes("forgetRoomNotes()") && overlay.includes("restoreRoomNotes()"), "The scan overlay does not save, restore or clear its room notes.");
 
-console.log("Room note recovery tests passed: an unfinished walkthrough survives a backgrounded tab, expires, and fails closed — while photographs, detected objects, condition grades and spoken access details never reach browser storage.");
+// KNOWN GAP, deliberately not asserted here so this file does not appear to prove
+// more than it does: `public/room-scan.js` (the standalone /landlord/scan entry, used
+// by a direct link or bookmark) serialises the whole finished result — including room
+// photo data URLs — into `sessionStorage` under "homle_scan_result" to hand it to the
+// journey or dashboard across the navigation. That predates this module and is a
+// separate fix, because both of those readers depend on the key. What is proven below
+// is scoped to the note-recovery path this module owns.
+console.log("Room note recovery tests passed: an unfinished walkthrough survives a backgrounded tab, expires, and fails closed — while the note-recovery path never writes photographs, detected objects, condition grades or spoken access details to browser storage.");

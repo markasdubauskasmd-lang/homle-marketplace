@@ -23,12 +23,25 @@ export const maximumRoomNoteDrafts = 12;
 export const maximumRoomNoteLength = 5000;
 export const maximumRoomNameLength = 60;
 
+// Anything that is not already a plain string is refused rather than converted.
+// `String(value)` is how a photograph gets in: an array of task strings stringifies
+// to task text, and an object with its own `toString` can hand over a data URL. The
+// only shape that may be written is one this module recognises.
+function plainText(value, limit) {
+  if (typeof value !== "string") return "";
+  const text = value.trim().slice(0, limit);
+  // Belt and braces against an encoded image arriving as a genuine string.
+  if (/^\s*(data|blob):/i.test(text) || /base64,/i.test(text)) return "";
+  return text;
+}
+
 function cleanNotes(notes) {
   const cleaned = [];
   const seen = new Set();
   for (const entry of Array.isArray(notes) ? notes : []) {
-    const room = String(entry?.room || "").trim().slice(0, maximumRoomNameLength);
-    const note = String(entry?.note || "").trim().slice(0, maximumRoomNoteLength);
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const room = plainText(entry.room, maximumRoomNameLength);
+    const note = plainText(entry.note, maximumRoomNoteLength);
     if (!room || !note) continue;
     const key = room.toLowerCase();
     if (seen.has(key)) continue;

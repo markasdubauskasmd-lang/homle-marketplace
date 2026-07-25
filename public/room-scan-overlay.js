@@ -350,6 +350,7 @@ export function openRoomScan() {
       detectCanvas: null, viewRect: null,
       // Framing guidance, sampled off the detector's own frame.
       lastQualityAt: 0, qualityKind: "", qualityMessage: "", qualityCanvas: null,
+      notesForgotten: false,
       // Detection boxes, reused between passes and keyed by tracker id.
       boxNodes: new Map(),
       // Kept separate from `generation`: pausing detection must never discard a
@@ -469,6 +470,7 @@ export function openRoomScan() {
     }
 
     function onBeforeUnload(event) {
+      flushRoomNotes();
       if (state.closed || !hasScanProgress()) return;
       event.preventDefault();
       // Browsers deliberately replace this with their own privacy-safe copy.
@@ -499,6 +501,9 @@ export function openRoomScan() {
     // tap cannot lose the walkthrough. Debounced, because speech recognition fires
     // continuously while a Landlord is talking.
     function rememberRoomNotes() {
+      // A scan the Landlord discarded, or finished and handed on, must never be
+      // written again by a later reconcile.
+      if (state.notesForgotten) return;
       const notes = [];
       for (const [room, note] of state.roomTranscripts) {
         if (String(note || "").trim()) notes.push({ room, note });
@@ -509,8 +514,19 @@ export function openRoomScan() {
       window.clearTimeout(state.timers.noteRecovery);
       state.timers.noteRecovery = window.setTimeout(rememberRoomNotes, 400);
     }
-    function forgetRoomNotes() {
+    // Writes any pending debounced save immediately. Used when the page is about to
+    // go away, where a 400ms timer will never fire.
+    function flushRoomNotes() {
+      if (!state.timers.noteRecovery) return;
       window.clearTimeout(state.timers.noteRecovery);
+      state.timers.noteRecovery = null;
+      rememberRoomNotes();
+    }
+
+    function forgetRoomNotes() {
+      state.notesForgotten = true;
+      window.clearTimeout(state.timers.noteRecovery);
+      state.timers.noteRecovery = null;
       try { clearRoomNotesDraft(window.sessionStorage); } catch {}
     }
 
@@ -1731,7 +1747,7 @@ export function openRoomScan() {
       else resumeAfterBackground();
     }
 
-    function onPageHide() { pauseForBackground(); }
+    function onPageHide() { flushRoomNotes(); pauseForBackground(); }
     function onPageShow() { resumeAfterBackground(); }
 
     /* ── Voice ── */
@@ -1895,6 +1911,10 @@ export function openRoomScan() {
       clearTimeout(toastTimer);
       window.clearTimeout(state.timers.cameraResume);
       window.clearTimeout(state.timers.noteRecovery);
+      state.timers.noteRecovery = null;
+      // Reconcile rather than merely cancel: if the Landlord cleared a note and then
+      // closed, the stored copy has to go too, or it returns on the next open.
+      rememberRoomNotes();
       document.removeEventListener("keydown", onKeyDown);
       // A listener left on `document` or `window` keeps this whole closure alive
       // — the video element and the model with it — for the lifetime of the page.
@@ -1932,6 +1952,7 @@ export function openRoomScan() {
       // Keep the exact in-progress value. Trimming here would erase the space
       // after each word before the phone keyboard can enter the next one.
       setRoomTranscriptDraft(el.note.value);
+      scheduleNoteRecovery();
       renderRoomNoteControls(el.note.value);
     });
     el.retry.addEventListener("click", startCamera);
