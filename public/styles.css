@@ -3179,8 +3179,11 @@ dialog::backdrop { background: rgba(11,9,10,.74) !important; }
 @keyframes scanRecBlink{50%{opacity:.25}}
 
 .vf{position:absolute;inset:0;overflow:hidden;background:#08080A}
-.vf-feed{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:filter .5s}
-.vf.scanning .vf-feed{filter:contrast(1.06) saturate(.9)}
+/* No filter on the live feed. A `filter` on a full-screen <video> is repainted
+   for every camera frame, and `.scanning` stays on for the whole room read — a
+   costly effect held for seconds to shift contrast by 6%. The mesh and flash
+   already signal that the room is being read, using opacity only. */
+.vf-feed{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .vf-capture{position:absolute;left:-9999px;width:1px;height:1px}
 .vf-blocked{position:absolute;inset:0;z-index:9;display:grid;align-content:center;gap:14px;padding:32px;text-align:center;background:rgba(5,5,6,.94);backdrop-filter:blur(18px)}
 .vf-blocked h2{font-size:21px;font-weight:800;letter-spacing:-.03em}
@@ -3203,9 +3206,13 @@ dialog::backdrop { background: rgba(11,9,10,.74) !important; }
 .det-tag{position:absolute;top:-12px;left:-1px;background:var(--scan-red);color:#fff;font-size:8.5px;font-weight:600;letter-spacing:.09em;padding:3px 8px;border-radius:4px;white-space:nowrap;text-transform:uppercase}
 .det-tag em{font-style:normal;opacity:.65;margin-left:5px}
 
-.sweep{position:absolute;left:0;right:0;height:190px;pointer-events:none;opacity:0;background:linear-gradient(180deg,transparent,rgba(217,20,53,.1) 40%,rgba(255,45,79,.7) 50%,rgba(217,20,53,.1) 60%,transparent)}
-.sweep.go{opacity:1;animation:scanSweepRun 2.1s var(--scan-ease-io)}
-@keyframes scanSweepRun{0%{top:-190px}100%{top:100%}}
+/* The detector's own state, shown over the viewfinder while the model loads so a
+   slow connection explains itself instead of looking like a camera that finds
+   nothing. (This replaces a `.sweep` overlay that animated `top` — a layout
+   property — and whose trigger class was never applied by any code path.) */
+.scan-detector-state{position:absolute;left:14px;right:14px;bottom:96px;z-index:24;margin:0;padding:9px 13px;border-radius:12px;font-size:12.5px;line-height:1.45;color:#fff;background:rgba(8,8,10,.82);pointer-events:none}
+.scan-detector-state[data-kind="off"]{background:rgba(90,26,32,.86)}
+.scan-detector-state[data-kind="guide"]{background:rgba(122,72,12,.88)}
 .mesh{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .6s;background-image:linear-gradient(rgba(217,20,53,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(217,20,53,.18) 1px,transparent 1px);background-size:34px 34px;mask-image:radial-gradient(ellipse 62% 52% at 50% 50%,#000,transparent 78%);-webkit-mask-image:radial-gradient(ellipse 62% 52% at 50% 50%,#000,transparent 78%)}
 .mesh.on{opacity:1;animation:scanMeshPulse 2.6s ease-in-out infinite}
 @keyframes scanMeshPulse{0%,100%{opacity:.85}50%{opacity:.4}}
@@ -3264,7 +3271,10 @@ dialog::backdrop { background: rgba(11,9,10,.74) !important; }
 .voice:not(.recording) .voice-time{display:none}
 .wave{display:none;align-items:center;gap:3px;height:44px;margin-bottom:15px;justify-content:center}
 .voice.recording .wave{display:flex}
-.wave b{width:3px;border-radius:3px;background:var(--scan-red);display:block;height:20%;transition:height .11s linear}
+/* Full-height bars scaled from the centre. Animating `transform` keeps the wave
+   on the compositor; animating `height` (as this used to) put 34 layout passes on
+   the main thread every 70ms, while the camera was still playing behind it. */
+.wave b{width:3px;border-radius:3px;background:var(--scan-red);display:block;height:100%;transform:scaleY(.2);transition:transform .11s linear;will-change:transform}
 .voice-note-label{display:block;margin-bottom:7px;color:var(--scan-bone);font-size:12px;font-weight:750}
 .voice-txt{width:100%;min-height:94px;max-height:26vh;padding:12px 13px;color:var(--scan-bone);border:1px solid rgba(255,255,255,.2);border-radius:13px;background:rgba(255,255,255,.07);font:inherit;font-size:14.5px;font-weight:400;line-height:1.55;letter-spacing:-.005em;resize:vertical}
 .voice-txt:focus{border-color:var(--scan-red-hot);box-shadow:0 0 0 3px rgba(217,20,53,.2);outline:0}
@@ -3310,7 +3320,6 @@ dialog::backdrop { background: rgba(11,9,10,.74) !important; }
 }
 @media (prefers-reduced-motion: reduce){
   .rec-dot,.mesh.on,.shutter::after,.deck-btn.rec,.voice-txt .cur{animation:none}
-  .sweep.go{animation-duration:.01ms}
   .shot{animation:none}
   .vf-feed,.det-box,.ret-c,.voice,.hub-room,.hub-chip{transition-duration:.01ms}
 }
@@ -3325,7 +3334,7 @@ dialog::backdrop { background: rgba(11,9,10,.74) !important; }
 
 /* The hub: choose a room, review the scan, return to a room. One screen that
    covers the camera; the camera keeps running behind it. */
-.hub{position:absolute;inset:0;z-index:26;background:rgba(6,6,8,.98);backdrop-filter:blur(20px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.hub{position:absolute;inset:0;z-index:26;background:rgba(6,6,8,.98);overflow-y:auto;-webkit-overflow-scrolling:touch}
 .hub-in{max-width:460px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;gap:18px;padding:calc(env(safe-area-inset-top) + 20px) 22px calc(env(safe-area-inset-bottom) + 20px)}
 .hub-close{position:static;align-self:flex-end}
 .hub-head h2{font-size:23px;font-weight:800;letter-spacing:-.03em;margin:0 0 6px}
@@ -3337,6 +3346,8 @@ dialog::backdrop { background: rgba(11,9,10,.74) !important; }
 .hub-room:hover,.hub-room:focus-visible{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.28)}
 .hub-room-name{grid-column:1;font-size:16px;font-weight:750}
 .hub-room-meta{grid-column:1;font-size:12.5px;color:var(--scan-dim)}
+/* The objects actually picked, plus whether a voice note is attached. */
+.hub-room-detail{grid-column:1;font-size:12px;color:var(--scan-dim);opacity:.82;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hub-room-edit{grid-column:2;grid-row:1 / span 2;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--scan-red-hot)}
 .hub-room-remove{min-width:72px;padding:8px;border:1px solid rgba(255,255,255,.14);border-radius:15px;background:transparent;color:var(--scan-dim);font:inherit;font-size:11px;font-weight:750;cursor:pointer}
 .hub-room-remove:hover,.hub-room-remove:focus-visible{border-color:var(--scan-red-hot);color:var(--scan-red-hot);background:rgba(217,20,53,.08)}
@@ -3356,7 +3367,7 @@ dialog::backdrop { background: rgba(11,9,10,.74) !important; }
 @media (prefers-reduced-motion: reduce){
   .hub-room,.hub-chip{transition-duration:.01ms}
 }
-.scan-consent{position:absolute;inset:0;z-index:25;background:rgba(5,5,6,.97);backdrop-filter:blur(22px);display:grid;place-items:center;padding:26px}
+.scan-consent{position:absolute;inset:0;z-index:25;background:rgba(5,5,6,.99);display:grid;place-items:center;padding:26px}
 .scan-consent-in{max-width:430px;text-align:left}
 .scan-consent h2{font-size:22px;font-weight:800;letter-spacing:-.03em;margin-bottom:12px}
 .scan-consent p{font-size:14px;line-height:1.62;color:var(--scan-dim);margin-bottom:12px}
@@ -3364,7 +3375,7 @@ dialog::backdrop { background: rgba(11,9,10,.74) !important; }
 .scan-consent-detail strong{font-weight:700}
 .scan-consent-actions{display:grid;gap:10px;margin:18px 0 12px}
 .scan-consent-note{font-size:12.5px;color:var(--scan-ghost);margin:0}
-.scan-discard{position:absolute;inset:0;z-index:36;display:grid;place-items:center;padding:22px;background:rgba(5,5,6,.88);backdrop-filter:blur(20px)}
+.scan-discard{position:absolute;inset:0;z-index:36;display:grid;place-items:center;padding:22px;background:rgba(5,5,6,.96)}
 .scan-discard-in{width:min(100%,420px);padding:26px;border:1px solid rgba(255,255,255,.16);border-radius:24px;background:#111114;box-shadow:0 28px 80px rgba(0,0,0,.62);color:var(--scan-bone)}
 .scan-discard-eyebrow{margin:0 0 10px;color:var(--scan-red-hot);font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
 .scan-discard h2{margin:0 0 10px;color:#fff;font-size:clamp(24px,7vw,31px);font-weight:820;letter-spacing:-.035em;line-height:1.05}

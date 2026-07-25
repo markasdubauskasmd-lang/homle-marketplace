@@ -343,7 +343,11 @@ assert(/function finishScan\(\)[\s\S]{0,400}stopCamera\(\);\s*\n\s*close\(\{/.te
 assert(/function startDetection\(\)[\s\S]{0,200}state\.screen !== "live"/.test(overlay), "The detector keeps running while the hub covers the camera.");
 
 /* ── Presentation ──────────────────────────────────── */
-assert(styles.includes(".scan-overlay") && styles.includes(".scan-stage") && styles.includes(".det-box") && styles.includes("scanSweepRun") && styles.includes(".hub-room"), "The approved scan presentation is missing.");
+// `scanSweepRun` used to be pinned here. It animated `top` on a full-width bar and
+// its trigger class was never applied by any code path, so it was removed; the
+// detector-state badge that reports model loading is pinned in its place.
+assert(styles.includes(".scan-overlay") && styles.includes(".scan-stage") && styles.includes(".det-box") && styles.includes(".scan-detector-state") && styles.includes(".hub-room"), "The approved scan presentation is missing.");
+assert(!styles.includes(".vf.scanning .vf-feed{filter") && !/\.hub\{[^}]*backdrop-filter/.test(styles), "The live camera feed is filtered or the hub blurs a playing video behind it, repainting the whole viewport every frame.");
 assert(/\.scan-top\{[^}]*z-index:10/.test(styles) && /\.vf-blocked\{[^}]*z-index:9/.test(styles), "The camera-recovery panel covers the close button and room counter, trapping a Landlord whose camera permission is blocked.");
 
 // The frozen still is z-index 2. A detection layer below it paints the boxes
