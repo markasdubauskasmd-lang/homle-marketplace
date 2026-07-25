@@ -28,6 +28,7 @@ DECLARE
   paid_matching_payout_readiness_installed boolean := false;
   cleaner_verification_pagination_installed boolean := false;
   bookings_cleaning_request_index_installed boolean := false;
+  payment_and_directory_indexes_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -217,6 +218,8 @@ BEGIN
       INTO cleaner_verification_pagination_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 70)'
       INTO bookings_cleaning_request_index_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 71)'
+      INTO payment_and_directory_indexes_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -281,6 +284,8 @@ BEGIN
         AND position(') page' IN procedure.prosrc)>0
     ) INTO cleaner_verification_pagination_installed;
     bookings_cleaning_request_index_installed := to_regclass('public.bookings_cleaning_request_idx') IS NOT NULL;
+    payment_and_directory_indexes_installed := to_regclass('public.payment_commands_latest_by_kind_idx') IS NOT NULL
+      AND to_regclass('public.cleaner_profiles_public_directory_idx') IS NOT NULL;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -373,6 +378,21 @@ BEGIN
     WHERE procedure.oid=to_regprocedure('tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)');
     IF position('recommend_cleaners_for_request_v2' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Automatic dispatch bypasses the shared self-excluding matching candidate boundary';
+    END IF;
+  END IF;
+  IF payment_and_directory_indexes_installed THEN
+    -- The Administrator payment page runs four correlated subqueries per payment row,
+    -- none of which can use the partial unique indexes on this table because they carry
+    -- no status predicate. Without this index that is up to 400 sequential scans of
+    -- payment_commands to render one page.
+    IF to_regclass('public.payment_commands_latest_by_kind_idx') IS NULL THEN
+      RAISE EXCEPTION 'payment_commands has no (payment_id, command_kind, created_at) index, so the Administrator payment page scans the table once per command kind per row';
+    END IF;
+    -- search_cleaner_directory is reachable unauthenticated and cleaner_profiles has no
+    -- index beyond its primary key, so without this every directory search scans every
+    -- profile ever created.
+    IF to_regclass('public.cleaner_profiles_public_directory_idx') IS NULL THEN
+      RAISE EXCEPTION 'cleaner_profiles has no public-directory index, so the unauthenticated Cleaner directory scans the whole table on every search';
     END IF;
   END IF;
   IF bookings_cleaning_request_index_installed THEN
