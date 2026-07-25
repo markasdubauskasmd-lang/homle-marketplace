@@ -345,7 +345,7 @@
     {
       "order": 69,
       "file": "069_cleaner_verification_queue_pagination.sql",
-      "sha256": "623d0fc1eefb25722e4988bf965cf6b4f5dfbc2726c76a4ed32581eabc8d1371"
+      "sha256": "e9a89e782d935a6d6afe1170d919f62ea85f092e8cb48ccac39ef364bffe02b9"
     }
   ],
   "grantFiles": [

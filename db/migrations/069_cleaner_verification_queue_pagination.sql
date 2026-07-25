@@ -49,32 +49,22 @@ BEGIN
   SELECT jsonb_build_object(
     'cleaners', COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
-        'cleanerId', page.user_id,
-        'displayName', page.display_name,
-        'identityCheckStatus', page.identity_check_status,
-        'backgroundCheckStatus', page.background_check_status,
-        'isPublic', page.is_public,
-        'updatedAt', page.updated_at
-      ) ORDER BY page.updated_at DESC, page.user_id)
-      FROM (
-        SELECT
-          profile.user_id,
-          account.display_name,
-          profile.identity_check_status,
-          profile.background_check_status,
-          profile.is_public,
-          profile.updated_at
-        FROM cleaner_profiles profile
-        JOIN users account ON account.id = profile.user_id
-        WHERE account.account_status = 'active'
-          AND CASE COALESCE(selected_view,'awaiting')
-            WHEN 'awaiting' THEN profile.identity_check_status IN ('not-checked','pending') OR profile.background_check_status IN ('not-checked','pending')
-            WHEN 'verified' THEN profile.identity_check_status = 'verified'
-            ELSE true
-          END
-        ORDER BY profile.updated_at DESC, profile.user_id
-        LIMIT page_limit OFFSET page_offset
-      ) page
+        'cleanerId', profile.user_id,
+        'displayName', account.display_name,
+        'identityCheckStatus', profile.identity_check_status,
+        'backgroundCheckStatus', profile.background_check_status,
+        'isPublic', profile.is_public,
+        'updatedAt', profile.updated_at
+      ) ORDER BY profile.updated_at DESC, profile.user_id)
+      FROM cleaner_profiles profile
+      JOIN users account ON account.id = profile.user_id
+      WHERE account.account_status = 'active'
+        AND CASE COALESCE(selected_view,'awaiting')
+          WHEN 'awaiting' THEN profile.identity_check_status IN ('not-checked','pending') OR profile.background_check_status IN ('not-checked','pending')
+          WHEN 'verified' THEN profile.identity_check_status = 'verified'
+          ELSE true
+        END
+      LIMIT page_limit OFFSET page_offset
     ), '[]'::jsonb),
     'limit', page_limit,
     'offset', page_offset
