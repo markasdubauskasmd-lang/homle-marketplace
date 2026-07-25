@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { uuid, uuidPattern } from "./validation.mjs";
+import { exactOrigin as sharedExactOrigin } from "./validation.mjs";
 
 const supportedProviders = Object.freeze(["google", "apple", "facebook"]);
 const developmentCookieName = "tideway_provider_link";
@@ -16,13 +17,9 @@ function provider(value) {
 }
 
 function exactOrigin(value) {
-  try {
-    const parsed = new URL(value);
-    if (parsed.origin !== String(value).replace(/\/$/, "") || parsed.username || parsed.password) throw new Error();
-    return parsed.origin;
-  } catch {
-    throw new TypeError("Provider connection state requires an exact application origin.");
-  }
+  // Shared so this security-relevant rule cannot drift between the modules that accept
+  // an application origin. See `exactOrigin` for what each clause rejects and why.
+  return sharedExactOrigin(value, "Provider connection state requires an exact application origin.");
 }
 
 function secretKey(value) {

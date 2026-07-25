@@ -22,6 +22,18 @@ assert(dockerfile.includes("RUN install -d -o node -g node /var/lib/tideway") &&
 assert(dockerfile.includes("DATA_DIR=/var/lib/tideway") && dockerfile.includes("PILOT_INTAKE_ENABLED=false") && dockerfile.includes("AUTHENTICATION_ENABLED=false") && dockerfile.includes("MARKETPLACE_ENABLED=false") && dockerfile.includes("PAYMENTS_ENABLED=false") && dockerfile.includes("LAN_PORT=0"), "Container does not default to the fail-closed read-only public-site mode.");
 assert(dockerfile.includes("STOPSIGNAL SIGTERM") && dockerfile.includes('CMD ["node", "server.mjs"]'), "Container does not preserve Homle's graceful production lifecycle.");
 assert(dockerfile.includes("HEALTHCHECK") && dockerfile.includes("/api/health") && dockerfile.includes("b.service==='tideway-marketplace'"), "Container health check does not verify the Homle health contract.");
+// The container health check must NOT fail on `writesAllowed`. That field goes false
+// when the data-integrity audit finds corrupt private record files on the mounted volume
+// — damage a restart cannot repair. Failing the health check there asks an orchestrator
+// to replace the container in a loop it can never exit, and destroys the read-only
+// surface an operator needs to diagnose it. The degraded state is reported in the body
+// for monitoring to alert on. This assertion exists because the opposite change was made
+// once, on the reasonable-sounding argument that a check on two constants can never fail.
+// Scoped to the HEALTHCHECK instruction itself: the Dockerfile comment above it names
+// the field deliberately, and that explanation is the point.
+const healthCheckInstruction = (dockerfile.match(/^HEALTHCHECK .*$/m) || [""])[0];
+assert(healthCheckInstruction, "The container HEALTHCHECK instruction has gone.");
+assert(!healthCheckInstruction.includes("writesAllowed"), "The container health check now fails on writesAllowed. That field reflects corruption on the data volume, which a restart cannot fix — this turns a diagnosable read-only state into a restart loop. Alert on the health body instead.");
 
 const ignoreLines = dockerignore.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 assert.equal(ignoreLines[0], "**", "Container context must deny everything before its explicit allowlist.");

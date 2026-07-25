@@ -1,5 +1,6 @@
 import { csrfMatches, developmentSessionCookieName, hashOpaqueToken, parseCookies, sessionCookieName } from "./session.mjs";
 import { marketplaceRoles } from "./domain.mjs";
+import { exactOrigin as sharedExactOrigin } from "./validation.mjs";
 
 export class AccountHttpError extends Error {
   constructor(statusCode, code, message) {
@@ -11,13 +12,9 @@ export class AccountHttpError extends Error {
 }
 
 function exactOrigin(value) {
-  try {
-    const parsed = new URL(value);
-    if (parsed.origin !== String(value).replace(/\/$/, "") || parsed.username || parsed.password) throw new Error();
-    return parsed.origin;
-  } catch {
-    throw new TypeError("Account security requires an exact application origin.");
-  }
+  // Shared so this security-relevant rule cannot drift between the modules that accept
+  // an application origin. See `exactOrigin` for what each clause rejects and why.
+  return sharedExactOrigin(value, "Account security requires an exact application origin.");
 }
 
 function header(request, name) {

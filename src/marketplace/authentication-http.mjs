@@ -1,17 +1,14 @@
 import { errorResponse, methodNotAllowed, readJsonObject, readRawBody, sendJson } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
+import { exactOrigin as sharedExactOrigin } from "./validation.mjs";
 
 const prefix = "/api/marketplace/auth/";
 const genericAccepted = Object.freeze({ ok: true, accepted: true, message: "If the account can use this action, the next step will be sent privately." });
 
 function exactOrigin(value) {
-  try {
-    const url = new URL(value);
-    if (url.origin !== String(value).replace(/\/$/, "") || url.username || url.password) throw new Error();
-    return url.origin;
-  } catch {
-    throw new TypeError("Authentication routes require an exact application origin.");
-  }
+  // Shared so this security-relevant rule cannot drift between the modules that accept
+  // an application origin. See `exactOrigin` for what each clause rejects and why.
+  return sharedExactOrigin(value, "Authentication routes require an exact application origin.");
 }
 
 function header(request, name) {

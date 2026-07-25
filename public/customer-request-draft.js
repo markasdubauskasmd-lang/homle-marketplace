@@ -55,7 +55,18 @@ export function saveCustomerRequestDraft(storage, { fields = {}, currentStep = 1
     expiresAt: savedAt + customerRequestDraftLifetimeMs,
     ...(safeSubmissionKey ? { retry: { key: safeSubmissionKey, fingerprint: customerRequestDraftFingerprint(safeFields) } } : {})
   };
-  storage.setItem(customerRequestDraftKey, JSON.stringify(draft));
+  // `setItem` throws when storage is full and throws unconditionally in Safari private
+  // browsing. Every current caller already wraps this in `try {} catch {}`, so nothing was
+  // visibly broken — but that made three call sites responsible for a failure mode this
+  // module knows about and they do not, and it meant the function could return a draft
+  // object describing a save that never happened. Returning null is the same "nothing
+  // saved" answer the guards above already give, and it puts the handling where the
+  // knowledge is.
+  try {
+    storage.setItem(customerRequestDraftKey, JSON.stringify(draft));
+  } catch {
+    return null;
+  }
   return draft;
 }
 

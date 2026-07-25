@@ -1,4 +1,5 @@
 import { createHash, createHmac, createPublicKey, randomBytes, timingSafeEqual, verify } from "node:crypto";
+import { exactOrigin as sharedExactOrigin } from "./validation.mjs";
 
 const authorizationEndpoint = "https://accounts.google.com/o/oauth2/v2/auth";
 const tokenEndpoint = "https://oauth2.googleapis.com/token";
@@ -19,13 +20,9 @@ function boundedSecret(value, label, minimum = 1) {
 }
 
 function exactOrigin(value) {
-  try {
-    const url = new URL(value);
-    if (url.origin !== String(value).replace(/\/$/, "") || url.username || url.password) throw new Error();
-    return url.origin;
-  } catch {
-    throw new TypeError("Google sign-in requires an exact application origin.");
-  }
+  // Shared so this security-relevant rule cannot drift between the modules that accept
+  // an application origin. See `exactOrigin` for what each clause rejects and why.
+  return sharedExactOrigin(value, "Google sign-in requires an exact application origin.");
 }
 
 function base64url(buffer) {

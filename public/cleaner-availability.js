@@ -40,7 +40,11 @@ async function requestJson(path, options = {}) {
   const { headers = {}, ...rest } = options;
   const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers } });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(result.error || "Your availability could not be updated."), { statusCode: response.status, code: result.code });
+  // `result.ok !== true` matters as much as the HTTP status: a 200 carrying an error
+  // body was read as success, so an undefined window was appended to the list and the
+  // next render threw on it, wiping the whole availability list instead of showing what
+  // the server actually said.
+  if (!response.ok || result.ok !== true) throw Object.assign(new Error(result.error || "Your availability could not be updated."), { statusCode: response.status, code: result.code });
   return result;
 }
 
@@ -163,5 +167,10 @@ withdrawForm.addEventListener("submit", async (event) => {
 document.querySelector("[data-withdraw-cancel]").addEventListener("click", () => withdrawDialog.close());
 retry.addEventListener("click", loadAvailability);
 form.elements.date.value = defaultDay();
-form.elements.date.min = new Date().toISOString().slice(0, 10);
+// The earliest selectable day, in the Cleaner's own calendar. `toISOString()` is the
+// UTC date, so before local midnight it offered a day already gone locally.
+form.elements.date.min = (() => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+})();
 loadAvailability();

@@ -222,7 +222,14 @@ async function renderRoomPhotos(photos = []) {
       const blob = await response.blob();
       const isVideo = photo.kind === "video" || blob.type.startsWith("video/");
       visual = document.createElement(isVideo ? "video" : "img");
-      visual.src = URL.createObjectURL(blob);
+      const objectUrl = URL.createObjectURL(blob);
+      visual.src = objectUrl;
+      // Released once the browser has the pixels. Without this each blob stayed alive for
+      // the life of the page, so a pack with a dozen room photos and videos pinned tens of
+      // megabytes until the Landlord navigated away. Revoking after load is safe: the
+      // element keeps its own reference to the decoded resource.
+      visual.addEventListener(isVideo ? "loadeddata" : "load", () => URL.revokeObjectURL(objectUrl), { once: true });
+      visual.addEventListener("error", () => URL.revokeObjectURL(objectUrl), { once: true });
       if (isVideo) { visual.controls = true; visual.preload = "metadata"; visual.setAttribute("aria-label", `${photo.area} short video reference`); }
       else { visual.alt = `${photo.area} room-scan reference`; visual.loading = "lazy"; }
       figure.prepend(visual);

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -83,6 +83,23 @@ while (pending.length) {
 
 const unrunTests = testFiles.filter((name) => !reached.has(name));
 assert.deepEqual(unrunTests, [], `These test files exist but are never executed by \`npm run check\` or \`npm test\`, so their assertions protect nothing:\n  ${unrunTests.join("\n  ")}`);
+
+/* ── The lifecycle hooks CI depends on actually run ── */
+
+// `check` and `test` are the two commands CI invokes, and 144 of this repo's ~200
+// verification commands live in their `pre`/`post` hooks. Running those hooks is pnpm's
+// documented default, so this is a pin against a future default change, not a repair —
+// an earlier version of this comment claimed a live skip that was never observed.
+//
+// Read as the last-wins value rather than "appears somewhere", because a later
+// `enable-pre-post-scripts=false` would silently take precedence over an earlier `true`.
+const npmrc = existsSync(resolve(root, ".npmrc")) ? readFileSync(resolve(root, ".npmrc"), "utf8") : "";
+const prePostSettings = [...npmrc.matchAll(/^\s*enable-pre-post-scripts\s*=\s*(\S+)\s*$/gm)].map((match) => match[1]);
+assert.ok(prePostSettings.length > 0, "`.npmrc` no longer pins enable-pre-post-scripts. 144 of this repo's ~200 verification commands run only via pre/post hook expansion, so that behaviour should be stated rather than inherited from a default.");
+assert.equal(prePostSettings.at(-1), "true", `\`.npmrc\` sets enable-pre-post-scripts=${prePostSettings.at(-1)}. The last assignment wins, and anything but true drops most of this repo's verification while \`check\` and \`test\` still report success.`);
+for (const hook of ["precheck", "postcheck", "pretest", "posttest"]) {
+  assert.ok(scripts[hook], `The \`${hook}\` script has gone, so whatever it verified is no longer checked.`);
+}
 
 /* ── Syntax checking stays derived from disk, not hand-listed ── */
 
