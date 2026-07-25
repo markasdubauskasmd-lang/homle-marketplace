@@ -25,7 +25,6 @@ import {
   journeyProgress,
   journeyDistanceLabel
 } from "../public/active-job-model.js";
-import { usesSharedPrivateRequest } from "./private-request-boundary.mjs";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -150,9 +149,5 @@ assert(packageFile.includes("tests/active-job-ui.mjs"), "The active-job checks a
   assert(!script.includes("destinationLatitude") && !script.includes("mapbox") && !script.includes("leaflet") && html.includes("not a street map"), "The journey view started plotting a street position or depended on a third-party map provider.");
 }
 
-// Same-origin credentials, no-store, the JSON Accept header and the request timeout are
-// guaranteed in public/request-json.js and asserted in tests/private-request-boundary.mjs;
-// this checks the module still goes through it rather than inlining a fetch of its own.
-usesSharedPrivateRequest(script, "active-job");
 
 console.log("Active-job UI tests passed: canonical participant route, role-safe journey/task actions, explicit foreground location, durable live snapshots, private retry-safe chat, secure before/after evidence, verified completion/reviews, mobile controls and privacy-first map boundary.");

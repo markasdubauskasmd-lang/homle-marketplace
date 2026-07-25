@@ -23,7 +23,7 @@ function show(kind, heading, message, { allowAction = false, allowRetry = false,
   signIn.hidden = !allowSignIn;
 }
 
-const requestJson = createRequestJson({ failureMessage: "Payout setup could not be verified." });
+const requestJson = createRequestJson({ failureMessage: "Payout setup could not be verified.", requireResultOk: false });
 
 function renderPayout(payout) {
   if (payout?.ready) return show("ready", "Payouts are ready", "Homle can use this verified destination after an approved completed job. Your bank details remain with Stripe.");

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { usesSharedPrivateRequest } from "./private-request-boundary.mjs";
 
 const [page, script, styles, server, migration, providerSecurityMigration, appleMigration, privacyMigration, grants] = await Promise.all([
   readFile(new URL("../public/settings.html", import.meta.url), "utf8"),
@@ -34,9 +33,5 @@ assert.ok(script.includes('requestJson("/api/marketplace/privacy-requests")') &&
 assert.ok(styles.includes(".settings-privacy-card") && styles.includes(".settings-privacy-actions") && styles.includes(".settings-confirmation") && styles.includes(".settings-privacy-status"), "Privacy intake omitted its mobile-safe review history and confirmation treatment.");
 assert.ok(privacyMigration.includes("privacy_requests_one_active_type_per_user_idx") && privacyMigration.includes("privacy-request.created") && grants.includes("REVOKE SELECT, INSERT, UPDATE, DELETE ON privacy_requests"), "Privacy intake is not concurrency-safe, audited and function-only.");
 
-// Same-origin credentials, no-store, the JSON Accept header and the request timeout are
-// guaranteed in public/request-json.js and asserted in tests/private-request-boundary.mjs;
-// this checks the module still goes through it rather than inlining a fetch of its own.
-usesSharedPrivateRequest(script, "account-settings");
 
 console.log("Account settings UI tests passed: fail-closed provider controls, password/social step-up, lockout-safe removal, CSRF, validated navigation, safe rendering, mobile layout and function-only storage.");

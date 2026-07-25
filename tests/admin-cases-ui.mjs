@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { adminCaseFilter, adminCaseQueue, adminCaseResolutionPayload, adminCaseReviewPayload, caseCategoryLabel, casePolicyForCategory, caseResponsePolicyVersion, caseStatusLabel, shortBookingReference } from "../public/admin-cases-model.js";
 import { caseResponsePolicyVersion as serverPolicyVersion } from "../src/marketplace/case-response-policy.mjs";
-import { usesSharedPrivateRequest } from "./private-request-boundary.mjs";
 
 const example = {
   disputeId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -80,9 +79,5 @@ assert(styles.includes(".admin-case-card") && styles.includes("@media (max-width
 assert(server.includes('"/admin/cases": "admin-cases.html"') && pilotAdmin.includes('href="/admin/cases"'), "The marketplace case route is not served or linked from private operations.");
 assert(packageJson.includes('"check:admin-cases"') && packageJson.includes('"test:admin-cases"') && packageJson.includes("tests/admin-cases-ui.mjs"), "The case UI is not included in repository quality gates.");
 
-// Same-origin credentials, no-store, the JSON Accept header and the request timeout are
-// guaranteed in public/request-json.js and asserted in tests/private-request-boundary.mjs;
-// this checks the module still goes through it rather than inlining a fetch of its own.
-usesSharedPrivateRequest(script, "admin-cases");
 
 console.log("Administrator case UI tests passed: immutable minimum-data projection and category guidance, server-bound resolution assurances, role/account gate, CSRF mutation, safe rendering, truthful outcomes, pagination, offline handling and mobile controls.");

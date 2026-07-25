@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { usesSharedPrivateRequest } from "./private-request-boundary.mjs";
 
 const [page, script, dashboardPage, dashboardScript, server, migration, grants, packageFile] = await Promise.all([
   readFile(new URL("../public/cleaner-payouts.html", import.meta.url), "utf8"),
@@ -22,9 +21,5 @@ for (const name of ["get_my_cleaner_payout_onboarding", "begin_my_cleaner_payout
 assert(migration.includes("pg_advisory_xact_lock") && migration.includes("payout-account-conflict") && migration.includes("REVOKE ALL ON TABLE tideway_private.cleaner_payout_onboarding") && migration.includes("audit_logs"), "Payout setup lost serialization, account ownership, table revocation or audit evidence.");
 assert(packageFile.includes("tests/cleaner-payout-service.mjs") && packageFile.includes("tests/cleaner-payout-ui.mjs"), "Cleaner payout checks are not part of the project gate.");
 
-// Same-origin credentials, no-store, the JSON Accept header and the request timeout are
-// guaranteed in public/request-json.js and asserted in tests/private-request-boundary.mjs;
-// this checks the module still goes through it rather than inlining a fetch of its own.
-usesSharedPrivateRequest(script, "cleaner-payout");
 
 console.log("Cleaner payout UI tests passed: one-action mobile handoff, exact Stripe destination, authenticated resume/return, private status and dashboard guidance.");

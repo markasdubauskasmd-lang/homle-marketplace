@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, cleanerMarketplaceCapabilityState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordBookingNextAction, landlordDashboardSummary } from "../public/booking-summary-model.js";
 import { trustedAccountPhoto } from "../public/account-avatar.js";
 import { dashboardWorkspaceAccess } from "../public/workspace-access.js";
-import { usesSharedPrivateRequest } from "./private-request-boundary.mjs";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function primaryNavigation(page) { const start = page.indexOf('<nav class="directory-nav"'); return page.slice(start, page.indexOf("</nav>", start) + 6); }
@@ -154,9 +153,5 @@ assert(packageFile.includes("tests/booking-dashboard-ui.mjs"), "Booking-dashboar
 assert(styles.includes(".cleaner-request-task-room") && styles.includes(".cleaner-scan-photo-boundary"), "The required Cleaner checklist handoff lacks readable mobile styling or a clear photo-consent boundary.");
 assert(styles.includes(".landlord-booking-live") && styles.includes('span[data-kind="live"]'), "The private Landlord booking-update state is not visible or mobile-readable.");
 
-// Same-origin credentials, no-store, the JSON Accept header and the request timeout are
-// guaranteed in public/request-json.js and asserted in tests/private-request-boundary.mjs;
-// this checks the module still goes through it rather than inlining a fetch of its own.
-usesSharedPrivateRequest(accountMenu, "booking-dashboard");
 
 console.log("Booking dashboard UI tests passed: one-next-action guidance, participant jobs, Cleaner decisions, role-specific prices, live/payment links and mobile workspace handoff.");

@@ -134,7 +134,7 @@ function showPhotoUploadState(message, kind = "info") {
   feedback.textContent = message;
 }
 
-const requestJson = createRequestJson({ failureMessage: "The active booking could not be updated." });
+const requestJson = createRequestJson({ failureMessage: "The active booking could not be updated.", requireResultOk: false, failureCode: "request-failed" });
 
 async function mutate(path, method = "POST", body = {}) {
   const csrf = storedCsrf();

@@ -17,7 +17,7 @@ function saveCsrf(value) {
   } catch {}
 }
 
-const requestJson = createRequestJson({ failureMessage: "Account action failed.", timeoutMessage: "Sign out took too long. It may have completed; reload before trying again." });
+const requestJson = createRequestJson({ failureMessage: "Account action failed.", timeoutMs: 15_000, timeoutMessage: "Sign out took too long. It may have completed; reload before trying again." });
 
 function workspaceFor(account) {
   const roles = Array.isArray(account?.roles) ? account.roles : [];
