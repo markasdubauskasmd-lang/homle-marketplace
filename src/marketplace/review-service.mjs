@@ -1,10 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { hasOffPlatformContact } from "./contact-details.mjs";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const emailPattern = /[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i;
-const urlPattern = /(?:https?:\/\/|www\.)/i;
-const ukPhonePattern = /(?:^|[^\d])(?:\+?44|0)(?:[\s().-]*\d){9,10}(?:[^\d]|$)/;
-const outsideContactPattern = /\b(?:whats?app|telegram|signal|instagram|facebook|snapchat)\b/i;
 
 function uuid(value, label) {
   if (!uuidPattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
@@ -39,7 +36,7 @@ function text(value, maximum, label, required = false) {
 
 function publicText(value, maximum, label, required = false) {
   const normalized = text(value, maximum, label, required);
-  if (normalized && (emailPattern.test(normalized) || urlPattern.test(normalized) || ukPhonePattern.test(normalized) || outsideContactPattern.test(normalized))) throw new TypeError(`${label} must not contain phone numbers, email addresses, links or outside-messaging handles.`);
+  if (normalized && hasOffPlatformContact(normalized)) throw new TypeError(`${label} must not contain phone numbers, email addresses, links or outside-messaging handles.`);
   return normalized;
 }
 
