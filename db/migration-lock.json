@@ -2,77 +2,360 @@
   "version": 1,
   "postgresqlMajor": 16,
   "migrations": [
-    { "order": 1, "file": "001_marketplace_schema.sql", "sha256": "b8ed46fffefa4b5eae44331e93d3fc879959ddfc10288f84561c98e92d51a43c" },
-    { "order": 2, "file": "002_marketplace_row_level_security.sql", "sha256": "ef09b851e2fae8774426f6bd4152c25d11bdf0ff3652d8fec245d2ef3953978c" },
-    { "order": 3, "file": "003_authentication_lookup_functions.sql", "sha256": "8906b0ac9f6c46335c90e39930e199b493215a9f2562fe1de7759ae0062aadb0" },
-    { "order": 4, "file": "004_social_identity_and_onboarding.sql", "sha256": "12a8b80242a4c54da3c676dc306f085f4a4b1b8aeb47010e0fcf708297a947ce" },
-    { "order": 5, "file": "005_email_password_lifecycle.sql", "sha256": "cd0c34a5ab38ac55c97748cc5d38ab5050b9d390b58ec7a4346f1ccf649ca36c" },
-    { "order": 6, "file": "006_cleaner_directory.sql", "sha256": "8274d4d24750f30a79023f72d840553672f3d3182674d56faa863d3ecb11eb3a" },
-    { "order": 7, "file": "007_email_verification_resend.sql", "sha256": "e5adc39fad4ea2adb6afc3a87b133e0a66f9ce543b5d32a26ddee2dc9399d1d9" },
-    { "order": 8, "file": "008_account_cleaning_requests.sql", "sha256": "669fc29762e8abddbf13f01af3c46e79078015ff44a5884ba22728c2d3d6de3f" },
-    { "order": 9, "file": "009_booking_invitation_and_acceptance.sql", "sha256": "fc1fc1de94a23a2b8ecca441ce9ffea1d6d025d01c6d52d18dacca1e6a6d963c" },
-    { "order": 10, "file": "010_request_cleaner_matching.sql", "sha256": "00c554acadee2d5250f5b90ebeec929966233dfdc8b038e46a3fbe800980a413" },
-    { "order": 11, "file": "011_invitation_expiry_and_requeue.sql", "sha256": "21affb2ce2777de32834ed7800074aec8f7c090ae6deb04987f174e87a5f5f73" },
-    { "order": 12, "file": "012_live_journey_tracking.sql", "sha256": "e88963f3476e2bd62b411e555657a066eda7b98cf4b4bb348d7ce00dcf0e6eb2" },
-    { "order": 13, "file": "013_live_cleaning_progress.sql", "sha256": "ad5ec514a935e00f7b5fa5947a5b6d4bc478775f95362423ffcc1d1a56c28dc5" },
-    { "order": 14, "file": "014_private_job_media.sql", "sha256": "e691b3b02d7bb228a1f22a1494389f2a71b5c0913f60ea9f47ce333f4d890b60" },
-    { "order": 15, "file": "015_booking_messaging.sql", "sha256": "940ab0b746d32bdbb56bd677eb49782f69930320be510c7726aa66c0ca9dbf1f" },
-    { "order": 16, "file": "016_booking_realtime_events.sql", "sha256": "3695f235c18bf25c705a90bdb757a2fe0c508cc58dfb136dcda4da44d501d326" },
-    { "order": 17, "file": "017_notification_inbox_and_outbox.sql", "sha256": "f8aad411d7bd3da04e02aa00dd6305c88477d9b2f71172475a7f0e5f7e421f51" },
-    { "order": 18, "file": "018_verified_booking_reviews.sql", "sha256": "c58148952e690770a4873be9f5ec8190537b42fc6fc8c43c5a6527e58c3c5a46" },
-    { "order": 19, "file": "019_expired_session_purge.sql", "sha256": "51184b2b3fca20d408e496f0591f5e3726fce92bf942dfd40edafc1bc00d4abc" },
-    { "order": 20, "file": "020_shared_rate_limits.sql", "sha256": "85ffc3e6006bf8d658b56ff499e57e87bd3109cabc9b56ae0a432c4ec66de24b" },
-    { "order": 21, "file": "021_facebook_pending_identity.sql", "sha256": "cb5f272afa0323a08f5050361441c654745267e7bbf4047a26228dd010439aba" },
-    { "order": 22, "file": "022_marketplace_payment_ledger.sql", "sha256": "28e195cad1090a1dcfe5772ab3169295ecc7f93486f9117732f7ffdab18cb444" },
-    { "order": 23, "file": "023_landlord_payment_status.sql", "sha256": "38c9c9fd5bd2b1fddf57878db19aa155223947a17eefbdbad456fd2d641110b8" },
-    { "order": 24, "file": "024_resumable_booking_payment_authorization.sql", "sha256": "de744662798314d6728c043e880d64857bea2ba2a83e30b595f0db5663dafb5f" },
-    { "order": 25, "file": "025_job_start_payment_gate.sql", "sha256": "b822d32b5b33bdf7d748f79aac50da01c49bc862f910b194e49004257a366b11" },
-    { "order": 26, "file": "026_participant_booking_summaries.sql", "sha256": "dbd5fc671cda5e6cd45916b8bf805c2dfeefa4f305c6d4c2b2daff1b7d848cba" },
-    { "order": 27, "file": "027_authenticated_provider_connections.sql", "sha256": "7f13f53332f47caac565db441268426dd21909655894c74f43f3e64e8ab7be5a" },
-    { "order": 28, "file": "028_invitation_eligibility_hardening.sql", "sha256": "00617ae111444a7898ea8643ff990166f7b2a3d4f1a42585a4b3a791c57e11bc" },
-    { "order": 29, "file": "029_consent_bound_automatic_dispatch.sql", "sha256": "9d8038d9d3f4ee61c412405280b6100fe16fe581e3fb893e445a14f30e194e5f" },
-    { "order": 30, "file": "030_private_request_room_scans.sql", "sha256": "50514aa333fd261dddf8538e7e63c0f91f97df1cb7c10b892731e4d990750ca2" },
-    { "order": 31, "file": "031_fix_invitation_service_area_lookup.sql", "sha256": "7767ff39f6312de9c57291f7b62ebd8ed739d0b74895c0f0d65aca8a59c99d77" },
-    { "order": 32, "file": "032_social_provider_step_up_and_removal.sql", "sha256": "7983acb87c1958d1bb147b1833d1343a6a598d17f62d8d79a23764a6dbb6963b" },
-    { "order": 33, "file": "033_audited_booking_disputes.sql", "sha256": "c684ff2fd632e4fb564d902955bb0cb8f6b75b45d517293bb15cd38bf629d192" },
-    { "order": 34, "file": "034_bootstrap_administrator_provisioning.sql", "sha256": "abed4b702e9e09b3661edcc9f65866dc6243d5d3beea1792284bfabf80d88bcc" },
-    { "order": 35, "file": "035_account_privacy_request_intake.sql", "sha256": "cb08c26c9fe0f836f1c427c11b71d90bd7f9f978cf2480940d6807cd730f155f" },
-    { "order": 36, "file": "036_cleaner_payout_onboarding.sql", "sha256": "b5a55dc549974b2da62530bd293713c6b0afc8014afdf77f1d46730473b3b96f" },
-    { "order": 37, "file": "037_pre_authorization_booking_total.sql", "sha256": "4d5c173fda9675afdcff638767d2a9b53d3a38907d6c785b82f30f8126e8ce1b" },
-    { "order": 38, "file": "038_facebook_data_deletion_callback.sql", "sha256": "cc25b829d09e05abea5d8952f943c87b03f80e5e6b9693544a03751ee9cfee5b" },
-    { "order": 39, "file": "039_unexpected_task_frozen_terms.sql", "sha256": "c87a3e6ad01db2e8cfb1fcbf520e1ebc11084b2098c2214f64663b731803d015" },
-    { "order": 40, "file": "040_payment_reconciliation_ordering.sql", "sha256": "cc0ae9d455945ca054b3230ef0f09b11dacdaa56a4c2b7ef569b597990e0e7ad" },
-    { "order": 41, "file": "041_due_payment_readiness_notifications.sql", "sha256": "889c3c2630a9dd69aaf8ffe959b13919988c8615ec8d79f55056a9cb00235083" },
-    { "order": 42, "file": "042_booking_payment_window_summary.sql", "sha256": "5c747b6ffff502cb773197039dce2f7eedbf802b30c1645d8cdaa0ce5fc2a238" },
-    { "order": 43, "file": "043_two_stage_payment_reminders.sql", "sha256": "40f3a1f6a9f46db75ed33f51a9eea6674f216a88c66415f695cbaa5e7a9e3f68" },
-    { "order": 44, "file": "044_confirmed_visit_reminders.sql", "sha256": "fd0d290bfa117b1ae88b4c649a0be07212e8767f6294990c98dcafbbecd3d583" },
-    { "order": 45, "file": "045_owner_request_withdrawal.sql", "sha256": "93967db60f0dc597819e4ee011edc5037f314a1f769282f0e3d7e57d6f72db9c" },
-    { "order": 46, "file": "046_fix_social_identity_column_ambiguity.sql", "sha256": "f74d73d1f88515f1a74defb227065083670edb6d8d31a505766edc68c3042f07" },
-    { "order": 47, "file": "047_fix_role_onboarding_column_ambiguity.sql", "sha256": "e7b7b1a62ae8aca3d6d0e20b0e98d175db937741f334b8b2e58a22fbd9fae8d6" },
-    { "order": 48, "file": "048_multi_workspace_accounts.sql", "sha256": "14ee12cbda2d9dd3c11dce80398c7110b6ae8b936a95c1c0fd710c5b91bdd8e5" },
-    { "order": 49, "file": "049_pending_cleaner_scope_handoff.sql", "sha256": "d8fdafd5083b9164e08d864ae60340509b9fe1ac8c9ef87c2b764cd6a09b5058" },
-    { "order": 50, "file": "050_administrator_payment_operations.sql", "sha256": "6ea0a59598a1b4e2547c023611d83f5453139f2c7619fb934c59d4e84bf5da49" },
-    { "order": 51, "file": "051_administrator_case_payment_handoff.sql", "sha256": "d2ee0833e268ac1050072b55626daa81e8892167c2e97e0bd279ea04609c3d9e" },
-    { "order": 52, "file": "052_administrator_booking_operations.sql", "sha256": "af4b12da2edc377b774f3fe590b304674cfcdf5e5e10cc50dee01d05a24b04ce" },
-    { "order": 53, "file": "053_matching_self_exclusion.sql", "sha256": "cafb6ef53e2e7f24d569620ec6c7f76facb20ef247bf760d60eaa594d34c11f5" },
-    { "order": 54, "file": "054_cleaning_request_realtime_events.sql", "sha256": "47d3cea5bc4a34cb32736ea24e3ca0a72eaab677226ad6126de5ce85d6ea0916" },
-    { "order": 55, "file": "055_session_avatar_projection.sql", "sha256": "00cfa75ddbd10de625e5e3ccd16b6d546e3b589be4a28d59c736030a61c7e502" },
-    { "order": 56, "file": "056_booking_minimum_contribution.sql", "sha256": "d85e17656d977bf24564a685973d0cd0e0c9d3bdd69d8387e7a3fdf6ae5442ad" },
-    { "order": 57, "file": "057_public_cleaner_profile_lookup.sql", "sha256": "b0d3e11c9a739a118985ab4e0c38da18e947cfdeed4bb4928162654bd3b9f24f" },
-    { "order": 58, "file": "058_automatic_dispatch_customer_cap.sql", "sha256": "5f6d3b97e91a0cc8a0c2293917afe3ba198d57965705c3defa74b58a1f1c2145" },
-    { "order": 59, "file": "059_participant_response_deadline.sql", "sha256": "8b36db99db571bc782244748983abbb868bab50268d0a43f7c8857c6f72e3669" },
-    { "order": 60, "file": "060_apple_sign_in_provider.sql", "sha256": "a8558bbf5cbe5b71c25692bbbedc029e9ed352a072a17efd97169ca886c69c10" },
-    { "order": 61, "file": "061_fix_missing_rate_limit_scopes.sql", "sha256": "5f8d6185ed58e1e5b4e47cf0c281e3bb51a946c07a6a71bd94a42ab602533918" },
-    { "order": 62, "file": "062_cleaner_verification_authority.sql", "sha256": "51f69f554f2c9db1a25202ffd998e2d8894f7abf93a90dad90a0cc318ba99760" },
-    { "order": 63, "file": "063_administrator_cleaner_verification.sql", "sha256": "d2bb7d5a72038c62c5ad7d926ad3632e0ae278306b69f320cfc675304cf74b2f" },
-    { "order": 64, "file": "064_public_cleaner_distance_fallback.sql", "sha256": "6f343797ae1cee6eb27e926eabfd7eaa0d01f8d60cff0097c15ea19a80fb0010" },
-    { "order": 65, "file": "065_scan_summary_rate_limit.sql", "sha256": "61051765e5ffab5182ee2aca27c7da9e92e51acbbc80cd8cb9a3d92419b37528" },
-    { "order": 66, "file": "066_room_reading_rate_limit.sql", "sha256": "d5fa4b88d3f1677a00bdc91c5bbb2b084ea2af69a6ed168ee722953fbabb0bb7" },
-    { "order": 67, "file": "067_apple_administrator_bootstrap.sql", "sha256": "cf7cc46e770a9425f9ef143e6f9be4f4598180c5e0232b4109e20d54765bf7fb" },
-    { "order": 68, "file": "068_paid_matching_payout_readiness.sql", "sha256": "6f3816c5ffd57cd931726ee269daf068204ab3225e6e0d419e1f38c08c5fd987" }
+    {
+      "order": 1,
+      "file": "001_marketplace_schema.sql",
+      "sha256": "b8ed46fffefa4b5eae44331e93d3fc879959ddfc10288f84561c98e92d51a43c"
+    },
+    {
+      "order": 2,
+      "file": "002_marketplace_row_level_security.sql",
+      "sha256": "ef09b851e2fae8774426f6bd4152c25d11bdf0ff3652d8fec245d2ef3953978c"
+    },
+    {
+      "order": 3,
+      "file": "003_authentication_lookup_functions.sql",
+      "sha256": "8906b0ac9f6c46335c90e39930e199b493215a9f2562fe1de7759ae0062aadb0"
+    },
+    {
+      "order": 4,
+      "file": "004_social_identity_and_onboarding.sql",
+      "sha256": "12a8b80242a4c54da3c676dc306f085f4a4b1b8aeb47010e0fcf708297a947ce"
+    },
+    {
+      "order": 5,
+      "file": "005_email_password_lifecycle.sql",
+      "sha256": "cd0c34a5ab38ac55c97748cc5d38ab5050b9d390b58ec7a4346f1ccf649ca36c"
+    },
+    {
+      "order": 6,
+      "file": "006_cleaner_directory.sql",
+      "sha256": "8274d4d24750f30a79023f72d840553672f3d3182674d56faa863d3ecb11eb3a"
+    },
+    {
+      "order": 7,
+      "file": "007_email_verification_resend.sql",
+      "sha256": "e5adc39fad4ea2adb6afc3a87b133e0a66f9ce543b5d32a26ddee2dc9399d1d9"
+    },
+    {
+      "order": 8,
+      "file": "008_account_cleaning_requests.sql",
+      "sha256": "669fc29762e8abddbf13f01af3c46e79078015ff44a5884ba22728c2d3d6de3f"
+    },
+    {
+      "order": 9,
+      "file": "009_booking_invitation_and_acceptance.sql",
+      "sha256": "fc1fc1de94a23a2b8ecca441ce9ffea1d6d025d01c6d52d18dacca1e6a6d963c"
+    },
+    {
+      "order": 10,
+      "file": "010_request_cleaner_matching.sql",
+      "sha256": "00c554acadee2d5250f5b90ebeec929966233dfdc8b038e46a3fbe800980a413"
+    },
+    {
+      "order": 11,
+      "file": "011_invitation_expiry_and_requeue.sql",
+      "sha256": "21affb2ce2777de32834ed7800074aec8f7c090ae6deb04987f174e87a5f5f73"
+    },
+    {
+      "order": 12,
+      "file": "012_live_journey_tracking.sql",
+      "sha256": "e88963f3476e2bd62b411e555657a066eda7b98cf4b4bb348d7ce00dcf0e6eb2"
+    },
+    {
+      "order": 13,
+      "file": "013_live_cleaning_progress.sql",
+      "sha256": "ad5ec514a935e00f7b5fa5947a5b6d4bc478775f95362423ffcc1d1a56c28dc5"
+    },
+    {
+      "order": 14,
+      "file": "014_private_job_media.sql",
+      "sha256": "e691b3b02d7bb228a1f22a1494389f2a71b5c0913f60ea9f47ce333f4d890b60"
+    },
+    {
+      "order": 15,
+      "file": "015_booking_messaging.sql",
+      "sha256": "940ab0b746d32bdbb56bd677eb49782f69930320be510c7726aa66c0ca9dbf1f"
+    },
+    {
+      "order": 16,
+      "file": "016_booking_realtime_events.sql",
+      "sha256": "3695f235c18bf25c705a90bdb757a2fe0c508cc58dfb136dcda4da44d501d326"
+    },
+    {
+      "order": 17,
+      "file": "017_notification_inbox_and_outbox.sql",
+      "sha256": "f8aad411d7bd3da04e02aa00dd6305c88477d9b2f71172475a7f0e5f7e421f51"
+    },
+    {
+      "order": 18,
+      "file": "018_verified_booking_reviews.sql",
+      "sha256": "c58148952e690770a4873be9f5ec8190537b42fc6fc8c43c5a6527e58c3c5a46"
+    },
+    {
+      "order": 19,
+      "file": "019_expired_session_purge.sql",
+      "sha256": "51184b2b3fca20d408e496f0591f5e3726fce92bf942dfd40edafc1bc00d4abc"
+    },
+    {
+      "order": 20,
+      "file": "020_shared_rate_limits.sql",
+      "sha256": "85ffc3e6006bf8d658b56ff499e57e87bd3109cabc9b56ae0a432c4ec66de24b"
+    },
+    {
+      "order": 21,
+      "file": "021_facebook_pending_identity.sql",
+      "sha256": "cb5f272afa0323a08f5050361441c654745267e7bbf4047a26228dd010439aba"
+    },
+    {
+      "order": 22,
+      "file": "022_marketplace_payment_ledger.sql",
+      "sha256": "28e195cad1090a1dcfe5772ab3169295ecc7f93486f9117732f7ffdab18cb444"
+    },
+    {
+      "order": 23,
+      "file": "023_landlord_payment_status.sql",
+      "sha256": "38c9c9fd5bd2b1fddf57878db19aa155223947a17eefbdbad456fd2d641110b8"
+    },
+    {
+      "order": 24,
+      "file": "024_resumable_booking_payment_authorization.sql",
+      "sha256": "de744662798314d6728c043e880d64857bea2ba2a83e30b595f0db5663dafb5f"
+    },
+    {
+      "order": 25,
+      "file": "025_job_start_payment_gate.sql",
+      "sha256": "b822d32b5b33bdf7d748f79aac50da01c49bc862f910b194e49004257a366b11"
+    },
+    {
+      "order": 26,
+      "file": "026_participant_booking_summaries.sql",
+      "sha256": "dbd5fc671cda5e6cd45916b8bf805c2dfeefa4f305c6d4c2b2daff1b7d848cba"
+    },
+    {
+      "order": 27,
+      "file": "027_authenticated_provider_connections.sql",
+      "sha256": "7f13f53332f47caac565db441268426dd21909655894c74f43f3e64e8ab7be5a"
+    },
+    {
+      "order": 28,
+      "file": "028_invitation_eligibility_hardening.sql",
+      "sha256": "00617ae111444a7898ea8643ff990166f7b2a3d4f1a42585a4b3a791c57e11bc"
+    },
+    {
+      "order": 29,
+      "file": "029_consent_bound_automatic_dispatch.sql",
+      "sha256": "9d8038d9d3f4ee61c412405280b6100fe16fe581e3fb893e445a14f30e194e5f"
+    },
+    {
+      "order": 30,
+      "file": "030_private_request_room_scans.sql",
+      "sha256": "50514aa333fd261dddf8538e7e63c0f91f97df1cb7c10b892731e4d990750ca2"
+    },
+    {
+      "order": 31,
+      "file": "031_fix_invitation_service_area_lookup.sql",
+      "sha256": "7767ff39f6312de9c57291f7b62ebd8ed739d0b74895c0f0d65aca8a59c99d77"
+    },
+    {
+      "order": 32,
+      "file": "032_social_provider_step_up_and_removal.sql",
+      "sha256": "7983acb87c1958d1bb147b1833d1343a6a598d17f62d8d79a23764a6dbb6963b"
+    },
+    {
+      "order": 33,
+      "file": "033_audited_booking_disputes.sql",
+      "sha256": "c684ff2fd632e4fb564d902955bb0cb8f6b75b45d517293bb15cd38bf629d192"
+    },
+    {
+      "order": 34,
+      "file": "034_bootstrap_administrator_provisioning.sql",
+      "sha256": "abed4b702e9e09b3661edcc9f65866dc6243d5d3beea1792284bfabf80d88bcc"
+    },
+    {
+      "order": 35,
+      "file": "035_account_privacy_request_intake.sql",
+      "sha256": "cb08c26c9fe0f836f1c427c11b71d90bd7f9f978cf2480940d6807cd730f155f"
+    },
+    {
+      "order": 36,
+      "file": "036_cleaner_payout_onboarding.sql",
+      "sha256": "b5a55dc549974b2da62530bd293713c6b0afc8014afdf77f1d46730473b3b96f"
+    },
+    {
+      "order": 37,
+      "file": "037_pre_authorization_booking_total.sql",
+      "sha256": "4d5c173fda9675afdcff638767d2a9b53d3a38907d6c785b82f30f8126e8ce1b"
+    },
+    {
+      "order": 38,
+      "file": "038_facebook_data_deletion_callback.sql",
+      "sha256": "cc25b829d09e05abea5d8952f943c87b03f80e5e6b9693544a03751ee9cfee5b"
+    },
+    {
+      "order": 39,
+      "file": "039_unexpected_task_frozen_terms.sql",
+      "sha256": "c87a3e6ad01db2e8cfb1fcbf520e1ebc11084b2098c2214f64663b731803d015"
+    },
+    {
+      "order": 40,
+      "file": "040_payment_reconciliation_ordering.sql",
+      "sha256": "cc0ae9d455945ca054b3230ef0f09b11dacdaa56a4c2b7ef569b597990e0e7ad"
+    },
+    {
+      "order": 41,
+      "file": "041_due_payment_readiness_notifications.sql",
+      "sha256": "889c3c2630a9dd69aaf8ffe959b13919988c8615ec8d79f55056a9cb00235083"
+    },
+    {
+      "order": 42,
+      "file": "042_booking_payment_window_summary.sql",
+      "sha256": "5c747b6ffff502cb773197039dce2f7eedbf802b30c1645d8cdaa0ce5fc2a238"
+    },
+    {
+      "order": 43,
+      "file": "043_two_stage_payment_reminders.sql",
+      "sha256": "40f3a1f6a9f46db75ed33f51a9eea6674f216a88c66415f695cbaa5e7a9e3f68"
+    },
+    {
+      "order": 44,
+      "file": "044_confirmed_visit_reminders.sql",
+      "sha256": "fd0d290bfa117b1ae88b4c649a0be07212e8767f6294990c98dcafbbecd3d583"
+    },
+    {
+      "order": 45,
+      "file": "045_owner_request_withdrawal.sql",
+      "sha256": "93967db60f0dc597819e4ee011edc5037f314a1f769282f0e3d7e57d6f72db9c"
+    },
+    {
+      "order": 46,
+      "file": "046_fix_social_identity_column_ambiguity.sql",
+      "sha256": "f74d73d1f88515f1a74defb227065083670edb6d8d31a505766edc68c3042f07"
+    },
+    {
+      "order": 47,
+      "file": "047_fix_role_onboarding_column_ambiguity.sql",
+      "sha256": "e7b7b1a62ae8aca3d6d0e20b0e98d175db937741f334b8b2e58a22fbd9fae8d6"
+    },
+    {
+      "order": 48,
+      "file": "048_multi_workspace_accounts.sql",
+      "sha256": "14ee12cbda2d9dd3c11dce80398c7110b6ae8b936a95c1c0fd710c5b91bdd8e5"
+    },
+    {
+      "order": 49,
+      "file": "049_pending_cleaner_scope_handoff.sql",
+      "sha256": "d8fdafd5083b9164e08d864ae60340509b9fe1ac8c9ef87c2b764cd6a09b5058"
+    },
+    {
+      "order": 50,
+      "file": "050_administrator_payment_operations.sql",
+      "sha256": "6ea0a59598a1b4e2547c023611d83f5453139f2c7619fb934c59d4e84bf5da49"
+    },
+    {
+      "order": 51,
+      "file": "051_administrator_case_payment_handoff.sql",
+      "sha256": "d2ee0833e268ac1050072b55626daa81e8892167c2e97e0bd279ea04609c3d9e"
+    },
+    {
+      "order": 52,
+      "file": "052_administrator_booking_operations.sql",
+      "sha256": "af4b12da2edc377b774f3fe590b304674cfcdf5e5e10cc50dee01d05a24b04ce"
+    },
+    {
+      "order": 53,
+      "file": "053_matching_self_exclusion.sql",
+      "sha256": "cafb6ef53e2e7f24d569620ec6c7f76facb20ef247bf760d60eaa594d34c11f5"
+    },
+    {
+      "order": 54,
+      "file": "054_cleaning_request_realtime_events.sql",
+      "sha256": "47d3cea5bc4a34cb32736ea24e3ca0a72eaab677226ad6126de5ce85d6ea0916"
+    },
+    {
+      "order": 55,
+      "file": "055_session_avatar_projection.sql",
+      "sha256": "00cfa75ddbd10de625e5e3ccd16b6d546e3b589be4a28d59c736030a61c7e502"
+    },
+    {
+      "order": 56,
+      "file": "056_booking_minimum_contribution.sql",
+      "sha256": "d85e17656d977bf24564a685973d0cd0e0c9d3bdd69d8387e7a3fdf6ae5442ad"
+    },
+    {
+      "order": 57,
+      "file": "057_public_cleaner_profile_lookup.sql",
+      "sha256": "b0d3e11c9a739a118985ab4e0c38da18e947cfdeed4bb4928162654bd3b9f24f"
+    },
+    {
+      "order": 58,
+      "file": "058_automatic_dispatch_customer_cap.sql",
+      "sha256": "5f6d3b97e91a0cc8a0c2293917afe3ba198d57965705c3defa74b58a1f1c2145"
+    },
+    {
+      "order": 59,
+      "file": "059_participant_response_deadline.sql",
+      "sha256": "8b36db99db571bc782244748983abbb868bab50268d0a43f7c8857c6f72e3669"
+    },
+    {
+      "order": 60,
+      "file": "060_apple_sign_in_provider.sql",
+      "sha256": "a8558bbf5cbe5b71c25692bbbedc029e9ed352a072a17efd97169ca886c69c10"
+    },
+    {
+      "order": 61,
+      "file": "061_fix_missing_rate_limit_scopes.sql",
+      "sha256": "5f8d6185ed58e1e5b4e47cf0c281e3bb51a946c07a6a71bd94a42ab602533918"
+    },
+    {
+      "order": 62,
+      "file": "062_cleaner_verification_authority.sql",
+      "sha256": "51f69f554f2c9db1a25202ffd998e2d8894f7abf93a90dad90a0cc318ba99760"
+    },
+    {
+      "order": 63,
+      "file": "063_administrator_cleaner_verification.sql",
+      "sha256": "d2bb7d5a72038c62c5ad7d926ad3632e0ae278306b69f320cfc675304cf74b2f"
+    },
+    {
+      "order": 64,
+      "file": "064_public_cleaner_distance_fallback.sql",
+      "sha256": "6f343797ae1cee6eb27e926eabfd7eaa0d01f8d60cff0097c15ea19a80fb0010"
+    },
+    {
+      "order": 65,
+      "file": "065_scan_summary_rate_limit.sql",
+      "sha256": "61051765e5ffab5182ee2aca27c7da9e92e51acbbc80cd8cb9a3d92419b37528"
+    },
+    {
+      "order": 66,
+      "file": "066_room_reading_rate_limit.sql",
+      "sha256": "d5fa4b88d3f1677a00bdc91c5bbb2b084ea2af69a6ed168ee722953fbabb0bb7"
+    },
+    {
+      "order": 67,
+      "file": "067_apple_administrator_bootstrap.sql",
+      "sha256": "cf7cc46e770a9425f9ef143e6f9be4f4598180c5e0232b4109e20d54765bf7fb"
+    },
+    {
+      "order": 68,
+      "file": "068_paid_matching_payout_readiness.sql",
+      "sha256": "6f3816c5ffd57cd931726ee269daf068204ab3225e6e0d419e1f38c08c5fd987"
+    },
+    {
+      "order": 69,
+      "file": "069_cleaner_verification_queue_pagination.sql",
+      "sha256": "623d0fc1eefb25722e4988bf965cf6b4f5dfbc2726c76a4ed32581eabc8d1371"
+    }
   ],
   "grantFiles": [
-    { "file": "runtime-role-grants.sql", "sha256": "3e0b561573083a83fa8302b23e65f1953a3b83cb49fe63e6c5a4814f8e8604e2" },
-    { "file": "worker-role-grants.sql", "sha256": "37a558f9ff8339f3f7105fbebe7005fb554fb9a861018462f18b664dee464c5c" }
+    {
+      "file": "runtime-role-grants.sql",
+      "sha256": "3e0b561573083a83fa8302b23e65f1953a3b83cb49fe63e6c5a4814f8e8604e2"
+    },
+    {
+      "file": "worker-role-grants.sql",
+      "sha256": "37a558f9ff8339f3f7105fbebe7005fb554fb9a861018462f18b664dee464c5c"
+    }
   ]
 }

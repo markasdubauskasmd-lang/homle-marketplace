@@ -26,6 +26,7 @@ DECLARE
   cleaner_verification_migration_installed boolean := false;
   apple_administrator_bootstrap_migration_installed boolean := false;
   paid_matching_payout_readiness_installed boolean := false;
+  cleaner_verification_pagination_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -211,6 +212,8 @@ BEGIN
       INTO apple_administrator_bootstrap_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 68)'
       INTO paid_matching_payout_readiness_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 69)'
+      INTO cleaner_verification_pagination_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -265,6 +268,15 @@ BEGIN
         AND position('password'',''google'',''apple'',''facebook' IN replace(procedure.prosrc, ' ', ''))>0
     ) INTO apple_administrator_bootstrap_migration_installed;
     paid_matching_payout_readiness_installed := to_regprocedure('tideway_private.recommend_cleaners_for_request_v3(uuid,integer,boolean)') IS NOT NULL;
+    -- 069 replaces a function 063 already created, so the signature proves nothing. The
+    -- repaired body is the only evidence: it slices inside a subquery aliased `page`
+    -- before aggregating, where the broken version aggregated first.
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.list_cleaner_verification_queue(text,integer,integer)')
+        AND position('LIMIT page_limit OFFSET page_offset' IN procedure.prosrc)>0
+        AND position(') page' IN procedure.prosrc)>0
+    ) INTO cleaner_verification_pagination_installed;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -357,6 +369,27 @@ BEGIN
     WHERE procedure.oid=to_regprocedure('tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)');
     IF position('recommend_cleaners_for_request_v2' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Automatic dispatch bypasses the shared self-excluding matching candidate boundary';
+    END IF;
+  END IF;
+  IF cleaner_verification_pagination_installed THEN
+    selected_name := 'tideway_private.list_cleaner_verification_queue(text,integer,integer)';
+    selected_function := to_regprocedure(selected_name);
+    IF selected_function IS NULL THEN RAISE EXCEPTION 'Required protected function is missing: %', selected_name; END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    -- The slice has to happen inside a subquery. Applied to the outer select — whose
+    -- select list is a single jsonb_agg — LIMIT and OFFSET act on the one aggregate row
+    -- rather than on the Cleaners, so page 1 returns the whole queue and page 2 returns
+    -- nothing. `) page` is the subquery alias that distinguishes the repaired body.
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=selected_function AND procedure.prosecdef
+        AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+    ) OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('public', selected_function, 'EXECUTE')
+      OR position(') page' IN COALESCE(selected_source,''))=0
+      OR position('LIMIT page_limit OFFSET page_offset' IN COALESCE(selected_source,''))=0
+      OR position('administrator-required' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'The Administrator Cleaner verification queue does not paginate, or lost its Administrator-only boundary';
     END IF;
   END IF;
   IF paid_matching_payout_readiness_installed THEN
