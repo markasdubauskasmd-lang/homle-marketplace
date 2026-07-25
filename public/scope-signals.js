@@ -13,10 +13,22 @@ const rules = [
 const ruleByCode = new Map(rules.map((rule) => [rule.code, rule]));
 
 function latestInstructionBoundary(value) {
-  let boundary = -1;
+  // Starts at 0, meaning "no delimiter seen, so the clause is the whole string".
+  // `match.index + match[0].length` is already the offset just past a delimiter, so
+  // slicing at it keeps the following clause intact.
+  //
+  // This used to start at -1 and slice at `boundary + 1`, which made the no-delimiter
+  // case work (`slice(0)`) but ate the first character of every clause that did follow
+  // a delimiter. When that clause was "Do not clean inside the oven", losing the "D"
+  // left "o not clean", so the exclusion guard below could no longer see "do not" and
+  // work the customer had explicitly refused was reported as requested, priced scope.
+  // It hid for so long because ". " loses only a space and a "Kitchen:" prefix supplies
+  // its own ": " — the newline that `detectPriceSensitiveScope` actually joins on is
+  // the case that breaks.
+  let boundary = 0;
   const pattern = /[.!?;,\n]|\b(?:but|however|instead)\b/gi;
   for (const match of value.matchAll(pattern)) boundary = Math.max(boundary, match.index + match[0].length);
-  return value.slice(boundary + 1);
+  return value.slice(boundary);
 }
 
 function matchIsExplicitlyExcluded(source, index, length) {
