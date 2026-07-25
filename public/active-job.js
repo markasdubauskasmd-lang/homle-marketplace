@@ -27,6 +27,7 @@ import {
   journeyDistanceLabel
 } from "./active-job-model.js?v=20260723-2";
 import { createRequestJson } from "./request-json.js";
+import { storedCsrf } from "./session-csrf.js";
 
 const bookingId = activeBookingId(location.pathname, location.search);
 const gate = document.querySelector("[data-job-gate]");
@@ -68,9 +69,6 @@ const state = { account: null, role: "", status: "", tracking: null, progress: n
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 document.querySelector("[data-booking-reference]").textContent = bookingId ? bookingId.slice(0, 8).toUpperCase() : "Invalid";
 
-function storedCsrf() {
-  try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
-}
 
 function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry = false } = {}) {
   stopLocationSharing();

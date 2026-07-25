@@ -25,6 +25,7 @@ import {
 import { clearRoomNotesDraft, readRoomNotesDraft, saveRoomNotesDraft } from "./room-note-draft.js";
 import { validatedGuidedRoomPhotoDimensions, validatedGuidedRoomPhotoFile } from "./room-photo-selection.js";
 import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js";
+import { storedCsrf } from "./session-csrf.js";
 
 // The room scan as an overlay any page can open in place. It builds and owns
 // its own DOM, so nothing has to be duplicated into every host page, and it
@@ -154,9 +155,6 @@ const markup = `
 <div class="scan-toast" data-toast role="status" aria-live="polite" hidden></div>
 `;
 
-function storedCsrf() {
-  try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
-}
 
 /* ── The on-device detector ─────────────────────────── */
 

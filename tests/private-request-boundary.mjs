@@ -37,6 +37,25 @@ assert.match(sharedSource, /statusCode: response\.status/, "The shared private r
 // working. Closing that gap needs uncertain-result wording, not just a timer.
 assert.doesNotMatch(sharedSource, /timeoutMs\s*=\s*\d/, "The shared private request has given `timeoutMs` a default again. Seven modules had no timeout, and a bare bound on a non-idempotent mutation risks a duplicate write while telling the person to try again.");
 
+/* ── The CSRF token read has one owner too ── */
+
+// Ten modules carried a byte-identical copy of this — the only helper in the tree with
+// no drift at all. The `try` is load-bearing: `sessionStorage` throws on *access*, not
+// just on write, where the browser blocks storage (Safari Lockdown Mode, a strict
+// third-party-context policy, a WebView with storage off). Every caller uses the result
+// as a request header, so throwing would take down the action instead of letting the
+// server answer with a clear CSRF failure.
+const csrfSource = read("public/session-csrf.js");
+assert.match(csrfSource, /sessionStorage\.getItem\("tideway_csrf"\)/, "The shared CSRF read no longer reads the session token, so every protected mutation would be sent without one.");
+assert.match(csrfSource, /catch \{ return ""; \}/, "The shared CSRF read lost its catch. `sessionStorage` throws on access where the browser blocks storage, which would take down the action rather than let the server reject it cleanly.");
+
+const csrfConsumers = ["active-job", "admin-cases", "admin-payments", "auth-entry", "booking-payment", "cleaner-availability", "cleaner-dashboard", "cleaner-profile", "landlord-dashboard", "room-scan-overlay"];
+for (const name of csrfConsumers) {
+  const source = read(`public/${name}.js`);
+  assert.ok(source.includes('from "./session-csrf.js"'), `${name} no longer reads the CSRF token through public/session-csrf.js, so its protected mutations may be sent without a token.`);
+  assert.ok(!source.includes("function storedCsrf"), `${name} has both the shared CSRF read and a local copy again. One is dead code, and which one the call sites reach depends on declaration order.`);
+}
+
 /* ── Every module that should delegate, does ── */
 
 // Listed here rather than in each UI suite so a module cannot be missed. The six absent

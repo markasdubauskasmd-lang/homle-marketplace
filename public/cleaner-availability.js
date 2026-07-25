@@ -1,4 +1,5 @@
 import { createRequestJson } from "./request-json.js";
+import { storedCsrf } from "./session-csrf.js";
 const gate = document.querySelector("[data-availability-gate]");
 const workspace = document.querySelector("[data-availability-workspace]");
 const form = document.querySelector("[data-availability-form]");
@@ -16,9 +17,6 @@ let loading = false;
 
 document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
 
-function storedCsrf() {
-  try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
-}
 
 function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry = false } = {}) {
   gate.hidden = false;

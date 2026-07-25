@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { uuid, uuidPattern } from "./validation.mjs";
+import { bookingStatuses as canonicalBookingStatuses } from "./domain.mjs";
 
 export const bookingPricingEnvironmentRules = Object.freeze([
   Object.freeze({ property: "targetMarginBasisPoints", key: "BOOKING_TARGET_MARGIN_BPS", minimum: 1, maximum: 9000 }),
@@ -71,7 +72,10 @@ function bookingProjection(record, actor) {
   return base;
 }
 
-const bookingStatuses = new Set(["draft", "searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "cancelled", "disputed"]);
+// Built from the canonical list rather than restated. The same twelve values are the
+// PostgreSQL `booking_status` enum, and a private copy here would keep rejecting a new
+// status after the enum and the domain had both been updated.
+const bookingStatuses = new Set(canonicalBookingStatuses);
 
 function optionalIso(value, label) {
   if (value == null || value === "") return null;

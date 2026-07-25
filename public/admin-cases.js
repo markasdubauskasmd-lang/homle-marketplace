@@ -1,5 +1,6 @@
 import { adminCaseFilter, adminCaseQueue, adminCaseResolutionPayload, adminCaseReviewPayload, caseCategoryLabel, casePolicyForCategory, caseStatusLabel, shortBookingReference } from "./admin-cases-model.js";
 import { createRequestJson } from "./request-json.js";
+import { storedCsrf } from "./session-csrf.js";
 
 const pageSize = 50;
 const gate = document.querySelector("[data-admin-cases-gate]");
@@ -30,9 +31,6 @@ function element(name, className, text) {
   return node;
 }
 
-function storedCsrf() {
-  try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
-}
 
 function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry = false } = {}) {
   gate.hidden = false;
