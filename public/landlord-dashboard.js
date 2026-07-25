@@ -1067,7 +1067,7 @@ function renderRequests() {
     const facts = element("dl", "landlord-request-facts");
     const start = new Date(request.requestedStartAt);
     const end = new Date(request.requestedEndAt);
-    facts.append(propertyFact("Requested", Number.isNaN(start.getTime()) ? "Unavailable" : new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(start)), propertyFact("Duration", Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) ? "Unavailable" : `${Math.round((end - start) / 3_600_000 * 10) / 10} hours`), propertyFact("Tasks", Array.isArray(request.tasks) ? request.tasks.length : 0), propertyFact("Frequency", String(request.frequency || "one-time").replace(/-/g, " ")));
+    facts.append(propertyFact("Requested", Number.isNaN(start.getTime()) ? "Unavailable" : formatBookingMoment(start.toISOString())), propertyFact("Duration", Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) ? "Unavailable" : `${Math.round((end - start) / 3_600_000 * 10) / 10} hours`), propertyFact("Tasks", Array.isArray(request.tasks) ? request.tasks.length : 0), propertyFact("Frequency", String(request.frequency || "one-time").replace(/-/g, " ")));
     const boundaryCopy = request.status === "draft"
       ? "Private draft only — no Cleaner has been invited and no booking or payment exists."
       : request.status === "searching-for-cleaner"

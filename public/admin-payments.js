@@ -105,7 +105,7 @@ function money(pence) {
 }
 
 function date(value) {
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(value));
 }
 
 function fact(label, value) {

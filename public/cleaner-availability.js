@@ -57,8 +57,8 @@ function localDateTime(date, time) {
 function formatWindow(item) {
   const start = new Date(item.startAt);
   const end = new Date(item.endAt);
-  const date = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(start);
-  const times = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const date = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" }).format(start);
+  const times = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" });
   return `${date}, ${times.format(start)}-${times.format(end)}`;
 }
 
