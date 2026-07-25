@@ -29,8 +29,15 @@ async function loadStatus() {
       rejected: ["This request needs support review.", "Please use the contact details in the privacy notice and keep this confirmation link private."]
     };
     show(...(messages[body.status] || ["The request status is unavailable.", "Please try again later."]));
-  } catch {
-    show("We could not check the request yet.", "Check your connection and reopen the private confirmation link.");
+  } catch (error) {
+    // The server's own explanation is shown when there is one. The bare catch this
+    // replaces reported every failure as a connection problem, including a request the
+    // server had deliberately rejected.
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    show(
+      offline ? "You are offline." : error?.message || "We could not check the request yet.",
+      offline ? "Reconnect and reopen the private confirmation link." : "Reopen the private confirmation link, or try again shortly."
+    );
   }
 }
 

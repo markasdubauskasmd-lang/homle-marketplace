@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -83,6 +83,19 @@ while (pending.length) {
 
 const unrunTests = testFiles.filter((name) => !reached.has(name));
 assert.deepEqual(unrunTests, [], `These test files exist but are never executed by \`npm run check\` or \`npm test\`, so their assertions protect nothing:\n  ${unrunTests.join("\n  ")}`);
+
+/* ── The lifecycle hooks CI depends on actually run ── */
+
+// `check` and `test` are the two commands CI invokes, and most of this repo's
+// verification hangs off their `pre`/`post` hooks — 144 of roughly 200 commands. npm runs
+// those automatically; pnpm 7+ does not unless `enable-pre-post-scripts` is set, and this
+// project pins pnpm. Without it CI ran about a third of its checks and still passed, so
+// the setting is load-bearing and is asserted here rather than assumed.
+const npmrc = existsSync(resolve(root, ".npmrc")) ? readFileSync(resolve(root, ".npmrc"), "utf8") : "";
+assert.match(npmrc, /^\s*enable-pre-post-scripts\s*=\s*true\s*$/m, "`.npmrc` no longer sets enable-pre-post-scripts=true, so pnpm will skip precheck/postcheck/pretest/posttest — most of this repo's verification — while still reporting success.");
+for (const hook of ["precheck", "postcheck", "pretest", "posttest"]) {
+  assert.ok(scripts[hook], `The \`${hook}\` script has gone, so whatever it verified is no longer checked.`);
+}
 
 /* ── Syntax checking stays derived from disk, not hand-listed ── */
 

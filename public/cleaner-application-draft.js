@@ -61,7 +61,15 @@ export function saveCleanerApplicationDraft(storage, { fields = {}, services = {
     expiresAt: savedAt + cleanerApplicationDraftLifetimeMs,
     ...(safeSubmissionKey ? { retry: { key: safeSubmissionKey, fingerprint: cleanerApplicationDraftFingerprint(safeFields, safeServices) } } : {})
   };
-  storage.setItem(cleanerDraftKey, JSON.stringify(draft));
+  // Losing a draft is a small harm; taking the form down is a large one. `setItem` throws
+  // when storage is full and throws unconditionally in Safari private browsing, and this
+  // runs from an input handler, so an unguarded throw aborted the keystroke that caused
+  // it. Returning null is the same "nothing saved" answer the guards above already give.
+  try {
+    storage.setItem(cleanerDraftKey, JSON.stringify(draft));
+  } catch {
+    return null;
+  }
   return draft;
 }
 
