@@ -27,6 +27,7 @@ DECLARE
   apple_administrator_bootstrap_migration_installed boolean := false;
   paid_matching_payout_readiness_installed boolean := false;
   cleaner_verification_pagination_installed boolean := false;
+  bookings_cleaning_request_index_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -214,6 +215,8 @@ BEGIN
       INTO paid_matching_payout_readiness_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 69)'
       INTO cleaner_verification_pagination_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 70)'
+      INTO bookings_cleaning_request_index_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -277,6 +280,7 @@ BEGIN
         AND position('LIMIT page_limit OFFSET page_offset' IN procedure.prosrc)>0
         AND position(') page' IN procedure.prosrc)>0
     ) INTO cleaner_verification_pagination_installed;
+    bookings_cleaning_request_index_installed := to_regclass('public.bookings_cleaning_request_idx') IS NOT NULL;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -369,6 +373,23 @@ BEGIN
     WHERE procedure.oid=to_regprocedure('tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer)');
     IF position('recommend_cleaners_for_request_v2' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Automatic dispatch bypasses the shared self-excluding matching candidate boundary';
+    END IF;
+  END IF;
+  IF bookings_cleaning_request_index_installed THEN
+    -- The pre-existing partial UNIQUE index on this column also carries
+    -- `status <> 'cancelled'`, so the dispatch lookups that deliberately count
+    -- cancelled attempts cannot use it and fall back to scanning bookings. This
+    -- index must therefore exist separately and must NOT carry a status predicate,
+    -- or the scans come straight back.
+    IF to_regclass('public.bookings_cleaning_request_idx') IS NULL THEN
+      RAISE EXCEPTION 'bookings(cleaning_request_id) has no general index, so automatic dispatch scans the whole bookings table on every attempt-limit check';
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM pg_index index_entry
+      WHERE index_entry.indexrelid = to_regclass('public.bookings_cleaning_request_idx')
+        AND position('cancelled' IN COALESCE(pg_get_expr(index_entry.indpred, index_entry.indrelid), ''))>0
+    ) THEN
+      RAISE EXCEPTION 'The general bookings(cleaning_request_id) index carries a status predicate, so the dispatch lookups that must include cancelled bookings still cannot use it';
     END IF;
   END IF;
   IF cleaner_verification_pagination_installed THEN

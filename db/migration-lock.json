@@ -346,6 +346,11 @@
       "order": 69,
       "file": "069_cleaner_verification_queue_pagination.sql",
       "sha256": "623d0fc1eefb25722e4988bf965cf6b4f5dfbc2726c76a4ed32581eabc8d1371"
+    },
+    {
+      "order": 70,
+      "file": "070_bookings_cleaning_request_index.sql",
+      "sha256": "c4729e49dbbec7619da5d7365e029c5caaea4232abfbb9cc5b1530ec8fd72e8c"
     }
   ],
   "grantFiles": [
