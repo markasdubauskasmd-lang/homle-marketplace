@@ -1291,6 +1291,29 @@ function isDataMutation(request, pathname) {
   return pathname.startsWith("/api/") && ["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "");
 }
 
+// Deliberately re-audits every private record file on each mutation, and deliberately is
+// not cached.
+//
+// The audit was flagged as a performance problem: it reads and parses all twenty NDJSON
+// files, inside the write queue, before any write is allowed. Both halves of that are
+// true. It is still the right design, for two reasons.
+//
+// First, scope. The marketplace and authentication routers return above this call, so
+// every `/api/marketplace/**` route — the entire PostgreSQL-backed application — never
+// reaches it. It guards only the legacy pilot JSON endpoints, and those are additionally
+// gated behind `pilotIntakeEnabled`, which the deployed Render configuration sets to
+// false. Today this runs on no production request at all.
+//
+// Second, and the reason not to cache it even if that changes: this is the gate whose
+// entire job is to refuse writes onto data it has just proven intact. A cached verdict
+// is a verdict about the data as it was, and the cheapest invalidation to get wrong —
+// mtime, a dirty flag, a TTL — fails in the direction that matters, by returning
+// "healthy" for data that is not. Trading a fresh answer for a fast one here buys speed
+// on a disabled code path and pays for it with the one guarantee this function exists to
+// provide.
+//
+// If pilot intake is ever re-enabled at volume, the fix is to move those endpoints onto
+// PostgreSQL like the rest of the application, not to cache this.
 async function allowDataMutation(request, response, pathname) {
   if (!isDataMutation(request, pathname)) return true;
   if (!pilotIntakeEnabled) {
