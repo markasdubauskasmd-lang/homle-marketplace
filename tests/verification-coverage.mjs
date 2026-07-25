@@ -58,16 +58,30 @@ function sourceFiles(dir, pattern, out = []) {
 /* ── Every test file is executed ── */
 
 const testFiles = readdirSync(resolve(root, "tests")).filter((name) => name.endsWith(".mjs"));
-// A test file may legitimately be run by being imported into another test rather than
-// invoked directly; that still executes its assertions, so it counts.
-const importedByAnotherTest = new Set();
+// A test file may legitimately run by being imported into another test rather than
+// invoked directly; that still executes its assertions. But only if the *importer* runs.
+// Walking the import graph outward from the directly executed suites is what makes that
+// distinction — accepting "imported by anything" would let a whole cluster of suites
+// vouch for each other while none of them is ever executed.
+const importsOf = new Map();
 for (const name of testFiles) {
   const source = readFileSync(resolve(root, "tests", name), "utf8");
   // Both `import x from "./y.mjs"` and the bare side-effect form `import "./y.mjs"`,
   // which is how several suites pull in a sibling's assertions.
-  for (const [, imported] of source.matchAll(/import\s+(?:[\s\S]*?\sfrom\s+)?["']\.\/([\w.-]+\.mjs)["']/g)) importedByAnotherTest.add(imported);
+  importsOf.set(name, [...source.matchAll(/import\s+(?:[\s\S]*?\sfrom\s+)?["']\.\/([\w.-]+\.mjs)["']/g)].map((match) => match[1]));
 }
-const unrunTests = testFiles.filter((name) => !executedTests.has(name) && !importedByAnotherTest.has(name));
+
+const reached = new Set(executedTests);
+const pending = [...executedTests];
+while (pending.length) {
+  for (const imported of importsOf.get(pending.pop()) || []) {
+    if (reached.has(imported)) continue;
+    reached.add(imported);
+    pending.push(imported);
+  }
+}
+
+const unrunTests = testFiles.filter((name) => !reached.has(name));
 assert.deepEqual(unrunTests, [], `These test files exist but are never executed by \`npm run check\` or \`npm test\`, so their assertions protect nothing:\n  ${unrunTests.join("\n  ")}`);
 
 /* ── Syntax checking stays derived from disk, not hand-listed ── */
