@@ -142,7 +142,7 @@ assert(/function requestClose\(\)[\s\S]{0,180}hasScanProgress\(\)[\s\S]{0,80}sho
 assert(/function setScanBackgroundInert\(inert\)[\s\S]{0,320}child\.inert = inert/.test(overlay) && /function openDiscardDecision\([\s\S]{0,700}setScanBackgroundInert\(true\)[\s\S]{0,120}discardKeep\.focus/.test(overlay), "The discard decision leaves covered camera controls interactive or does not move focus to its safe action.");
 assert(overlay.includes('window.addEventListener("beforeunload", onBeforeUnload)') && overlay.includes('window.removeEventListener("beforeunload", onBeforeUnload)') && /function onBeforeUnload\(event\)[\s\S]{0,220}!hasScanProgress\(\)[\s\S]{0,320}event\.returnValue = ""/.test(overlay), "Browser navigation can silently erase an in-progress room scan or leaves a permanent leave-page warning after teardown.");
 assert(!overlay.includes("localStorage") && !overlay.includes("JSON.stringify(state.rooms"), "The discard safeguard persists private room photos or the scan roster in browser storage.");
-assert(/function finishScan\(\)[\s\S]{0,850}photos: state\.rooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(overlay), "A completed scan does not hand its current room photos directly to the authenticated booking journey.");
+assert(/function finishScan\(\)[\s\S]{0,1200}photos: state\.rooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(overlay), "A completed scan does not hand its current room photos directly to the authenticated booking journey.");
 assert(!/sessionStorage\.setItem\([^)]*state\.rooms/.test(overlay) && !/sessionStorage\.setItem\([^)]*photos/.test(overlay), "Private room photos are written into browser storage instead of staying in the in-memory booking handoff.");
 
 /* ── Real inputs, not a simulation ─────────────────── */
@@ -336,7 +336,7 @@ assert(overlay.includes("state.capturing = true;") && overlay.indexOf("state.cap
 // Finishing is instant: every room was read as it was confirmed, so there is
 // nothing left to load and no reason to animate loading.
 assert(!overlay.includes("Reading your home") && !/setTimeout\(\s*\(?\s*(?:wait|resolve)\)?\s*,\s*(?:340|700)\s*\)/.test(overlay), "The finish step still plays a loading animation over work that has already happened.");
-assert(/function finishScan\(\)[\s\S]{0,400}stopCamera\(\);\s*\n\s*close\(\{/.test(overlay), "Finishing no longer closes cleanly with the gathered rooms.");
+assert(/function finishScan\(\)[\s\S]{0,700}stopCamera\(\);\s*\n\s*close\(\{/.test(overlay), "Finishing no longer closes cleanly with the gathered rooms.");
 
 // Behind the hub the camera stays warm but detection is paused — no point
 // running inference at a menu.
