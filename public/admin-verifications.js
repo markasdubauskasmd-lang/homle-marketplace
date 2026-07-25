@@ -72,12 +72,25 @@ function cleanerCard(record) {
     try { change = verificationChange(identity.select.value, background.select.value, note.value); }
     catch (error) { return showFeedback(error.message, "error"); }
     save.disabled = true; save.setAttribute("aria-busy", "true"); save.textContent = "Recording…"; showFeedback("");
+    // `recorded` separates "the decision failed" from "the decision landed but the
+    // queue would not refresh". Without it, a network blip on the refresh reported the
+    // decision as failed and re-enabled the button, inviting a second POST — and a
+    // second audit-log entry for one vetting decision. The same guard is used for
+    // dispute resolutions.
+    let recorded = false;
     try {
       const csrf = await recoverCsrf();
       await requestJson(`/api/marketplace/admin/cleaner-verifications/${encodeURIComponent(record.cleanerId)}`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(change) });
-      showFeedback("Verification decision recorded and audit-logged.", "success");
+      recorded = true;
       await loadQueue(queue.offset);
+      showFeedback("Verification decision recorded and audit-logged.", "success");
     } catch (error) {
+      if (recorded) {
+        // Deliberately left disabled: the decision is already audited, so re-arming
+        // this button could only produce a duplicate.
+        showFeedback("The decision was recorded and audit-logged, but the queue could not refresh. Refresh before recording another decision.", "success");
+        return;
+      }
       showFeedback(error.message, "error");
       save.disabled = false; save.removeAttribute("aria-busy"); save.textContent = "Record decision";
     }

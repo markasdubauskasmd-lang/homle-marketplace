@@ -86,8 +86,14 @@ export function bookableDays(from = new Date(), count = 14) {
   const days = [];
   for (let offset = 1; offset <= count; offset += 1) {
     const day = new Date(start.getTime() + offset * 86_400_000);
+    // Built from local parts, not `toISOString()`. The label beside it comes from
+    // `getDate()`/`toLocaleDateString`, which are local, so a UTC `iso` disagreed with
+    // it for any local time before UTC midnight: at 00:30 in London the button read
+    // "Thu 2" and submitted the 1st. The booked day has to be the day the Landlord
+    // tapped.
+    const iso = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
     days.push(Object.freeze({
-      iso: day.toISOString().slice(0, 10),
+      iso,
       weekday: day.toLocaleDateString("en-GB", { weekday: "short" }),
       dayOfMonth: String(day.getDate())
     }));

@@ -14,6 +14,12 @@ const completionValue = document.querySelector("[data-completion-value]");
 const completionProgress = document.querySelector("[data-completion-progress]");
 const completionCopy = document.querySelector("[data-completion-copy]");
 const publicControl = form.elements.isPublic;
+// The Cleaner's deliberate publish choice, kept apart from the checkbox itself.
+// `updateCompletion` clears the checkbox whenever the profile dips below 100% — which
+// happens mid-edit, for instance while retyping a field — and it used to be unable to
+// put it back. Retyping the same value therefore published-then-unpublished a live
+// profile, and the save reported success, so a Cleaner silently vanished from search.
+let publishIntent = false;
 const publishHelp = document.querySelector("[data-publish-help]");
 const serviceRows = [...document.querySelectorAll("[data-service-code]")];
 const profileSections = [...document.querySelectorAll("[data-profile-section]")];
@@ -152,10 +158,13 @@ function updateCompletion() {
   profileNextAction.textContent = nextSection.key === "review" ? "Review profile" : `Open ${nextSection.label.toLowerCase()}`;
   if (percent === 100) {
     publicControl.disabled = false;
+    publicControl.checked = publishIntent;
     completionCopy.textContent = publicControl.checked ? "Complete and visible in public search." : "Complete. You can choose to publish when ready.";
     publishHelp.textContent = "Your profile is complete. Choose whether it should appear in public Cleaner search.";
   } else {
-    if (publicControl.checked) publicControl.checked = false;
+    // Cleared for display only: an incomplete profile cannot be published. The
+    // remembered intent is left alone so it survives back to 100%.
+    publicControl.checked = false;
     publicControl.disabled = true;
     const remaining = details.total - details.completed;
     completionCopy.textContent = `${remaining} required ${remaining === 1 ? "detail remains" : "details remain"}.`;
@@ -188,7 +197,8 @@ function populate(profile) {
     row.querySelector("[data-service-price]").value = penceToMoney(service?.pricePence);
     updateServiceRow(row);
   }
-  publicControl.checked = profile.isPublic === true;
+  publishIntent = profile.isPublic === true;
+  publicControl.checked = publishIntent;
   const completion = updateCompletion();
   selectProfileSection(profileSectionFromHash() || completion.sections.find((section) => !section.complete)?.key || "review", { focus: false });
   dirty = false;
@@ -276,6 +286,10 @@ window.addEventListener("popstate", () => {
 });
 form.addEventListener("input", () => { dirty = true; saveState.textContent = "Unsaved changes."; updateCompletion(); });
 form.addEventListener("change", () => { dirty = true; saveState.textContent = "Unsaved changes."; updateCompletion(); });
+// A change on this control reaches its own listener before it bubbles to the form's,
+// so the deliberate choice is recorded first and the `updateCompletion` that follows
+// reads the new intent rather than overwriting the tick with the old one.
+publicControl.addEventListener("change", () => { publishIntent = publicControl.checked; });
 form.addEventListener("submit", saveProfile);
 retry.addEventListener("click", loadProfile);
 window.addEventListener("beforeunload", (event) => { if (dirty) event.preventDefault(); });

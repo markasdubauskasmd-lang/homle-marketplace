@@ -299,6 +299,11 @@ async function createTest() {
     return;
   }
   createButton.disabled = true;
+  // Cleared here because `deleteTest` only ever sets it. Without this, creating a test
+  // after deleting one left `deleted` true, so `renderSnapshot` returned immediately
+  // and the snapshot stream exited on its first check: the new test's panel never
+  // appeared and no live updates arrived until the page was reloaded.
+  deleted = false;
   setupMessage.textContent = "Creating a private in-memory test…";
   try {
     const response = await fetch("/api/tracking-test/session", { method: "POST", headers: { "Accept": "application/json" } });
