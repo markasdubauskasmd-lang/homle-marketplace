@@ -20,10 +20,6 @@ const statusLabels = {
   new: "New", contacted: "Contacted", quoted: "Quoted", booked: "Booked", completed: "Completed", lost: "Lost",
   screening: "Screening", approved: "Approved", paused: "Paused", rejected: "Rejected"
 };
-const statusesByKind = {
-  request: ["new", "contacted", "quoted", "booked", "completed", "lost"],
-  cleaner: ["new", "contacted", "screening", "approved", "paused", "rejected"]
-};
 const allowedLeadStatuses = {
   request: {
     new: ["new", "contacted", "lost"],

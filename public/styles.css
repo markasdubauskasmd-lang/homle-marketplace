@@ -1486,9 +1486,7 @@ textarea { resize: vertical; }
 /* Real Cleaner directory. Results are API-backed and never populated with sample people. */
 .cleaner-directory-page { min-height: 100vh; background: #f3f7f5; }
 .directory-nav { display: flex; gap: 20px; align-items: center; }
-.directory-nav a, .directory-nav .workspace-switch { color: var(--green-dark); font-size: .88rem; font-weight: 780; text-decoration: none; }
-.directory-nav .workspace-switch { appearance: none; border: 1px solid color-mix(in srgb, var(--green) 45%, transparent); border-radius: 999px; background: var(--mint); padding: 8px 12px; cursor: pointer; font-family: inherit; }
-.directory-nav .workspace-switch:disabled { cursor: wait; opacity: .65; }
+.directory-nav a { color: var(--green-dark); font-size: .88rem; font-weight: 780; text-decoration: none; }
 .workspace-brand { display: flex; align-items: center; gap: 12px; }
 .workspace-identity-pill { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; color: #17463f; border: 1px solid #9bcdbf; border-radius: 999px; background: #edf8f4; font-size: .7rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .cleaner-site-header { color: #fff; border-bottom-color: #2c7b70; background: #0b5149; }

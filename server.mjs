@@ -51,6 +51,22 @@ const lanHost = process.env.LAN_HOST || "0.0.0.0";
 const canonicalPublicOrigin = process.env.NODE_ENV === "production" ? new URL(process.env.APP_ORIGIN).origin : "";
 if (lanPort && (!Number.isInteger(lanPort) || lanPort < 1 || lanPort > 65535 || lanPort === port)) throw new Error("LAN_PORT must be a valid port different from PORT.");
 const maxBodyBytes = 64 * 1024;
+// Statuses this server sets on its own errors, and whose messages are therefore
+// written for the client to read. Anything else — including a third-party client
+// error that happens to carry a `statusCode` — is answered as a plain 500 so no
+// library internals reach the response. Mirrors the whitelist in
+// `src/marketplace/http-support.mjs`, which the marketplace routes already use.
+//
+// 401 is included because it is genuinely thrown here: `tracking-test-store.mjs`
+// rejects an invalid viewer token with one, and a caller needs to be told to sign in
+// rather than that something went wrong.
+//
+// Status is an imperfect proxy for authorship — a library error carrying one of these
+// would still be echoed. Marking authored errors explicitly would be the complete
+// fix, but that means touching every throw site in this file, so it is left for its
+// own change. This is still strictly tighter than what it replaced, which echoed the
+// message of *any* error carrying a `statusCode` at all.
+const clientErrorStatuses = new Set([400, 401, 403, 404, 409, 413, 422, 429, 503]);
 const maxBriefBodyBytes = 28 * 1024 * 1024;
 const maxProposalHours = 16;
 const maxProposalHourlyRate = 10000;
@@ -5602,7 +5618,21 @@ async function handleHttpRequest(request, response) {
     json(response, 404, { ok: false, error: "Not found." });
   } catch (error) {
     console.error(error);
-    json(response, error.statusCode || 500, { ok: false, error: error.statusCode ? error.message : "Something went wrong. Please try again." });
+    // Once a handler has started writing, a second write throws
+    // ERR_HTTP_HEADERS_SENT from inside this catch — which escaped the request and
+    // took the process with it, because nothing awaits the promise `createServer`
+    // is handed. There is nothing useful left to say to this client, so end it.
+    if (response.headersSent) {
+      response.end();
+      return;
+    }
+    // Only statuses this server actually authors are echoed back. A rejection from
+    // a third-party client (undici, the AWS SDK, Stripe) also carries `statusCode`,
+    // and passing that straight through both leaked the library's internal message
+    // and handed an unvalidated value to writeHead, which throws if it is not a
+    // legal status.
+    const authored = clientErrorStatuses.has(error?.statusCode);
+    json(response, authored ? error.statusCode : 500, { ok: false, error: authored ? error.message : "Something went wrong. Please try again." });
   }
 }
 
@@ -5651,5 +5681,10 @@ async function shutdown() {
   if (lanServer) lanServer.close(closed);
 }
 
+// No `unhandledRejection` handler on purpose. The crash this file actually had is
+// fixed at its source by the `headersSent` guard in the request catch; swallowing
+// rejections on top of that would keep the process serving after an unknown
+// invariant failure, which is worse than exiting and letting the platform restart on
+// known-good state. Node's default already logs the rejection before exiting.
 process.on("SIGINT", () => { shutdown().catch((error) => { console.error(error); process.exit(1); }); });
 process.on("SIGTERM", () => { shutdown().catch((error) => { console.error(error); process.exit(1); }); });

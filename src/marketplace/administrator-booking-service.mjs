@@ -1,4 +1,4 @@
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { uuidPattern } from "./validation.mjs";
 const views = new Set(["attention", "active", "finished"]);
 const requestStatuses = new Set(["searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "matched", "cancelled"]);
 const bookingStatuses = new Set(["draft", "searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "cancelled", "disputed"]);
@@ -17,6 +17,12 @@ function optionalInteger(value, minimum, maximum, label) {
   return integer(value, minimum, maximum, null, label);
 }
 
+// Plain Error, deliberately — unlike the `uuid`/`timestamp` helpers in the other
+// services, these validate what the repository returned, not what a caller sent
+// (see `list()`: `result.operations.map(operation)`). The only client inputs here are
+// `view`, `limit` and `offset`. A stored id or timestamp that fails these checks is a
+// server-side data-integrity fault, so it must stay a 500; a TypeError would map to
+// 422 and blame the administrator for input they never supplied.
 function timestamp(value, label) {
   if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) throw new Error(`${label} is unavailable.`);
   return new Date(value).toISOString();

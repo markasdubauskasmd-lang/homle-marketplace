@@ -1,8 +1,8 @@
+import { uuidPattern } from "./validation.mjs";
 const stripeApiVersion = "2026-03-25.dahlia";
 const testKeyPattern = /^sk_test_[A-Za-z0-9_]{16,200}$/;
 const webhookSecretPattern = /^whsec_[A-Za-z0-9_]{16,200}$/;
 const providerReferencePattern = /^(?:pi|re|tr|ch|acct|evt)_[A-Za-z0-9_]{3,250}$/;
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const payoutIdempotencyPattern = /^tideway_cleaner_payout_[0-9a-f-]{36}$/;
 
 function reference(value, label) {

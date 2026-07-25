@@ -208,7 +208,7 @@ export function progressSummary(progress = {}) {
 export function safeDateTime(value, options = {}) {
   const date = new Date(value || "");
   if (Number.isNaN(date.getTime())) return "Not recorded";
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: options.date === false ? undefined : "medium", timeStyle: "short" }).format(date);
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: options.date === false ? undefined : "medium", timeStyle: "short", timeZone: "Europe/London" }).format(date);
 }
 
 export function elapsedLabel(seconds) {

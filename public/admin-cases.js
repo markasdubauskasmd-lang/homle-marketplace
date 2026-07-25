@@ -59,7 +59,7 @@ async function requestJson(path, options = {}) {
 }
 
 function formatDate(value) {
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(value));
 }
 
 function fact(label, value) {
@@ -93,8 +93,13 @@ async function updateCase(disputeId, payload, button) {
     if (saved) return;
     throw error;
   } finally {
+    // The page stays usable — another case can still be actioned — but the control that
+    // already succeeded is deliberately left disabled. Restoring it after a
+    // recorded-but-unrefreshed write invited a second PATCH and a second audited
+    // resolution for one decision, which is exactly what the message above tells the
+    // administrator to avoid.
     updating = false;
-    if (button) setBusy(button, false, original);
+    if (button && !saved) setBusy(button, false, original);
   }
 }
 

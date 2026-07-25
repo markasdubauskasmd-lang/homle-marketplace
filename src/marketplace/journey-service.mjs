@@ -1,9 +1,4 @@
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function uuid(value, label) {
-  if (!uuidPattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
-  return value.toLowerCase();
-}
+import { uuid, uuidPattern } from "./validation.mjs";
 
 function boundedNumber(value, minimum, maximum, label, optional = false) {
   if (optional && (value == null || value === "")) return null;

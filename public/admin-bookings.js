@@ -18,7 +18,7 @@ const money = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP
 
 function node(name, className, text) { const result = document.createElement(name); if (className) result.className = className; if (text != null) result.textContent = text; return result; }
 function moneyPence(value) { return money.format(value / 100); }
-function date(value) { return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)); }
+function date(value) { return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(value)); }
 function fact(label, value) { const item = node("div"); item.append(node("dt", "", label), node("dd", "", value)); return item; }
 function showFeedback(message, kind = "info") { feedback.hidden = !message; feedback.dataset.kind = kind; feedback.textContent = message; if (message) feedback.focus(); }
 function showGate(title, copy, { signIn = false, retry = false } = {}) { gate.hidden = false; workspace.hidden = true; document.querySelector("[data-admin-bookings-gate-title]").textContent = title; document.querySelector("[data-admin-bookings-gate-copy]").textContent = copy; document.querySelector("[data-admin-bookings-sign-in]").hidden = !signIn; document.querySelector("[data-admin-bookings-retry]").hidden = !retry; }

@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { isUkPostcode } from "../../public/contact-validation.js";
 import { canAccessBooking, canAccessProtectedPropertyInstructions } from "./domain.mjs";
 import { assertPropertyEncryptionSecret, decryptPropertyAccessInstructions, encryptPropertyAccessInstructions } from "./property-crypto.mjs";
+import { uuid, uuidPattern } from "./validation.mjs";
 
 const propertyTypes = Object.freeze(["house", "flat", "studio", "office", "retail", "clinic", "communal", "other"]);
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function boundedText(value, maximum, label, minimum = 0) {
   const normalized = typeof value === "string" ? value.trim().replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "") : "";
@@ -18,11 +18,6 @@ function boundedNumber(value, minimum, maximum, label, decimalPlaces = null) {
   const scale = decimalPlaces == null ? true : Number.isInteger(number * (10 ** decimalPlaces));
   if (!Number.isFinite(number) || !scale || number < minimum || number > maximum) throw new TypeError(`${label} is outside the supported range.`);
   return number;
-}
-
-function uuid(value, label) {
-  if (!uuidPattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
-  return value.toLowerCase();
 }
 
 function postcode(value) {

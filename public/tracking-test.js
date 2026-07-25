@@ -237,11 +237,16 @@ async function deleteTest() {
 
 async function streamSnapshots() {
   streamController?.abort();
-  streamController = new AbortController();
-  while (privateToken && !deleted && !streamController.signal.aborted) {
+  // Held locally for the life of this invocation. The loop sleeps between retries, and
+  // reading the module-level controller after waking meant a stale loop saw the *new*
+  // session's controller — not aborted — and carried on, opening a second stream against
+  // it. Its own controller is aborted, so it now exits.
+  const controller = new AbortController();
+  streamController = controller;
+  while (privateToken && !deleted && !controller.signal.aborted) {
     try {
       setConnection("Connecting", "Opening the private live stream…", "waiting");
-      const response = await fetch("/api/tracking-test/events", { headers: { ...tokenHeaders(), "Accept": "text/event-stream" }, signal: streamController.signal });
+      const response = await fetch("/api/tracking-test/events", { headers: { ...tokenHeaders(), "Accept": "text/event-stream" }, signal: controller.signal });
       if (!response.ok || !response.body) throw new Error(await readError(response));
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -260,7 +265,7 @@ async function streamSnapshots() {
       }
       if (!deleted) await new Promise((resolve) => window.setTimeout(resolve, 1_000));
     } catch (error) {
-      if (streamController.signal.aborted || deleted) break;
+      if (controller.signal.aborted || deleted) break;
       setConnection("Connection interrupted", error.message || "Retrying the private stream…", "stale");
       await new Promise((resolve) => window.setTimeout(resolve, 1_500));
     }
@@ -299,6 +304,14 @@ async function createTest() {
     return;
   }
   createButton.disabled = true;
+  // Per-session state, reset together. `deleteTest` only ever set `deleted = true`, so
+  // creating a test after deleting one left it true: `renderSnapshot` returned
+  // immediately and the stream exited on its first check, leaving a page that never
+  // showed anything until it was reloaded. `firstPoint` is the origin the map measures
+  // from, so carrying it over would have anchored the new session's distances to the
+  // deleted one's starting position.
+  deleted = false;
+  firstPoint = null;
   setupMessage.textContent = "Creating a private in-memory test…";
   try {
     const response = await fetch("/api/tracking-test/session", { method: "POST", headers: { "Accept": "application/json" } });

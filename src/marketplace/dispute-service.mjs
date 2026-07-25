@@ -1,14 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { caseResolutionAssurance } from "./case-response-policy.mjs";
+import { uuid, uuidPattern } from "./validation.mjs";
 
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const categories = new Set(["quality", "damage", "access", "safety", "conduct", "payment", "other"]);
 const statuses = new Set(["open", "reviewing", "resolved", "closed"]);
-
-function uuid(value, label) {
-  if (!uuidPattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
-  return value.toLowerCase();
-}
 
 function text(value, minimum, maximum, label, optional = false) {
   const normalized = typeof value === "string" ? value.replace(/\r\n?/g, "\n").trim() : "";

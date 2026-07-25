@@ -1,3 +1,17 @@
 db/migrations/*.sql text eol=lf
 db/*-role-grants.sql text eol=lf
 db/migration-lock.json text eol=lf
+
+# Source is checked out with LF on every platform. Part of the test suite asserts
+# against source files as text — including regexes with character-count windows —
+# so a Windows checkout that swapped in CRLF made those assertions fail purely on
+# line endings, while the same commit passed in CI on Linux. Pinning LF makes the
+# suite give the same answer everywhere.
+*.mjs text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

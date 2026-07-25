@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { uuid, uuidPattern } from "./validation.mjs";
 
 export const bookingPricingEnvironmentRules = Object.freeze([
   Object.freeze({ property: "targetMarginBasisPoints", key: "BOOKING_TARGET_MARGIN_BPS", minimum: 1, maximum: 9000 }),
@@ -16,11 +15,6 @@ export const bookingPricingEnvironmentRules = Object.freeze([
   Object.freeze({ property: "otherCostPence", key: "BOOKING_OTHER_COST_PENCE", minimum: 0, maximum: 1_000_000 }),
   Object.freeze({ property: "invitationTtlMinutes", key: "BOOKING_INVITATION_TTL_MINUTES", minimum: 15, maximum: 1440 })
 ]);
-
-function uuid(value, label) {
-  if (!uuidPattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
-  return value.toLowerCase();
-}
 
 function boundedText(value, maximum, label) {
   const normalized = typeof value === "string" ? value.trim().replace(/[\u0000-\u001f\u007f]/g, "") : "";

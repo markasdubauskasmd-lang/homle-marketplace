@@ -72,7 +72,7 @@
     { "order": 68, "file": "068_paid_matching_payout_readiness.sql", "sha256": "6f3816c5ffd57cd931726ee269daf068204ab3225e6e0d419e1f38c08c5fd987" }
   ],
   "grantFiles": [
-    { "file": "runtime-role-grants.sql", "sha256": "1c8768ae266a5bb9418db60f15d1abe99e1dbdced160d49c2029fb2fe119ac08" },
+    { "file": "runtime-role-grants.sql", "sha256": "3e0b561573083a83fa8302b23e65f1953a3b83cb49fe63e6c5a4814f8e8604e2" },
     { "file": "worker-role-grants.sql", "sha256": "37a558f9ff8339f3f7105fbebe7005fb554fb9a861018462f18b664dee464c5c" }
   ]
 }

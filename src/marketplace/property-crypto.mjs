@@ -1,9 +1,9 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { uuidPattern } from "./validation.mjs";
 
 const envelopeVersion = 1;
 const ivLength = 12;
 const tagLength = 16;
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function encryptionKey(secret) {
   if (typeof secret !== "string" || secret.length < 32) throw new TypeError("A high-entropy data encryption secret of at least 32 characters is required.");

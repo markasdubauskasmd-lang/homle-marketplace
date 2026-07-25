@@ -79,9 +79,6 @@ export function isBookingStatus(status) {
   return bookingStatuses.includes(status);
 }
 
-export function isTaskStatus(status) {
-  return taskStatuses.includes(status);
-}
 
 export function isBookingParticipant(actor, booking) {
   if (!actor?.userId || !booking) return false;

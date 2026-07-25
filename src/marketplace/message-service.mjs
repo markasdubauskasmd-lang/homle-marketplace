@@ -1,21 +1,12 @@
 import { randomUUID } from "node:crypto";
-
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const emailPattern = /[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i;
-const urlPattern = /(?:https?:\/\/|www\.)/i;
-const ukPhonePattern = /(?:^|[^\d])(?:\+?44|0)(?:[\s().-]*\d){9,10}(?:[^\d]|$)/;
-const outsideContactPattern = /\b(?:whats?app|telegram|signal|instagram|facebook|snapchat)\b/i;
-
-function uuid(value, label) {
-  if (!uuidPattern.test(value || "")) throw new TypeError(`A valid ${label} is required.`);
-  return value.toLowerCase();
-}
+import { hasOffPlatformContact } from "./contact-details.mjs";
+import { uuid, uuidPattern } from "./validation.mjs";
 
 function messageBody(value) {
   const normalized = typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
   if (normalized.length < 1 || normalized.length > 2000) throw new TypeError("Message must contain 1 to 2000 characters.");
   if (/[\u0000-\u001f\u007f]/.test(normalized)) throw new TypeError("Message contains unsupported control characters.");
-  if (emailPattern.test(normalized) || urlPattern.test(normalized) || ukPhonePattern.test(normalized) || outsideContactPattern.test(normalized)) throw new TypeError("Keep communication inside Homle and remove phone numbers, email addresses, links or outside-messaging handles.");
+  if (hasOffPlatformContact(normalized)) throw new TypeError("Keep communication inside Homle and remove phone numbers, email addresses, links or outside-messaging handles.");
   return normalized;
 }
 
