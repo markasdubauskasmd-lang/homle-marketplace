@@ -1,4 +1,5 @@
 import { createHmac, createPrivateKey, createPublicKey, randomBytes, sign, timingSafeEqual, verify } from "node:crypto";
+import { exactOrigin as sharedExactOrigin } from "./validation.mjs";
 
 const authorizationEndpoint = "https://appleid.apple.com/auth/authorize";
 const tokenEndpoint = "https://appleid.apple.com/auth/token";
@@ -19,13 +20,9 @@ function boundedIdentifier(value, label, pattern, maximum = 255) {
 }
 
 function exactHttpsOrigin(value) {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" || url.origin !== String(value).replace(/\/$/, "") || url.username || url.password) throw new Error();
-    return url.origin;
-  } catch {
-    throw new TypeError("Apple sign-in requires an exact HTTPS application origin.");
-  }
+  // Shared so this security-relevant rule cannot drift between the modules that accept
+  // an application origin. See `exactOrigin` for what each clause rejects and why.
+  return sharedExactOrigin(value, "Apple sign-in requires an exact HTTPS application origin.", { requireHttps: true });
 }
 
 function privateSigningKey(value) {

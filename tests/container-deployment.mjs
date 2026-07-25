@@ -22,6 +22,11 @@ assert(dockerfile.includes("RUN install -d -o node -g node /var/lib/tideway") &&
 assert(dockerfile.includes("DATA_DIR=/var/lib/tideway") && dockerfile.includes("PILOT_INTAKE_ENABLED=false") && dockerfile.includes("AUTHENTICATION_ENABLED=false") && dockerfile.includes("MARKETPLACE_ENABLED=false") && dockerfile.includes("PAYMENTS_ENABLED=false") && dockerfile.includes("LAN_PORT=0"), "Container does not default to the fail-closed read-only public-site mode.");
 assert(dockerfile.includes("STOPSIGNAL SIGTERM") && dockerfile.includes('CMD ["node", "server.mjs"]'), "Container does not preserve Homle's graceful production lifecycle.");
 assert(dockerfile.includes("HEALTHCHECK") && dockerfile.includes("/api/health") && dockerfile.includes("b.service==='tideway-marketplace'"), "Container health check does not verify the Homle health contract.");
+// `ok` and `service` are constants in the health route, so a check on those alone can
+// only fail when the process is already gone. `writesAllowed` mirrors the data-integrity
+// audit and is the one field that varies, so it is what makes the check able to fail at
+// all: without it a container that had stopped accepting writes reported healthy forever.
+assert(dockerfile.includes("b.writesAllowed===true"), "Container health check ignores writesAllowed, so a container that has failed its data-integrity audit and refuses every write still reports healthy.");
 
 const ignoreLines = dockerignore.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
 assert.equal(ignoreLines[0], "**", "Container context must deny everything before its explicit allowlist.");

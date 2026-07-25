@@ -43,5 +43,9 @@ COPY --chown=node:node db ./db
 USER node
 EXPOSE 3000
 STOPSIGNAL SIGTERM
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD ["node", "-e", "fetch('http://127.0.0.1:'+process.env.PORT+'/api/health').then(async r=>{const b=await r.json();process.exit(r.status===200&&b.ok===true&&b.service==='tideway-marketplace'?0:1)}).catch(()=>process.exit(1))"]
+# `writesAllowed` is the only field here that can actually be false. `ok` and `service`
+# are constants in the health route, so a check on those alone could only fail when the
+# process was already gone — something Docker detects without help. A container whose
+# integrity audit had failed kept reporting healthy while refusing every write.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD ["node", "-e", "fetch('http://127.0.0.1:'+process.env.PORT+'/api/health').then(async r=>{const b=await r.json();process.exit(r.status===200&&b.ok===true&&b.service==='tideway-marketplace'&&b.writesAllowed===true?0:1)}).catch(()=>process.exit(1))"]
 CMD ["node", "server.mjs"]

@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { exactOrigin as sharedExactOrigin } from "./validation.mjs";
 
 const developmentCookieName = "tideway_facebook_flow";
 const flowLifetimeSeconds = 10 * 60;
@@ -12,13 +13,9 @@ function boundedSecret(value, label, minimum = 1, maximum = 4096) {
 }
 
 function exactOrigin(value) {
-  try {
-    const url = new URL(value);
-    if (url.origin !== String(value).replace(/\/$/, "") || url.username || url.password) throw new Error();
-    return url.origin;
-  } catch {
-    throw new TypeError("Facebook sign-in requires an exact application origin.");
-  }
+  // Shared so this security-relevant rule cannot drift between the modules that accept
+  // an application origin. See `exactOrigin` for what each clause rejects and why.
+  return sharedExactOrigin(value, "Facebook sign-in requires an exact application origin.");
 }
 
 function graphVersion(value) {

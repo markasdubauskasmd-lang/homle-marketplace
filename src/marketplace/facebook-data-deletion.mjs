@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { exactOrigin as sharedExactOrigin } from "./validation.mjs";
 
 const signedPartPattern = /^[A-Za-z0-9_-]+$/;
 const facebookSubjectPattern = /^\d{1,32}$/;
@@ -6,13 +7,9 @@ const confirmationCodePattern = /^[A-Za-z0-9_-]{32}$/;
 const statuses = new Set(["requested", "verifying", "processing", "completed", "rejected"]);
 
 function exactOrigin(value) {
-  try {
-    const url = new URL(value);
-    if (url.origin !== String(value).replace(/\/$/, "") || url.username || url.password) throw new Error();
-    return url.origin;
-  } catch {
-    throw new TypeError("Facebook data deletion requires an exact application origin.");
-  }
+  // Shared so this security-relevant rule cannot drift between the modules that accept
+  // an application origin. See `exactOrigin` for what each clause rejects and why.
+  return sharedExactOrigin(value, "Facebook data deletion requires an exact application origin.");
 }
 
 function secret(value, label) {

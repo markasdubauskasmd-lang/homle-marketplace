@@ -25,6 +25,13 @@ const objectStorageKeys = Object.freeze([
   "OBJECT_STORAGE_SECRET_ACCESS_KEY"
 ]);
 
+// The room scan and the spoken-brief summary both call Anthropic. Reported separately
+// from `accountSecretKeys` on purpose: both features degrade to a clean 503 without it,
+// so a missing key must not block activation the way a missing session secret does. It
+// still has to be visible — before this, a report could show every dependency connected
+// while both features were permanently unavailable and nothing said so.
+const roomScanKeys = Object.freeze(["ANTHROPIC_API_KEY"]);
+
 const stripeTestKeys = Object.freeze([
   "STRIPE_SECRET_KEY",
   "STRIPE_PUBLISHABLE_KEY",
@@ -135,6 +142,8 @@ function nextAction(missing, checks) {
   if (missing.privateMedia.length) return Object.freeze({ key: "private-media", label: "Connect private room-photo storage", missing: missing.privateMedia });
   if (missing.marketplaceRuntime.length) return Object.freeze({ key: "marketplace-runtime", label: "Connect runtime databases and approved booking economics", missing: missing.marketplaceRuntime });
   if (!checks.testPaymentsConfigured) return Object.freeze({ key: "test-payments", label: "Connect Stripe test mode after marketplace staging passes", missing: missing.testPayments });
+  // Last, and never a blocker: both features that need it fail closed with a clean 503.
+  if (missing.roomScan.length) return Object.freeze({ key: "room-scan-provider", label: "Connect the vision provider so room scanning and spoken briefs work", missing: missing.roomScan });
   return Object.freeze({ key: "managed-staging-proof", label: "Run the guarded managed-staging activation proof", missing: [] });
 }
 
@@ -163,6 +172,7 @@ export function renderEnvironmentActivationReport(entries) {
   const privateMediaMissing = missingPresentKeys(values, objectStorageKeys);
   const runtimeMissing = marketplaceRuntimeMissing(values);
   const testPaymentsMissing = testStripeConfigured(values) ? [] : stripeTestKeys;
+  const roomScanMissing = missingPresentKeys(values, roomScanKeys);
 
   const checks = Object.freeze({
     stagingAccountsRestricted: exactFlag(values, "STAGING_ACCOUNTS_ONLY", "true"),
@@ -177,6 +187,7 @@ export function renderEnvironmentActivationReport(entries) {
     privateMediaConfigured: privateMediaMissing.length === 0,
     marketplaceRuntimeConfigured: runtimeMissing.length === 0,
     testPaymentsConfigured: testPaymentsMissing.length === 0,
+    roomScanConfigured: roomScanMissing.length === 0,
     renderBootstrapConfigured: guardedRenderBootstrapConfigured(values),
     restrictedStagingBoundary: false,
     safeAccountPreview: false,
@@ -197,7 +208,8 @@ export function renderEnvironmentActivationReport(entries) {
     transactionalEmail: Object.freeze(transactionalEmailMissing),
     privateMedia: Object.freeze(privateMediaMissing),
     marketplaceRuntime: Object.freeze(runtimeMissing),
-    testPayments: Object.freeze(testPaymentsMissing)
+    testPayments: Object.freeze(testPaymentsMissing),
+    roomScan: Object.freeze(roomScanMissing)
   });
 
   return Object.freeze({

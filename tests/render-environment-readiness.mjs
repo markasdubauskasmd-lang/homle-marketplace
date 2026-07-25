@@ -14,6 +14,7 @@ const privateValues = Object.freeze({
   googleClient: "client.apps.googleusercontent.com",
   googleSecret: "google-secret-never-print",
   fingerprint: "a".repeat(64),
+  anthropic: "sk-ant-never-print-a-real-vision-provider-key",
   resend: "re_test_never_print",
   storage: "storage-secret-never-print",
   stripeSecret: `sk_test_${"s".repeat(32)}`,
@@ -128,7 +129,7 @@ assert.equal(marketplaceDependencies.activation.marketplaceDependencies, true);
 assert.equal(marketplaceDependencies.checks.marketplaceRuntimeConfigured, true);
 assert.equal(marketplaceDependencies.next.key, "test-payments");
 
-const allDependencies = renderEnvironmentActivationReport(entriesFrom({
+const everyDependency = {
   ...safeAccountEnvironment,
   ...marketplaceRuntimeEnvironment,
   RESEND_API_KEY: privateValues.resend,
@@ -140,11 +141,31 @@ const allDependencies = renderEnvironmentActivationReport(entriesFrom({
   OBJECT_STORAGE_SECRET_ACCESS_KEY: privateValues.storage,
   STRIPE_SECRET_KEY: privateValues.stripeSecret,
   STRIPE_PUBLISHABLE_KEY: privateValues.stripePublic,
-  STRIPE_WEBHOOK_SECRET: privateValues.stripeWebhook
-}));
+  STRIPE_WEBHOOK_SECRET: privateValues.stripeWebhook,
+  ANTHROPIC_API_KEY: privateValues.anthropic
+};
+
+const allDependencies = renderEnvironmentActivationReport(entriesFrom(everyDependency));
 assert.equal(allDependencies.activation.marketplaceDependencies, true);
 assert.equal(allDependencies.activation.testPaymentDependencies, true);
+assert.equal(allDependencies.checks.roomScanConfigured, true);
+assert.deepEqual([...allDependencies.missing.roomScan], []);
 assert.equal(allDependencies.next.key, "managed-staging-proof");
+
+// The room scan and the spoken-brief summary both call Anthropic. Before this was
+// reported, an environment could show every dependency connected and reach the final
+// activation step while both of those features returned 503 forever, with nothing in the
+// readiness report to say why.
+const missingVisionProvider = renderEnvironmentActivationReport(entriesFrom({ ...everyDependency, ANTHROPIC_API_KEY: "" }));
+assert.equal(missingVisionProvider.checks.roomScanConfigured, false);
+assert.deepEqual([...missingVisionProvider.missing.roomScan], ["ANTHROPIC_API_KEY"]);
+assert.equal(missingVisionProvider.next.key, "room-scan-provider");
+// Deliberately not a blocker: both features fail closed with a clean 503, so a missing
+// vision key must not hold back activation the way a missing session secret does.
+assert.equal(missingVisionProvider.ok, allDependencies.ok);
+assert.equal(missingVisionProvider.mode, allDependencies.mode);
+assert.equal(missingVisionProvider.activation.marketplaceDependencies, true);
+assert.equal(missingVisionProvider.activation.testPaymentDependencies, true);
 
 const partialPricing = renderEnvironmentActivationReport(entriesFrom({
   ...safeAccountEnvironment,
