@@ -10,14 +10,6 @@ export const minimumShots = 1;
 
 // Wording matches what is genuinely happening. Nothing here claims a
 // measurement the phone cannot take.
-export const processingSteps = Object.freeze([
-  "Preparing your photos",
-  "Reading each room",
-  "Identifying fixtures",
-  "Judging condition",
-  "Adding your spoken notes",
-  "Scoping the work"
-]);
 
 export function nextRoomName(shotCount, rooms = guidedRooms) {
   if (shotCount < rooms.length) return rooms[shotCount];

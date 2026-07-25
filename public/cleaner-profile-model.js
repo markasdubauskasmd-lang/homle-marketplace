@@ -1,12 +1,3 @@
-export const cleanerServiceDefinitions = Object.freeze([
-  Object.freeze({ code: "regular-domestic", label: "Regular domestic" }),
-  Object.freeze({ code: "rental-turnovers", label: "Rental turnover" }),
-  Object.freeze({ code: "end-of-tenancy", label: "End of tenancy" }),
-  Object.freeze({ code: "workplaces", label: "Workplace" }),
-  Object.freeze({ code: "communal-areas", label: "Communal areas" }),
-  Object.freeze({ code: "deep-cleans", label: "Deep clean" })
-]);
-
 const outwardPostcodePattern = /^[A-Z]{1,2}[0-9][A-Z0-9]?$/;
 
 export function commaList(value, maximumItems = 30, maximumLength = 100, label = "Entry") {

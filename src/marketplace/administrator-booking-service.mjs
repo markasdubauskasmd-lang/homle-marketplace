@@ -17,14 +17,18 @@ function optionalInteger(value, minimum, maximum, label) {
   return integer(value, minimum, maximum, null, label);
 }
 
+// TypeError, not Error, and for the same reason every other service throws one:
+// `errorResponse` turns a TypeError into 422 validation-failed, while a plain Error
+// falls through to 500 internal-error. Malformed input to the administrator booking
+// queue was answering "something went wrong" instead of naming the bad field.
 function timestamp(value, label) {
-  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) throw new Error(`${label} is unavailable.`);
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) throw new TypeError(`${label} is unavailable.`);
   return new Date(value).toISOString();
 }
 
 function uuid(value, label, optional = false) {
   if (optional && value == null) return null;
-  if (!uuidPattern.test(value || "")) throw new Error(`${label} is unavailable.`);
+  if (!uuidPattern.test(value || "")) throw new TypeError(`${label} is unavailable.`);
   return value.toLowerCase();
 }
 

@@ -51,6 +51,12 @@ const lanHost = process.env.LAN_HOST || "0.0.0.0";
 const canonicalPublicOrigin = process.env.NODE_ENV === "production" ? new URL(process.env.APP_ORIGIN).origin : "";
 if (lanPort && (!Number.isInteger(lanPort) || lanPort < 1 || lanPort > 65535 || lanPort === port)) throw new Error("LAN_PORT must be a valid port different from PORT.");
 const maxBodyBytes = 64 * 1024;
+// Statuses this server sets on its own errors, and whose messages are therefore
+// written for the client to read. Anything else — including a third-party client
+// error that happens to carry a `statusCode` — is answered as a plain 500 so no
+// library internals reach the response. Mirrors the whitelist in
+// `src/marketplace/http-support.mjs`, which the marketplace routes already use.
+const clientErrorStatuses = new Set([400, 401, 403, 404, 409, 413, 422, 429, 503]);
 const maxBriefBodyBytes = 28 * 1024 * 1024;
 const maxProposalHours = 16;
 const maxProposalHourlyRate = 10000;
@@ -5602,7 +5608,21 @@ async function handleHttpRequest(request, response) {
     json(response, 404, { ok: false, error: "Not found." });
   } catch (error) {
     console.error(error);
-    json(response, error.statusCode || 500, { ok: false, error: error.statusCode ? error.message : "Something went wrong. Please try again." });
+    // Once a handler has started writing, a second write throws
+    // ERR_HTTP_HEADERS_SENT from inside this catch — which escaped the request and
+    // took the process with it, because nothing awaits the promise `createServer`
+    // is handed. There is nothing useful left to say to this client, so end it.
+    if (response.headersSent) {
+      response.end();
+      return;
+    }
+    // Only statuses this server actually authors are echoed back. A rejection from
+    // a third-party client (undici, the AWS SDK, Stripe) also carries `statusCode`,
+    // and passing that straight through both leaked the library's internal message
+    // and handed an unvalidated value to writeHead, which throws if it is not a
+    // legal status.
+    const authored = clientErrorStatuses.has(error?.statusCode);
+    json(response, authored ? error.statusCode : 500, { ok: false, error: authored ? error.message : "Something went wrong. Please try again." });
   }
 }
 
@@ -5651,5 +5671,11 @@ async function shutdown() {
   if (lanServer) lanServer.close(closed);
 }
 
+// A rejection that escapes a request handler used to terminate the process, taking
+// every in-flight request with it. Logged and survived instead: the request that
+// caused it is already lost, but the server keeps serving. Deliberately not
+// installed for `uncaughtException`, where continuing on unknown state is worse
+// than exiting and letting the platform restart cleanly.
+process.on("unhandledRejection", (reason) => { console.error("unhandledRejection", reason); });
 process.on("SIGINT", () => { shutdown().catch((error) => { console.error(error); process.exit(1); }); });
 process.on("SIGTERM", () => { shutdown().catch((error) => { console.error(error); process.exit(1); }); });

@@ -54,7 +54,10 @@ export function errorResponse(error) {
   if (error instanceof AccountHttpError) return { statusCode: error.statusCode, code: error.code, message: error.message };
   if (error instanceof SyntaxError) return { statusCode: 400, code: error.code || "invalid-request", message: error.message };
   if (error instanceof TypeError || error instanceof RangeError) return { statusCode: 422, code: "validation-failed", message: error.message };
-  if ([400, 403, 404, 409, 413, 422, 429, 503].includes(error?.statusCode)) return { statusCode: error.statusCode, code: error.code || ({ 400: "invalid-request", 403: "forbidden", 404: "not-found", 409: "conflict", 413: "request-too-large", 422: "validation-failed", 429: "rate-limited", 503: "temporarily-unavailable" }[error.statusCode]), message: error.message };
+  // 401 belongs here with the rest: without it, a repository that maps
+  // "not-authenticated" to 401 had that answer replaced by a generic 500, so a
+  // signed-out caller was told something had gone wrong rather than to sign in.
+  if ([400, 401, 403, 404, 409, 413, 422, 429, 503].includes(error?.statusCode)) return { statusCode: error.statusCode, code: error.code || ({ 400: "invalid-request", 401: "not-authenticated", 403: "forbidden", 404: "not-found", 409: "conflict", 413: "request-too-large", 422: "validation-failed", 429: "rate-limited", 503: "temporarily-unavailable" }[error.statusCode]), message: error.message };
   return { statusCode: 500, code: "internal-error", message: "Something went wrong. Please try again." };
 }
 
