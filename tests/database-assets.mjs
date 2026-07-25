@@ -29,8 +29,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 68);
-  assert.equal(repositoryResult.migrations.at(-1), "068_paid_matching_payout_readiness.sql");
+  assert.equal(repositoryResult.migrations.length, 69);
+  assert.equal(repositoryResult.migrations.at(-1), "069_cleaner_verification_queue_pagination.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
@@ -52,6 +52,12 @@ try {
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 62\)'/, "Deployment verification must detect the Cleaner verification-authority migration dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 67\)'/, "Deployment verification must detect the Apple Administrator-bootstrap migration dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 68\)'/, "Deployment verification must detect paid matching payout readiness dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 69\)'/, "Deployment verification must detect the Cleaner verification queue pagination repair dynamically.");
+  // 069 replaces a function rather than adding one, so a deployed database cannot be
+  // checked by signature — only the repaired body distinguishes it. Without this, a
+  // database still carrying migration 063's aggregate-then-slice function would verify
+  // clean while its Administrator queue returned one unpaginated page and nothing after.
+  assert(deploymentVerifier.includes("The Administrator Cleaner verification queue does not paginate, or lost its Administrator-only boundary") && deploymentVerifier.includes("list_cleaner_verification_queue(text,integer,integer)"), "Migration-69 verification must prove the Cleaner verification queue slices before aggregating and stays Administrator-only.");
   assert(deploymentVerifier.includes("A fully manual fresh install has no private migration ledger") && deploymentVerifier.includes("activate_my_workspace(user_role)") && deploymentVerifier.includes("recommend_cleaners_for_request_v2(uuid,integer)") && deploymentVerifier.includes("position('avatar_url' IN pg_get_function_result(procedure.oid))") && deploymentVerifier.includes("get_public_cleaner_profile(uuid)') IS NOT NULL"), "A ledger-free fresh install can still be mistaken for the historical migration-45 baseline instead of detecting its actual schema level.");
   const migration48VerificationStart = deploymentVerifier.indexOf("IF latest_migration_installed THEN");
   assert(migration48VerificationStart >= 0 && deploymentVerifier.indexOf("conname='bookings_distinct_participants'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its new constraint check until after that locked migration is installed.");
