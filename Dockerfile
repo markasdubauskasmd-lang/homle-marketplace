@@ -43,9 +43,14 @@ COPY --chown=node:node db ./db
 USER node
 EXPOSE 3000
 STOPSIGNAL SIGTERM
-# `writesAllowed` is the only field here that can actually be false. `ok` and `service`
-# are constants in the health route, so a check on those alone could only fail when the
-# process was already gone — something Docker detects without help. A container whose
-# integrity audit had failed kept reporting healthy while refusing every write.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD ["node", "-e", "fetch('http://127.0.0.1:'+process.env.PORT+'/api/health').then(async r=>{const b=await r.json();process.exit(r.status===200&&b.ok===true&&b.service==='tideway-marketplace'&&b.writesAllowed===true?0:1)}).catch(()=>process.exit(1))"]
+# Deliberately does NOT check `writesAllowed`. It is tempting: `ok` and `service` are
+# constants in the health route, so this check can only fail when the process is already
+# gone. But `writesAllowed` goes false when `auditDataIntegrity` finds unreadable or
+# unparseable private record files — corruption on the mounted data volume, which a
+# restart cannot repair. Failing the check there asks an orchestrator to replace the
+# container in a loop it can never exit, and each replacement destroys the read-only
+# surface an operator needs to inspect the damage. The degraded state is reported in the
+# body (`dataIntegrity`, `writesAllowed`) for monitoring to alert on; it is not a reason
+# to kill the process.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD ["node", "-e", "fetch('http://127.0.0.1:'+process.env.PORT+'/api/health').then(async r=>{const b=await r.json();process.exit(r.status===200&&b.ok===true&&b.service==='tideway-marketplace'?0:1)}).catch(()=>process.exit(1))"]
 CMD ["node", "server.mjs"]

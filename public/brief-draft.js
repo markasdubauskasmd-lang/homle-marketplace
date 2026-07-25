@@ -38,10 +38,13 @@ export function saveBriefDraft(storage, { reference, transcript = "", tasks = []
   }
   const savedAt = Number.isFinite(now) ? now : Date.now();
   const draft = { version: draftVersion, reference: normaliseReference(reference), transcript: safeTranscript, tasks: safeTasks, savedAt, expiresAt: savedAt + briefDraftLifetimeMs };
-  // Losing a draft is a small harm; taking the form down is a large one. `setItem` throws
-  // when storage is full and throws unconditionally in Safari private browsing, and this
-  // runs from an input handler, so an unguarded throw aborted the keystroke that caused
-  // it. Returning null is the same "nothing saved" answer the guards above already give.
+  // `setItem` throws when storage is full and throws unconditionally in Safari private
+  // browsing. Every current caller already wraps this in `try {} catch {}`, so nothing was
+  // visibly broken — but that made three call sites responsible for a failure mode this
+  // module knows about and they do not, and it meant the function could return a draft
+  // object describing a save that never happened. Returning null is the same "nothing
+  // saved" answer the guards above already give, and it puts the handling where the
+  // knowledge is.
   try {
     storage.setItem(key, JSON.stringify(draft));
   } catch {

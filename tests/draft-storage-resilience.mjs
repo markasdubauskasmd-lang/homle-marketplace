@@ -4,13 +4,18 @@ import { saveBriefDraft } from "../public/brief-draft.js";
 import { saveCleanerApplicationDraft } from "../public/cleaner-application-draft.js";
 import { saveCustomerRequestDraft } from "../public/customer-request-draft.js";
 
-// Autosave runs from `input` handlers. `localStorage.setItem` throws QuotaExceededError
-// when storage is full, and throws unconditionally in Safari private browsing — so an
-// unguarded write did not merely fail to save, it aborted the keystroke handler that
-// called it. The form stopped responding, with no error anyone would connect to storage.
+// Autosave runs from `input` handlers. `setItem` throws QuotaExceededError when storage
+// is full, and throws unconditionally in Safari private browsing.
+//
+// Honest scope: every current caller already wraps the call in `try {} catch {}`, so this
+// was not a live outage — an earlier version of this comment said the form stopped
+// responding, which was wrong. What it was: three call sites carrying a failure mode only
+// this module knows about, and a function that could return a draft object describing a
+// save that never happened.
 //
 // The contract these pin: a failed write returns null, exactly like the "nothing worth
-// saving" paths already did, and never propagates.
+// saving" paths already did, and never propagates — so a caller that forgets the guard
+// still cannot be broken by a full disk.
 
 function hostileStorage(failure) {
   const store = new Map();
@@ -36,7 +41,7 @@ for (const { label, save } of savers) {
   for (const failure of [quota, privateBrowsing]) {
     const storage = hostileStorage(failure);
     let result;
-    assert.doesNotThrow(() => { result = save(storage); }, `A failing storage write escaped ${label}, so the input handler that triggered autosave was aborted and the form stopped responding.`);
+    assert.doesNotThrow(() => { result = save(storage); }, `A failing storage write escaped ${label}, so any caller without its own try/catch would be broken by a full disk.`);
     assert.equal(result, null, `${label} reported a saved draft after the write failed.`);
     assert.ok(storage.calls > 0, `${label} never attempted the write, so this test is not exercising the guard.`);
   }

@@ -30,12 +30,13 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Verify dependency lock
         run: node tools/check-dependency-lock.mjs
-      # These two commands only cover everything because `.npmrc` sets
-      # `enable-pre-post-scripts=true`. pnpm 7+ disables npm-style pre/post hooks by
-      # default, and this repo's verification lives mostly in `precheck`, `postcheck`,
-      # `pretest` and `posttest` — 144 commands that would otherwise never run while CI
-      # still reported success. `tests/verification-coverage.mjs` fails if that setting
-      # goes missing.
+      # Two commands cover everything because pnpm expands `precheck`/`postcheck` around
+      # `check` and `pretest`/`posttest` around `test` — where 144 of this repo's ~200
+      # verification commands live. That expansion is pnpm's documented default and
+      # `.npmrc` pins it explicitly, since an unusual amount rides on it.
+      #
+      # Deliberately not listed as six separate steps: pnpm would still expand the hooks,
+      # so every hook command would run twice.
       - name: Syntax and safety checks (precheck + check + postcheck)
         run: pnpm run check
       - name: Test suite (pretest + test + posttest)
