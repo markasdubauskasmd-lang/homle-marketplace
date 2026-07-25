@@ -206,15 +206,27 @@ function nounPhraseInstruction(value) {
   return action;
 }
 
+// One owner for the leading-filler rule. It used to be written out twice with
+// materially different word lists: this path stripped "well", "yeah", "just",
+// "basically", "actually" and a dozen more, while `normaliseChecklistTask` stripped
+// only six. The same words therefore survived or not depending on which path the text
+// arrived by, so "Okay, well, hoover the lounge" spoken and the identical sentence
+// typed into the checklist normalised to two different strings — and because
+// `checklistTaskKey` dedupes on the normalised text, the one task could then appear
+// twice on the same checklist.
+//
+// "right" is only filler when it is not pointing at a place: "right corner" and
+// "right hand side" are the customer telling the Cleaner where to work. The exclusion
+// list is the union of both former copies, so neither path loses a location it kept.
+const leadingSpokenFiller = /^(?:(?:um+|uh+|erm+|er+|okay|ok|right(?!\s+(?:corner|side|hand|angle|way|through|across|down|up|by|at|of|next))|so|well|yeah|yep|now|then|and|also|just|basically|actually|literally|honestly|please|but|however|although|though)\b[,\s]*)+/i;
+
 // Filler is removed only where it wraps an instruction, never mid-phrase, so a
 // genuine word is not cut out of what the customer asked for.
 function strippedFillers(value) {
   return String(value)
     .replace(/\s+/g, " ")
     .trim()
-    // "right" is only filler when it is not pointing at a place: "right corner"
-    // and "right hand side" are the customer telling the Cleaner where to work.
-    .replace(/^(?:(?:um+|uh+|erm+|er+|okay|ok|right(?!\s+(?:corner|side|hand|angle|way|through|across|down|up|by|at|of|next|through))|so|well|yeah|yep|now|then|and|also|just|basically|actually|literally|honestly|please|but|however|although|though)\b[,\s]*)+/i, "")
+    .replace(leadingSpokenFiller, "")
     .replace(/[,\s]*(?:\b(?:as\s+well|too|innit|you\s+know|or\s+something|or\s+whatever|i\s+think|i\s+guess|if\s+(?:that(?:'s|\s+is)\s+)?(?:ok|okay|alright)|if\s+you\s+can|please|um+|uh+|erm+|er+|yeah|yep|like|obviously|basically)\b[,\s]*)+$/i, "")
     // Segmentation cuts before a connective, so clauses routinely end on a
     // dangling "and". Left in, every other bullet trails off mid-sentence.
@@ -282,7 +294,7 @@ export function normaliseChecklistTask(value) {
     .trim()
     .replace(/^[-*\u2022\d.)\s]+/, "")
     .replace(/\s+/g, " ")
-    .replace(/^(?:(?:um+|uh+|erm|okay|right(?!\s+(?:corner|side|hand|angle|way|through|across|down|up|by|at|of))|so)\b[, ]*)+/i, "")
+    .replace(leadingSpokenFiller, "")
     .replace(/^(?:please|could you|can you|the cleaner should|i(?:'d| would) like (?:you|the cleaner) to|i want (?:you|the cleaner) to|make sure (?:you|the cleaner)?|we need (?:you|the cleaner)?\s*to)\s+/i, "")
     .replace(/^(?:please|could you|can you)\s+/i, "")
     .replace(/^(?:don't|dont)\s+/i, "Do not ")
