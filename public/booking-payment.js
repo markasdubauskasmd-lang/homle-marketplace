@@ -1,4 +1,5 @@
 import { bookingIdFromSearch, formatPaymentAmount, paymentPresentation, paymentRetryStorageKey } from "./booking-payment-model.js";
+import { storedCsrf } from "./session-csrf.js";
 
 const stripeScriptUrl = "https://js.stripe.com/clover/stripe.js";
 const bookingId = bookingIdFromSearch(location.search);
@@ -21,9 +22,6 @@ let loading = false;
 let stripeLoadPromise = null;
 let frozenAmountPence = null;
 
-function storedCsrf() {
-  try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
-}
 
 function saveCsrf(token) {
   try {

@@ -1,4 +1,5 @@
 import { commaList, fixedPriceOptionsFromText, fixedPriceOptionsToText, moneyToPence, outwardPostcodes, penceToMoney, preservedServiceAreas, profileCompletion, profileCompletionDetails } from "./cleaner-profile-model.js";
+import { storedCsrf } from "./session-csrf.js";
 
 const form = document.querySelector("[data-cleaner-profile-form]");
 const controls = document.querySelector("[data-profile-controls]");
@@ -34,9 +35,6 @@ let currentProfile = null;
 let dirty = false;
 let loading = false;
 
-function storedCsrf() {
-  try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
-}
 
 function editorState(title, copy, { allowSignIn = false, allowRetry = false, kind = "info" } = {}) {
   state.dataset.kind = kind;

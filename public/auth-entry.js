@@ -1,6 +1,7 @@
 import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent, saveSelectedCleaner, selectedCleanerFromSearch } from "./account-intent.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { accountReadyPresentation, availableAccountMethodLabel } from "./account-ready-model.js?v=20260723-1";
+import { storedCsrf } from "./session-csrf.js";
 
 const modes = Object.freeze({
   "/login": { form: "login", title: "Sign in to Homle", lead: "Use your verified account to open the correct private workspace." },
@@ -212,9 +213,6 @@ function storeCsrf(token) {
   try { sessionStorage.setItem("tideway_csrf", token); return sessionStorage.getItem("tideway_csrf") === token; } catch { return false; }
 }
 
-function storedCsrf() {
-  try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
-}
 
 function clearStoredCsrf() {
   try { sessionStorage.removeItem("tideway_csrf"); } catch {}

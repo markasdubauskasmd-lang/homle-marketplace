@@ -1,4 +1,5 @@
 import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "./admin-payments-model.js";
+import { storedCsrf } from "./session-csrf.js";
 
 const pageSize = 50;
 const gate = document.querySelector("[data-admin-payments-gate]");
@@ -66,9 +67,6 @@ function showGate(title, copy, { kind = "info", signIn = false, retry = false } 
   workspace.hidden = true;
 }
 
-function storedCsrf() {
-  try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
-}
 
 function saveCsrf(value) {
   if (typeof value !== "string" || value.length < 20 || value.length > 512) return false;
