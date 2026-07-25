@@ -1,7 +1,11 @@
 import { uuidPattern } from "./validation.mjs";
+import { bookingStatuses as canonicalBookingStatuses } from "./domain.mjs";
 const views = new Set(["attention", "active", "finished"]);
 const requestStatuses = new Set(["searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "matched", "cancelled"]);
-const bookingStatuses = new Set(["draft", "searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "cancelled", "disputed"]);
+// Built from the canonical list rather than restated. The same twelve values are the
+// PostgreSQL `booking_status` enum, and a private copy here would keep rejecting a new
+// status after the enum and the domain had both been updated.
+const bookingStatuses = new Set(canonicalBookingStatuses);
 const paymentStatuses = new Set(["creating", "requires-customer-action", "processing", "authorized", "authorization-failed", "captured", "partially-refunded", "refunded", "cancelled", "disputed"]);
 const caseStatuses = new Set(["open", "reviewing", "resolved", "closed"]);
 
