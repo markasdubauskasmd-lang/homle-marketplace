@@ -10,3 +10,6 @@ data/job-brief-images/
 node_modules/
 *.log
 backups/
+
+# V8 coverage output from `npm run coverage`, written and removed per run.
+.coverage-tmp/
