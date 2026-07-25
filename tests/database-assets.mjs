@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+
+const t71Payment = (source) => source.includes("payment_commands has no (payment_id, command_kind, created_at) index");
+const t71Directory = (source) => source.includes("cleaner_profiles has no public-directory index");
 import { randomUUID } from "node:crypto";
 import { cp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -29,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 70);
-  assert.equal(repositoryResult.migrations.at(-1), "070_bookings_cleaning_request_index.sql");
+  assert.equal(repositoryResult.migrations.length, 71);
+  assert.equal(repositoryResult.migrations.at(-1), "071_payment_command_and_directory_indexes.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
@@ -63,6 +66,10 @@ try {
   // dispatch lookups that must count cancelled attempts cannot use it. A replacement that
   // reintroduced a status predicate would look present and still scan the table.
   assert(deploymentVerifier.includes("bookings(cleaning_request_id) has no general index") && deploymentVerifier.includes("carries a status predicate"), "Migration-70 verification must prove a general, status-free index exists on bookings(cleaning_request_id).");
+  // Both of these were dismissed in migration 70's commit as already covered. They were
+  // not: the check behind each dismissal read the wrong function. Pinned so the
+  // correction cannot be lost again.
+  assert(t71Payment(deploymentVerifier) && t71Directory(deploymentVerifier), "Migration-71 verification must prove the Administrator payment page and the unauthenticated Cleaner directory both have an index that their query shape can actually use.");
   assert(deploymentVerifier.includes("A fully manual fresh install has no private migration ledger") && deploymentVerifier.includes("activate_my_workspace(user_role)") && deploymentVerifier.includes("recommend_cleaners_for_request_v2(uuid,integer)") && deploymentVerifier.includes("position('avatar_url' IN pg_get_function_result(procedure.oid))") && deploymentVerifier.includes("get_public_cleaner_profile(uuid)') IS NOT NULL"), "A ledger-free fresh install can still be mistaken for the historical migration-45 baseline instead of detecting its actual schema level.");
   const migration48VerificationStart = deploymentVerifier.indexOf("IF latest_migration_installed THEN");
   assert(migration48VerificationStart >= 0 && deploymentVerifier.indexOf("conname='bookings_distinct_participants'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its new constraint check until after that locked migration is installed.");

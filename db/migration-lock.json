@@ -351,6 +351,11 @@
       "order": 70,
       "file": "070_bookings_cleaning_request_index.sql",
       "sha256": "c4729e49dbbec7619da5d7365e029c5caaea4232abfbb9cc5b1530ec8fd72e8c"
+    },
+    {
+      "order": 71,
+      "file": "071_payment_command_and_directory_indexes.sql",
+      "sha256": "c25c34e81edf143104d72bff76931f0ecc630848b1d228dcec9a94826ed11931"
     }
   ],
   "grantFiles": [
