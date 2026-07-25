@@ -17,18 +17,20 @@ function optionalInteger(value, minimum, maximum, label) {
   return integer(value, minimum, maximum, null, label);
 }
 
-// TypeError, not Error, and for the same reason every other service throws one:
-// `errorResponse` turns a TypeError into 422 validation-failed, while a plain Error
-// falls through to 500 internal-error. Malformed input to the administrator booking
-// queue was answering "something went wrong" instead of naming the bad field.
+// Plain Error, deliberately — unlike the `uuid`/`timestamp` helpers in the other
+// services, these validate what the repository returned, not what a caller sent
+// (see `list()`: `result.operations.map(operation)`). The only client inputs here are
+// `view`, `limit` and `offset`. A stored id or timestamp that fails these checks is a
+// server-side data-integrity fault, so it must stay a 500; a TypeError would map to
+// 422 and blame the administrator for input they never supplied.
 function timestamp(value, label) {
-  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) throw new TypeError(`${label} is unavailable.`);
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) throw new Error(`${label} is unavailable.`);
   return new Date(value).toISOString();
 }
 
 function uuid(value, label, optional = false) {
   if (optional && value == null) return null;
-  if (!uuidPattern.test(value || "")) throw new TypeError(`${label} is unavailable.`);
+  if (!uuidPattern.test(value || "")) throw new Error(`${label} is unavailable.`);
   return value.toLowerCase();
 }
 

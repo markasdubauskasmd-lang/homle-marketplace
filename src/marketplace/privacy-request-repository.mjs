@@ -1,3 +1,10 @@
+import { AccountHttpError } from "./account-security.mjs";
+
+// Built as AccountHttpError rather than a bare Error carrying a statusCode:
+// `errorResponse` recognises the class by type, so a 401 here is answered as a 401.
+// A plain Error with `statusCode: 401` was falling past the echoed-status whitelist
+// and reaching the caller as a generic 500 — a signed-out person managing their own
+// data was told the server had broken instead of being asked to sign in.
 function mapPrivacyRequestError(error) {
   const errors = {
     "not-authenticated": [401, "not-authenticated", "Sign in before managing your Homle data."],
@@ -6,7 +13,7 @@ function mapPrivacyRequestError(error) {
     "privacy-request-id-reused": [409, "privacy-request-id-reused", "This privacy request could not be safely retried."]
   };
   const selected = errors[error?.message];
-  return selected ? Object.assign(new Error(selected[2]), { statusCode: selected[0], code: selected[1], cause: error }) : error;
+  return selected ? Object.assign(new AccountHttpError(selected[0], selected[1], selected[2]), { cause: error }) : error;
 }
 
 export function createPrivacyRequestRepository(database) {
