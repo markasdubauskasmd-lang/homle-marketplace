@@ -85,7 +85,11 @@ export function bookableDays(from = new Date(), count = 14) {
   const start = from instanceof Date && !Number.isNaN(from.getTime()) ? from : new Date();
   const days = [];
   for (let offset = 1; offset <= count; offset += 1) {
-    const day = new Date(start.getTime() + offset * 86_400_000);
+    // Local calendar arithmetic, not 24-hour arithmetic. Adding exact 86,400,000ms
+    // across a daylight-saving boundary does not step one local day: in London a scan
+    // started late on 28 March 2026 skipped the 29th, and one started early on 24
+    // October offered the 25th twice. Noon keeps the date away from both edges.
+    const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + offset, 12);
     // Built from local parts, not `toISOString()`. The label beside it comes from
     // `getDate()`/`toLocaleDateString`, which are local, so a UTC `iso` disagreed with
     // it for any local time before UTC midnight: at 00:30 in London the button read

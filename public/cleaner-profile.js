@@ -286,10 +286,12 @@ window.addEventListener("popstate", () => {
 });
 form.addEventListener("input", () => { dirty = true; saveState.textContent = "Unsaved changes."; updateCompletion(); });
 form.addEventListener("change", () => { dirty = true; saveState.textContent = "Unsaved changes."; updateCompletion(); });
-// A change on this control reaches its own listener before it bubbles to the form's,
-// so the deliberate choice is recorded first and the `updateCompletion` that follows
-// reads the new intent rather than overwriting the tick with the old one.
-publicControl.addEventListener("change", () => { publishIntent = publicControl.checked; });
+// Bound to `input`, not `change`. A checkbox fires `input` first, and the form's
+// delegated `input` handler calls `updateCompletion`, which writes `publishIntent` back
+// into the checkbox — so recording the choice on `change` would have been too late and
+// the tick would be reverted before it was ever read. Listening on the control itself
+// means this runs in the target phase, before the event reaches the form.
+publicControl.addEventListener("input", () => { publishIntent = publicControl.checked; });
 form.addEventListener("submit", saveProfile);
 retry.addEventListener("click", loadProfile);
 window.addEventListener("beforeunload", (event) => { if (dirty) event.preventDefault(); });
