@@ -273,7 +273,7 @@ assert(overlay.includes("state.videoProcessing") && /for \(const button of el\.v
 assert(overlay.includes("function waitForCameraFrame") && overlay.includes('error.name = "CameraNotReadyError"') && overlay.includes("await waitForCameraFrame(el.camera)"), "A mobile camera stream that never produces a frame can leave the scanner warming up forever.");
 assert(overlay.includes("Number(video.readyState) >= 2") && overlay.includes("Number(video.readyState) < 2"), "The scanner treats camera dimensions as a usable picture before the browser has delivered a current video frame.");
 assert(/catch \(error\) \{[\s\S]{0,80}stopCamera\(\);[\s\S]{0,420}blockCamera\(/.test(overlay) && /function stopCamera\(\)[\s\S]{0,180}el\.camera\.srcObject = null/.test(overlay), "A failed or stalled camera stream is not released, so Try live camera again cannot recover.");
-assert(/function unfreeze\(\)[\s\S]{0,650}if \(state\.stream\) startDetection\(\);\s*\n\s*else startCamera\(\)/.test(overlay), "Retaking after a backgrounded native capture cannot reacquire the live camera.");
+assert(/function unfreeze\(\)[\s\S]{0,1000}if \(state\.stream\) startDetection\(\);\s*\n\s*else startCamera\(\)/.test(overlay), "Retaking after a backgrounded native capture cannot reacquire the live camera.");
 assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch("/api/marketplace/auth/session"') && overlay.includes('code: "sign-in-required"') && overlay.includes("automatic reading is unavailable"), "The room reader silently fails when a signed-in phone loses its in-memory security token or when the provider fails.");
 
 /* ── The room hub: choose, review, return, finish ──── */
