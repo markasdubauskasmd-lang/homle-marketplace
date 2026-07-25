@@ -1,4 +1,5 @@
 import { adminVerificationQueue, adminVerificationView, backgroundStatuses, cleanerVerificationState, identityStatuses, verificationChange, verificationStatusLabel } from "./admin-verifications-model.js";
+import { createRequestJson } from "./request-json.js";
 
 const pageSize = 50;
 const gate = document.querySelector("[data-admin-verifications-gate]");
@@ -18,12 +19,7 @@ function node(name, className, text) { const result = document.createElement(nam
 function showFeedback(message, kind = "info") { feedback.hidden = !message; feedback.dataset.kind = kind; feedback.textContent = message; if (message) feedback.focus(); }
 function showGate(title, copy, { signIn = false, retry = false } = {}) { gate.hidden = false; workspace.hidden = true; document.querySelector("[data-admin-verifications-gate-title]").textContent = title; document.querySelector("[data-admin-verifications-gate-copy]").textContent = copy; document.querySelector("[data-admin-verifications-sign-in]").hidden = !signIn; document.querySelector("[data-admin-verifications-retry]").hidden = !retry; }
 
-async function requestJson(path, init = {}) {
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...init, headers: { Accept: "application/json", ...(init.headers || {}) } });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || result.ok !== true) throw Object.assign(new Error(result.error || "Cleaner verification could not be loaded."), { statusCode: response.status });
-  return result;
-}
+const requestJson = createRequestJson({ failureMessage: "Cleaner verification could not be loaded." });
 
 async function recoverCsrf() {
   const result = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });

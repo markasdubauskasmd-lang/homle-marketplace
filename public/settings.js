@@ -1,3 +1,4 @@
+import { createRequestJson } from "./request-json.js";
 const stateTitle = document.querySelector("[data-settings-title]");
 const stateCopy = document.querySelector("[data-settings-copy]");
 const feedback = document.querySelector("[data-settings-feedback]");
@@ -54,13 +55,7 @@ function csrfToken() {
   try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
 }
 
-async function requestJson(path, options = {}) {
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...options });
-  let result = {};
-  try { result = await response.json(); } catch {}
-  if (!response.ok || result.ok !== true) throw Object.assign(new Error(result.error || "Account settings could not be updated."), { status: response.status, code: result.code || "" });
-  return result;
-}
+const requestJson = createRequestJson({ failureMessage: "Account settings could not be updated." });
 
 function safeProviderLocation(value, provider) {
   let url;

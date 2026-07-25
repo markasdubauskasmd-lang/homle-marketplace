@@ -1,4 +1,5 @@
 import { adminCaseFilter, adminCaseQueue, adminCaseResolutionPayload, adminCaseReviewPayload, caseCategoryLabel, casePolicyForCategory, caseStatusLabel, shortBookingReference } from "./admin-cases-model.js";
+import { createRequestJson } from "./request-json.js";
 
 const pageSize = 50;
 const gate = document.querySelector("[data-admin-cases-gate]");
@@ -50,13 +51,7 @@ function showFeedback(target, message, kind = "info") {
   if (message) target.focus?.();
 }
 
-async function requestJson(path, options = {}) {
-  const { headers = {}, ...rest } = options;
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers } });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || result.ok !== true) throw Object.assign(new Error(result.error || "The booking-case action could not be completed."), { statusCode: response.status, code: result.code || "" });
-  return result;
-}
+const requestJson = createRequestJson({ failureMessage: "The booking-case action could not be completed." });
 
 function formatDate(value) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(value));

@@ -1,3 +1,4 @@
+import { createRequestJson } from "./request-json.js";
 const gate = document.querySelector("[data-availability-gate]");
 const workspace = document.querySelector("[data-availability-workspace]");
 const form = document.querySelector("[data-availability-form]");
@@ -36,17 +37,7 @@ function showFeedback(message, kind = "info") {
   if (message) feedback.focus();
 }
 
-async function requestJson(path, options = {}) {
-  const { headers = {}, ...rest } = options;
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers } });
-  const result = await response.json().catch(() => ({}));
-  // `result.ok !== true` matters as much as the HTTP status: a 200 carrying an error
-  // body was read as success, so an undefined window was appended to the list and the
-  // next render threw on it, wiping the whole availability list instead of showing what
-  // the server actually said.
-  if (!response.ok || result.ok !== true) throw Object.assign(new Error(result.error || "Your availability could not be updated."), { statusCode: response.status, code: result.code });
-  return result;
-}
+const requestJson = createRequestJson({ failureMessage: "Your availability could not be updated." });
 
 function localDateTime(date, time) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) throw new TypeError("Choose a valid day and time.");

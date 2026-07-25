@@ -1,5 +1,6 @@
 import { readSignedInAccount } from "./account-menu.js?v=20260718-3";
 import { notificationActionPath, notificationPresentation, notificationWorkspace } from "./notification-inbox-model.js";
+import { createRequestJson } from "./request-json.js";
 
 const gate = document.querySelector("[data-notification-gate]");
 const gateTitle = document.querySelector("[data-notification-gate-title]");
@@ -32,13 +33,7 @@ function csrfToken() {
   try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
 }
 
-async function requestJson(path, options = {}) {
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...options, headers: { Accept: "application/json", ...(options.headers || {}) } });
-  let result = {};
-  try { result = await response.json(); } catch {}
-  if (!response.ok || result.ok !== true) throw Object.assign(new Error(result.error || "Your updates could not be loaded."), { status: response.status });
-  return result;
-}
+const requestJson = createRequestJson({ failureMessage: "Your updates could not be loaded." });
 
 function showGate(title, message, options = {}) {
   gate.hidden = false;

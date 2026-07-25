@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { usesSharedPrivateRequest } from "./private-request-boundary.mjs";
 
 const [page, script, styles, server, migration, providerSecurityMigration, appleMigration, privacyMigration, grants] = await Promise.all([
   readFile(new URL("../public/settings.html", import.meta.url), "utf8"),
@@ -18,7 +19,7 @@ assert.match(page, /data-connect-provider="apple" hidden/);
 assert.match(page, /data-connect-provider="facebook" hidden/);
 assert.match(page, /data-password-field[^>]*>Current Homle password<input[^>]+autocomplete="current-password"/);
 assert.ok(page.includes("data-settings-content hidden") && page.includes("data-provider-actions hidden") && page.includes('data-step-up-provider="google" hidden') && page.includes('data-step-up-provider="apple" hidden') && page.includes('data-step-up-provider="facebook" hidden'), "Settings exposed account controls before authenticated capability discovery.");
-assert.ok(script.includes('requestJson("/api/marketplace/auth/provider-links")') && script.includes("/api/marketplace/auth/provider-links/${selectedProvider}/start") && script.includes("/api/marketplace/auth/provider-links/${provider}/step-up/start") && script.includes('method: "DELETE"') && script.includes('"X-CSRF-Token": csrf') && script.includes('credentials: "same-origin"'), "Settings is not bound to authenticated, CSRF-protected provider connection, step-up and removal routes.");
+assert.ok(script.includes('requestJson("/api/marketplace/auth/provider-links")') && script.includes("/api/marketplace/auth/provider-links/${selectedProvider}/start") && script.includes("/api/marketplace/auth/provider-links/${provider}/step-up/start") && script.includes('method: "DELETE"') && script.includes('"X-CSRF-Token": csrf'), "Settings is not bound to authenticated, CSRF-protected provider connection, step-up and removal routes.");
 assert.ok(script.includes('connected.has("password")') && script.includes("result.recentStepUp?.provider") && script.includes("recentStepUpProvider !== identity.provider") && script.includes("methodCount > 1"), "Social-only connection or removal omitted recent-provider verification, remaining-provider proof or last-method protection.");
 assert.ok(script.includes("sessionStorage.getItem(\"tideway_csrf\")") && script.indexOf("history.replaceState") < script.indexOf('requestJson("/api/marketplace/auth/provider-links")'), "Settings lost the tab-bound CSRF token or retained callback fragments during its first request.");
 assert.ok(script.includes('url.origin === "https://accounts.google.com"') && script.includes('url.origin === "https://appleid.apple.com"') && script.includes('url.origin === "https://www.facebook.com"') && script.includes("url.searchParams.get(\"redirect_uri\") !== callback") && script.includes("location.assign(safeProviderLocation"), "The browser would navigate to an unvalidated provider response.");
@@ -32,5 +33,10 @@ assert.ok(page.includes('data-privacy-action="export"') && page.includes('data-p
 assert.ok(script.includes('requestJson("/api/marketplace/privacy-requests")') && script.includes('"X-CSRF-Token": csrf') && script.includes("pendingPrivacyIds") && script.includes("crypto.randomUUID()") && !script.includes("innerHTML"), "Privacy intake lost authenticated reads, CSRF, stable retry identity or safe rendering.");
 assert.ok(styles.includes(".settings-privacy-card") && styles.includes(".settings-privacy-actions") && styles.includes(".settings-confirmation") && styles.includes(".settings-privacy-status"), "Privacy intake omitted its mobile-safe review history and confirmation treatment.");
 assert.ok(privacyMigration.includes("privacy_requests_one_active_type_per_user_idx") && privacyMigration.includes("privacy-request.created") && grants.includes("REVOKE SELECT, INSERT, UPDATE, DELETE ON privacy_requests"), "Privacy intake is not concurrency-safe, audited and function-only.");
+
+// Same-origin credentials, no-store, the JSON Accept header and the request timeout are
+// guaranteed in public/request-json.js and asserted in tests/private-request-boundary.mjs;
+// this checks the module still goes through it rather than inlining a fetch of its own.
+usesSharedPrivateRequest(script, "account-settings");
 
 console.log("Account settings UI tests passed: fail-closed provider controls, password/social step-up, lockout-safe removal, CSRF, validated navigation, safe rendering, mobile layout and function-only storage.");

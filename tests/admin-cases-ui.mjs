@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { adminCaseFilter, adminCaseQueue, adminCaseResolutionPayload, adminCaseReviewPayload, caseCategoryLabel, casePolicyForCategory, caseResponsePolicyVersion, caseStatusLabel, shortBookingReference } from "../public/admin-cases-model.js";
 import { caseResponsePolicyVersion as serverPolicyVersion } from "../src/marketplace/case-response-policy.mjs";
+import { usesSharedPrivateRequest } from "./private-request-boundary.mjs";
 
 const example = {
   disputeId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
@@ -70,7 +71,7 @@ assert(page.includes("Property addresses, access instructions and contact detail
 assert(page.includes("data-admin-case-dialog") && page.includes("does not issue a refund, capture payment, pay a Cleaner or contact either participant"), "The audited resolution confirmation is missing its external-action boundary.");
 assert(script.includes('requestJson("/api/marketplace/account")') && script.includes("roles?.includes(\"administrator\")") && script.includes("/api/marketplace/admin/disputes?") && script.includes('method: "PATCH"'), "The screen is not bound to the authenticated Administrator case API.");
 assert(script.includes('record.status === "reviewing"') && script.includes("Review related test payment") && script.includes("/admin/payments?bookingId=") && !script.includes("refund("), "A case does not expose a separate read-only payment handoff after review starts, or the case screen began moving money itself.");
-assert(script.includes('"X-CSRF-Token": csrf') && script.includes('credentials: "same-origin"') && script.includes('cache: "no-store"'), "Case reads or mutations lost their session, CSRF or no-store boundary.");
+assert(script.includes('"X-CSRF-Token": csrf'), "Case reads or mutations lost their session, CSRF or no-store boundary.");
 assert(script.includes("textContent") && script.includes("replaceChildren") && !script.includes("innerHTML") && !script.includes("document.cookie") && !script.includes("localStorage"), "Private case text can enter an unsafe render/storage path.");
 assert(script.includes("casePolicyForCategory") && script.includes('data.get("policyVersion")') && script.includes('data.get("evidenceReviewed")'), "The category guidance or resolution assurances are not carried into the server request.");
 assert(script.includes("Secure marketplace administration is not connected yet") && script.includes("Administrator account required") && script.includes("navigator.onLine"), "The case screen lacks unavailable, unauthorized or connection-failure states.");
@@ -78,5 +79,10 @@ assert(model.includes("privateEmail") === false && model.includes("exactAddress"
 assert(styles.includes(".admin-case-card") && styles.includes("@media (max-width: 620px)") && styles.includes(".admin-case-confirmation"), "The case screen lacks mobile or decision-confirmation styling.");
 assert(server.includes('"/admin/cases": "admin-cases.html"') && pilotAdmin.includes('href="/admin/cases"'), "The marketplace case route is not served or linked from private operations.");
 assert(packageJson.includes('"check:admin-cases"') && packageJson.includes('"test:admin-cases"') && packageJson.includes("tests/admin-cases-ui.mjs"), "The case UI is not included in repository quality gates.");
+
+// Same-origin credentials, no-store, the JSON Accept header and the request timeout are
+// guaranteed in public/request-json.js and asserted in tests/private-request-boundary.mjs;
+// this checks the module still goes through it rather than inlining a fetch of its own.
+usesSharedPrivateRequest(script, "admin-cases");
 
 console.log("Administrator case UI tests passed: immutable minimum-data projection and category guidance, server-bound resolution assurances, role/account gate, CSRF mutation, safe rendering, truthful outcomes, pagination, offline handling and mobile controls.");

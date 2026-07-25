@@ -26,6 +26,7 @@ import {
   journeyProgress,
   journeyDistanceLabel
 } from "./active-job-model.js?v=20260723-2";
+import { createRequestJson } from "./request-json.js";
 
 const bookingId = activeBookingId(location.pathname, location.search);
 const gate = document.querySelector("[data-job-gate]");
@@ -133,13 +134,7 @@ function showPhotoUploadState(message, kind = "info") {
   feedback.textContent = message;
 }
 
-async function requestJson(path, options = {}) {
-  const { headers = {}, ...rest } = options;
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers } });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(result.error || "The active booking could not be updated."), { statusCode: response.status, code: result.code || "request-failed" });
-  return result;
-}
+const requestJson = createRequestJson({ failureMessage: "The active booking could not be updated." });
 
 async function mutate(path, method = "POST", body = {}) {
   const csrf = storedCsrf();

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, cleanerMarketplaceCapabilityState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordBookingNextAction, landlordDashboardSummary } from "../public/booking-summary-model.js";
 import { trustedAccountPhoto } from "../public/account-avatar.js";
 import { dashboardWorkspaceAccess } from "../public/workspace-access.js";
+import { usesSharedPrivateRequest } from "./private-request-boundary.mjs";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function primaryNavigation(page) { const start = page.indexOf('<nav class="directory-nav"'); return page.slice(start, page.indexOf("</nav>", start) + 6); }
@@ -101,7 +102,7 @@ assert(server.includes("https://*.googleusercontent.com") && server.includes("ht
 assert(cleanerScript.indexOf('const accountResult = await requestJson("/api/marketplace/account")') < cleanerScript.indexOf("Promise.allSettled") && cleanerScript.indexOf("renderAccountAvatar(account)") < cleanerScript.indexOf("Promise.allSettled") && landlordScript.indexOf('const accountResult = await requestJson("/api/marketplace/account")') < landlordScript.indexOf("Promise.allSettled") && landlordScript.indexOf("renderAccountAvatar(account)") < landlordScript.indexOf("Promise.allSettled"), "A slow secondary dashboard service can still hide the signed-in user's role identity or profile picture.");
 assert(landlordPage.includes("data-landlord-load-status") && landlordPage.includes("data-landlord-load-retry") && cleanerScript.includes("Your Cleaner account is open, but some job or profile details could not be refreshed") && landlordPage.includes("Your Landlord account is open, but some information could not be refreshed") && styles.includes(".dashboard-partial-status"), "A partial dashboard failure still presents an empty or mixed workspace without a truthful retry state.");
 assert(cleanerPage.includes('data-sign-out-destination="/login?intent=work"') && landlordPage.includes('data-sign-out-destination="/login?intent=book"') && cleanerPage.includes('/account-menu.js?') && landlordPage.includes('/account-menu.js?'), "The role-specific account menus cannot sign out to the correct next entry point.");
-assert(accountMenu.includes('requestJson("/api/marketplace/auth/session"') && accountMenu.includes('requestJson("/api/marketplace/auth/logout"') && accountMenu.includes('"X-CSRF-Token": csrf') && accountMenu.includes('credentials: "same-origin"') && accountMenu.includes("15_000") && accountMenu.includes("navigator.onLine") && accountMenu.includes("It may have completed") && !accountMenu.includes("innerHTML"), "Dashboard sign-out lacks session recovery, CSRF protection, a bounded request, offline handling or safe rendering.");
+assert(accountMenu.includes('requestJson("/api/marketplace/auth/session"') && accountMenu.includes('requestJson("/api/marketplace/auth/logout"') && accountMenu.includes('"X-CSRF-Token": csrf') && accountMenu.includes("navigator.onLine") && accountMenu.includes("It may have completed") && !accountMenu.includes("innerHTML"), "Dashboard sign-out lacks session recovery, CSRF protection, a bounded request, offline handling or safe rendering.");
 assert(accountMenu.includes('requestJson("/api/marketplace/account"') && accountMenu.includes("renderAccountAvatar(result.account)") && accountMenu.includes('document.documentElement.dataset.accountState = "signed-in"') && accountMenu.includes("data-account-dashboard"), "A valid saved session cannot hydrate the signed-in identity, provider photo or correct role dashboard outside the private dashboard page.");
 assert(styles.includes(".account-menu-panel .account-sign-out") && styles.includes(".account-menu-status"), "The profile-picture account menu lacks readable sign-out and failure states.");
 assert(!primaryNavigation(cleanerPage).includes('data-target-workspace="landlord"') && !primaryNavigation(landlordPage).includes('data-target-workspace="cleaner"'), "The other role workspace is still presented as primary dashboard navigation instead of an account-menu choice.");
@@ -152,5 +153,10 @@ assert(!migration.includes("address_line_1") && !migration.includes("access_inst
 assert(packageFile.includes("tests/booking-dashboard-ui.mjs"), "Booking-dashboard verification is not part of the project gate.");
 assert(styles.includes(".cleaner-request-task-room") && styles.includes(".cleaner-scan-photo-boundary"), "The required Cleaner checklist handoff lacks readable mobile styling or a clear photo-consent boundary.");
 assert(styles.includes(".landlord-booking-live") && styles.includes('span[data-kind="live"]'), "The private Landlord booking-update state is not visible or mobile-readable.");
+
+// Same-origin credentials, no-store, the JSON Accept header and the request timeout are
+// guaranteed in public/request-json.js and asserted in tests/private-request-boundary.mjs;
+// this checks the module still goes through it rather than inlining a fetch of its own.
+usesSharedPrivateRequest(accountMenu, "booking-dashboard");
 
 console.log("Booking dashboard UI tests passed: one-next-action guidance, participant jobs, Cleaner decisions, role-specific prices, live/payment links and mobile workspace handoff.");
