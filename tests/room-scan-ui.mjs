@@ -128,9 +128,10 @@ assert(overlay.includes("document.body.appendChild(overlay)") && overlay.include
 assert(journey.includes("await openRoomScan()") && journey.includes("if (!result) return;"), "The journey does not open the scan in place, or cannot tell a finished scan from a cancelled one.");
 assert(!journeyPage.includes('href="/landlord/scan"'), "The journey still navigates away to the scan instead of opening it in place.");
 
-// One implementation only. The standalone route exists for a bookmark and must
-// reuse the overlay rather than drift into a second scanner.
-assert(entryScript.includes("openRoomScan") && entryScript.split("\n").length < 20, "The standalone scan route is a second implementation rather than a thin entry point.");
+// One implementation only. An old bookmark now enters the protected guided
+// journey instead of opening a second scanner and persisting its photo result.
+assert(entryScript.includes('location.replace("/landlord/book")') && entryScript.split("\n").length < 12, "The legacy scan entry does not forward into the protected booking journey.");
+assert(!entryScript.includes("openRoomScan") && !entryScript.includes("sessionStorage") && !entryScript.includes("JSON.stringify"), "The legacy scan entry can still run a second scanner or persist private scan data.");
 assert(!entryPage.includes("data-shutter") && !entryPage.includes("data-viewfinder"), "The standalone scan page duplicates the overlay's markup.");
 
 // Modal hygiene: the page behind must not scroll, Escape must offer a safe exit,
@@ -368,7 +369,8 @@ assert(styles.includes(".det-box.pickable") && styles.includes(".det-box.picked"
 assert(/vendored[\s\S]{0,400}max-age=31536000, immutable/.test(server), "The vendored detector is served without a long-lived cache policy.");
 assert(server.includes('".bin"'), "Weight shards have no declared content type.");
 assert(styles.includes("prefers-reduced-motion") && styles.includes("env(safe-area-inset-bottom)"), "The scan ignores reduced-motion or phone safe areas.");
-assert(server.includes('"/landlord/scan": "room-scan.html"') && server.includes("camera=(self), microphone=(self)"), "The scan route is missing or cannot use the camera and microphone.");
-assert(/requestPath === "\/brief" \|\| landlordDashboardPage \|\| roomScanPage \|\| journeyPage[\s\S]{0,120}\? "camera=\(self\), microphone=\(self\), geolocation=\(\)"/.test(server), "The embedded scanner is rendered on /landlord/book, but that real phone journey still blocks its own camera and microphone in Permissions-Policy.");
+assert(server.includes('["/landlord/scan", "/room-scan.html"].includes(requestUrl.pathname)') && server.includes('{ "Location": "/landlord/book", "Cache-Control": "no-store" }'), "Old scanner links do not redirect into the protected booking journey.");
+assert(!server.includes('"/landlord/scan": "room-scan.html"'), "The legacy standalone scanner is still served as a separate camera surface.");
+assert(/requestPath === "\/brief" \|\| landlordDashboardPage \|\| journeyPage[\s\S]{0,120}\? "camera=\(self\), microphone=\(self\), geolocation=\(\)"/.test(server), "The embedded scanner is rendered on /landlord/book, but that real phone journey still blocks its own camera and microphone in Permissions-Policy.");
 
 console.log("Room scan UI tests passed: embedded overlay with one implementation, real camera and speech, consent before any photograph leaves, camera released on every exit, safe detection overlay, honest duration and condition, no invented measurement and the approved presentation.");

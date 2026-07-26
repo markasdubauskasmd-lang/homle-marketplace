@@ -15,14 +15,13 @@
 <link rel="stylesheet" href="/styles.css?v=20260723-1">
 </head>
 <body class="scan-page">
-<!-- The scan itself is an overlay owned by room-scan-overlay.js, so it is the
-     same experience wherever it is opened from. This page is only a direct
-     entry point for a bookmark or a shared link; it opens the overlay and
-     returns to the booking journey. -->
+<!-- Compatibility fallback for an old cached bookmark. The server redirects
+     this route before serving the file; this client redirect protects a stale
+     cached copy without opening a second scanner or storing room photos. -->
 <main class="scan-entry">
-  <p class="scan-entry-copy">Opening your camera…</p>
-  <noscript><p class="scan-entry-copy">The room scan needs JavaScript. <a href="/landlord/book">Continue without scanning</a>.</p></noscript>
+  <p class="scan-entry-copy">Opening your private booking journey…</p>
+  <noscript><p class="scan-entry-copy"><a href="/landlord/book">Continue to the private room scanner</a>.</p></noscript>
 </main>
-<script type="module" src="/room-scan.js?v=scan2"></script>
+<script type="module" src="/room-scan.js?v=scan3"></script>
 </body>
 </html>

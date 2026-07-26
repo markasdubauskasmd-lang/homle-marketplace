@@ -242,10 +242,8 @@ function setSecurityHeaders(response, requestPath = "") {
   const paymentPage = requestPath === "/booking-payment";
   const activeJobPage = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
   const landlordDashboardPage = requestPath === "/landlord/dashboard";
-  // The guided scan is a camera and microphone surface in its own right.
-  const roomScanPage = requestPath === "/landlord/scan";
   const journeyPage = requestPath === "/landlord/book";
-  const privateMediaPage = activeJobPage || landlordDashboardPage || roomScanPage;
+  const privateMediaPage = activeJobPage || landlordDashboardPage;
   const activeJobStorage = privateMediaPage && objectStorageOrigins.length ? ` ${objectStorageOrigins.join(" ")}` : "";
   const trustedAccountAvatars = " https://*.googleusercontent.com https://*.fbcdn.net https://platform-lookaside.fbsbx.com";
   response.setHeader("Content-Security-Policy", paymentPage
@@ -259,7 +257,7 @@ function setSecurityHeaders(response, requestPath = "") {
   if (process.env.NODE_ENV === "production") response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   response.setHeader("Permissions-Policy", requestPath === "/booking-payment"
     ? "camera=(), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\" \"https://hooks.stripe.com\")"
-    : requestPath === "/brief" || landlordDashboardPage || roomScanPage || journeyPage
+    : requestPath === "/brief" || landlordDashboardPage || journeyPage
     ? "camera=(self), microphone=(self), geolocation=()"
     : activeJobPage
       ? "camera=(self), microphone=(), geolocation=(self)"
@@ -5360,7 +5358,6 @@ async function serveFile(requestPath, response) {
     "/cleaner/availability": "cleaner-availability.html",
     "/cleaner/payouts": "cleaner-payouts.html",
     "/landlord/dashboard": "landlord-dashboard.html",
-    "/landlord/scan": "room-scan.html",
     "/landlord/book": "landlord-journey.html",
     "/booking-payment": "booking-payment.html",
     "/marketplace-preview": "marketplace-preview.html",
@@ -5417,6 +5414,10 @@ async function handleHttpRequest(request, response) {
     const canonicalLocation = canonicalPublicLocation(request, requestUrl);
     if (canonicalLocation) {
       response.writeHead(308, { "Location": canonicalLocation, "Cache-Control": "public, max-age=300" });
+      return response.end();
+    }
+    if ((request.method === "GET" || request.method === "HEAD") && ["/landlord/scan", "/room-scan.html"].includes(requestUrl.pathname)) {
+      response.writeHead(308, { "Location": "/landlord/book", "Cache-Control": "no-store" });
       return response.end();
     }
     const localTrackingPath = ["/tracking-test", "/tracking-test.html", "/tracking-test.js"].includes(requestUrl.pathname) || requestUrl.pathname.startsWith("/api/tracking-test/");

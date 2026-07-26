@@ -201,6 +201,10 @@ function adoptScan() {
     sessionStorage.removeItem("homle_scan_result");
     scan = JSON.parse(stored);
   } catch { return false; }
+  // Compatibility with old text-only handoffs is harmless, but a cached legacy
+  // scanner may have written private room photographs into this value. Purge
+  // and refuse that shape rather than bringing persisted photos into a booking.
+  if (Array.isArray(scan?.photos) && scan.photos.length) return false;
   const tasks = Array.isArray(scan?.tasks) ? scan.tasks.filter((task) => typeof task === "string" && task.trim()) : [];
   const transcript = typeof scan?.transcript === "string" ? scan.transcript.trim() : "";
   if (!tasks.length && !transcript) return false;
@@ -208,9 +212,7 @@ function adoptScan() {
   state.draft.transcript = transcript;
   state.draft.rooms = Array.isArray(scan?.rooms) ? scan.rooms : [];
   state.draft.guideTime = typeof scan?.guideTime === "string" ? scan.guideTime : "";
-  state.scanPhotos = Array.isArray(scan?.photos)
-    ? scan.photos.filter((photo) => photo?.roomName && /^data:image\/jpeg;base64,/i.test(photo?.dataUrl || ""))
-    : [];
+  state.scanPhotos = [];
   state.draft.durationMinutes = suggestedDurationMinutes(tasks);
   state.step = "results";
   return true;
