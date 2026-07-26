@@ -115,7 +115,12 @@ clearRoomNotesDraft(discarded);
 assert(discarded.size === 0 && readRoomNotesDraft(discarded, now) === null, "Discarding a scan left its notes recoverable.");
 
 /* ── The overlay only ever persists through this module ── */
-const overlay = await readFile(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
+const [overlay, legacyEntry, journey, dashboard] = await Promise.all([
+  readFile(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/room-scan.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/landlord-journey.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8")
+]);
 assert(!overlay.includes("localStorage"), "The scan overlay reaches for localStorage, which outlives the tab.");
 // The overlay stores exactly one thing itself — the CSRF token — and everything
 // about the scan goes through the guarded module above. Any other direct write is
@@ -125,11 +130,19 @@ assert(directWrites.every((argument) => /csrf/i.test(argument)), `The scan overl
 assert(!/JSON\.stringify\(state\.rooms/.test(overlay) && !/setItem\([^)]*(photos|frozenFrame|state\.rooms)/.test(overlay), "The scan overlay serialises room photographs or its roster into storage.");
 assert(overlay.includes("saveRoomNotesDraft") && overlay.includes("forgetRoomNotes()") && overlay.includes("restoreRoomNotes()"), "The scan overlay does not save, restore or clear its room notes.");
 
-// KNOWN GAP, deliberately not asserted here so this file does not appear to prove
-// more than it does: `public/room-scan.js` (the standalone /landlord/scan entry, used
-// by a direct link or bookmark) serialises the whole finished result — including room
-// photo data URLs — into `sessionStorage` under "homle_scan_result" to hand it to the
-// journey or dashboard across the navigation. That predates this module and is a
-// separate fix, because both of those readers depend on the key. What is proven below
-// is scoped to the note-recovery path this module owns.
-console.log("Room note recovery tests passed: an unfinished walkthrough survives a backgrounded tab, expires, and fails closed — while the note-recovery path never writes photographs, detected objects, condition grades or spoken access details to browser storage.");
+assert(
+  legacyEntry.includes('location.replace("/landlord/book")')
+    && !legacyEntry.includes("openRoomScan")
+    && !legacyEntry.includes("sessionStorage")
+    && !legacyEntry.includes("JSON.stringify"),
+  "The legacy scanner entry can still open outside the protected booking journey or serialize its result into browser storage."
+);
+for (const [name, reader] of [["guided journey", journey], ["Landlord dashboard", dashboard]]) {
+  assert(
+    reader.includes('sessionStorage.removeItem("homle_scan_result")')
+      && reader.includes("Array.isArray(scan?.photos) && scan.photos.length"),
+    `The ${name} does not purge and refuse a legacy photo-bearing scanner handoff.`
+  );
+}
+
+console.log("Room note recovery tests passed: an unfinished walkthrough survives a backgrounded tab, expires, and fails closed — while no scanner entry or recovery handoff writes or accepts private photographs in browser storage.");

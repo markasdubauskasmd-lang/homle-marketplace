@@ -1960,6 +1960,9 @@ function adoptRoomScan() {
     sessionStorage.removeItem("homle_scan_result");
     scan = JSON.parse(stored);
   } catch { return; }
+  // A pre-consolidation cached scanner could have persisted private room-photo
+  // data URLs in this handoff. Delete the key above, then refuse the payload.
+  if (Array.isArray(scan?.photos) && scan.photos.length) return;
   const tasks = Array.isArray(scan?.tasks) ? scan.tasks.filter((task) => typeof task === "string" && task.trim()) : [];
   const transcript = typeof scan?.transcript === "string" ? scan.transcript.trim() : "";
   if (!tasks.length && !transcript) return;
