@@ -2,6 +2,7 @@
 
 ## Local verified improvement awaiting publication
 
+- Landlords now have one private notification bell beside the signed-in account picture. It reuses the existing unread-count endpoint and visibility-aware refresh, stays hidden until the server-authorised Landlord workspace opens, and does not reintroduce **Updates** as a primary navigation tab. Commit `d218ddf` is local only and has not been pushed, merged or deployed.
 - The guided Landlord journey now survives payout-readiness races both while obtaining the exact quote and at the final invitation write. Quote recovery excludes the failed selection and verifies no more than five server-ranked alternatives, skipping only the specific payout-readiness result. If the approved Cleaner then loses readiness before the atomic invitation write, Homle quote-verifies one final different Cleaner and requires a second named exact-price approval. Declining sends nothing; a repeated commit-boundary failure stops safely. Publish `landlord-journey.js?v=journey8` and `landlord-journey-model.js?v=journey7` together with their HTML reference.
 - The guarded disposable-PostgreSQL rehearsal now includes the paid matching boundary introduced by migration 068. It checks no-payment eligibility, payout-unready exclusion, provider-verified re-entry, role denial and payout-data projection privacy. The harness contract passes locally, but this computer has no configured `psql` client or disposable database credentials; execute the guarded database run before treating the new SQL behaviour as provider-backed release evidence.
 - The Landlord dashboard still handles a directly selected payout-unready Cleaner as a saved-request recovery, not a technical dead end. It states that no invitation or payment was created, directs the Landlord to the best eligible match and clears the unusable direct selection. Publish `landlord-dashboard.js?v=20260723-6` with its HTML reference.
@@ -17,14 +18,14 @@
 - The Landlord booking card now presents **Authorize booking total** before the live-job link whenever authorization is available; the second link is labelled **View booking details** until that boundary is complete.
 - Claude's latest landing/Landlord animation pass is present and verified: the hero pointer motion composes with the permanent phone tilt, the scan line stays animated, and mobile/reduced-motion behavior remains intact.
 - Focused journey, HTTP, active-job, progress, messaging, review, dashboard and animation tests and the full `pnpm run check` plus `pnpm test` suites pass locally.
-- These local changes have not been committed, pushed or deployed.
+- The older audited journey, payment, scanner, dashboard and animation changes in this list are already included in live release `afd7a1fe`. Only the notification-bell commit identified above is still local.
 
 ## CURRENT LIVE TRUTH - verify this before following older notes
 
-Verified on **2026-07-23** against
+Verified on **2026-07-26** against
 `https://homle-marketplace-preview.onrender.com`:
 
-- live release: **`746d0599`**, database migrations: **66**
+- live release: **`afd7a1fe`**, database migrations: **71**
 - data integrity: healthy; restricted staging writes: allowed
 - ready: separate Cleaner/Landlord accounts, Google sign-in, private photo/video storage, participant-only
   realtime updates, postcode geocoding, matching/pricing, automatic dispatch,
@@ -42,7 +43,7 @@ founder setup, Stripe test credentials.
 Run the source-controlled, secret-safe verifier before and after every deploy:
 
 ```powershell
-pnpm run verify:live-activation https://homle-marketplace-preview.onrender.com --expect-release=746d0599
+pnpm run verify:live-activation https://homle-marketplace-preview.onrender.com --expect-release=afd7a1fe
 ```
 
 The verifier makes bounded no-credential requests to the public health and
@@ -52,7 +53,7 @@ changes a booking or prints environment variables. Sections below are retained
 as implementation history; where they contradict this section or the verifier,
 the verifier is authoritative.
 
-### Local scanner improvements waiting for a future approved release
+### Scanner and booking improvements included in the current live release
 
 - Account booking intent now opens `/landlord/book` directly after the verified
   account/role handoff instead of detouring through the management dashboard.
@@ -138,10 +139,10 @@ the verifier is authoritative.
   and Android, but the decoder now rejects SVG/XML and disguised non-photo files,
   empty/oversized files, decoded sides above 16,384 pixels and images above
   50 megapixels. Normal 48-megapixel phone photographs remain supported.
-- The complete local syntax and product suites pass with these scanner,
-  animation and account-first booking changes. They remain uncommitted,
-  unpushed and undeployed pending the normal approved release process and a
-  physical signed-in two-phone rehearsal.
+- The complete syntax and product suites pass with these scanner, animation
+  and account-first booking changes, and they are included in live release
+  `afd7a1fe`. A physical signed-in two-phone rehearsal remains required before
+  treating every mobile camera/browser combination as verified.
   A deliberate physical iPhone/Android camera and video rehearsal is still
   required after an approved release.
 
@@ -179,7 +180,7 @@ model. To ship them: Render → `homle-marketplace-preview` →
 | **#81** | **Unfinished room notes are recovered** (spoken and typed), so a backgrounded tab or stray tap cannot lose a walkthrough. Deliberately **notes only** - room photographs, detected objects, condition grades and tasks are never written to browser storage; `sessionStorage`, 30-minute life, fails closed, and spoken access details (key-safe codes, where a spare key is hidden) are stripped before anything is written. Discarding or finishing a scan clears them. Front-end only, no env vars. | No |
 | **#84** | **Codebase audit and cleanup.** A full read of all ~69,000 lines produced this. Fixed, all front-end or Node only, **no env vars, no schema change**: (1) a customer's refusal was reported as *requested, priced* work - a clause-boundary off-by-one meant "do not clean inside the oven" lost its "D" and the exclusion guard stopped matching, so an Administrator would confirm and price work the customer refused; (2) the booking calendar's button label and the date it submitted disagreed before UTC midnight and across daylight saving, so the wrong day could be booked; (3) editing a published Cleaner profile silently unpublished it while reporting success; (4) a refresh failure after a *successful* audited decision re-armed the button, allowing a duplicate audit entry (both `admin-cases` and `admin-verifications`); (5) a signed-out caller got 500 instead of 401; (6) bookings rendered a different hour for non-UK viewers; (7) a crash path that killed the process with every in-flight request (no `headersSent` guard, and third-party error messages echoed to clients); (8) the runtime DB role could grant itself `administrator` - table write privileges revoked in `runtime-role-grants.sql` (**the checksum in `db/migration-lock.json` moved with it**). | No |
 | **#84 (verification)** | `npm run check` **was failing outright** - the hand-maintained chain had grown past the Windows command-line limit. It is now `tools/syntax-check.mjs`, which derives the file list from disk (351 files, one command, reports every failure instead of stopping at the first). 6 test suites that nothing executed and 44 files that were never syntax-checked are now wired in, and `tests/verification-coverage.mjs` fails if either list falls behind again. `npm run coverage` now exists (Node's built-in V8 coverage, no dependency): **35.2% of lines are executed by the suite, and only 14.7% of `src/`** - nine repositories are at 0%. Source is pinned to LF in `.gitattributes`, because part of the suite asserts on source text and a CRLF checkout broke it. | No |
-| **OPEN - needs a decision** | **CI may be skipping most of its own verification.** pnpm >= 7 disables pre/post scripts by default; there is no `.npmrc` and no pnpm config block, and CI runs `pnpm run check` / `pnpm test`. That leaves **144 commands** in `precheck`/`postcheck`/`pretest`/`posttest` possibly not running, against 59 that definitely do. Corroboration: the workflow hand-adds `node tools/check-dependency-lock.mjs` as its own step, a command already inside `postcheck` - which you would only do having noticed `postcheck` did not run. Verify with `pnpm config get enable-pre-post-scripts`; fix by making the CI steps explicit. | No |
+| **RESOLVED** | CI and local pnpm runs now opt into lifecycle scripts through the reviewed `.npmrc`, and the workflow labels the full pretest/test/posttest boundary explicitly. The 26 July verification run executed the pre/post suites and all 137 test files; `tests/verification-coverage.mjs` guards the inventory. | No |
 | **#87, #89, #90, #91** | **Database defects resolved, and the earlier list corrected.** The audit listed six; on re-reading the actual query bodies only **four** were real. Fixed and merged: (1) **migration 069** - the Administrator cleaner-vetting queue in `063` applied `LIMIT/OFFSET` to a bare `jsonb_agg`, which is one row, so **page 1 returned the entire queue and page 2 returned nothing**; (2) **migration 070** - `bookings(cleaning_request_id)` had only a *partial* unique index carrying `status <> 'cancelled'`, which the dispatch attempt-limit count cannot use because it must include cancelled attempts, so it scanned `bookings` on every dispatch; (3) **migration 071** - `payment_commands` had only partial uniques with status predicates, so the four correlated subqueries behind the Administrator payment page could use none of them - up to **400 sequential scans per page**; (4) **migration 071** - `cleaner_profiles` had **no index at all** beyond its primary key, so the unauthenticated `search_cleaner_directory` scanned every profile ever created. **Two claims were wrong and need no work:** `cleaning_requests.budget_pence` nullable is safe - dispatch raises `automatic-dispatch-price-cap-required` *before* inserting a booking, so no attempt is consumed; and `disputes`/`reviews` `ON DELETE CASCADE` is inert because nothing in production deletes from `bookings` (the only `DELETE`s are test-fixture cleanup, where cascading is wanted). | **YES - apply migrations 069, 070, 071** |
 | **Scanner privacy gap fixed locally** | The old standalone `/landlord/scan` and `/room-scan.html` entries now redirect server-side to `/landlord/book`, where the scanner opens inside the authenticated guided journey and hands photos back in memory. The compatibility page does the same if it is ever served from an old cache. It no longer serialises finished room photos into `sessionStorage`. Both former readers still remove the legacy `homle_scan_result` key, but refuse any old handoff that contains photos, so stale tabs cannot revive private room imagery from browser storage. Focused privacy, scanner, journey and brand regressions pass. | No |
 
@@ -356,7 +357,7 @@ rotated.**
 
 ---
 
-### 1a. Merged since the deployed release — needs a redeploy to go live
+### 1a. Historical merged-release notes — already deployed
 
 Read this before deploying, so you know what changes for the founder.
 
@@ -368,11 +369,12 @@ Read this before deploying, so you know what changes for the founder.
 | **#25** | Documentation only: recorded that room-photo storage blocks the first real booking. | No |
 | **#29** | **The spoken walkthrough now produces a usable checklist.** The founder reported the previous output was unusable, and it was — see the section below, because two of the defects affected price and contract terms. | No |
 
-**Thank you — Steps 2b and 3b are confirmed working on the live service.** `GET /api/health`
-now reports `automaticDispatchReady: true` and `geocodingReady: true`, so background jobs
-are genuinely running and matching is distance-aware. `emailReady` and `mediaReady` are
-still `false`; **Step 2 (room-photo storage) remains the one blocker preventing any
-booking from being completed end to end.**
+**Thank you — Steps 2, 2b and 3b are confirmed working on the live service.**
+`GET /api/health` now reports `mediaReady: true`,
+`automaticDispatchReady: true` and `geocodingReady: true`, so private room-photo
+storage, background jobs and distance-aware matching are active. `emailReady`
+and `paymentsReady` remain `false`; transactional email and Stripe test-mode
+activation are the current provider-backed launch gates.
 
 #### Why #29 matters more than a formatting fix
 
