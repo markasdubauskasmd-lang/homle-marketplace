@@ -356,6 +356,11 @@
       "order": 71,
       "file": "071_payment_command_and_directory_indexes.sql",
       "sha256": "c25c34e81edf143104d72bff76931f0ecc630848b1d228dcec9a94826ed11931"
+    },
+    {
+      "order": 72,
+      "file": "072_account_notification_realtime_events.sql",
+      "sha256": "83f6b15726a8a9f1940a66644f6d1ae51ecabb3a6d3610aa735ced10968547bf"
     }
   ],
   "grantFiles": [

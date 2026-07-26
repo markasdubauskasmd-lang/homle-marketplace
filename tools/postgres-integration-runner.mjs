@@ -83,6 +83,15 @@ function lifecycleSignal(notification) {
   return Object.freeze({ bookingId: value.bookingId.toLowerCase(), eventId, kind: value.kind });
 }
 
+function accountNotificationSignal(notification) {
+  if (notification?.channel !== "tideway_account_events" || typeof notification.payload !== "string") throw new Error("The account real-time listener received an invalid PostgreSQL channel or payload.");
+  let value;
+  try { value = JSON.parse(notification.payload); } catch { throw new Error("The account real-time listener received malformed JSON."); }
+  if (Object.keys(value).sort().join(",") !== "accountId,notificationId") throw new Error("An account notification exposed fields beyond the privacy-minimal wake-up contract.");
+  if (!uuidPattern.test(value.accountId || "") || !uuidPattern.test(value.notificationId || "")) throw new Error("The account real-time listener received an invalid notification signal.");
+  return Object.freeze({ accountId: value.accountId.toLowerCase(), notificationId: value.notificationId.toLowerCase() });
+}
+
 function completeLifecycleBooking(signals) {
   const kindsByBooking = new Map();
   for (const signal of signals) {
@@ -103,6 +112,7 @@ export async function runPostgresNotificationProbe({ connectionUrl, mutate, time
   const client = await createClient({ connectionString: connectionUrl, application_name: "tideway-integration-realtime-listener" });
   if (!client || typeof client.connect !== "function" || typeof client.query !== "function" || typeof client.on !== "function" || typeof client.end !== "function") throw new TypeError("The PostgreSQL real-time probe client is incomplete.");
   const signals = [];
+  const accountSignals = [];
   let settled = false;
   let resolveSignals;
   let rejectSignals;
@@ -110,29 +120,32 @@ export async function runPostgresNotificationProbe({ connectionUrl, mutate, time
   const timer = setTimeout(() => {
     if (settled) return;
     settled = true;
-    rejectSignals(new Error("Committed lifecycle notifications did not reach the separate PostgreSQL listener in time."));
+    rejectSignals(new Error("Committed lifecycle and account notifications did not reach the separate PostgreSQL listener in time."));
   }, timeoutMs);
   timer.unref?.();
   const onNotification = (notification) => {
     if (settled) return;
     try {
-      const signal = lifecycleSignal(notification);
-      signals.push(signal);
+      if (notification?.channel === "tideway_account_events") accountSignals.push(accountNotificationSignal(notification));
+      else signals.push(lifecycleSignal(notification));
       const bookingId = completeLifecycleBooking(signals);
-      if (bookingId) { settled = true; resolveSignals(bookingId); }
+      if (bookingId && accountSignals.length > 0) { settled = true; resolveSignals(bookingId); }
     } catch (error) { settled = true; rejectSignals(error); }
   };
   client.on("notification", onNotification);
   try {
     await client.connect();
     await client.query("LISTEN tideway_booking_events");
+    await client.query("LISTEN tideway_account_events");
     const mutationResult = await mutate();
-    const bookingId = completeLifecycleBooking(signals) || await received;
-    return Object.freeze({ bookingId, signals: Object.freeze([...signals]), mutationResult });
+    const completedBookingId = completeLifecycleBooking(signals);
+    const bookingId = completedBookingId && accountSignals.length > 0 ? completedBookingId : await received;
+    return Object.freeze({ bookingId, signals: Object.freeze([...signals]), accountSignals: Object.freeze([...accountSignals]), mutationResult });
   } finally {
     settled = true;
     clearTimeout(timer);
     try { await client.query("UNLISTEN tideway_booking_events"); } catch {}
+    try { await client.query("UNLISTEN tideway_account_events"); } catch {}
     try { client.removeListener?.("notification", onNotification); } catch {}
     try { await client.end(); } catch {}
   }
@@ -255,6 +268,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
       mutate: () => runPsqlSync({ label: "Participant lifecycle rehearsal", file: scripts.participantLifecycle, environment: appEnvironment, command, execute })
     });
     if (!realtimeProof || !uuidPattern.test(realtimeProof.bookingId || "") || !Array.isArray(realtimeProof.signals) || !requiredLifecycleRealtimeKinds.every((kind) => realtimeProof.signals.some((signal) => signal?.bookingId === realtimeProof.bookingId && signal?.kind === kind))) throw new Error("The participant lifecycle did not produce every required privacy-minimal real-time signal on one booking.");
+    if (!Array.isArray(realtimeProof.accountSignals) || realtimeProof.accountSignals.length < 1 || realtimeProof.accountSignals.some((signal) => !uuidPattern.test(signal?.accountId || "") || !uuidPattern.test(signal?.notificationId || ""))) throw new Error("The participant lifecycle did not produce a privacy-minimal committed account notification signal.");
     runPsqlSync({ label: "Dispute fixture setup", file: scripts.disputeSetup, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Dispute workflow test", file: scripts.disputeBehaviour, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Payment reconciliation ordering test", file: scripts.paymentOrdering, environment: ownerEnvironment, command, execute });

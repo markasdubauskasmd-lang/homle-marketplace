@@ -1,6 +1,7 @@
 import { uuidPattern } from "./validation.mjs";
 const bookingChannel = "tideway_booking_events";
 const requestChannel = "tideway_request_events";
+const accountChannel = "tideway_account_events";
 
 function unavailable(cause) {
   return Object.assign(new Error("Real-time booking updates are temporarily unavailable."), { statusCode: 503, code: "realtime-unavailable", cause });
@@ -18,9 +19,17 @@ export function createPostgresRealtimeSignalSource(pool, options = {}) {
   let closed = false;
 
   function validSignal(notification) {
-    if (![bookingChannel, requestChannel].includes(notification?.channel) || typeof notification.payload !== "string") return null;
+    if (![bookingChannel, requestChannel, accountChannel].includes(notification?.channel) || typeof notification.payload !== "string") return null;
     try {
       const value = JSON.parse(notification.payload);
+      if (notification.channel === accountChannel) {
+        if (!uuidPattern.test(value.accountId || "") || !uuidPattern.test(value.notificationId || "")) return null;
+        return Object.freeze({
+          entityType: "account",
+          accountId: value.accountId.toLowerCase(),
+          notificationId: value.notificationId.toLowerCase()
+        });
+      }
       const eventId = Number(value.eventId);
       const idKey = notification.channel === bookingChannel ? "bookingId" : "requestId";
       if (!uuidPattern.test(value[idKey] || "") || !Number.isSafeInteger(eventId) || eventId < 1 || typeof value.kind !== "string") return null;
@@ -76,6 +85,7 @@ export function createPostgresRealtimeSignalSource(pool, options = {}) {
         selected.on("error", onConnectionError);
         await selected.query(`LISTEN ${bookingChannel}`);
         await selected.query(`LISTEN ${requestChannel}`);
+        await selected.query(`LISTEN ${accountChannel}`);
         client = selected;
         reconnectAttempt = 0;
         if (reconnecting) for (const listener of listeners) { try { listener(Object.freeze({ resyncAll: true })); } catch {} }
@@ -108,10 +118,11 @@ export function createPostgresRealtimeSignalSource(pool, options = {}) {
       if (selected) {
         try { await selected.query(`UNLISTEN ${bookingChannel}`); } catch {}
         try { await selected.query(`UNLISTEN ${requestChannel}`); } catch {}
+        try { await selected.query(`UNLISTEN ${accountChannel}`); } catch {}
         detach(selected);
       }
     }
   });
 }
 
-export { bookingChannel as bookingRealtimeChannel, requestChannel as requestRealtimeChannel };
+export { accountChannel as accountRealtimeChannel, bookingChannel as bookingRealtimeChannel, requestChannel as requestRealtimeChannel };

@@ -602,6 +602,9 @@ window.addEventListener("online", () => {
   if (!gate.hidden && gate.dataset.kind === "offline") loadDashboard();
   else if (expiredInvitationRefreshNeeded) refreshExpiredInvitations();
 });
+window.addEventListener("homle:notification-updated", () => {
+  if (document.visibilityState === "visible") void loadDashboard();
+});
 window.addEventListener("pagehide", () => window.clearTimeout(invitationDeadlineTimer));
 updateNetworkStatus();
 loadDashboard();

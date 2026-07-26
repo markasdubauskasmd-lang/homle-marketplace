@@ -116,7 +116,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!media || !["createUploadIntent", "completeUpload", "getPhotoAccess"].every((method) => typeof media[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private job-media service.");
   if (!requestMedia || !["createUploadIntent", "completeUpload", "getScan", "getPhotoAccess"].every((method) => typeof requestMedia[method] === "function")) throw new TypeError("Marketplace HTTP routes require the private request-media service.");
   if (!messages || !["sendMessage", "listMessages"].every((method) => typeof messages[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-message service.");
-  if (!realtime || typeof realtime.openStream !== "function" || typeof realtime.openRequestStream !== "function") throw new TypeError("Marketplace HTTP routes require the real-time marketplace service.");
+  if (!realtime || typeof realtime.openStream !== "function" || typeof realtime.openRequestStream !== "function" || typeof realtime.openNotificationStream !== "function") throw new TypeError("Marketplace HTTP routes require the real-time marketplace service.");
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
   if (!disputes || !["open", "getForBooking", "listForAdministrator", "review"].every((method) => typeof disputes[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-case service.");
@@ -398,6 +398,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);
           sendJson(response, 200, { ok: true, photo: await requestMedia.getPhotoAccess(context.actor, selectedRequestPhotoAccess[1], selectedRequestPhotoAccess[2]) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/notifications/events") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          security.requireOrigin(request);
+          await realtime.openNotificationStream(context.actor, request, response, context.expiresAt);
           return true;
         }
         if (pathname === "/api/marketplace/notifications") {

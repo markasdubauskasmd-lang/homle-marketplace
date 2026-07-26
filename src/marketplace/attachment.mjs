@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import { marketplaceEnvironment, publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "./config.mjs";
 import { postgresPoolOptions, realtimePostgresPoolOptions } from "./database.mjs";
 import { createPostgresRateLimiter } from "./postgres-rate-limiter.mjs";
-import { bookingRealtimeChannel, createPostgresRealtimeSignalSource } from "./realtime-signal-source.mjs";
+import { accountRealtimeChannel, bookingRealtimeChannel, createPostgresRealtimeSignalSource } from "./realtime-signal-source.mjs";
 import { createMarketplaceRuntime } from "./runtime.mjs";
 import { builtInMonitoringAdapter } from "./monitoring-webhook.mjs";
 import { builtInRenderLogMonitoringAdapter } from "./render-log-monitoring.mjs";
@@ -131,7 +131,9 @@ export async function probeRealtimeDatabase(pool) {
     if (Number(row.server_version_num) < 160000) throw new Error("Marketplace real-time PostgreSQL 16 or newer is required.");
     if (row.role_is_safe !== true) throw new Error("Marketplace real-time database role must not be superuser or bypass row-level security.");
     await client.query(`LISTEN ${bookingRealtimeChannel}`);
+    await client.query(`LISTEN ${accountRealtimeChannel}`);
     await client.query(`UNLISTEN ${bookingRealtimeChannel}`);
+    await client.query(`UNLISTEN ${accountRealtimeChannel}`);
     return Object.freeze({ databaseRole: row.database_role, databaseName: row.database_name, postgresqlVersionNumber: Number(row.server_version_num), listenReady: true });
   } finally {
     client.release();

@@ -17,6 +17,7 @@ const signIn = document.querySelector("[data-landlord-sign-in]");
 const workspaceLink = document.querySelector("[data-landlord-workspace-link]");
 const retry = document.querySelector("[data-landlord-retry]");
 const workspace = document.querySelector("[data-landlord-workspace]");
+const notificationLink = document.querySelector("[data-notification-link]");
 const requestComplete = document.querySelector("[data-request-complete]");
 const requestCompleteLead = document.querySelector("[data-request-complete-lead]");
 const requestCompleteReference = document.querySelector("[data-request-complete-reference]");
@@ -195,6 +196,7 @@ function showState(title, copy, { kind = "info", allowSignIn = false, allowRetry
     workspaceLink.href = workspaceDestination;
     workspaceLink.textContent = `Open ${workspaceLabel} dashboard`;
   }
+  notificationLink.hidden = true;
   workspace.hidden = true;
   requestComplete.hidden = true;
 }
@@ -1582,6 +1584,7 @@ async function loadWorkspace() {
     document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
     renderAccountAvatar(account);
     state.hidden = true;
+    notificationLink.hidden = false;
     workspace.hidden = false;
     workspace.setAttribute("aria-busy", "true");
     loadStatus.hidden = true;
