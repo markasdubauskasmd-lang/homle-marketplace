@@ -85,6 +85,10 @@ export function createRealtimeService(repository, signalSource, options = {}) {
     return write(connection, `id: ${value.currentVersion}\nevent: ${eventName}\ndata: ${JSON.stringify(value)}\n\n`);
   }
 
+  function sendNotificationSignal(connection, eventName = "notification-updated") {
+    return write(connection, `event: ${eventName}\ndata: {"changed":true}\n\n`);
+  }
+
   function closeConnection(connection) {
     if (!connection || connection.closed) return;
     connection.closed = true;
@@ -95,8 +99,8 @@ export function createRealtimeService(repository, signalSource, options = {}) {
     entitySet?.delete(connection);
     if (entitySet?.size === 0) connections.delete(connection.entityKey);
     if (!connections.has(connection.entityKey) && !openingEntities.has(connection.entityKey)) latestSignals.delete(connection.entityKey);
-    const count = Math.max(0, (perUser.get(connection.actor.userId) || 1) - 1);
-    if (count) perUser.set(connection.actor.userId, count); else perUser.delete(connection.actor.userId);
+    const count = Math.max(0, (perUser.get(connection.userKey) || 1) - 1);
+    if (count) perUser.set(connection.userKey, count); else perUser.delete(connection.userKey);
     totalConnections = Math.max(0, totalConnections - 1);
     try { connection.response.end(); } catch {}
   }
@@ -122,7 +126,18 @@ export function createRealtimeService(repository, signalSource, options = {}) {
 
   function onSignal(signal) {
     if (signal?.resyncAll === true) {
-      for (const bookingSet of connections.values()) for (const connection of bookingSet) refresh(connection);
+      for (const connectionSet of connections.values()) {
+        for (const connection of connectionSet) {
+          if (connection.entityType === "account") sendNotificationSignal(connection);
+          else refresh(connection);
+        }
+      }
+      return;
+    }
+    if (signal?.entityType === "account") {
+      if (!uuidPattern.test(signal.accountId || "") || !uuidPattern.test(signal.notificationId || "")) return;
+      const entityKey = `account:${signal.accountId.toLowerCase()}`;
+      for (const connection of connections.get(entityKey) || []) sendNotificationSignal(connection);
       return;
     }
     const entityType = signal?.entityType === "request" || signal?.requestId ? "request" : "booking";
@@ -171,7 +186,7 @@ export function createRealtimeService(repository, signalSource, options = {}) {
       }
       response.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
       response.flushHeaders?.();
-      const connection = { actor, entityType, entityId: selectedEntityId, entityKey, request, response, lastVersion: initial.currentVersion, closed: false, refreshing: false, refreshPending: false, heartbeat: null, expiryTimer: null, onClose: null };
+      const connection = { actor, userKey: actor.userId, entityType, entityId: selectedEntityId, entityKey, request, response, lastVersion: initial.currentVersion, closed: false, refreshing: false, refreshPending: false, heartbeat: null, expiryTimer: null, onClose: null };
       connection.onClose = () => closeConnection(connection);
       request.once("close", connection.onClose);
       if (!connections.has(entityKey)) connections.set(entityKey, new Set());
@@ -188,12 +203,51 @@ export function createRealtimeService(repository, signalSource, options = {}) {
       return Object.freeze({ close: () => closeConnection(connection) });
   }
 
+  async function openNotificationStream(actor, request, response, sessionExpiresAt = null) {
+    if (!actor?.userId) throw new TypeError("An authenticated marketplace account is required for notification updates.");
+    if (!request || typeof request.once !== "function" || !response || typeof response.writeHead !== "function" || typeof response.write !== "function") throw new TypeError("A streaming HTTP request and response are required.");
+    const accountId = uuid(actor.userId, "account id");
+    const entityKey = `account:${accountId}`;
+    const sessionExpiryTime = sessionExpiresAt == null ? Date.now() + maximumStreamLifetimeMs : Date.parse(sessionExpiresAt);
+    if (!Number.isFinite(sessionExpiryTime) || sessionExpiryTime <= Date.now()) throw Object.assign(new Error("The account session has expired."), { statusCode: 403, code: "session-expired" });
+    const streamLifetimeMs = Math.min(maximumStreamLifetimeMs, sessionExpiryTime - Date.now());
+    if (totalConnections + pendingConnections >= maximumConnections || (perUser.get(accountId) || 0) + (pendingPerUser.get(accountId) || 0) >= maximumPerUser) throw Object.assign(new Error("Too many real-time booking connections are open."), { statusCode: 429, code: "realtime-connection-limit" });
+    pendingConnections += 1;
+    pendingPerUser.set(accountId, (pendingPerUser.get(accountId) || 0) + 1);
+    try {
+      await ensureSubscription();
+    } finally {
+      pendingConnections = Math.max(0, pendingConnections - 1);
+      const pending = Math.max(0, (pendingPerUser.get(accountId) || 1) - 1);
+      if (pending) pendingPerUser.set(accountId, pending); else pendingPerUser.delete(accountId);
+    }
+    response.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+    response.flushHeaders?.();
+    const connection = { actor, userKey: accountId, entityType: "account", entityId: accountId, entityKey, request, response, lastVersion: 0, closed: false, refreshing: false, refreshPending: false, heartbeat: null, expiryTimer: null, onClose: null };
+    connection.onClose = () => closeConnection(connection);
+    request.once("close", connection.onClose);
+    if (!connections.has(entityKey)) connections.set(entityKey, new Set());
+    connections.get(entityKey).add(connection);
+    perUser.set(accountId, (perUser.get(accountId) || 0) + 1);
+    totalConnections += 1;
+    connection.heartbeat = setIntervalFn(() => write(connection, `: heartbeat ${Date.now()}\n\n`), heartbeatMs);
+    connection.heartbeat?.unref?.();
+    connection.expiryTimer = setTimeoutFn(() => closeConnection(connection), streamLifetimeMs);
+    connection.expiryTimer?.unref?.();
+    write(connection, "retry: 3000\n\n");
+    sendNotificationSignal(connection, "notification-ready");
+    return Object.freeze({ close: () => closeConnection(connection) });
+  }
+
   return Object.freeze({
     openStream(actor, bookingId, request, response, lastEventId = 0, sessionExpiresAt = null) {
       return openEntityStream("booking", actor, bookingId, request, response, lastEventId, sessionExpiresAt);
     },
     openRequestStream(actor, requestId, request, response, lastEventId = 0, sessionExpiresAt = null) {
       return openEntityStream("request", actor, requestId, request, response, lastEventId, sessionExpiresAt);
+    },
+    openNotificationStream(actor, request, response, sessionExpiresAt = null) {
+      return openNotificationStream(actor, request, response, sessionExpiresAt);
     },
     async close() {
       closed = true;

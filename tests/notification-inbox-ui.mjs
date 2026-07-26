@@ -25,7 +25,7 @@ assert(notificationWorkspace({ selectedRole: "landlord", roles: ["landlord"] }).
 assert(notificationUnreadBadge(3).visible && notificationUnreadBadge(3).label === "3" && notificationUnreadBadge(100).label === "99+", "Unread counts are not presented compactly.");
 assert(!notificationUnreadBadge(0).visible && !notificationUnreadBadge(-1).visible && !notificationUnreadBadge("not-a-count").visible, "Invalid or empty unread counts create a badge.");
 
-const [page, script, accountMenu, badgeScript, model, styles, landlordStyles, server, cleanerDashboard, landlordDashboard, landlordDashboardScript, packageFile] = await Promise.all([
+const [page, script, accountMenu, badgeScript, model, styles, landlordStyles, server, cleanerDashboard, cleanerDashboardScript, landlordDashboard, landlordDashboardScript, packageFile] = await Promise.all([
   readFile(new URL("../public/notifications.html", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8"),
   readFile(new URL("../public/account-menu.js", import.meta.url), "utf8"),
@@ -35,6 +35,7 @@ const [page, script, accountMenu, badgeScript, model, styles, landlordStyles, se
   readFile(new URL("../public/landlord-dashboard.css", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-dashboard.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-dashboard.js", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.html", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8"),
   readFile(new URL("../package.json", import.meta.url), "utf8")
@@ -62,6 +63,8 @@ assert(landlordDashboard.includes('class="landlord-notification-link"') && landl
 assert(/data-notification-link[^>]*hidden/.test(landlordDashboard) && landlordDashboardScript.includes("notificationLink.hidden = true") && landlordDashboardScript.includes("notificationLink.hidden = false"), "The Landlord notification shortcut appears before the private Landlord workspace is authenticated or never appears after access succeeds.");
 assert(landlordStyles.includes(".landlord-notification-link") && landlordStyles.includes("order: 1") && landlordStyles.includes("width: 44px") && landlordStyles.includes(".landlord-notification-link > span:not([data-notification-count])") && landlordStyles.includes(".site-header .account-menu { order: 2"), "The secondary Landlord notification action does not remain a compact bell beside the account picture on a phone.");
 assert(badgeScript.includes('/api/marketplace/notifications?limit=1') && badgeScript.includes('credentials: "same-origin"') && badgeScript.includes('cache: "no-store"') && badgeScript.includes("event.persisted") && badgeScript.includes('document.visibilityState === "visible"'), "The dashboard badge is not private, bounded or refreshed after returning to the page.");
+assert(badgeScript.includes('new EventSource("/api/marketplace/notifications/events"') && badgeScript.includes('"notification-updated"') && badgeScript.includes('"homle:notification-updated"') && cleanerDashboardScript.includes('window.addEventListener("homle:notification-updated"') && cleanerDashboardScript.includes("void loadDashboard()"), "A newly dispatched Cleaner invitation cannot refresh the open Cleaner dashboard through the private account stream.");
+assert(cleanerDashboard.includes("/notification-badge.js?v=20260726-2") && landlordDashboard.includes("/notification-badge.js?v=20260726-2"), "A dashboard can keep the older visibility-only notification badge after the real-time account stream ships.");
 assert(badgeScript.includes("textContent") && !badgeScript.includes("innerHTML") && !badgeScript.includes("setInterval"), "The dashboard badge uses unsafe rendering or constant polling.");
 assert(styles.includes(".cleaner-workspace-page .directory-nav, .landlord-dashboard-page .directory-nav") && styles.includes(".cleaner-workspace-page .directory-nav a, .landlord-dashboard-page .directory-nav a") && styles.includes(".notifications-page .directory-nav a") && styles.includes(".workspace-role-nav[hidden]"), "Mobile navigation can hide the Updates or workspace return action.");
 assert(packageFile.includes("tests/notification-inbox-ui.mjs"), "Notification inbox verification is not part of the project gate.");

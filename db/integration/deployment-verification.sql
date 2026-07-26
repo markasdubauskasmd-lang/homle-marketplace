@@ -29,6 +29,7 @@ DECLARE
   cleaner_verification_pagination_installed boolean := false;
   bookings_cleaning_request_index_installed boolean := false;
   payment_and_directory_indexes_installed boolean := false;
+  account_notification_realtime_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -220,6 +221,8 @@ BEGIN
       INTO bookings_cleaning_request_index_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 71)'
       INTO payment_and_directory_indexes_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 72)'
+      INTO account_notification_realtime_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -242,6 +245,7 @@ BEGIN
     ) INTO session_avatar_migration_installed;
     minimum_contribution_migration_installed := to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL;
     public_cleaner_lookup_migration_installed := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)') IS NOT NULL;
+    account_notification_realtime_installed := to_regprocedure('tideway_private.emit_account_notification_realtime_event()') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
@@ -393,6 +397,35 @@ BEGIN
     -- profile ever created.
     IF to_regclass('public.cleaner_profiles_public_directory_idx') IS NULL THEN
       RAISE EXCEPTION 'cleaner_profiles has no public-directory index, so the unauthenticated Cleaner directory scans the whole table on every search';
+    END IF;
+  END IF;
+  IF account_notification_realtime_installed THEN
+    selected_function := to_regprocedure('tideway_private.emit_account_notification_realtime_event()');
+    IF selected_function IS NULL
+      OR NOT EXISTS (
+        SELECT 1 FROM pg_proc procedure
+        WHERE procedure.oid=selected_function
+          AND procedure.prosecdef
+          AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+      )
+      OR has_function_privilege('public', selected_function, 'EXECUTE')
+      OR has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('tideway_worker', selected_function, 'EXECUTE')
+      OR NOT EXISTS (
+        SELECT 1 FROM pg_trigger
+        WHERE tgrelid='public.notifications'::regclass
+          AND tgname='account_notification_realtime_after_insert'
+          AND NOT tgisinternal
+          AND tgfoid=selected_function
+      ) THEN
+      RAISE EXCEPTION 'The account notification real-time trigger is missing or unsafe';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF position('NEW.channel = ''in-app''' IN COALESCE(selected_source,''))=0
+      OR position('tideway_account_events' IN COALESCE(selected_source,''))=0
+      OR position('NEW.recipient_user_id' IN COALESCE(selected_source,''))=0
+      OR position('NEW.id' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'The account notification real-time trigger leaks payload data or does not emit the privacy-minimal account wake-up';
     END IF;
   END IF;
   IF bookings_cleaning_request_index_installed THEN

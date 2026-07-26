@@ -3,6 +3,7 @@ import { notificationUnreadBadge } from "./notification-inbox-model.js";
 const links = [...document.querySelectorAll("[data-notification-link]")];
 let pending = null;
 let lastLoadedAt = 0;
+let stream = null;
 
 function render(value) {
   const badge = notificationUnreadBadge(value);
@@ -11,7 +12,7 @@ function render(value) {
     if (!count) continue;
     count.textContent = badge.label;
     count.hidden = !badge.visible;
-    link.setAttribute("aria-label", badge.visible ? `Updates, ${badge.count} unread` : "Updates");
+    link.setAttribute("aria-label", badge.visible ? `Notifications, ${badge.count} unread` : "Notifications");
   }
 }
 
@@ -23,13 +24,34 @@ async function refresh(force = false) {
       const result = await response.json();
       return result?.ok === true && Number.isSafeInteger(result.unreadCount) ? result.unreadCount : null;
     })
-    .then((count) => { if (count !== null) render(count); })
-    .catch(() => {})
+    .then((count) => { if (count !== null) render(count); return count; })
+    .catch(() => null)
     .finally(() => { lastLoadedAt = Date.now(); pending = null; });
   return pending;
 }
 
+function closeStream() {
+  stream?.close();
+  stream = null;
+}
+
+function openStream() {
+  if (stream || typeof EventSource !== "function" || !links.length) return;
+  stream = new EventSource("/api/marketplace/notifications/events", { withCredentials: true });
+  stream.addEventListener("notification-ready", () => { void refresh(true); });
+  stream.addEventListener("notification-updated", async () => {
+    await refresh(true);
+    dispatchEvent(new Event("homle:notification-updated"));
+  });
+}
+
+async function start() {
+  if (await refresh(true) !== null) openStream();
+}
+
 render(0);
-refresh(true);
-addEventListener("pageshow", (event) => { if (event.persisted) refresh(true); });
+void start();
+addEventListener("pageshow", (event) => { if (event.persisted) void start(); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
+addEventListener("online", () => { if (!stream) void start(); });
+addEventListener("pagehide", closeStream);

@@ -150,8 +150,9 @@ const result = await runPostgresMarketplaceIntegration({
     const mutationResult = await mutate();
     const bookingId = "40000000-0000-4000-8000-000000000001";
     const signals = requiredLifecycleRealtimeKinds.map((kind, index) => ({ bookingId, eventId: index + 1, kind }));
-    realtimeProbes.push({ connectionUrl, signals });
-    return { bookingId, signals, mutationResult };
+    const accountSignals = [{ accountId: "10000000-0000-4000-8000-000000000001", notificationId: "70000000-0000-4000-8000-000000000001" }];
+    realtimeProbes.push({ connectionUrl, signals, accountSignals });
+    return { bookingId, signals, accountSignals, mutationResult };
   }
 });
 
@@ -172,6 +173,7 @@ assert.ok(calls.every((call) => !Object.hasOwn(call.options.env, "DATABASE_INTEG
 assert.equal(concurrentBatches.length, 2);
 assert.equal(realtimeProbes.length, 1);
 assert.deepEqual(realtimeProbes[0].signals.map(({ kind }) => kind), requiredLifecycleRealtimeKinds);
+assert.equal(realtimeProbes[0].accountSignals.length, 1);
 assert.ok(concurrentBatches[0].every((job) => job.environment.PGUSER === "tideway_worker" && job.environment.PGPASSWORD === workerPassword));
 assert.ok(concurrentBatches[1].every((job) => job.environment.PGUSER === "tideway_app" && job.environment.PGPASSWORD === appPassword));
 
@@ -242,6 +244,7 @@ const notificationProof = await runPostgresNotificationProbe({
     return fakeRealtimeClient;
   },
   async mutate() {
+    fakeRealtimeClient.emit("notification", { channel: "tideway_account_events", payload: JSON.stringify({ accountId: "10000000-0000-4000-8000-000000000001", notificationId: "70000000-0000-4000-8000-000000000001" }) });
     for (const [index, kind] of requiredLifecycleRealtimeKinds.entries()) {
       fakeRealtimeClient.emit("notification", { channel: "tideway_booking_events", payload: JSON.stringify({ bookingId: realtimeBookingId, eventId: index + 1, kind }) });
     }
@@ -251,7 +254,8 @@ const notificationProof = await runPostgresNotificationProbe({
 assert.equal(notificationProof.bookingId, realtimeBookingId);
 assert.equal(notificationProof.mutationResult, "lifecycle-committed");
 assert.deepEqual(notificationProof.signals.map(({ kind }) => kind), requiredLifecycleRealtimeKinds);
-assert.deepEqual(realtimeQueries, ["LISTEN tideway_booking_events", "UNLISTEN tideway_booking_events"]);
+assert.deepEqual(notificationProof.accountSignals, [{ accountId: "10000000-0000-4000-8000-000000000001", notificationId: "70000000-0000-4000-8000-000000000001" }]);
+assert.deepEqual(realtimeQueries, ["LISTEN tideway_booking_events", "LISTEN tideway_account_events", "UNLISTEN tideway_booking_events", "UNLISTEN tideway_account_events"]);
 assert.equal(realtimeConnections, 1);
 assert.equal(realtimeEnds, 1);
 
@@ -263,6 +267,19 @@ await assert.rejects(
     async clientFactory() { return privacyClient; },
     async mutate() {
       privacyClient.emit("notification", { channel: "tideway_booking_events", payload: JSON.stringify({ bookingId: realtimeBookingId, eventId: 1, kind: "booking-status", email: "must-not-leak@invalid.example" }) });
+    }
+  }),
+  /exposed fields beyond the privacy-minimal wake-up contract/
+);
+
+const accountPrivacyClient = new FakeRealtimeClient();
+await assert.rejects(
+  runPostgresNotificationProbe({
+    connectionUrl: appUrl,
+    timeoutMs: 1_000,
+    async clientFactory() { return accountPrivacyClient; },
+    async mutate() {
+      accountPrivacyClient.emit("notification", { channel: "tideway_account_events", payload: JSON.stringify({ accountId: "10000000-0000-4000-8000-000000000001", notificationId: "70000000-0000-4000-8000-000000000001", email: "must-not-leak@invalid.example" }) });
     }
   }),
   /exposed fields beyond the privacy-minimal wake-up contract/
