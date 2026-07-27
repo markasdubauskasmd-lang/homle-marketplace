@@ -8,6 +8,7 @@ import {
   roomReadingPayload,
   roomReadingLimitBytes,
   mergeItemReadings,
+  deduplicateDetections,
   trackDetections,
   drawableTracks,
   frameQualityAdvice,
@@ -163,6 +164,25 @@ assert(unnamed.length === 1 && unnamed[0].label === "Needs a name", `A hand-pick
 
 /* ── Keeping live boxes steady ──────────────────────── */
 
+const overlapping = deduplicateDetections([
+  { x: 10, y: 10, width: 30, height: 30, className: "chair", score: 0.72 },
+  { x: 11, y: 11, width: 29, height: 29, className: "chair", score: 0.94 }
+]);
+assert(overlapping.length === 1 && overlapping[0].score === 0.94, `Two detector guesses for one chair survived, or the weaker guess won: ${JSON.stringify(overlapping)}`);
+
+const adjacent = deduplicateDetections([
+  { x: 5, y: 10, width: 25, height: 30, className: "chair", score: 0.9 },
+  { x: 36, y: 10, width: 25, height: 30, className: "chair", score: 0.88 }
+]);
+assert(adjacent.length === 2, "Two separate chairs were collapsed into one object.");
+
+const differentClasses = deduplicateDetections([
+  { x: 10, y: 10, width: 30, height: 30, className: "chair", score: 0.91 },
+  { x: 10, y: 10, width: 30, height: 30, className: "couch", score: 0.9 }
+]);
+assert(differentClasses.length === 2, "Overlapping objects with different classes were incorrectly treated as duplicates.");
+assert(deduplicateDetections(null).length === 0, "Missing detector results did not degrade to an empty list.");
+
 const first = trackDetections([], [{ x: 10, y: 10, width: 20, height: 20, className: "couch", score: 0.9 }]);
 assert(first.tracks.length === 1 && first.tracks[0].id === 1 && first.nextId === 2, "A first detection did not open a track.");
 // One frame is not enough to draw: a single-frame detection is usually noise,
@@ -249,6 +269,7 @@ assert(!canAddRoom(full, "One more room") && canAddRoom(full, "Room 1"), "The ro
 // The hub shows what each room holds without opening it.
 const roster = rosterSummary(added);
 assert(roster[0].name === "Kitchen" && roster[0].itemCount === 2 && roster[0].conditionLabel === "Heavy", `The room roster is wrong: ${JSON.stringify(roster[0])}`);
+assert(roster[0].readingStatus === "ready", "A normally read room was not reported as ready.");
 assert(roster[1].itemCount === 0 && roster[1].conditionLabel === "Not assessed", "An empty room was summarised as if it had been assessed.");
 // The review lists what was actually picked, so a wrong room is visible without
 // reopening it — and says when a spoken note is attached.
@@ -257,5 +278,7 @@ assert(roster[1].itemLabels.length === 0 && roster[1].hasNote === false, "An emp
 const noted = rosterSummary([{ name: "Bathroom", detections: [{ label: "Sink" }, { label: "" }], tasks: [], transcript: "  limescale on the screen  " }])[0];
 assert(noted.itemLabels.length === 1 && noted.itemLabels[0] === "Sink", "An unnamed object padded the review with a placeholder.");
 assert(noted.hasNote === true && rosterSummary([{ name: "Hall", detections: [], transcript: "   " }])[0].hasNote === false, "A whitespace-only note was treated as a spoken note.");
+assert(rosterSummary([{ name: "Kitchen", readingStatus: "needs-retry" }])[0].readingStatus === "needs-retry", "A room needing another automatic read was presented as complete.");
+assert(rosterSummary([{ name: "Kitchen", readingStatus: "unexpected-value" }])[0].readingStatus === "ready", "An invalid internal reading state escaped into the room hub.");
 
 console.log("Room scan detection tests passed: viewfinder geometry under object-fit, padded crops inside the frame, clipped live boxes kept where asserted ones are rejected, smallest-box tap selection, free label translation, request budget that never drops the condition frame, replies joined only to selected items, steady bounded live tracking, and chosen rooms that can be found, edited in place and reviewed at a glance.");

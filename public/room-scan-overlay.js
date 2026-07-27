@@ -22,6 +22,7 @@ import {
   removeRoom,
   rosterSummary
 } from "./room-scan-model.js";
+import { checklistFromTranscript } from "./checklist.js";
 import { clearRoomNotesDraft, readRoomNotesDraft, saveRoomNotesDraft } from "./room-note-draft.js";
 import { validatedGuidedRoomPhotoDimensions, validatedGuidedRoomPhotoFile } from "./room-photo-selection.js";
 import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js";
@@ -67,6 +68,7 @@ const markup = `
     <div class="scan-room-lbl"><span class="rec-dot" aria-hidden="true"></span><span data-room-label>Kitchen</span></div>
     <button class="scan-count" type="button" data-rooms-open><span data-shot-count>0</span> rooms</button>
   </div>
+  <p class="scan-progress" data-live-progress role="status" aria-live="polite"><b data-live-progress-step>1 of 3</b><span data-live-progress-copy>Choose a room</span></p>
 
   <section class="voice" data-voice-panel aria-label="Room note" hidden>
     <div class="voice-head">
@@ -113,6 +115,7 @@ const markup = `
         <h2 data-hub-title>Which room first?</h2>
         <p class="hub-sub" data-hub-sub>Pick a room and point your camera at it.</p>
       </div>
+      <p class="hub-progress" data-hub-progress role="status" aria-live="polite"><b data-hub-progress-step>1 of 3</b><span data-hub-progress-copy>Choose a room to begin</span></p>
       <ul class="hub-rooms" data-hub-rooms></ul>
       <div class="hub-add">
         <p class="hub-add-lbl" data-hub-add-lbl>Scan a room</p>
@@ -305,11 +308,13 @@ export function openRoomScan() {
       videoFallbacks: $$("[data-video-fallback]"), videoFallbackInput: $("[data-video-fallback-input]"),
       mesh: $("[data-mesh]"), detections: $("[data-detection-layer]"), detectorState: $("[data-detector-state]"), flash: $("[data-flash]"),
       still: $("[data-still]"), roomLabel: $("[data-room-label]"), shotCount: $("[data-shot-count]"), hint: $("[data-hint]"),
+      liveProgress: $("[data-live-progress]"), liveProgressStep: $("[data-live-progress-step]"), liveProgressCopy: $("[data-live-progress-copy]"),
       mic: $("[data-mic]"), shutter: $("[data-shutter]"),
       selection: $("[data-selection]"), selectionHint: $("[data-selection-hint]"), retake: $("[data-retake]"), readRoom: $("[data-read-room]"),
       hub: $("[data-hub]"), hubTitle: $("[data-hub-title]"), hubSub: $("[data-hub-sub]"), hubRooms: $("[data-hub-rooms]"),
       hubAddLabel: $("[data-hub-add-lbl]"), hubChoices: $("[data-hub-choices]"), hubOtherForm: $("[data-hub-other-form]"),
       hubOther: $("[data-hub-other]"), hubFinish: $("[data-hub-finish]"), roomsOpen: $$("[data-rooms-open]"),
+      hubProgress: $("[data-hub-progress]"), hubProgressStep: $("[data-hub-progress-step]"), hubProgressCopy: $("[data-hub-progress-copy]"),
       voice: $("[data-voice-panel]"), voiceTime: $("[data-voice-time]"), wave: $("[data-wave]"),
       voiceStatus: $("[data-voice-status]"), note: $("[data-room-note]"), noteDone: $("[data-note-done]"), noteOpen: $$("[data-note-open]"),
       deck: $("[data-camera-deck]"),
@@ -354,7 +359,8 @@ export function openRoomScan() {
       // Kept separate from `generation`: pausing detection must never discard a
       // room reading that is still in flight.
       detectionGeneration: 0,
-      tracks: [], nextTrackId: 1, liveDetectionAvailable: true
+      tracks: [], nextTrackId: 1, liveDetectionAvailable: true,
+      roomReadController: null, frameCallbackKind: ""
     };
 
     let toastTimer = null;
@@ -606,6 +612,30 @@ export function openRoomScan() {
       if (name === "live") { el.roomLabel.textContent = state.currentRoom; startDetection(); }
       else stopDetection();
       renderDetectorState();
+      renderScanProgress();
+    }
+
+    function renderScanProgress() {
+      const saved = state.rooms.length;
+      const hub = state.screen === "hub";
+      el.liveProgress.hidden = hub;
+      if (hub) {
+        el.hubProgressStep.textContent = saved ? "3 of 3" : "1 of 3";
+        el.hubProgressCopy.textContent = saved
+          ? `${saved} ${saved === 1 ? "room" : "rooms"} ready — finish or add another`
+          : "Choose a room to begin";
+        return;
+      }
+      if (state.capturing) {
+        el.liveProgressStep.textContent = "Saving";
+        el.liveProgressCopy.textContent = `Reading ${state.currentRoom}`;
+      } else if (state.frozen) {
+        el.liveProgressStep.textContent = "3 of 3";
+        el.liveProgressCopy.textContent = `${selectionCount()} selected — check and confirm`;
+      } else {
+        el.liveProgressStep.textContent = "2 of 3";
+        el.liveProgressCopy.textContent = `Capture ${state.currentRoom}`;
+      }
     }
 
     function renderHub() {
@@ -618,6 +648,7 @@ export function openRoomScan() {
       el.hubAddLabel.textContent = scanned ? "Add another room" : "Scan a room";
       el.shotCount.textContent = String(rooms.length);
       el.hubFinish.disabled = !canFinishScan(state.rooms.length);
+      renderScanProgress();
 
       // Rooms already scanned — tap one to reopen its photo and edit its objects.
       el.hubRooms.innerHTML = "";
@@ -628,7 +659,9 @@ export function openRoomScan() {
         button.type = "button";
         button.className = "hub-room";
         button.dataset.room = room.name;
-        const meta = room.itemCount
+        const meta = room.readingStatus === "needs-retry"
+          ? "Automatic reading incomplete — tap to retry"
+          : room.itemCount
           ? `${room.itemCount} object${room.itemCount === 1 ? "" : "s"} · ${room.conditionLabel}`
           : "No objects yet";
         // What was picked, and whether a spoken note is attached — the two things
@@ -778,7 +811,16 @@ export function openRoomScan() {
       }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          // 720p contains more detail than the 1280px stored room frame can use,
+          // while starting faster and moving fewer pixels through the preview
+          // than an unnecessary full-HD request.
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            frameRate: { ideal: 24, max: 30 },
+            resizeMode: { ideal: "crop-and-scale" }
+          },
           audio: false
         });
         // The overlay may have been closed while the permission prompt was open.
@@ -934,7 +976,8 @@ export function openRoomScan() {
         keep.add(item.id);
         let node = pool.get(item.id);
         if (!node) {
-          const box = document.createElement("div");
+          const box = document.createElement("button");
+          box.type = "button";
           const tag = document.createElement("span");
           tag.className = "det-tag";
           box.appendChild(tag);
@@ -947,6 +990,10 @@ export function openRoomScan() {
           node.box.className = className;
           node.className = className;
         }
+        node.box.disabled = !selectable;
+        node.box.dataset.detectionId = item.id;
+        node.box.setAttribute("aria-pressed", String(state.selectedIds.has(item.id)));
+        node.box.setAttribute("aria-label", `${state.selectedIds.has(item.id) ? "Remove" : "Select"} ${item.label || "marked item"}`);
         const geometry = `left:${item.x}%;top:${item.y}%;width:${item.width}%;height:${item.height}%`;
         if (node.geometry !== geometry) {
           node.box.style.cssText = geometry;
@@ -1043,6 +1090,7 @@ export function openRoomScan() {
         : state.candidates.length
           ? "Tap what needs cleaning. Tap anywhere else to add something we missed."
           : "Tap anything that needs cleaning — a worktop, a shower, an air fryer.";
+      renderScanProgress();
     }
 
     // Freezing before anything is chosen is what makes the crops trustworthy: a
@@ -1153,6 +1201,16 @@ export function openRoomScan() {
       refreshSelection();
     }
 
+    function toggleDetectedItem(id) {
+      if (!state.frozen || state.capturing || !id) return;
+      if (state.selectedIds.has(id)) state.selectedIds.delete(id);
+      else {
+        if (atSelectionLimit()) return toast(selectionLimitMessage);
+        state.selectedIds.add(id);
+      }
+      refreshSelection();
+    }
+
     // Only a hand-picked box needs its own close-up. A detected one is already
     // visible in the room frame, so paying to send it twice would be waste.
     function cropFor(box) {
@@ -1203,6 +1261,7 @@ export function openRoomScan() {
       // second activation during that await would slip past — consent already
       // asked, reading not yet allowed — and save an empty room over this one.
       state.capturing = true;
+      renderScanProgress();
       el.readRoom.disabled = true;
       el.retake.disabled = true;
       // Everything that follows belongs to this room and this frame. If the
@@ -1227,7 +1286,7 @@ export function openRoomScan() {
       // it must not fall through to a whole-room read, which would rediscover
       // exactly what the Landlord just removed.
       const clearedRevisit = revisit && chosen.length === 0 && !spokenNote;
-      const mustRead = (!revisit || changed) && !clearedRevisit;
+      const mustRead = (!revisit || changed || existing.readingStatus === "needs-retry") && !clearedRevisit;
 
       if (mustRead && !state.consentAsked) await askConsent();
       if (session !== state.roomSession || state.closed) { state.capturing = false; return; }
@@ -1235,7 +1294,7 @@ export function openRoomScan() {
       let room;
       if (clearedRevisit) {
         // An emptied room: no objects, and so no scoped tasks and no grade.
-        room = { name: roomName, image: frame, detections: [], tasks: [], condition: "", transcript: spokenNote };
+        room = { name: roomName, image: frame, detections: [], tasks: [], condition: "", transcript: spokenNote, readingStatus: "manual" };
       } else if (mustRead) {
         el.flash.classList.remove("pop"); void el.flash.offsetWidth; el.flash.classList.add("pop");
         el.mesh.classList.add("on");
@@ -1244,10 +1303,20 @@ export function openRoomScan() {
         let reading = { detections: [], tasks: [], condition: "" };
         let readingError = "";
         try { reading = await readRoom(frame, roomName, chosen, spokenNote); } catch (error) {
-          state.visionAvailable = false;
           readingError = error?.code === "sign-in-required"
             ? "Room saved. Sign in to let Homle name objects automatically; you can still finish by hand."
-            : "Room saved, but automatic reading is unavailable. Review its objects yourself.";
+            : error?.code === "reading-timeout"
+              ? "Room saved. Automatic reading took too long; tap this room to retry."
+              : "Room saved, but automatic reading is unavailable. Tap this room to retry.";
+          reading = {
+            detections: chosen.map((box) => ({
+              id: box.id, label: box.label || "Marked item", note: box.note || "",
+              x: box.x, y: box.y, width: box.width, height: box.height
+            })),
+            tasks: localRoomTasks(roomName, spokenNote),
+            condition: existing.condition || "",
+            readingStatus: "needs-retry"
+          };
         }
         if (session !== state.roomSession || state.closed) return;
         room = {
@@ -1255,7 +1324,8 @@ export function openRoomScan() {
           detections: reading.detections,
           tasks: Array.isArray(reading.tasks) ? reading.tasks : [],
           condition: reading.condition || "",
-          transcript: spokenNote
+          transcript: spokenNote,
+          readingStatus: reading.readingStatus || (readingError ? "needs-retry" : "ready")
         };
         if (readingError) toast(readingError);
       } else {
@@ -1269,7 +1339,8 @@ export function openRoomScan() {
           })),
           tasks: Array.isArray(existing.tasks) ? existing.tasks : [],
           condition: existing.condition || "",
-          transcript: spokenNote
+          transcript: spokenNote,
+          readingStatus: existing.readingStatus || "ready"
         };
       }
 
@@ -1462,7 +1533,13 @@ export function openRoomScan() {
     }
 
     async function readRoom(image, roomName, items = [], transcript = "") {
-      if (!state.readingAllowed || !state.visionAvailable) return { detections: [], tasks: [], condition: "" };
+      const localDetections = items.map((item) => ({
+        id: item.id, label: item.label || "Marked item", note: item.note || "",
+        x: item.x, y: item.y, width: item.width, height: item.height
+      }));
+      if (!state.readingAllowed || !state.visionAvailable) {
+        return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), condition: "", readingStatus: "manual" };
+      }
 
       // Crops are cut from the capture canvas up front, before any await. Once
       // the network call is in flight a later capture could redraw that canvas,
@@ -1482,12 +1559,21 @@ export function openRoomScan() {
       const csrf = await recoverCsrf();
       if (!csrf) throw Object.assign(new Error("A signed-in Landlord session is required."), { code: "sign-in-required" });
 
+      state.roomReadController?.abort();
+      const controller = new AbortController();
+      state.roomReadController = controller;
+      const timer = window.setTimeout(() => controller.abort(), 32_000);
+      try {
       const response = await fetch("/api/marketplace/landlord/room-reading", {
         method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRF-Token": csrf },
-        body: JSON.stringify(payload.body)
+        body: JSON.stringify(payload.body),
+        signal: controller.signal
       });
-      if (response.status === 503) { state.visionAvailable = false; return { detections: [], tasks: [], condition: "" }; }
+      if (response.status === 503) {
+        state.visionAvailable = false;
+        return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), condition: "", readingStatus: "manual" };
+      }
       if (!response.ok) throw new Error("reading-failed");
       const result = await response.json();
       return {
@@ -1496,8 +1582,26 @@ export function openRoomScan() {
         // the boxes it asserts still have to be checked against the frame.
         detections: selected.length ? mergeItemReadings(items, result) : usableDetections(result?.detections),
         tasks: Array.isArray(result?.tasks) ? result.tasks : [],
-        condition: result?.condition || ""
+        condition: result?.condition || "",
+        readingStatus: "ready"
       };
+      } catch (error) {
+        if (error?.name === "AbortError") throw Object.assign(new Error("Room reading timed out."), { code: "reading-timeout" });
+        throw error;
+      } finally {
+        window.clearTimeout(timer);
+        if (state.roomReadController === controller) state.roomReadController = null;
+      }
+    }
+
+    function localRoomTasks(roomName, transcript) {
+      const note = String(transcript || "").trim();
+      if (!note) return [];
+      return checklistFromTranscript(`In the ${roomName}, ${note}`).map((line) => {
+        const divider = line.indexOf(":");
+        const task = divider >= 0 ? line.slice(divider + 1).trim() : line.trim();
+        return task ? `${roomName}: ${task}` : "";
+      }).filter(Boolean);
     }
 
     /* ── Live detection ── */
@@ -1582,19 +1686,32 @@ export function openRoomScan() {
       function step() {
         state.rafId = 0;
         if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
-        state.rafId = requestAnimationFrame(step);
+        scheduleDetectionFrame(step);
         if (state.detectorState !== "ready" || detectorBusy) return;
         const now = Date.now();
         if (now - state.lastDetectionAt < state.detectionInterval) return;
         state.lastDetectionAt = now;
         runDetection(generation);
       }
-      state.rafId = requestAnimationFrame(step);
+      scheduleDetectionFrame(step);
+    }
+
+    function scheduleDetectionFrame(callback) {
+      if (typeof el.camera.requestVideoFrameCallback === "function") {
+        state.frameCallbackKind = "video";
+        state.rafId = el.camera.requestVideoFrameCallback(callback);
+      } else {
+        state.frameCallbackKind = "animation";
+        state.rafId = requestAnimationFrame(callback);
+      }
     }
 
     function stopDetection() {
-      if (state.rafId) cancelAnimationFrame(state.rafId);
+      if (state.rafId && state.frameCallbackKind === "video" && typeof el.camera.cancelVideoFrameCallback === "function") {
+        el.camera.cancelVideoFrameCallback(state.rafId);
+      } else if (state.rafId) cancelAnimationFrame(state.rafId);
       state.rafId = 0;
+      state.frameCallbackKind = "";
       // A detection resolving from a previous run must not paint over a frame
       // the Landlord has since frozen.
       state.detectionGeneration += 1;
@@ -1877,7 +1994,7 @@ export function openRoomScan() {
         // authenticated private draft, but saveDraft() never serialises them
         // into sessionStorage. A refresh therefore cannot leave photographs of
         // a home in browser storage.
-        photos: state.rooms.filter((room) => Array.isArray(room.tasks) && room.tasks.length).map((room) => ({
+        photos: state.rooms.filter((room) => room?.image).map((room) => ({
           roomName: room.name,
           note: String(room.transcript || "").trim(),
           dataUrl: room.image
@@ -1904,6 +2021,8 @@ export function openRoomScan() {
       // is deliberately left loaded rather than rebuilt on every open — see
       // `loadDetectorOnce`.
       stopDetection();
+      state.roomReadController?.abort();
+      state.roomReadController = null;
       clearBoxes();
       state.detector = null;
       clearTimeout(toastTimer);
@@ -1938,6 +2057,12 @@ export function openRoomScan() {
     buildWave();
     el.shutter.addEventListener("click", capture);
     el.viewfinder.addEventListener("click", onViewfinderTap);
+    el.detections.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-detection-id]");
+      if (!button || button.disabled) return;
+      event.stopPropagation();
+      toggleDetectedItem(button.dataset.detectionId);
+    });
     // On a fresh room "Retake" clears the frame back to the live camera; on a
     // revisit it discards the edit and reopens the live camera to rescan.
     el.retake.addEventListener("click", () => (state.revisiting ? prepareLiveRoom() : unfreeze()));
