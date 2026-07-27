@@ -164,6 +164,11 @@ assert(source.includes("Never invent an id"), "The reader is not told to annotat
 // The whole-frame reader must survive: the phone-camera fallback has no live
 // viewfinder, so it has no boxes to send and still needs the room read for it.
 assert(/async readRoom\(/.test(source) && /async readSelectedItems\(/.test(source), "The scan lost one of its two readers; the denied-camera fallback depends on the whole-frame one.");
-assert(/const selectedItems = Array\.isArray\(body\?\.items\)[\s\S]{0,400}readSelectedItems[\s\S]{0,200}readRoom/.test(marketplaceHttpSource), "The room-reading route no longer chooses between naming selected items and reading a whole frame.");
+// Window widened for the `purpose` normalisation that now sits between the two.
+assert(/const selectedItems = Array\.isArray\(body\?\.items\)[\s\S]{0,900}readSelectedItems[\s\S]{0,300}readRoom/.test(marketplaceHttpSource), "The room-reading route no longer chooses between naming selected items and reading a whole frame.");
+// `purpose` selects a model that costs several times more, and it arrives in a
+// request body. Compared against the exact string so an unrecognised value lands
+// on the cheap tier: it must never be able to escalate, only stay cheap.
+assert(/body\?\.purpose === "confirmation" \? "confirmation" : "walking"/.test(marketplaceHttpSource), "The room-reading route passes `purpose` through rather than comparing it to the exact string, so a crafted request could select the dearer model and run up the bill.");
 
 console.log("Room vision tests passed: optional capability, photograph-only bounded requests, malformed-box rejection, honest empty readings, selected-item naming that cannot invent an item or a coordinate, no invented measurement and clean failure for every provider fault.");

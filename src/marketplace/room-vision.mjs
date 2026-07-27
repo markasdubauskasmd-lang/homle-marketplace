@@ -181,25 +181,48 @@ function outputConfig(model, schema) {
 export function createAnthropicRoomVision(options = {}) {
   const apiKey = String(options.apiKey || "").trim();
   if (!apiKey) throw new TypeError("ANTHROPIC_API_KEY is required for the room vision provider.");
-  // Haiku by default: a room scan is a high-volume, low-stakes read, and the
-  // cheaper tier is what makes per-scan cost sane. A blank ROOM_VISION_MODEL
-  // must not silently select the model that costs five times more.
+  // Two tiers, because the reads are not equally consequential.
+  //
+  // A walking frame exists to find out WHAT is in the room. Its `label` is the
+  // only field the client keeps — the coordinates are discarded and the caller
+  // renames anything wrong in a tap — and a cheaper model is good at naming a
+  // worktop. There are up to four of these per room.
+  //
+  // The confirmation read is one call per room and produces `condition` and
+  // `tasks`: how dirty the room is, and the checklist. Those are what the job is
+  // priced and timed from, and they are judgement rather than recognition, which
+  // is where the better model earns its cost.
+  //
+  // Haiku stays the default for both. `confirmationModel` unset means the split
+  // is off and behaviour is exactly what it was — you opt in by setting it.
   const model = String(options.model || "claude-haiku-4-5").trim();
+  const confirmationModel = String(options.confirmationModel || "").trim() || model;
+
+  // Purpose comes from the client, so it must never be able to escalate. Anything
+  // unrecognised — absent, misspelt, or hand-crafted — resolves to the cheaper
+  // model. A request that can select the five-times-dearer tier by naming it is a
+  // way to run up someone else's bill; the rate limit bounds how many, this
+  // bounds how much each one costs.
+  const modelFor = (purpose) => (purpose === "confirmation" ? confirmationModel : model);
   const client = options.client || new Anthropic({ apiKey, maxRetries: 1, timeout: 30_000 });
 
   return Object.freeze({
     provider: "anthropic",
-    async readRoom({ image, roomName, transcript } = {}) {
+    // `purpose` decides the tier. A confirmation where the customer tapped nothing
+    // still comes through here, which is why the split cannot key off the method:
+    // that read sets the price and would silently get the cheap model.
+    async readRoom({ image, roomName, transcript, purpose } = {}) {
+      const selectedModel = modelFor(purpose);
       const context = [
         `This photograph is of the ${boundedText(roomName, 60) || "room"}.`,
         boundedText(transcript, 1200) ? `The customer said, while walking through: "${boundedText(transcript, 1200)}"` : ""
       ].filter(Boolean).join(" ");
 
       const response = await client.messages.create({
-        model,
+        model: selectedModel,
         max_tokens: 2048,
         system: instructions,
-        output_config: outputConfig(model, readingSchema),
+        output_config: outputConfig(selectedModel, readingSchema),
         messages: [{ role: "user", content: [imagePayload(image), { type: "text", text: context }] }]
       });
       if (response.stop_reason === "refusal") throw new Error("The room photograph could not be read.");
@@ -211,6 +234,9 @@ export function createAnthropicRoomVision(options = {}) {
 
     // The device has already found and boxed the objects. This names them,
     // annotates them and grades the room — no coordinates in or out.
+    // Only ever reached from a confirmation — the device has already boxed the
+    // objects and the customer has chosen them — so it takes the confirmation
+    // tier unconditionally rather than trusting a field for it.
     async readSelectedItems({ image, items, roomName, transcript } = {}) {
       const selected = (Array.isArray(items) ? items : [])
         .map((item) => ({
@@ -241,10 +267,10 @@ export function createAnthropicRoomVision(options = {}) {
       }
 
       const response = await client.messages.create({
-        model,
+        model: confirmationModel,
         max_tokens: 2048,
         system: selectionInstructions,
-        output_config: outputConfig(model, selectionSchema),
+        output_config: outputConfig(confirmationModel, selectionSchema),
         messages: [{ role: "user", content }]
       });
       if (response.stop_reason === "refusal") throw new Error("The room photograph could not be read.");
@@ -270,5 +296,12 @@ export function roomVisionFromEnvironment(env = process.env) {
   // runs during runtime construction, so throwing here took the whole service
   // down over one blank optional variable.
   if (!apiKey) return null;
-  return createAnthropicRoomVision({ apiKey, model: env.ROOM_VISION_MODEL });
+  return createAnthropicRoomVision({
+    apiKey,
+    model: env.ROOM_VISION_MODEL,
+    // Unset means no split: both reads use ROOM_VISION_MODEL, exactly as before.
+    // Set it to a stronger tier to buy better condition grading and checklist
+    // wording on the one read per room that decides the price.
+    confirmationModel: env.ROOM_VISION_CONFIRMATION_MODEL
+  });
 }

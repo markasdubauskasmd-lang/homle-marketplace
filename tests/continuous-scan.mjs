@@ -189,7 +189,12 @@ assert.match(overlay, /state\.inventories\.delete\(key\)/, "Removing a room leav
 // object names, and discarding those was exactly that.
 assert.match(overlay, /function rememberWalkEvidence/, "Walking reads discard their tasks and condition, so an item the Landlord watched save itself contributes nothing to what the Cleaner is asked to do.");
 assert.match(overlay, /tasks: \[\.\.\.existingTasks, \.\.\.evidence\.tasks/, "The tasks a walk gathered never reach the saved room.");
-assert.match(overlay, /condition: worseCondition\(room\.condition, evidence\.condition\)/, "The condition a walk observed never reaches the saved room.");
+// Deliberately no longer worst-wins. The confirmation grade is authoritative when
+// it committed to one — see resolveRoomCondition — because once the confirmation
+// read runs on a stronger model, merging it with the walking grades would let the
+// cheaper model override the dearer one, and only ever upwards towards
+// over-charging. Walking grades still fill in when the confirmation could not judge.
+assert.match(overlay, /condition: resolveRoomCondition\(room\.condition, evidence\.condition\)/, "The condition a walk observed never reaches the saved room, or a walking glance can override the confirmation grade that sets the price.");
 
 // The worst grade any angle saw wins. Taking the last reading would let a final
 // glance from the doorway undercharge a room that is heavy behind the bin.
