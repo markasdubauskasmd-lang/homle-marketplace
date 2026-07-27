@@ -351,7 +351,7 @@ export function openRoomScan() {
       // event would drown the console; a running total answers the question that
       // actually gets asked when a scan looks wrong — is the room filter working,
       // or is it eating everything?
-      pendingReads: 0,
+      pendingReads: 0, roomReadControllers: new Set(), finishConfirmed: false,
       diagnostics: { suppressedByRoom: 0, framesInferred: 0, detectorErrors: 0, keyframesRead: 0 },
       // Walking the room. `signature` and `previousSignature` are the coarse
       // brightness grids the quality pass already computes; the rest is what
@@ -1478,7 +1478,10 @@ export function openRoomScan() {
       // Saving a room used to be silent: the only sign it had worked was a new row
       // appearing on the hub. Confirm it explicitly, and say what the next room
       // would be so the walkthrough keeps its momentum.
-      if (!readingError) {
+      // Always confirmed now. The reading no longer happens before this point, so
+      // there is no failure to suppress it — a read that fails later says so on
+      // its own, from the background, and leaves the room retryable.
+      {
         const count = room.detections.length;
         const items = count ? `${count} ${count === 1 ? "item" : "items"}` : "photo";
         // Suggested from the rooms not yet covered, never from how many have been
@@ -1893,6 +1896,37 @@ export function openRoomScan() {
     // Runs after the room is already saved and the customer is back on the hub.
     // Nothing here blocks them: they can name the next room, walk into it, or
     // finish the scan while this is still in flight.
+    // Union by label, keeping whichever entry carries a real box. A walk records
+    // an item with no geometry; the confirmation reading places it. Same item,
+    // and the customer should see one row.
+    function mergeSavedDetections(existing, incoming) {
+      const merged = new Map();
+      for (const detection of [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]) {
+        const key = inventoryKey(detection?.label);
+        if (!key) continue;
+        const current = merged.get(key);
+        // A later entry wins only where it is better evidenced: a real box beats
+        // no box, and a stated condition beats a blank one.
+        if (!current) { merged.set(key, detection); continue; }
+        const better = (detection.width > 0 && !(current.width > 0)) || (detection.condition && !current.condition);
+        merged.set(key, better ? { ...current, ...detection } : { ...detection, ...current });
+      }
+      return [...merged.values()].slice(0, 24);
+    }
+
+    function mergeSavedTasks(existing, incoming) {
+      const seen = new Set();
+      const merged = [];
+      for (const task of [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]) {
+        const line = String(task || "").trim();
+        const fingerprint = line.toLowerCase();
+        if (!line || seen.has(fingerprint)) continue;
+        seen.add(fingerprint);
+        merged.push(line);
+      }
+      return merged.slice(0, 12);
+    }
+
     function readRoomInBackground({ frame, roomName, chosen, spokenNote, session }) {
       state.pendingReads += 1;
       renderHub();
@@ -1907,8 +1941,12 @@ export function openRoomScan() {
           if (!current || current.readingStatus !== "reading") return;
           state.rooms = upsertRoom(state.rooms, {
             ...current,
-            detections: reading.detections?.length ? reading.detections : current.detections,
-            tasks: Array.isArray(reading.tasks) && reading.tasks.length ? reading.tasks : current.tasks,
+            // MERGED, not replaced. The room already holds what the walk found —
+            // fixtures seen from angles this one frame does not cover, and the
+            // tasks that came with them. Overwriting with this reading's arrays
+            // discarded exactly the coverage the walk exists to provide.
+            detections: mergeSavedDetections(current.detections, reading.detections),
+            tasks: mergeSavedTasks(current.tasks, reading.tasks),
             condition: resolveRoomCondition(reading.condition, current.condition),
             readingStatus: reading.readingStatus || "ready"
           });
@@ -1961,9 +1999,21 @@ export function openRoomScan() {
       const csrf = await recoverCsrf();
       if (!csrf) throw Object.assign(new Error("A signed-in Landlord session is required."), { code: "sign-in-required" });
 
-      state.roomReadController?.abort();
+      // Each read owns its own controller, and starting one no longer cancels the
+      // one before it.
+      //
+      // Aborting the predecessor was right while reads were strictly sequential —
+      // a save blocked until its read finished, so a second read could only mean
+      // the first was abandoned. Saving optimistically makes overlap ordinary:
+      // confirming the kitchen and walking straight into the bathroom starts a
+      // walking read that would have killed the kitchen's confirmation, and the
+      // kitchen would have been left saying "reading it now" forever.
+      //
+      // They are tracked as a set so `close()` can still abort every one.
       const controller = new AbortController();
-      state.roomReadController = controller;
+      state.roomReadControllers.add(controller);
+      // Closing the overlay while a read was in flight must still stop it.
+      if (state.closed) controller.abort();
       const timer = window.setTimeout(() => controller.abort(), 32_000);
       try {
       const response = await fetch("/api/marketplace/landlord/room-reading", {
@@ -1992,7 +2042,7 @@ export function openRoomScan() {
         throw error;
       } finally {
         window.clearTimeout(timer);
-        if (state.roomReadController === controller) state.roomReadController = null;
+        state.roomReadControllers.delete(controller);
       }
     }
 
@@ -2471,6 +2521,21 @@ export function openRoomScan() {
     // dramatised work that had already happened.
     function finishScan() {
       if (!canFinishScan(state.rooms.length) || state.closed) return;
+      // Finishing while a room is still being read would take the provisional
+      // tasks and grade — the ones written locally at save time — straight into
+      // the booking, and `close()` aborts the read that was about to replace
+      // them. The customer would be quoted from a placeholder and never know.
+      //
+      // Asked rather than blocked: they may genuinely want to get on, and their
+      // photographs and notes are all saved either way.
+      const unfinished = state.rooms.filter((room) => room.readingStatus === "reading");
+      if (unfinished.length && !state.finishConfirmed) {
+        state.finishConfirmed = true;
+        const names = unfinished.map((room) => room.name).join(", ");
+        toast(`Still reading ${names}. Tap Done again to finish now — that room keeps your photo and note but not the automatic detail.`);
+        renderHub();
+        return;
+      }
       stopVoice({ silent: true });
       // The notes are being handed to the booking journey, so the recovery copy has
       // done its job and should not survive to be offered again.
@@ -2513,7 +2578,8 @@ export function openRoomScan() {
       // is deliberately left loaded rather than rebuilt on every open — see
       // `loadDetectorOnce`.
       stopDetection();
-      state.roomReadController?.abort();
+      for (const controller of state.roomReadControllers) controller.abort();
+      state.roomReadControllers.clear();
       state.roomReadController = null;
       clearBoxes();
       state.detector = null;

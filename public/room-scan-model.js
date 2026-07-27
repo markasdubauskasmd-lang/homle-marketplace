@@ -54,7 +54,16 @@ export function usableDetections(detections) {
       width: detection.width,
       height: detection.height,
       label: String(detection.label).trim().slice(0, 28),
-      note: String(detection.note || "").trim().slice(0, 28)
+      // 60, matching what the reader now sends. At 28 the evidence behind a grade
+      // — "white deposits around the tap base" — was clipped mid-phrase, which
+      // left the customer a verdict they could not check.
+      note: String(detection.note || "").trim().slice(0, 60),
+      // Carried through rather than dropped. These were being stripped here, so
+      // every per-item condition the reader worked out was discarded one step
+      // before anything could use it.
+      condition: String(detection.condition || "").trim().slice(0, 12),
+      soiling: Object.freeze((Array.isArray(detection.soiling) ? detection.soiling : []).map((kind) => String(kind).trim().slice(0, 16)).slice(0, 4)),
+      confidence: Number.isFinite(detection.confidence) ? detection.confidence : 0
     }));
 }
 
@@ -415,7 +424,16 @@ export function mergeItemReadings(selected, response) {
         id: String(item?.id || ""),
         x: item.x, y: item.y, width: item.width, height: item.height,
         label,
-        note: String(reading.note || "").trim().slice(0, 28)
+        // 60, matching what the reader now sends. At 28 the evidence behind a
+        // grade was clipped mid-phrase, leaving a verdict nobody could check.
+        note: String(reading.note || "").trim().slice(0, 60),
+        // The condition this item was actually given. Dropped here before, which
+        // meant the chosen-items path — the one a normal confirmation takes, and
+        // the one that sets the price — threw away every per-item grade it had
+        // just paid a vision model to work out.
+        condition: String(reading.condition || "").trim().slice(0, 12),
+        soiling: Object.freeze((Array.isArray(reading.soiling) ? reading.soiling : []).slice(0, 4)),
+        confidence: Number.isFinite(reading.confidence) ? reading.confidence : 0
       });
     })
     .filter(Boolean)
@@ -773,7 +791,10 @@ export function rosterSummary(rooms) {
       // Unnamed items are left out rather than padding the line with placeholders.
       itemLabels: Object.freeze(items.map((item) => String(item?.label || "").trim()).filter(Boolean)),
       hasNote: Boolean(String(room?.transcript || "").trim()),
-      readingStatus: ["ready", "manual", "needs-retry"].includes(room?.readingStatus) ? room.readingStatus : "ready"
+      // "reading" belongs here too. Coerced to "ready" it was invisible, so the
+      // hub could not say a room was still being read and Finish could not tell
+      // that anything was outstanding.
+      readingStatus: ["ready", "manual", "needs-retry", "reading"].includes(room?.readingStatus) ? room.readingStatus : "ready"
     });
   });
 }
