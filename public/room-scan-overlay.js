@@ -7,6 +7,10 @@ import {
   frameBoxToSourceRect,
   cocoLabel,
   implausibleForRoom,
+  frameSignature,
+  shouldCaptureKeyframe,
+  mergeRoomInventory,
+  correctInventoryItem,
   detectionMinimumScore,
   joinSpokenText,
   roomReadingPayload,
@@ -86,7 +90,13 @@ const markup = `
   </section>
 
   <div class="deck" data-camera-deck>
-    <p class="deck-hint" data-hint role="status">Point at the room and tap the shutter</p>
+    <!-- What the room has found so far. Fills itself as the Landlord walks, so the
+         evidence that the scan is working is on screen rather than implied. -->
+    <div class="found" data-found hidden>
+      <p class="found-head"><span data-found-count>0</span> <span data-found-noun>items</span> found <span class="found-busy" data-found-busy hidden aria-hidden="true"></span></p>
+      <ul class="found-list" data-found-list aria-live="polite"></ul>
+    </div>
+    <p class="deck-hint" data-hint role="status">Just walk around the room — items save themselves</p>
     <div class="pick" data-selection hidden>
       <p class="pick-hint" data-selection-hint role="status">Tap what needs cleaning. Tap anywhere else to add something we missed.</p>
       <div class="pick-row">
@@ -135,8 +145,8 @@ const markup = `
   <div class="scan-consent" data-consent hidden>
     <div class="scan-consent-in">
       <h2>Read my rooms automatically?</h2>
-      <p>Homle can look at each photo and pick out the fixtures and how dirty each room is, so your checklist fills itself in.</p>
-      <p class="scan-consent-detail">To do that, <strong>the photo of each room is sent to our AI provider (Anthropic) to be read</strong>, along with what you say. Photos are read and discarded — they are not stored there. Nothing else about you, your address or your account is sent.</p>
+      <p>Walk around and Homle picks out the fixtures and how dirty each room is as you go, so your checklist fills itself in.</p>
+      <p class="scan-consent-detail">To do that, <strong>a few still frames from each room are sent to our AI provider (Anthropic) to be read</strong>, along with what you say. Frames are taken automatically as you move to a new part of the room — up to four per room, never a video stream. They are read and discarded, not stored there. Nothing else about you, your address or your account is sent.</p>
       <div class="scan-consent-actions">
         <button class="button" type="button" data-consent-allow>Yes, read my rooms</button>
         <button class="button ghost" type="button" data-consent-decline>No — just take the photos</button>
@@ -313,6 +323,8 @@ export function openRoomScan() {
       still: $("[data-still]"), roomLabel: $("[data-room-label]"), shotCount: $("[data-shot-count]"), hint: $("[data-hint]"),
       liveProgress: $("[data-live-progress]"), liveProgressStep: $("[data-live-progress-step]"), liveProgressCopy: $("[data-live-progress-copy]"),
       mic: $("[data-mic]"), shutter: $("[data-shutter]"),
+      found: $("[data-found]"), foundList: $("[data-found-list]"), foundCount: $("[data-found-count]"),
+      foundNoun: $("[data-found-noun]"), foundBusy: $("[data-found-busy]"),
       selection: $("[data-selection]"), selectionHint: $("[data-selection-hint]"), retake: $("[data-retake]"), readRoom: $("[data-read-room]"),
       hub: $("[data-hub]"), hubTitle: $("[data-hub-title]"), hubSub: $("[data-hub-sub]"), hubRooms: $("[data-hub-rooms]"),
       hubAddLabel: $("[data-hub-add-lbl]"), hubChoices: $("[data-hub-choices]"), hubOtherForm: $("[data-hub-other-form]"),
@@ -337,7 +349,15 @@ export function openRoomScan() {
       // event would drown the console; a running total answers the question that
       // actually gets asked when a scan looks wrong — is the room filter working,
       // or is it eating everything?
-      diagnostics: { suppressedByRoom: 0, framesInferred: 0, detectorErrors: 0 },
+      diagnostics: { suppressedByRoom: 0, framesInferred: 0, detectorErrors: 0, keyframesRead: 0 },
+      // Walking the room. `signature` and `previousSignature` are the coarse
+      // brightness grids the quality pass already computes; the rest is what
+      // decides whether the current view is worth a read.
+      signature: null, previousSignature: null,
+      keyframe: { lastReadSignature: null, lastCaptureAt: 0, capturedCount: 0, busy: false },
+      // What the room has accumulated so far, keyed by room name. Survives the
+      // Landlord walking out and back in, which one-shot capture never did.
+      inventories: new Map(),
       timers: { wave: null, clock: null, cameraResume: null, noteRecovery: null }, recognition: null,
       visionAvailable: true, readingAllowed: false, consentAsked: false,
       generation: 0, closed: false,
@@ -604,7 +624,7 @@ export function openRoomScan() {
       renderDetectorState();
       el.hint.innerHTML = roomTranscript()
         ? "<b>Room note ready</b> — check the photo, then confirm"
-        : "Point at the room and tap the shutter";
+        : "Just walk around the room — items save themselves";
     }
 
     /* ── The hub: choose a room, review the scan, return to a room ── */
@@ -724,7 +744,7 @@ export function openRoomScan() {
       el.viewfinder.classList.remove("scanning");
       el.readRoom.disabled = false;
       el.retake.disabled = false;
-      el.hint.innerHTML = "Point at the room and tap the shutter";
+      el.hint.innerHTML = "Just walk around the room — items save themselves";
       renderHub();
     }
 
@@ -736,6 +756,11 @@ export function openRoomScan() {
       if (!existing && !canAddRoom(state.rooms, name)) return toast("That's as many rooms as one scan can carry.");
       state.roomSession += 1;
       state.currentRoom = name;
+      // Each room gets its own read budget and its own found list. Without this a
+      // kitchen that used all four reads would leave the bathroom with none, and
+      // the kitchen's items would still be on screen.
+      resetKeyframeBudget();
+      renderInventory();
       const key = transcriptKey(name);
       if (!state.roomTranscripts.has(key)) setRoomTranscript(existing?.transcript || "", name);
       renderVoiceTranscript();
@@ -755,7 +780,7 @@ export function openRoomScan() {
       state.qualityMessage = "";
       state.lastQualityAt = 0;
       unfreeze();
-      el.hint.innerHTML = "Point at the room and tap the shutter";
+      el.hint.innerHTML = "Just walk around the room — items save themselves";
       if (!state.stream) startCamera();
       else startDetection();
     }
@@ -1353,6 +1378,36 @@ export function openRoomScan() {
       }
 
       if (session !== state.roomSession || state.closed) return;
+
+      // Everything the walk found, folded into the room that is about to be saved.
+      // Without this the inventory would be a display that vanished on confirm,
+      // and the checklist would still only know about whatever was in the one
+      // frame the confirmation was graded from — which is the limitation the
+      // continuous scan exists to remove.
+      //
+      // Appended, never replacing: boxes the Landlord drew or tapped on the frozen
+      // frame carry real coordinates, and these carry a name and no box.
+      const walked = inventoryFor(roomName);
+      if (walked.length) {
+        const named = new Set(room.detections.map((detection) => inventoryKey(detection.label)));
+        room = {
+          ...room,
+          detections: [
+            ...room.detections,
+            ...walked
+              .filter((item) => !named.has(item.key))
+              .map((item) => ({
+                id: `w-${item.key}`,
+                label: item.label,
+                // Says where it came from, because a Landlord who confirmed it and
+                // a reader that saw it once are not the same level of evidence.
+                note: item.confirmed ? "Confirmed while scanning" : "Seen while scanning",
+                x: 0, y: 0, width: 0, height: 0
+              }))
+          ]
+        };
+      }
+
       const replacing = Boolean(existing);
       state.rooms = upsertRoom(state.rooms, room);
       state.tracks = [];
@@ -1519,7 +1574,7 @@ export function openRoomScan() {
             button.disabled = false;
             button.removeAttribute("aria-busy");
           }
-          if (!state.frozen) el.hint.textContent = previousHint || "Point at the room and tap the shutter";
+          if (!state.frozen) el.hint.textContent = previousHint || "Just walk around the room — items save themselves";
         }
       }
     }
@@ -1538,6 +1593,138 @@ export function openRoomScan() {
         sessionStorage.setItem("tideway_csrf", result.csrfToken);
         return sessionStorage.getItem("tideway_csrf") || "";
       } catch { return ""; }
+    }
+
+    // Reads the view the Landlord is currently standing in front of, if it is one
+    // worth reading, and folds what comes back into the room's inventory.
+    //
+    // This is what replaces "stop, aim, tap". The decision of WHICH frames to read
+    // is `shouldCaptureKeyframe` and lives in the model, because it is the part
+    // that has to be right: too eager and a walk around a kitchen becomes a dozen
+    // paid reads, too shy and the far wall is never seen.
+    //
+    // On-device COCO still drives the live highlight — it is instant, free and
+    // never leaves the phone. It is not what fills the inventory, because its
+    // eighty classes contain no radiator, wardrobe, blind, shower or air fryer,
+    // which is most of what a cleaning quote actually turns on.
+    function maybeReadKeyframe(video) {
+      if (!state.readingAllowed || !state.visionAvailable || state.frozen || state.closed) return;
+      const decision = {
+        signature: state.signature,
+        previousSignature: state.previousSignature,
+        lastReadSignature: state.keyframe.lastReadSignature,
+        now: Date.now(),
+        lastCaptureAt: state.keyframe.lastCaptureAt,
+        capturedCount: state.keyframe.capturedCount,
+        busy: state.keyframe.busy
+      };
+      if (!shouldCaptureKeyframe(decision)) return;
+
+      let image = "";
+      try {
+        // Its own canvas. `el.canvas` belongs to the shutter path, and a keyframe
+        // drawn onto it mid-walk would replace the frame a confirmation is about
+        // to be graded from.
+        let canvas = state.keyframeCanvas;
+        if (!canvas) canvas = state.keyframeCanvas = document.createElement("canvas");
+        const width = video.videoWidth || 0;
+        const height = video.videoHeight || 0;
+        if (!width || !height) return;
+        const scale = Math.min(1, 1024 / Math.max(width, height));
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
+        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        image = canvas.toDataURL("image/jpeg", 0.72);
+      } catch { return; }
+      if (!image) return;
+
+      state.keyframe.busy = true;
+      state.keyframe.lastCaptureAt = decision.now;
+      state.keyframe.lastReadSignature = decision.signature;
+      state.keyframe.capturedCount += 1;
+      const roomName = state.currentRoom;
+      renderInventory();
+
+      readRoom(image, roomName, [], roomTranscript(roomName))
+        .then((reading) => {
+          if (state.closed) return;
+          state.diagnostics.keyframesRead += 1;
+          const found = (reading?.detections || [])
+            // The room filter applies to what a reader names too. It is a better
+            // reader than COCO, but "oven" in a bedroom is still wrong.
+            .filter((detection) => !implausibleForRoom(detection?.label, roomName))
+            .map((detection) => ({ label: detection.label, score: 0.9, source: "read" }));
+          if (!found.length) return;
+          setInventory(roomName, mergeRoomInventory(inventoryFor(roomName), found, { now: Date.now() }));
+        })
+        .catch(() => {
+          // A failed read must not spend the room's budget. Walking on and trying
+          // the next view is the recovery, and it happens by itself.
+          state.keyframe.capturedCount = Math.max(0, state.keyframe.capturedCount - 1);
+        })
+        .finally(() => {
+          state.keyframe.busy = false;
+          if (!state.closed) renderInventory();
+        });
+    }
+
+    // Rendered with replaceChildren and textContent throughout. Item labels come
+    // back from a reader looking at a photograph of a stranger's home; treating
+    // one as markup is how a room note becomes an injection.
+    function renderInventory() {
+      const items = inventoryFor();
+      const list = el.foundList;
+      if (!list) return;
+      el.found.hidden = items.length === 0 && !state.keyframe.busy;
+      el.foundBusy.hidden = !state.keyframe.busy;
+      el.foundCount.textContent = String(items.length);
+      el.foundNoun.textContent = items.length === 1 ? "item" : "items";
+
+      const rows = items.map((item) => {
+        const row = document.createElement("li");
+        row.className = "found-item";
+        // Seen from more than one angle, or confirmed by the Landlord. Both mean
+        // "this is really there", and the tick is the feedback that it is saved.
+        if (item.confirmed || item.sightings > 1) row.classList.add("is-sure");
+        if (item.confirmed) row.classList.add("is-confirmed");
+
+        const name = document.createElement("button");
+        name.type = "button";
+        name.className = "found-name";
+        name.textContent = item.label;
+        name.dataset.inventoryRename = item.key;
+        name.setAttribute("aria-label", `Rename ${item.label}`);
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "found-remove";
+        remove.dataset.inventoryRemove = item.key;
+        remove.setAttribute("aria-label", `Remove ${item.label}`);
+        remove.textContent = "×";
+
+        row.append(name, remove);
+        return row;
+      });
+      list.replaceChildren(...rows);
+    }
+
+    function inventoryFor(roomName = state.currentRoom) {
+      return state.inventories.get(transcriptKey(roomName)) || [];
+    }
+
+    function setInventory(roomName, items) {
+      const key = transcriptKey(roomName);
+      if (!key) return;
+      state.inventories.set(key, items);
+      renderInventory();
+    }
+
+    // Walking into a room starts its own budget. Without this, four reads spent in
+    // the kitchen would leave the bathroom with none.
+    function resetKeyframeBudget() {
+      state.keyframe.lastReadSignature = null;
+      state.keyframe.lastCaptureAt = 0;
+      state.keyframe.capturedCount = 0;
     }
 
     async function readRoom(image, roomName, items = [], transcript = "") {
@@ -1789,6 +1976,12 @@ export function openRoomScan() {
           previous = luma;
         }
       }
+      // Piggy-backed on the pixel read that was already happening for the quality
+      // hint. Walking a room needs to know whether the view has changed, and a
+      // second readback purely to answer that would cost a GPU sync every frame.
+      state.previousSignature = state.signature;
+      state.signature = frameSignature(pixels, width, height);
+
       const samples = width * height;
       if (!samples || !pairs) return;
       const advice = frameQualityAdvice({ luma: total / samples, detail: deltas / pairs });
@@ -1852,6 +2045,10 @@ export function openRoomScan() {
         state.tracks = tracked.tracks;
         state.nextTrackId = tracked.nextId;
         paintBoxes(liveBoxes());
+        // The shutter is no longer the only way a room gets read. Walking around
+        // reads the views the Landlord actually stops on, and the inventory below
+        // is the union of all of them rather than one photograph.
+        maybeReadKeyframe(video);
       } catch (error) {
         // A detector that starts failing mid-scan must not wedge the loop or
         // leave stale boxes floating over a live camera. Guarded like the
@@ -2144,6 +2341,28 @@ export function openRoomScan() {
 
     buildWave();
     el.shutter.addEventListener("click", capture);
+    // Correcting the list is deliberately one tap away, on the item itself. An
+    // automatic scan that cannot be argued with is worse than one that asks.
+    el.foundList.addEventListener("click", (event) => {
+      const remove = event.target.closest("[data-inventory-remove]");
+      if (remove) {
+        setInventory(state.currentRoom, correctInventoryItem(inventoryFor(), remove.dataset.inventoryRemove, { remove: true }));
+        return toast("Removed from this room.");
+      }
+      const rename = event.target.closest("[data-inventory-rename]");
+      if (!rename) return;
+      const key = rename.dataset.inventoryRename;
+      const current = inventoryFor().find((item) => item.key === key);
+      if (!current) return;
+      // `prompt` rather than a bespoke dialog: it is one field, it is reachable by
+      // keyboard and screen reader for free, and it cannot trap focus behind a
+      // live camera the way a hand-rolled modal on this screen already can.
+      const next = window.prompt("What is this?", current.label);
+      if (next === null) return;
+      const label = String(next).trim();
+      setInventory(state.currentRoom, correctInventoryItem(inventoryFor(), key, label ? { label } : { confirmed: true }));
+      toast(label && label !== current.label ? `Saved as ${label}.` : "Confirmed.");
+    });
     el.viewfinder.addEventListener("click", onViewfinderTap);
     el.detections.addEventListener("click", (event) => {
       const button = event.target.closest("[data-detection-id]");
