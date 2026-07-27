@@ -234,7 +234,9 @@ assert(overlay.includes("state.liveDetectionAvailable = false") && overlay.inclu
 assert(/catch[\s\S]{0,500}state\.liveDetectionAvailable = false/.test(overlay), "A detector that starts failing mid-scan can wedge the loop.");
 // A rejection arriving from a previous run must not wipe the boxes off a frame
 // the Landlord has since frozen and is choosing on.
-assert(/catch \{[\s\S]{0,400}generation !== state\.detectionGeneration\) return;/.test(overlay), "A failed inference from an earlier run can clear a frozen frame's boxes.");
+// The binding is optional — the catch takes an `error` so the failure can be logged —
+// but the generation guard must still come before anything that touches the boxes.
+assert(/catch (?:\(\w+\) )?\{[\s\S]{0,400}generation !== state\.detectionGeneration\) return;/.test(overlay), "A failed inference from an earlier run can clear a frozen frame's boxes.");
 
 /* ── Freezing before choosing ──────────────────────── */
 
