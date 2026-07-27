@@ -67,6 +67,21 @@ assert.ok(shouldCaptureKeyframe({ ...base, signature: bright, previousSignature:
 // A new view, but mid-swing: a blurred frame is where a recogniser invents things.
 assert.ok(!shouldCaptureKeyframe({ ...base, signature: bright, previousSignature: grey, lastReadSignature: split }), "A frame was read mid-swing. Motion blur is exactly where recognition goes wrong.");
 
+// Framing advice must be a gate, not decoration. These are the exact three
+// conditions the live quality pass reports. Each one would make object and dirt
+// assessment unreliable, and each rejected frame must leave the room's read
+// budget untouched so the corrected view can still be captured.
+for (const qualityKind of ["dark", "bright", "soft"]) {
+  assert.ok(
+    !shouldCaptureKeyframe({ ...base, signature: bright, previousSignature: bright, lastReadSignature: grey, qualityKind }),
+    `A ${qualityKind} frame consumed a paid room read even though the scanner had already told the Landlord to correct it.`
+  );
+}
+assert.ok(
+  shouldCaptureKeyframe({ ...base, signature: bright, previousSignature: bright, lastReadSignature: grey, qualityKind: "" }),
+  "A corrected frame remained blocked after its quality warning cleared."
+);
+
 /* ── The bounds that keep a walk from becoming a bill ── */
 
 assert.ok(!shouldCaptureKeyframe({ ...base, signature: bright, previousSignature: bright, lastReadSignature: grey, capturedCount: keyframeDefaults.maxPerRoom }), `More than ${keyframeDefaults.maxPerRoom} reads were allowed for one room. The cap is what bounds what a scan can cost.`);
@@ -151,7 +166,7 @@ assert.equal(correctInventoryItem(inventory, "not-a-key", { remove: true }).leng
 assert.ok(correctInventoryItem(inventory, key, { confirmed: true }).find((item) => item.key === key).confirmed, "Confirming an item without renaming it did not mark it confirmed.");
 assert.equal(correctInventoryItem(inventory, key, { label: "   " }).find((item) => item.key === key).label, "Radiator", "A blank rename erased the label.");
 
-console.log("Continuous scan tests passed: frames are read only when the view has genuinely changed and the phone has settled, reads are bounded per room and never overlap, the inventory accumulates across angles without repeating itself, and a Landlord's correction survives every later reading.");
+console.log("Continuous scan tests passed: frames are read only when the view has genuinely changed, the phone has settled and image quality is usable; reads are bounded per room and never overlap; the inventory accumulates across angles without repeating itself; and a Landlord's correction survives every later reading.");
 
 /* ── The overlay actually walks the room ── */
 
@@ -243,4 +258,4 @@ assert.match(overlay, /dismissed\.has\(inventoryKey\(detection\?\.label\)\)/, "A
 
 assert.match(overlay, /keyframeBudget\(roomName\)\.generation !== generation/, "A keyframe result is applied without checking its room still exists, so a late response can recreate an inventory that was deleted.");
 
-console.log("Continuous scan overlay tests passed: reads are driven by walking rather than a shutter, bounded per room and drawn on their own canvas, findings reach the saved room, labels are rendered as text, detections glow without a repaint-forcing blur, and the consent copy states the same per-room bound the code enforces.");
+console.log("Continuous scan overlay tests passed: reads are driven by walking rather than a shutter, poor-quality frames are withheld, reads are bounded per room and drawn on their own canvas, findings reach the saved room, detections glow without misleading live labels, and the consent copy states the same per-room bound the code enforces.");

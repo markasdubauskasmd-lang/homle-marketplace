@@ -251,6 +251,10 @@ assert(readRoomBody && /if \(!state\.readingAllowed/.test(readRoomBody), "The ro
 assert(/state\.roomReadControllers\.add\(controller\)/.test(overlay), "Room reads share one abort controller again, so starting a new read cancels the one in flight.");
 assert(!/state\.roomReadController\?\.abort\(\)/.test(overlay), "A new read aborts its predecessor again.");
 assert(overlay.includes("!state.consentAsked) await askConsent();"), "A photograph can be read before consent has been given.");
+assert(
+  /function maybeReadKeyframe\(video\)[\s\S]{0,900}qualityKind: state\.qualityKind[\s\S]{0,180}shouldCaptureKeyframe\(decision\)/.test(overlay),
+  "The live quality warning is not part of the keyframe decision, so dark, overexposed or blurred frames can still consume paid room reads."
+);
 
 // A detector that cannot load must leave the scan exactly as good as it was
 // before any of this existed.
