@@ -181,4 +181,27 @@ assert.match(overlay, /if \(!state\.consentAsked\) void askConsent\(\);/, "Conse
 // A removed room takes its findings and its spent budget with it.
 assert.match(overlay, /state\.inventories\.delete\(key\)/, "Removing a room leaves its found items behind, so re-adding the name resurrects them.");
 
+/* ── A walk has to change the job, not just the screen ── */
+
+// The failure this pins is the whole feature being decorative: items shown as
+// "saved" that produce no checklist line, no minutes and no effect on the grade
+// the job is priced from. A reading returns tasks and a condition as well as
+// object names, and discarding those was exactly that.
+assert.match(overlay, /function rememberWalkEvidence/, "Walking reads discard their tasks and condition, so an item the Landlord watched save itself contributes nothing to what the Cleaner is asked to do.");
+assert.match(overlay, /tasks: \[\.\.\.existingTasks, \.\.\.evidence\.tasks/, "The tasks a walk gathered never reach the saved room.");
+assert.match(overlay, /condition: worseCondition\(room\.condition, evidence\.condition\)/, "The condition a walk observed never reaches the saved room.");
+
+// The worst grade any angle saw wins. Taking the last reading would let a final
+// glance from the doorway undercharge a room that is heavy behind the bin.
+assert.match(overlay, /const conditionRank = \{ light: 1, medium: 2, heavy: 3 \}/, "Room condition is no longer ranked, so angles cannot be compared.");
+
+/* ── Corrections survive the reads that follow them ── */
+
+assert.match(overlay, /state\.dismissed/, "Removing an item leaves no record, so the next reading merges it straight back and the removal looks broken.");
+assert.match(overlay, /dismissed\.has\(inventoryKey\(detection\?\.label\)\)/, "A reading in flight can re-add an item the Landlord has just removed.");
+
+/* ── A read that outlives its room lands nowhere ── */
+
+assert.match(overlay, /keyframeBudget\(roomName\)\.generation !== generation/, "A keyframe result is applied without checking its room still exists, so a late response can recreate an inventory that was deleted.");
+
 console.log("Continuous scan overlay tests passed: reads are driven by walking rather than a shutter, bounded per room and drawn on their own canvas, findings reach the saved room, labels are rendered as text, detections glow without a repaint-forcing blur, and the consent copy states the same per-room bound the code enforces.");

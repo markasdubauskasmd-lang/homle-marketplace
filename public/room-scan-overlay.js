@@ -363,6 +363,14 @@ export function openRoomScan() {
       // What the room has accumulated so far, keyed by room name. Survives the
       // Landlord walking out and back in, which one-shot capture never did.
       inventories: new Map(),
+      // Tasks and condition from the walking reads. Labels alone were a display:
+      // an item shown as saved that produced no checklist line and no condition
+      // grade contributes nothing to what the Cleaner is asked to do or what the
+      // job is priced at, which made the whole walk decorative.
+      walkEvidence: new Map(),
+      // Items the Landlord deleted. Without this a read already in flight, or the
+      // next one, merges the same label straight back and the removal looks broken.
+      dismissed: new Map(),
       timers: { wave: null, clock: null, cameraResume: null, noteRecovery: null }, recognition: null,
       visionAvailable: true, readingAllowed: false, consentAsked: false,
       generation: 0, closed: false,
@@ -490,12 +498,16 @@ export function openRoomScan() {
       const key = transcriptKey(removedName);
       state.rooms = removeRoom(state.rooms, removedName);
       state.roomTranscripts.delete(key);
-      // What the walk found goes with it. Left behind, re-adding a room of the
-      // same name would resurrect items the Landlord had just removed — and the
-      // spent read budget goes too, because a removed room has genuinely not been
-      // read and should be scannable again.
+      // What the walk found goes with it: left behind, re-adding a room of the
+      // same name would resurrect items the Landlord had just removed.
       state.inventories.delete(key);
-      state.keyframeBudgets.delete(key);
+      state.walkEvidence.delete(key);
+      // The BUDGET deliberately stays. Deleting it made remove-and-re-add an
+      // unlimited supply of paid reads, which is exactly the bound the consent
+      // promises. The room keeps its generation bump below, so anything still in
+      // flight for it lands nowhere.
+      const budget = state.keyframeBudgets.get(key);
+      if (budget) budget.generation += 1;
       rememberRoomNotes();
       if (transcriptKey(state.currentRoom) === key) state.currentRoom = "";
       discardMode = "scan";
@@ -1409,6 +1421,21 @@ export function openRoomScan() {
       //
       // Appended, never replacing: boxes the Landlord drew or tapped on the frozen
       // frame carry real coordinates, and these carry a name and no box.
+      // Tasks and condition the walk gathered. Without this the room was saved with
+      // whatever the single confirmation frame produced, and every item the walk
+      // found contributed a name and nothing else — no checklist line, no minutes,
+      // no effect on the grade the job is priced from.
+      const evidence = state.walkEvidence.get(transcriptKey(roomName));
+      if (evidence) {
+        const existingTasks = Array.isArray(room.tasks) ? room.tasks : [];
+        const seen = new Set(existingTasks.map((task) => String(task).toLowerCase().trim()));
+        room = {
+          ...room,
+          tasks: [...existingTasks, ...evidence.tasks.filter((task) => !seen.has(task.toLowerCase().trim()))],
+          condition: worseCondition(room.condition, evidence.condition)
+        };
+      }
+
       const walked = inventoryFor(roomName);
       if (walked.length) {
         const named = new Set(room.detections.map((detection) => inventoryKey(detection.label)));
@@ -1670,17 +1697,27 @@ export function openRoomScan() {
       // billed, so a failed response does not mean a free one.
       budget.capturedCount += 1;
       const roomName = state.currentRoom;
+      const generation = budget.generation;
       renderInventory();
 
       readRoom(image, roomName, [], roomTranscript(roomName))
         .then((reading) => {
-          if (state.closed) return;
+          // The room may have been removed while this was in flight. Landing its
+          // result anyway would recreate an inventory the Landlord just deleted.
+          if (state.closed || keyframeBudget(roomName).generation !== generation) return;
           state.diagnostics.keyframesRead += 1;
+          const dismissed = state.dismissed.get(transcriptKey(roomName)) || new Set();
           const found = (reading?.detections || [])
             // The room filter applies to what a reader names too. It is a better
             // reader than COCO, but "oven" in a bedroom is still wrong.
             .filter((detection) => !implausibleForRoom(detection?.label, roomName))
+            // Something the Landlord removed stays removed. Merging it back is the
+            // fastest way to make a correction feel ignored.
+            .filter((detection) => !dismissed.has(inventoryKey(detection?.label)))
             .map((detection) => ({ label: detection.label, score: 0.9, source: "read" }));
+          // Tasks and condition are kept even when no new object was named — a
+          // second angle on the same room still tells us how dirty it is.
+          rememberWalkEvidence(roomName, reading);
           if (!found.length) return;
           setInventory(roomName, mergeRoomInventory(inventoryFor(roomName), found, { now: Date.now() }));
         })
@@ -1734,6 +1771,37 @@ export function openRoomScan() {
       list.replaceChildren(...rows);
     }
 
+    // Everything a walking read returned beyond the object names. Accumulated so a
+    // room ends up with the union of what four angles noticed, not the contents of
+    // whichever read happened last.
+    function rememberWalkEvidence(roomName, reading) {
+      const key = transcriptKey(roomName);
+      if (!key || !reading) return;
+      const current = state.walkEvidence.get(key) || { tasks: [], condition: "" };
+      const seen = new Set(current.tasks.map((task) => String(task).toLowerCase().trim()));
+      for (const task of Array.isArray(reading.tasks) ? reading.tasks : []) {
+        const line = String(task || "").trim();
+        const fingerprint = line.toLowerCase();
+        if (!line || seen.has(fingerprint)) continue;
+        seen.add(fingerprint);
+        current.tasks.push(line);
+      }
+      // The worst grade any angle saw wins. A kitchen that looks tidy from the
+      // doorway and heavy behind the bin is a heavy kitchen — taking the last
+      // reading instead would let the final glance undercharge the job.
+      current.condition = worseCondition(current.condition, reading.condition);
+      state.walkEvidence.set(key, current);
+    }
+
+    const conditionRank = { light: 1, medium: 2, heavy: 3 };
+    function worseCondition(first, second) {
+      const left = String(first || "").toLowerCase();
+      const right = String(second || "").toLowerCase();
+      if (!conditionRank[right]) return first || "";
+      if (!conditionRank[left]) return right;
+      return conditionRank[right] > conditionRank[left] ? right : left;
+    }
+
     function inventoryFor(roomName = state.currentRoom) {
       return state.inventories.get(transcriptKey(roomName)) || [];
     }
@@ -1752,7 +1820,10 @@ export function openRoomScan() {
       const key = transcriptKey(roomName) || "unnamed";
       let budget = state.keyframeBudgets.get(key);
       if (!budget) {
-        budget = { lastReadSignature: null, lastCaptureAt: 0, capturedCount: 0 };
+        // `generation` is bumped whenever the room is removed. A read already in
+        // flight carries the generation it started under, so its result lands
+        // nowhere rather than recreating an inventory the Landlord just deleted.
+        budget = { lastReadSignature: null, lastCaptureAt: 0, capturedCount: 0, generation: 0 };
         state.keyframeBudgets.set(key, budget);
       }
       return budget;
@@ -2377,6 +2448,10 @@ export function openRoomScan() {
     el.foundList.addEventListener("click", (event) => {
       const remove = event.target.closest("[data-inventory-remove]");
       if (remove) {
+        const key = transcriptKey(state.currentRoom);
+        const dismissed = state.dismissed.get(key) || new Set();
+        dismissed.add(remove.dataset.inventoryRemove);
+        state.dismissed.set(key, dismissed);
         setInventory(state.currentRoom, correctInventoryItem(inventoryFor(), remove.dataset.inventoryRemove, { remove: true }));
         return toast("Removed from this room.");
       }
