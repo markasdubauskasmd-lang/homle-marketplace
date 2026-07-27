@@ -197,6 +197,116 @@ export const cocoLabels = Object.freeze({
   toothbrush: "Toothbrush"
 });
 
+/* ── How sure the detector has to be ────────────────────────────────────── */
+
+// COCO-SSD's own default is 0.5, and `detect()` was called without a third
+// argument so that default applied — then `trackDetections` applied 0.5 again.
+// 0.5 is a demonstration threshold. On real furniture it is the confidence at
+// which a cream chest of drawers is reported as an oven.
+//
+// The trade here is not symmetric. A missed item costs a tap, because the
+// Landlord can draw a box around anything themselves — that path exists precisely
+// because COCO cannot see an air fryer or a shower. A wrongly named item costs
+// trust, and if it survives to the confirmation it prices work against something
+// that is not in the room. So the threshold is set where a false label is rare
+// rather than where the most boxes appear.
+//
+// Exported so the detector call and the tracker cannot drift apart; they were two
+// separate 0.5s before, and raising one would have silently done nothing.
+export const detectionMinimumScore = 0.62;
+
+/* ── Spoken room notes ──────────────────────────────────────────────────── */
+
+// Joins what was already noted to what has just been recognised.
+//
+// Kept separate and pure because the bug it exists to prevent was a joining bug.
+// The speech handler used to append each newly-final phrase onto the stored note,
+// which is only correct if every event reports each phrase exactly once — and
+// Android Chrome re-reports segments that are already final, so a Landlord saying
+// "tidy up the cupboards" got back "tidy tidy up tidy up the tidy up the cupboards
+// tidy up the cupboards". The handler now recomputes the whole session from
+// `event.results` and joins it here, so replaying an event changes nothing.
+//
+// Deliberately does NOT rewrite the words. Room names, item names, quantities and
+// "do not" instructions all have to survive verbatim — the checklist downstream is
+// where filler is stripped, and it can only do that honestly if what reaches it is
+// what was said.
+// A PLAIN JOIN, and deliberately nothing more.
+//
+// An earlier version tried to be clever here: it detected an overlapping phrase at
+// the seam and dropped it, on the theory that a repeat was the browser
+// re-recognising the tail of a restarted session. Review showed that theory
+// deleting real speech — "wipe the sink" followed by "wipe the sink again" came
+// back as just "wipe the sink again", and an intentional repeat vanished entirely.
+//
+// The judgement: a duplicated phrase is untidy, and a missing one changes what the
+// Cleaner is asked to do and what the Landlord is charged for. This codebase has
+// already been bitten once by a helper that quietly rewrote a customer's words —
+// the clause-boundary bug that turned "do not clean inside the oven" into a
+// request for oven cleaning. Preserving what was said, exactly, is the only
+// defensible default.
+//
+// The repeated-text bug this whole change exists to fix is not solved here anyway.
+// It is solved by the handler recomputing the session from `event.results` instead
+// of appending a delta to it, which makes a replayed event a no-op at source.
+export function joinSpokenText(existing, spoken) {
+  const before = String(existing || "").replace(/\s+/g, " ").trim();
+  const after = String(spoken || "").replace(/\s+/g, " ").trim();
+  if (!before) return after;
+  if (!after) return before;
+  return `${before} ${after}`;
+}
+
+/* ── Which detections are plausible in this room ────────────────────────── */
+
+// COCO-SSD has eighty classes and no idea which room it is looking at. On a cream
+// chest of drawers with a horizontal seam its nearest class is "oven", and at the
+// default 0.5 confidence it says so — which is how a Bedroom came back labelled
+// OVEN three times over.
+//
+// The scanner always knows the room, because the Landlord chose it. Using that is
+// the cheapest accuracy win available: an oven in a bedroom is not a low-confidence
+// oven, it is not an oven.
+//
+// FAILS OPEN. A room name that is not recognised, or a label not listed here,
+// is always allowed through. Suppressing a real item a Landlord can see on their
+// screen is a worse failure than showing one they can simply ignore.
+const roomImplausibleLabels = Object.freeze({
+  bedroom: ["Oven", "Toilet", "Sink", "Microwave", "Toaster", "Fridge", "Dining table"],
+  bathroom: ["Oven", "Microwave", "Toaster", "Fridge", "Bed", "Sofa", "Dining table", "TV"],
+  kitchen: ["Bed", "Toilet", "Sofa"],
+  "living room": ["Oven", "Toilet", "Bed", "Microwave", "Toaster"],
+  lounge: ["Oven", "Toilet", "Bed", "Microwave", "Toaster"],
+  hallway: ["Oven", "Toilet", "Bed", "Microwave", "Toaster", "Fridge"],
+  landing: ["Oven", "Toilet", "Bed", "Microwave", "Toaster", "Fridge"],
+  office: ["Oven", "Toilet", "Bed", "Microwave", "Toaster", "Fridge"],
+  study: ["Oven", "Toilet", "Bed", "Microwave", "Toaster", "Fridge"],
+  garage: ["Toilet", "Bed", "Sofa"],
+  toilet: ["Oven", "Microwave", "Toaster", "Fridge", "Bed", "Sofa", "Dining table"],
+  ensuite: ["Oven", "Microwave", "Toaster", "Fridge", "Bed", "Sofa", "Dining table"],
+  "en suite": ["Oven", "Microwave", "Toaster", "Fridge", "Bed", "Sofa", "Dining table"]
+});
+
+export function implausibleForRoom(label, roomName) {
+  const room = String(roomName || "").trim().toLowerCase();
+  if (!room) return false;
+  let banned = roomImplausibleLabels[room];
+  if (!banned) {
+    // "Main bedroom", "Bedroom 2" and "Upstairs bathroom" are all normal things to
+    // call a room, so a contained match counts rather than only an exact one.
+    const matches = Object.entries(roomImplausibleLabels).filter(([name]) => room.includes(name));
+    // A name naming two rooms — "Kitchen / living room", "Bedroom with ensuite" —
+    // must fail open. Taking the first match would suppress by declaration order:
+    // the kitchen entry would remove the sofa from a kitchen-diner, and the bedroom
+    // entry would remove the toilet from a room that has one. A room that is two
+    // rooms plausibly contains the items of both.
+    if (matches.length !== 1) return false;
+    banned = matches[0][1];
+  }
+  const candidate = String(label || "").trim().toLowerCase();
+  return banned.some((entry) => entry.toLowerCase() === candidate);
+}
+
 export function cocoLabel(className) {
   const key = String(className || "").trim().toLowerCase();
   if (!key) return "Item";
@@ -329,7 +439,7 @@ function intersectionOverUnion(a, b) {
 // both become tracks they look like two separate choices and can produce a
 // duplicate checklist item. Suppress only very heavy same-class overlaps so
 // neighbouring chairs, cushions or monitors remain separate objects.
-export function deduplicateDetections(detections, { iouThreshold = 0.68 } = {}) {
+export function deduplicateDetections(detections, { iouThreshold = 0.68, containmentThreshold = 0.6 } = {}) {
   const source = (Array.isArray(detections) ? detections : [])
     .filter((detection) => detection
       && Number.isFinite(detection.x) && Number.isFinite(detection.y)
@@ -343,14 +453,35 @@ export function deduplicateDetections(detections, { iouThreshold = 0.68 } = {}) 
   const kept = [];
   for (const { detection } of source) {
     const duplicate = kept.some((existing) => existing.className === detection.className
-      && intersectionOverUnion(existing, detection) >= iouThreshold);
+      && (intersectionOverUnion(existing, detection) >= iouThreshold
+        // IoU alone could not merge the boxes that made a single chest of drawers
+        // come back as three separate OVENs. They were the same class stacked
+        // vertically, so each pair's union was large and its IoU stayed under the
+        // threshold — while one box sat almost entirely inside the other.
+        //
+        // Containment catches that: if most of this box's area is inside a box of
+        // the same class that already scored higher, it is another reading of the
+        // same object, not a second object. Measured against the smaller box's own
+        // area, which is what makes it independent of how different the two sizes
+        // are — the exact case IoU handles badly.
+        || containmentRatio(existing, detection) >= containmentThreshold));
     if (!duplicate) kept.push(detection);
   }
   return kept;
 }
 
+// Overlap as a fraction of the smaller box's area.
+export function containmentRatio(first, second) {
+  const overlapWidth = Math.max(0, Math.min(first.x + first.width, second.x + second.width) - Math.max(first.x, second.x));
+  const overlapHeight = Math.max(0, Math.min(first.y + first.height, second.y + second.height) - Math.max(first.y, second.y));
+  const overlap = overlapWidth * overlapHeight;
+  if (overlap <= 0) return 0;
+  const smallest = Math.min(first.width * first.height, second.width * second.height);
+  return smallest > 0 ? overlap / smallest : 0;
+}
+
 export function trackDetections(previousTracks, rawDetections, {
-  iouThreshold = 0.35, duplicateIouThreshold = 0.68, holdFrames = 6, smoothing = 0.4, minScore = 0.5, nextId = 1
+  iouThreshold = 0.35, duplicateIouThreshold = 0.68, holdFrames = 6, smoothing = 0.4, minScore = detectionMinimumScore, nextId = 1
 } = {}) {
   const previous = Array.isArray(previousTracks) ? previousTracks : [];
   const raw = deduplicateDetections((Array.isArray(rawDetections) ? rawDetections : [])

@@ -6,6 +6,9 @@ import {
   fitBoxToFrame,
   frameBoxToSourceRect,
   cocoLabel,
+  implausibleForRoom,
+  detectionMinimumScore,
+  joinSpokenText,
   roomReadingPayload,
   mergeItemReadings,
   trackDetections,
@@ -330,6 +333,11 @@ export function openRoomScan() {
       rooms: [], capturing: false, photoProcessing: false, videoProcessing: false,
       voiceOn: false, voiceUsed: false, roomTranscripts: new Map(), seconds: 0,
       voiceGeneration: 0,
+      // Counters, not a log. Inference runs several times a second, so a line per
+      // event would drown the console; a running total answers the question that
+      // actually gets asked when a scan looks wrong — is the room filter working,
+      // or is it eating everything?
+      diagnostics: { suppressedByRoom: 0, framesInferred: 0, detectorErrors: 0 },
       timers: { wave: null, clock: null, cameraResume: null, noteRecovery: null }, recognition: null,
       visionAvailable: true, readingAllowed: false, consentAsked: false,
       generation: 0, closed: false,
@@ -1807,11 +1815,24 @@ export function openRoomScan() {
       try {
         const source = inferenceFrame(video);
         sampleFrameQuality(source);
-        const found = await state.detector.detect(source, 12);
+        // The third argument is coco-ssd's own minimum score. Omitted before, so its
+        // 0.5 default applied and low-confidence guesses reached the tracker at all.
+        const found = await state.detector.detect(source, 12, detectionMinimumScore);
+        state.diagnostics.framesInferred += 1;
         if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
         const rect = viewfinderRect();
         const mapped = [];
+        let suppressed = 0;
         for (const item of found) {
+          // The Landlord already told us which room this is, and the detector has
+          // no idea. An oven in a bedroom is not a low-confidence oven — it is a
+          // chest of drawers, which is exactly what COCO-SSD returned "oven" for on
+          // a real scan. Dropped before mapping so it never reaches a track, never
+          // draws, and never gets sent for naming.
+          if (implausibleForRoom(cocoLabel(item?.class), state.currentRoom)) {
+            suppressed += 1;
+            continue;
+          }
           const [x, y, width, height] = Array.isArray(item?.bbox) ? item.bbox : [];
           const box = fitBoxToFrame({ x, y, width, height }, {
             // The boxes come back in the coordinates of whatever was inferred on,
@@ -1822,16 +1843,26 @@ export function openRoomScan() {
           });
           if (box) mapped.push({ ...box, className: item.class, score: item.score });
         }
+        // Counted rather than logged per frame: at several frames a second, a line
+        // per suppression would bury anything else in the console. A running total
+        // is enough to tell "the filter is working" from "the filter is eating
+        // everything" when diagnosing a scan.
+        if (suppressed) state.diagnostics.suppressedByRoom += suppressed;
         const tracked = trackDetections(state.tracks, mapped, { nextId: state.nextTrackId });
         state.tracks = tracked.tracks;
         state.nextTrackId = tracked.nextId;
         paintBoxes(liveBoxes());
-      } catch {
+      } catch (error) {
         // A detector that starts failing mid-scan must not wedge the loop or
         // leave stale boxes floating over a live camera. Guarded like the
         // success path, so a rejection arriving from a previous run cannot wipe
         // the boxes off a frame the Landlord has since frozen and is choosing on.
         if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
+        state.diagnostics.detectorErrors += 1;
+        // Reported once. The loop stops after this, so a second line would only
+        // ever be a duplicate, and the message names the cause rather than the
+        // symptom — "boxes stopped appearing" is what gets reported otherwise.
+        console.warn("Homle room scan: on-device detection stopped.", error?.message || error);
         state.detectorState = "unavailable";
         state.liveDetectionAvailable = false;
         state.tracks = [];
@@ -1884,23 +1915,76 @@ export function openRoomScan() {
       recognition.lang = document.documentElement.lang || "en-GB";
       recognition.continuous = true;
       recognition.interimResults = true;
+      // The note as it stood when listening started. Everything this session
+      // recognises is joined onto it, so the handler below can run any number of
+      // times for the same audio and produce the same note.
+      let sessionBase = roomTranscript();
+      let sessionFinal = "";
+      let lastInterim = "";
+
       recognition.onresult = (event) => {
         if (state.recognition !== recognition || generation !== state.voiceGeneration) return;
+        // REBUILT from the whole result list, never appended to.
+        //
+        // `event.results` is cumulative for the session and `event.resultIndex` is
+        // only a hint about what changed. The previous version looped from that
+        // index and appended each final onto the stored note, which meant the
+        // handler was not idempotent — and Android Chrome fires `onresult`
+        // repeatedly covering segments that are already final. Every one of those
+        // events re-appended text that was already stored, so a Landlord saying
+        // "tidy up the cupboards" got back "tidy tidy up tidy up the tidy up the
+        // cupboards tidy up the cupboards". Recomputing from the list instead
+        // makes a repeated event a no-op, which is what it should always have been.
         let finalText = "";
         let interim = "";
-        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        // Indexed, NOT `for...of`. `SpeechRecognitionResultList` is a WebIDL
+        // interface with an indexed getter and a length and no `iterable<>`
+        // declaration, so it has no `Symbol.iterator` and `for...of` throws on it.
+        // That would have broken every result event rather than only the repeats.
+        for (let index = 0; index < event.results.length; index += 1) {
           const result = event.results[index];
+          if (!result?.[0]) continue;
           if (result.isFinal) finalText += result[0].transcript;
           else interim += result[0].transcript;
         }
-        if (finalText) setRoomTranscript(`${roomTranscript()} ${finalText}`);
+        sessionFinal = finalText;
+        lastInterim = interim;
+        setRoomTranscript(joinSpokenText(sessionBase, sessionFinal));
         renderVoiceTranscript(interim);
       };
-      recognition.onerror = () => {
-        if (state.recognition === recognition && generation === state.voiceGeneration) stopVoice({ failed: true });
-      };
+      // `continuous` recognition is ended by the browser on its own — Android
+      // Chrome stops after a pause and Safari after roughly a minute — and the
+      // next session starts `event.results` over from empty. Without re-basing
+      // here, the second session's rebuild would overwrite everything the first
+      // one heard. Restarting is what lets a Landlord keep talking while they walk.
       recognition.onend = () => {
-        if (state.recognition === recognition && generation === state.voiceGeneration && state.voiceOn) stopVoice();
+        if (state.recognition !== recognition || generation !== state.voiceGeneration) return;
+        if (!state.voiceOn) return;
+        // BOTH, not one or the other. A single event routinely carries a final
+        // "tidy up" alongside an interim "the cupboards"; `sessionFinal || lastInterim`
+        // kept only the final and dropped the rest of the sentence.
+        sessionBase = joinSpokenText(sessionBase, `${sessionFinal} ${lastInterim}`);
+        sessionFinal = "";
+        lastInterim = "";
+        setRoomTranscript(sessionBase);
+        try { recognition.start(); } catch { stopVoice(); }
+      };
+
+      // A trailing phrase that never reached `isFinal` is still what the Landlord
+      // said. Committing it on stop is why "…put the bins out" is not lost when
+      // they tap the microphone the moment they finish the sentence.
+      recognition.commitPending = () => {
+        const spoken = joinSpokenText(sessionBase, `${sessionFinal} ${lastInterim}`);
+        if (spoken) setRoomTranscript(spoken);
+      };
+      recognition.onerror = (event) => {
+        if (state.recognition !== recognition || generation !== state.voiceGeneration) return;
+        // `no-speech` and `aborted` are the browser reporting a quiet moment, not a
+        // failure. Ending the session on them is why listening used to die the
+        // first time a Landlord paused to open a cupboard; `onend` restarts instead.
+        if (event?.error === "no-speech" || event?.error === "aborted") return;
+        recognition.commitPending();
+        stopVoice({ failed: true });
       };
       try { recognition.start(); } catch {
         openNoteEditor({ focus: true });
@@ -1945,6 +2029,10 @@ export function openRoomScan() {
       const recognition = state.recognition;
       state.recognition = null;
       if (recognition) {
+        // Before the handlers come off, so a phrase that never reached `isFinal` is
+        // still kept. Tapping the microphone the instant a sentence ends used to
+        // discard it, which read as the app mishearing rather than not listening.
+        try { recognition.commitPending?.(); } catch {}
         recognition.onresult = null;
         recognition.onerror = null;
         recognition.onend = null;
