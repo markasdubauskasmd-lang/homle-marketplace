@@ -143,9 +143,17 @@ assert(/function requestClose\(\)[\s\S]{0,180}hasScanProgress\(\)[\s\S]{0,80}sho
 assert(/function setScanBackgroundInert\(inert\)[\s\S]{0,320}child\.inert = inert/.test(overlay) && /function openDiscardDecision\([\s\S]{0,700}setScanBackgroundInert\(true\)[\s\S]{0,120}discardKeep\.focus/.test(overlay), "The discard decision leaves covered camera controls interactive or does not move focus to its safe action.");
 assert(overlay.includes('window.addEventListener("beforeunload", onBeforeUnload)') && overlay.includes('window.removeEventListener("beforeunload", onBeforeUnload)') && /function onBeforeUnload\(event\)[\s\S]{0,220}!hasScanProgress\(\)[\s\S]{0,320}event\.returnValue = ""/.test(overlay), "Browser navigation can silently erase an in-progress room scan or leaves a permanent leave-page warning after teardown.");
 assert(!overlay.includes("localStorage") && !overlay.includes("JSON.stringify(state.rooms"), "The discard safeguard persists private room photos or the scan roster in browser storage.");
-assert(/function finishScan\(\)[\s\S]{0,1200}photos: state\.rooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(overlay), "A completed scan does not hand its current room photos directly to the authenticated booking journey.");
+// Scoped to the function body. The window kept breaking as finishScan grew, and
+// widening a number teaches nothing; what is guarded is that the photos handed on
+// are the current rooms' own images.
+const finishBody = overlay.slice(overlay.indexOf("function finishScan()"), overlay.indexOf("function finishScan()") + 2600);
+assert(/photos: state\.rooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(finishBody), "A completed scan does not hand its current room photos directly to the authenticated booking journey.");
+// Finishing while a room is still being read would carry the provisional tasks
+// and grade into the booking, and close() aborts the read that was about to
+// replace them — so the customer would be quoted from a placeholder.
+assert(/readingStatus === "reading"/.test(finishBody), "Finishing no longer notices a room still being read, so a booking can be priced from provisional tasks while the real reading is thrown away.");
 assert(!/sessionStorage\.setItem\([^)]*state\.rooms/.test(overlay) && !/sessionStorage\.setItem\([^)]*photos/.test(overlay), "Private room photos are written into browser storage instead of staying in the in-memory booking handoff.");
-assert(/function finishScan\(\)[\s\S]{0,1200}filter\(\(room\) => room\?\.image\)/.test(overlay), "A room photo is discarded merely because automatic object reading produced no tasks.");
+assert(/filter\(\(room\) => room\?\.image\)/.test(finishBody), "A room photo is discarded merely because automatic object reading produced no tasks.");
 
 /* ── Real inputs, not a simulation ─────────────────── */
 assert(overlay.includes("navigator.mediaDevices.getUserMedia") && overlay.includes('facingMode: { ideal: "environment" }'), "The scan does not open a real rear camera.");
@@ -232,7 +240,16 @@ assert(overlay.includes('setBackend("webgl")'), "The detector does not pin the W
 // Running the detector before the consent question is deliberate, and the
 // reason has to survive someone reading this later and 'fixing' it: the model
 // is local, so nothing has left the phone. Consent governs the network call.
-assert(/if \(!state\.readingAllowed[\s\S]{0,2000}fetch\("\/api\/marketplace\/landlord\/room-reading"/.test(overlay), "The room reading is no longer gated on consent.");
+// Scoped to the function rather than a character window, which kept breaking as
+// the reasoning around it grew. The guarantee is what matters: inside readRoom,
+// the consent check comes before the request that sends the photograph.
+const readRoomBody = overlay.slice(overlay.indexOf("async function readRoom("), overlay.indexOf('fetch("/api/marketplace/landlord/room-reading"'));
+assert(readRoomBody && /if \(!state\.readingAllowed/.test(readRoomBody), "The room reading is no longer gated on consent — a photograph could be sent before the Landlord agreed to it.");
+// Each read owns its controller. Sharing one meant starting a read cancelled the
+// one before it, which became routine the moment saving stopped waiting: walking
+// into the next room would kill the previous room's confirmation.
+assert(/state\.roomReadControllers\.add\(controller\)/.test(overlay), "Room reads share one abort controller again, so starting a new read cancels the one in flight.");
+assert(!/state\.roomReadController\?\.abort\(\)/.test(overlay), "A new read aborts its predecessor again.");
 assert(overlay.includes("!state.consentAsked) await askConsent();"), "A photograph can be read before consent has been given.");
 
 // A detector that cannot load must leave the scan exactly as good as it was
@@ -297,7 +314,17 @@ assert(overlay.includes("function waitForCameraFrame") && overlay.includes('erro
 assert(overlay.includes("Number(video.readyState) >= 2") && overlay.includes("Number(video.readyState) < 2"), "The scanner treats camera dimensions as a usable picture before the browser has delivered a current video frame.");
 assert(/catch \(error\) \{[\s\S]{0,80}stopCamera\(\);[\s\S]{0,420}blockCamera\(/.test(overlay) && /function stopCamera\(\)[\s\S]{0,180}el\.camera\.srcObject = null/.test(overlay), "A failed or stalled camera stream is not released, so Try live camera again cannot recover.");
 assert(/function unfreeze\(\)[\s\S]{0,1000}if \(state\.stream\) startDetection\(\);\s*\n\s*else startCamera\(\)/.test(overlay), "Retaking after a backgrounded native capture cannot reacquire the live camera.");
-assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch("/api/marketplace/auth/session"') && overlay.includes('code: "sign-in-required"') && overlay.includes("automatic reading is unavailable"), "The room reader silently fails when a signed-in phone loses its in-memory security token or when the provider fails.");
+// The failure message moved into the background reader when saving stopped
+// waiting on the model. The guarantee is unchanged: a reader that fails must say
+// so and leave the room retryable, never fail silently.
+assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch("/api/marketplace/auth/session"') && overlay.includes('code: "sign-in-required"') && overlay.includes("automatic reading did not finish"), "The room reader silently fails when a signed-in phone loses its in-memory security token or when the provider fails.");
+// Saved first, read after. The room, its photograph and the customer's own note
+// are all in hand at press time, so nothing about that press needs a network
+// round trip — waiting on one is what made the button feel dead.
+assert(/readRoomInBackground\(\{ frame, roomName, chosen, spokenNote, session \}\)/.test(overlay), "Saving a room waits on the vision model again, so the confirm button blocks for as long as the provider and the connection take.");
+assert(/readingStatus: "reading"/.test(overlay), "A room saved before its reading completes is not marked, so the hub cannot show that it is still being read.");
+// A late reading must land only on the room it was started for.
+assert(/current\.readingStatus !== "reading"\) return;/.test(overlay), "A background reading is applied without checking the room is still awaiting one, so it could overwrite a room the customer has since edited or re-saved.");
 
 /* ── The room hub: choose, review, return, finish ──── */
 
@@ -375,7 +402,9 @@ assert(overlay.includes("state.capturing = true;") && overlay.indexOf("state.cap
 // Finishing is instant: every room was read as it was confirmed, so there is
 // nothing left to load and no reason to animate loading.
 assert(!overlay.includes("Reading your home") && !/setTimeout\(\s*\(?\s*(?:wait|resolve)\)?\s*,\s*(?:340|700)\s*\)/.test(overlay), "The finish step still plays a loading animation over work that has already happened.");
-assert(/function finishScan\(\)[\s\S]{0,700}stopCamera\(\);\s*\n\s*close\(\{/.test(overlay), "Finishing no longer closes cleanly with the gathered rooms.");
+// Scoped to the function body rather than a character window, which grew stale
+// as finishScan gained its still-reading guard.
+assert(/stopCamera\(\);\s*\n\s*close\(\{/.test(overlay.slice(overlay.indexOf("function finishScan()"), overlay.indexOf("function finishScan()") + 2600)), "Finishing no longer closes cleanly with the gathered rooms.");
 
 // Behind the hub the camera stays warm but detection is paused — no point
 // running inference at a menu.

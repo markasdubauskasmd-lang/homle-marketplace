@@ -54,7 +54,16 @@ export function usableDetections(detections) {
       width: detection.width,
       height: detection.height,
       label: String(detection.label).trim().slice(0, 28),
-      note: String(detection.note || "").trim().slice(0, 28)
+      // 60, matching what the reader now sends. At 28 the evidence behind a grade
+      // — "white deposits around the tap base" — was clipped mid-phrase, which
+      // left the customer a verdict they could not check.
+      note: String(detection.note || "").trim().slice(0, 60),
+      // Carried through rather than dropped. These were being stripped here, so
+      // every per-item condition the reader worked out was discarded one step
+      // before anything could use it.
+      condition: String(detection.condition || "").trim().slice(0, 12),
+      soiling: Object.freeze((Array.isArray(detection.soiling) ? detection.soiling : []).map((kind) => String(kind).trim().slice(0, 16)).slice(0, 4)),
+      confidence: Number.isFinite(detection.confidence) ? detection.confidence : 0
     }));
 }
 
@@ -415,7 +424,16 @@ export function mergeItemReadings(selected, response) {
         id: String(item?.id || ""),
         x: item.x, y: item.y, width: item.width, height: item.height,
         label,
-        note: String(reading.note || "").trim().slice(0, 28)
+        // 60, matching what the reader now sends. At 28 the evidence behind a
+        // grade was clipped mid-phrase, leaving a verdict nobody could check.
+        note: String(reading.note || "").trim().slice(0, 60),
+        // The condition this item was actually given. Dropped here before, which
+        // meant the chosen-items path — the one a normal confirmation takes, and
+        // the one that sets the price — threw away every per-item grade it had
+        // just paid a vision model to work out.
+        condition: String(reading.condition || "").trim().slice(0, 12),
+        soiling: Object.freeze((Array.isArray(reading.soiling) ? reading.soiling : []).slice(0, 4)),
+        confidence: Number.isFinite(reading.confidence) ? reading.confidence : 0
       });
     })
     .filter(Boolean)
@@ -773,7 +791,10 @@ export function rosterSummary(rooms) {
       // Unnamed items are left out rather than padding the line with placeholders.
       itemLabels: Object.freeze(items.map((item) => String(item?.label || "").trim()).filter(Boolean)),
       hasNote: Boolean(String(room?.transcript || "").trim()),
-      readingStatus: ["ready", "manual", "needs-retry"].includes(room?.readingStatus) ? room.readingStatus : "ready"
+      // "reading" belongs here too. Coerced to "ready" it was invisible, so the
+      // hub could not say a room was still being read and Finish could not tell
+      // that anything was outstanding.
+      readingStatus: ["ready", "manual", "needs-retry", "reading"].includes(room?.readingStatus) ? room.readingStatus : "ready"
     });
   });
 }
@@ -899,7 +920,11 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     const score = Number.isFinite(item?.score) ? item.score : 0;
     const current = merged.get(key);
     if (!current) {
-      merged.set(key, { key, label, score, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false, source: item?.source || "read" });
+      merged.set(key, {
+        key, label, score, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false,
+        condition: String(item?.condition || ""), note: String(item?.note || ""),
+        source: item?.source || "read"
+      });
       continue;
     }
     // A Landlord's correction is final. A later reading that disagrees must not
@@ -911,7 +936,15 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       // Seeing the same item from a second angle is the strongest signal available
       // on-device that it is really there, so it is counted rather than discarded.
       sightings: current.sightings + 1,
-      lastSeenAt: now
+      lastSeenAt: now,
+      // The better-evidenced look at the same object wins its condition too. A
+      // glimpse from the doorway should not overwrite a close pass that actually
+      // showed the limescale — and a condition the customer set themselves is
+      // never overwritten at all.
+      condition: current.conditionConfirmed
+        ? current.condition
+        : (score > current.score ? String(item?.condition || "") : current.condition) || current.condition,
+      note: score > current.score && item?.note ? String(item.note) : current.note
     });
   }
   return Object.freeze([...merged.values()]
@@ -930,9 +963,14 @@ export function correctInventoryItem(items, key, change = {}) {
   return Object.freeze(list.map((item) => {
     if (item.key !== key) return item;
     const renamed = typeof change.label === "string" ? change.label.trim().slice(0, 40) : "";
+    // A customer standing in the room can see whether their worktop is greasy
+    // better than any photograph can. Their answer is final.
+    const regraded = ["clean", "light", "medium", "heavy"].includes(change.condition) ? change.condition : "";
     return Object.freeze({
       ...item,
       label: renamed || item.label,
+      condition: regraded || item.condition,
+      conditionConfirmed: Boolean(regraded) || item.conditionConfirmed === true,
       // Renaming is itself a confirmation: the Landlord has looked at it and said
       // what it is, so a later automatic reading must not overwrite them.
       confirmed: change.confirmed === true || Boolean(renamed) || item.confirmed

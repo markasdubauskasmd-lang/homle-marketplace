@@ -3767,3 +3767,21 @@ textarea.inp{resize:vertical;line-height:1.6;font-size:15px}
 @media (prefers-reduced-motion:reduce){
   .det-box.show,.found-busy,.found-item{animation:none}
 }
+
+/* ── Condition on the found-item rows ──────────────────────────────────────
+   The grade is the answer being paid for, so it sits on the row rather than
+   behind a tap. Colour carries meaning here, so each grade also reads as a word
+   — "clean", "heavy" — for anyone who cannot separate the greens from the reds. */
+.found-grade{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:2px 6px;border-radius:99px;margin-left:2px;vertical-align:middle}
+.found-grade[data-grade="clean"]{background:rgba(46,212,122,.22);color:#7BE8AC}
+.found-grade[data-grade="light"]{background:rgba(255,255,255,.14);color:rgba(255,255,255,.86)}
+.found-grade[data-grade="medium"]{background:rgba(240,168,48,.22);color:#F5C877}
+.found-grade[data-grade="heavy"]{background:rgba(217,20,53,.26);color:#FF9AAB}
+/* Said out loud rather than only shown dimmer: an uncertain reading that looks
+   merely quiet still reads as a fact. */
+.found-name[data-unsure="true"]{opacity:.72}
+.found-name[data-unsure="true"]::after{content:" ?";opacity:.75;font-weight:700}
+
+/* Pressed. Confirmed on the press itself, before any work — the button used to
+   stay lit while a vision model was called, which reads as a dead control. */
+.button.saved{background:var(--scan-ok);border-color:var(--scan-ok);color:#0A0A0B}
