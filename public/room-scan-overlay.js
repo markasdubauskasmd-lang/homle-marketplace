@@ -8,10 +8,13 @@ import {
   cocoLabel,
   implausibleForRoom,
   frameSignature,
+  signatureDistance,
+  movementAdvice,
   shouldCaptureKeyframe,
   mergeRoomInventory,
   inventoryKey,
   resolveRoomCondition,
+  conditionTag,
   correctInventoryItem,
   detectionMinimumScore,
   joinSpokenText,
@@ -395,7 +398,7 @@ export function openRoomScan() {
       // pass. Both are recreated on demand, so an orientation change is safe.
       detectCanvas: null, viewRect: null,
       // Framing guidance, sampled off the detector's own frame.
-      lastQualityAt: 0, qualityKind: "", qualityMessage: "", qualityCanvas: null,
+      lastQualityAt: 0, qualityKind: "", qualityMessage: "", qualityCanvas: null, motionDistances: [],
       notesForgotten: false,
       // Detection boxes, reused between passes and keyed by tracker id.
       boxNodes: new Map(),
@@ -855,7 +858,10 @@ export function openRoomScan() {
         // collide with one of them.
         state.candidates = usableLiveBoxes((room.detections || []).map((detection, index) => ({
           id: `s${index}`, x: detection.x, y: detection.y, width: detection.width, height: detection.height,
-          label: detection.label, note: detection.note || "", kind: "detected", score: 1
+          label: detection.label, note: detection.note || "", kind: "detected", score: 1,
+          // The reader's verdict about this object, so the review paints it where
+          // the customer is actually looking — on the thing itself.
+          condition: detection.condition || "", soiling: detection.soiling || []
         })));
         state.selectedIds = new Set(state.candidates.map((box) => box.id));
         state.manualCount = 0;
@@ -1061,7 +1067,7 @@ export function openRoomScan() {
           const tag = document.createElement("span");
           tag.className = "det-tag";
           box.appendChild(tag);
-          node = { box, tag, className: "", geometry: "", label: null };
+          node = { box, tag, className: "", geometry: "", label: null, grade: "" };
           pool.set(item.id, node);
           el.detections.appendChild(box);
         }
@@ -1079,7 +1085,21 @@ export function openRoomScan() {
           node.box.style.cssText = geometry;
           node.geometry = geometry;
         }
-        const label = item.label || "";
+        // The grade colours the glow. Live boxes carry no condition, so the live
+        // view keeps its single neutral state; on the review, a limescaled tap
+        // reads amber or red AT the tap rather than only in the side list.
+        const grade = item.condition || "";
+        if (node.grade !== grade) {
+          if (grade) node.box.dataset.grade = grade; else delete node.box.dataset.grade;
+          node.grade = grade;
+        }
+        // What the tag says, in order of usefulness: the soiling seen ("Limescale"),
+        // else the item's name. Clean objects show their name only when selectable —
+        // a caption on every clean thing would bury the ones needing attention.
+        const conditionText = conditionTag(item);
+        const label = conditionText
+          ? (item.label ? `${item.label} · ${conditionText}` : conditionText)
+          : (item.label || "");
         if (node.label !== label) {
           node.tag.textContent = label;
           node.tag.hidden = !label;
@@ -2263,9 +2283,18 @@ export function openRoomScan() {
       state.previousSignature = state.signature;
       state.signature = frameSignature(pixels, width, height);
 
+      // A short memory of how fast the view is changing, for the movement hint.
+      // Two samples is ~1.8s of sustained motion — a deliberate sweep, not the
+      // single turn to a new wall that walking a room is supposed to involve.
+      state.motionDistances.push(signatureDistance(state.previousSignature, state.signature));
+      if (state.motionDistances.length > 3) state.motionDistances.shift();
+
       const samples = width * height;
       if (!samples || !pairs) return;
-      const advice = frameQualityAdvice({ luma: total / samples, detail: deltas / pairs });
+      // Lighting problems outrank movement: a dark room stays dark however
+      // slowly the phone moves, so that is the thing worth saying first.
+      const advice = frameQualityAdvice({ luma: total / samples, detail: deltas / pairs })
+        || movementAdvice(state.motionDistances);
       const key = advice ? advice.kind : "";
       if (key === state.qualityKind) return;
       state.qualityKind = key;

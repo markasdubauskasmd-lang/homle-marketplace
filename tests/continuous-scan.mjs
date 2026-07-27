@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   correctInventoryItem, frameSignature, inventoryKey, keyframeDefaults,
-  mergeRoomInventory, shouldCaptureKeyframe, signatureDistance
+  mergeRoomInventory, shouldCaptureKeyframe, signatureDistance, conditionTag, movementAdvice, usableLiveBoxes
 } from "../public/room-scan-model.js";
 
 // The scan used to be one shutter press per room, so whatever was not in that one
@@ -259,3 +259,46 @@ assert.match(overlay, /dismissed\.has\(inventoryKey\(detection\?\.label\)\)/, "A
 assert.match(overlay, /keyframeBudget\(roomName\)\.generation !== generation/, "A keyframe result is applied without checking its room still exists, so a late response can recreate an inventory that was deleted.");
 
 console.log("Continuous scan overlay tests passed: reads are driven by walking rather than a shutter, poor-quality frames are withheld, reads are bounded per room and drawn on their own canvas, findings reach the saved room, detections glow without misleading live labels, and the consent copy states the same per-room bound the code enforces.");
+
+/* ── The verdict is painted on the object, not only listed beside it ── */
+
+// The reader has known each object's condition since the per-item schema landed,
+// but the review screen painted every box in the same neutral state. The one
+// screen where the customer is looking straight at their own tap said nothing
+// about the tap. `conditionTag` is the word placed next to the object.
+assert.equal(conditionTag({ condition: "medium", soiling: ["limescale"] }), "Limescale", "A limescaled item is not captioned with what was actually seen.");
+assert.equal(conditionTag({ condition: "heavy", soiling: ["grease", "food-debris"] }), "Grease +1", "Multiple soiling types are not summarised; every extra word covers more camera.");
+assert.equal(conditionTag({ condition: "heavy", soiling: [] }), "Heavy build-up", "A graded item with no named soiling says nothing at all.");
+assert.equal(conditionTag({ condition: "clean", soiling: [] }), "", "A clean object is captioned, which buries the items needing attention under congratulations.");
+assert.equal(conditionTag({ condition: "", soiling: ["grease"] }), "", "An ungraded object claims a condition.");
+assert.equal(conditionTag(null), "", "A missing box produced a caption.");
+
+// The fields have to survive the box pipeline, or the paint stage has nothing
+// to paint. They were being stripped by usableLiveBoxes before.
+{
+  const [kept] = usableLiveBoxes([{ id: "a", x: 1, y: 1, width: 10, height: 10, label: "Tap", condition: "medium", soiling: ["limescale"], note: "white crust at the base" }]);
+  assert.equal(kept.condition, "medium", "usableLiveBoxes strips the condition, so the review paints every object the same neutral state again.");
+  assert.deepEqual([...kept.soiling], ["limescale"], "usableLiveBoxes strips the soiling, so the tag cannot say what was seen.");
+}
+assert.match(overlay, /node\.box\.dataset\.grade = grade/, "The review boxes never receive their grade, so the glow cannot carry the verdict.");
+assert.match(overlay, /condition: detection\.condition \|\| ""/, "Revisit drops each detection's condition before painting, so saved rooms review as all-neutral.");
+for (const grade of ["heavy", "medium", "light", "clean"]) {
+  assert.ok(styles.includes(`.det-box[data-grade="${grade}"]`), `No glow state exists for a ${grade} object, so its verdict is invisible on the object itself.`);
+}
+
+/* ── "Slow down" is said when it helps, and only then ── */
+
+// Sustained sweeping is the one problem the quality pass cannot see: a swept
+// frame can be bright and, at an instant, sharp. But the tracker loses its
+// locks and the keyframe picker (rightly) refuses to spend a read, so a whole
+// room can be walked with nothing found and no explanation.
+assert.ok(movementAdvice([0.2, 0.2]), "Two consecutive fast samples — a deliberate sweep — produced no guidance.");
+assert.equal(movementAdvice([0.01, 0.2]), null, "A single fast sample triggered the hint. That is just the customer turning to the next wall, which the scan exists to encourage.");
+assert.equal(movementAdvice([0.2, 0.01]), null, "The hint persists after the phone has settled.");
+assert.equal(movementAdvice([]), null, "No samples produced advice.");
+assert.equal(movementAdvice([0.2]), null, "One sample is not a streak.");
+assert.equal(movementAdvice([NaN, 0.5, 0.5]) === null, false, "Garbage samples poisoned real ones.");
+// Lighting outranks movement: a dark room stays dark however slowly you move.
+assert.match(overlay, /frameQualityAdvice\(\{ luma: total \/ samples, detail: deltas \/ pairs \}\)\s*\|\| movementAdvice\(state\.motionDistances\)/, "Movement advice can pre-empt a lighting warning, telling someone to slow down in a room that is simply too dark.");
+
+console.log("Condition-on-object and movement guidance tests passed: graded objects carry their verdict and its colour on the object itself, clean objects stay quiet, the box pipeline preserves condition, and sustained sweeping earns one clearing hint that lighting problems outrank.");

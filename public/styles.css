@@ -3785,3 +3785,32 @@ textarea.inp{resize:vertical;line-height:1.6;font-size:15px}
 /* Pressed. Confirmed on the press itself, before any work — the button used to
    stay lit while a vision model was called, which reads as a dead control. */
 .button.saved{background:var(--scan-ok);border-color:var(--scan-ok);color:#0A0A0B}
+
+/* ── The glow carries the verdict ──────────────────────────────────────────
+   On review, an object's glow takes the colour of its condition, so the answer
+   sits on the thing itself rather than only in the side list. Grades are also
+   written as words in the tag — colour alone would exclude anyone who cannot
+   separate the greens from the reds. Same box-shadow/gradient technique as the
+   base glow: composites on the GPU, no blur filters over the camera. */
+.det-box[data-grade="heavy"]{
+  background:radial-gradient(ellipse at center,rgba(217,20,53,.26) 0%,rgba(217,20,53,.13) 45%,transparent 72%);
+  box-shadow:0 0 0 1.5px rgba(255,255,255,.34),0 0 16px 3px rgba(217,20,53,.62),0 0 38px 9px rgba(217,20,53,.30);
+}
+.det-box[data-grade="medium"]{
+  background:radial-gradient(ellipse at center,rgba(240,168,48,.22) 0%,rgba(240,168,48,.11) 45%,transparent 72%);
+  box-shadow:0 0 0 1.5px rgba(255,255,255,.32),0 0 15px 2px rgba(240,168,48,.55),0 0 34px 8px rgba(240,168,48,.26);
+}
+.det-box[data-grade="light"]{
+  background:radial-gradient(ellipse at center,rgba(255,255,255,.14) 0%,rgba(255,255,255,.07) 45%,transparent 72%);
+  box-shadow:0 0 0 1.5px rgba(255,255,255,.30),0 0 13px 2px rgba(255,255,255,.34),0 0 30px 7px rgba(255,255,255,.15);
+}
+/* Clean is quiet on purpose. It stays visible — "we looked, it is fine" is part
+   of the assessment — but the room's attention belongs to what needs work. */
+.det-box[data-grade="clean"]{
+  background:radial-gradient(ellipse at center,rgba(46,212,122,.12) 0%,rgba(46,212,122,.05) 45%,transparent 72%);
+  box-shadow:0 0 0 1px rgba(46,212,122,.35),0 0 10px 2px rgba(46,212,122,.22);
+  animation:none;opacity:.85;
+}
+.det-box[data-grade="heavy"] .det-tag{background:var(--scan-red-hot)}
+.det-box[data-grade="medium"] .det-tag{background:#B87A18}
+.det-box[data-grade="clean"] .det-tag{background:var(--scan-ok);color:#0A0A0B}
