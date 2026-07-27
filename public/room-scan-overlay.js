@@ -1704,7 +1704,12 @@ export function openRoomScan() {
         now: Date.now(),
         lastCaptureAt: budget.lastCaptureAt,
         capturedCount: budget.capturedCount,
-        busy: state.keyframeBusy
+        busy: state.keyframeBusy,
+        // Guidance is not cosmetic. A frame already judged too dark,
+        // overexposed or motion-soft must not become paid pricing evidence or
+        // consume one of the room's four reads. The view stays eligible after
+        // the Landlord corrects it because no budget state changes here.
+        qualityKind: state.qualityKind
       };
       if (!shouldCaptureKeyframe(decision)) return;
 

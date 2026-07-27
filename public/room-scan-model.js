@@ -862,10 +862,19 @@ export function signatureDistance(first, second) {
 
 export function shouldCaptureKeyframe({
   signature, previousSignature, lastReadSignature,
-  now = 0, lastCaptureAt = 0, capturedCount = 0, busy = false
+  now = 0, lastCaptureAt = 0, capturedCount = 0, busy = false,
+  qualityKind = ""
 } = {}, options = {}) {
   const { sceneChangeThreshold, stillnessThreshold, minIntervalMs, maxPerRoom } = { ...keyframeDefaults, ...options };
   if (busy || !Array.isArray(signature)) return false;
+  // The guidance pass has already established that this frame cannot support a
+  // reliable condition judgement. Sending it anyway used one of the room's four
+  // paid reads on the exact dark, blown-out or motion-soft image we had just told
+  // the Landlord to correct. It also made hallucinated labels more likely.
+  //
+  // Do not consume the read or update the last-read signature: once the lighting
+  // or framing improves, the same view remains eligible and can be captured well.
+  if (String(qualityKind || "").trim()) return false;
   if (capturedCount >= maxPerRoom) return false;
   if (now - lastCaptureAt < minIntervalMs) return false;
   // Nothing read yet: the first steady frame of a room is always worth reading.
