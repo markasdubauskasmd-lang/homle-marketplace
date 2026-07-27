@@ -5354,6 +5354,7 @@ async function serveFile(requestPath, response) {
     "/notifications": "notifications.html",
     "/cleaners": "cleaners.html",
     "/cleaner/dashboard": "cleaner-dashboard.html",
+    "/cleaner/schedule": "cleaner-schedule.html",
     "/cleaner/profile": "cleaner-profile.html",
     "/cleaner/availability": "cleaner-availability.html",
     "/cleaner/payouts": "cleaner-payouts.html",
@@ -5379,8 +5380,12 @@ async function serveFile(requestPath, response) {
     "/facebook-data-deletion": "facebook-data-deletion.html",
     "/terms": "terms.html"
   };
-  const activeJobRoute = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
-  const relative = activeJobRoute ? "active-job.html" : routes[requestPath] || requestPath.replace(/^\/+/, "");
+  const bookingId = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+  const activeJobRoute = new RegExp(`^/bookings/${bookingId}(?:/(?:tracking|cleaning-progress))?/?$`, "i").test(requestPath);
+  // Cleaner-facing pre-acceptance job view. Separate from the shared active-job screen:
+  // it shows the offer's scope, notes and access boundary before a decision is made.
+  const cleanerJobRoute = new RegExp(`^/cleaner/jobs/${bookingId}/?$`, "i").test(requestPath);
+  const relative = activeJobRoute ? "active-job.html" : cleanerJobRoute ? "cleaner-job.html" : routes[requestPath] || requestPath.replace(/^\/+/, "");
   const filePath = path.resolve(publicDir, relative);
   if (!filePath.startsWith(`${path.resolve(publicDir)}${path.sep}`)) return false;
 

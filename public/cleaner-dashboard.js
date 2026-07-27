@@ -303,8 +303,8 @@ function bookingCard(booking, pending = false) {
     : bookingSummaryStatusLabels[booking.status] || "Booking";
 
   const head = element("div", "hc-job-head");
-  const title = element(pending ? "h4" : "a", "hc-job-title", booking.cleaningType || "Cleaning");
-  if (!pending) title.href = `/bookings/${booking.bookingId}`;
+  const title = element("a", "hc-job-title", booking.cleaningType || "Cleaning");
+  title.href = `/cleaner/jobs/${booking.bookingId}`;
   head.append(title, element("p", "hc-job-addr", `${booking.propertyArea || "Area shared after confirmation"} · ${booking.counterpartyName || "Landlord"}`));
   const chips = element("div", "hc-job-chips");
   chips.append(
@@ -364,7 +364,7 @@ function bookingCard(booking, pending = false) {
       foot.append(link);
     }
     const details = element("a", "hc-job-link", "View details →");
-    details.href = `/bookings/${booking.bookingId}`;
+    details.href = `/cleaner/jobs/${booking.bookingId}`;
     foot.append(details);
     card.append(foot);
     if (booking.cleaningRequestId && booking.status !== "pending-cleaner-acceptance" && !["cancelled", "expired"].includes(booking.status)) card.append(requestScanPreview(booking));
