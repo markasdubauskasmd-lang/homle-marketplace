@@ -772,3 +772,165 @@ export function rosterSummary(rooms) {
     });
   });
 }
+
+/* ── Walking the room: choosing which frames are worth reading ──────────── */
+
+// The scan used to need a shutter press per room, so one frame was read and
+// whatever was not in shot was never found. Walking around instead means deciding,
+// continuously and on-device, which frames are worth the round trip.
+//
+// Three things have to be true at once, and each rules out a different waste:
+//
+//   * the view has genuinely CHANGED since the last frame that was read — else
+//     the same wall is read four times and the inventory learns nothing;
+//   * the view is currently STILL — a frame grabbed mid-swing is motion-blurred,
+//     and a blurred frame is exactly where a recogniser invents things;
+//   * a minimum interval has passed and the per-room cap is not spent — the cap
+//     is what keeps a walk around a big room from becoming twenty paid reads.
+//
+// Deliberately not a timer. A Landlord who stands still in a doorway for a minute
+// should cost one read, and one who walks a large kitchen should cost several.
+
+export const keyframeDefaults = Object.freeze({
+  // Distance, 0-1, between the current view and the last one read. Tuned so
+  // turning to a new wall counts and breathing does not.
+  sceneChangeThreshold: 0.12,
+  // Distance between consecutive frames. Below this the phone is being held
+  // still rather than swung.
+  stillnessThreshold: 0.045,
+  minIntervalMs: 1200,
+  // The bound on what one room can cost. Reached only by genuinely covering a
+  // room from several angles; most rooms settle in two or three.
+  maxPerRoom: 4
+});
+
+// A coarse grid of average brightness. Deliberately tiny: this is compared many
+// times a second, and the question is "is this a different view of the room", not
+// "what is in it". A 4x4 grid survives a hand tremor and changes when the phone
+// turns, which is exactly the sensitivity wanted.
+export function frameSignature(pixels, width, height, { grid = 4 } = {}) {
+  if (!pixels || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  const cells = new Array(grid * grid).fill(0);
+  const counts = new Array(grid * grid).fill(0);
+  for (let y = 0; y < height; y += 1) {
+    const row = Math.min(grid - 1, Math.floor((y / height) * grid));
+    for (let x = 0; x < width; x += 1) {
+      const column = Math.min(grid - 1, Math.floor((x / width) * grid));
+      const index = (y * width + x) * 4;
+      const cell = row * grid + column;
+      cells[cell] += pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
+      counts[cell] += 1;
+    }
+  }
+  for (let cell = 0; cell < cells.length; cell += 1) cells[cell] = counts[cell] ? cells[cell] / counts[cell] / 255 : 0;
+  return Object.freeze(cells);
+}
+
+// Mean absolute difference, 0 (identical) to 1 (opposite).
+export function signatureDistance(first, second) {
+  if (!Array.isArray(first) || !Array.isArray(second) || first.length !== second.length || !first.length) return 1;
+  let total = 0;
+  for (let index = 0; index < first.length; index += 1) total += Math.abs(first[index] - second[index]);
+  return total / first.length;
+}
+
+export function shouldCaptureKeyframe({
+  signature, previousSignature, lastReadSignature,
+  now = 0, lastCaptureAt = 0, capturedCount = 0, busy = false
+} = {}, options = {}) {
+  const { sceneChangeThreshold, stillnessThreshold, minIntervalMs, maxPerRoom } = { ...keyframeDefaults, ...options };
+  if (busy || !Array.isArray(signature)) return false;
+  if (capturedCount >= maxPerRoom) return false;
+  if (now - lastCaptureAt < minIntervalMs) return false;
+  // Nothing read yet: the first steady frame of a room is always worth reading.
+  if (!Array.isArray(lastReadSignature)) {
+    return Array.isArray(previousSignature) ? signatureDistance(previousSignature, signature) <= stillnessThreshold : true;
+  }
+  if (signatureDistance(lastReadSignature, signature) < sceneChangeThreshold) return false;
+  // A new view, but only once the phone has settled on it.
+  if (Array.isArray(previousSignature) && signatureDistance(previousSignature, signature) > stillnessThreshold) return false;
+  return true;
+}
+
+/* ── The room inventory ─────────────────────────────────────────────────── */
+
+// Items accumulate as the Landlord walks, rather than being replaced by whatever
+// the last frame happened to show. Read four times from four angles, a kitchen
+// ends up with the union of what was visible, not the contents of the final photo.
+
+// Deduplication happens on the label, because that is what a Landlord sees and
+// what the checklist prices. Two frames of the same radiator produce "Radiator"
+// twice, and one item is the honest answer. Plurals and articles are folded so
+// "the blinds" and "Blind" do not become two rows.
+export function inventoryKey(label) {
+  return String(label || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\b(?:the|a|an)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/(?:es|s)$/, "");
+}
+
+export const inventoryLimit = 40;
+
+// Merges a fresh reading into what the room already holds. Returns a new array;
+// nothing is mutated, so the caller can render from the result directly.
+export function mergeRoomInventory(existing, incoming, { now = 0, limit = inventoryLimit } = {}) {
+  const merged = new Map();
+  for (const item of Array.isArray(existing) ? existing : []) {
+    // The key an item was FIRST filed under, not one recomputed from its current
+    // label. Identity has to survive a rename: a Landlord who corrects "Radiator"
+    // to "Towel radiator" has told us what that thing is, and if the key moved
+    // with the label the next reading would file "Radiator" as a new item and put
+    // the row they just fixed straight back on the list.
+    const key = item?.key || inventoryKey(item?.label);
+    if (key) merged.set(key, { ...item, key });
+  }
+  for (const item of Array.isArray(incoming) ? incoming : []) {
+    const label = String(item?.label || "").trim().slice(0, 40);
+    const key = inventoryKey(label);
+    if (!key) continue;
+    const score = Number.isFinite(item?.score) ? item.score : 0;
+    const current = merged.get(key);
+    if (!current) {
+      merged.set(key, { key, label, score, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false, source: item?.source || "read" });
+      continue;
+    }
+    // A Landlord's correction is final. A later reading that disagrees must not
+    // quietly rename an item they have already put right.
+    merged.set(key, {
+      ...current,
+      label: current.confirmed ? current.label : (score > current.score ? label : current.label),
+      score: Math.max(current.score, score),
+      // Seeing the same item from a second angle is the strongest signal available
+      // on-device that it is really there, so it is counted rather than discarded.
+      sightings: current.sightings + 1,
+      lastSeenAt: now
+    });
+  }
+  return Object.freeze([...merged.values()]
+    // Most-confirmed first, then most confident: the things the room is surest
+    // about are the things the Landlord should check first.
+    .sort((a, b) => (b.sightings - a.sightings) || (b.score - a.score) || a.label.localeCompare(b.label, "en"))
+    .slice(0, limit)
+    .map((item) => Object.freeze(item)));
+}
+
+// Rename, remove and confirm, as one operation so the correction UI has a single
+// pure entry point rather than three ways to get the shape wrong.
+export function correctInventoryItem(items, key, change = {}) {
+  const list = Array.isArray(items) ? items : [];
+  if (change.remove) return Object.freeze(list.filter((item) => item.key !== key));
+  return Object.freeze(list.map((item) => {
+    if (item.key !== key) return item;
+    const renamed = typeof change.label === "string" ? change.label.trim().slice(0, 40) : "";
+    return Object.freeze({
+      ...item,
+      label: renamed || item.label,
+      // Renaming is itself a confirmation: the Landlord has looked at it and said
+      // what it is, so a later automatic reading must not overwrite them.
+      confirmed: change.confirmed === true || Boolean(renamed) || item.confirmed
+    });
+  }));
+}
