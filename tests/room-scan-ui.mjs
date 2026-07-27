@@ -297,7 +297,17 @@ assert(overlay.includes("function waitForCameraFrame") && overlay.includes('erro
 assert(overlay.includes("Number(video.readyState) >= 2") && overlay.includes("Number(video.readyState) < 2"), "The scanner treats camera dimensions as a usable picture before the browser has delivered a current video frame.");
 assert(/catch \(error\) \{[\s\S]{0,80}stopCamera\(\);[\s\S]{0,420}blockCamera\(/.test(overlay) && /function stopCamera\(\)[\s\S]{0,180}el\.camera\.srcObject = null/.test(overlay), "A failed or stalled camera stream is not released, so Try live camera again cannot recover.");
 assert(/function unfreeze\(\)[\s\S]{0,1000}if \(state\.stream\) startDetection\(\);\s*\n\s*else startCamera\(\)/.test(overlay), "Retaking after a backgrounded native capture cannot reacquire the live camera.");
-assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch("/api/marketplace/auth/session"') && overlay.includes('code: "sign-in-required"') && overlay.includes("automatic reading is unavailable"), "The room reader silently fails when a signed-in phone loses its in-memory security token or when the provider fails.");
+// The failure message moved into the background reader when saving stopped
+// waiting on the model. The guarantee is unchanged: a reader that fails must say
+// so and leave the room retryable, never fail silently.
+assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch("/api/marketplace/auth/session"') && overlay.includes('code: "sign-in-required"') && overlay.includes("automatic reading did not finish"), "The room reader silently fails when a signed-in phone loses its in-memory security token or when the provider fails.");
+// Saved first, read after. The room, its photograph and the customer's own note
+// are all in hand at press time, so nothing about that press needs a network
+// round trip — waiting on one is what made the button feel dead.
+assert(/readRoomInBackground\(\{ frame, roomName, chosen, spokenNote, session \}\)/.test(overlay), "Saving a room waits on the vision model again, so the confirm button blocks for as long as the provider and the connection take.");
+assert(/readingStatus: "reading"/.test(overlay), "A room saved before its reading completes is not marked, so the hub cannot show that it is still being read.");
+// A late reading must land only on the room it was started for.
+assert(/current\.readingStatus !== "reading"\) return;/.test(overlay), "A background reading is applied without checking the room is still awaiting one, so it could overwrite a room the customer has since edited or re-saved.");
 
 /* ── The room hub: choose, review, return, finish ──── */
 

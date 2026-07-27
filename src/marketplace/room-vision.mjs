@@ -23,13 +23,26 @@ const readingSchema = Object.freeze({
         type: "object",
         properties: {
           label: { type: "string", description: "The fixture or surface, e.g. 'Worktop', 'Shower screen'." },
-          note: { type: "string", description: "A short observation, e.g. 'limescale', 'heavy soil'. Empty if nothing notable." },
+          // Per item, not just per room. A kitchen is not one number: the worktop
+          // can be greasy while the window is merely dusty, and a cleaner is sent
+          // to do specific work on specific things. A single room grade could
+          // never answer "does this worktop need degreasing".
+          condition: { type: "string", enum: ["clean", "light", "medium", "heavy", "unknown"], description: "How soiled THIS object is. 'clean' means it genuinely needs no cleaning — that is a useful answer, not a failure. 'unknown' when this photograph cannot show it." },
+          // Free text produced 'limescale', 'lime scale', 'scale', 'water marks'
+          // and 'calcium' for one thing, which no downstream code could group.
+          soiling: {
+            type: "array",
+            description: "What is actually visible on it. Empty when clean or unknown.",
+            items: { type: "string", enum: ["dust", "grease", "limescale", "stain", "mould", "soap-scum", "food-debris", "pet-hair", "damage", "clutter"] }
+          },
+          confidence: { type: "number", description: "0-1, how sure you are of BOTH the label and the condition. Below 0.5 means genuinely unsure — say so rather than committing." },
+          evidence: { type: "string", description: "What you can actually see that supports the condition, e.g. 'white deposits around the tap base'. Empty when clean or unknown." },
           x: { type: "number", description: "Left edge as a percentage of image width, 0-100." },
           y: { type: "number", description: "Top edge as a percentage of image height, 0-100." },
           width: { type: "number", description: "Width as a percentage of image width." },
           height: { type: "number", description: "Height as a percentage of image height." }
         },
-        required: ["label", "note", "x", "y", "width", "height"],
+        required: ["label", "condition", "soiling", "confidence", "evidence", "x", "y", "width", "height"],
         additionalProperties: false
       }
     },
@@ -53,7 +66,31 @@ const instructions = [
   "- Name each object as a person would: 'Air fryer', 'Window', 'Floor', 'Extractor hood'. Not a category like 'appliance' or 'surface'.",
   "- Prefer naming the specific object over a general one: 'Air fryer' rather than 'small appliance', 'Shower screen' rather than 'glass'.",
   "- Do not report an object you cannot see. An empty list is a valid and useful answer.",
-  "- Judge condition from visible soiling: light, medium or heavy. If the photograph is too dark, blurred or partial to judge, use 'unknown' — never guess, because condition changes what the customer is charged.",
+  "",
+  "CONDITION IS THE POINT. Naming a worktop is easy; saying whether it needs degreasing is the answer the customer is paying for. Judge every object you name.",
+  "",
+  "What each kind of soiling actually looks like in a photograph:",
+  "- dust: a soft even grey film that dulls a surface, heaviest on horizontal edges — skirting, sills, shelf tops, the top of a door frame. Look for a visible line where a cleaned area meets an uncleaned one.",
+  "- grease: a patchy uneven sheen that catches the light, on and around cooking — hob, extractor, splashback, the wall behind a kettle. Often shows as darker glossy streaks or a speckle of spits.",
+  "- limescale: white or chalky-grey crusting and ring marks, only where water sits or runs — around tap bases, shower heads, the bottom of a shower screen, inside a kettle, toilet waterline. Not the same as a white surface.",
+  "- soap-scum: a dull cloudy film on glass and tiles in a bathroom, which makes a shower screen look permanently smeared.",
+  "- stain: a discrete mark of a different colour to the surface around it, with an edge — a ring on a worktop, a spill on a carpet.",
+  "- mould: black, dark green or pink speckling in the grout, in silicone sealant, on a window seal, in corners. Take it seriously and never confuse it with shadow.",
+  "- food-debris, pet-hair, clutter: loose material sitting on a surface rather than marking it. Clutter is things needing moving, not dirt.",
+  "- damage: chips, cracks, missing sealant, torn flooring. Not cleanable, but a cleaner needs to know.",
+  "",
+  "The scale, so it means the same thing every time:",
+  "- clean: you can see the surface clearly and there is nothing on it. Say 'clean' plainly — most of a well-kept home is clean, and reporting it as 'light' to seem useful is what makes the whole assessment untrustworthy.",
+  "- light: visible but thin, would come off with a wipe and a general spray.",
+  "- medium: clearly soiled, needs a dedicated product and effort on that one item.",
+  "- heavy: built up over time, needs soaking, scraping or repeated passes.",
+  "- unknown: this photograph cannot show you. Too small in frame, out of focus, in shadow, or you are looking at the wrong face of the object. Use it freely.",
+  "",
+  "Do not infer condition from the type of object. An oven is not heavy because ovens are usually dirty; a bathroom is not limescaled because bathrooms usually are. Report what THIS photograph shows, and 'unknown' when it shows you nothing.",
+  "State your evidence for anything other than clean or unknown — the specific thing you can see. If you cannot name the evidence, you are guessing, and the condition should be 'unknown'.",
+  "Set confidence honestly and low when the object is small in frame, blurred, dark or partly hidden. An uncertain answer that says so is useful; a confident wrong one changes what a customer is charged.",
+  "",
+  "- The room's overall condition is the weight of what you found across it, not the worst single item. One greasy hob does not make a tidy kitchen 'heavy'. Use 'unknown' if the photograph cannot support a judgement.",
   "- Write each task as a short imperative naming the surface, e.g. 'Degrease the worktops'. Only tasks this photograph justifies.",
   "- Never estimate floor area, room dimensions or measurements. You cannot measure from a photograph and a wrong figure would misprice the job.",
   "- Do not describe people, pets, screens, documents or anything identifying. Describe the room and its surfaces only."
@@ -72,6 +109,48 @@ function boundedText(value, limit) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, limit);
 }
 
+
+// Anything the model returns outside the enum becomes "" — no assessment — rather
+// than being coerced to a grade. A guess presented as a grade changes what a
+// customer is charged.
+const itemConditions = Object.freeze(["clean", "light", "medium", "heavy"]);
+function itemCondition(value) {
+  const supplied = String(value || "").toLowerCase().trim();
+  return itemConditions.includes(supplied) ? supplied : "";
+}
+
+const soilingKinds = Object.freeze(["dust", "grease", "limescale", "stain", "mould", "soap-scum", "food-debris", "pet-hair", "damage", "clutter"]);
+function soilingTypes(value) {
+  const supplied = Array.isArray(value) ? value : [];
+  const kept = [];
+  for (const entry of supplied) {
+    const kind = String(entry || "").toLowerCase().trim();
+    if (soilingKinds.includes(kind) && !kept.includes(kind)) kept.push(kind);
+  }
+  return Object.freeze(kept.slice(0, 4));
+}
+
+// Absent or unparseable confidence is treated as no confidence rather than as
+// full confidence, so a model that omits the field cannot silently assert one.
+function confidenceValue(value) {
+  const supplied = Number(value);
+  if (!Number.isFinite(supplied)) return 0;
+  return Math.max(0, Math.min(1, supplied));
+}
+
+const soilingWords = Object.freeze({
+  dust: "Dusty", grease: "Greasy", limescale: "Limescale", stain: "Stained",
+  mould: "Mould", "soap-scum": "Soap scum", "food-debris": "Food debris",
+  "pet-hair": "Pet hair", damage: "Damage", clutter: "Clutter"
+});
+function itemNote(detection) {
+  const kinds = soilingTypes(detection?.soiling).map((kind) => soilingWords[kind]).filter(Boolean);
+  const evidence = boundedText(detection?.evidence, 40);
+  if (kinds.length && evidence) return `${kinds.join(", ")} — ${evidence}`;
+  if (kinds.length) return kinds.join(", ");
+  return evidence;
+}
+
 function reading(payload) {
   // 'unknown' is carried through as no assessment rather than as a grade, so a
   // photograph that could not be judged never reads as a confident "Light".
@@ -79,7 +158,13 @@ function reading(payload) {
   const detections = (Array.isArray(payload?.detections) ? payload.detections : [])
     .map((detection) => ({
       label: boundedText(detection?.label, 28),
-      note: boundedText(detection?.note, 28),
+      condition: itemCondition(detection?.condition),
+      soiling: soilingTypes(detection?.soiling),
+      confidence: confidenceValue(detection?.confidence),
+      // The old free-text `note`, now derived so nothing downstream has to change
+      // shape. A named soiling type and the model's own evidence read better than
+      // either alone: "Limescale — white deposits around the tap base".
+      note: boundedText(itemNote(detection), 60),
       x: Number(detection?.x),
       y: Number(detection?.y),
       width: Number(detection?.width),

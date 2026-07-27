@@ -351,6 +351,7 @@ export function openRoomScan() {
       // event would drown the console; a running total answers the question that
       // actually gets asked when a scan looks wrong — is the room filter working,
       // or is it eating everything?
+      pendingReads: 0,
       diagnostics: { suppressedByRoom: 0, framesInferred: 0, detectorErrors: 0, keyframesRead: 0 },
       // Walking the room. `signature` and `previousSignature` are the coarse
       // brightness grids the quality pass already computes; the rest is what
@@ -711,7 +712,10 @@ export function openRoomScan() {
         button.type = "button";
         button.className = "hub-room";
         button.dataset.room = room.name;
-        const meta = room.readingStatus === "needs-retry"
+        const meta = room.readingStatus === "reading"
+          // Saved already — this is about the automatic naming, not the room.
+          ? "Saved · reading it now…"
+          : room.readingStatus === "needs-retry"
           ? "Automatic reading incomplete — tap to retry"
           : room.itemCount
           ? `${room.itemCount} object${room.itemCount === 1 ? "" : "s"} · ${room.conditionLabel}`
@@ -983,14 +987,22 @@ export function openRoomScan() {
       }
       const offsetX = Math.round((sourceWidth - regionWidth) / 2);
       const offsetY = Math.round((sourceHeight - regionHeight) / 2);
-      const scale = Math.min(1, 1280 / Math.max(regionWidth, regionHeight));
+      // 1600, not 1280. This frame is what the room's condition is graded from,
+      // and condition is decided by fine texture: the chalky ring at a tap base,
+      // the sheen of grease on a splashback, the grey film along a skirting
+      // board. Those are high-frequency detail, which is the first thing
+      // downscaling and JPEG throw away — so at 1280 the evidence was being
+      // destroyed before the model ever saw it, and no prompt could recover it.
+      const scale = Math.min(1, 1600 / Math.max(regionWidth, regionHeight));
       el.canvas.width = Math.max(1, Math.round(regionWidth * scale));
       el.canvas.height = Math.max(1, Math.round(regionHeight * scale));
       el.canvas.getContext("2d").drawImage(source, offsetX, offsetY, regionWidth, regionHeight, 0, 0, el.canvas.width, el.canvas.height);
-      // Quality is kept high here deliberately: this frame is what the room's
-      // condition is graded from, and condition changes what the customer is
-      // charged. Bytes are saved on the crops instead.
-      return el.canvas.toDataURL("image/jpeg", 0.82);
+      // 0.90, and deliberately generous. At 0.82 the compressor was smoothing
+      // away exactly the speckle and film that distinguish a limescaled tap from
+      // a white one. `roomReadingPayload` measures the real serialized size and
+      // drops crops before it drops this frame, so the budget is spent where the
+      // grading happens.
+      return el.canvas.toDataURL("image/jpeg", 0.90);
     }
 
     function currentFrame() {
@@ -1295,7 +1307,10 @@ export function openRoomScan() {
         el.canvas, rect.sx, rect.sy, rect.sWidth, rect.sHeight,
         0, 0, state.cropCanvas.width, state.cropCanvas.height
       );
-      return state.cropCanvas.toDataURL("image/jpeg", 0.72);
+      // A crop is a close-up of the one item whose condition is being judged, so
+      // it is the last place to save bytes. Small in absolute terms even at this
+      // quality, because it is a fraction of the frame.
+      return state.cropCanvas.toDataURL("image/jpeg", 0.88);
     }
 
     function askConsent() {
@@ -1364,39 +1379,32 @@ export function openRoomScan() {
         // An emptied room: no objects, and so no scoped tasks and no grade.
         room = { name: roomName, image: frame, detections: [], tasks: [], condition: "", transcript: spokenNote, readingStatus: "manual" };
       } else if (mustRead) {
-        el.flash.classList.remove("pop"); void el.flash.offsetWidth; el.flash.classList.add("pop");
-        el.mesh.classList.add("on");
-        el.viewfinder.classList.add("scanning");
-        el.hint.innerHTML = "<b>Reading the room…</b> one moment";
-        let reading = { detections: [], tasks: [], condition: "" };
-        let readingError = "";
-        try { reading = await readRoom(frame, roomName, chosen, spokenNote); } catch (error) {
-          readingError = error?.code === "sign-in-required"
-            ? "Room saved. Sign in to let Homle name objects automatically; you can still finish by hand."
-            : error?.code === "reading-timeout"
-              ? "Room saved. Automatic reading took too long; tap this room to retry."
-              : "Room saved, but automatic reading is unavailable. Tap this room to retry.";
-          reading = {
-            detections: chosen.map((box) => ({
-              id: box.id, label: box.label || "Marked item", note: box.note || "",
-              x: box.x, y: box.y, width: box.width, height: box.height
-            })),
-            tasks: localRoomTasks(roomName, spokenNote),
-            condition: existing.condition || "",
-            readingStatus: "needs-retry"
-          };
-        }
-        if (session !== state.roomSession || state.closed) return;
+        // SAVED FIRST, READ AFTER.
+        //
+        // This used to `await` the reading before the room existed and before the
+        // hub came back, so pressing the red button meant watching "Reading the
+        // room…" for as long as a vision model and a mobile connection took —
+        // several seconds, and longer on the stronger tier. Nothing about that
+        // wait was necessary: the room, its photograph, the objects the customer
+        // chose and their spoken note are all already in hand.
+        //
+        // So the room is saved immediately with what is known, marked `reading`,
+        // and the model call runs on its own. When it lands, the room is updated
+        // in place. `readingStatus` already existed for exactly this — a room
+        // that is saved but whose reading has not completed.
         room = {
           name: roomName, image: frame,
-          detections: reading.detections,
-          tasks: Array.isArray(reading.tasks) ? reading.tasks : [],
-          condition: reading.condition || "",
+          detections: chosen.map((box) => ({
+            id: box.id, label: box.label || "Marked item", note: box.note || "",
+            x: box.x, y: box.y, width: box.width, height: box.height
+          })),
+          tasks: localRoomTasks(roomName, spokenNote),
+          condition: existing?.condition || "",
           transcript: spokenNote,
-          readingStatus: reading.readingStatus || (readingError ? "needs-retry" : "ready")
+          readingStatus: "reading"
         };
-        if (readingError) toast(readingError);
-      } else {
+        readRoomInBackground({ frame, roomName, chosen, spokenNote, session });
+            } else {
         // Nothing changed: the objects, grade and tasks already stored are still
         // correct for the same photograph, so it saves without a call.
         room = {
@@ -1494,8 +1502,30 @@ export function openRoomScan() {
 
     async function confirmSelection() {
       if (!state.frozen) return;
-      const chosen = state.candidates.filter((box) => state.selectedIds.has(box.id));
-      await saveRoom(state.frozenFrame, chosen, { revisit: state.revisiting });
+      // Guarded here as well as inside saveRoom. `saveRoom` is async, so between
+      // a first press and its first await there is a window where a second press
+      // gets through — enough on a laggy phone for one tap to be registered
+      // twice and save the room twice.
+      if (state.capturing) return;
+      state.capturing = true;
+      // Acknowledged on the press itself, before any work. The button used to
+      // stay lit while a vision model was called, which reads as a dead button
+      // and invites the second press this now refuses.
+      el.readRoom.disabled = true;
+      el.readRoom.textContent = "Saved";
+      el.readRoom.classList.add("saved");
+      if (navigator.vibrate) { try { navigator.vibrate(12); } catch {} }
+      try {
+        const chosen = state.candidates.filter((box) => state.selectedIds.has(box.id));
+        // Released before saveRoom so its own guard governs from here.
+        state.capturing = false;
+        await saveRoom(state.frozenFrame, chosen, { revisit: state.revisiting });
+      } finally {
+        state.capturing = false;
+        el.readRoom.disabled = false;
+        el.readRoom.textContent = "Confirm room";
+        el.readRoom.classList.remove("saved");
+      }
     }
 
     async function captureSelectedPhoto(file) {
@@ -1722,7 +1752,16 @@ export function openRoomScan() {
             // Something the Landlord removed stays removed. Merging it back is the
             // fastest way to make a correction feel ignored.
             .filter((detection) => !dismissed.has(inventoryKey(detection?.label)))
-            .map((detection) => ({ label: detection.label, score: 0.9, source: "read" }));
+            .map((detection) => ({
+              label: detection.label,
+              // The reader's own confidence, not a constant. An item it was
+              // unsure about must not sort above one it was certain of, and the
+              // list is ordered by how sure the room is.
+              score: Number.isFinite(detection.confidence) ? detection.confidence : 0.5,
+              condition: detection.condition || "",
+              note: detection.note || "",
+              source: "read"
+            }));
           // Tasks and condition are kept even when no new object was named — a
           // second angle on the same room still tells us how dirty it is.
           rememberWalkEvidence(roomName, reading);
@@ -1763,6 +1802,20 @@ export function openRoomScan() {
         name.type = "button";
         name.className = "found-name";
         name.textContent = item.label;
+        // The condition sits on the row because it is the answer being paid for.
+        // A row that says only "Worktop" tells a customer nothing they did not
+        // already know about their own kitchen.
+        if (item.condition) {
+          const grade = document.createElement("em");
+          grade.className = "found-grade";
+          grade.dataset.grade = item.condition;
+          grade.textContent = item.condition === "clean" ? "clean" : item.condition;
+          name.append(" ", grade);
+        }
+        // Marked when the reader said it was unsure, so an uncertain answer never
+        // looks as settled as a confident one.
+        if (Number.isFinite(item.score) && item.score > 0 && item.score < 0.5) name.dataset.unsure = "true";
+        if (item.note) name.title = item.note;
         name.dataset.inventoryRename = item.key;
         name.setAttribute("aria-label", `Rename ${item.label}`);
 
@@ -1835,6 +1888,50 @@ export function openRoomScan() {
         state.keyframeBudgets.set(key, budget);
       }
       return budget;
+    }
+
+    // Runs after the room is already saved and the customer is back on the hub.
+    // Nothing here blocks them: they can name the next room, walk into it, or
+    // finish the scan while this is still in flight.
+    function readRoomInBackground({ frame, roomName, chosen, spokenNote, session }) {
+      state.pendingReads += 1;
+      renderHub();
+      readRoom(frame, roomName, chosen, spokenNote)
+        .then((reading) => {
+          // The scan may have been discarded, or this room removed and re-added,
+          // while the model was thinking. Updating a room that is no longer the
+          // one this reading is about would attach a kitchen's grade to a
+          // bathroom, so it lands only on the room it started for.
+          if (state.closed) return;
+          const current = findRoom(state.rooms, roomName);
+          if (!current || current.readingStatus !== "reading") return;
+          state.rooms = upsertRoom(state.rooms, {
+            ...current,
+            detections: reading.detections?.length ? reading.detections : current.detections,
+            tasks: Array.isArray(reading.tasks) && reading.tasks.length ? reading.tasks : current.tasks,
+            condition: resolveRoomCondition(reading.condition, current.condition),
+            readingStatus: reading.readingStatus || "ready"
+          });
+          renderHub();
+        })
+        .catch((error) => {
+          if (state.closed) return;
+          const current = findRoom(state.rooms, roomName);
+          // Marked for retry rather than lost. The room, its photograph and the
+          // customer's own note are already saved — only the automatic naming
+          // failed, and tapping the room tries again.
+          if (current?.readingStatus === "reading") {
+            state.rooms = upsertRoom(state.rooms, { ...current, readingStatus: "needs-retry" });
+          }
+          toast(error?.code === "sign-in-required"
+            ? `${roomName} saved. Sign in to let Homle name objects automatically.`
+            : `${roomName} saved, but automatic reading did not finish. Tap the room to retry.`);
+          renderHub();
+        })
+        .finally(() => {
+          state.pendingReads = Math.max(0, state.pendingReads - 1);
+          if (!state.closed) renderHub();
+        });
     }
 
     async function readRoom(image, roomName, items = [], transcript = "", purpose = "confirmation") {
