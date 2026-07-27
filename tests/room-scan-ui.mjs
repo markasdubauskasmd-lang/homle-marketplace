@@ -145,9 +145,12 @@ assert(overlay.includes('window.addEventListener("beforeunload", onBeforeUnload)
 assert(!overlay.includes("localStorage") && !overlay.includes("JSON.stringify(state.rooms"), "The discard safeguard persists private room photos or the scan roster in browser storage.");
 assert(/function finishScan\(\)[\s\S]{0,1200}photos: state\.rooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(overlay), "A completed scan does not hand its current room photos directly to the authenticated booking journey.");
 assert(!/sessionStorage\.setItem\([^)]*state\.rooms/.test(overlay) && !/sessionStorage\.setItem\([^)]*photos/.test(overlay), "Private room photos are written into browser storage instead of staying in the in-memory booking handoff.");
+assert(/function finishScan\(\)[\s\S]{0,1200}filter\(\(room\) => room\?\.image\)/.test(overlay), "A room photo is discarded merely because automatic object reading produced no tasks.");
 
 /* ── Real inputs, not a simulation ─────────────────── */
 assert(overlay.includes("navigator.mediaDevices.getUserMedia") && overlay.includes('facingMode: { ideal: "environment" }'), "The scan does not open a real rear camera.");
+assert(overlay.includes("width: { ideal: 1280, max: 1920 }") && overlay.includes("height: { ideal: 720, max: 1080 }") && overlay.includes("frameRate: { ideal: 24, max: 30 }"), "The scanner asks the phone for an unnecessarily expensive camera stream or no longer bounds capture quality.");
+assert(overlay.includes("requestVideoFrameCallback") && overlay.includes("cancelVideoFrameCallback") && overlay.includes("requestAnimationFrame"), "Detection work is not synchronized to real video frames with a compatibility fallback.");
 assert(overlay.includes("window.SpeechRecognition || window.webkitSpeechRecognition"), "The scan does not use real speech recognition.");
 assert(!overlay.includes("const NOTE =") && !overlay.includes("DETECTIONS["), "The scan carries a scripted transcript or hardcoded detections instead of reading the room.");
 assert(overlay.includes("roomTranscripts: new Map()") && overlay.includes("transcript: spokenNote") && overlay.includes("transcript: scanTranscript(state.rooms)"), "Spoken notes are not retained separately for each room and labelled in the final handoff.");
@@ -187,6 +190,8 @@ assert(overlay.includes("session !== state.roomSession"), "A stale room reading 
 
 // Assisted reading is optional; the scan must survive it being absent.
 assert(overlay.includes("state.visionAvailable = false") && overlay.includes("status === 503"), "The scan does not fall back when assisted reading is unavailable.");
+assert(overlay.includes("const controller = new AbortController()") && overlay.includes("signal: controller.signal") && overlay.includes("reading-timeout"), "A slow room-reading request can leave the scanner spinning indefinitely.");
+assert(overlay.includes("function localRoomTasks") && overlay.includes("checklistFromTranscript") && overlay.includes('readingStatus: "needs-retry"'), "A failed automatic room read loses the spoken instructions or gives no clear retry state.");
 
 /* ── On-device detection ───────────────────────────── */
 
@@ -242,6 +247,7 @@ assert(overlay.includes("function drawVisibleRegion"), "The capture no longer ma
 // Tapping empty space adds a box. Without this the scan loses every fixture
 // COCO has no class for — air fryer, shower, worktop, radiator, extractor.
 assert(overlay.includes("function onViewfinderTap") && overlay.includes('kind: "manual"'), "There is no way to mark something the detector cannot see.");
+assert(overlay.includes('document.createElement("button")') && overlay.includes('setAttribute("aria-pressed"') && overlay.includes("toggleDetectedItem"), "Detected objects cannot be selected or removed as accessible one-tap controls.");
 assert(/cropFor[\s\S]{0,220}if \(box\.kind !== "manual"\) return ""/.test(overlay), "Every selected item is cropped and sent, including ones already visible in the room frame.");
 
 // Rotating the phone while choosing changes the viewfinder's aspect ratio.
@@ -257,7 +263,7 @@ assert(/tapPoint[\s\S]{0,320}state\.frozen \? el\.detections : el\.viewfinder/.t
 // also apply on both ways of choosing: selecting an existing box as well as
 // adding one, or a thirteenth is accepted here and silently truncated server-side.
 assert(/function atSelectionLimit\(\)[\s\S]{0,120}selectionCount\(\) >= maximumSelectedItems/.test(overlay), "A full set of detections can block the Landlord from marking anything by hand.");
-assert((overlay.match(/if \(atSelectionLimit\(\)\) return toast\(selectionLimitMessage\)/g) || []).length === 2, "The selection cap is enforced when adding a box by hand but not when tapping one the detector found.");
+assert((overlay.match(/if \(atSelectionLimit\(\)\) return toast\(selectionLimitMessage\)/g) || []).length >= 2, "The selection cap is enforced when adding a box by hand but not when tapping one the detector found.");
 
 // The detector is shared across overlays, so the guard against overlapping
 // inference has to be shared too.
@@ -289,6 +295,7 @@ assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch
 // The room is chosen, not counted off in order of capture. The old
 // order-assigned naming must be gone from the flow.
 assert(overlay.includes("function enterRoom") && overlay.includes("[data-hub]") && overlay.includes("data-hub-choices"), "There is no hub to choose a room from before scanning.");
+assert(overlay.includes("data-live-progress") && overlay.includes("data-hub-progress") && overlay.includes("function renderScanProgress"), "The scanner has no simple progress indication while moving between rooms and review.");
 assert(!overlay.includes("nextRoomName"), "Rooms are still assigned by capture order instead of chosen.");
 assert(/for \(const preset of roomPresets\)[\s\S]{0,300}el\.hubChoices\.appendChild/.test(overlay), "The offered rooms (kitchen, bathroom, bedroom, living room) are not presented as choices.");
 
@@ -307,7 +314,7 @@ assert(/function openRevisit\(room, session\)[\s\S]{0,1800}room\.detections/.tes
 // An unchanged save reads nothing; a change — an object added OR removed — reads
 // again, so a task like "clean the oven" cannot outlive the oven and keep
 // pricing a job for it.
-assert(overlay.includes("const changed = chosen.some((box) => box.kind === \"manual\") || keptCount < originalCount || spokenChanged") && overlay.includes("const mustRead = (!revisit || changed) && !clearedRevisit"), "Editing a saved room either always calls the reader (slow) or leaves orphaned tasks or changed spoken notes out of its scope.");
+assert(overlay.includes("const changed = chosen.some((box) => box.kind === \"manual\") || keptCount < originalCount || spokenChanged") && overlay.includes('const mustRead = (!revisit || changed || existing.readingStatus === "needs-retry") && !clearedRevisit'), "Editing a saved room either always calls the reader (slow), cannot retry a failed read, or leaves orphaned tasks or changed spoken notes out of its scope.");
 
 // Async work is scoped to the room it started in. A read or a photo decode that
 // resolves after the Landlord has moved on must be dropped, never saved under

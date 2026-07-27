@@ -324,16 +324,41 @@ function intersectionOverUnion(a, b) {
   return union > 0 ? overlap / union : 0;
 }
 
+// A detector can report the same object twice in one frame (usually two nearly
+// identical boxes with the same class and slightly different confidence). If
+// both become tracks they look like two separate choices and can produce a
+// duplicate checklist item. Suppress only very heavy same-class overlaps so
+// neighbouring chairs, cushions or monitors remain separate objects.
+export function deduplicateDetections(detections, { iouThreshold = 0.68 } = {}) {
+  const source = (Array.isArray(detections) ? detections : [])
+    .filter((detection) => detection
+      && Number.isFinite(detection.x) && Number.isFinite(detection.y)
+      && Number.isFinite(detection.width) && Number.isFinite(detection.height)
+      && detection.width > 0 && detection.height > 0)
+    .map((detection, index) => ({ detection, index }))
+    .sort((a, b) => {
+      const scoreDifference = (Number(b.detection.score) || 0) - (Number(a.detection.score) || 0);
+      return scoreDifference || a.index - b.index;
+    });
+  const kept = [];
+  for (const { detection } of source) {
+    const duplicate = kept.some((existing) => existing.className === detection.className
+      && intersectionOverUnion(existing, detection) >= iouThreshold);
+    if (!duplicate) kept.push(detection);
+  }
+  return kept;
+}
+
 export function trackDetections(previousTracks, rawDetections, {
-  iouThreshold = 0.35, holdFrames = 6, smoothing = 0.4, minScore = 0.5, nextId = 1
+  iouThreshold = 0.35, duplicateIouThreshold = 0.68, holdFrames = 6, smoothing = 0.4, minScore = 0.5, nextId = 1
 } = {}) {
   const previous = Array.isArray(previousTracks) ? previousTracks : [];
-  const raw = (Array.isArray(rawDetections) ? rawDetections : [])
+  const raw = deduplicateDetections((Array.isArray(rawDetections) ? rawDetections : [])
     .filter((detection) => detection
       && Number.isFinite(detection.x) && Number.isFinite(detection.y)
       && Number.isFinite(detection.width) && Number.isFinite(detection.height)
       && detection.width > 0 && detection.height > 0
-      && (Number.isFinite(detection.score) ? detection.score : 0) >= minScore);
+      && (Number.isFinite(detection.score) ? detection.score : 0) >= minScore), { iouThreshold: duplicateIouThreshold });
 
   // Every candidate pair is scored and then consumed best-first. Matching each
   // track against the first raw box that clears the threshold would make the
@@ -611,7 +636,8 @@ export function rosterSummary(rooms) {
       // "3 objects" and a Landlord can spot a wrong room without reopening it.
       // Unnamed items are left out rather than padding the line with placeholders.
       itemLabels: Object.freeze(items.map((item) => String(item?.label || "").trim()).filter(Boolean)),
-      hasNote: Boolean(String(room?.transcript || "").trim())
+      hasNote: Boolean(String(room?.transcript || "").trim()),
+      readingStatus: ["ready", "manual", "needs-retry"].includes(room?.readingStatus) ? room.readingStatus : "ready"
     });
   });
 }
