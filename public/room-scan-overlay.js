@@ -1073,7 +1073,7 @@ export function openRoomScan() {
         node.box.disabled = !selectable;
         node.box.dataset.detectionId = item.id;
         node.box.setAttribute("aria-pressed", String(state.selectedIds.has(item.id)));
-        node.box.setAttribute("aria-label", `${state.selectedIds.has(item.id) ? "Remove" : "Select"} ${item.label || "marked item"}`);
+        node.box.setAttribute("aria-label", `${state.selectedIds.has(item.id) ? "Remove" : "Select"} ${item.label || "highlighted object"}`);
         const geometry = `left:${item.x}%;top:${item.y}%;width:${item.width}%;height:${item.height}%`;
         if (node.geometry !== geometry) {
           node.box.style.cssText = geometry;
@@ -1790,8 +1790,14 @@ export function openRoomScan() {
       if (!list) return;
       el.found.hidden = items.length === 0 && !state.keyframeBusy;
       el.foundBusy.hidden = !state.keyframeBusy;
-      el.foundCount.textContent = String(items.length);
-      el.foundNoun.textContent = items.length === 1 ? "item" : "items";
+      // Says how many need attention, not how many exist. "16 items found" over a
+      // list whose visible rows all read CLEAN told a customer nothing and looked
+      // like padding; what they want to know is how much work this room is.
+      const needsWork = items.filter((item) => item.condition && item.condition !== "clean").length;
+      el.foundCount.textContent = String(needsWork || items.length);
+      el.foundNoun.textContent = needsWork
+        ? `to clean${items.length > needsWork ? ` · ${items.length - needsWork} clean` : ""}`
+        : items.length === 1 ? "item" : "items";
 
       const rows = items.map((item) => {
         const row = document.createElement("li");
@@ -2065,7 +2071,20 @@ export function openRoomScan() {
     function liveBoxes() {
       return usableLiveBoxes(drawableTracks(state.tracks).map((track) => ({
         id: `d${track.id}`, x: track.x, y: track.y, width: track.width, height: track.height,
-        label: track.label, kind: "detected", score: track.score
+        // NO LABEL while the camera is live, deliberately.
+        //
+        // The on-device detector has eighty classes and none of them are the
+        // things in a real home, so it answers with its nearest guess and writes
+        // it across the object: BOWLS on a printer, PERSON on a monitor, BENCH on
+        // a bed, CHAIR on a PC tower. Every one of those was on screen at once in
+        // a real scan, and a wrong name printed confidently over the thing itself
+        // is worse than no name — it is the single most visible reason to
+        // disbelieve everything else the scanner says.
+        //
+        // The glow still does its job: it shows the scanner is awake, tracking,
+        // and has found something worth a look. What each thing IS comes from the
+        // reader, in the list below, where it is right often enough to print.
+        label: "", kind: "detected", score: track.score
       })));
     }
 
