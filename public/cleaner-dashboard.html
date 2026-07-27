@@ -13,12 +13,12 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260723-1">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260727-1">
-  <script src="/cleaner-dashboard.js?v=20260727-1" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260727-2">
+  <script src="/cleaner-dashboard.js?v=20260727-2" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
-<body class="cleaner-workspace-page">
+<body class="cleaner-workspace-page cleaner-dashboard-page">
   <a class="hc-skip" href="#cleaner-dashboard-main">Skip to Cleaner dashboard</a>
 
   <div class="hc">
@@ -29,42 +29,51 @@
         </div>
         <div>
           <div class="hc-brand-name">Homle</div>
-          <div class="hc-brand-role">Cleaner</div>
+          <div class="hc-brand-role">CLEANER</div>
         </div>
       </div>
 
       <nav class="hc-nav" aria-label="Cleaner navigation">
         <a class="hc-nav-item" href="/cleaner/dashboard" aria-current="page">
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12 12 4l9 8v8a1 1 0 0 1-1 1h-4v-6H8v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-          <span class="hc-nav-label">Jobs</span>
+          <span class="hc-nav-label">Dashboard</span>
+          <span class="hc-nav-dot" data-cleaner-pending-dot hidden></span>
         </a>
         <a class="hc-nav-item" href="/notifications" data-notification-link>
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-          <span class="hc-nav-label">Updates</span>
+          <span class="hc-nav-label">Messages</span>
           <span class="notification-nav-count" data-notification-count hidden></span>
         </a>
         <a class="hc-nav-item" href="/cleaner/availability">
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v4m8-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-          <span class="hc-nav-label">Availability</span>
+          <span class="hc-nav-label">My schedule</span>
         </a>
         <a class="hc-nav-item" href="/cleaner/payouts" data-cleaner-payout-link hidden>
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v10H3zM3 11h18M7 15h3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-          <span class="hc-nav-label">Payouts</span>
+          <span class="hc-nav-label">Earnings</span>
         </a>
+
+        <span class="hc-nav-group-label">ONBOARDING</span>
         <a class="hc-nav-item" href="/cleaner/profile">
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20a7 7 0 0 1 14 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-          <span class="hc-nav-label">Profile</span>
+          <span class="hc-nav-label">Your profile</span>
         </a>
+        <a class="hc-nav-item" href="/cleaner/availability">
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-5.3 7-11a7 7 0 1 0-14 0c0 5.7 7 11 7 11z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7"></circle></svg>
+          <span class="hc-nav-label">Work areas &amp; availability</span>
+        </a>
+
+        <span class="hc-nav-group-label">ACCOUNT</span>
         <a class="hc-nav-item" href="/cleaners" data-cleaner-public-profile hidden>
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Public directory</span>
         </a>
         <a class="hc-nav-item" href="/settings">
-          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><path d="M19.1 13.6a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-3-1.3l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0-1.2-2.9H2.4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-3l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 2.9-1.2V2.4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 3 1.2l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1.1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-2.7-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 4.6 15H4a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 11 4.6V4a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Settings</span>
         </a>
 
-        <a class="hc-nav-cta" href="/cleaner/profile" data-cleaner-profile-link>Continue setup <span class="hc-nav-cta-arrow" aria-hidden="true">↗</span></a>
+        <a class="hc-nav-cta" href="/cleaner/profile" data-cleaner-profile-link>Continue setup <span aria-hidden="true">↗</span></a>
       </nav>
 
       <div class="hc-side-foot">
@@ -74,13 +83,14 @@
               <span class="hc-avatar" data-account-avatar aria-hidden="true">H</span>
               <span class="hc-side-profile-body">
                 <span class="hc-side-profile-name" data-account-name>Your account</span>
-                <span class="hc-side-profile-sub" data-account-email>View public profile</span>
+                <span class="hc-side-profile-sub">View public profile</span>
               </span>
               <span class="hc-side-profile-chev" aria-hidden="true">›</span>
             </span>
           </summary>
           <div class="account-menu-panel">
             <p class="eyebrow">Cleaner account</p>
+            <small data-account-email></small>
             <a href="/cleaner/profile">Professional profile</a>
             <a href="/settings">Account settings</a>
             <button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=work">Sign out</button>
@@ -93,173 +103,159 @@
     <main class="hc-main" id="cleaner-dashboard-main">
       <div class="hc-main-inner">
 
-        <section class="hc-card" data-cleaner-dashboard-gate role="status" aria-live="polite">
-          <p class="hc-eyebrow">Secure cleaner portal</p>
-          <h1 class="hc-h2" data-cleaner-gate-title>Checking secure Cleaner access…</h1>
-          <p class="hc-lede" data-cleaner-gate-copy>Requests and jobs open only inside the assigned Cleaner account.</p>
-          <div class="hc-hero-actions">
+        <section class="hc-gate" data-cleaner-dashboard-gate role="status" aria-live="polite">
+          <h1 class="hc-h3" data-cleaner-gate-title>Checking secure Cleaner access…</h1>
+          <p class="hc-card-sub" data-cleaner-gate-copy>Requests and jobs open only inside the assigned Cleaner account.</p>
+          <div class="hc-gate-actions">
             <a class="hc-btn" href="/login?intent=work" data-cleaner-sign-in hidden>Sign in as a Cleaner</a>
-            <a class="hc-btn hc-btn-quiet" href="/cleaner/dashboard" data-cleaner-workspace-link hidden>Open dashboard</a>
-            <button class="hc-btn hc-btn-quiet" type="button" data-cleaner-retry hidden>Try again</button>
+            <a class="hc-btn-outline" href="/cleaner/dashboard" data-cleaner-workspace-link hidden>Open dashboard</a>
+            <button class="hc-btn-outline" type="button" data-cleaner-retry hidden>Try again</button>
           </div>
         </section>
 
         <div data-cleaner-dashboard hidden>
 
           <div class="hc-feedback hc-feedback-error" data-cleaner-network-status role="status" aria-live="polite" hidden>
-            <strong>You are offline.</strong> Your jobs stay visible, but Homle will not send or automatically retry an accept or decline decision until the connection returns.
+            <strong>You are offline.</strong> Your current requests stay visible, but Homle will not send or automatically retry an accept or decline decision until the connection returns.
           </div>
 
-          <section class="hc-hero">
-            <div class="hc-identity">
-              <span class="hc-avatar" data-account-avatar aria-hidden="true">H</span>
-              <div>
-                <p class="hc-eyebrow">Signed in as Cleaner</p>
-                <strong class="hc-identity-name" data-account-name>Your account</strong>
-              </div>
-            </div>
-            <div class="hc-hero-top">
-              <div>
-                <p class="hc-eyebrow">Finish setting up</p>
-                <h1 class="hc-h1">Welcome, <span data-cleaner-name>Cleaner</span>.</h1>
-                <p class="hc-lede">Complete your checks, choose where you work, and start receiving jobs.</p>
-              </div>
-              <span class="hc-pill hc-pill-quiet" data-cleaner-profile-state>Checking…</span>
-            </div>
-            <p class="hc-boundary">Only Cleaner requests, job progress, availability and earnings setup appear here. Landlord properties and booking forms stay in the separate Landlord dashboard.</p>
+          <div class="hc-topline">
+            <span class="hc-portal-pill"><span class="hc-portal-dot" aria-hidden="true"></span> Secure cleaner portal</span>
+            <a class="hc-btn" href="/notifications">+ Job alerts</a>
+          </div>
 
+          <h1 class="hc-title">Welcome, <span data-cleaner-name>Cleaner</span>.</h1>
+          <p class="hc-lede">Finish your checks, choose where you work, and start receiving jobs.<br>Everything you upload and sign lives here.</p>
+
+          <div class="hc-identity">
+            <span class="hc-avatar" data-account-avatar aria-hidden="true">H</span>
             <div>
-              <div class="hc-progress-track" data-cleaner-progress-track role="progressbar" aria-labelledby="hc-progress-label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                <div class="hc-progress-fill" data-cleaner-progress-fill></div>
-              </div>
-              <p class="hc-hero-note" id="hc-progress-label"><span data-cleaner-profile-progress>0%</span> complete · saves as you go</p>
+              <span class="hc-identity-label">Signed in as Cleaner</span>
+              <strong class="hc-identity-name" data-account-name>Your account</strong>
             </div>
+          </div>
 
-            <div class="hc-hero-actions" data-cleaner-next>
-              <div class="hc-hero-next">
-                <p class="hc-eyebrow">Do this next</p>
-                <strong class="hc-hero-next-title" data-cleaner-next-title>Keep your profile ready</strong>
-                <p class="hc-hero-note" data-cleaner-next-copy>Complete your services and availability so suitable requests can reach you.</p>
+          <section class="hc-setup">
+            <div class="hc-setup-body">
+              <div class="hc-setup-eyebrow">FINISH SETTING UP</div>
+              <h2 class="hc-setup-title">Complete your checks.<br>Start earning.</h2>
+              <p class="hc-setup-copy">Work through the remaining steps — right to work, tax, availability and more. Homle verifies each document as you go, so you're job-ready the moment you're approved.</p>
+              <div class="hc-setup-actions">
+                <a class="hc-setup-cta" href="/cleaner/profile" data-cleaner-next-link>Continue registration <span aria-hidden="true">↗</span></a>
+                <span class="hc-setup-note"><span data-cleaner-steps-left>—</span> steps left · saves as you go</span>
               </div>
-              <a class="hc-btn" href="/cleaner/profile" data-cleaner-next-link>Continue registration <span aria-hidden="true">↗</span></a>
+              <div class="hc-setup-chips" data-cleaner-check-chips></div>
+            </div>
+            <div class="hc-phone" aria-hidden="true">
+              <div class="hc-phone-body">
+                <span class="hc-phone-label">HOMLE · SETUP</span>
+                <div class="hc-phone-row"><span class="hc-phone-tick">✓</span><span class="hc-phone-bar"></span></div>
+                <div class="hc-phone-row"><span class="hc-phone-tick">✓</span><span class="hc-phone-bar"></span></div>
+                <div class="hc-phone-row"><span class="hc-phone-tick hc-phone-tick-empty"></span><span class="hc-phone-bar hc-phone-bar-empty"></span></div>
+                <div class="hc-phone-row"><span class="hc-phone-tick hc-phone-tick-empty"></span><span class="hc-phone-bar hc-phone-bar-empty"></span></div>
+                <div class="hc-phone-foot">
+                  <div class="hc-phone-track"><div class="hc-phone-fill" data-cleaner-phone-fill></div></div>
+                  <div class="hc-phone-pct"><span data-cleaner-phone-pct>0</span>% COMPLETE</div>
+                </div>
+              </div>
             </div>
           </section>
 
-          <ul class="hc-stats">
-            <li class="hc-stat">
-              <span class="hc-stat-label">Pending offers</span>
-              <span class="hc-stat-value" data-cleaner-pending-count>0</span>
-              <span class="hc-stat-sub">awaiting your reply</span>
+          <section class="hc-card">
+            <div class="hc-card-head">
+              <div class="hc-card-head-body">
+                <div class="hc-card-title-row">
+                  <h3 class="hc-h3">Onboarding progress</h3>
+                  <span class="hc-status-chip" data-cleaner-profile-state>Checking…</span>
+                </div>
+                <p class="hc-card-sub">You're <span data-cleaner-profile-progress>0%</span> of the way there. Finish the remaining steps to go live.</p>
+              </div>
+              <a class="hc-btn" href="/cleaner/profile" data-cleaner-next-title>Resume setup ↗</a>
+            </div>
+            <div class="hc-progress" role="progressbar" aria-labelledby="hc-progress-label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-cleaner-progress-track>
+              <div class="hc-progress-fill" data-cleaner-progress-fill></div>
+            </div>
+            <p class="hc-sr" id="hc-progress-label" data-cleaner-next-copy>Onboarding progress</p>
+            <div class="hc-steps" data-cleaner-steps></div>
+          </section>
+
+          <div class="hc-section-head">
+            <h3 class="hc-h3">Pending jobs</h3>
+            <span class="hc-section-note"><span data-cleaner-pending-count>0</span> awaiting your reply · offers expire when the window closes</span>
+          </div>
+          <div class="hc-empty" data-cleaner-pending-empty>No pending offers right now — new jobs in your areas appear here first.</div>
+          <div class="hc-jobs" data-cleaner-pending-list></div>
+
+          <div class="hc-section-head">
+            <h3 class="hc-h3">Active and upcoming jobs</h3>
+            <span class="hc-section-note"><span data-cleaner-active-count>0</span> active · <span data-cleaner-upcoming-count>0</span> upcoming</span>
+          </div>
+          <div class="hc-empty" data-cleaner-job-empty>No confirmed jobs yet — accepting an offer creates a booking once Homle rechecks your availability.</div>
+          <div class="hc-jobs" data-cleaner-job-list></div>
+
+          <ul class="hc-tiles">
+            <li class="hc-tile">
+              <div class="hc-tile-label">JOBS AVAILABLE</div>
+              <div class="hc-tile-value" data-cleaner-jobs-available>—</div>
+              <div class="hc-tile-sub">in your areas · unlocks on approval</div>
             </li>
-            <li class="hc-stat">
-              <span class="hc-stat-label">Current jobs</span>
-              <span class="hc-stat-value" data-cleaner-active-count>0</span>
-              <span class="hc-stat-sub">in progress today</span>
+            <li class="hc-tile">
+              <div class="hc-tile-label">CURRENT JOBS</div>
+              <div class="hc-tile-value" data-cleaner-current-jobs>0</div>
+              <div class="hc-tile-sub" data-cleaner-current-sub>none assigned yet</div>
             </li>
-            <li class="hc-stat">
-              <span class="hc-stat-label">Upcoming</span>
-              <span class="hc-stat-value" data-cleaner-upcoming-count>0</span>
-              <span class="hc-stat-sub">confirmed ahead</span>
+            <li class="hc-tile">
+              <div class="hc-tile-label">COMPLETED</div>
+              <div class="hc-tile-value" data-cleaner-completed-jobs>0</div>
+              <div class="hc-tile-sub">lifetime cleans</div>
             </li>
-            <li class="hc-stat">
-              <span class="hc-stat-label">Completed</span>
-              <span class="hc-stat-value" data-cleaner-completed-jobs>0</span>
-              <span class="hc-stat-sub">lifetime cleans</span>
+            <li><a class="hc-tile" href="/cleaners" data-cleaner-overview-payout>
+              <div class="hc-tile-label">RATING</div>
+              <div class="hc-tile-value" data-cleaner-rating>—</div>
+              <div class="hc-tile-sub" data-cleaner-review-count>after your first cleans · view →</div>
+            </a></li>
+            <li class="hc-tile">
+              <div class="hc-tile-label">COMPLETED JOB VALUE</div>
+              <div class="hc-tile-value" data-cleaner-completed-value>£0.00</div>
+              <div class="hc-tile-sub">agreed Cleaner pay on completed jobs</div>
             </li>
-            <li class="hc-stat">
-              <span class="hc-stat-label">Rating</span>
-              <span class="hc-stat-value" data-cleaner-rating>New</span>
-              <span class="hc-stat-sub" data-cleaner-review-count>No approved reviews yet</span>
+            <li class="hc-tile">
+              <div class="hc-tile-label">CONFIRMED JOB VALUE</div>
+              <div class="hc-tile-value" data-cleaner-committed-value>£0.00</div>
+              <div class="hc-tile-sub">not yet completed or transferred</div>
             </li>
-            <li class="hc-stat">
-              <span class="hc-stat-label">Availability</span>
-              <span class="hc-stat-value" data-cleaner-availability-count>0</span>
-              <span class="hc-stat-sub">exact future windows</span>
-            </li>
-            <li class="hc-stat">
-              <span class="hc-stat-label">Completed job value</span>
-              <span class="hc-stat-value" data-cleaner-completed-value>£0.00</span>
-              <span class="hc-stat-sub">agreed pay, not a bank balance</span>
-            </li>
-            <li class="hc-stat">
-              <span class="hc-stat-label">Confirmed job value</span>
-              <span class="hc-stat-value" data-cleaner-committed-value>£0.00</span>
-              <span class="hc-stat-sub">not yet completed or transferred</span>
-            </li>
-            <li class="hc-stat">
-              <span class="hc-stat-label">Getting paid</span>
-              <span class="hc-stat-value" data-cleaner-payout-state>Not connected</span>
-              <span class="hc-stat-sub" data-cleaner-payout-copy>Payout service is not attached</span>
+            <li><a class="hc-tile" href="/cleaner/payouts">
+              <div class="hc-tile-label">GETTING PAID</div>
+              <div class="hc-tile-value" data-cleaner-payout-state>Not connected</div>
+              <div class="hc-tile-sub" data-cleaner-payout-copy>Payout service is not attached</div>
+            </a></li>
+            <li class="hc-tile">
+              <div class="hc-tile-label">AVAILABILITY</div>
+              <div class="hc-tile-value" data-cleaner-availability-count>0</div>
+              <div class="hc-tile-sub">exact future windows</div>
             </li>
           </ul>
 
-          <p class="hc-hero-note">Job value is not a bank balance or proof of payout. Transfers are verified separately through the private payout and payment records.</p>
-
-          <nav class="hc-quick-actions" aria-label="Cleaner account readiness">
-            <a href="/cleaner/availability">Manage availability</a>
-            <a href="/cleaner/payouts" data-cleaner-overview-payout hidden>Set up payouts</a>
-          </nav>
-
-          <section class="hc-section" aria-labelledby="hc-pending-title">
-            <div class="hc-section-head">
-              <div>
-                <p class="hc-eyebrow">Needs your decision</p>
-                <h2 class="hc-h2" id="hc-pending-title">Pending jobs</h2>
-                <p class="hc-section-sub">Offers show the exact time, area, scope and your offered pay.</p>
+          <div class="hc-split">
+            <section class="hc-panel">
+              <h4 class="hc-h4">Alerts &amp; reminders</h4>
+              <div class="hc-alerts" data-cleaner-alerts></div>
+            </section>
+            <section class="hc-panel">
+              <div class="hc-panel-head">
+                <h4 class="hc-h4">Messages from Homle</h4>
+                <a class="hc-section-link" href="/notifications">View all →</a>
               </div>
-              <span class="hc-pill hc-pill-quiet">Your account only</span>
-            </div>
-            <div class="hc-jobs" data-cleaner-pending-list></div>
-            <div class="hc-empty" data-cleaner-pending-empty>
-              <strong>No pending offers right now.</strong>
-              <p>New jobs in your areas appear here first.</p>
-            </div>
-          </section>
+              <div class="hc-msgs" data-cleaner-messages></div>
+            </section>
+          </div>
 
-          <section class="hc-section" aria-labelledby="hc-jobs-title">
-            <div class="hc-section-head">
-              <div>
-                <p class="hc-eyebrow">Confirmed work</p>
-                <h2 class="hc-h2" id="hc-jobs-title">Active and upcoming jobs</h2>
-              </div>
-            </div>
-            <div class="hc-jobs" data-cleaner-job-list></div>
-            <div class="hc-empty" data-cleaner-job-empty>
-              <strong>No confirmed jobs yet.</strong>
-              <p>Accepting an offer creates a booking only after Homle rechecks your availability and overlap constraints.</p>
-            </div>
-          </section>
-
-          <section class="hc-section" aria-labelledby="hc-alerts-title">
-            <div class="hc-section-head">
-              <div>
-                <p class="hc-eyebrow">Keeping you bookable</p>
-                <h2 class="hc-h2" id="hc-alerts-title">Alerts &amp; reminders</h2>
-              </div>
-            </div>
-            <!--
-              Document tracking (insurance renewal, NI confirmation, right-to-work
-              share codes) is part of the supplied design but has no backend: there
-              is no document upload, storage or verification in this codebase, and
-              private object storage is not configured. This keeps the design's card
-              treatment while saying so, rather than rendering a placeholder expiry
-              date that would read as a real record.
-            -->
-            <div class="hc-alerts">
-              <div class="hc-alert hc-pending-backend">
-                <span class="hc-alert-dot hc-alert-dot-red" aria-hidden="true"></span>
-                <span class="hc-alert-body">
-                  <span class="hc-alert-title">Document checks are not available here yet</span>
-                  <span class="hc-alert-sub">Insurance, right-to-work and DBS records are handled by the Homle team directly until document upload is live.</span>
-                </span>
-              </div>
-            </div>
-          </section>
+          <p class="hc-boundary">Job value is not a bank balance or proof of payout; transfers are verified separately through the private payout and payment records. Only Cleaner requests, job progress, availability and earnings setup appear here. Landlord properties and booking forms stay in the separate Landlord dashboard.</p>
 
           <details class="hc-history">
             <summary>Completed, closed and expired bookings <span data-cleaner-history-count>0</span></summary>
             <div class="hc-jobs" data-cleaner-history-list></div>
-            <div class="hc-empty" data-cleaner-history-empty><p>No earlier booking records.</p></div>
+            <div class="hc-empty" data-cleaner-history-empty>No earlier booking records.</div>
           </details>
 
           <div class="hc-feedback" data-cleaner-dashboard-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
