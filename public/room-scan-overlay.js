@@ -11,6 +11,7 @@ import {
   shouldCaptureKeyframe,
   mergeRoomInventory,
   inventoryKey,
+  resolveRoomCondition,
   correctInventoryItem,
   detectionMinimumScore,
   joinSpokenText,
@@ -1432,7 +1433,11 @@ export function openRoomScan() {
         room = {
           ...room,
           tasks: [...existingTasks, ...evidence.tasks.filter((task) => !seen.has(task.toLowerCase().trim()))],
-          condition: worseCondition(room.condition, evidence.condition)
+          // The confirmation grade wins when it committed to one. Merging it
+          // worst-wins with the walking grades let a passing glance override the
+          // read that is deliberately framed — and, once the tiers differ, the
+          // cheaper model override the dearer one.
+          condition: resolveRoomCondition(room.condition, evidence.condition)
         };
       }
 
@@ -1700,7 +1705,10 @@ export function openRoomScan() {
       const generation = budget.generation;
       renderInventory();
 
-      readRoom(image, roomName, [], roomTranscript(roomName))
+      // The one caller that is NOT a confirmation. Named explicitly rather than
+      // relying on the default, so adding a caller cannot quietly put a walking
+      // frame on the dearer tier.
+      readRoom(image, roomName, [], roomTranscript(roomName), "walking")
         .then((reading) => {
           // The room may have been removed while this was in flight. Landing its
           // result anyway would recreate an inventory the Landlord just deleted.
@@ -1829,7 +1837,7 @@ export function openRoomScan() {
       return budget;
     }
 
-    async function readRoom(image, roomName, items = [], transcript = "") {
+    async function readRoom(image, roomName, items = [], transcript = "", purpose = "confirmation") {
       const localDetections = items.map((item) => ({
         id: item.id, label: item.label || "Marked item", note: item.note || "",
         x: item.x, y: item.y, width: item.width, height: item.height
@@ -1850,7 +1858,7 @@ export function openRoomScan() {
       // The route rejects anything over its body limit with a 413 the Landlord
       // could only ever read as a generic failure, so the budget is settled here
       // rather than discovered on the way back.
-      const payload = roomReadingPayload({ roomName, transcript: String(transcript || "").slice(-1200), roomFrame: image, items: selected });
+      const payload = roomReadingPayload({ roomName, transcript: String(transcript || "").slice(-1200), roomFrame: image, items: selected, purpose });
       if (!payload.withinLimit) throw new Error("reading-too-large");
 
       const csrf = await recoverCsrf();

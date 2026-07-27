@@ -345,6 +345,11 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
   const body = () => ({
     roomName: String(request?.roomName || "").slice(0, 60),
     transcript: String(request?.transcript || "").slice(0, 1200),
+    // Which read this is. A walking frame only needs its objects named; a
+    // confirmation produces the condition and the checklist the job is priced and
+    // timed from, so it can be answered by a stronger model. Normalised here and
+    // re-checked on the server, which never lets an unrecognised value escalate.
+    purpose: request?.purpose === "confirmation" ? "confirmation" : "walking",
     image: roomFrame,
     items: items
       .filter((item) => !dropped.has(item.id))
@@ -933,4 +938,29 @@ export function correctInventoryItem(items, key, change = {}) {
       confirmed: change.confirmed === true || Boolean(renamed) || item.confirmed
     });
   }));
+}
+
+/* ── Which condition grade wins ─────────────────────────────────────────── */
+
+// A room is graded by up to five reads: several opportunistic ones taken while
+// the customer walked, and one taken on the frame they deliberately framed and
+// confirmed. `condition` is what the job is priced from, so which of those wins
+// is a pricing decision, not a formatting one.
+//
+// The walking reads used to be merged worst-wins with the confirmation. That was
+// defensible when every read used the same model. It stops being defensible the
+// moment the confirmation runs on a stronger tier: a single jumpy "heavy" from a
+// passing glance would override the calibrated grade that was paid for — and
+// because worst-wins is one-directional, the error only ever runs one way,
+// towards over-charging a customer.
+//
+// So the confirmation is authoritative WHEN IT COMMITTED to a grade. Walking
+// reads fill in only when it returned "unknown", where their coverage genuinely
+// is the better evidence: a photograph framed from a doorway can fail to show
+// what a walk around the room saw.
+export function resolveRoomCondition(confirmed, observed) {
+  const authoritative = String(confirmed || "").toLowerCase();
+  if (authoritative && authoritative !== "unknown") return authoritative;
+  const fallback = String(observed || "").toLowerCase();
+  return fallback && fallback !== "unknown" ? fallback : "";
 }

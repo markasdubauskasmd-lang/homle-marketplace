@@ -618,9 +618,17 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             // the phone-camera fallback has no live viewfinder and so no boxes —
             // the whole frame is read exactly as before.
             const selectedItems = Array.isArray(body?.items) ? body.items : [];
+            // Which read this is, and therefore which model tier answers it.
+            //
+            // Compared against the exact string rather than passed through: this
+            // is a client-supplied field that selects a model which can cost five
+            // times more, so anything unrecognised — absent, misspelt, or
+            // hand-crafted — has to land on the cheaper tier. It can never
+            // escalate, only stay cheap.
+            const purpose = body?.purpose === "confirmation" ? "confirmation" : "walking";
             const result = selectedItems.length
               ? await roomVision.readSelectedItems({ image: body?.image, items: selectedItems, roomName: body?.roomName, transcript: body?.transcript })
-              : await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript });
+              : await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript, purpose });
             sendJson(response, 200, { ok: true, ...result });
           } catch (error) {
             // The scan must never be blocked by the reader being unavailable.

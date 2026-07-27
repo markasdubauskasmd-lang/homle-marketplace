@@ -294,6 +294,7 @@ ROOM_VISION_PROVIDER    = anthropic
 SPEECH_SUMMARY_PROVIDER = anthropic
 ANTHROPIC_API_KEY       = sk-ant-…   (secret)
 ROOM_VISION_MODEL       = claude-haiku-4-5
+ROOM_VISION_CONFIRMATION_MODEL = (unset)   optional; see below
 SPEECH_SUMMARY_MODEL    = claude-haiku-4-5
 ```
 

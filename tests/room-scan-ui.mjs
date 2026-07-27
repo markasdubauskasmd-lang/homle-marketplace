@@ -154,7 +154,14 @@ assert(overlay.includes("requestVideoFrameCallback") && overlay.includes("cancel
 assert(overlay.includes("window.SpeechRecognition || window.webkitSpeechRecognition"), "The scan does not use real speech recognition.");
 assert(!overlay.includes("const NOTE =") && !overlay.includes("DETECTIONS["), "The scan carries a scripted transcript or hardcoded detections instead of reading the room.");
 assert(overlay.includes("roomTranscripts: new Map()") && overlay.includes("transcript: spokenNote") && overlay.includes("transcript: scanTranscript(state.rooms)"), "Spoken notes are not retained separately for each room and labelled in the final handoff.");
-assert(/async function readRoom\(image, roomName, items = \[\], transcript = ""\)[\s\S]{0,1200}roomReadingPayload\(\{ roomName, transcript: String\(transcript/.test(overlay), "A room read still receives the global walkthrough instead of only that room's spoken note.");
+// The signature gained a `purpose` (which model tier answers the read); what this
+// guards is unchanged — a room read is given that room's note, not the whole
+// walkthrough, so one room's spoken instructions cannot be priced into another.
+assert(/async function readRoom\(image, roomName, items = \[\], transcript = "", purpose = "confirmation"\)[\s\S]{0,1200}roomReadingPayload\(\{ roomName, transcript: String\(transcript/.test(overlay), "A room read still receives the global walkthrough instead of only that room's spoken note.");
+// Defaulting to `confirmation` is deliberate: a new caller that forgets to say
+// what it is gets the accurate-but-dearer tier, never a cheap read of the frame
+// that sets the price. Only the walking loop opts down.
+assert(/readRoom\(image, roomName, \[\], roomTranscript\(roomName\), "walking"\)/.test(overlay), "The walking loop no longer marks its reads as walking, so every keyframe would be billed at the confirmation tier.");
 assert(overlay.includes("state.recognition !== recognition || generation !== state.voiceGeneration") && overlay.includes("recognition.onend = null"), "A delayed mobile speech callback can overwrite another room or stop a newly started recording.");
 assert(overlay.includes("data-room-note") && overlay.includes("Check what Homle heard") && overlay.includes("Correct anything before confirming this room"), "A Landlord cannot review or correct the transcript before it becomes the Cleaner work order.");
 assert(overlay.includes("data-note-open") && overlay.includes("Describe by voice or typing") && /if \(!Recognition\)[\s\S]{0,260}openNoteEditor\(\{ focus: true \}\)/.test(overlay), "A browser without speech recognition has no typed room-note path inside the scanner.");
