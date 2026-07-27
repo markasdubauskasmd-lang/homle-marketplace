@@ -270,6 +270,11 @@ assert(
 // before any of this existed.
 assert(overlay.includes("state.liveDetectionAvailable = false") && overlay.includes('state.detectorState = "unavailable"'), "A detector that fails to load is not degraded away cleanly.");
 assert(/catch[\s\S]{0,500}state\.liveDetectionAvailable = false/.test(overlay), "A detector that starts failing mid-scan can wedge the loop.");
+assert(
+  /function runKeyframePass\(generation\)[\s\S]{0,600}sampleFrameQuality\(video\)[\s\S]{0,180}maybeReadKeyframe\(video\)/.test(overlay)
+    && overlay.includes("room reading still runs automatically"),
+  "Losing the optional live glow also disables automatic room reading or falsely tells the Landlord the whole scanner stopped."
+);
 // A rejection arriving from a previous run must not wipe the boxes off a frame
 // the Landlord has since frozen and is choosing on.
 // The binding is optional — the catch takes an `error` so the failure can be logged —

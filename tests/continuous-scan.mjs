@@ -181,9 +181,25 @@ console.log("Continuous scan tests passed: frames are read only when the view ha
 const overlay = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
 
-// The whole point: reads happen while walking, not on a shutter press.
-assert.match(overlay, /maybeReadKeyframe\(video\)/, "The detection loop no longer triggers keyframe reads, so the scan is back to needing a shutter press per room.");
+// The whole point: reads happen while walking, not on a shutter press, and the
+// optional local glow model is not allowed to gate that core behaviour.
+assert.match(overlay, /maybeReadKeyframe\(video\)/, "The camera loop no longer triggers keyframe reads, so the scan is back to needing a shutter press per room.");
 assert.match(overlay, /shouldCaptureKeyframe\(decision\)/, "Keyframe capture no longer goes through the bounded decision, so a walk could fire an unbounded number of paid reads.");
+assert.match(
+  overlay,
+  /if \(state\.detectorState !== "ready"\) \{[\s\S]{0,180}runKeyframePass\(generation\)/,
+  "Automatic walking reads stop while the local object detector loads or after it becomes unavailable."
+);
+assert.match(
+  overlay,
+  /function runKeyframePass\(generation\)[\s\S]{0,600}sampleFrameQuality\(video\)[\s\S]{0,180}maybeReadKeyframe\(video\)/,
+  "The detector-independent fallback does not measure a fresh frame and send it through the bounded keyframe decision."
+);
+assert.doesNotMatch(
+  overlay.slice(overlay.indexOf("function startDetection()"), overlay.indexOf("function scheduleDetectionFrame")),
+  /if \(!state\.liveDetectionAvailable/,
+  "Restarting the camera after a detector failure disables the automatic walking-read loop."
+);
 
 // Its own canvas. Sharing `el.canvas` would let a read taken mid-walk replace the
 // frame the confirmation is graded from.
