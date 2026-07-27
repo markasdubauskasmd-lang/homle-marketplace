@@ -350,6 +350,12 @@ function dashboardMoney(pence) {
 
 function renderWorkOverview(summary, capabilities) {
   document.querySelector("[data-cleaner-profile-progress]").textContent = `${summary.profileCompletionPercent}%`;
+  // The progress bar is presentational; the percentage above stays the accessible value.
+  // Width is set through CSSOM rather than a style attribute so `style-src 'self'` still holds.
+  const progressTrack = document.querySelector("[data-cleaner-progress-track]");
+  const progressFill = document.querySelector("[data-cleaner-progress-fill]");
+  if (progressTrack) progressTrack.setAttribute("aria-valuenow", String(summary.profileCompletionPercent));
+  if (progressFill) progressFill.style.width = `${summary.profileCompletionPercent}%`;
   document.querySelector("[data-cleaner-profile-state]").textContent = summary.profilePublished
     ? capabilities.matchingReady ? "Published for matching" : capabilities.checked ? "Published · matching setup pending" : "Published · matching status unavailable"
     : summary.profileCompletionPercent === 100 ? "Ready to publish" : "Profile incomplete";

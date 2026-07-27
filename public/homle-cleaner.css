@@ -545,6 +545,184 @@
   border: 0;
 }
 
+.hc-identity { display: flex; align-items: center; gap: 12px; }
+.hc-identity-name { display: block; font-size: 14px; font-weight: 600; color: var(--hc-ink); }
+
+.hc-boundary {
+  font-size: 11.5px;
+  color: var(--hc-muted-4);
+  line-height: 1.5;
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--hc-rule);
+}
+
+.hc-hero-next { flex: 1; min-width: 220px; }
+.hc-hero-next-title { display: block; font-size: 15px; font-weight: 600; color: var(--hc-ink); margin-top: 2px; }
+
+.hc-quick-actions { display: flex; gap: 18px; flex-wrap: wrap; margin: 14px 0 4px; font-size: 13px; font-weight: 500; }
+
+.hc-history { margin: 28px 0; }
+.hc-history > summary {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--hc-ink-3);
+  padding: 13px 18px;
+  background: var(--hc-panel);
+  border-radius: 14px;
+  box-shadow: var(--hc-shadow-card-soft);
+}
+.hc-history > summary:hover { color: var(--hc-red-deep); }
+.hc-history[open] > summary { margin-bottom: 14px; }
+
+.hc-foot {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 36px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hc-rule);
+  font-size: 12px;
+  color: var(--hc-muted-2);
+}
+
+.hc-account-menu { position: relative; }
+.hc-account-menu > summary::marker { content: ""; }
+.hc-account-menu .account-menu-panel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--hc-panel);
+  border-radius: 16px;
+  box-shadow: var(--hc-shadow-card-hover);
+  padding: 14px 16px;
+  display: grid;
+  gap: 8px;
+  z-index: 15;
+  font-size: 13px;
+}
+.hc-account-menu .account-menu-panel .eyebrow {
+  font-size: 9.5px;
+  letter-spacing: 2px;
+  color: var(--hc-muted-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  margin: 0;
+}
+.hc-account-menu .account-sign-out {
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--hc-red-link);
+  cursor: pointer;
+}
+.hc-account-menu .account-sign-out:hover { text-decoration: underline; }
+
+/*
+ * cleaner-dashboard.js builds job cards with the class names below. They are
+ * styled here rather than renaming them in the module, so the accept/decline
+ * flow — including its offline handling, deadline locking and synchronous
+ * double-tap guards — is left exactly as it is.
+ */
+
+.hc .booking-summary-card {
+  background: var(--hc-panel);
+  border-radius: 20px;
+  box-shadow: var(--hc-shadow-card-soft);
+  padding: 20px 22px;
+  display: grid;
+  gap: 13px;
+}
+
+.hc .booking-summary-heading { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.hc .booking-summary-heading h3 { font-family: var(--hc-font-display); font-weight: 800; font-size: 16.5px; margin: 6px 0 0; color: var(--hc-ink); letter-spacing: -0.01em; }
+.hc .booking-summary-heading p { font-size: 12.5px; color: var(--hc-muted); margin: 3px 0 0; }
+
+.hc .booking-status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  font-weight: 600;
+  background: var(--hc-ground-alt);
+  color: var(--hc-muted);
+}
+
+.hc .booking-summary-price { text-align: right; flex: none; }
+.hc .booking-summary-price small { display: block; font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--hc-muted-3); font-weight: 600; }
+.hc .booking-summary-price strong { font-family: var(--hc-font-display); font-weight: 800; font-size: 22px; color: var(--hc-ink); line-height: 1.15; }
+
+.hc .booking-summary-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 0;
+  background: var(--hc-panel-tint);
+  border-radius: 12px;
+  padding: 13px 15px;
+}
+.hc .booking-summary-facts dt { font-size: 9.5px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--hc-muted-3); font-weight: 600; }
+.hc .booking-summary-facts dd { margin: 3px 0 0; font-size: 13px; color: var(--hc-ink-2); font-weight: 500; }
+
+.hc .booking-money-boundary,
+.hc .booking-accept-boundary { font-size: 11.5px; color: var(--hc-muted-4); line-height: 1.5; margin: 0; }
+
+.hc .booking-response-deadline {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hc-ink-3);
+  margin: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: var(--hc-ground-alt);
+  justify-self: start;
+}
+.hc .booking-response-deadline[data-kind="urgent"] { background: rgba(214, 58, 42, .10); color: var(--hc-red-deep); animation: hc-pulse 2s infinite; }
+.hc .booking-response-deadline[data-kind="expired"],
+.hc .booking-response-deadline[data-kind="unavailable"],
+.hc .booking-response-deadline[data-kind="closed"] { background: var(--hc-ground-alt); color: var(--hc-muted); }
+
+.hc .booking-summary-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+.hc .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 12px 22px;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: 0;
+  background: var(--hc-red);
+  color: #ffffff;
+  box-shadow: var(--hc-shadow-red);
+  text-decoration: none;
+}
+.hc .button:hover { background: var(--hc-red-hover); color: #ffffff; text-decoration: none; }
+.hc .button[disabled] { opacity: .55; cursor: not-allowed; box-shadow: none; }
+.hc .button.button-outline { background: transparent; color: var(--hc-ink-3); border: 1px solid var(--hc-rule-strong); box-shadow: none; }
+.hc .button.button-outline:hover { background: var(--hc-ground-alt); color: var(--hc-ink); }
+
+.hc .cleaner-request-scan { border-top: 1px solid var(--hc-rule); padding-top: 12px; }
+.hc .cleaner-request-scan > summary { font-size: 12.5px; font-weight: 600; color: var(--hc-red-link); }
+.hc .cleaner-request-scan-body { margin-top: 11px; display: grid; gap: 10px; }
+.hc .cleaner-request-scan-list,
+.hc .cleaner-request-task-list { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--hc-ink-2); display: grid; gap: 5px; }
+.hc .cleaner-request-task-room { font-size: 9.5px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--hc-muted-3); font-weight: 600; margin: 8px 0 3px; }
+.hc .cleaner-scan-photo-boundary,
+.hc .cleaner-scan-privacy { font-size: 11.5px; color: var(--hc-muted-4); line-height: 1.5; margin: 0; }
+.hc .cleaner-request-scan img { max-width: 100%; border-radius: 10px; border: 1px solid var(--hc-rule); }
+
 /* ----------------------------------------------------------- responsive -- */
 
 @media (max-width: 900px) {
