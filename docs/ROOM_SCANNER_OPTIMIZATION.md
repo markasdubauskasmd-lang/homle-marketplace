@@ -47,6 +47,7 @@ The existing scanner remains the single scanner used by the Landlord booking jou
 ### Better failure recovery
 
 - Automatic room reading has a bounded timeout. A slow provider no longer leaves the scanner spinning indefinitely.
+- A phone that is explicitly offline keeps object detection on-device and does not consume any of the room's four assisted-reading slots. A confirmed room remains in the open scan and its assisted reading resumes automatically after reconnection.
 - A timed-out or temporarily failed read keeps the captured image, chosen objects and spoken instructions.
 - Spoken notes are converted locally into room-labelled task bullets when assisted reading is unavailable.
 - A captured room photo is always handed to the authenticated booking journey, even if automatic analysis produces no tasks. Previously, such a photo could be silently omitted.

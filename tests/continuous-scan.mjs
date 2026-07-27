@@ -81,6 +81,14 @@ assert.ok(
   shouldCaptureKeyframe({ ...base, signature: bright, previousSignature: bright, lastReadSignature: grey, qualityKind: "" }),
   "A corrected frame remained blocked after its quality warning cleared."
 );
+assert.ok(
+  !shouldCaptureKeyframe({ ...base, signature: bright, previousSignature: bright, lastReadSignature: grey, online: false }),
+  "A known-offline phone consumed a room-read slot even though no request could leave the device."
+);
+assert.ok(
+  shouldCaptureKeyframe({ ...base, signature: bright, previousSignature: bright, lastReadSignature: grey, online: true }),
+  "A settled view did not become eligible again after the phone reconnected."
+);
 
 /* ── The bounds that keep a walk from becoming a bill ── */
 
