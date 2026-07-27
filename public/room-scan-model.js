@@ -902,6 +902,27 @@ export const inventoryLimit = 40;
 
 // Merges a fresh reading into what the room already holds. Returns a new array;
 // nothing is mutated, so the caller can render from the result directly.
+
+// How much a row earns its place on a phone screen.
+//
+// Dirt outranks everything: it is the thing being priced. Below that, an item the
+// reader was confident about outranks a guess. Anything already clean goes last —
+// still listed, because "we looked and it was fine" is worth something, just not
+// worth the top of the list.
+const conditionWeight = Object.freeze({ heavy: 400, medium: 300, light: 200, "": 100, clean: 0 });
+// Generic catch-alls the reader emits for almost any room. Real, cleanable, and
+// nearly always less interesting than the specific thing in front of the camera.
+const genericLabels = new Set(["wall", "walls", "floor", "floors", "ceiling", "surface", "surfaces", "clothing and textiles", "textiles", "furniture", "general"]);
+function usefulness(item) {
+  const weight = conditionWeight[String(item?.condition || "")] ?? 100;
+  const generic = genericLabels.has(String(item?.label || "").toLowerCase().trim()) ? -60 : 0;
+  // A correction is the strongest signal in the list: the customer looked at this
+  // one and told us what it is.
+  const corrected = item?.confirmed ? 50 : 0;
+  const sure = Math.round((Number(item?.score) || 0) * 40);
+  return weight + generic + corrected + sure;
+}
+
 export function mergeRoomInventory(existing, incoming, { now = 0, limit = inventoryLimit } = {}) {
   const merged = new Map();
   for (const item of Array.isArray(existing) ? existing : []) {
@@ -948,9 +969,20 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     });
   }
   return Object.freeze([...merged.values()]
-    // Most-confirmed first, then most confident: the things the room is surest
-    // about are the things the Landlord should check first.
-    .sort((a, b) => (b.sightings - a.sightings) || (b.score - a.score) || a.label.localeCompare(b.label, "en"))
+    // Ordered by USEFULNESS, not by how often it was seen.
+    //
+    // Sightings-first was a mistake with a very visible symptom. "Wall", "Floor"
+    // and "Bed" get named in every single frame, so they accumulated the most
+    // sightings and pinned themselves to the top of the list — while the printer,
+    // the laptops and the radiator appeared in one or two frames each, scored one
+    // sighting, and sank below the fold. A customer pointing their phone at a
+    // printer saw a list containing Wall, Floor and Bed, and concluded the
+    // scanner could not see. It could; the rows worth reading were at position 9.
+    //
+    // What a cleaning quote is actually about is what needs cleaning, so that
+    // sorts first. "Wall CLEAN" is the least useful row it is possible to show:
+    // true, unactionable, and occupying a slot on a phone screen.
+    .sort((a, b) => (usefulness(b) - usefulness(a)) || (b.sightings - a.sightings) || a.label.localeCompare(b.label, "en"))
     .slice(0, limit)
     .map((item) => Object.freeze(item)));
 }

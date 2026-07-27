@@ -97,8 +97,42 @@ assert.equal(inventoryKey("  Chest of Drawers "), inventoryKey("chest of drawers
 assert.equal(inventoryKey(""), "", "An empty label produced a key.");
 assert.equal(mergeRoomInventory([], [{ label: "   ", score: 1 }], { now: 1 }).length, 0, "A blank label was added to the inventory.");
 
-// Most-confirmed first: what the room is surest about is what to check first.
-assert.equal(inventory[0].sightings >= inventory.at(-1).sightings, true, "The inventory is not ordered by how well confirmed each item is.");
+/* ── The list is ordered by usefulness, not by repetition ── */
+
+// Reproduces a real scan. The customer walked a bedroom pointing at a printer,
+// two laptops and a PC tower. Every one of those appeared in one or two frames.
+// "Wall", "Floor" and "Bed" appear in EVERY frame, so under a sightings-first
+// sort they took every visible row, and the customer — looking at a list of Wall
+// CLEAN, Floor CLEAN, Bed MEDIUM while pointing at a printer — concluded the
+// scanner could not see. It could. The useful rows were below the fold.
+const walked = mergeRoomInventory([], [
+  { label: "Wall", score: 0.9, condition: "clean" },
+  { label: "Floor", score: 0.9, condition: "clean" },
+  { label: "Printer", score: 0.7, condition: "medium" }
+], { now: 1 });
+// The generic pair get seen again and again; the printer does not.
+let repeated = walked;
+for (let frame = 2; frame <= 6; frame += 1) {
+  repeated = mergeRoomInventory(repeated, [
+    { label: "Wall", score: 0.9, condition: "clean" },
+    { label: "Floor", score: 0.9, condition: "clean" }
+  ], { now: frame });
+}
+const wall = repeated.find((item) => item.label === "Wall");
+const printer = repeated.find((item) => item.label === "Printer");
+assert.ok(wall.sightings > printer.sightings, "This test no longer reproduces the situation it exists for — the generic items must be seen more often than the specific one.");
+assert.equal(
+  repeated[0].label, "Printer",
+  `The one thing needing cleaning was pushed below items seen more often: ${repeated.map((item) => `${item.label}/${item.condition}`).join(", ")}. A row reading "Wall CLEAN" is true, unactionable, and occupying a slot on a phone screen.`
+);
+assert.ok(
+  repeated.findIndex((item) => item.label === "Wall") > repeated.findIndex((item) => item.label === "Printer"),
+  "A clean generic surface still outranks a dirty specific object."
+);
+
+// A correction outranks the reader's own opinion: the customer looked at it.
+const regraded = correctInventoryItem(repeated, inventoryKey("Floor"), { condition: "heavy" });
+assert.equal(mergeRoomInventory(regraded, [], { now: 9 })[0].label, "Floor", "An item the customer graded themselves did not rise to the top.");
 assert.ok(mergeRoomInventory([], Array.from({ length: 60 }, (_, index) => ({ label: `Item ${index}`, score: 0.5 })), { now: 1 }).length <= 40, "The inventory is unbounded, so a long walk could render hundreds of rows on a phone.");
 
 /* ── A Landlord's correction is final ── */
