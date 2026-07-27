@@ -2148,8 +2148,10 @@ export function openRoomScan() {
         state.detectorState = "ready";
         renderDetectorState();
       }).catch(() => {
-        // The scan carries on exactly as it did before any of this existed:
-        // photographs, voice notes and boxes added by hand.
+        // The glow is optional, the automatic room reader is not. The lightweight
+        // frame-quality/keyframe loop below keeps running without WebGL or this
+        // model, so a phone that cannot load COCO still gets the promised
+        // walk-around room reading as well as photos, notes and manual marking.
         state.detectorState = "unavailable";
         state.liveDetectionAvailable = false;
         renderDetectorState();
@@ -2189,7 +2191,7 @@ export function openRoomScan() {
       if (state.detectorState === "unavailable") {
         el.detectorState.hidden = false;
         el.detectorState.dataset.kind = "off";
-        el.detectorState.textContent = "Automatic object finding is unavailable — tap anything in the frame to mark it yourself.";
+        el.detectorState.textContent = "Live object glow is unavailable — room reading still runs automatically. Tap anything to mark it yourself.";
         return;
       }
       el.detectorState.hidden = false;
@@ -2201,7 +2203,7 @@ export function openRoomScan() {
       // Only while the Landlord is actually pointing at a room. Behind the hub
       // the camera is warm but there is nothing to detect, so the loop stays off.
       if (state.screen !== "live" || state.closed || state.frozen || !state.stream) return;
-      if (!state.liveDetectionAvailable || state.rafId) return;
+      if (state.rafId) return;
       warmDetector();
 
       state.detectionGeneration += 1;
@@ -2210,13 +2212,32 @@ export function openRoomScan() {
         state.rafId = 0;
         if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
         scheduleDetectionFrame(step);
-        if (state.detectorState !== "ready" || detectorBusy) return;
+        // Frame selection and assisted reading are not a feature of COCO. While
+        // that optional model is loading—or when WebGL/model loading failed—the
+        // cheap quality pass still chooses settled views for the room reader.
+        if (state.detectorState !== "ready") {
+          runKeyframePass(generation);
+          return;
+        }
+        if (detectorBusy) return;
         const now = Date.now();
         if (now - state.lastDetectionAt < state.detectionInterval) return;
         state.lastDetectionAt = now;
         runDetection(generation);
       }
       scheduleDetectionFrame(step);
+    }
+
+    function runKeyframePass(generation) {
+      const video = el.camera;
+      if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
+      if (!video.videoWidth || !video.videoHeight) return;
+      // `sampleFrameQuality` owns its 900ms throttle and returns true only when a
+      // fresh signature was actually measured. This keeps the fallback far
+      // lighter than object inference and prevents repeated decisions on stale
+      // pixels.
+      if (!sampleFrameQuality(video)) return;
+      maybeReadKeyframe(video);
     }
 
     function scheduleDetectionFrame(callback) {
@@ -2269,9 +2290,9 @@ export function openRoomScan() {
     // than any extra work on the camera path. Sampled every few passes, not every
     // pass — a readback is the one genuinely synchronous thing here.
     function sampleFrameQuality(source) {
-      if (!source) return;
+      if (!source) return false;
       const now = Date.now();
-      if (now - state.lastQualityAt < QUALITY_SAMPLE_MS) return;
+      if (now - state.lastQualityAt < QUALITY_SAMPLE_MS) return false;
       state.lastQualityAt = now;
       // Its own small canvas, flagged for readback. Reading pixels back off the
       // detector's canvas would push that one off the GPU path it is there to use.
@@ -2286,7 +2307,7 @@ export function openRoomScan() {
         const context = canvas.getContext("2d", { willReadFrequently: true });
         context.drawImage(source, 0, 0, canvas.width, canvas.height);
         pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-      } catch { return; }
+      } catch { return false; }
       const { width, height } = canvas;
       let total = 0;
       let deltas = 0;
@@ -2311,13 +2332,14 @@ export function openRoomScan() {
       state.signature = frameSignature(pixels, width, height);
 
       const samples = width * height;
-      if (!samples || !pairs) return;
+      if (!samples || !pairs) return false;
       const advice = frameQualityAdvice({ luma: total / samples, detail: deltas / pairs });
       const key = advice ? advice.kind : "";
-      if (key === state.qualityKind) return;
+      if (key === state.qualityKind) return true;
       state.qualityKind = key;
       state.qualityMessage = advice ? advice.message : "";
       renderDetectorState();
+      return true;
     }
 
     // Measuring the viewfinder forces layout. It only changes when the window or
