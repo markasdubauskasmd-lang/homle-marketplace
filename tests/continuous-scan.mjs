@@ -132,9 +132,6 @@ assert.match(overlay, /shouldCaptureKeyframe\(decision\)/, "Keyframe capture no 
 // frame the confirmation is graded from.
 assert.match(overlay, /state\.keyframeCanvas/, "Keyframes are drawn on the shared capture canvas, which would overwrite the frame a room confirmation is about to be graded from.");
 
-// Each room gets its own budget and its own list.
-assert.match(overlay, /resetKeyframeBudget\(\)/, "The per-room read budget is never reset, so the first room would spend every read and later rooms would get none.");
-
 // The inventory has to reach the saved room, or it is a display that vanishes.
 assert.match(overlay, /Seen while scanning/, "Items found while walking are not folded into the saved room, so the checklist would still only know what was in the single confirmation frame.");
 
@@ -165,10 +162,23 @@ assert.match(glowBlock, /prefers-reduced-motion/, "The glow animations are not d
 // It used to say "the photo of each room is sent". Several frames per room are
 // sent now, automatically, and a consent that understates that is not consent.
 assert.match(overlay, /a few still frames from each room are sent/, "The consent copy still describes a single photo per room, which is no longer what happens.");
-assert.match(overlay, /up to four per room, never a video stream/, "The consent copy does not state the per-room bound, so a Landlord cannot tell how much of their home is being sent.");
-assert.ok(
-  keyframeDefaults.maxPerRoom === 4,
-  `The per-room cap is ${keyframeDefaults.maxPerRoom} but the consent copy promises four. The number a Landlord agreed to and the number the code enforces must be the same.`
+assert.match(overlay, /up to four while you walk, plus one when you confirm the room/, "The consent copy does not state the real per-room total. The confirmation read is a fifth frame, and a bound that omits it is not the bound a Landlord agreed to.");
+assert.equal(
+  keyframeDefaults.maxPerRoom, 4,
+  `The walking cap is ${keyframeDefaults.maxPerRoom} but the consent copy promises four while walking. The number a Landlord agreed to and the number the code enforces must be the same.`
 );
+// The budget is looked up per room, not reset on entry. Resetting it meant a lap
+// of the hallway bought another four reads of the same kitchen.
+assert.match(overlay, /function keyframeBudget/, "The keyframe budget is no longer looked up per room.");
+assert.doesNotMatch(overlay, /resetKeyframeBudget/, "The per-room budget is reset again on room entry, so walking out and back in buys a fresh set of paid reads.");
+// A refund on failure is a re-entry hole: the next steady view spends it again,
+// and a timeout can arrive after the provider has already been billed.
+const keyframeBody = overlay.slice(overlay.indexOf("function maybeReadKeyframe"), overlay.indexOf("function inventoryFor"));
+assert.doesNotMatch(keyframeBody, /capturedCount = Math\.max\(0, /, "A failed keyframe read refunds its attempt, which lets a failing room retry without bound.");
+// Consent has to be asked on the way in, or the first room is walked with nothing
+// being read while the hint promises otherwise.
+assert.match(overlay, /if \(!state\.consentAsked\) void askConsent\(\);/, "Consent is not requested when entering a room, so the first room reads nothing while telling the Landlord items save themselves.");
+// A removed room takes its findings and its spent budget with it.
+assert.match(overlay, /state\.inventories\.delete\(key\)/, "Removing a room leaves its found items behind, so re-adding the name resurrects them.");
 
 console.log("Continuous scan overlay tests passed: reads are driven by walking rather than a shutter, bounded per room and drawn on their own canvas, findings reach the saved room, labels are rendered as text, detections glow without a repaint-forcing blur, and the consent copy states the same per-room bound the code enforces.");

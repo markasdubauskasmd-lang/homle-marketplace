@@ -10,6 +10,7 @@ import {
   frameSignature,
   shouldCaptureKeyframe,
   mergeRoomInventory,
+  inventoryKey,
   correctInventoryItem,
   detectionMinimumScore,
   joinSpokenText,
@@ -146,7 +147,7 @@ const markup = `
     <div class="scan-consent-in">
       <h2>Read my rooms automatically?</h2>
       <p>Walk around and Homle picks out the fixtures and how dirty each room is as you go, so your checklist fills itself in.</p>
-      <p class="scan-consent-detail">To do that, <strong>a few still frames from each room are sent to our AI provider (Anthropic) to be read</strong>, along with what you say. Frames are taken automatically as you move to a new part of the room — up to four per room, never a video stream. They are read and discarded, not stored there. Nothing else about you, your address or your account is sent.</p>
+      <p class="scan-consent-detail">To do that, <strong>a few still frames from each room are sent to our AI provider (Anthropic) to be read</strong>, along with what you say. Frames are taken automatically as you move to a new part of the room — up to four while you walk, plus one when you confirm the room. Never a video stream. They are read and discarded, not stored there. Nothing else about you, your address or your account is sent.</p>
       <div class="scan-consent-actions">
         <button class="button" type="button" data-consent-allow>Yes, read my rooms</button>
         <button class="button ghost" type="button" data-consent-decline>No — just take the photos</button>
@@ -354,7 +355,11 @@ export function openRoomScan() {
       // brightness grids the quality pass already computes; the rest is what
       // decides whether the current view is worth a read.
       signature: null, previousSignature: null,
-      keyframe: { lastReadSignature: null, lastCaptureAt: 0, capturedCount: 0, busy: false },
+      // Per room, and NOT reset when the Landlord walks back in. A scalar counter
+      // reset on entry meant a lap of the hall bought another four reads of the
+      // same kitchen, and the consent promises a per-room bound, not a per-visit
+      // one. `busy` stays global: only one read is ever in flight.
+      keyframeBudgets: new Map(), keyframeBusy: false,
       // What the room has accumulated so far, keyed by room name. Survives the
       // Landlord walking out and back in, which one-shot capture never did.
       inventories: new Map(),
@@ -485,6 +490,12 @@ export function openRoomScan() {
       const key = transcriptKey(removedName);
       state.rooms = removeRoom(state.rooms, removedName);
       state.roomTranscripts.delete(key);
+      // What the walk found goes with it. Left behind, re-adding a room of the
+      // same name would resurrect items the Landlord had just removed — and the
+      // spent read budget goes too, because a removed room has genuinely not been
+      // read and should be scannable again.
+      state.inventories.delete(key);
+      state.keyframeBudgets.delete(key);
       rememberRoomNotes();
       if (transcriptKey(state.currentRoom) === key) state.currentRoom = "";
       discardMode = "scan";
@@ -756,15 +767,26 @@ export function openRoomScan() {
       if (!existing && !canAddRoom(state.rooms, name)) return toast("That's as many rooms as one scan can carry.");
       state.roomSession += 1;
       state.currentRoom = name;
-      // Each room gets its own read budget and its own found list. Without this a
-      // kitchen that used all four reads would leave the bathroom with none, and
-      // the kitchen's items would still be on screen.
-      resetKeyframeBudget();
+      // The found list is per room; the read budget is looked up per room too, so
+      // there is nothing to reset here. Re-entering a room deliberately keeps
+      // whatever of its budget has already been spent.
       renderInventory();
       const key = transcriptKey(name);
       if (!state.roomTranscripts.has(key)) setRoomTranscript(existing?.transcript || "", name);
       renderVoiceTranscript();
       showScreen("live");
+      // Asked on the way IN, not on the way out.
+      //
+      // Consent used to be requested when a room was confirmed, which was fine
+      // when confirming was also when the one photograph got read. Now the reading
+      // happens while the Landlord walks, so asking at the end meant the first room
+      // was walked with the hint promising "items save themselves" and nothing
+      // being read at all — the headline behaviour did not work until room two.
+      //
+      // Deliberately not awaited: the camera and the on-device highlight start
+      // immediately behind the sheet, so declining costs nothing and allowing does
+      // not stall the viewfinder.
+      if (!state.consentAsked) void askConsent();
       if (existing) openRevisit(existing, state.roomSession);
       else prepareLiveRoom();
     }
@@ -1609,14 +1631,15 @@ export function openRoomScan() {
     // which is most of what a cleaning quote actually turns on.
     function maybeReadKeyframe(video) {
       if (!state.readingAllowed || !state.visionAvailable || state.frozen || state.closed) return;
+      const budget = keyframeBudget(state.currentRoom);
       const decision = {
         signature: state.signature,
         previousSignature: state.previousSignature,
-        lastReadSignature: state.keyframe.lastReadSignature,
+        lastReadSignature: budget.lastReadSignature,
         now: Date.now(),
-        lastCaptureAt: state.keyframe.lastCaptureAt,
-        capturedCount: state.keyframe.capturedCount,
-        busy: state.keyframe.busy
+        lastCaptureAt: budget.lastCaptureAt,
+        capturedCount: budget.capturedCount,
+        busy: state.keyframeBusy
       };
       if (!shouldCaptureKeyframe(decision)) return;
 
@@ -1638,10 +1661,14 @@ export function openRoomScan() {
       } catch { return; }
       if (!image) return;
 
-      state.keyframe.busy = true;
-      state.keyframe.lastCaptureAt = decision.now;
-      state.keyframe.lastReadSignature = decision.signature;
-      state.keyframe.capturedCount += 1;
+      state.keyframeBusy = true;
+      budget.lastCaptureAt = decision.now;
+      budget.lastReadSignature = decision.signature;
+      // Counted BEFORE the request and never refunded. A failure that refunds the
+      // attempt is a re-entry hole: the next steady view spends it again, and a
+      // timeout or a 5xx can arrive long after the provider has already been
+      // billed, so a failed response does not mean a free one.
+      budget.capturedCount += 1;
       const roomName = state.currentRoom;
       renderInventory();
 
@@ -1658,12 +1685,11 @@ export function openRoomScan() {
           setInventory(roomName, mergeRoomInventory(inventoryFor(roomName), found, { now: Date.now() }));
         })
         .catch(() => {
-          // A failed read must not spend the room's budget. Walking on and trying
-          // the next view is the recovery, and it happens by itself.
-          state.keyframe.capturedCount = Math.max(0, state.keyframe.capturedCount - 1);
+          // Deliberately no refund. See the note where the count is spent.
+          state.diagnostics.detectorErrors += 1;
         })
         .finally(() => {
-          state.keyframe.busy = false;
+          state.keyframeBusy = false;
           if (!state.closed) renderInventory();
         });
     }
@@ -1675,8 +1701,8 @@ export function openRoomScan() {
       const items = inventoryFor();
       const list = el.foundList;
       if (!list) return;
-      el.found.hidden = items.length === 0 && !state.keyframe.busy;
-      el.foundBusy.hidden = !state.keyframe.busy;
+      el.found.hidden = items.length === 0 && !state.keyframeBusy;
+      el.foundBusy.hidden = !state.keyframeBusy;
       el.foundCount.textContent = String(items.length);
       el.foundNoun.textContent = items.length === 1 ? "item" : "items";
 
@@ -1719,12 +1745,17 @@ export function openRoomScan() {
       renderInventory();
     }
 
-    // Walking into a room starts its own budget. Without this, four reads spent in
-    // the kitchen would leave the bathroom with none.
-    function resetKeyframeBudget() {
-      state.keyframe.lastReadSignature = null;
-      state.keyframe.lastCaptureAt = 0;
-      state.keyframe.capturedCount = 0;
+    // Each room keeps its own budget for the life of the scan. Looked up rather
+    // than reset, so walking out of the kitchen and back in does not buy another
+    // four reads of it — the consent promises a bound per room, not per visit.
+    function keyframeBudget(roomName = state.currentRoom) {
+      const key = transcriptKey(roomName) || "unnamed";
+      let budget = state.keyframeBudgets.get(key);
+      if (!budget) {
+        budget = { lastReadSignature: null, lastCaptureAt: 0, capturedCount: 0 };
+        state.keyframeBudgets.set(key, budget);
+      }
+      return budget;
     }
 
     async function readRoom(image, roomName, items = [], transcript = "") {

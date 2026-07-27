@@ -307,7 +307,11 @@ assert(overlay.includes("state.rooms = upsertRoom(state.rooms, room)") && /funct
 assert(/for \(const button of el\.roomsOpen\)[\s\S]{0,120}toHub\(\)/.test(overlay), "There is no one-tap way back to the hub to switch or review rooms.");
 assert(overlay.includes('remove.className = "hub-room-remove"') && overlay.includes("remove.dataset.roomRemove = room.name") && overlay.includes("Remove ${room.name} from this scan"), "A Landlord cannot remove a room scanned by mistake from the room hub.");
 assert(/function showRoomRemoval\(rawName\)[\s\S]{0,520}mode: "room"[\s\S]{0,500}keepLabel: "Keep room"[\s\S]{0,140}confirmLabel: "Remove room"/.test(overlay), "Removing a scanned room happens immediately instead of requiring one clear keep-or-remove decision.");
-assert(/function confirmDiscardDecision\(\)[\s\S]{0,700}state\.rooms = removeRoom\(state\.rooms, removedName\)[\s\S]{0,180}state\.roomTranscripts\.delete\(key\)[\s\S]{0,280}renderHub\(\)/.test(overlay), "Confirmed room removal leaves its image in the roster, its note in the final transcript, or the visible room list stale.");
+// Widened, and strengthened: removing a room must now also take what the walk
+// found in it, or re-adding a room of the same name resurrects items the Landlord
+// deliberately removed.
+assert(/function confirmDiscardDecision\(\)[\s\S]{0,700}state\.rooms = removeRoom\(state\.rooms, removedName\)[\s\S]{0,180}state\.roomTranscripts\.delete\(key\)[\s\S]{0,700}renderHub\(\)/.test(overlay), "Confirmed room removal leaves its image in the roster, its note in the final transcript, or the visible room list stale.");
+assert(/state\.inventories\.delete\(key\)[\s\S]{0,120}state\.keyframeBudgets\.delete\(key\)/.test(overlay), "Removing a room leaves behind what the walk found in it and the reads it spent, so re-adding the same name brings back removed items.");
 assert(/el\.hub\.addEventListener\("click"[\s\S]{0,180}\[data-room-remove\][\s\S]{0,160}showRoomRemoval[\s\S]{0,140}\[data-room\]/.test(overlay), "The room hub treats the Remove control as an Edit action before opening its safety decision.");
 assert(styles.includes(".hub-room-row") && styles.includes(".hub-room-remove"), "The room-removal control has no mobile room-row presentation.");
 
