@@ -17,7 +17,7 @@ import {
   removeRoom,
   walkingReadIsBlocked
 } from "../public/room-scan-model.js";
-import { waitForCameraFrame } from "../public/room-scan-overlay.js";
+import { encodeCanvasJpeg, waitForCameraFrame } from "../public/room-scan-overlay.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -120,6 +120,57 @@ assert(dimensionsOnlyError?.name === "CameraNotReadyError", "Camera dimensions w
 let stalledCameraError = null;
 try { await waitForCameraFrame(new FakeCameraVideo(), 5); } catch (error) { stalledCameraError = error; }
 assert(stalledCameraError?.name === "CameraNotReadyError", "A camera stream that never produced a frame was treated as usable.");
+
+// A phone used to synchronously JPEG-compress every automatic walking frame on
+// the same thread that paints the camera. The Blob path must return control
+// before the bytes are ready, preserve the exact evidence settings, and never
+// touch the synchronous fallback in a browser that supports the modern APIs.
+const originalFileReader = globalThis.FileReader;
+let finishBlob = null;
+let synchronousEncodes = 0;
+let blobType = "";
+let blobQuality = 0;
+class FakeFileReader {
+  readAsDataURL() {
+    queueMicrotask(() => {
+      this.result = "data:image/jpeg;base64,ASYNC";
+      this.onload?.();
+    });
+  }
+}
+globalThis.FileReader = FakeFileReader;
+const asynchronousCanvas = {
+  toBlob(callback, type, quality) {
+    finishBlob = callback;
+    blobType = type;
+    blobQuality = quality;
+  },
+  toDataURL() {
+    synchronousEncodes += 1;
+    return "data:image/jpeg;base64,SYNC";
+  }
+};
+let asynchronousSettled = false;
+const asynchronousImage = encodeCanvasJpeg(asynchronousCanvas, 0.72)
+  .then((image) => { asynchronousSettled = true; return image; });
+await Promise.resolve();
+assert(!asynchronousSettled, "Walking-frame JPEG encoding still completes synchronously and can stall the live camera.");
+assert(typeof finishBlob === "function" && blobType === "image/jpeg" && blobQuality === 0.72, "The asynchronous encoder changed the walking frame's format or evidence quality.");
+finishBlob({ size: 12, type: "image/jpeg" });
+assert(await asynchronousImage === "data:image/jpeg;base64,ASYNC", "The asynchronous JPEG bytes do not reach the existing room-reading payload.");
+assert(synchronousEncodes === 0, "A modern browser still invokes synchronous toDataURL and can pause the viewfinder.");
+
+if (originalFileReader === undefined) delete globalThis.FileReader;
+else globalThis.FileReader = originalFileReader;
+let fallbackSettings = null;
+const fallbackImage = await encodeCanvasJpeg({
+  toDataURL(type, quality) {
+    fallbackSettings = { type, quality };
+    return "data:image/jpeg;base64,FALLBACK";
+  }
+}, 0.72);
+assert(fallbackImage === "data:image/jpeg;base64,FALLBACK", "A browser without toBlob lost the compatibility capture path.");
+assert(fallbackSettings?.type === "image/jpeg" && fallbackSettings?.quality === 0.72, "The compatibility encoder changed the walking frame evidence settings.");
 
 /* ── Embedded overlay ──────────────────────────────── */
 
