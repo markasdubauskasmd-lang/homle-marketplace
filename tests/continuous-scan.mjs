@@ -6,7 +6,7 @@ import {
   mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
   roomCoverageProgress, rosterSummary, scanSummary, shouldCaptureKeyframe,
   signatureDistance, walkingReadIsBlocked, conditionTag, movementAdvice,
-  savedDetectionFromInventoryItem, usableLiveBoxes
+  objectFramingAdvice, savedDetectionFromInventoryItem, usableLiveBoxes
 } from "../public/room-scan-model.js";
 
 // The scan used to be one shutter press per room, so whatever was not in that one
@@ -530,11 +530,36 @@ assert.equal(movementAdvice([0.2, 0.01]), null, "The hint persists after the pho
 assert.equal(movementAdvice([]), null, "No samples produced advice.");
 assert.equal(movementAdvice([0.2]), null, "One sample is not a streak.");
 assert.equal(movementAdvice([NaN, 0.5, 0.5]) === null, false, "Garbage samples poisoned real ones.");
+
+// Once the free on-device tracker has held an object steadily, its geometry can
+// tell the customer that every visible item is too small for reliable condition
+// detail. This costs no network call and disappears as soon as one object is
+// framed usefully. A one-frame guess or stale held track must never nag.
+const tinyStableObject = { width: 8, height: 10, seenFrames: 3, missedFrames: 0, score: 0.9 };
+assert.match(objectFramingAdvice([tinyStableObject])?.message || "", /Move closer/i, "A stable object covering less than one percent of the view receives no distance guidance.");
+assert.equal(objectFramingAdvice([{ ...tinyStableObject, seenFrames: 1 }]), null, "A one-frame detector guess tells the customer to move closer.");
+assert.equal(objectFramingAdvice([{ ...tinyStableObject, missedFrames: 1 }]), null, "A stale held track continues to issue framing guidance after the object has left view.");
+assert.equal(objectFramingAdvice([{ ...tinyStableObject, width: 20, height: 20 }]), null, "A usefully framed object still tells the customer to move closer.");
+assert.equal(objectFramingAdvice([
+  tinyStableObject,
+  { ...tinyStableObject, width: 20, height: 20 }
+]), null, "One tiny item overrides another object that already has enough condition detail.");
+assert.equal(objectFramingAdvice([{ ...tinyStableObject, width: NaN }]), null, "Malformed detector geometry produces framing guidance.");
 // Lighting outranks movement: a dark room stays dark however slowly you move.
 assert.match(
   overlay,
   /const quality = frameQualityStats\(pixels, width, height\);[\s\S]{0,4000}frameQualityAdvice\(quality\)\s*\|\| movementAdvice\(state\.motionDistances\)/,
   "The quality gate either ignores clipped shadows/highlights or lets movement advice pre-empt the lighting problem."
+);
+assert.match(
+  overlay,
+  /const framingMessage = objectFramingAdvice\(state\.tracks\)\?\.message \|\| ""[\s\S]{0,220}framingMessage !== state\.framingMessage[\s\S]{0,180}renderDetectorState\(\)/,
+  "Small-object framing is not derived from stable live tracks, or rewrites the guidance DOM on every inference frame."
+);
+assert.match(
+  overlay,
+  /const guidance = state\.qualityMessage \|\| state\.framingMessage/,
+  "The live view never turns stable small-object geometry into a move-closer prompt, or lets it pre-empt lighting and motion guidance."
 );
 assert.equal((overlay.match(/getImageData\(/g) || []).length, 1, "Uneven exposure added another synchronous camera readback.");
 assert.match(model, /const previousRow = new Float32Array\(columns\);[\s\S]{0,2000}Math\.abs\(luma - previousRow\[x\]\)/, "Frame sharpness still depends on edge direction because vertical neighbours are not measured.");

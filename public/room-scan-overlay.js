@@ -11,6 +11,7 @@ import {
   frameSignature,
   signatureDistance,
   movementAdvice,
+  objectFramingAdvice,
   shouldCaptureKeyframe,
   roomCoverageProgress,
   walkingReadIsBlocked,
@@ -519,7 +520,7 @@ export function openRoomScan() {
       // pass. Both are recreated on demand, so an orientation change is safe.
       detectCanvas: null, viewRect: null,
       // Framing guidance, sampled off the detector's own frame.
-      lastQualityAt: 0, qualityKind: "", qualityMessage: "", qualityCanvas: null, motionDistances: [],
+      lastQualityAt: 0, qualityKind: "", qualityMessage: "", framingMessage: "", qualityCanvas: null, motionDistances: [],
       notesForgotten: false,
       // Detection boxes, reused between passes and keyed by tracker id.
       boxNodes: new Map(),
@@ -993,6 +994,7 @@ export function openRoomScan() {
       state.signature = null;
       state.previousSignature = null;
       state.qualityMessage = "";
+      state.framingMessage = "";
       state.lastQualityAt = 0;
       unfreeze();
       el.hint.innerHTML = "Just walk around the room — items save themselves";
@@ -1408,6 +1410,7 @@ export function openRoomScan() {
       state.signature = null;
       state.previousSignature = null;
       state.qualityMessage = "";
+      state.framingMessage = "";
       state.lastQualityAt = 0;
       renderDetectorState();
       state.frozenFrame = "";
@@ -2460,13 +2463,18 @@ export function openRoomScan() {
       // the more useful thing to say about a live frame, and only one of the two
       // ever needs saying at a time.
       if (state.detectorState === "ready") {
-        if (!state.qualityMessage) {
+        // Lighting and motion outrank distance: moving closer cannot restore
+        // detail to a dark or swept frame. The distance hint comes only from
+        // stable, currently visible tracks and disappears when one object fills
+        // enough of the view for condition evidence.
+        const guidance = state.qualityMessage || state.framingMessage;
+        if (!guidance) {
           el.detectorState.hidden = true;
           return;
         }
         el.detectorState.hidden = false;
         el.detectorState.dataset.kind = "guide";
-        el.detectorState.textContent = state.qualityMessage;
+        el.detectorState.textContent = guidance;
         return;
       }
       if (state.detectorState === "unavailable") {
@@ -2699,6 +2707,15 @@ export function openRoomScan() {
         state.tracks = tracked.tracks;
         state.nextTrackId = tracked.nextId;
         paintBoxes(liveBoxes());
+        // Update the guidance only when its meaning changes. Detection can run
+        // several times a second; rewriting the live-region DOM on every frame
+        // would trade a helpful hint for viewfinder work and repeated screen-
+        // reader announcements.
+        const framingMessage = objectFramingAdvice(state.tracks)?.message || "";
+        if (framingMessage !== state.framingMessage) {
+          state.framingMessage = framingMessage;
+          renderDetectorState();
+        }
         // The shutter is no longer the only way a room gets read. Walking around
         // reads the views the Landlord actually stops on, and the inventory below
         // is the union of all of them rather than one photograph.
