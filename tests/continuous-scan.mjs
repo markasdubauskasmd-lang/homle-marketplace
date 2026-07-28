@@ -28,6 +28,17 @@ function flatFrame(value, width = 8, height = 8) {
   return { pixels, width, height };
 }
 // Half dark, half light — turning to face a window looks like this.
+function colourFrame(red, green, blue, width = 8, height = 8) {
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let index = 0; index < pixels.length; index += 4) {
+    pixels[index] = red;
+    pixels[index + 1] = green;
+    pixels[index + 2] = blue;
+    pixels[index + 3] = 255;
+  }
+  return { pixels, width, height };
+}
+
 function splitFrame(left, right, width = 8, height = 8) {
   const pixels = new Uint8ClampedArray(width * height * 4);
   for (let y = 0; y < height; y += 1) {
@@ -45,14 +56,23 @@ const grey = frameSignature(...Object.values(flatFrame(128)));
 const greyAgain = frameSignature(...Object.values(flatFrame(128)));
 const bright = frameSignature(...Object.values(flatFrame(230)));
 const split = frameSignature(...Object.values(splitFrame(40, 220)));
+// These have almost exactly the same perceived luminance:
+// 255 * .299 ~= 130 * .587. A brightness-only signature calls them the same
+// view even though a red sofa and green wall can contain entirely different
+// cleaning objects and condition evidence.
+const redView = frameSignature(...Object.values(colourFrame(255, 0, 0)));
+const equalLuminanceGreenView = frameSignature(...Object.values(colourFrame(0, 130, 0)));
 
+assert.equal(grey.length, 48, "The default room-view signature does not retain all three colour channels in its 4 × 4 grid.");
 assert.equal(signatureDistance(grey, greyAgain), 0, "Two identical frames were reported as different views, so a Landlord standing still would be charged for repeated reads.");
 assert.ok(signatureDistance(grey, bright) > keyframeDefaults.sceneChangeThreshold, "Turning from a wall to a window was not detected as a change of view.");
 assert.ok(signatureDistance(grey, split) > keyframeDefaults.sceneChangeThreshold, "A wholly different composition was not detected as a change of view.");
+assert.ok(signatureDistance(redView, equalLuminanceGreenView) > keyframeDefaults.sceneChangeThreshold, "Two differently coloured room areas with equal brightness were treated as the same view, so one could be skipped entirely.");
 assert.equal(signatureDistance(null, grey), 1, "A missing signature was not treated as maximally different.");
 assert.equal(signatureDistance(grey, [1, 2]), 1, "Mismatched signature sizes were compared rather than rejected.");
 assert.equal(frameSignature(null, 8, 8), null, "Missing pixels did not produce a null signature.");
 assert.equal(frameSignature(new Uint8ClampedArray(4), 0, 0), null, "A zero-sized frame did not produce a null signature.");
+assert.equal(frameSignature(new Uint8ClampedArray(4), 8, 8), null, "A truncated camera sample invented a usable room-view signature.");
 
 /* ── Which frames get read ── */
 
