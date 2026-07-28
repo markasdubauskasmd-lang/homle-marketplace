@@ -2,15 +2,23 @@
 
 ## What is implemented
 
-The Cleaner workspace is rebuilt from the supplied "Cleaner Onboarding Dashboard" design. Five routes now share one visual system defined in `public/homle-cleaner.css`:
+The Cleaner workspace is rebuilt from the supplied "Cleaner Onboarding Dashboard" design. Nine routes now share one visual system defined in `public/homle-cleaner.css`:
 
 - `/cleaner/dashboard` — welcome, setup panel, onboarding progress, pending and confirmed jobs, summary tiles, alerts and messages.
 - `/cleaner/schedule` — week grid with confirmed jobs and unanswered offers, week navigation, summary tiles, upcoming list.
 - `/cleaner/jobs/<bookingId>` — pre-acceptance job detail: scope, client photos, notes, access boundary, client card.
 - `/cleaner/reviews` — rating summary, approved review cards, star distribution.
 - `/cleaner/profile/preview` — the client-facing profile card exactly as the directory renders it, plus a go-live checklist.
+- `/cleaner/jobs-map` — the design's map screen.
+- `/cleaner/performance` — rank card, ladder, criteria tiles and guidance.
+- `/cleaner/registration` — all eighteen onboarding steps as cards.
+- `/cleaner/sign-off` — jobs eligible for completion.
 
-All five reuse the existing account gate, `dashboardWorkspaceAccess` role boundary and account menu. None introduces a new authentication or authorisation path.
+All nine reuse the existing account gate, `dashboardWorkspaceAccess` role boundary and account menu. None introduces a new authentication or authorisation path.
+
+Every page carries one canonical sidebar with the same twelve navigation items and the same active-state handling, so the navigation cannot drift between screens. Every item resolves to a real route: the workspace contains no dead links and no disabled navigation.
+
+`public/cleaner-page.js` carries what the secondary pages have in common — the gate, the offline banner and a bounded JSON reader — so that behaviour is defined once rather than repeated per page. It deliberately holds no mutating call.
 
 ## Content-Security-Policy boundary
 
@@ -42,12 +50,17 @@ The remaining nine — right to work, business details, tax and self-employment,
 
 A step is never marked complete to raise the percentage, and the identity/DBS/insurance chips never read "verified" for a record Homle does not hold. Document capture, expiry tracking and a vetting provider are all still outstanding; until they exist the workspace says so rather than implying a check has happened.
 
-## Surfaces present in the design without a backend
+## Pages whose data does not exist yet
 
-These keep the design's position and icon but are inert and marked `aria-disabled`, rather than shipping as links to nowhere:
+Each of these is a real, navigable route rendering the design's layout. What differs is the content: none presents a figure Homle did not compute.
 
-- **Jobs Map** — `MAP_PROVIDER` is `none`, and the design's own map page needs Leaflet plus OpenStreetMap tiles, which the CSP blocks.
-- **Performance** — Homle records no on-time, response-rate or rebook metrics.
+**Jobs map** keeps the frame's dimensions and treatment from the design but states that no map provider is configured, then lists every pending and confirmed job with a known area beneath it. `MAP_PROVIDER` is `none`, and the design's own map document loads Leaflet from unpkg with OpenStreetMap tiles — both blocked by this site's Content-Security-Policy, so an embedded map could not render even if the route existed.
+
+**Performance** renders the rank card, the four-tier ladder and the criteria tiles with no tier assigned. There is no ranking engine, and two of the four inputs the design names are not recorded anywhere. Completed jobs and approved rating carry real values; on-time arrival and cancellation rate report that they are not tracked, and the page says plainly that ranking is not live.
+
+**Registration** lists all eighteen steps as cards. The nine Homle can record link to the screen that edits them; the other nine are marked as not open yet. Collecting right to work, tax, insurance, references and the signed declarations needs document capture and a vetting provider, neither of which exists.
+
+**Sign-off** lists the jobs eligible for completion and opens `/bookings/<bookingId>` for each. It does not reimplement the completion flow — see below.
 
 Related omissions, each stated on the page rather than filled with placeholder values:
 
