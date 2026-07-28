@@ -6,7 +6,8 @@ import {
   mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
   roomCoverageProgress, rosterSummary, scanSummary, shouldCaptureKeyframe,
   signatureDistance, walkingReadIsBlocked, conditionReviewAdvice, conditionTag, movementAdvice,
-  objectFramingAdvice, savedDetectionFromInventoryItem, usableLiveBoxes
+  objectFramingAdvice, savedDetectionFromInventoryItem, usableLiveBoxes,
+  signatureChangeSpread, movementSpreadThreshold
 } from "../public/room-scan-model.js";
 
 // The scan used to be one shutter press per room, so whatever was not in that one
@@ -621,7 +622,10 @@ assert.equal(objectFramingAdvice([{ ...tinyStableObject, width: NaN }]), null, "
 // Lighting outranks movement: a dark room stays dark however slowly you move.
 assert.match(
   overlay,
-  /const quality = frameQualityStats\(pixels, width, height\);[\s\S]{0,4000}frameQualityAdvice\(quality\)\s*\|\| movementAdvice\(state\.motionDistances\)/,
+  // The hint now also receives the spread series, so it can tell a moving
+  // camera from a room whose lighting animates. The property this assertion
+  // guards is unchanged: lighting advice composes FIRST.
+  /const quality = frameQualityStats\(pixels, width, height\);[\s\S]{0,4000}frameQualityAdvice\(quality\)\s*\|\| movementAdvice\(state\.motionDistances, \{ spreads: state\.motionSpreads \}\)/,
   "The quality gate either ignores clipped shadows/highlights or lets movement advice pre-empt the lighting problem."
 );
 assert.match(
@@ -655,7 +659,7 @@ assert.equal((overlay.match(/condition: box\.condition \|\| "",\s*conditionConfi
 // is defined as 1, which would halve the streak the hint requires.
 assert.match(overlay, /if \(Array\.isArray\(state\.previousSignature\) && Array\.isArray\(state\.signature\)\) \{\s*state\.motionDistances\.push/, "Motion is measured against a missing signature, so the first sample of every room counts as a sweep.");
 // And the history dies with the room, or a doorway walk blocks the next room's first read.
-assert.match(overlay, /state\.motionDistances = \[\];\s*state\.signature = null;\s*state\.previousSignature = null;/, "Motion history survives a room change, so a fast sample from the hallway can hold back the new room's first paid read.");
+assert.match(overlay, /state\.motionDistances = \[\];\s*state\.motionSpreads = \[\];\s*state\.signature = null;\s*state\.previousSignature = null;/, "Motion history survives a room change, so a fast sample from the hallway can hold back the new room's first paid read — and the spread series must die with it or the two lists drift out of alignment.");
 
 // Removing a graded item from the selection must look different from keeping it.
 // The grade rules share specificity with `.picked` and come later, so without
@@ -680,3 +684,64 @@ assert.ok(styles.includes(".scan-debug{"), "The readout has no styling, so when 
 assert.ok(styles.includes(".scan-debug") && /\.scan-debug\{[^}]*pointer-events:none/.test(styles), "The readout intercepts taps meant for the viewfinder beneath it.");
 
 console.log("Condition-on-object and movement guidance tests passed: graded objects carry their verdict and its colour on the object itself, clean objects stay quiet, the box pipeline preserves condition, and sustained sweeping earns one clearing hint that lighting problems outrank.");
+
+/* ── A room that moves by itself is not a moving camera ── */
+
+// Reported from a real bedroom: "it says I am moving fast even though I am not."
+// The frame held a PC tower with colour-cycling fans and an LED wash on the
+// blinds. Colour-aware signatures (#117) register hue cycling as change, and the
+// global distance cannot tell a few cells changing violently from the whole view
+// shifting. Spread can: camera motion is widespread, scene activity is local.
+
+// 4x4 RGB signatures, 48 values. The fan room: three cells swing hue hard
+// between samples, thirteen are rock still.
+const steadyRoom = new Array(48).fill(0.5);
+function fanCycle(phase) {
+  const frame = [...steadyRoom];
+  for (const cell of [0, 1, 4, 5]) {
+    frame[cell * 3] = phase ? 0.95 : 0.1;      // red channel swings
+    frame[cell * 3 + 1] = 0.1;
+    frame[cell * 3 + 2] = phase ? 0.1 : 0.95;  // blue channel swings opposite
+  }
+  return frame;
+}
+// A real pan: every cell shifts a moderate, consistent amount.
+const pannedRoom = steadyRoom.map((value, index) => value + (index % 3 === 0 ? 0.18 : 0.12));
+
+const fanDistance = signatureDistance(fanCycle(0), fanCycle(1));
+const fanSpread = signatureChangeSpread(fanCycle(0), fanCycle(1));
+const panDistance = signatureDistance(steadyRoom, pannedRoom);
+const panSpread = signatureChangeSpread(steadyRoom, pannedRoom);
+
+// The premise of the bug, proven in the fixture: the fans clear the distance
+// threshold that used to be the only test.
+assert.ok(fanDistance > 0.09, `The fan fixture does not reproduce the report — its distance ${fanDistance.toFixed(3)} would never have fired the old hint either.`);
+assert.ok(fanDistance >= keyframeDefaults.sceneChangeThreshold, `The fan fixture (${fanDistance.toFixed(3)}) does not clear the scene-change threshold, so the paid-read assertion below would pass on the OLD code too and prove nothing about spread.`);
+assert.ok(fanSpread < movementSpreadThreshold, `The fan flicker reads as widespread (${fanSpread.toFixed(2)}), so spread cannot discriminate it.`);
+assert.ok(panSpread >= movementSpreadThreshold, `A genuine pan reads as localized (${panSpread.toFixed(2)}), so spread would silence real movement guidance.`);
+
+// The hint: fans no, pan yes.
+assert.equal(movementAdvice([fanDistance, fanDistance], { spreads: [fanSpread, fanSpread] }), null, "A customer standing still in front of colour-cycling fans is still told to slow down.");
+assert.ok(movementAdvice([panDistance, panDistance], { spreads: [panSpread, panSpread] }), "A genuine sustained pan no longer earns the hint at all — the fix over-corrected.");
+assert.equal(movementAdvice([panDistance, panDistance], { spreads: [panSpread, null] }), null, "A sample with no comparable signatures was treated as proven camera motion.");
+
+// Stillness stays strict — spread may only ever REFUSE a spend, never authorise
+// one. Review proved why with a case this fixture now pins: a door edge crossing
+// four cells during a slow pan is ALSO large-but-localized, and a spread
+// exemption on stillness would pay to read that exact blurred frame. So a
+// mid-cycle flicker sample is refused like any other unsettled frame (the fans
+// pause between hues, which is when the room reads — the reported room filled
+// all four views under the strict rule).
+assert.ok(!shouldCaptureKeyframe({ signature: fanCycle(1), previousSignature: fanCycle(0), lastReadSignature: null, now: 100000, lastCaptureAt: 0, capturedCount: 0, busy: false }), "A mid-flicker sample was treated as settled. Spread cannot tell lighting from a moving edge, so it must never stand in for stillness.");
+const edgeStep = [...steadyRoom];
+for (const cell of [3, 7, 11, 15]) { edgeStep[cell * 3] = 0.69; edgeStep[cell * 3 + 1] = 0.69; edgeStep[cell * 3 + 2] = 0.69; }
+const edgeDistance = signatureDistance(steadyRoom, edgeStep);
+const edgeSpread = signatureChangeSpread(steadyRoom, edgeStep);
+assert.ok(edgeDistance > 0.045 && edgeSpread < movementSpreadThreshold, `The edge-translation case (distance ${edgeDistance.toFixed(3)}, spread ${edgeSpread.toFixed(2)}) no longer models the review's blurred-pan scenario.`);
+assert.ok(!shouldCaptureKeyframe({ signature: edgeStep, previousSignature: steadyRoom, lastReadSignature: null, now: 100000, lastCaptureAt: 0, capturedCount: 0, busy: false }), "A slow pan whose motion lands in four high-contrast cells was read as a settled first frame — the exact blurred paid read the stillness rule exists to refuse.");
+// …and the flicker can no longer BUY a read of a wall already covered.
+assert.ok(!shouldCaptureKeyframe({ signature: fanCycle(1), previousSignature: fanCycle(1), lastReadSignature: fanCycle(0), now: 100000, lastCaptureAt: 0, capturedCount: 1, busy: false }), "The LED cycle registered as a new view, spending one of the room's four paid reads on a wall already covered — every time the fans cycled between samples.");
+// A real turn to a genuinely new wall still pays, exactly as before.
+assert.ok(shouldCaptureKeyframe({ signature: pannedRoom, previousSignature: pannedRoom, lastReadSignature: steadyRoom, now: 100000, lastCaptureAt: 0, capturedCount: 1, busy: false }), "The spread test now also blocks genuinely new views, which would stop the walk finding anything.");
+
+console.log("Scene-motion tests passed: colour-cycling lighting no longer reads as a moving camera — the hint stays quiet, the first read is not held hostage, and the flicker can no longer spend a paid read on a covered wall — while a genuine pan still earns the hint and a genuine new view still pays for its read.");
