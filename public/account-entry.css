@@ -3,7 +3,7 @@
  * /account-ready) on the landing design.
  *
  * Built to redesign-gated.html: one centred panel on the landing wash, with the
- * pulsing mint tile, the underlined headline, the indeterminate bar while the
+ * Homle logo, the underlined headline, the indeterminate bar while the
  * readiness check runs, and the four-pill trail beneath. The real sign-in
  * controls live INSIDE that panel, because this page is the place where the
  * check resolves into an actual sign-in rather than a link to one.
@@ -26,64 +26,6 @@ body.account-entry {
   font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
 }
 
-/* ── Header ───────────────────────────────────────────────────────────── */
-
-body.account-entry .site-header {
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: 10;
-  padding: 26px 0;
-  background: none;
-  border: 0;
-}
-body.account-entry .site-header .shell {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 0 40px;
-}
-body.account-entry .brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
-  font-weight: 800;
-  font-size: 21px;
-  letter-spacing: -.01em;
-  color: var(--homle-ink, #201308);
-  text-decoration: none;
-}
-body.account-entry .brand img {
-  border-radius: 12px;
-  box-shadow: 0 8px 20px oklch(0.62 0.19 25 / .4);
-}
-/* The header link is drawn as an outline pill, as the design has it. It
-   previously inherited a light colour from the shared stylesheet and rendered
-   white on cream — invisible. It carries its own colour now for that reason. */
-body.account-entry .account-nav { display: flex; align-items: center; gap: 10px; }
-body.account-entry .account-nav a {
-  display: inline-flex;
-  align-items: center;
-  padding: 9px 18px;
-  border: 1.5px solid oklch(0.2 0.03 60 / .18);
-  border-radius: 999px;
-  background: var(--homle-paper, #fff);
-  color: var(--homle-ink, #201308);
-  font-weight: 600;
-  font-size: 14px;
-  text-decoration: none;
-  transition: border-color .18s ease, transform .18s ease;
-}
-body.account-entry .account-nav a:hover { border-color: var(--homle-ink-2, #2a1c10); transform: translateY(-1px); }
-body.account-entry .account-nav a:focus-visible {
-  outline: none;
-  border-color: var(--homle-coral, #e24947);
-  box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .12);
-}
-
 /* ── The stage ────────────────────────────────────────────────────────── */
 
 body.account-entry .ae-stage {
@@ -93,7 +35,7 @@ body.account-entry .ae-stage {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 130px 24px 90px;
+  padding: 64px 24px;
   background:
     radial-gradient(1000px 520px at 82% -4%, oklch(0.92 0.06 25 / .5) 0%, transparent 62%),
     radial-gradient(900px 500px at 8% 104%, oklch(0.93 0.06 190 / .4) 0%, transparent 60%),
@@ -108,37 +50,31 @@ body.account-entry .ae-panel {
   box-shadow: 0 24px 60px oklch(0.3 0.05 60 / .1);
 }
 
-/* The pulsing tile. Decorative: it says "something is happening" while the
-   readiness check runs, and settles once it has. */
-body.account-entry .ae-pulse { position: relative; width: 62px; height: 62px; margin: 0 auto 26px; }
-body.account-entry .ae-pulse i {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 20px;
-  background: oklch(0.9 0.07 150);
-  color: oklch(0.35 0.1 150);
-  font-size: 26px;
-  font-style: normal;
+/* The same Homle logo used across the product now owns the card's visual
+   anchor. It remains a simple route home without recreating a page header. */
+body.account-entry .ae-logo {
+  display: block;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 26px;
+  border-radius: 22px;
+  box-shadow: 0 12px 30px oklch(0.53 0.21 25 / .28);
+  transition: transform .18s ease, box-shadow .18s ease;
 }
-body.account-entry .ae-pulse i::before { content: "✦"; }
-body.account-entry .ae-pulse b {
-  position: absolute;
-  inset: -10px;
-  border-radius: 26px;
-  border: 2px solid oklch(0.78 0.17 150 / .45);
-  animation: ae-ring 2.2s ease-out infinite;
+body.account-entry .ae-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
 }
-@keyframes ae-ring {
-  0% { transform: scale(.86); opacity: .9; }
-  100% { transform: scale(1.12); opacity: 0; }
+body.account-entry .ae-logo:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px oklch(0.53 0.21 25 / .34);
 }
-/* Once the answer is in, the ring stops: a pulse that never ends reads as a
-   page that never finished loading. */
-body.account-entry [data-account-state]:not([data-state="checking"]) ~ * .ae-pulse b,
-body.account-entry .ae-panel[data-resolved] .ae-pulse b { animation: none; opacity: 0; }
-
+body.account-entry .ae-logo:focus-visible {
+  outline: 3px solid var(--homle-coral, #e24947);
+  outline-offset: 5px;
+}
 body.account-entry .ae-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -579,26 +515,24 @@ body.account-entry .account-footer a { color: #fff; }
 /* ── Responsive ───────────────────────────────────────────────────────── */
 
 @media (max-width: 560px) {
-  body.account-entry .site-header .shell,
   body.account-entry .account-footer .shell { padding: 0 20px; }
-  body.account-entry .ae-stage { padding: 110px 16px 70px; }
+  body.account-entry .ae-stage { padding: 28px 16px 48px; }
   body.account-entry .ae-panel { padding: 30px 22px 26px; border-radius: 22px; }
   body.account-entry .ae-h { font-size: 31px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body.account-entry .ae-pulse b,
   body.account-entry .ae-bar i { animation: none; }
+  body.account-entry .ae-logo,
   body.account-entry .account-provider-button,
   body.account-entry .account-email-toggle,
   body.account-entry .account-role,
-  body.account-entry .account-nav a,
   body.account-entry .ae-alt a,
   body.account-entry .account-form > fieldset > button[type="submit"] { transition: none; }
+  body.account-entry .ae-logo:hover,
   body.account-entry .account-provider-button:hover,
   body.account-entry .account-email-toggle:hover,
   body.account-entry .account-role:hover,
-  body.account-entry .account-nav a:hover,
   body.account-entry .ae-alt a:hover,
   body.account-entry .account-form > fieldset > button[type="submit"]:hover { transform: none; }
 }
