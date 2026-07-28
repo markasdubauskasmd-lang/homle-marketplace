@@ -14,7 +14,8 @@ import {
   scanChecklistLines,
   scanTranscript,
   scanSummary,
-  removeRoom
+  removeRoom,
+  walkingReadIsBlocked
 } from "../public/room-scan-model.js";
 import { waitForCameraFrame } from "../public/room-scan-overlay.js";
 
@@ -38,6 +39,7 @@ const [overlay, photoSelection, entryScript, entryPage, journey, journeyPage, st
 assert(guidedRooms.length >= 4 && nextRoomName(0) === guidedRooms[0], "The guided scan does not start with the first room.");
 assert(nextRoomName(guidedRooms.length) === `Room ${guidedRooms.length + 1}`, "The scan stops guiding instead of continuing past the suggested rooms.");
 assert(canFinishScan(1) && !canFinishScan(0), "The scan can be finished with no rooms, or cannot be finished after one.");
+assert(!walkingReadIsBlocked(new Set(["kitchen"]), "bathroom"), "Moving to the next room remains blocked by the previous room's automatic read.");
 assert(scanHint(0).includes("shutter") && scanHint(2, { voiceUsed: false }).includes("mic"), "The scan does not tell a first-time user what to do, or never offers the voice note.");
 assert(!scanHint(2, { voiceUsed: true }).includes("mic"), "The voice tip is repeated after the Landlord has already used it.");
 assert(scanHint(maximumShots).includes("maximum"), "Reaching the capture limit is not explained.");

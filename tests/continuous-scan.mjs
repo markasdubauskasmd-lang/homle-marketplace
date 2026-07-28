@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   correctInventoryItem, frameSignature, inventoryKey, keyframeDefaults,
-  mergeRoomInventory, shouldCaptureKeyframe, signatureDistance
+  maxConcurrentWalkingReads, mergeRoomInventory, shouldCaptureKeyframe,
+  signatureDistance, walkingReadIsBlocked
 } from "../public/room-scan-model.js";
 
 // The scan used to be one shutter press per room, so whatever was not in that one
@@ -96,6 +97,15 @@ assert.ok(!shouldCaptureKeyframe({ ...base, signature: bright, previousSignature
 assert.ok(!shouldCaptureKeyframe({ ...base, signature: bright, previousSignature: bright, lastReadSignature: grey, lastCaptureAt: base.now - 10 }), "A second read fired immediately after the first, ignoring the minimum interval.");
 assert.ok(!shouldCaptureKeyframe({ ...base, signature: bright, previousSignature: bright, lastReadSignature: grey, busy: true }), "A read was started while one was already in flight.");
 assert.ok(!shouldCaptureKeyframe({ ...base, signature: null }), "A missing signature did not stop the read.");
+
+// A slow response from the room just left may overlap the room now being
+// scanned, but never another read for itself and never an unbounded third room.
+assert.equal(maxConcurrentWalkingReads, 2, "The cross-room walking-read bound changed without updating its load and responsiveness evidence.");
+assert.ok(!walkingReadIsBlocked(new Set(["kitchen"]), "bathroom"), "A Kitchen read blocked automatic scanning after the Landlord moved into the Bathroom.");
+assert.ok(walkingReadIsBlocked(new Set(["kitchen"]), "kitchen"), "A room started a second walking read while its first was still in flight.");
+assert.ok(walkingReadIsBlocked(new Set(["kitchen", "bathroom"]), "bedroom"), "A third room exceeded the global walking-read concurrency bound.");
+assert.ok(!walkingReadIsBlocked(new Set(), "bedroom"), "An idle scanner reported no walking-read capacity.");
+assert.ok(walkingReadIsBlocked(null, ""), "An unnamed room was allowed to consume a walking read.");
 
 /* ── The inventory accumulates rather than replaces ── */
 
@@ -200,6 +210,9 @@ assert.doesNotMatch(
   /if \(!state\.liveDetectionAvailable/,
   "Restarting the camera after a detector failure disables the automatic walking-read loop."
 );
+assert.match(overlay, /keyframeActiveRooms: new Set\(\)/, "Walking reads are still represented by one global busy flag, so changing rooms can stall the scanner.");
+assert.match(overlay, /busy: walkingReadIsBlocked\(state\.keyframeActiveRooms, roomKey\)/, "The walking-read scheduler does not enforce per-room overlap and bounded cross-room capacity.");
+assert.doesNotMatch(overlay, /keyframeBusy/, "The old global walking-read busy flag can still block a new room.");
 
 // Its own canvas. Sharing `el.canvas` would let a read taken mid-walk replace the
 // frame the confirmation is graded from.
