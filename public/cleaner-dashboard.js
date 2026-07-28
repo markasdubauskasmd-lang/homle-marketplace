@@ -465,7 +465,7 @@ function renderAlerts(summary, buckets) {
   const host = document.querySelector("[data-cleaner-alerts]");
   if (!host) return;
   const alerts = [];
-  if (summary.profileCompletionPercent < 100) alerts.push(["red", "Your profile is not complete", "Finish it so suitable requests can reach you.", "Complete →", "/cleaner/profile"]);
+  if (summary.profileCompletionPercent < 100) alerts.push(["red", "Your registration is not complete", "Review the remaining onboarding steps before suitable requests can reach you.", "Review →", "/cleaner/registration"]);
   if (summary.availableWindowCount === 0) alerts.push(["amber", "No future availability saved", "Add exact windows or Homle cannot match you.", "Add →", "/cleaner/availability"]);
   if (summary.payoutState === "action-required") alerts.push(["amber", "Payout setup is unfinished", "Complete the secure form to receive transfers.", "Continue →", "/cleaner/payouts"]);
   if (summary.payoutState === "not-started") alerts.push(["amber", "Payout account not set up", "Set it up before your first completed job.", "Set up →", "/cleaner/payouts"]);
@@ -585,15 +585,15 @@ function renderNextAction(buckets, profile, payout, availability, capabilities) 
   if (!profile || profile.profileCompletionPercent < 100) {
     title.textContent = "Complete your Cleaner profile";
     copy.textContent = `${profile?.profileCompletionPercent || 0}% complete. Add only the real services, prices and working area Landlords need.`;
-    link.href = "/cleaner/profile";
-    link.textContent = "Continue profile";
+    link.href = "/cleaner/registration";
+    link.textContent = "Review registration";
     return;
   }
   if (!profile.isPublic) {
     title.textContent = "Publish your completed profile";
     copy.textContent = "Review the public details once, then make the profile available for matching.";
-    link.href = "/cleaner/profile";
-    link.textContent = "Review and publish";
+    link.href = "/cleaner/registration";
+    link.textContent = "Review registration";
     return;
   }
   if (!availability.some((window) => window.status === "available")) {
@@ -613,8 +613,8 @@ function renderNextAction(buckets, profile, payout, availability, capabilities) 
   if (!capabilities.matchingReady) {
     title.textContent = capabilities.notice.title;
     copy.textContent = capabilities.notice.copy;
-    link.href = capabilities.notice.key === "postcode-geocoding" ? "/cleaner/profile" : "/cleaner/dashboard";
-    link.textContent = capabilities.notice.key === "postcode-geocoding" ? "Review service area" : "Refresh matching status";
+    link.href = capabilities.notice.key === "postcode-geocoding" ? "/cleaner/registration" : "/cleaner/dashboard";
+    link.textContent = capabilities.notice.key === "postcode-geocoding" ? "Review registration" : "Refresh matching status";
     return;
   }
   title.textContent = "You are ready for matching";
