@@ -13,8 +13,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260723-1">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-1">
-  <script src="/cleaner-dashboard.js?v=20260727-3" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-2">
+  <script src="/cleaner-dashboard.js?v=20260728-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -35,47 +35,81 @@
 
       <nav class="hc-nav" aria-label="Cleaner navigation">
         <a class="hc-nav-item" href="/cleaner/dashboard" aria-current="page">
-          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12 12 4l9 8v8a1 1 0 0 1-1 1h-4v-6H8v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Dashboard</span>
           <span class="hc-nav-dot" data-cleaner-pending-dot hidden></span>
         </a>
-        <a class="hc-nav-item" href="/notifications" data-notification-link>
-          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-          <span class="hc-nav-label">Messages</span>
-          <span class="notification-nav-count" data-notification-count hidden></span>
-        </a>
         <a class="hc-nav-item" href="/cleaner/schedule">
-          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v4m8-4v4M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-          <span class="hc-nav-label">My schedule</span>
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v15H4zM4 10h16M8 3v5M16 3v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">My Schedule</span>
+        </a>
+        <!--
+          Jobs Map and Performance are in the design's sidebar but have nothing behind
+          them: MAP_PROVIDER is none (and the design's own map page needs Leaflet plus
+          OpenStreetMap tiles, which the CSP blocks), and Homle records no on-time,
+          response-rate or rebook metrics. They keep the design's position and icon but
+          are inert and marked disabled rather than shipped as links to nowhere.
+        -->
+        <span class="hc-nav-item" data-nav-unavailable aria-disabled="true" title="Job locations cannot be plotted until a map provider is configured.">
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Jobs Map</span>
+        </span>
+        <a class="hc-nav-item" href="/cleaner/dashboard" data-nav-signoff hidden>
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19zM13 8l3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Job Sign-off</span>
         </a>
         <a class="hc-nav-item" href="/cleaner/payouts" data-cleaner-payout-link hidden>
-          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h18v10H3zM3 11h18M7 15h3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5.5A4 4 0 0 0 9 9v6c0 2-.8 3-2.5 4H17M7 12h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Earnings</span>
         </a>
-
-        <a class="hc-nav-item" href="/cleaner/reviews"><span class="hc-nav-label">Reviews</span></a>
-        <span class="hc-nav-group-label">ONBOARDING</span>
+        <a class="hc-nav-item" href="/cleaner/reviews">
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.7 6.3.9-4.5 4.4 1 6.3-5.5-3-5.5 3 1-6.3L3 9.6l6.3-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Reviews</span>
+        </a>
+        <span class="hc-nav-item" data-nav-unavailable aria-disabled="true" title="Homle does not record on-time, response-rate or rebook metrics yet.">
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Performance</span>
+        </span>
         <a class="hc-nav-item" href="/cleaner/profile">
-          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20a7 7 0 0 1 14 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-          <span class="hc-nav-label">Your profile</span>
-        </a>
-        <a class="hc-nav-item" href="/cleaner/profile/preview"><span class="hc-nav-label">Public profile</span></a>
-        <a class="hc-nav-item" href="/cleaner/availability">
-          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-5.3 7-11a7 7 0 1 0-14 0c0 5.7 7 11 7 11z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7"></circle></svg>
-          <span class="hc-nav-label">Work areas &amp; availability</span>
-        </a>
-
-        <span class="hc-nav-group-label">ACCOUNT</span>
-        <a class="hc-nav-item" href="/cleaners" data-cleaner-public-profile hidden>
-          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-          <span class="hc-nav-label">Public directory</span>
-        </a>
-        <a class="hc-nav-item" href="/settings">
-          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-2.7-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 4.6 15H4a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.1-2.7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 11 4.6V4a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-          <span class="hc-nav-label">Settings</span>
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v4H9zM15 5h4v16H5V5h4M9 12h6M9 16h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Complete Registration</span>
         </a>
 
         <a class="hc-nav-cta" href="/cleaner/profile" data-cleaner-profile-link>Continue setup <span aria-hidden="true">↗</span></a>
+
+        <details class="hc-nav-group" data-onboarding-group open>
+          <summary class="hc-nav-group-summary">
+            <span class="hc-nav-group-label">ONBOARDING</span>
+            <span class="hc-nav-chevron" aria-hidden="true">▾</span>
+          </summary>
+          <div data-onboarding-nav></div>
+        </details>
+
+        <details class="hc-nav-group" data-account-group>
+          <summary class="hc-nav-group-summary">
+            <span class="hc-nav-group-label">ACCOUNT</span>
+            <span class="hc-nav-chevron" aria-hidden="true">▾</span>
+          </summary>
+          <div>
+            <a class="hc-nav-item" href="/notifications" data-notification-link>
+              <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 1 1 12 0v5l2 3H4zM10 19a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span class="hc-nav-label">Messages</span>
+              <span class="notification-nav-count" data-notification-count hidden></span>
+            </a>
+            <a class="hc-nav-item" href="/cleaner/profile/preview">
+              <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v13H3zM7 11a2 2 0 1 0 4 0 2 2 0 0 0-4 0M6 15.5c.7-1.3 1.8-2 3-2s2.3.7 3 2M15 10h4M15 13h3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span class="hc-nav-label">Public profile</span>
+            </a>
+            <a class="hc-nav-item" href="/cleaners" data-cleaner-public-profile hidden>
+              <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span class="hc-nav-label">Public directory</span>
+            </a>
+            <a class="hc-nav-item" href="/settings">
+              <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span class="hc-nav-label">Settings</span>
+            </a>
+          </div>
+        </details>
       </nav>
 
       <div class="hc-side-foot">
@@ -103,6 +137,11 @@
     </aside>
 
     <main class="hc-main" id="cleaner-dashboard-main">
+      <a class="hc-bell" href="/notifications" aria-label="Updates">
+        <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 1 1 12 0v5l2 3H4zM10 19a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span class="hc-bell-dot" data-notification-count hidden></span>
+      </a>
+
       <div class="hc-main-inner">
 
         <section class="hc-gate" data-cleaner-dashboard-gate role="status" aria-live="polite">
@@ -119,11 +158,6 @@
 
           <div class="hc-feedback hc-feedback-error" data-cleaner-network-status role="status" aria-live="polite" hidden>
             <strong>You are offline.</strong> Your current requests stay visible, but Homle will not send or automatically retry an accept or decline decision until the connection returns.
-          </div>
-
-          <div class="hc-topline">
-            <span class="hc-portal-pill"><span class="hc-portal-dot" aria-hidden="true"></span> Secure cleaner portal</span>
-            <a class="hc-btn" href="/notifications">+ Job alerts</a>
           </div>
 
           <h1 class="hc-title">Welcome, <span data-cleaner-name>Cleaner</span>.</h1>
@@ -151,10 +185,7 @@
             <div class="hc-phone" aria-hidden="true">
               <div class="hc-phone-body">
                 <span class="hc-phone-label">HOMLE · SETUP</span>
-                <div class="hc-phone-row"><span class="hc-phone-tick">✓</span><span class="hc-phone-bar"></span></div>
-                <div class="hc-phone-row"><span class="hc-phone-tick">✓</span><span class="hc-phone-bar"></span></div>
-                <div class="hc-phone-row"><span class="hc-phone-tick hc-phone-tick-empty"></span><span class="hc-phone-bar hc-phone-bar-empty"></span></div>
-                <div class="hc-phone-row"><span class="hc-phone-tick hc-phone-tick-empty"></span><span class="hc-phone-bar hc-phone-bar-empty"></span></div>
+                <div class="hc-phone-rows" data-cleaner-phone-rows></div>
                 <div class="hc-phone-foot">
                   <div class="hc-phone-track"><div class="hc-phone-fill" data-cleaner-phone-fill></div></div>
                   <div class="hc-phone-pct"><span data-cleaner-phone-pct>0</span>% COMPLETE</div>
@@ -211,7 +242,7 @@
               <div class="hc-tile-value" data-cleaner-completed-jobs>0</div>
               <div class="hc-tile-sub">lifetime cleans</div>
             </li>
-            <li><a class="hc-tile" href="/cleaners" data-cleaner-overview-payout>
+            <li><a class="hc-tile" href="/cleaner/reviews" data-cleaner-overview-payout>
               <div class="hc-tile-label">RATING</div>
               <div class="hc-tile-value" data-cleaner-rating>—</div>
               <div class="hc-tile-sub" data-cleaner-review-count>after your first cleans · view →</div>
@@ -226,16 +257,16 @@
               <div class="hc-tile-value" data-cleaner-committed-value>£0.00</div>
               <div class="hc-tile-sub">not yet completed or transferred</div>
             </li>
-            <li><a class="hc-tile" href="/cleaner/payouts">
-              <div class="hc-tile-label">GETTING PAID</div>
-              <div class="hc-tile-value" data-cleaner-payout-state>Not connected</div>
-              <div class="hc-tile-sub" data-cleaner-payout-copy>Payout service is not attached</div>
-            </a></li>
             <li class="hc-tile">
               <div class="hc-tile-label">AVAILABILITY</div>
               <div class="hc-tile-value" data-cleaner-availability-count>0</div>
               <div class="hc-tile-sub">exact future windows</div>
             </li>
+            <li><a class="hc-tile" href="/cleaner/payouts">
+              <div class="hc-tile-label">GETTING PAID</div>
+              <div class="hc-tile-value" data-cleaner-payout-state>Not connected</div>
+              <div class="hc-tile-sub" data-cleaner-payout-copy>Payout service is not attached</div>
+            </a></li>
           </ul>
 
           <div class="hc-split">
@@ -268,6 +299,15 @@
           </footer>
         </div>
       </div>
+
+      <!--
+        The design's floating support-chat bubble. Homle has no live support chat, so it
+        opens the private inbox, which is the real message surface for a Cleaner.
+      -->
+      <a class="hc-fab" href="/notifications" aria-label="Open your private inbox">
+        <svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span class="hc-fab-dot" data-notification-count hidden></span>
+      </a>
     </main>
   </div>
 
