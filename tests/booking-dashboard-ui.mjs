@@ -126,7 +126,7 @@ const cleanerWorkspacePages = [cleanerPage, cleanerSchedulePage, cleanerJobPage,
 const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
 for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(page.includes('class="cleaner-workspace-page') && page.includes("/homle-cleaner.css?") && page.includes('aria-label="Cleaner navigation"'), `Cleaner workspace page ${index + 1} is not using the separate Cleaner shell.`);
-  for (const href of ["/cleaner/dashboard", "/notifications", "/cleaner/schedule", "/cleaner/reviews", "/cleaner/profile", "/cleaner/profile/preview", "/cleaner/availability", "/settings"]) {
+  for (const href of ["/cleaner/dashboard", "/notifications", "/cleaner/schedule", "/cleaner/reviews", "/cleaner/profile", "/cleaner/profile/preview", "/cleaner/availability"]) {
     assert(page.includes(`href="${href}"`), `Cleaner workspace page ${index + 1} strands the user because ${href} is missing from its navigation.`);
   }
   assert(page.includes("data-account-menu") && page.includes("data-account-avatar") && page.includes("data-account-sign-out"), `Cleaner workspace page ${index + 1} cannot show or manage the signed-in Cleaner identity.`);

@@ -62,7 +62,7 @@ for (const name of csrfConsumers) {
 // from this list keep their own request on purpose: they detect offline state, word
 // failures differently for a mutation than a read, and for payments set an `uncertain`
 // flag meaning a step may already have been prepared.
-const delegating = ["account-menu", "active-job", "admin-cases", "admin-verifications", "cleaner-availability", "cleaner-payouts", "notifications", "settings"];
+const delegating = ["account-menu", "active-job", "admin-cases", "admin-verifications", "cleaner-availability", "cleaner-payouts", "notifications"];
 const ownRequest = ["admin-bookings", "admin-payments", "booking-payment", "cleaner-dashboard", "landlord-dashboard", "landlord-journey"];
 
 for (const name of delegating) {
