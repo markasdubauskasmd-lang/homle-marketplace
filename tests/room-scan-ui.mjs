@@ -304,6 +304,26 @@ assert(readRoomBody && /if \(!state\.readingAllowed/.test(readRoomBody), "The ro
 assert(/state\.roomReadControllers\.add\(controller\)/.test(overlay), "Room reads share one abort controller again, so starting a new read cancels the one in flight.");
 assert(!/state\.roomReadController\?\.abort\(\)/.test(overlay), "A new read aborts its predecessor again.");
 assert(overlay.includes("!state.consentAsked) await askConsent();"), "A photograph can be read before consent has been given.");
+// The room must exist before its background reader is scheduled. When this
+// order was reversed, saving while `navigator.onLine === false` asked the retry
+// path to find a room that had not been inserted yet. The room then appeared as
+// permanently "reading" and never resumed after connectivity returned.
+const saveRoomBodyForRetry = overlay.slice(
+  overlay.indexOf("async function saveRoom("),
+  overlay.indexOf("// The shutter freezes first", overlay.indexOf("async function saveRoom("))
+);
+assert(
+  saveRoomBodyForRetry.indexOf("state.rooms = upsertRoom(state.rooms, room)") < saveRoomBodyForRetry.indexOf("readRoomInBackground({"),
+  "A room's AI read starts before the room is saved, so an offline confirmation cannot be queued for retry."
+);
+// A same-named room can be removed and rescanned before an older request
+// returns. Status alone cannot distinguish those revisions; the late kitchen
+// result would otherwise overwrite the new kitchen's objects and condition.
+assert(
+  /readRoomInBackground\(\{[\s\S]{0,180}readingRevision/.test(saveRoomBodyForRetry)
+    && (overlay.match(/current\.readingRevision !== readingRevision/g) || []).length >= 2,
+  "Background room reads are not bound to the exact saved room revision, so a stale response can overwrite a rescan."
+);
 const keyframeDecisionBody = overlay.slice(
   overlay.indexOf("function maybeReadKeyframe(video)"),
   overlay.indexOf('let image = "";', overlay.indexOf("function maybeReadKeyframe(video)"))
@@ -400,7 +420,7 @@ assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch
 // Saved first, read after. The room, its photograph and the customer's own note
 // are all in hand at press time, so nothing about that press needs a network
 // round trip — waiting on one is what made the button feel dead.
-assert(/readRoomInBackground\(\{ frame, roomName, chosen, spokenNote, session \}\)/.test(overlay), "Saving a room waits on the vision model again, so the confirm button blocks for as long as the provider and the connection take.");
+assert(/readRoomInBackground\(\{ frame, roomName, chosen, spokenNote, readingRevision \}\)/.test(overlay), "Saving a room waits on the vision model again, so the confirm button blocks for as long as the provider and the connection take.");
 assert(/readingStatus: "reading"/.test(overlay), "A room saved before its reading completes is not marked, so the hub cannot show that it is still being read.");
 assert(
   /function readRoomInBackground[\s\S]{0,700}state\.networkDeferredRooms\.add\(transcriptKey\(roomName\)\)/.test(overlay)
@@ -409,7 +429,7 @@ assert(
   "A room confirmed while offline is not retained and retried automatically after connectivity returns."
 );
 // A late reading must land only on the room it was started for.
-assert(/current\.readingStatus !== "reading"\) return;/.test(overlay), "A background reading is applied without checking the room is still awaiting one, so it could overwrite a room the customer has since edited or re-saved.");
+assert(/current\.readingStatus !== "reading" \|\| current\.readingRevision !== readingRevision\) return;/.test(overlay), "A background reading is applied without checking the room is still awaiting this exact revision, so it could overwrite a room the customer has since edited or re-saved.");
 
 /* ── The room hub: choose, review, return, finish ──── */
 
