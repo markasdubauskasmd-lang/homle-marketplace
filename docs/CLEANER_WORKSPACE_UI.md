@@ -11,7 +11,7 @@ The Cleaner workspace is rebuilt from the supplied "Cleaner Onboarding Dashboard
 - `/cleaner/profile/preview` — the client-facing profile card exactly as the directory renders it, plus a go-live checklist.
 - `/cleaner/jobs-map` — the design's map screen.
 - `/cleaner/performance` — rank card, ladder, criteria tiles and guidance.
-- `/cleaner/registration` — all eighteen onboarding steps as cards.
+- `/cleaner/registration` — the nineteen-step registration wizard. `?step=<key>` selects the step.
 - `/cleaner/sign-off` — jobs eligible for completion.
 
 All nine reuse the existing account gate, `dashboardWorkspaceAccess` role boundary and account menu. None introduces a new authentication or authorisation path.
@@ -74,7 +74,7 @@ Each of these is a real, navigable route rendering the design's layout. What dif
 
 **Performance** renders the rank card, the four-tier ladder and the criteria tiles with no tier assigned. There is no ranking engine, and two of the four inputs the design names are not recorded anywhere. Completed jobs and approved rating carry real values; on-time arrival and cancellation rate report that they are not tracked, and the page says plainly that ranking is not live.
 
-**Registration** lists all eighteen steps as cards. The nine Homle can record link to the screen that edits them; the other nine are marked as not open yet. Collecting right to work, tax, insurance, references and the signed declarations needs document capture and a vetting provider, neither of which exists.
+**Registration** is covered in its own section below.
 
 **Sign-off** lists the jobs eligible for completion and opens `/bookings/<bookingId>` for each. It does not reimplement the completion flow — see below.
 
@@ -86,6 +86,22 @@ Related omissions, each stated on the page rather than filled with placeholder v
 - Reviews shows no per-category scores: they are collected on submission but deliberately not exposed in the public projection.
 - The public profile shows no Academy training badges and no weekly availability grid; there is no Academy, and availability is stored as exact future windows rather than a recurring pattern.
 - The floating support bubble opens the private inbox, which is the real message surface for a Cleaner.
+
+## Registration wizard
+
+`/cleaner/registration` is the design's wizard, not a summary page: the step counter and Save & exit header, the gradient progress bar, a nineteen-step rail on the left and the form panel on the right. `?step=<key>` selects the step, so each ONBOARDING sidebar entry deep links to its own step and the rail navigates between them.
+
+`public/cleaner-registration-steps.js` holds the step model. The design renders each step from a field table rather than from markup, and this mirrors that: each step carries sections whose fields declare a type (`text`, `date`, `select`, `toggle`, `upload`, `button`) and a column span out of twelve.
+
+Rail completion marks come from `onboardingProgress`, the same model the dashboard and sidebar use, so the three cannot disagree about what is finished.
+
+**Only the `personal` step is transcribed.** Its table is taken field for field from the design — the ten fields under Your details at their designed spans and required flags, Emergency contact, Address including the postcode lookup and the lived-here-under-five-years toggle, and Profile photo. First name, last name and email prefill from the signed-in account.
+
+The other eighteen steps carry their title and description and state on screen that their form is not built. Their field tables sit in the part of the design's trailing state script that the 256 KiB file-read cap truncated; transcribing them needs that data recovered first. This is a missing input, not a design decision.
+
+**Nothing on this wizard saves.** There is no registration-write endpoint, no table behind the nineteen steps and no object storage for the uploads. The address lookup and photo controls are therefore visibly inactive, Save & continue only advances the step, and the panel says plainly that entries are not stored. A form that appeared to save a Cleaner's date of birth and emergency contact and then discarded them would be worse than one that admits it is not connected.
+
+The editable surfaces that do persist today remain the profile, availability and payout pages.
 
 ## Privacy boundaries retained
 
