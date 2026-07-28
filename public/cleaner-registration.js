@@ -1,0 +1,68 @@
+import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-1";
+import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260728-1";
+
+function stepIcon(name) {
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", onboardingIcons[name] || onboardingIcons.folder);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "currentColor");
+  path.setAttribute("stroke-width", "1.7");
+  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("stroke-linejoin", "round");
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "18");
+  svg.setAttribute("height", "18");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.append(path);
+  return svg;
+}
+
+createCleanerPage("reg", async () => {
+  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+    requestJson("/api/marketplace/cleaner/profile"),
+    requestJson("/api/marketplace/cleaner/availability"),
+    requestJson("/api/marketplace/cleaner/payout-account")
+  ]);
+  const profile = profileResult.status === "fulfilled" && profileResult.value.profile ? profileResult.value.profile : null;
+  const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability.length : 0;
+  const payoutState = payoutResult.status === "fulfilled" ? (payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "not-started") : "unavailable";
+
+  const progress = onboardingProgress({
+    account: { displayName: document.querySelector("[data-account-name]")?.textContent, email: true },
+    profile,
+    payoutState,
+    availabilityCount
+  });
+
+  setText("[data-reg-percent]", `${progress.percent}%`);
+  setText("[data-reg-remaining]", String(progress.remaining));
+  setText("[data-reg-status]", applicationStatusLabel({ profile }, progress));
+  const track = document.querySelector("[data-reg-track]");
+  const fill = document.querySelector("[data-reg-fill]");
+  if (track) track.setAttribute("aria-valuenow", String(progress.percent));
+  // Width through CSSOM, not a style attribute, so `style-src 'self'` still holds.
+  if (fill) fill.style.width = `${progress.percent}%`;
+
+  const host = document.querySelector("[data-reg-steps]");
+  if (!host) return;
+  host.replaceChildren(...progress.steps.map((step, index) => {
+    const card = element(step.href ? "a" : "div", "hc-reg-card");
+    if (step.href) card.href = step.href;
+    card.dataset.done = String(step.done);
+    if (!step.tracked) card.dataset.pending = "true";
+
+    const mark = element("span", "hc-reg-mark");
+    mark.append(stepIcon(step.icon));
+    const body = element("div", "hc-reg-body");
+    body.append(
+      element("span", "hc-reg-index", String(index + 1).padStart(2, "0")),
+      element("span", "hc-reg-title", step.title),
+      element("span", "hc-reg-state", step.done ? "Complete" : step.tracked ? "Outstanding" : "Not open yet")
+    );
+    const chip = element("span", `hc-reg-chip${step.done ? " hc-reg-chip-done" : ""}`, step.done ? "✓" : "○");
+    card.append(mark, body, chip);
+    if (!step.tracked) card.title = "This step needs document capture, which Homle does not have yet.";
+    return card;
+  }));
+});

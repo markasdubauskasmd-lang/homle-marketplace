@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260723-1">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-2">
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-3">
   <script src="/cleaner-dashboard.js?v=20260728-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
@@ -50,11 +50,11 @@
           response-rate or rebook metrics. They keep the design's position and icon but
           are inert and marked disabled rather than shipped as links to nowhere.
         -->
-        <span class="hc-nav-item" data-nav-unavailable aria-disabled="true" title="Job locations cannot be plotted until a map provider is configured.">
+        <a class="hc-nav-item" href="/cleaner/jobs-map">
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Jobs Map</span>
-        </span>
-        <a class="hc-nav-item" href="/cleaner/dashboard" data-nav-signoff hidden>
+        </a>
+        <a class="hc-nav-item" href="/cleaner/sign-off">
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19zM13 8l3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Job Sign-off</span>
         </a>
@@ -66,11 +66,11 @@
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.7 6.3.9-4.5 4.4 1 6.3-5.5-3-5.5 3 1-6.3L3 9.6l6.3-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Reviews</span>
         </a>
-        <span class="hc-nav-item" data-nav-unavailable aria-disabled="true" title="Homle does not record on-time, response-rate or rebook metrics yet.">
+        <a class="hc-nav-item" href="/cleaner/performance">
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Performance</span>
-        </span>
-        <a class="hc-nav-item" href="/cleaner/profile">
+        </a>
+        <a class="hc-nav-item" href="/cleaner/registration">
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v4H9zM15 5h4v16H5V5h4M9 12h6M9 16h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Complete Registration</span>
         </a>

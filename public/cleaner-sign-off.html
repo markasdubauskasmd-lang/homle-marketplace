@@ -7,21 +7,21 @@
   <meta name="theme-color" content="#d63a2a" />
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Homle">
-  <title>My schedule | Homle</title>
+  <title>Job sign-off | Homle</title>
   <link rel="icon" href="/homle-logo.png" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260723-1">
   <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-3">
-  <script src="/cleaner-schedule.js?v=20260727-1" type="module"></script>
+  <script src="/cleaner-sign-off.js?v=20260728-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
 <body class="cleaner-workspace-page">
-  <a class="hc-skip" href="#cleaner-schedule-main">Skip to My schedule</a>
+  <a class="hc-skip" href="#cleaner-sign-off-main">Skip to Job sign-off</a>
 
   <div class="hc">
-    <aside class="hc-side cleaner-site-header">
+<aside class="hc-side cleaner-site-header">
       <div class="hc-brand">
         <div class="hc-brand-mark" aria-hidden="true">
           <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 4 4.5 10.5V20h15v-9.5z" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path><path d="M10 20v-5h4v5" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path></svg>
@@ -38,7 +38,7 @@
           <span class="hc-nav-label">Dashboard</span>
           <span class="hc-nav-dot" data-cleaner-pending-dot hidden></span>
         </a>
-        <a class="hc-nav-item" href="/cleaner/schedule" aria-current="page">
+        <a class="hc-nav-item" href="/cleaner/schedule">
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v15H4zM4 10h16M8 3v5M16 3v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">My Schedule</span>
         </a>
@@ -53,7 +53,7 @@
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Jobs Map</span>
         </a>
-        <a class="hc-nav-item" href="/cleaner/sign-off">
+        <a class="hc-nav-item" href="/cleaner/sign-off" aria-current="page">
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19zM13 8l3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Job Sign-off</span>
         </a>
@@ -135,73 +135,74 @@
       </div>
     </aside>
 
-    <main class="hc-main" id="cleaner-schedule-main">
-      <div class="hc-main-inner">
+    <main class="hc-main" id="cleaner-sign-off-main">
+      <a class="hc-bell" href="/notifications" aria-label="Updates">
+        <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 1 1 12 0v5l2 3H4zM10 19a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span class="hc-bell-dot" data-notification-count hidden></span>
+      </a>
 
-        <section class="hc-gate" data-schedule-gate role="status" aria-live="polite">
-          <h1 class="hc-h3" data-schedule-gate-title>Checking secure Cleaner access…</h1>
-          <p class="hc-card-sub" data-schedule-gate-copy>Your schedule opens only inside the assigned Cleaner account.</p>
+      <div class="hc-main-inner">
+        <section class="hc-gate" data-signoff-gate role="status" aria-live="polite">
+          <h1 class="hc-h3" data-signoff-gate-title>Checking secure Cleaner access…</h1>
+          <p class="hc-card-sub" data-signoff-gate-copy>This page opens only inside the assigned Cleaner account.</p>
           <div class="hc-gate-actions">
-            <a class="hc-btn" href="/login?intent=work" data-schedule-sign-in hidden>Sign in as a Cleaner</a>
-            <button class="hc-btn-outline" type="button" data-schedule-retry hidden>Try again</button>
+            <a class="hc-btn" href="/login?intent=work" data-signoff-sign-in hidden>Sign in as a Cleaner</a>
+            <button class="hc-btn-outline" type="button" data-signoff-retry hidden>Try again</button>
           </div>
         </section>
 
-        <div data-schedule hidden>
-          <div class="hc-feedback hc-feedback-error" data-schedule-offline role="status" aria-live="polite" hidden>
-            <strong>You are offline.</strong> Your schedule shows the last loaded jobs and will not refresh until the connection returns.
+        <div data-signoff hidden>
+          <div class="hc-feedback hc-feedback-error" data-signoff-offline role="status" aria-live="polite" hidden>
+            <strong>You are offline.</strong> This page shows the last loaded data and will not refresh until the connection returns.
           </div>
 
-          <div class="hc-page-head">
-            <div>
-              <h1 class="hc-page-title">My schedule</h1>
-              <p class="hc-page-sub">Confirmed jobs in green — offers you haven't answered yet are dashed.</p>
+        <div class="hc-page-head">
+          <div>
+            <h1 class="hc-page-title">Job sign-off</h1>
+            <p class="hc-page-sub">Tick every task, add your before &amp; after photos, then send it to the client.</p>
+          </div>
+          <a class="hc-back" href="/cleaner/schedule">← Schedule</a>
+        </div>
+
+        <!--
+          The sign-off flow itself — task checklist, photo capture, pause/resume, finish and
+          completion — already exists in full on /bookings/<id>, driven by active-job.js.
+          This page lists the jobs eligible for sign-off and opens that screen, rather than
+          duplicating a second copy of a flow a Cleaner depends on mid-job.
+        -->
+        <div class="hc-section-head">
+          <h3 class="hc-h3">Ready to sign off</h3>
+          <span class="hc-section-note"><span data-signoff-count>0</span> in progress or awaiting completion</span>
+        </div>
+        <div class="hc-jobs" data-signoff-list></div>
+        <div class="hc-empty" data-signoff-empty>Nothing to sign off right now. A job appears here once you have arrived and started cleaning.</div>
+
+        <div class="hc-section-head">
+          <h3 class="hc-h3">Confirmed and upcoming</h3>
+          <span class="hc-section-note">Sign-off opens once the job is under way</span>
+        </div>
+        <div class="hc-jobs" data-signoff-upcoming></div>
+        <div class="hc-empty" data-signoff-upcoming-empty>No confirmed jobs yet.</div>
+
+        <div class="hc-split">
+          <section class="hc-panel">
+            <h4 class="hc-h4">What sign-off records</h4>
+            <div class="hc-guide">
+              <div><span aria-hidden="true">✓</span>Every task on the approved room checklist, ticked as you go.</div>
+              <div><span aria-hidden="true">✓</span>Before and after photos, stored privately against the booking.</div>
+              <div><span aria-hidden="true">✓</span>Any issue you report, timestamped and shared with Homle as well as the client.</div>
+              <div><span aria-hidden="true">✓</span>Time on site, from your arrival through to finishing.</div>
             </div>
-            <div class="hc-weeknav">
-              <button class="hc-weeknav-btn" type="button" data-week-prev aria-label="Previous week">←</button>
-              <span class="hc-weeknav-label" data-week-label>This week</span>
-              <button class="hc-weeknav-btn" type="button" data-week-next aria-label="Next week">→</button>
-            </div>
-          </div>
+          </section>
+          <section class="hc-panel">
+            <h4 class="hc-h4">Before you finish</h4>
+            <p class="hc-prose">Homle will not let a job be finished until every task and every unexpected-work decision is resolved. That protects you: the completed checklist and photo set are the evidence if a client later disputes the clean.</p>
+            <p class="hc-prose">Added work never changes the frozen price or your agreed pay through this flow. Anything extra has to be approved by the client first.</p>
+          </section>
+        </div>
 
-          <ul class="hc-tiles">
-            <li class="hc-tile">
-              <div class="hc-tile-label">VALUE THIS WEEK</div>
-              <div class="hc-tile-value" data-week-value>£0.00</div>
-              <div class="hc-tile-sub">agreed Cleaner pay</div>
-            </li>
-            <li class="hc-tile">
-              <div class="hc-tile-label">NEXT WEEK</div>
-              <div class="hc-tile-value" data-next-week-value>£0.00</div>
-              <div class="hc-tile-sub">confirmed so far</div>
-            </li>
-            <li class="hc-tile">
-              <div class="hc-tile-label">HOURS BOOKED</div>
-              <div class="hc-tile-value" data-week-hours>0</div>
-              <div class="hc-tile-sub">this week</div>
-            </li>
-            <li class="hc-tile">
-              <div class="hc-tile-label">JOBS</div>
-              <div class="hc-tile-value"><span data-week-confirmed>0</span></div>
-              <div class="hc-tile-sub"><span data-week-pending>0</span> awaiting your reply</div>
-            </li>
-          </ul>
 
-          <div class="hc-week">
-            <div class="hc-week-grid" data-week-grid></div>
-          </div>
-
-          <div class="hc-upcoming">
-            <div class="hc-upcoming-empty" data-upcoming-empty>Nothing booked yet — accept a pending job from your <a href="/cleaner/dashboard">dashboard</a> to build your schedule.</div>
-            <div data-upcoming-list></div>
-            <!--
-              The design says confirmed jobs sync to Google and Outlook calendars.
-              Homle has no calendar integration, so this states what actually happens.
-            -->
-            <div class="hc-upcoming-note">Confirmed jobs stay in Homle. Calendar sync is not available yet.</div>
-          </div>
-
-          <div class="hc-feedback" data-schedule-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
+          <div class="hc-feedback" data-signoff-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
 
           <footer class="hc-foot">
             <span>© <span data-year></span> Homle.</span>
@@ -209,6 +210,11 @@
           </footer>
         </div>
       </div>
+
+      <a class="hc-fab" href="/notifications" aria-label="Open your private inbox">
+        <svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span class="hc-fab-dot" data-notification-count hidden></span>
+      </a>
     </main>
   </div>
 </body>
