@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   containmentRatio, deduplicateDetections, detectionMinimumScore,
-  implausibleForRoom, joinSpokenText, cocoLabel
+  implausibleForRoom, joinSpokenText, preferredSpeechLanguage, cocoLabel
 } from "../public/room-scan-model.js";
 
 // Both failures these pin were photographed on a real phone against the deployed
@@ -98,6 +98,45 @@ assert.equal(
 );
 assert.equal(joinSpokenText("clean the sink", "clean the sink"), "clean the sink clean the sink", "A deliberate repeat was swallowed. Guessing that a customer misspoke is not this helper's job.");
 
+/* ── Speech: use the speaker's regional English model ── */
+
+// The page is deliberately en-GB, but that is the interface language rather
+// than evidence that every speaker has a UK accent. The phone already exposes
+// its preferred regional English locale, which gives the browser speech engine
+// a materially better model without adding another prompt or permission.
+assert.equal(
+  preferredSpeechLanguage("en-GB", ["en-US", "es-US"]),
+  "en-US",
+  "A US-English phone was forced through the UK speech model."
+);
+assert.equal(
+  preferredSpeechLanguage("en-GB", ["hi-IN", "en-IN", "en-US"]),
+  "en-IN",
+  "An Indian-English phone did not receive its regional speech model."
+);
+assert.equal(
+  preferredSpeechLanguage("en-GB", ["fr-FR", "en-AU"]),
+  "en-AU",
+  "The first usable regional English locale was not selected."
+);
+assert.equal(
+  preferredSpeechLanguage("en-GB", ["fr-FR", "de-DE"]),
+  "en-GB",
+  "A non-English browser locale overrode the scanner's English fallback."
+);
+assert.equal(preferredSpeechLanguage("en-GB", []), "en-GB", "A missing browser locale lost the UK fallback.");
+assert.equal(preferredSpeechLanguage("en", ["en"]), "en-GB", "Generic English did not resolve to the product's UK default.");
+assert.equal(
+  preferredSpeechLanguage("en-GB", ["javascript:alert(1)", "en_US"]),
+  "en-US",
+  "Malformed or underscore-delimited locale input was not normalised safely."
+);
+assert.equal(
+  preferredSpeechLanguage("en-GB", { 0: "en-IE", length: 1 }),
+  "en-IE",
+  "A browser-style indexed language list was not supported."
+);
+
 /* ── ...and genuine continuation still reads naturally ── */
 
 /* ── The overlay must not iterate the result list ── */
@@ -112,6 +151,11 @@ const resultHandler = overlaySource.slice(overlaySource.indexOf("recognition.onr
 assert.ok(resultHandler, "The speech result handler could not be located to check it.");
 assert.doesNotMatch(resultHandler, /for \(const \w+ of event\.results\)/, "The speech handler iterates `event.results` with for...of. SpeechRecognitionResultList is not iterable — this throws on every result event and takes out voice notes completely.");
 assert.match(resultHandler, /index < event\.results\.length/, "The speech handler no longer walks `event.results` by index.");
+assert.match(
+  overlaySource,
+  /recognition\.lang = preferredSpeechLanguage\(\s*document\.documentElement\.lang,\s*navigator\.languages \|\| navigator\.language\s*\)/,
+  "The tested regional-English selector is not connected to the real speech recogniser."
+);
 // Rebuilt from the whole list, not from `resultIndex`. Starting at `resultIndex` is
 // what made the handler an append-delta and produced the repeated phrases.
 assert.doesNotMatch(resultHandler, /=\s*event\.resultIndex/, "The speech handler is reading from `event.resultIndex` again, which reintroduces the append-delta that repeated whole phrases.");
@@ -185,4 +229,4 @@ assert.equal(containmentRatio({ x: 0, y: 0, width: 10, height: 10 }, { x: 50, y:
 assert.ok(detectionMinimumScore > 0.5, `The detection threshold is ${detectionMinimumScore}. COCO-SSD's 0.5 default is the confidence at which a chest of drawers is reported as an oven.`);
 assert.ok(detectionMinimumScore <= 0.75, `The detection threshold is ${detectionMinimumScore}, high enough to hide ordinary furniture. Missing items cost a tap; the manual box exists for that.`);
 
-console.log("Scanner accuracy tests passed: recognised speech is joined idempotently and verbatim so a replayed event cannot repeat a phrase, cross-room impossible labels are dropped while the filter fails open, same-class boxes stacked on one object merge without collapsing genuinely separate items, and the confidence threshold is above the default that produced the false oven.");
+console.log("Scanner accuracy tests passed: recognised speech is joined idempotently and verbatim, regional English follows the speaker's phone with a UK fallback, cross-room impossible labels are dropped while the filter fails open, same-class boxes stacked on one object merge without collapsing genuinely separate items, and the confidence threshold is above the default that produced the false oven.");
