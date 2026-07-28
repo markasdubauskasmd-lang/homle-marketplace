@@ -18,7 +18,7 @@ for (const required of [
   "server.mjs",
   "travel-coverage.mjs",
   "authentication-activation-readiness.mjs",
-  "public/index.html",
+  "public/home.html",
   "public/account-menu.js",
   "src/marketplace/runtime.mjs",
   "db/migration-lock.json",

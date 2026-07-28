@@ -30,8 +30,8 @@
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav">Menu</button>
       <nav id="main-nav" class="main-nav" aria-label="Primary navigation">
         <a href="/login" data-account-entry hidden>Sign in</a>
-        <a class="button button-small button-outline" href="/join" data-cleaner-entry>Work as a cleaner</a>
-        <a class="button button-small" href="/request" data-book-entry>Request a clean</a>
+        <a class="button button-small button-outline" href="/signup?intent=work" data-cleaner-entry>Work as a cleaner</a>
+        <a class="button button-small" href="/signup?intent=book" data-book-entry>Create Landlord profile</a>
       </nav>
       <details class="account-menu public-account-menu" data-account-menu hidden>
         <summary aria-label="Open signed-in Homle account"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary>
@@ -121,9 +121,9 @@
             <div class="lp-progress-row"><span data-status>Point &amp; scan</span><span data-pct>0%</span></div>
             <div class="lp-progress-track"><div class="lp-progress-fill" data-barfill></div></div>
           </div>
-          <a class="lp-btn lp-btn-primary" href="/request" data-book-entry>Request a clean</a>
-          <a class="lp-hero-secondary" href="/join" data-cleaner-entry>Work as a cleaner</a>
-          <p class="pilot-note" data-entry-status aria-live="polite">Homle is accepting guided pilot requests. Coverage, Cleaner availability and price are confirmed before any booking.</p>
+          <a class="lp-btn lp-btn-primary" href="/signup?intent=book" data-book-entry>Create Landlord profile</a>
+          <a class="lp-hero-secondary" href="/signup?intent=work" data-cleaner-entry>Work as a cleaner</a>
+          <p class="pilot-note" data-entry-status aria-live="polite">Landlords and Cleaners now use their separate private dashboards.</p>
         </div>
 
         <div class="lp-scrollcue" data-scrollcue aria-hidden="true">
@@ -139,7 +139,7 @@
       <div class="lp-calm-lockup reveal"><img src="/homle-logo.png" alt="" width="58" height="58"><span>Homle</span></div>
       <h2 class="lp-h2 reveal">Come home<br>to <span class="lp-mark">calm.<svg class="lp-underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><path d="M2 14 Q 80 2 150 10 T 298 8" fill="none" stroke="oklch(0.78 0.17 150)" stroke-width="5" stroke-linecap="round"></path></svg></span></h2>
       <p class="reveal">Beautifully simple cleaning, shaped around your life. Vetted professionals, thoughtful details, zero stress.</p>
-      <a class="lp-btn lp-btn-dark reveal" href="/request" data-book-entry>Book a clean</a>
+      <a class="lp-btn lp-btn-dark reveal" href="/signup?intent=book" data-book-entry>Book a clean</a>
       <span class="fineprint reveal">Coverage, cleaner availability and price are confirmed before any booking.</span>
     </section>
 
@@ -164,14 +164,14 @@
           <p>No surprise booking, no repeated typing, one clear next step from request through to completion.</p>
         </div>
       </div>
-      <p class="lp-details-cleaner reveal">A cleaning professional? <a href="/join" data-cleaner-entry>Work as a cleaner</a> and choose the jobs that suit you.</p>
+      <p class="lp-details-cleaner reveal">A cleaning professional? <a href="/signup?intent=work" data-cleaner-entry>Work as a cleaner</a> and choose the jobs that suit you.</p>
     </section>
   </main>
 
   <footer class="site-footer">
     <div class="shell footer-grid">
       <div class="reveal"><a class="brand footer-brand" href="/"><img src="/homle-logo.png" alt="" width="36" height="36"><span>Homle</span></a><p>Cleaning work, matched and managed clearly.</p></div>
-      <div class="reveal"><strong>Start</strong><a href="/request" data-book-entry>Request a clean</a><a href="/request" data-directory-entry>Find a cleaner</a><a href="/join" data-cleaner-entry>Work as a cleaner</a><a href="/login" data-account-entry hidden>Sign in</a></div>
+      <div class="reveal"><strong>Start</strong><a href="/signup?intent=book" data-book-entry>Create Landlord profile</a><a href="/signup?intent=work" data-cleaner-entry>Work as a cleaner</a><a href="/login" data-account-entry hidden>Sign in</a></div>
       <div class="reveal"><strong>Information</strong><a href="/privacy">Privacy</a><a href="/terms">Pilot terms</a></div>
     </div>
     <div class="shell footer-bottom"><span>© <span data-year></span> Homle. Private pilot preparation.</span><span>No booking is confirmed until Homle confirms it directly.</span></div>

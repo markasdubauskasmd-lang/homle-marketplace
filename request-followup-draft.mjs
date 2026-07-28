@@ -33,7 +33,7 @@ export function buildRoomScanFollowupDraft({ request, requestStatus = "new", lat
   const token = boundedText(request.customerStatusToken, 120);
   const origin = boundedText(verifiedPublicOrigin, 300).replace(/\/$/, "");
   const handoffReady = Boolean(origin && token);
-  const privateUrl = handoffReady ? `${origin}/request-status#${token}` : "";
+  const privateUrl = handoffReady ? `${origin}/landlord/dashboard` : "";
   const revision = kind === "room-scan-revision";
   const subject = revision
     ? `Action needed: revise your Tideway room scan · ${reference}`
@@ -75,4 +75,3 @@ export function buildRoomScanFollowupDraft({ request, requestStatus = "new", lat
     sendsAutomatically: false
   };
 }
-

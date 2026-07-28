@@ -59,12 +59,12 @@
     {
       "name": "Request a clean",
       "short_name": "Request clean",
-      "url": "/request"
+      "url": "/landlord/dashboard"
     },
     {
       "name": "Work as a cleaner",
       "short_name": "Cleaner signup",
-      "url": "/join"
+      "url": "/cleaner/dashboard"
     }
   ]
 }

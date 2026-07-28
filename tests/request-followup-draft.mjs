@@ -19,7 +19,7 @@ assert(!blockedSerialised.includes(request.customerStatusToken) && !blockedSeria
 assert(blocked.sendsAutomatically === false && blocked.requiresFounderOutreachApproval === true, "The draft lost its no-send or explicit-approval boundary.");
 
 const ready = buildRoomScanFollowupDraft({ request, verifiedPublicOrigin: "https://tideway.example.org" });
-assert(ready.handoffReady && ready.privateUrl === `https://tideway.example.org/request-status#${request.customerStatusToken}`, "A verified deployment did not produce the exact private tracker handoff.");
+assert(ready.handoffReady && ready.privateUrl === "https://tideway.example.org/landlord/dashboard", "A verified deployment did not produce the dashboard handoff.");
 assert(ready.recipient.email === request.email && !Object.hasOwn(ready.recipient, "phone"), "The room-scan draft exposed more recipient data than required.");
 
 const revision = buildRoomScanFollowupDraft({

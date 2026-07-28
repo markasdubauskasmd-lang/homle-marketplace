@@ -46,7 +46,7 @@ export function notificationActionPath(eventType, bookingId, payload = {}) {
   if (eventType === "new-booking-request") return "/cleaner/dashboard";
   if (eventType === "cleaner-declined") return "/landlord/dashboard";
   if (eventType === "cleaner-invitation-expired") return payload?.matchingReopened === true ? "/landlord/dashboard" : "/cleaner/dashboard";
-  if (["payment-window-opened", "payment-action-required"].includes(eventType)) return `/booking-payment?bookingId=${bookingId.toLowerCase()}`;
+  if (["payment-window-opened", "payment-action-required"].includes(eventType)) return "/landlord/dashboard";
   return bookingPath;
 }
 

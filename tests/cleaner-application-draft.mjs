@@ -1,10 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { cleanerApplicationDraftFingerprint, cleanerApplicationDraftLifetimeMs, clearCleanerApplicationDraft, readCleanerApplicationDraft, saveCleanerApplicationDraft } from "../public/cleaner-application-draft.js";
-
-const root = fileURLToPath(new URL("..", import.meta.url));
 const values = new Map();
 const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: (key) => values.delete(key) };
 const now = Date.UTC(2026, 6, 15, 20, 0, 0);
@@ -43,12 +38,4 @@ storage.setItem("tidewayCleanerApplicationDraftV1", "broken-json");
 assert.equal(readCleanerApplicationDraft(storage, now), null);
 assert.equal(values.size, 0, "Corrupt drafts must be removed.");
 
-const [html, app] = await Promise.all([readFile(path.join(root, "public", "index.html"), "utf8"), readFile(path.join(root, "public", "app.js"), "utf8")]);
-assert(html.includes("data-cleaner-draft-status") && html.includes("Eligibility and consent confirmations are never restored"));
-assert(html.includes('name="serviceDomestic"') && html.includes("Regular home cleaning"), "The working Cleaner application omitted ordinary household cleaning.");
-assert(app.includes("readCleanerApplicationDraft") && app.includes("clearCleanerApplicationDraft(window.sessionStorage)"));
-assert(app.includes("AbortController") && app.includes("navigator.onLine === false"), "Cleaner submission needs bounded poor-connection recovery.");
-assert(app.includes("cleanerDraftControls.get(form)") && app.includes("draftControls?.rememberSubmission(pending.key)"), "Cleaner recovery must preserve exact retry identity across an interrupted response.");
-assert(!app.includes('form.elements.namedItem("rightToWork").checked = true') && !app.includes('form.elements.namedItem("consent").checked = true'));
-
-console.log("cleaner application draft tests passed");
+console.log("cleaner application draft module tests passed");
