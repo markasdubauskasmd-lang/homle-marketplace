@@ -14,7 +14,7 @@
 export const onboardingSteps = [
   { key: "personal", title: "Personal details", icon: "user", sidebar: true, href: "/cleaner/personal-details",
     derive: (d) => Boolean(d.account?.displayName && d.account?.email) },
-  { key: "identity", title: "Identity verification", icon: "id", sidebar: true, href: "/cleaner/registration",
+  { key: "identity", title: "Identity verification", icon: "id", sidebar: true, href: "/cleaner/identity-verification",
     derive: (d) => d.profile?.identityCheckStatus === "verified" },
   { key: "rtw", title: "Right to work", icon: "folder", sidebar: false, href: "", derive: null },
   { key: "dbs", title: "Background checks (DBS)", icon: "shield", sidebar: true, href: "/cleaner/registration",
@@ -55,7 +55,7 @@ export const onboardingSteps = [
 export const onboardingNav = [
   { label: "Personal Details", icon: "user", step: "personal", href: "/cleaner/personal-details" },
   { label: "Business Details", icon: "brief", step: "business", href: "/cleaner/business-details" },
-  { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/registration" },
+  { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/identity-verification" },
   { label: "Background Checks", icon: "shield", step: "dbs", href: "/cleaner/registration" },
   { label: "Work Areas", icon: "pin", step: "areas", href: "/cleaner/availability" },
   { label: "Experience", icon: "star", step: "experience", href: "/cleaner/registration" },
