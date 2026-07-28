@@ -736,7 +736,9 @@ export function scanTranscript(rooms, maximumCharacters = 5000) {
 
 export function scanSummary(rooms) {
   const scoped = (Array.isArray(rooms) ? rooms : []).filter((room) => Array.isArray(room?.tasks) && room.tasks.length);
-  const fixtures = scoped.reduce((sum, room) => sum + (Array.isArray(room.detections) ? room.detections.length : 0), 0);
+  const fixtures = scoped.reduce((sum, room) => sum + (Array.isArray(room.detections)
+    ? room.detections.reduce((roomTotal, detection) => roomTotal + itemQuantity(detection), 0)
+    : 0), 0);
   const minutes = estimatedMinutes(scoped);
   return Object.freeze({
     roomCount: scoped.length,
@@ -810,13 +812,13 @@ export function rosterSummary(rooms) {
     const items = Array.isArray(room?.detections) ? room.detections : [];
     return Object.freeze({
       name: normaliseRoomName(room?.name),
-      itemCount: items.length,
+      itemCount: items.reduce((total, item) => total + itemQuantity(item), 0),
       taskCount: Array.isArray(room?.tasks) ? room.tasks.length : 0,
       conditionLabel: conditionLabel(room?.condition),
       // What was actually picked, so the review reads "Sofa, TV, Rug" rather than
       // "3 objects" and a Landlord can spot a wrong room without reopening it.
       // Unnamed items are left out rather than padding the line with placeholders.
-      itemLabels: Object.freeze(items.map((item) => String(item?.label || "").trim()).filter(Boolean)),
+      itemLabels: Object.freeze(items.map(inventoryDisplayLabel).filter(Boolean)),
       hasNote: Boolean(String(room?.transcript || "").trim()),
       // "reading" belongs here too. Coerced to "ready" it was invisible, so the
       // hub could not say a room was still being read and Finish could not tell
@@ -961,6 +963,34 @@ export function inventoryKey(label) {
 
 export const inventoryLimit = 40;
 
+// A quantity is trusted only when one frame showed several non-overlapping boxes
+// with the same label. Seeing "Chair" in three different walking reads is not
+// proof of three chairs — it is usually one chair seen from three angles. Seeing
+// three separate chair boxes in one frame is proof, and the maximum simultaneous
+// count can safely survive later views that show only one of them.
+function simultaneousQuantity(items, key) {
+  const boxed = (Array.isArray(items) ? items : []).filter((item) =>
+    [item?.x, item?.y, item?.width, item?.height].every(Number.isFinite)
+    && item.width > 0 && item.height > 0);
+  if (!boxed.length) return 1;
+  return Math.max(1, deduplicateDetections(boxed.map((item) => ({
+    ...item,
+    className: key,
+    score: Number.isFinite(item?.score) ? item.score : 0
+  }))).length);
+}
+
+export function itemQuantity(item) {
+  const value = Number(item?.quantity);
+  return Number.isInteger(value) && value > 0 ? Math.min(value, 20) : 1;
+}
+
+export function inventoryDisplayLabel(item) {
+  const label = String(item?.label || "").trim();
+  const quantity = itemQuantity(item);
+  return quantity > 1 ? `${quantity} × ${label}` : label;
+}
+
 // Merges a fresh reading into what the room already holds. Returns a new array;
 // nothing is mutated, so the caller can render from the result directly.
 
@@ -995,15 +1025,27 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     const key = item?.key || inventoryKey(item?.label);
     if (key) merged.set(key, { ...item, key });
   }
+  const incomingByKey = new Map();
   for (const item of Array.isArray(incoming) ? incoming : []) {
     const label = String(item?.label || "").trim().slice(0, 40);
     const key = inventoryKey(label);
     if (!key) continue;
+    if (!incomingByKey.has(key)) incomingByKey.set(key, []);
+    incomingByKey.get(key).push({ ...item, label });
+  }
+  for (const [key, group] of incomingByKey) {
+    const item = group.reduce((best, candidate) => {
+      const candidateScore = Number.isFinite(candidate?.score) ? candidate.score : 0;
+      const bestScore = Number.isFinite(best?.score) ? best.score : 0;
+      return candidateScore > bestScore ? candidate : best;
+    }, group[0]);
+    const label = item.label;
     const score = Number.isFinite(item?.score) ? item.score : 0;
+    const quantity = simultaneousQuantity(group, key);
     const current = merged.get(key);
     if (!current) {
       merged.set(key, {
-        key, label, score, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false,
+        key, label, score, quantity, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false,
         condition: String(item?.condition || ""), note: String(item?.note || ""),
         soiling: Object.freeze((Array.isArray(item?.soiling) ? item.soiling : [])
           .map((kind) => String(kind || "").trim().slice(0, 16))
@@ -1022,6 +1064,10 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       // Seeing the same item from a second angle is the strongest signal available
       // on-device that it is really there, so it is counted rather than discarded.
       sightings: current.sightings + 1,
+      // Never add quantities across views: that would count the same chair every
+      // time the camera turned back towards it. Keep only the largest simultaneous
+      // count one frame actually proved.
+      quantity: Math.max(itemQuantity(current), quantity),
       lastSeenAt: now,
       // The better-evidenced look at the same object wins its condition too. A
       // glimpse from the doorway should not overwrite a close pass that actually
@@ -1071,6 +1117,7 @@ export function savedDetectionFromInventoryItem(item) {
   return Object.freeze({
     id: `w-${key}`,
     label,
+    quantity: itemQuantity(item),
     note: evidence || (item?.confirmed ? "Confirmed while scanning" : "Seen while scanning"),
     condition: String(item?.condition || "").trim().slice(0, 12),
     soiling: Object.freeze((Array.isArray(item?.soiling) ? item.soiling : [])
@@ -1079,6 +1126,49 @@ export function savedDetectionFromInventoryItem(item) {
       .slice(0, 4)),
     x: 0, y: 0, width: 0, height: 0
   });
+}
+
+// Confirmation and walking evidence are two views of the same room, so their
+// quantities are compared, never added. Within either single batch, separate
+// same-label detections are simultaneous and therefore counted. The result keeps
+// one grouped row/label while retaining the best real box and condition evidence.
+export function mergeSavedDetections(existing, incoming) {
+  const existingCounts = new Map();
+  const incomingCounts = new Map();
+  const countBatch = (source, target) => {
+    for (const detection of Array.isArray(source) ? source : []) {
+      const key = inventoryKey(detection?.label);
+      if (!key) continue;
+      target.set(key, (target.get(key) || 0) + itemQuantity(detection));
+    }
+  };
+  countBatch(existing, existingCounts);
+  countBatch(incoming, incomingCounts);
+
+  const merged = new Map();
+  for (const detection of [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]) {
+    const key = inventoryKey(detection?.label);
+    if (!key) continue;
+    const current = merged.get(key);
+    if (!current) {
+      merged.set(key, { ...detection });
+      continue;
+    }
+    const better = (detection.width > 0 && !(current.width > 0))
+      || (detection.condition && !current.condition);
+    merged.set(key, better ? { ...current, ...detection } : { ...detection, ...current });
+  }
+  return Object.freeze([...merged.entries()].map(([key, detection]) => Object.freeze({
+    ...detection,
+    quantity: Math.min(20, Math.max(existingCounts.get(key) || 0, incomingCounts.get(key) || 0, 1))
+  })).slice(0, 24));
+}
+
+export function mergeInventoryIntoSavedDetections(existing, inventory) {
+  const walked = (Array.isArray(inventory) ? inventory : [])
+    .map(savedDetectionFromInventoryItem)
+    .filter(Boolean);
+  return mergeSavedDetections(existing, walked);
 }
 
 // Rename, remove and confirm, as one operation so the correction UI has a single

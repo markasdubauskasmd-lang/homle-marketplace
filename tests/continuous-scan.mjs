@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   correctInventoryItem, frameSignature, inventoryKey, keyframeDefaults,
-  maxConcurrentWalkingReads, mergeRoomInventory, shouldCaptureKeyframe,
+  inventoryDisplayLabel, itemQuantity, maxConcurrentWalkingReads,
+  mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
+  rosterSummary, scanSummary, shouldCaptureKeyframe,
   signatureDistance, walkingReadIsBlocked, conditionTag, movementAdvice,
   savedDetectionFromInventoryItem, usableLiveBoxes
 } from "../public/room-scan-model.js";
@@ -205,6 +207,52 @@ assert.equal(closerTap[0].condition, "heavy", "A better-evidenced walking view d
 assert.deepEqual(closerTap[0].soiling, ["limescale", "damage"], "A better-evidenced walking view updated the grade but left stale soiling evidence.");
 assert.equal(savedDetectionFromInventoryItem({ label: "   " }), null, "A blank inventory row became a stored room detection.");
 
+/* ── Several real objects are not mistaken for repeated sightings ── */
+
+let furnitureInventory = mergeRoomInventory([], [
+  { label: "Chair", score: 0.82, x: 4, y: 25, width: 20, height: 50 },
+  // A second almost-identical box around the first chair is detector duplication,
+  // not proof of another chair.
+  { label: "Chair", score: 0.79, x: 5, y: 26, width: 20, height: 49 },
+  { label: "Chair", score: 0.88, x: 58, y: 24, width: 20, height: 51 },
+  { label: "Table", score: 0.9, x: 25, y: 30, width: 38, height: 40 }
+], { now: 20 });
+const chairGroup = furnitureInventory.find((item) => item.key === inventoryKey("Chair"));
+assert.equal(furnitureInventory.length, 2, "Separate chairs created duplicate list rows instead of one grouped item.");
+assert.equal(chairGroup.quantity, 2, "Two separate chair boxes were collapsed, or one overlapping duplicate box was counted as a third chair.");
+assert.equal(chairGroup.sightings, 1, "Several same-label boxes in one view were misreported as several camera-angle sightings.");
+assert.equal(inventoryDisplayLabel(chairGroup), "2 × Chair", "The grouped quantity is not visible in the compact review list.");
+
+// A later angle showing one chair is the same room evidence, not a third chair.
+furnitureInventory = mergeRoomInventory(furnitureInventory, [
+  { label: "Chair", score: 0.9, x: 30, y: 20, width: 25, height: 60 }
+], { now: 21 });
+assert.equal(furnitureInventory.find((item) => item.key === inventoryKey("Chair")).quantity, 2, "Quantities were added across camera angles, so the same chair was stored repeatedly.");
+assert.equal(furnitureInventory.find((item) => item.key === inventoryKey("Chair")).sightings, 2, "A later view did not strengthen the grouped chair evidence.");
+
+// One later frame genuinely proves that a third chair exists.
+furnitureInventory = mergeRoomInventory(furnitureInventory, [
+  { label: "Chair", score: 0.9, x: 2, y: 20, width: 18, height: 60 },
+  { label: "Chair", score: 0.86, x: 40, y: 20, width: 18, height: 60 },
+  { label: "Chair", score: 0.84, x: 78, y: 20, width: 18, height: 60 }
+], { now: 22 });
+const threeChairs = furnitureInventory.find((item) => item.key === inventoryKey("Chair"));
+assert.equal(threeChairs.quantity, 3, "A larger simultaneous same-object count did not update the room inventory.");
+assert.equal(itemQuantity({ quantity: 99 }), 20, "An unbounded model quantity could inflate the room summary.");
+
+const groupedSaved = mergeInventoryIntoSavedDetections([
+  { id: "box-chair", label: "Chair", x: 2, y: 20, width: 18, height: 60 }
+], [threeChairs]);
+assert.equal(groupedSaved.length, 1, "Walking and confirmation evidence created two saved Chair rows.");
+assert.equal(groupedSaved[0].quantity, 3, "The red save action lost the maximum simultaneous Chair count.");
+assert.equal(groupedSaved[0].width, 18, "Grouping the saved Chair quantity discarded its confirmation-frame geometry.");
+assert.equal(mergeSavedDetections(groupedSaved, [{ label: "Chair", x: 4, y: 22, width: 17, height: 58 }])[0].quantity, 3, "A later confirmation response reduced the proven Chair count.");
+
+const groupedRoom = [{ name: "Dining room", tasks: ["Wipe the chairs"], detections: groupedSaved }];
+assert.equal(scanSummary(groupedRoom).fixtureCount, 3, "The scan summary counted one grouped row rather than the three objects it represents.");
+assert.equal(rosterSummary(groupedRoom)[0].itemCount, 3, "The room roster hid the grouped object quantity.");
+assert.deepEqual(rosterSummary(groupedRoom)[0].itemLabels, ["3 × Chair"], "The room roster did not expose the grouped quantity clearly.");
+
 console.log("Continuous scan tests passed: frames are read only when the view has genuinely changed, the phone has settled and image quality is usable; reads are bounded per room and never overlap; the inventory accumulates across angles without repeating itself; and a Landlord's correction survives every later reading.");
 
 /* ── The overlay actually walks the room ── */
@@ -240,7 +288,7 @@ assert.doesNotMatch(overlay, /keyframeBusy/, "The old global walking-read busy f
 assert.match(overlay, /state\.keyframeCanvas/, "Keyframes are drawn on the shared capture canvas, which would overwrite the frame a room confirmation is about to be graded from.");
 
 // The inventory has to reach the saved room, or it is a display that vanishes.
-assert.match(overlay, /\.map\(savedDetectionFromInventoryItem\)/, "Items found while walking are not folded into the saved room, so the checklist would still only know what was in the single confirmation frame.");
+assert.match(overlay, /mergeInventoryIntoSavedDetections\(room\.detections, walked\)/, "Items found while walking are not folded into the saved room, so the checklist would still only know what was in the single confirmation frame.");
 assert.match(overlay, /soiling: Array\.isArray\(detection\.soiling\) \? detection\.soiling : \[\]/, "Walking reads discard structured soiling before it reaches the inventory.");
 
 // Labels come back from a reader looking at photographs of a stranger's home.

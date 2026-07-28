@@ -13,7 +13,10 @@ import {
   shouldCaptureKeyframe,
   walkingReadIsBlocked,
   mergeRoomInventory,
-  savedDetectionFromInventoryItem,
+  mergeSavedDetections,
+  mergeInventoryIntoSavedDetections,
+  inventoryDisplayLabel,
+  itemQuantity,
   inventoryKey,
   resolveRoomCondition,
   conditionTag,
@@ -1563,16 +1566,12 @@ export function openRoomScan() {
 
       const walked = inventoryFor(roomName);
       if (walked.length) {
-        const named = new Set(room.detections.map((detection) => inventoryKey(detection.label)));
         room = {
           ...room,
-          detections: [
-            ...room.detections,
-            ...walked
-              .filter((item) => !named.has(item.key))
-              .map(savedDetectionFromInventoryItem)
-              .filter(Boolean)
-          ]
+          // Group same-label objects while keeping the largest simultaneous
+          // quantity actually seen. Confirmation and walking are separate views,
+          // so adding their counts would count the same chair twice.
+          detections: mergeInventoryIntoSavedDetections(room.detections, walked)
         };
       }
 
@@ -1588,7 +1587,7 @@ export function openRoomScan() {
       // there is no failure to suppress it — a read that fails later says so on
       // its own, from the background, and leaves the room retryable.
       {
-        const count = room.detections.length;
+        const count = room.detections.reduce((total, detection) => total + itemQuantity(detection), 0);
         const items = count ? `${count} ${count === 1 ? "item" : "items"}` : "photo";
         // Suggested from the rooms not yet covered, never from how many have been
         // captured: which room comes next is the Landlord's choice, and a home is
@@ -1902,6 +1901,8 @@ export function openRoomScan() {
               condition: detection.condition || "",
               soiling: Array.isArray(detection.soiling) ? detection.soiling : [],
               note: detection.note || "",
+              x: detection.x, y: detection.y,
+              width: detection.width, height: detection.height,
               source: "read"
             }));
           // Tasks and condition are kept even when no new object was named — a
@@ -1933,11 +1934,14 @@ export function openRoomScan() {
       // Says how many need attention, not how many exist. "16 items found" over a
       // list whose visible rows all read CLEAN told a customer nothing and looked
       // like padding; what they want to know is how much work this room is.
-      const needsWork = items.filter((item) => item.condition && item.condition !== "clean").length;
-      el.foundCount.textContent = String(needsWork || items.length);
+      const totalItems = items.reduce((total, item) => total + itemQuantity(item), 0);
+      const needsWork = items
+        .filter((item) => item.condition && item.condition !== "clean")
+        .reduce((total, item) => total + itemQuantity(item), 0);
+      el.foundCount.textContent = String(needsWork || totalItems);
       el.foundNoun.textContent = needsWork
-        ? `to clean${items.length > needsWork ? ` · ${items.length - needsWork} clean` : ""}`
-        : items.length === 1 ? "item" : "items";
+        ? `to clean${totalItems > needsWork ? ` · ${totalItems - needsWork} clean` : ""}`
+        : totalItems === 1 ? "item" : "items";
 
       const rows = items.map((item) => {
         const row = document.createElement("li");
@@ -1950,7 +1954,7 @@ export function openRoomScan() {
         const name = document.createElement("button");
         name.type = "button";
         name.className = "found-name";
-        name.textContent = item.label;
+        name.textContent = inventoryDisplayLabel(item);
         // The condition sits on the row because it is the answer being paid for.
         // A row that says only "Worktop" tells a customer nothing they did not
         // already know about their own kitchen.
@@ -1966,7 +1970,7 @@ export function openRoomScan() {
         if (Number.isFinite(item.score) && item.score > 0 && item.score < 0.5) name.dataset.unsure = "true";
         if (item.note) name.title = item.note;
         name.dataset.inventoryRename = item.key;
-        name.setAttribute("aria-label", `Rename ${item.label}`);
+        name.setAttribute("aria-label", `Rename ${inventoryDisplayLabel(item)}`);
 
         const remove = document.createElement("button");
         remove.type = "button";
@@ -2037,27 +2041,6 @@ export function openRoomScan() {
         state.keyframeBudgets.set(key, budget);
       }
       return budget;
-    }
-
-    // Runs after the room is already saved and the customer is back on the hub.
-    // Nothing here blocks them: they can name the next room, walk into it, or
-    // finish the scan while this is still in flight.
-    // Union by label, keeping whichever entry carries a real box. A walk records
-    // an item with no geometry; the confirmation reading places it. Same item,
-    // and the customer should see one row.
-    function mergeSavedDetections(existing, incoming) {
-      const merged = new Map();
-      for (const detection of [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]) {
-        const key = inventoryKey(detection?.label);
-        if (!key) continue;
-        const current = merged.get(key);
-        // A later entry wins only where it is better evidenced: a real box beats
-        // no box, and a stated condition beats a blank one.
-        if (!current) { merged.set(key, detection); continue; }
-        const better = (detection.width > 0 && !(current.width > 0)) || (detection.condition && !current.condition);
-        merged.set(key, better ? { ...current, ...detection } : { ...detection, ...current });
-      }
-      return [...merged.values()].slice(0, 24);
     }
 
     function mergeSavedTasks(existing, incoming) {
@@ -2808,7 +2791,7 @@ export function openRoomScan() {
         rooms: state.rooms.map((room) => ({
           name: room.name,
           condition: room.condition,
-          fixtures: (room.detections || []).map((detection) => detection.label),
+          fixtures: (room.detections || []).map(inventoryDisplayLabel),
           note: String(room.transcript || "").trim()
         })),
         guideTime: summary.durationLabel,
