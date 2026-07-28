@@ -11,6 +11,7 @@ import {
   deduplicateDetections,
   trackDetections,
   drawableTracks,
+  frameQualityStats,
   frameQualityAdvice,
   nextDetectionDelay,
   roomPresets,
@@ -233,10 +234,38 @@ assert(nextDetectionDelay(0) === 125 && nextDetectionDelay(NaN) === 125, "A miss
 /* ── Framing guidance ──────── */
 // A usable room gets no cue at all: guidance that fires on an ordinary frame
 // teaches the Landlord to ignore it.
+const unevenPixels = new Uint8ClampedArray([
+  ...Array(3).fill([0, 0, 0, 255]).flat(),
+  ...Array(6).fill([128, 128, 128, 255]).flat(),
+  255, 255, 255, 255
+]);
+const unevenStats = frameQualityStats(unevenPixels, 10, 1);
+assert(
+  close(unevenStats.shadowRatio, 0.3) && close(unevenStats.highlightRatio, 0.1)
+    && unevenStats.luma > 100 && unevenStats.luma < 120,
+  `The exposure sampler did not measure the synthetic backlit frame correctly: ${JSON.stringify(unevenStats)}`
+);
+assert(frameQualityAdvice(unevenStats)?.kind === "uneven", "A measured backlit frame passed the condition-quality gate.");
+assert(frameQualityStats(unevenPixels, 0, 1) === null && frameQualityStats(new Uint8ClampedArray(4), 2, 1) === null, "Invalid or truncated pixel data invented quality statistics.");
+assert(Object.isFrozen(unevenStats), "Frame-quality statistics are mutable.");
 assert(frameQualityAdvice({ luma: 120, detail: 22 }) === null, "A perfectly usable frame was nagged about.");
 assert(frameQualityAdvice({ luma: 20, detail: 30 })?.kind === "dark", "An unlit room was not called out.");
 assert(frameQualityAdvice({ luma: 240, detail: 30 })?.kind === "bright", "A blown-out frame was not called out.");
 assert(frameQualityAdvice({ luma: 120, detail: 1.2 })?.kind === "soft", "A blurred or smeared frame was not called out.");
+assert(
+  frameQualityAdvice({ luma: 120, detail: 22, shadowRatio: 0.32, highlightRatio: 0.1 })?.kind === "uneven",
+  "A backlit frame with a normal-looking mean brightness was accepted even though both shadows and highlights were clipped."
+);
+assert(
+  frameQualityAdvice({ luma: 120, detail: 22, shadowRatio: 0.32, highlightRatio: 0.04 }) === null
+    && frameQualityAdvice({ luma: 120, detail: 22, shadowRatio: 0.08, highlightRatio: 0.32 }) === null,
+  "A dark object or pale wall on its own produced an uneven-light warning."
+);
+assert(
+  frameQualityAdvice({ luma: 20, detail: 30, shadowRatio: 0.7, highlightRatio: 0.1 })?.kind === "dark"
+    && frameQualityAdvice({ luma: 240, detail: 30, shadowRatio: 0.3, highlightRatio: 0.4 })?.kind === "bright",
+  "Mixed-exposure guidance displaced the clearer whole-frame dark or bright instruction."
+);
 // Darkness outranks softness: a dark frame has low detail *because* it is dark, so
 // telling the Landlord to hold still would send them after the wrong problem.
 assert(frameQualityAdvice({ luma: 20, detail: 1 })?.kind === "dark", "A dark frame was blamed on camera shake.");

@@ -622,10 +622,62 @@ export function drawableTracks(tracks) {
 // `luma` is mean brightness 0-255. `detail` is the mean absolute difference
 // between neighbouring samples — high on a crisp room, near zero on a frame that
 // is blurred, smeared by motion, or pointed at a blank wall.
-export function frameQualityAdvice({ luma, detail } = {}) {
+//
+// A mean alone has one important blind spot: a frame that is half deep shadow and
+// half window glare can average to a perfect-looking 120. Fine condition evidence
+// is still gone at both ends. `shadowRatio` and `highlightRatio` close that gap
+// using the same tiny pixel sample the overlay already reads; no second canvas
+// readback or provider request is added.
+export function frameQualityStats(pixels, width, height, { shadowCutoff = 24, highlightCutoff = 235 } = {}) {
+  const columns = Number(width);
+  const rows = Number(height);
+  const sampleCount = columns * rows;
+  if (!pixels || !Number.isInteger(columns) || columns < 1 || !Number.isInteger(rows) || rows < 1
+    || !Number.isFinite(pixels.length) || pixels.length < sampleCount * 4) return null;
+
+  let total = 0;
+  let deltas = 0;
+  let pairs = 0;
+  let shadowSamples = 0;
+  let highlightSamples = 0;
+  for (let y = 0; y < rows; y += 1) {
+    let previous = null;
+    for (let x = 0; x < columns; x += 1) {
+      const index = (y * columns + x) * 4;
+      const luma = pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
+      total += luma;
+      if (luma <= shadowCutoff) shadowSamples += 1;
+      else if (luma >= highlightCutoff) highlightSamples += 1;
+      // Row boundaries are not neighbours. Including the wrap-around edge makes
+      // a soft frame look artificially detailed.
+      if (previous !== null) {
+        deltas += Math.abs(luma - previous);
+        pairs += 1;
+      }
+      previous = luma;
+    }
+  }
+  if (!pairs) return null;
+  return Object.freeze({
+    luma: total / sampleCount,
+    detail: deltas / pairs,
+    shadowRatio: shadowSamples / sampleCount,
+    highlightRatio: highlightSamples / sampleCount
+  });
+}
+
+export function frameQualityAdvice({ luma, detail, shadowRatio, highlightRatio } = {}) {
   if (![luma, detail].every((value) => Number.isFinite(value))) return null;
   if (luma < 42) return Object.freeze({ kind: "dark", message: "Too dark to read the room — turn a light on." });
   if (luma > 218) return Object.freeze({ kind: "bright", message: "Too bright to make out detail — try facing away from the window." });
+  const shadows = Number.isFinite(shadowRatio) ? Math.max(0, Math.min(1, shadowRatio)) : 0;
+  const highlights = Number.isFinite(highlightRatio) ? Math.max(0, Math.min(1, highlightRatio)) : 0;
+  // Require a substantial clipped total and evidence at BOTH ends. That catches
+  // backlit/patchy rooms without nagging just because a black sofa or white wall
+  // occupies part of an otherwise usable view.
+  if (shadows >= 0.25 && highlights >= 0.08 && shadows + highlights >= 0.4) {
+    return Object.freeze({ kind: "uneven", message: "Uneven light is hiding detail — move away from glare or turn another light on." });
+  }
   // Only trusted once the frame is bright enough for low detail to mean blur
   // rather than simply a dark picture.
   if (detail < 4.5) return Object.freeze({ kind: "soft", message: "Hold still, or step back to get the whole room in frame." });
