@@ -9,20 +9,9 @@
  * style attributes in markup would not be, which is why none are used.
  */
 
-@font-face {
-  font-family: "Bricolage Grotesque";
-  src: url("/vendor/fonts/bricolage-grotesque-wght.woff2") format("woff2");
-  font-weight: 600 800;
-  font-display: swap;
-  font-style: normal;
-}
-@font-face {
-  font-family: "DM Sans";
-  src: url("/vendor/fonts/dm-sans-wght.woff2") format("woff2");
-  font-weight: 400 600;
-  font-display: swap;
-  font-style: normal;
-}
+/* The @font-face pairs that were here now live in homle-tokens.css, which every
+   page loads. The same two families were declared byte-identically in three
+   stylesheets; one owner means a font swap is one edit, not a hunt. */
 
 body.landing {
   --lp-cream: oklch(0.975 0.015 95);

@@ -1,0 +1,103 @@
+/*
+ * Homle design tokens — one owner for typography, palette, radius and shadow.
+ *
+ * THE LANDING PAGE IS THE SOURCE OF TRUTH. Every value below is lifted from
+ * home.css, which is the page the product is designed around; this file just
+ * moves those decisions somewhere the rest of the app can reach them.
+ *
+ * The audit that produced it:
+ *
+ *   - styles.css, which 30 of the 36 pages load, asked for `--font-display:
+ *     "Sora"` and `--font-body: Inter`. NEITHER FONT IS VENDORED AND NOTHING
+ *     LOADS THEM. Under `script-src/style-src 'self'` there is no Google Fonts
+ *     request either, so all 30 pages silently fell back to system sans-serif
+ *     while the landing page rendered in real Bricolage Grotesque. That single
+ *     dead declaration is most of the "these pages look like different
+ *     products" feeling, and no amount of spacing work would have fixed it.
+ *   - 511 distinct hex colours, 70 border-radius values and 115 box-shadows in
+ *     styles.css alone. Those are not decisions, they are accretion.
+ *
+ * Scope, deliberately: the five Cleaner-workspace pages keep their own
+ * homle-cleaner.css (Archivo/Poppins) and are NOT touched. That is a separate,
+ * newer design owned by someone else, and quietly re-skinning it would be
+ * taking a decision that is not mine to take.
+ *
+ * The fonts are declared here and only here. home.css and landlord-dashboard.css
+ * used to carry their own byte-identical @font-face pairs, so the same two files
+ * were declared three times over.
+ */
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/vendor/fonts/bricolage-grotesque-wght.woff2") format("woff2");
+  font-weight: 600 800;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: "DM Sans";
+  src: url("/vendor/fonts/dm-sans-wght.woff2") format("woff2");
+  font-weight: 400 600;
+  font-display: swap;
+  font-style: normal;
+}
+
+:root {
+  /* ── Typography ────────────────────────────────────────────────────────
+     Two families, as the landing page uses them: a heavy grotesque for
+     anything that carries the voice, and a quiet grotesque for everything
+     that carries information. */
+  --homle-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --homle-body: "DM Sans", system-ui, -apple-system, sans-serif;
+
+  /* ── Palette ───────────────────────────────────────────────────────────
+     oklch, copied from home.css. Kept in oklch rather than converted to hex
+     because that is what the landing page renders and a conversion would
+     shift the colours slightly — "close enough" is exactly the drift this
+     file exists to end. Every browser the app supports parses it. */
+  --homle-cream: oklch(0.975 0.015 95);   /* warm page background */
+  --homle-paper: #fff;                     /* cards and sheets sitting on cream */
+  --homle-ink: oklch(0.2 0.03 60);         /* headings and primary text */
+  --homle-ink-2: oklch(0.24 0.03 60);
+  --homle-muted: oklch(0.42 0.02 60);      /* secondary text */
+  --homle-muted-2: oklch(0.46 0.02 60);
+  --homle-dim: oklch(0.66 0.015 65);       /* labels, meta, placeholders */
+  --homle-coral: oklch(0.62 0.19 25);      /* the brand red — CTAs, accents */
+  --homle-mint: oklch(0.78 0.17 150);      /* success / confirmed */
+  --homle-beam: oklch(0.86 0.16 150);
+  --homle-sky: oklch(0.83 0.14 190);       /* informational */
+
+  /* Derived, so nothing has to hand-mix a tint again. */
+  --homle-line: color-mix(in oklch, var(--homle-ink) 12%, transparent);
+  --homle-line-soft: color-mix(in oklch, var(--homle-ink) 7%, transparent);
+  --homle-coral-tint: color-mix(in oklch, var(--homle-coral) 12%, white);
+  --homle-coral-hover: color-mix(in oklch, var(--homle-coral) 88%, black);
+  --homle-surface: color-mix(in oklch, var(--homle-cream) 60%, white);
+
+  /* ── Radius ────────────────────────────────────────────────────────────
+     Four steps, replacing seventy. Named by what they wrap, not by size, so
+     "which one" has an answer rather than a taste. */
+  --homle-radius-sm: 10px;   /* chips, inputs, small controls */
+  --homle-radius: 16px;      /* buttons, list rows */
+  --homle-radius-lg: 22px;   /* cards and panels */
+  --homle-radius-pill: 999px;
+
+  /* ── Elevation ─────────────────────────────────────────────────────────
+     Three steps, replacing a hundred and fifteen. Warm-tinted rather than
+     neutral grey, because a grey shadow over a cream page reads as dirt. */
+  --homle-shadow-sm: 0 1px 2px oklch(0.2 0.03 60 / .05), 0 6px 16px oklch(0.2 0.03 60 / .06);
+  --homle-shadow: 0 18px 60px oklch(0.35 0.08 30 / .12);
+  --homle-shadow-lg: 0 28px 80px oklch(0.2 0.03 60 / .17);
+
+  /* ── Spacing ───────────────────────────────────────────────────────────
+     A 4px base. Present so new work has a scale to reach for; existing
+     hand-set values are left alone rather than churned. */
+  --homle-space-1: 4px;
+  --homle-space-2: 8px;
+  --homle-space-3: 12px;
+  --homle-space-4: 16px;
+  --homle-space-5: 24px;
+  --homle-space-6: 32px;
+  --homle-space-7: 48px;
+  --homle-space-8: 64px;
+}

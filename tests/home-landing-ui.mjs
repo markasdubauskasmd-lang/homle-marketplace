@@ -2,11 +2,12 @@ import { readFile, stat } from "node:fs/promises";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
-const [page, css, hero, homeScript] = await Promise.all([
+const [page, css, hero, homeScript, tokens] = await Promise.all([
   readFile(new URL("../public/home.html", import.meta.url), "utf8"),
   readFile(new URL("../public/home.css", import.meta.url), "utf8"),
   readFile(new URL("../public/home-hero.js", import.meta.url), "utf8"),
-  readFile(new URL("../public/home.js", import.meta.url), "utf8")
+  readFile(new URL("../public/home.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/homle-tokens.css", import.meta.url), "utf8")
 ]);
 
 /* ── Content-Security-Policy safety ─────────────────── */
@@ -20,7 +21,17 @@ assert(!/https?:\/\//.test(css) && !css.includes("fonts.googleapis") && !css.inc
 assert(!/https?:\/\//.test(hero) && !hero.includes("eval(") && !hero.includes("new Function"), "The scroll script loads off-origin or uses eval, which the CSP blocks.");
 
 // The fonts are self-hosted, under the immutable /vendor/ path, with their OFL.
-assert(css.includes('url("/vendor/fonts/bricolage-grotesque-wght.woff2")') && css.includes('url("/vendor/fonts/dm-sans-wght.woff2")'), "The landing typography is not self-hosted from /vendor/fonts.");
+// They are declared in homle-tokens.css now rather than here: the identical pair
+// was repeated in three stylesheets, and the whole app reads them from one owner
+// so the landing page and the dashboards cannot drift onto different typefaces.
+assert(!/https?:\/\//.test(tokens) && !tokens.includes("fonts.googleapis") && !tokens.includes("fonts.gstatic"), "The shared design tokens pull a font from off-origin, which the CSP blocks.");
+assert(tokens.includes('url("/vendor/fonts/bricolage-grotesque-wght.woff2")') && tokens.includes('url("/vendor/fonts/dm-sans-wght.woff2")'), "The landing typography is not self-hosted from /vendor/fonts.");
+// Comments are stripped first: the file deliberately EXPLAINS where the fonts
+// went, and that prose must not be mistaken for a declaration.
+assert(!/@font-face\s*\{/.test(css.replace(/\/\*[\s\S]*?\*\//g, "")), "home.css declares the fonts again. One owner, or the landing page and the app can drift onto different files of the same family.");
+// And the landing page still USES them — the tokens are worth nothing if the
+// page that defines the look stops reading from them.
+assert(css.includes("--lp-display") && css.includes("Bricolage Grotesque"), "The landing page no longer references its own display family.");
 for (const file of ["bricolage-grotesque-wght.woff2", "dm-sans-wght.woff2", "OFL.txt"]) {
   const info = await stat(new URL(`../public/vendor/fonts/${file}`, import.meta.url));
   assert(info.isFile() && info.size > 0, `Vendored font asset ${file} is missing.`);
