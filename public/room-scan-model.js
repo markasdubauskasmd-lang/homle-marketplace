@@ -965,6 +965,32 @@ export function unresolvedRoomReadKey(rooms) {
     .join("|");
 }
 
+// Conditions are reviewed after automatic reading has settled. In-flight and
+// deferred rooms already have their own finish warning; including them here
+// would show two competing problems before the model has had a chance to resolve
+// either one.
+export function unresolvedRoomConditionKey(rooms) {
+  return (Array.isArray(rooms) ? rooms : [])
+    .map((room, roomIndex) => {
+      const status = String(room?.readingStatus || "");
+      if (status === "reading" || status === "needs-retry") return "";
+      const roomName = roomKey(room?.name) || `room-${roomIndex + 1}`;
+      const unresolved = [...new Set((Array.isArray(room?.detections) ? room.detections : [])
+        .map((item, itemIndex) => {
+          if (!conditionNeedsReview(item)) return "";
+          return String(item?.inventoryKey || inventoryKey(item?.label)).trim() || `item-${itemIndex + 1}`;
+        })
+        .filter(Boolean)
+        .sort())];
+      return unresolved.length
+        ? `${encodeURIComponent(roomName)}:${unresolved.map(encodeURIComponent).join(",")}`
+        : "";
+    })
+    .filter(Boolean)
+    .sort()
+    .join("|");
+}
+
 // One line per scanned room for the hub: what it is, how much was found, how
 // dirty it read. The hub is where the Landlord picks, reviews and returns, so it
 // must show all three at a glance without opening anything.
@@ -1573,11 +1599,22 @@ export function objectFramingAdvice(tracks, { maximumTinyAreaRatio = 0.015, mini
 // A recognised object without a cleaning grade is not a finished result. Keep
 // this separate from label confidence: a high-confidence "Tap" can still have no
 // usable evidence about limescale.
+function conditionNeedsReview(item) {
+  const condition = String(item?.condition || "").toLowerCase().trim();
+  if (!["clean", "light", "medium", "heavy"].includes(condition)) return true;
+  if (item?.conditionConfirmed === true) return false;
+  const confidence = Number.isFinite(item?.conditionConfidence)
+    ? Number(item.conditionConfidence)
+    : Number.isFinite(item?.confidence)
+      ? Number(item.confidence)
+      : Number.isFinite(item?.score)
+        ? Number(item.score)
+        : null;
+  return confidence !== null && confidence >= 0 && confidence < 0.5;
+}
+
 export function conditionReviewAdvice(items) {
-  const unresolved = (Array.isArray(items) ? items : []).filter((item) => {
-    const condition = String(item?.condition || "").toLowerCase().trim();
-    return !["clean", "light", "medium", "heavy"].includes(condition);
-  });
+  const unresolved = (Array.isArray(items) ? items : []).filter(conditionNeedsReview);
   if (!unresolved.length) return null;
   const message = unresolved.length === 1
     ? "Condition unclear — move closer or tap the item to confirm."

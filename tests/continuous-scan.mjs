@@ -220,6 +220,8 @@ assert.equal(resolvedTap[0].note, "White deposits around the tap base", "The con
 assert.equal(resolvedTap[0].score, 0.88, "Accepting later condition evidence reduced the best object-label confidence.");
 assert.match(conditionReviewAdvice(unclearTap)?.message || "", /Condition unclear/i, "An item with no condition looks settled instead of asking for a closer look or one-tap correction.");
 assert.equal(conditionReviewAdvice(resolvedTap), null, "Condition guidance remains after the item has a usable grade.");
+assert.ok(conditionReviewAdvice([{ label: "Tap", condition: "medium", score: 0.3 }]), "A low-confidence condition is displayed as settled.");
+assert.equal(conditionReviewAdvice([{ label: "Tap", condition: "medium", score: 0.3, conditionConfirmed: true }]), null, "The scanner continues to question a condition the customer explicitly confirmed.");
 
 const sameTapTwice = mergeRoomInventory([], [
   { label: "Faucet", score: 0.78, x: 20, y: 25, width: 18, height: 25 },
