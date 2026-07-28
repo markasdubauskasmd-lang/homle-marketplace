@@ -943,6 +943,28 @@ export function removeRoom(rooms, name) {
   return list.filter((room) => roomKey(room?.name) !== key);
 }
 
+// A finish override belongs to the exact unresolved reads the customer saw when
+// they confirmed it. A single boolean is unsafe: after warning about Kitchen,
+// adding a Bathroom whose read is still running would silently reuse Kitchen's
+// old override. The status and revision are part of the fingerprint so a
+// network-deferred retry is also a new decision. Sorting makes harmless roster
+// reordering stable.
+export function unresolvedRoomReadKey(rooms) {
+  return (Array.isArray(rooms) ? rooms : [])
+    .map((room, index) => {
+      const status = String(room?.readingStatus || "");
+      if (status !== "reading" && status !== "needs-retry") return "";
+      const name = roomKey(room?.name) || `room-${index + 1}`;
+      const revision = Number.isSafeInteger(room?.readingRevision) && room.readingRevision >= 0
+        ? room.readingRevision
+        : 0;
+      return `${encodeURIComponent(name)}:${status}:${revision}`;
+    })
+    .filter(Boolean)
+    .sort()
+    .join("|");
+}
+
 // One line per scanned room for the hub: what it is, how much was found, how
 // dirty it read. The hub is where the Landlord picks, reviews and returns, so it
 // must show all three at a glance without opening anything.
