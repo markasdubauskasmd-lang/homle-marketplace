@@ -84,7 +84,17 @@ assert.deepEqual(
 
 /* ── Every page that shares the app's look loads the system ── */
 
-const cleanerWorkspace = new Set(["cleaner-dashboard", "cleaner-job", "cleaner-public-profile", "cleaner-reviews", "cleaner-schedule"]);
+const cleanerWorkspace = new Set([
+  "cleaner-dashboard",
+  "cleaner-job",
+  "cleaner-jobs-map",
+  "cleaner-performance",
+  "cleaner-public-profile",
+  "cleaner-registration",
+  "cleaner-reviews",
+  "cleaner-schedule",
+  "cleaner-sign-off"
+]);
 const pages = readdirSync(new URL("../public", import.meta.url)).filter((name) => name.endsWith(".html"));
 const missing = [];
 for (const page of pages) {
