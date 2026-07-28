@@ -466,7 +466,7 @@ function renderAlerts(summary, buckets) {
   if (!host) return;
   const alerts = [];
   if (summary.profileCompletionPercent < 100) alerts.push(["red", "Your registration is not complete", "Review the remaining onboarding steps before suitable requests can reach you.", "Review →", "/cleaner/registration"]);
-  if (summary.availableWindowCount === 0) alerts.push(["amber", "No future availability saved", "Add exact windows or Homle cannot match you.", "Add →", "/cleaner/availability"]);
+  if (summary.availableWindowCount === 0) alerts.push(["amber", "No future availability saved", "Complete availability from your Cleaner dashboard.", "Review →", "/cleaner/dashboard"]);
   if (summary.payoutState === "action-required") alerts.push(["amber", "Payout setup is unfinished", "Complete the secure form to receive transfers.", "Continue →", "/cleaner/payouts"]);
   if (summary.payoutState === "not-started") alerts.push(["amber", "Payout account not set up", "Set it up before your first completed job.", "Set up →", "/cleaner/payouts"]);
   if (buckets.pending.length > 0) alerts.push(["red", `${buckets.pending.length} offer${buckets.pending.length === 1 ? "" : "s"} awaiting your reply`, "Offers close automatically when the window ends.", "Review →", "#"]);
@@ -599,7 +599,7 @@ function renderNextAction(buckets, profile, payout, availability, capabilities) 
   if (!availability.some((window) => window.status === "available")) {
     title.textContent = "Add when you can clean";
     copy.textContent = "One exact future time lets Homle match suitable requests to you.";
-    link.href = "/cleaner/availability";
+    link.href = "/cleaner/dashboard";
     link.textContent = "Add availability";
     return;
   }
@@ -619,7 +619,7 @@ function renderNextAction(buckets, profile, payout, availability, capabilities) 
   }
   title.textContent = "You are ready for matching";
   copy.textContent = "Your public profile and future availability are ready. New suitable requests will appear here.";
-  link.href = "/cleaner/availability";
+  link.href = "/cleaner/dashboard";
   link.textContent = "Review availability";
 }
 

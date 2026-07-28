@@ -50,7 +50,7 @@ assert(parsedManifest.name === "Homle Cleaning" && parsedManifest.short_name ===
 assert(parsedManifest.id === "/" && parsedManifest.scope === "/" && parsedManifest.display === "standalone" && parsedManifest.lang === "en-GB", "The installed Homle identity or navigation scope is incomplete.");
 assert(parsedManifest.icons.some((icon) => icon.src === "/app-icon-192.png" && icon.sizes === "192x192") && parsedManifest.icons.some((icon) => icon.src === "/app-icon-512.png" && icon.sizes === "512x512") && parsedManifest.icons.some((icon) => icon.src === "/app-icon-maskable-512.png" && icon.purpose === "maskable"), "The web-app manifest omitted required phone icons or its maskable icon.");
 const shortcutUrls = parsedManifest.shortcuts.map((shortcut) => shortcut.url);
-assert(["/landlord/book", "/cleaner/dashboard", "/request", "/join"].every((url) => shortcutUrls.includes(url)), "The installed app omitted a secure room-scan, Cleaner-jobs or account-entry shortcut.");
+assert(["/landlord/book", "/landlord/dashboard", "/cleaner/dashboard"].every((url) => shortcutUrls.includes(url)) && !shortcutUrls.includes("/request") && !shortcutUrls.includes("/join"), "The installed app omitted a secure dashboard shortcut or retained a retired public journey.");
 assert(parsedManifest.shortcuts.find((shortcut) => shortcut.url === "/landlord/book")?.icons?.some((icon) => icon.src === "/app-icon-192.png"), "The one-tap room-scan shortcut omitted its local app icon.");
 for (const iconName of ["app-icon-192.png", "app-icon-512.png", "app-icon-maskable-512.png", "apple-touch-icon.png"]) {
   const icon = await stat(new URL(`../public/${iconName}`, import.meta.url));

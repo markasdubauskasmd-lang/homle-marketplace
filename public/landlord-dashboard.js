@@ -1337,7 +1337,7 @@ function renderBookingCard(booking) {
   const actions = element("div", "booking-summary-actions");
   if (booking.paymentStepAvailable) {
     const payment = element("a", "button", "Authorize booking total");
-    payment.href = `/booking-payment?bookingId=${encodeURIComponent(booking.bookingId)}`;
+    payment.href = "/landlord/dashboard";
     actions.append(payment);
   }
   if (booking.activeJobAvailable) {

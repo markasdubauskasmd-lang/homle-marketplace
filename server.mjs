@@ -242,11 +242,11 @@ const mimeTypes = {
 };
 
 function setSecurityHeaders(response, requestPath = "") {
-  const paymentPage = requestPath === "/booking-payment";
+  const paymentPage = false;
   const activeJobPage = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
   const landlordDashboardPage = requestPath === "/landlord/dashboard";
   const journeyPage = requestPath === "/landlord/book";
-  const privateMediaPage = activeJobPage || landlordDashboardPage;
+  const privateMediaPage = activeJobPage || landlordDashboardPage || journeyPage;
   const activeJobStorage = privateMediaPage && objectStorageOrigins.length ? ` ${objectStorageOrigins.join(" ")}` : "";
   const trustedAccountAvatars = " https://*.googleusercontent.com https://*.fbcdn.net https://platform-lookaside.fbsbx.com";
   response.setHeader("Content-Security-Policy", paymentPage
@@ -258,9 +258,7 @@ function setSecurityHeaders(response, requestPath = "") {
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Frame-Options", "DENY");
   if (process.env.NODE_ENV === "production") response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-  response.setHeader("Permissions-Policy", requestPath === "/booking-payment"
-    ? "camera=(), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\" \"https://hooks.stripe.com\")"
-    : requestPath === "/brief" || landlordDashboardPage || journeyPage
+  response.setHeader("Permissions-Policy", landlordDashboardPage || journeyPage
     ? "camera=(self), microphone=(self), geolocation=()"
     : activeJobPage
       ? "camera=(self), microphone=(), geolocation=(self)"
@@ -3394,7 +3392,7 @@ async function getAdminProposalDrafts(request, response, proposalId) {
     sendAllowed: baseSendAllowed,
     handoffReady: customerHandoffReady || cleanerHandoffReady,
     warnings,
-    customer: { subject: `Homle cleaning proposal ${proposal.id}`, body: customerBody, recipient: { email: customerRequest.email, phone: customerRequest.phone }, privateUrl: customerPublicOrigin ? `${customerPublicOrigin}/quote#${proposal.reviewToken}` : "", handoffReady: customerHandoffReady },
+    customer: { subject: `Homle cleaning proposal ${proposal.id}`, body: customerBody, recipient: { email: customerRequest.email, phone: customerRequest.phone }, privateUrl: customerPublicOrigin ? `${customerPublicOrigin}/landlord/dashboard` : "", handoffReady: customerHandoffReady },
     cleaner: { subject: `Homle cleaning opportunity ${proposal.id}`, body: cleanerBody, recipient: { email: cleaner.email, phone: cleaner.phone }, privateUrl: cleanerPublicOrigin ? `${cleanerPublicOrigin}/opportunity#${proposal.cleanerReviewToken}` : "", handoffReady: cleanerHandoffReady }
   });
 }
@@ -3413,8 +3411,8 @@ async function getAdminBookingDrafts(request, response, bookingId) {
   if (!customerRequest || !cleaner) return json(response, 404, { ok: false, error: "Confirmed booking parties were not found." });
 
   const publicOrigin = verifiedPublicSiteOrigin(booking.publicSiteUrl);
-  const customerUrl = publicOrigin && booking.customerViewToken ? `${publicOrigin}/booking-confirmation#${booking.customerViewToken}` : "";
-  const cleanerUrl = publicOrigin && booking.cleanerViewToken ? `${publicOrigin}/assignment#${booking.cleanerViewToken}` : "";
+  const customerUrl = publicOrigin && booking.customerViewToken ? `${publicOrigin}/landlord/dashboard` : "";
+  const cleanerUrl = publicOrigin && booking.cleanerViewToken ? `${publicOrigin}/cleaner/dashboard` : "";
   const customerPack = booking.customerBookingPack || {};
   const cleanerPack = booking.cleanerBookingPack || {};
   const signoff = [customerPack.legalBusinessName || cleanerPack.legalBusinessName || "Homle", customerPack.supportEmail || cleanerPack.supportEmail, customerPack.supportPhone || cleanerPack.supportPhone].filter(Boolean).join("\n");
@@ -5344,8 +5342,6 @@ function streamTrackingTest(request, response) {
 async function serveFile(requestPath, response) {
   const routes = {
     "/": "home.html",
-    "/request": "index.html",
-    "/join": "index.html",
     "/login": "account.html",
     "/signup": "account.html",
     "/verify-email": "account.html",
@@ -5354,7 +5350,6 @@ async function serveFile(requestPath, response) {
     "/onboarding": "account.html",
     "/account-ready": "account.html",
     "/notifications": "notifications.html",
-    "/cleaners": "cleaners.html",
     "/cleaner/dashboard": "cleaner-dashboard.html",
     "/cleaner/schedule": "cleaner-schedule.html",
     "/cleaner/reviews": "cleaner-reviews.html",
@@ -5368,21 +5363,11 @@ async function serveFile(requestPath, response) {
     "/cleaner/work-areas": "cleaner-registration.html",
     "/cleaner/sign-off": "cleaner-sign-off.html",
     "/cleaner/profile/preview": "cleaner-public-profile.html",
-    "/cleaner/availability": "cleaner-availability.html",
     "/cleaner/payouts": "cleaner-payouts.html",
     "/landlord/dashboard": "landlord-dashboard.html",
     "/landlord/book": "landlord-journey.html",
-    "/booking-payment": "booking-payment.html",
-    "/marketplace-preview": "marketplace-preview.html",
     "/tracking-test": "tracking-test.html",
-    "/brief": "brief.html",
-    "/brief-complete": "brief-complete.html",
-    "/request-status": "request-status.html",
-    "/cleaner-status": "cleaner-status.html",
-    "/quote": "quote.html",
     "/opportunity": "opportunity.html",
-    "/booking-confirmation": "booking-pack.html",
-    "/assignment": "booking-pack.html",
     "/admin": "admin.html",
     "/admin/cases": "admin-cases.html",
     "/admin/payments": "admin-payments.html",

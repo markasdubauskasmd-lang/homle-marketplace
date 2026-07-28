@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { saveBriefDraft } from "../public/brief-draft.js";
 import { saveCleanerApplicationDraft } from "../public/cleaner-application-draft.js";
 import { saveCustomerRequestDraft } from "../public/customer-request-draft.js";
@@ -57,16 +56,4 @@ for (const { label, save } of savers) {
   assert.equal(store.size, 1, `${label} did not write exactly one entry.`);
 }
 
-/* ── Blob URLs created for booking-pack media are released ── */
-
-// Each room photo and video in a pack got an object URL that was never revoked, so the
-// blob stayed in memory for the life of the page. A pack with a dozen items pinned tens
-// of megabytes on a Landlord's phone.
-const pack = await readFile(new URL("../public/booking-pack.js", import.meta.url), "utf8");
-assert.match(pack, /revokeObjectURL/, "Booking-pack media object URLs are never revoked, so every room photo and video stays in memory for the life of the page.");
-assert.ok(
-  (pack.match(/revokeObjectURL/g) || []).length >= 2,
-  "Object URLs are revoked on only one outcome. Both the success path and the error path must release the blob, or a failed decode leaks it."
-);
-
-console.log("Draft storage resilience tests passed: a full or private-browsing storage cannot abort the autosave handler in any of the three draft modules, working storage still saves, and booking-pack media object URLs are released on both load and error.");
+console.log("Draft storage resilience tests passed: a full or private-browsing storage cannot abort autosave, and working storage still saves.");

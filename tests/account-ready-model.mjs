@@ -10,13 +10,13 @@ assert.deepEqual(
   {
     role: "cleaner",
     title: "Your Cleaner profile is created.",
-    copy: "Your secure Cleaner account and role are saved for your next sign-in. Professional profile tools will open after Homle's private booking services pass staging. Today, you can submit or update a separate Cleaner pilot application.",
-    actionHref: "/join",
-    actionLabel: "Apply for the Cleaner pilot"
+    copy: "Your secure Cleaner account and role are saved for your next sign-in. Open the private Cleaner dashboard to continue setup and review service readiness.",
+    actionHref: "/cleaner/dashboard",
+    actionLabel: "Open Cleaner dashboard"
   },
-  "A gated Cleaner account still links into unavailable marketplace profile tools."
+  "A gated Cleaner account does not return to its single private dashboard."
 );
-assert.equal(accountReadyPresentation(landlord, false)?.actionHref, "/request", "A gated Landlord account still links into an unavailable dashboard.");
+assert.equal(accountReadyPresentation(landlord, false)?.actionHref, "/landlord/dashboard", "A gated Landlord account does not return to its single private dashboard.");
 assert.match(accountReadyPresentation(landlord, false)?.copy || "", /saved for your next sign-in/i, "The gated Landlord handoff does not explain that account setup succeeded and can be resumed later.");
 assert.equal(accountReadyPresentation(cleaner, true)?.actionHref, "/cleaner/dashboard", "A ready Cleaner workspace does not open its separate dashboard.");
 assert.equal(accountReadyPresentation(landlord, true)?.actionHref, "/landlord/dashboard", "A ready Landlord workspace does not open its separate dashboard.");

@@ -626,6 +626,7 @@ assert(server.includes('".bin"'), "Weight shards have no declared content type."
 assert(styles.includes("prefers-reduced-motion") && styles.includes("env(safe-area-inset-bottom)"), "The scan ignores reduced-motion or phone safe areas.");
 assert(server.includes('["/landlord/scan", "/room-scan.html"].includes(requestUrl.pathname)') && server.includes('{ "Location": "/landlord/book", "Cache-Control": "no-store" }'), "Old scanner links do not redirect into the protected booking journey.");
 assert(!server.includes('"/landlord/scan": "room-scan.html"'), "The legacy standalone scanner is still served as a separate camera surface.");
-assert(/requestPath === "\/brief" \|\| landlordDashboardPage \|\| journeyPage[\s\S]{0,120}\? "camera=\(self\), microphone=\(self\), geolocation=\(\)"/.test(server), "The embedded scanner is rendered on /landlord/book, but that real phone journey still blocks its own camera and microphone in Permissions-Policy.");
+assert(/landlordDashboardPage \|\| journeyPage[\s\S]{0,120}\? "camera=\(self\), microphone=\(self\), geolocation=\(\)"/.test(server), "The embedded scanner is rendered on /landlord/book, but that real phone journey still blocks its own camera and microphone in Permissions-Policy.");
+assert(server.includes("activeJobPage || landlordDashboardPage || journeyPage"), "The protected booking journey cannot connect to private object storage for room-photo uploads.");
 
 console.log("Room scan UI tests passed: embedded overlay with one implementation, real camera and speech, consent before any photograph leaves, camera released on every exit, safe detection overlay, honest duration and condition, no invented measurement and the approved presentation.");

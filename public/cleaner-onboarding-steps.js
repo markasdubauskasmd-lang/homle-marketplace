@@ -30,7 +30,7 @@ export const onboardingSteps = [
   { key: "equipment", title: "Equipment", icon: "box", sidebar: false, href: "/cleaner/registration",
     derive: (d) => (d.profile?.equipmentSupplied?.length || 0) + (d.profile?.productsSupplied?.length || 0) > 0 },
   { key: "transport", title: "Transport", icon: "truck", sidebar: false, href: "", derive: null },
-  { key: "availability", title: "Availability", icon: "cal", sidebar: false, href: "/cleaner/availability",
+  { key: "availability", title: "Availability", icon: "cal", sidebar: false, href: "/cleaner/dashboard",
     derive: (d) => (d.availabilityCount || 0) > 0 },
   { key: "areas", title: "Work areas", icon: "pin", sidebar: true, href: "/cleaner/work-areas",
     derive: (d) => (d.profile?.serviceAreas?.length || 0) > 0 },
@@ -62,7 +62,7 @@ export const onboardingNav = [
   { label: "References", icon: "users", step: "references", href: "" },
   { label: "Insurance", icon: "umb", step: "insurance", href: "" },
   { label: "Banking", icon: "card", step: "banking", href: "/cleaner/payouts" },
-  { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/availability" },
+  { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/dashboard" },
   { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/registration" },
   { label: "Documents", icon: "folder", step: "", href: "" },
   { label: "Training", icon: "award", step: "training", href: "" },
@@ -72,7 +72,7 @@ export const onboardingNav = [
 export const accountNav = [
   { label: "Messages", icon: "chat", href: "/notifications", notificationHook: true },
   { label: "Public profile", icon: "id", href: "/cleaner/profile/preview" },
-  { label: "Public directory", icon: "dash", href: "/cleaners" }
+  { label: "Dashboard", icon: "dash", href: "/cleaner/dashboard" }
 ];
 
 // Icon paths transcribed from the design's ICONS table.

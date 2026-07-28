@@ -15,8 +15,8 @@ assert(notificationPresentation("not-yet-known").title === "Booking updated", "U
 assert(notificationBookingPath(bookingId) === `/bookings/${bookingId}` && notificationBookingPath("../admin") === null, "Notification booking paths accept an unsafe identifier.");
 assert(notificationActionPath("new-booking-request", bookingId) === "/cleaner/dashboard" && notificationActionPath("cleaner-declined", bookingId) === "/landlord/dashboard", "Invitation and decline updates do not open the role workspace containing the next action.");
 assert(notificationActionPath("cleaner-invitation-expired", bookingId, { matchingReopened: true }) === "/landlord/dashboard" && notificationActionPath("cleaner-invitation-expired", bookingId, {}) === "/cleaner/dashboard", "An expired invitation does not return each participant to the correct workspace.");
-assert(notificationActionPath("payment-action-required", bookingId) === `/booking-payment?bookingId=${bookingId}`, "Payment readiness does not open the exact private payment step.");
-assert(notificationActionPath("payment-window-opened", bookingId) === `/booking-payment?bookingId=${bookingId}`, "Payment opening does not open the exact private payment step.");
+assert(notificationActionPath("payment-action-required", bookingId) === "/landlord/dashboard", "Payment readiness does not open the private Landlord workspace.");
+assert(notificationActionPath("payment-window-opened", bookingId) === "/landlord/dashboard", "Payment opening does not open the private Landlord workspace.");
 assert(notificationActionPath("booking-confirmed", bookingId) === `/bookings/${bookingId}` && notificationActionPath("new-booking-request", "../admin") === null, "Active updates lost their private booking action or a malformed notification created a dashboard link.");
 assert(notificationWorkspacePath({ selectedRole: "landlord", roles: ["landlord"] }) === "/landlord/dashboard", "Landlords do not return to their workspace.");
 assert(notificationWorkspacePath({ selectedRole: "cleaner", roles: ["cleaner"] }) === "/cleaner/dashboard", "Cleaners do not return to their workspace.");

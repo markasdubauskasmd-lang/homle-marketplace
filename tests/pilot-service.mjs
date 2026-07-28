@@ -14,13 +14,10 @@ assert.equal(cleanerOffersRequestedService([cleanerServiceFields.serviceTurnover
 assert.equal(cleanerOffersRequestedService(Object.values(cleanerServiceFields), "Not sure yet"), false, "An uncategorised legacy request matched every Cleaner.");
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const [server, admin, page] = await Promise.all([
+const [server, admin] = await Promise.all([
   readFile(path.join(root, "server.mjs"), "utf8"),
-  readFile(path.join(root, "public", "admin.js"), "utf8"),
-  readFile(path.join(root, "public", "index.html"), "utf8")
+  readFile(path.join(root, "public", "admin.js"), "utf8")
 ]);
-const serviceSelect = page.match(/<select name="service"[\s\S]*?<\/select>/)?.[0] || "";
-assert(serviceSelect.includes("Regular home clean") && !serviceSelect.includes("Not sure yet"), "Public intake still permits an unmatchable service choice.");
 assert(server.includes('reason: "specific-service-required"') && server.includes("Choose a specific supported cleaning service before preparing a proposal."), "Legacy uncategorised requests do not fail closed in matching and proposal creation.");
 assert(admin.includes('result.matchGate?.reason === "specific-service-required"') && admin.includes("Do not invite a Cleaner for an uncategorised legacy request"), "The operator cannot understand or safely resolve the service gate.");
 

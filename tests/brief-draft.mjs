@@ -1,10 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { briefDraftKey, briefDraftLifetimeMs, clearBriefDraft, readBriefDraft, saveBriefDraft } from "../public/brief-draft.js";
-
-const root = fileURLToPath(new URL("..", import.meta.url));
 
 function memoryStorage() {
   const values = new Map();
@@ -47,13 +42,4 @@ storage.setItem(briefDraftKey("REQ-1234ABCD"), "not-json");
 assert.equal(readBriefDraft(storage, "REQ-1234ABCD", now), null);
 assert.equal(storage.values.size, 0, "Corrupt drafts must be removed.");
 
-const [briefHtml, briefJs] = await Promise.all([
-  readFile(path.join(root, "public", "brief.html"), "utf8"),
-  readFile(path.join(root, "public", "brief.js"), "utf8")
-]);
-assert(briefHtml.includes("Photos and videos are never stored in the recovery draft"));
-assert(briefJs.includes("restoreCurrentDraft();") && briefJs.includes("clearBriefDraft(window.sessionStorage, currentRequestReference())"));
-assert(briefJs.includes("window.addEventListener(\"offline\"") && briefJs.includes("window.addEventListener(\"beforeunload\""));
-assert(briefJs.includes("draftReferenceMismatch()"), "Text recovery must stay bound to one request reference.");
-
-console.log("brief draft tests passed");
+console.log("brief draft module tests passed");

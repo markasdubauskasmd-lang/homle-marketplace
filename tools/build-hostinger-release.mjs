@@ -207,7 +207,7 @@ export function validateReleaseEntries(entries, expectedFiles) {
     "server.mjs",
     releaseIdentityFilename,
     "travel-coverage.mjs",
-    "public/index.html",
+    "public/home.html",
     "src/marketplace/runtime.mjs",
     "db/migration-lock.json",
     "db/runtime-role-grants.sql",

@@ -2360,7 +2360,7 @@ function buildCard(record) {
       addText(quoteLink, "span", proposal.status === "ready"
         ? "Preview on this computer only. No customer handoff link is shown until the offer is recorded as sent."
         : "Open locally for audit only. Use the recipient-isolated dispatch pack below for the verified public customer handoff.");
-      addLocalAuditPreview(quoteLink, "Open local customer preview", `/quote#${encodeURIComponent(proposal.reviewToken)}`);
+      addLocalAuditPreview(quoteLink, "Open Landlord dashboard", "/landlord/dashboard");
     }
     const cleanerLink = document.createElement("div");
     cleanerLink.className = "quote-review-link cleaner-review-link";
