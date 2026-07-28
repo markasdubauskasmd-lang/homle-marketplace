@@ -7,21 +7,21 @@
   <meta name="theme-color" content="#d63a2a" />
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Homle">
-  <title>Job detail | Homle</title>
+  <title>Jobs map | Homle</title>
   <link rel="icon" href="/homle-logo.png" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/styles.css?v=20260728-2">
+  <link rel="stylesheet" href="/styles.css?v=20260723-1">
   <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-3">
-  <script src="/cleaner-job.js?v=20260727-1" type="module"></script>
+  <script src="/cleaner-jobs-map.js?v=20260728-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
 <body class="cleaner-workspace-page">
-  <a class="hc-skip" href="#cleaner-job-main">Skip to job detail</a>
+  <a class="hc-skip" href="#cleaner-jobs-map-main">Skip to Jobs map</a>
 
   <div class="hc">
-    <aside class="hc-side cleaner-site-header">
+<aside class="hc-side cleaner-site-header">
       <div class="hc-brand">
         <div class="hc-brand-mark" aria-hidden="true">
           <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 4 4.5 10.5V20h15v-9.5z" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path><path d="M10 20v-5h4v5" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path></svg>
@@ -49,7 +49,7 @@
           response-rate or rebook metrics. They keep the design's position and icon but
           are inert and marked disabled rather than shipped as links to nowhere.
         -->
-        <a class="hc-nav-item" href="/cleaner/jobs-map">
+        <a class="hc-nav-item" href="/cleaner/jobs-map" aria-current="page">
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Jobs Map</span>
         </a>
@@ -135,100 +135,65 @@
       </div>
     </aside>
 
-    <main class="hc-main" id="cleaner-job-main">
-      <div class="hc-main-inner">
+    <main class="hc-main" id="cleaner-jobs-map-main">
+      <a class="hc-bell" href="/notifications" aria-label="Updates">
+        <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 1 1 12 0v5l2 3H4zM10 19a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span class="hc-bell-dot" data-notification-count hidden></span>
+      </a>
 
-        <section class="hc-gate" data-job-gate role="status" aria-live="polite">
-          <h1 class="hc-h3" data-job-gate-title>Loading this job…</h1>
-          <p class="hc-card-sub" data-job-gate-copy>Job details open only for the invited or assigned Cleaner.</p>
+      <div class="hc-main-inner">
+        <section class="hc-gate" data-map-gate role="status" aria-live="polite">
+          <h1 class="hc-h3" data-map-gate-title>Checking secure Cleaner access…</h1>
+          <p class="hc-card-sub" data-map-gate-copy>This page opens only inside the assigned Cleaner account.</p>
           <div class="hc-gate-actions">
-            <a class="hc-btn" href="/login?intent=work" data-job-sign-in hidden>Sign in as a Cleaner</a>
-            <a class="hc-btn-outline" href="/cleaner/dashboard" data-job-dashboard-link hidden>Back to dashboard</a>
-            <button class="hc-btn-outline" type="button" data-job-retry hidden>Try again</button>
+            <a class="hc-btn" href="/login?intent=work" data-map-sign-in hidden>Sign in as a Cleaner</a>
+            <button class="hc-btn-outline" type="button" data-map-retry hidden>Try again</button>
           </div>
         </section>
 
-        <div data-job hidden>
-          <div class="hc-feedback hc-feedback-error" data-job-offline role="status" aria-live="polite" hidden>
-            <strong>You are offline.</strong> Homle will not send or automatically retry an accept or decline decision until the connection returns.
+        <div data-map hidden>
+          <div class="hc-feedback hc-feedback-error" data-map-offline role="status" aria-live="polite" hidden>
+            <strong>You are offline.</strong> This page shows the last loaded data and will not refresh until the connection returns.
           </div>
 
-          <a class="hc-back" href="/cleaner/dashboard">← Dashboard</a>
+        <div class="hc-page-head">
+          <div>
+            <h1 class="hc-page-title">Jobs map</h1>
+            <p class="hc-page-sub">Every pending offer and confirmed job, plotted around your home base.</p>
+          </div>
+          <a class="hc-back" href="/cleaner/dashboard">← Job list</a>
+        </div>
 
-          <section class="hc-jd-head">
-            <div class="hc-jd-head-row">
-              <div class="hc-jd-date">
-                <span class="hc-jd-day" data-job-day>—</span>
-                <span class="hc-jd-dnum" data-job-dnum>—</span>
-              </div>
-              <div class="hc-jd-body">
-                <h1 class="hc-jd-title" data-job-title>Cleaning</h1>
-                <div class="hc-jd-addr" data-job-addr>Area shared after confirmation</div>
-                <div class="hc-jd-chips" data-job-chips></div>
-              </div>
-              <div class="hc-jd-pay">
-                <div class="hc-jd-pay-amount" data-job-pay>£0.00</div>
-                <div class="hc-jd-pay-sub" data-job-pay-sub>Your pay</div>
-                <div class="hc-jd-actions" data-job-actions></div>
-              </div>
+        <!--
+          The design embeds an interactive Leaflet map here. Homle has MAP_PROVIDER=none,
+          and the design's own map page loads Leaflet from unpkg with OpenStreetMap tiles,
+          both of which this site's Content-Security-Policy blocks. The frame keeps the
+          design's dimensions and treatment and states that plainly, so the route is real
+          and navigable without pretending a map is rendering.
+        -->
+        <div class="hc-map-frame">
+          <div class="hc-map-empty">
+            <div class="hc-map-mark" aria-hidden="true">
+              <svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             </div>
-          </section>
-
-          <div class="hc-jd-grid">
-            <div class="hc-jd-col">
-              <section class="hc-jd-card">
-                <div class="hc-jd-card-head">
-                  <h4 class="hc-h4">Task checklist</h4>
-                  <span class="hc-jd-note"><span data-job-task-count>0</span> tasks · ticked off in the app as you go</span>
-                </div>
-                <div data-job-tasks></div>
-              </section>
-
-              <section class="hc-jd-card">
-                <h4 class="hc-h4">Client photos</h4>
-                <div class="hc-jd-note" data-job-photos-note>Taken by the client in the Homle app.</div>
-                <div class="hc-jd-photos" data-job-photos></div>
-              </section>
-            </div>
-
-            <div class="hc-jd-col">
-              <section class="hc-jd-card">
-                <h4 class="hc-h4">Client notes</h4>
-                <div class="hc-jd-notes-box" data-job-notes>No notes were added to this request.</div>
-              </section>
-
-              <section class="hc-jd-card">
-                <h4 class="hc-h4">Access &amp; entry</h4>
-                <div class="hc-jd-rows">
-                  <div class="hc-jd-row"><span>Entry</span><b data-job-access-entry>Shared after acceptance</b></div>
-                  <div class="hc-jd-row"><span>Property</span><b data-job-access-property>—</b></div>
-                  <div class="hc-jd-row"><span>Area</span><b data-job-access-area>—</b></div>
-                </div>
-                <div class="hc-jd-boundary" data-job-access-boundary>Exact codes and the full address unlock when you accept the job.</div>
-              </section>
-
-              <section class="hc-jd-card">
-                <h4 class="hc-h4">Client</h4>
-                <div class="hc-jd-client">
-                  <div class="hc-jd-client-avatar" data-job-client-initial>L</div>
-                  <div>
-                    <div class="hc-jd-client-name" data-job-client-name>Landlord</div>
-                    <div class="hc-jd-client-meta" data-job-client-meta>Contact details stay private</div>
-                  </div>
-                </div>
-                <a class="hc-jd-client-action" href="#" data-job-message hidden>Message client</a>
-              </section>
-
-              <!--
-                The design's "Getting there" card opens a map route. Homle has no map
-                provider configured (MAP_PROVIDER=none) and the design's own map page
-                needs Leaflet plus OpenStreetMap tiles, which the CSP blocks. The travel
-                panel is therefore omitted rather than shipped as a dead control.
-              -->
+            <strong>Map view is not connected yet</strong>
+            <p>Homle has no map provider configured, so job locations cannot be plotted. Your pending offers and confirmed jobs are all listed with their area and travel details on the dashboard and schedule.</p>
+            <div class="hc-gate-actions">
+              <a class="hc-btn" href="/cleaner/dashboard">Open job list</a>
+              <a class="hc-btn-outline" href="/cleaner/schedule">Open schedule</a>
             </div>
           </div>
+        </div>
 
-          <div class="hc-feedback" data-job-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
+        <div class="hc-section-head">
+          <h3 class="hc-h3">Jobs with a known area</h3>
+          <span class="hc-section-note"><span data-map-count>0</span> plotted when a provider is connected</span>
+        </div>
+        <div class="hc-jobs" data-map-list></div>
+        <div class="hc-empty" data-map-empty>No pending or confirmed jobs to place on a map yet.</div>
+
+
+          <div class="hc-feedback" data-map-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
 
           <footer class="hc-foot">
             <span>© <span data-year></span> Homle.</span>
@@ -236,21 +201,12 @@
           </footer>
         </div>
       </div>
+
+      <a class="hc-fab" href="/notifications" aria-label="Open your private inbox">
+        <svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span class="hc-fab-dot" data-notification-count hidden></span>
+      </a>
     </main>
   </div>
-
-  <dialog class="active-job-dialog" data-decline-dialog>
-    <form method="dialog" data-decline-form>
-      <h2>Decline this request?</h2>
-      <p>The Landlord will be told that this Cleaner invitation was declined. Homle will reopen matching without exposing your private information.</p>
-      <label>Short reason <span>(optional)</span>
-        <textarea name="reason" rows="3" maxlength="1000" placeholder="For example: I am no longer available at this time"></textarea>
-      </label>
-      <div>
-        <button class="button button-outline" type="button" data-decline-cancel>Keep request</button>
-        <button class="button" type="submit">Decline request</button>
-      </div>
-    </form>
-  </dialog>
 </body>
 </html>
