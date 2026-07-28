@@ -1,4 +1,4 @@
-import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-1";
+import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-2";
 import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260728-1";
 
 function stepIcon(name) {

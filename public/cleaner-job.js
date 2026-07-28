@@ -1,6 +1,7 @@
 import { bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerInvitationDeadlineState, formatBookingMoment, formatBookingMoney, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260723-3";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-1";
 
 const gate = document.querySelector("[data-job-gate]");
 const gateTitle = document.querySelector("[data-job-gate-title]");
@@ -223,6 +224,8 @@ async function loadJob() {
     const bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
     const booking = bookings.find((record) => record.bookingId === bookingId);
     if (!booking) return showGate("This job is not available to your account.", "It may have been withdrawn, expired or assigned to another Cleaner.", { allowDashboard: true });
+
+    renderCleanerNav(null);
 
     gate.hidden = true;
     view.hidden = false;
