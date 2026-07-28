@@ -78,9 +78,11 @@ assert.equal(frameSignature(new Uint8ClampedArray(4), 8, 8), null, "A truncated 
 
 const base = { now: 100_000, lastCaptureAt: 0, capturedCount: 0, busy: false };
 
-// The first steady frame of a room is always worth reading.
+// The first settled view of a room is worth reading, but a lone first sample
+// cannot prove the phone is steady. Accepting it spends one of four bounded AI
+// reads while the Landlord may still be turning through the doorway.
 assert.ok(shouldCaptureKeyframe({ ...base, signature: grey, previousSignature: grey }), "The first steady frame of a room was not read, so a room the Landlord never moved in would be read never.");
-assert.ok(shouldCaptureKeyframe({ ...base, signature: grey }), "The very first frame, with nothing to compare against, was not read.");
+assert.ok(!shouldCaptureKeyframe({ ...base, signature: grey }), "The first camera sample was read without any earlier frame proving the phone was steady.");
 
 // Standing still, having already read this view: nothing new to learn.
 assert.ok(!shouldCaptureKeyframe({ ...base, signature: grey, previousSignature: grey, lastReadSignature: greyAgain }), "The same wall was read twice. Standing still must not cost repeated reads.");
