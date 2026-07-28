@@ -26,6 +26,7 @@ The existing scanner remains the single scanner used by the Landlord booking jou
 - Detection work is scheduled against newly presented video frames with `requestVideoFrameCallback()` where the browser supports it. Older browsers retain the animation-frame fallback.
 - Existing adaptive detection throttling remains in place, so slower phones do less work rather than freezing the viewfinder.
 - Automatic walking reads no longer depend on WebGL or the optional local object-glow model. If that model is loading or unavailable, a lightweight quality/signature pass still selects bounded settled views for assisted room reading.
+- A slow assisted read from the room just left no longer blocks automatic reading in the next room. Walking reads are isolated per room and capped at two in flight overall, keeping room changes responsive without creating an unbounded network or provider workload.
 - Hidden/backgrounded scans still release the camera, microphone and detector.
 
 ### More accurate and easier to correct
