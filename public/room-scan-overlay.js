@@ -13,6 +13,7 @@ import {
   shouldCaptureKeyframe,
   walkingReadIsBlocked,
   mergeRoomInventory,
+  savedDetectionFromInventoryItem,
   inventoryKey,
   resolveRoomCondition,
   conditionTag,
@@ -1569,14 +1570,8 @@ export function openRoomScan() {
             ...room.detections,
             ...walked
               .filter((item) => !named.has(item.key))
-              .map((item) => ({
-                id: `w-${item.key}`,
-                label: item.label,
-                // Says where it came from, because a Landlord who confirmed it and
-                // a reader that saw it once are not the same level of evidence.
-                note: item.confirmed ? "Confirmed while scanning" : "Seen while scanning",
-                x: 0, y: 0, width: 0, height: 0
-              }))
+              .map(savedDetectionFromInventoryItem)
+              .filter(Boolean)
           ]
         };
       }
@@ -1905,6 +1900,7 @@ export function openRoomScan() {
               // list is ordered by how sure the room is.
               score: Number.isFinite(detection.confidence) ? detection.confidence : 0.5,
               condition: detection.condition || "",
+              soiling: Array.isArray(detection.soiling) ? detection.soiling : [],
               note: detection.note || "",
               source: "read"
             }));

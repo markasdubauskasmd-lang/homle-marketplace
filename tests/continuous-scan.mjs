@@ -4,7 +4,7 @@ import {
   correctInventoryItem, frameSignature, inventoryKey, keyframeDefaults,
   maxConcurrentWalkingReads, mergeRoomInventory, shouldCaptureKeyframe,
   signatureDistance, walkingReadIsBlocked, conditionTag, movementAdvice,
-  usableLiveBoxes
+  savedDetectionFromInventoryItem, usableLiveBoxes
 } from "../public/room-scan-model.js";
 
 // The scan used to be one shutter press per room, so whatever was not in that one
@@ -185,6 +185,26 @@ assert.equal(correctInventoryItem(inventory, "not-a-key", { remove: true }).leng
 assert.ok(correctInventoryItem(inventory, key, { confirmed: true }).find((item) => item.key === key).confirmed, "Confirming an item without renaming it did not mark it confirmed.");
 assert.equal(correctInventoryItem(inventory, key, { label: "   " }).find((item) => item.key === key).label, "Radiator", "A blank rename erased the label.");
 
+/* ── Walking evidence survives the red save button ── */
+
+const limescaleInventory = mergeRoomInventory([], [{
+  label: "Tap", score: 0.82, condition: "medium",
+  soiling: ["limescale"], note: "Limescale — white deposits around the tap base"
+}], { now: 10 });
+assert.deepEqual(limescaleInventory[0].soiling, ["limescale"], "The walking inventory discarded the named cleaning issue before the room could be saved.");
+const storedTap = savedDetectionFromInventoryItem(limescaleInventory[0]);
+assert.equal(storedTap.condition, "medium", "The saved walking object lost its condition grade.");
+assert.deepEqual(storedTap.soiling, ["limescale"], "The saved walking object lost its structured soiling type.");
+assert.equal(storedTap.note, "Limescale — white deposits around the tap base", "The saved walking object replaced visible evidence with a generic provenance note.");
+
+const closerTap = mergeRoomInventory(limescaleInventory, [{
+  label: "Tap", score: 0.91, condition: "heavy",
+  soiling: ["limescale", "damage"], note: "Heavy crust and a chipped finish"
+}], { now: 11 });
+assert.equal(closerTap[0].condition, "heavy", "A better-evidenced walking view did not update the object's grade.");
+assert.deepEqual(closerTap[0].soiling, ["limescale", "damage"], "A better-evidenced walking view updated the grade but left stale soiling evidence.");
+assert.equal(savedDetectionFromInventoryItem({ label: "   " }), null, "A blank inventory row became a stored room detection.");
+
 console.log("Continuous scan tests passed: frames are read only when the view has genuinely changed, the phone has settled and image quality is usable; reads are bounded per room and never overlap; the inventory accumulates across angles without repeating itself; and a Landlord's correction survives every later reading.");
 
 /* ── The overlay actually walks the room ── */
@@ -220,7 +240,8 @@ assert.doesNotMatch(overlay, /keyframeBusy/, "The old global walking-read busy f
 assert.match(overlay, /state\.keyframeCanvas/, "Keyframes are drawn on the shared capture canvas, which would overwrite the frame a room confirmation is about to be graded from.");
 
 // The inventory has to reach the saved room, or it is a display that vanishes.
-assert.match(overlay, /Seen while scanning/, "Items found while walking are not folded into the saved room, so the checklist would still only know what was in the single confirmation frame.");
+assert.match(overlay, /\.map\(savedDetectionFromInventoryItem\)/, "Items found while walking are not folded into the saved room, so the checklist would still only know what was in the single confirmation frame.");
+assert.match(overlay, /soiling: Array\.isArray\(detection\.soiling\) \? detection\.soiling : \[\]/, "Walking reads discard structured soiling before it reaches the inventory.");
 
 // Labels come back from a reader looking at photographs of a stranger's home.
 const inventoryRender = overlay.slice(overlay.indexOf("function renderInventory"), overlay.indexOf("function inventoryFor"));
