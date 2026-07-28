@@ -3814,6 +3814,7 @@ textarea.inp{resize:vertical;line-height:1.6;font-size:15px}
 .found-grade[data-grade="light"]{background:rgba(255,255,255,.14);color:rgba(255,255,255,.86)}
 .found-grade[data-grade="medium"]{background:rgba(240,168,48,.22);color:#F5C877}
 .found-grade[data-grade="heavy"]{background:rgba(217,20,53,.26);color:#FF9AAB}
+.found-grade[data-grade="uncertain"]{background:rgba(240,168,48,.12);color:#F5C877;outline:1px solid rgba(245,200,119,.48)}
 /* Said out loud rather than only shown dimmer: an uncertain reading that looks
    merely quiet still reads as a fact. */
 .found-name[data-unsure="true"]{opacity:.72}
