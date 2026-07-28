@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-5">
-  <script src="/cleaner-registration.js?v=20260728-2" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-6">
+  <script src="/cleaner-registration.js?v=20260728-3" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -193,6 +193,16 @@
         </div>
 
           <div class="hc-personal-layout" data-personal-details hidden>
+            <header class="hc-business-topbar" data-business-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 5 of 19 &mdash; Business details</strong>
+                <div class="hc-business-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="5"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
             <ol class="hc-personal-rail" aria-label="Cleaner registration steps">
               <li class="hc-personal-rail-step is-current" data-personal-step-key="personal"><span>1</span><strong>Personal details</strong></li>
               <li class="hc-personal-rail-step" data-personal-step-key="identity"><span>2</span><strong>Identity verification</strong></li>
@@ -215,7 +225,7 @@
               <li class="hc-personal-rail-step"><span>19</span><strong>Review &amp; submit</strong></li>
             </ol>
 
-            <section class="hc-personal-card" aria-labelledby="cleaner-personal-title">
+            <section class="hc-personal-card" data-personal-card aria-labelledby="cleaner-personal-title">
               <header class="hc-personal-head">
                 <h1 id="cleaner-personal-title">Personal details</h1>
                 <p>Tell us who you are and how to reach you. This is the name clients will see once you go live.</p>
@@ -282,6 +292,37 @@
                 <div class="hc-personal-actions">
                   <p data-personal-save-status role="status" aria-live="polite">Progress is saved for this browser tab as you type.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">↗</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-business-card" data-business-details hidden aria-labelledby="cleaner-business-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-business-title">Business details</h1>
+                <p>How you’ll operate. Solo cleaners need no company paperwork.</p>
+              </header>
+
+              <form class="hc-business-form" data-business-form>
+                <fieldset class="hc-business-section">
+                  <legend>How you’ll work</legend>
+                  <p class="hc-business-question">Are you joining as…</p>
+                  <div class="hc-business-choices">
+                    <label><input type="radio" name="businessType" value="solo" checked><span>Solo cleaner</span></label>
+                    <label><input type="radio" name="businessType" value="business"><span>Cleaning business</span></label>
+                    <label><input type="radio" name="businessType" value="limited"><span>Limited company</span></label>
+                    <label><input type="radio" name="businessType" value="partnership"><span>Partnership</span></label>
+                  </div>
+                </fieldset>
+
+                <section class="hc-business-section" aria-labelledby="cleaner-business-guidance-title">
+                  <h2 id="cleaner-business-guidance-title">Good to know</h2>
+                  <p class="hc-business-note" data-business-guidance>Joining solo — no company paperwork needed. You can switch to a business account later without re-onboarding.</p>
+                </section>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/personal-details">&larr; Back</a>
+                  <p data-business-save-status role="status" aria-live="polite">Progress is saved for this browser tab as you choose.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
             </section>

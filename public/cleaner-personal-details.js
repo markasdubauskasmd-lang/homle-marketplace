@@ -1,4 +1,4 @@
-import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-3";
+import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-4";
 
 const draftKey = "homle-cleaner-personal-details-draft-v1";
 const draftLifetimeMs = 8 * 60 * 60 * 1000;
