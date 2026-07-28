@@ -35,6 +35,18 @@ assert(logoutStart >= 0 && logoutEnd > logoutStart, "The account-ready sign-out 
 assert(!logoutFlow.includes('kind === "onboarding"'), "A failed account-ready sign-out still reads the unrelated form-only kind variable and can leave its button stuck.");
 assert(logoutFlow.includes('showFeedback(error.message, "error")') && logoutFlow.includes("accountReadyLogout.disabled = false"), "A failed account-ready sign-out does not explain the failure and re-enable a safe retry.");
 assert(accountScript.includes("availableAccountMethodLabel(providers)") && !accountScript.includes("Continue with Google, Apple or Facebook") && !accountScript.includes("Use Google, Apple, Facebook"), "Account entry still advertises provider methods that the running deployment may not offer.");
-assert(accountScript.includes('title.textContent = "Checking secure account access"') && accountScript.includes("Homle is confirming the sign-in methods available on this deployment."), "Account entry still flashes a false unavailable state while checking its live provider capabilities.");
+// The guarantee is that nothing on the page claims a verdict before the
+// providers response arrives — not that the loading copy uses one exact
+// sentence. The headline is now the design's "Opening your workspace.", which
+// the lead qualifies with "once Homle confirms this browser is signed in", and
+// the readiness line beneath states plainly that the check is still running.
+// What must never happen is an unavailable or ready claim on first paint, so
+// this asserts both verdict strings appear only inside the branches that run
+// after the fetch resolves.
+const loadTimeCopy = accountScript.slice(0, accountScript.indexOf('fetch("/api/auth/providers"'));
+assert(accountScript.includes('title.textContent = "Opening your workspace."'), "Account entry no longer sets neutral loading copy while it checks live provider capabilities.");
+assert(!loadTimeCopy.includes("Account access is safely unavailable.") && !loadTimeCopy.includes("Secure account access is ready."), "Account entry states a readiness verdict before the provider check resolves, so it can flash a false unavailable or ready state.");
+const staticMarkup = await readFile(new URL("../public/account.html", import.meta.url), "utf8");
+assert(staticMarkup.includes("Checking secure account access"), "The served account page does not say that the capability check is still running.");
 
 console.log("Account-ready handoff tests passed: exact live provider copy, neutral capability loading, role-safe destinations and recoverable sign-out.");
