@@ -452,6 +452,10 @@ export function openRoomScan() {
       // actually gets asked when a scan looks wrong — is the room filter working,
       // or is it eating everything?
       pendingReads: 0, roomReadControllers: new Set(), finishConfirmed: false,
+      // Monotonic identity for a saved room revision. A response from an older
+      // photo must never update a same-named room that has since been removed,
+      // rescanned or edited.
+      nextReadingRevision: 1,
       // `navigator.onLine === false` is the browser's explicit no-network state.
       // Local detection keeps running, while paid room reads wait without
       // consuming the per-room allowance. Confirmed rooms saved during the gap
@@ -1562,9 +1566,10 @@ export function openRoomScan() {
       if (session !== state.roomSession || state.closed) { state.capturing = false; return; }
 
       let room;
+      let readingRevision = 0;
       if (clearedRevisit) {
         // An emptied room: no objects, and so no scoped tasks and no grade.
-        room = { name: roomName, image: frame, detections: [], tasks: [], condition: "", transcript: spokenNote, readingStatus: "manual" };
+        room = { name: roomName, image: frame, detections: [], tasks: [], condition: "", transcript: spokenNote, readingStatus: "manual", readingRevision };
       } else if (mustRead) {
         // SAVED FIRST, READ AFTER.
         //
@@ -1579,6 +1584,8 @@ export function openRoomScan() {
         // and the model call runs on its own. When it lands, the room is updated
         // in place. `readingStatus` already existed for exactly this — a room
         // that is saved but whose reading has not completed.
+        readingRevision = state.nextReadingRevision;
+        state.nextReadingRevision += 1;
         room = {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
@@ -1593,10 +1600,10 @@ export function openRoomScan() {
           tasks: localRoomTasks(roomName, spokenNote),
           condition: existing?.condition || "",
           transcript: spokenNote,
-          readingStatus: "reading"
+          readingStatus: "reading",
+          readingRevision
         };
-        readRoomInBackground({ frame, roomName, chosen, spokenNote, session });
-            } else {
+      } else {
         // Nothing changed: the objects, grade and tasks already stored are still
         // correct for the same photograph, so it saves without a call.
         room = {
@@ -1613,7 +1620,8 @@ export function openRoomScan() {
           tasks: Array.isArray(existing.tasks) ? existing.tasks : [],
           condition: existing.condition || "",
           transcript: spokenNote,
-          readingStatus: existing.readingStatus || "ready"
+          readingStatus: existing.readingStatus || "ready",
+          readingRevision: Number.isInteger(existing.readingRevision) ? existing.readingRevision : 0
         };
       }
 
@@ -1662,6 +1670,11 @@ export function openRoomScan() {
       state.tracks = [];
       state.capturing = false;
       toHub();
+      // The room must be in the roster before the reader starts. The offline
+      // branch is synchronous and needs to mark this exact saved revision for a
+      // retry; starting it above the upsert left a fresh offline room stuck on
+      // "reading" forever because there was nothing to find yet.
+      if (mustRead) readRoomInBackground({ frame, roomName, chosen, spokenNote, readingRevision });
       // Saving a room used to be silent: the only sign it had worked was a new row
       // appearing on the hub. Confirm it explicitly, and say what the next room
       // would be so the walkthrough keeps its momentum.
@@ -2150,10 +2163,10 @@ export function openRoomScan() {
       return merged.slice(0, 12);
     }
 
-    function readRoomInBackground({ frame, roomName, chosen, spokenNote, session }) {
+    function readRoomInBackground({ frame, roomName, chosen, spokenNote, readingRevision }) {
       if (state.networkOffline) {
         const current = findRoom(state.rooms, roomName);
-        if (current?.readingStatus === "reading") {
+        if (current?.readingStatus === "reading" && current.readingRevision === readingRevision) {
           state.rooms = upsertRoom(state.rooms, { ...current, readingStatus: "needs-retry" });
           state.networkDeferredRooms.add(transcriptKey(roomName));
         }
@@ -2171,7 +2184,7 @@ export function openRoomScan() {
           // bathroom, so it lands only on the room it started for.
           if (state.closed) return;
           const current = findRoom(state.rooms, roomName);
-          if (!current || current.readingStatus !== "reading") return;
+          if (!current || current.readingStatus !== "reading" || current.readingRevision !== readingRevision) return;
           state.rooms = upsertRoom(state.rooms, {
             ...current,
             // MERGED, not replaced. The room already holds what the walk found —
@@ -2181,19 +2194,22 @@ export function openRoomScan() {
             detections: mergeSavedDetections(current.detections, reading.detections),
             tasks: mergeSavedTasks(current.tasks, reading.tasks),
             condition: resolveRoomCondition(reading.condition, current.condition),
-            readingStatus: reading.readingStatus || "ready"
+            readingStatus: reading.readingStatus || "ready",
+            readingRevision: 0
           });
           renderHub();
         })
         .catch((error) => {
           if (state.closed) return;
           const current = findRoom(state.rooms, roomName);
+          // An older request may fail after the Landlord has already rescanned
+          // this room. It must not mark the newer revision as failed or show a
+          // retry message for work that no longer belongs to it.
+          if (!current || current.readingStatus !== "reading" || current.readingRevision !== readingRevision) return;
           // Marked for retry rather than lost. The room, its photograph and the
           // customer's own note are already saved — only the automatic naming
           // failed, and tapping the room tries again.
-          if (current?.readingStatus === "reading") {
-            state.rooms = upsertRoom(state.rooms, { ...current, readingStatus: "needs-retry" });
-          }
+          state.rooms = upsertRoom(state.rooms, { ...current, readingStatus: "needs-retry" });
           const disconnected = state.networkOffline || navigator.onLine === false;
           if (disconnected) state.networkDeferredRooms.add(transcriptKey(roomName));
           toast(disconnected
@@ -2215,13 +2231,15 @@ export function openRoomScan() {
         const room = state.rooms.find((candidate) => transcriptKey(candidate?.name) === roomKey);
         state.networkDeferredRooms.delete(roomKey);
         if (!room?.image || room.readingStatus !== "needs-retry") continue;
-        state.rooms = upsertRoom(state.rooms, { ...room, readingStatus: "reading" });
+        const readingRevision = state.nextReadingRevision;
+        state.nextReadingRevision += 1;
+        state.rooms = upsertRoom(state.rooms, { ...room, readingStatus: "reading", readingRevision });
         readRoomInBackground({
           frame: room.image,
           roomName: room.name,
           chosen: room.detections || [],
           spokenNote: room.transcript || "",
-          session: state.roomSession
+          readingRevision
         });
       }
       renderHub();
