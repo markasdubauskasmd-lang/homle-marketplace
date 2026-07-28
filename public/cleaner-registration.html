@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-8">
-  <script src="/cleaner-registration.js?v=20260728-5" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-9">
+  <script src="/cleaner-registration.js?v=20260728-6" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -209,6 +209,16 @@
                 <span>Complete registration</span>
                 <strong>Step 4 of 19 &mdash; Background checks (DBS)</strong>
                 <div class="hc-business-progress-track hc-background-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="4"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-work-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 14 of 19 &mdash; Work areas</strong>
+                <div class="hc-business-progress-track hc-work-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="14"><span></span></div>
               </div>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
             </header>
@@ -457,6 +467,70 @@
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/identity-verification">&larr; Back</a>
                   <p data-background-save-status role="status" aria-live="polite">Sensitive DBS documents and details are not stored in this browser.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-work-card" data-work-areas hidden aria-labelledby="cleaner-work-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-work-title">Work areas</h1>
+                <p>Choose the outward postcodes where you can genuinely accept work.</p>
+              </header>
+
+              <form class="hc-work-form" data-work-form>
+                <div class="hc-work-builder">
+                  <section class="hc-work-panel" aria-labelledby="cleaner-work-choose-title">
+                    <h2 id="cleaner-work-choose-title">Choose where you work</h2>
+                    <p>Search an outward postcode, choose how it should be treated, then add it to the preview.</p>
+                    <div class="hc-work-search">
+                      <label class="hc-sr-only" for="cleaner-work-search">Outward postcode</label>
+                      <input id="cleaner-work-search" name="outwardPostcode" autocomplete="postal-code" maxlength="4" placeholder="e.g. LS1 or SW1A" data-work-search>
+                      <button type="button" data-work-add>Add</button>
+                    </div>
+                    <div class="hc-business-choices hc-work-role-choices" aria-label="Area treatment">
+                      <label><input type="radio" name="workAreaRole" value="primary" checked><span>Primary</span></label>
+                      <label><input type="radio" name="workAreaRole" value="secondary"><span>Secondary</span></label>
+                      <label><input type="radio" name="workAreaRole" value="excluded"><span>Excluded</span></label>
+                    </div>
+                    <p class="hc-work-role-note">Primary areas can be saved for matching. Secondary and excluded labels are a design preview until those rules are supported.</p>
+
+                    <section class="hc-work-base" aria-labelledby="cleaner-work-base-title">
+                      <div><strong id="cleaner-work-base-title">Profile base</strong><span data-work-base>Not set</span></div>
+                      <label><span>Maximum travel distance</span><output data-work-radius-output>15 miles</output><input type="range" name="travelRadiusMiles" min="1" max="50" value="15" data-work-radius></label>
+                    </section>
+
+                    <section class="hc-work-list-section" aria-labelledby="cleaner-work-list-title">
+                      <h2 id="cleaner-work-list-title">Your service areas</h2>
+                      <div class="hc-work-list" data-work-list></div>
+                      <p class="hc-work-empty" data-work-empty>No service areas added yet.</p>
+                    </section>
+                  </section>
+
+                  <section class="hc-work-map-shell" aria-label="Work-area map preview">
+                    <div class="hc-work-map-controls" aria-label="Map zoom controls">
+                      <button type="button" data-work-zoom-in aria-label="Zoom map preview in">+</button>
+                      <button type="button" data-work-zoom-out aria-label="Zoom map preview out">&minus;</button>
+                    </div>
+                    <svg class="hc-work-map" viewBox="0 0 600 680" role="img" aria-labelledby="cleaner-work-map-title cleaner-work-map-desc">
+                      <title id="cleaner-work-map-title">Service-area postcode preview</title>
+                      <desc id="cleaner-work-map-desc">A private schematic preview of the postcode coordinates stored by Homle, not a street map.</desc>
+                      <rect class="hc-work-map-land" x="0" y="0" width="600" height="680" rx="4"></rect>
+                      <path class="hc-work-map-water" d="M0 120C90 84 128 142 188 110s103-78 171-43 117 20 241-37V0H0zM0 605c104-37 152 9 224-27s130-28 191 12 109 37 185 10v80H0z"></path>
+                      <path class="hc-work-map-road major" d="M42 598C116 522 143 438 205 381s130-86 177-166S462 79 563 35"></path>
+                      <path class="hc-work-map-road" d="M11 445c111 1 162-64 259-45s167 85 319 37M70 182c92 62 184 55 265 18s139-36 226 35M155 644c23-96 94-173 162-216s105-104 120-196"></path>
+                      <path class="hc-work-map-boundary" d="M100 70l75 80-38 78 86 60-35 104 98 49-33 106 83 70M414 48l-41 91 64 72-56 79 65 86-46 76 67 95"></path>
+                      <g data-work-map-markers></g>
+                    </svg>
+                    <p>Homle postcode preview &middot; no third-party map requests</p>
+                  </section>
+                </div>
+
+                <p class="hc-work-guidance"><strong>Primary areas</strong> drive matching today. Secondary and excluded categories will not be saved until Homle can enforce those rules accurately.</p>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/background-checks">&larr; Back</a>
+                  <p data-work-save-status role="status" aria-live="polite">Saved areas use outward postcodes only; exact addresses are never shown here.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
