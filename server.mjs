@@ -5353,7 +5353,6 @@ async function serveFile(requestPath, response) {
     "/reset-password": "account.html",
     "/onboarding": "account.html",
     "/account-ready": "account.html",
-    "/settings": "settings.html",
     "/notifications": "notifications.html",
     "/cleaners": "cleaners.html",
     "/cleaner/dashboard": "cleaner-dashboard.html",

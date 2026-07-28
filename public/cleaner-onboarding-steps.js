@@ -12,7 +12,7 @@
  */
 
 export const onboardingSteps = [
-  { key: "personal", title: "Personal details", icon: "user", sidebar: true, href: "/settings",
+  { key: "personal", title: "Personal details", icon: "user", sidebar: true, href: "/cleaner/profile",
     derive: (d) => Boolean(d.account?.displayName && d.account?.email) },
   { key: "identity", title: "Identity verification", icon: "id", sidebar: true, href: "/cleaner/profile",
     derive: (d) => d.profile?.identityCheckStatus === "verified" },
@@ -53,7 +53,7 @@ export const onboardingSteps = [
  * no `step` has nothing to derive from and shows an outstanding dot.
  */
 export const onboardingNav = [
-  { label: "Personal Details", icon: "user", step: "personal", href: "/settings" },
+  { label: "Personal Details", icon: "user", step: "personal", href: "/cleaner/profile" },
   { label: "Business Details", icon: "brief", step: "business", href: "" },
   { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/profile" },
   { label: "Background Checks", icon: "shield", step: "dbs", href: "/cleaner/profile" },
@@ -73,8 +73,7 @@ export const accountNav = [
   { label: "My Profile", icon: "user", href: "/cleaner/profile" },
   { label: "Messages", icon: "chat", href: "/notifications", notificationHook: true },
   { label: "Public profile", icon: "id", href: "/cleaner/profile/preview" },
-  { label: "Public directory", icon: "dash", href: "/cleaners" },
-  { label: "Settings", icon: "gear", href: "/settings" }
+  { label: "Public directory", icon: "dash", href: "/cleaners" }
 ];
 
 // Icon paths transcribed from the design's ICONS table.
