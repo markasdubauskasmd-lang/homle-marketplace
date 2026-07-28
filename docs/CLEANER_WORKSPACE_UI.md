@@ -16,9 +16,25 @@ The Cleaner workspace is rebuilt from the supplied "Cleaner Onboarding Dashboard
 
 All nine reuse the existing account gate, `dashboardWorkspaceAccess` role boundary and account menu. None introduces a new authentication or authorisation path.
 
-Every page carries one canonical sidebar with the same twelve navigation items and the same active-state handling, so the navigation cannot drift between screens. Every item resolves to a real route: the workspace contains no dead links and no disabled navigation.
-
 `public/cleaner-page.js` carries what the secondary pages have in common — the gate, the offline banner and a bounded JSON reader — so that behaviour is defined once rather than repeated per page. It deliberately holds no mutating call.
+
+## Sidebar
+
+Every page carries the same sidebar, in three parts:
+
+- **Primary** (static markup, twelve entries): Dashboard, My Schedule, Jobs Map, Job Sign-off, Earnings, Reviews, Performance, Complete Registration, then the Continue setup action.
+- **ONBOARDING** (rendered by `public/cleaner-sidebar.js`, fourteen entries): Personal Details, Business Details, Identity Verification, Background Checks, Work Areas, Experience, References, Insurance, Banking, Availability, Equipment, Documents, Training, Contracts.
+- **ACCOUNT** (static markup): My Profile, Messages, Public profile, Public directory, Settings.
+
+Every entry resolves to a real route. The workspace contains no dead links.
+
+The ONBOARDING list in `onboardingNav` is deliberately **separate** from the progress-step list in `onboardingSteps`, because the design treats them differently. The sidebar uses shorter labels (`Banking`, `Contracts`), carries a `Documents` entry that is not a progress step at all, and omits Right to work, Tax, Transport and Skills, which appear only as progress chips. Modelling both from one list produces a sidebar that is four entries short — do not merge them.
+
+An ONBOARDING entry linked to a step key shows that step's completion mark. An entry with no step key, or whose step Homle cannot record, carries the design's outstanding dot rather than a tick.
+
+`cleaner-sidebar.js` renders the group on every page. It must be imported by each page's module: when only the dashboard rendered it, the group appeared empty on the other eight screens. Shared modules are imported at a single `?v=` value throughout — two different values instantiate the model twice and let the sidebar and the progress chips disagree.
+
+The ACCOUNT group stays as static markup because its Messages entry carries the notification hooks that `tests/notification-inbox-ui.mjs` asserts against.
 
 ## Content-Security-Policy boundary
 
