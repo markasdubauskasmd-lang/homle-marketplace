@@ -1395,6 +1395,10 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   width: 10.526%;
 }
 
+.hc-background-progress-track span {
+  width: 21.052%;
+}
+
 .hc-identity-card {
   align-self: start;
 }
@@ -1545,6 +1549,92 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   outline-offset: 2px;
 }
 
+/* ---------------------------------------------------- background checks -- */
+
+.hc-background-card {
+  align-self: start;
+}
+
+.hc-background-form {
+  padding: 0 34px 24px;
+}
+
+.hc-background-form .hc-business-section {
+  padding-top: 20px;
+}
+
+.hc-background-certificate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.hc-background-certificate > label:not(.hc-identity-document),
+.hc-background-dates label {
+  display: grid;
+  gap: 7px;
+  color: var(--hc-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.hc-background-certificate input:not([type="file"]),
+.hc-background-dates input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 13px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font: inherit;
+}
+
+.hc-background-certificate input:not([type="file"]):focus,
+.hc-background-dates input:focus {
+  border-color: var(--hc-red);
+  outline: 2px solid rgba(198, 42, 26, .14);
+  outline-offset: 1px;
+}
+
+.hc-background-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hc-background-certificate .hc-business-note {
+  display: flex;
+  align-items: center;
+}
+
+.hc-background-consent {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  color: var(--hc-ink);
+  border: 1px solid #efa89a;
+  border-radius: 10px;
+  background: #fff6f1;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.hc-background-consent input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--hc-red);
+}
+
+.hc-background-consent:focus-within {
+  outline: 2px solid var(--hc-red);
+  outline-offset: 2px;
+}
+
 /* ----------------------------------------------------------- responsive -- */
 
 @media (max-width: 1000px) {
@@ -1586,6 +1676,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-business-form { padding-left: 20px; padding-right: 20px; }
   .hc-identity-status { margin-left: 20px; margin-right: 20px; }
   .hc-identity-documents { grid-template-columns: 1fr; }
+  .hc-background-certificate { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 600px) {
@@ -1601,6 +1692,8 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-business-actions { grid-template-columns: 1fr; align-items: stretch; }
   .hc-business-actions .hc-business-quiet-button { justify-self: start; }
   .hc-business-actions .hc-personal-submit { width: 100%; }
+  .hc-background-form { padding-left: 20px; padding-right: 20px; }
+  .hc-background-dates { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
