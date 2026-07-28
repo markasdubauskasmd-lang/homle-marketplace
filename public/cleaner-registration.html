@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-7">
-  <script src="/cleaner-registration.js?v=20260728-4" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-8">
+  <script src="/cleaner-registration.js?v=20260728-5" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -199,6 +199,16 @@
                 <span>Complete registration</span>
                 <strong>Step 2 of 19 &mdash; Identity verification</strong>
                 <div class="hc-business-progress-track hc-identity-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="2"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-background-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 4 of 19 &mdash; Background checks (DBS)</strong>
+                <div class="hc-business-progress-track hc-background-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="4"><span></span></div>
               </div>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
             </header>
@@ -394,6 +404,59 @@
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/business-details">&larr; Back</a>
                   <p data-identity-save-status role="status" aria-live="polite">Sensitive documents and numbers are not stored in this browser.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-identity-card hc-background-card" data-background-checks hidden aria-labelledby="cleaner-background-title">
+              <p class="hc-identity-status" data-background-status role="status">Checking your background-check status&hellip;</p>
+              <header class="hc-personal-head">
+                <h1 id="cleaner-background-title">Background checks (DBS)</h1>
+                <p>Your criminal-record check. A DBS can make you eligible for more jobs, including schools and care settings.</p>
+              </header>
+
+              <form class="hc-personal-form hc-identity-form hc-background-form" data-background-form>
+                <fieldset class="hc-business-section">
+                  <legend>Current DBS status</legend>
+                  <p class="hc-business-question">Which check do you hold today?</p>
+                  <div class="hc-business-choices hc-background-choices">
+                    <label><input type="radio" name="dbsLevel" value="none"><span>No DBS</span></label>
+                    <label><input type="radio" name="dbsLevel" value="basic"><span>Basic DBS</span></label>
+                    <label><input type="radio" name="dbsLevel" value="standard"><span>Standard DBS</span></label>
+                    <label><input type="radio" name="dbsLevel" value="enhanced"><span>Enhanced DBS</span></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-identity-section">
+                  <legend>Certificate</legend>
+                  <div class="hc-background-certificate">
+                    <label class="hc-identity-document">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>DBS certificate</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="dbsCertificate" accept="application/pdf,image/jpeg,image/png" data-background-file>
+                    </label>
+                    <label><span>DBS certificate number</span><input name="dbsCertificateNumber" autocomplete="off" spellcheck="false" maxlength="32"></label>
+                    <div class="hc-background-dates">
+                      <label><span>Issue date</span><input name="dbsIssueDate" type="date" autocomplete="off"></label>
+                      <label><span>Expiry date</span><input name="dbsExpiryDate" type="date" autocomplete="off"></label>
+                    </div>
+                    <p class="hc-business-note">Update Service membership cannot be verified in this preview. Homle will only show it after a secure provider confirms it.</p>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-identity-section">
+                  <legend>Consent</legend>
+                  <label class="hc-background-consent">
+                    <input type="checkbox" name="backgroundConsent">
+                    <span>I authorise Homle to carry out background checks and verify my documents with the issuing bodies.</span>
+                  </label>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/identity-verification">&larr; Back</a>
+                  <p data-background-save-status role="status" aria-live="polite">Sensitive DBS documents and details are not stored in this browser.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
