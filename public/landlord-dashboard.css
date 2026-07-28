@@ -10,16 +10,9 @@
  * re-laid-out as the left sidebar.
  */
 
-@font-face {
-  font-family: "Bricolage Grotesque";
-  src: url("/vendor/fonts/bricolage-grotesque-wght.woff2") format("woff2");
-  font-weight: 600 800; font-display: swap; font-style: normal;
-}
-@font-face {
-  font-family: "DM Sans";
-  src: url("/vendor/fonts/dm-sans-wght.woff2") format("woff2");
-  font-weight: 400 600; font-display: swap; font-style: normal;
-}
+/* The font declarations that were here now live in homle-tokens.css, which every
+   page loads. The same two families were declared byte-identically in three
+   stylesheets; one owner means a font swap is one edit, not a hunt. */
 
 body.landlord-dashboard-page {
   --ld-cream: oklch(0.965 0.014 90);

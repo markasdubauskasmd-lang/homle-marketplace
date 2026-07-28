@@ -1,31 +1,45 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Sora:wght@600;700;800&display=swap');
+/* The Google Fonts import that was here asked for Inter and Sora. The site
+   serves under `style-src 'self'` with no allowance for fonts.googleapis.com, so
+   the browser refused it on every page load and the families never arrived —
+   which is why thirty pages rendered in system sans-serif. The fonts are now
+   vendored and declared in homle-tokens.css. Removing this also stops a CSP
+   violation being reported on every request. */
 
 :root {
   color-scheme: light;
-  --brand: #d7182a;
-  --brand-dark: #a41220;
-  --brand-deep: #7c0c17;
-  --brand-tint: #fbe3e5;
-  --brand-tint-pale: #fdf1f2;
-  --ink: #141114;
-  --ink-soft: #2b2326;
-  --muted: #66595c;
-  --paper: #fff;
-  --surface: #f7f5f2;
-  --line: #e8e2e0;
+  --brand: var(--homle-coral-action, #e31937);
+  --brand-dark: var(--homle-coral-hover, #b70f29);
+  --brand-tint: var(--homle-coral-tint, #ffe0e5);
+  --ink: var(--homle-ink, #0b090a);
+  --ink-soft: var(--homle-ink-2, #211d1e);
+  --muted: var(--homle-muted, #665f61);
+  --paper: var(--homle-paper, #fffefd);
+  --surface: var(--homle-surface, #f2eee9);
+  --line: var(--homle-line, #dcd4d1);
+  /* This surface's own: a deeper brand shade, a paler tint, and a focus ring
+     that has to stay legible on both cream and the dark header. */
+  --brand-deep: #7f0a1d;
+  --brand-tint-pale: #fff2f4;
   --focus: #2456e6;
-  --font-display: "Sora", Inter, ui-sans-serif, system-ui, sans-serif;
-  --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --shadow-sm: 0 1px 2px rgba(20, 16, 17, .05), 0 6px 16px rgba(20, 16, 17, .06);
-  --shadow: 0 18px 60px rgba(66, 15, 21, .12);
-  --shadow-lg: 0 28px 80px rgba(20, 16, 17, .17);
+  /* The landing page's two families, which are the only ones this product
+     actually ships. These previously asked for "Sora" and Inter — neither
+     vendored, and under `style-src 'self'` there is no font service to fetch
+     them from, so all thirty pages loading this file rendered in system
+     sans-serif while the landing page rendered in Bricolage Grotesque. That
+     dead declaration was the single biggest reason the app looked like two
+     different products. */
+  --font-display: var(--homle-display, "Segoe UI", system-ui, sans-serif);
+  --font-body: var(--homle-body, system-ui, -apple-system, sans-serif);
+  --shadow-sm: var(--homle-shadow-sm, 0 8px 20px rgba(11, 9, 10, .08));
+  --shadow: var(--homle-shadow, 0 22px 56px rgba(11, 9, 10, .13));
+  --shadow-lg: var(--homle-shadow-lg, 0 34px 90px rgba(11, 9, 10, .2));
   --ease: cubic-bezier(.2, .7, .2, 1);
   --ease-spring: cubic-bezier(.34, 1.56, .64, 1); /* slight overshoot — rewards only */
   --dur-tap: 120ms;
   --dur-fast: 180ms;
   --dur-base: 260ms;
   --dur-reveal: 450ms;
-  --radius: 22px;
+  --radius: var(--homle-radius-lg, 18px);
   --shell: 1180px;
   --green: var(--brand);
   --green-dark: var(--brand-dark);
@@ -2799,32 +2813,22 @@ dialog::backdrop { animation: homle-fade-in .3s ease; }
 .landlord-scan-boundary .button,
 .booking-payment-summary .button-light { border-color: #fff; box-shadow: 0 10px 24px rgba(0, 0, 0, .18); }
 
-/* Homle high-contrast marketplace system (2026 refresh).
-   This layer deliberately changes presentation only: existing form names,
-   routes, data attributes and role boundaries remain untouched. */
-:root {
-  --brand: #e31937;
-  --brand-dark: #b70f29;
-  --brand-deep: #7f0a1d;
-  --brand-tint: #ffe0e5;
-  --brand-tint-pale: #fff2f4;
-  --ink: #0b090a;
-  --ink-soft: #211d1e;
-  --muted: #665f61;
-  --paper: #fffefd;
-  --surface: #f2eee9;
-  --line: #dcd4d1;
-  --focus: #ffbe0b;
-  --shadow-sm: 0 8px 20px rgba(11, 9, 10, .08);
-  --shadow: 0 22px 56px rgba(11, 9, 10, .13);
-  --shadow-lg: 0 34px 90px rgba(11, 9, 10, .2);
-  --radius: 18px;
-}
+/* Homle marketplace surface.
+   Presentation only: form names, routes, data attributes and role boundaries
+   are untouched.
+
+   A second `:root` used to sit here, two and a half thousand lines below the
+   first, redeclaring the entire palette. Both looked authoritative; only this
+   one won, so editing the tokens at the top of the file changed nothing. Its
+   values are folded into the single `:root` above and sourced from
+   homle-tokens.css, so there is one place to change a colour and one answer
+   when you do. */
 
 body {
-  background: var(--surface);
-  background-image: linear-gradient(rgba(11, 9, 10, .025) 1px, transparent 1px), linear-gradient(90deg, rgba(11, 9, 10, .025) 1px, transparent 1px);
-  background-size: 32px 32px;
+  /* Cream, as the landing page. The old surface was a cool grey with a printed
+     grid over it, which is what made walking from the landing page into the app
+     feel like leaving the product. */
+  background: var(--homle-cream, #f2eee9);
 }
 
 .shell { width: min(calc(100% - 44px), 1240px); }
