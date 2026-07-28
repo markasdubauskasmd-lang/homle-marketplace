@@ -299,6 +299,66 @@ export function waitForCameraFrame(video, timeoutMs = 6000) {
   });
 }
 
+// JPEG compression is one of the most expensive synchronous operations in the
+// camera path. `toDataURL()` performs it before returning, which made the live
+// viewfinder pause every time an automatic walking frame was prepared. Modern
+// mobile browsers expose `toBlob()` specifically so encoding can finish
+// asynchronously. FileReader then converts the Blob to the data URL expected by
+// the existing JSON API, without changing image dimensions, quality or backend
+// contracts.
+//
+// The synchronous path remains only as a compatibility fallback for an older
+// browser without both APIs. It is deliberately exported so the non-blocking
+// path and fallback can be tested without opening a camera.
+export function encodeCanvasJpeg(canvas, quality) {
+  if (!canvas) return Promise.reject(new TypeError("A canvas is required."));
+  const encodeSynchronously = () => {
+    if (typeof canvas.toDataURL !== "function") throw new TypeError("This browser cannot encode the room frame.");
+    const image = canvas.toDataURL("image/jpeg", quality);
+    if (!String(image || "").startsWith("data:image/")) throw new TypeError("The room frame could not be encoded.");
+    return image;
+  };
+
+  if (typeof canvas.toBlob !== "function" || typeof globalThis.FileReader !== "function") {
+    try { return Promise.resolve(encodeSynchronously()); }
+    catch (error) { return Promise.reject(error); }
+  }
+
+  return new Promise((resolveImage, rejectImage) => {
+    let settled = false;
+    const finish = (image, error) => {
+      if (settled) return;
+      settled = true;
+      if (error) rejectImage(error);
+      else resolveImage(image);
+    };
+    const fallback = () => {
+      try { finish(encodeSynchronously()); }
+      catch (error) { finish("", error); }
+    };
+
+    try {
+      canvas.toBlob((blob) => {
+        if (!blob) return fallback();
+        let reader;
+        try { reader = new globalThis.FileReader(); }
+        catch { return fallback(); }
+        reader.onload = () => {
+          const image = typeof reader.result === "string" ? reader.result : "";
+          if (!image.startsWith("data:image/")) return fallback();
+          finish(image);
+        };
+        reader.onerror = fallback;
+        reader.onabort = fallback;
+        try { reader.readAsDataURL(blob); }
+        catch { fallback(); }
+      }, "image/jpeg", quality);
+    } catch {
+      fallback();
+    }
+  });
+}
+
 /**
  * Opens the room scan over the current page.
  * Resolves with the scan result, or null if the Landlord closed it without
@@ -361,7 +421,10 @@ export function openRoomScan() {
       // consuming the per-room allowance. Confirmed rooms saved during the gap
       // are retried once the browser reports a connection again.
       networkOffline: navigator.onLine === false, networkDeferredRooms: new Set(),
-      diagnostics: { suppressedByRoom: 0, framesInferred: 0, detectorErrors: 0, keyframesRead: 0 },
+      diagnostics: {
+        suppressedByRoom: 0, framesInferred: 0, detectorErrors: 0,
+        keyframeEncodeErrors: 0, keyframesRead: 0
+      },
       // Walking the room. `signature` and `previousSignature` are the coarse
       // brightness grids the quality pass already computes; the rest is what
       // decides whether the current view is worth a read.
@@ -1742,7 +1805,7 @@ export function openRoomScan() {
     // never leaves the phone. It is not what fills the inventory, because its
     // eighty classes contain no radiator, wardrobe, blind, shower or air fryer,
     // which is most of what a cleaning quote actually turns on.
-    function maybeReadKeyframe(video) {
+    async function maybeReadKeyframe(video) {
       if (!state.readingAllowed || !state.visionAvailable || state.frozen || state.closed) return;
       const roomName = state.currentRoom;
       const roomKey = transcriptKey(roomName);
@@ -1769,6 +1832,13 @@ export function openRoomScan() {
       };
       if (!shouldCaptureKeyframe(decision)) return;
 
+      // Reserve the room before yielding to the asynchronous encoder. Without
+      // this, the next video-frame callback sees the old idle state and starts a
+      // second encode for the same view. The reservation also participates in the
+      // existing two-room cap, so changing rooms cannot create unbounded work.
+      state.keyframeActiveRooms.add(roomKey);
+      const generation = budget.generation;
+      renderInventory();
       let image = "";
       try {
         // Its own canvas. `el.canvas` belongs to the shutter path, and a keyframe
@@ -1778,16 +1848,31 @@ export function openRoomScan() {
         if (!canvas) canvas = state.keyframeCanvas = document.createElement("canvas");
         const width = video.videoWidth || 0;
         const height = video.videoHeight || 0;
-        if (!width || !height) return;
+        if (!width || !height) throw new TypeError("The camera frame is not ready.");
         const scale = Math.min(1, 1024 / Math.max(width, height));
         canvas.width = Math.max(1, Math.round(width * scale));
         canvas.height = Math.max(1, Math.round(height * scale));
         canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-        image = canvas.toDataURL("image/jpeg", 0.72);
-      } catch { return; }
-      if (!image) return;
+        // `toDataURL` compressed the JPEG synchronously here, pausing the live
+        // camera up to four times per room. The Blob path yields immediately and
+        // keeps the exact same 1024px / 0.72 evidence supplied to the reader.
+        image = await encodeCanvasJpeg(canvas, 0.72);
+      } catch {
+        state.diagnostics.keyframeEncodeErrors += 1;
+        state.keyframeActiveRooms.delete(roomKey);
+        if (!state.closed) renderInventory();
+        return;
+      }
+      if (!image
+        || state.closed
+        || keyframeBudget(roomName).generation !== generation
+        || state.networkOffline
+        || (state.frozen && transcriptKey(state.currentRoom) === roomKey)) {
+        state.keyframeActiveRooms.delete(roomKey);
+        if (!state.closed) renderInventory();
+        return;
+      }
 
-      state.keyframeActiveRooms.add(roomKey);
       budget.lastCaptureAt = decision.now;
       budget.lastReadSignature = decision.signature;
       // Counted BEFORE the request and never refunded. A failure that refunds the
@@ -1795,8 +1880,6 @@ export function openRoomScan() {
       // timeout or a 5xx can arrive long after the provider has already been
       // billed, so a failed response does not mean a free one.
       budget.capturedCount += 1;
-      const generation = budget.generation;
-      renderInventory();
 
       // The one caller that is NOT a confirmation. Named explicitly rather than
       // relying on the default, so adding a caller cannot quietly put a walking

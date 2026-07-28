@@ -262,6 +262,16 @@ assert.doesNotMatch(overlay, /resetKeyframeBudget/, "The per-room budget is rese
 // and a timeout can arrive after the provider has already been billed.
 const keyframeBody = overlay.slice(overlay.indexOf("function maybeReadKeyframe"), overlay.indexOf("function inventoryFor"));
 assert.doesNotMatch(keyframeBody, /capturedCount = Math\.max\(0, /, "A failed keyframe read refunds its attempt, which lets a failing room retry without bound.");
+assert.match(overlay, /async function maybeReadKeyframe\(video\)[\s\S]*await encodeCanvasJpeg\(canvas, 0\.72\)/, "Walking frames are not encoded asynchronously, so automatic reads can still pause the live camera.");
+assert.doesNotMatch(keyframeBody, /canvas\.toDataURL\("image\/jpeg", 0\.72\)/, "The walking path still performs synchronous JPEG compression on the camera thread.");
+assert.ok(
+  keyframeBody.indexOf("state.keyframeActiveRooms.add(roomKey)") < keyframeBody.indexOf("await encodeCanvasJpeg(canvas, 0.72)"),
+  "The room is reserved only after asynchronous encoding, so consecutive video callbacks can encode and send the same view twice."
+);
+assert.ok(
+  keyframeBody.indexOf("await encodeCanvasJpeg(canvas, 0.72)") < keyframeBody.indexOf("budget.capturedCount += 1"),
+  "A local JPEG failure consumes the paid room-read allowance before any provider request begins."
+);
 // Consent has to be asked on the way in, or the first room is walked with nothing
 // being read while the hint promises otherwise.
 assert.match(overlay, /if \(!state\.consentAsked\) void askConsent\(\);/, "Consent is not requested when entering a room, so the first room reads nothing while telling the Landlord items save themselves.");
