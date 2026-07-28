@@ -187,6 +187,24 @@ assert.equal(correctInventoryItem(inventory, "not-a-key", { remove: true }).leng
 assert.ok(correctInventoryItem(inventory, key, { confirmed: true }).find((item) => item.key === key).confirmed, "Confirming an item without renaming it did not mark it confirmed.");
 assert.equal(correctInventoryItem(inventory, key, { label: "   " }).find((item) => item.key === key).label, "Radiator", "A blank rename erased the label.");
 
+const customerGraded = correctInventoryItem([{
+  key: inventoryKey("Tap"), label: "Tap", score: 0.82, condition: "medium",
+  conditionConfirmed: false, confirmed: false, quantity: 1
+}], inventoryKey("Tap"), {
+  label: "Bathroom tap", condition: "heavy", confirmed: true
+});
+assert.equal(customerGraded[0].condition, "heavy", "The customer could not replace the automatic condition grade.");
+assert.equal(customerGraded[0].conditionConfirmed, true, "The customer's condition choice was not marked final.");
+const customerGradedSaved = mergeInventoryIntoSavedDetections([
+  { id: "tap-box", label: "Tap", condition: "medium", x: 20, y: 20, width: 30, height: 30 }
+], customerGraded);
+assert.equal(customerGradedSaved[0].condition, "heavy", "The red room-save action replaced a customer-confirmed grade with automatic evidence.");
+assert.equal(customerGradedSaved[0].conditionConfirmed, true, "The red room-save action forgot that the grade was customer-confirmed.");
+const afterAutomaticRevisit = mergeSavedDetections(customerGradedSaved, [
+  { id: "tap-read", label: "Tap", condition: "light", x: 18, y: 18, width: 34, height: 34 }
+]);
+assert.equal(afterAutomaticRevisit[0].condition, "heavy", "A later automatic revisit overrode a grade the customer had confirmed.");
+
 /* ── Walking evidence survives the red save button ── */
 
 const limescaleInventory = mergeRoomInventory([], [{
@@ -297,6 +315,11 @@ const inventoryRender = overlay.slice(overlay.indexOf("function renderInventory"
 assert.ok(inventoryRender, "The inventory renderer could not be found to check it.");
 assert.doesNotMatch(inventoryRender, /innerHTML/, "The found-items list is rendered with innerHTML. Item labels are model output about a stranger's home and must never be treated as markup.");
 assert.match(inventoryRender, /textContent/, "The found-items list does not render its labels as text.");
+assert.match(overlay, /data-item-editor-form/, "Tapping a detected item has no compact editor for correcting its name and condition.");
+assert.match(overlay, /openItemEditor\(key, rename\)/, "The found-item button still bypasses the item editor.");
+assert.doesNotMatch(overlay, /window\.prompt\(/, "The scanner still uses a blocking browser prompt instead of its one-handed item editor.");
+assert.match(overlay, /change\.condition = condition/, "The item editor does not send the customer's cleaning-level correction to the model.");
+assert.match(styles, /\.scan-item-condition-options\{[^}]*grid-template-columns:repeat\(2/, "The cleaning-level choices are not presented as large mobile-friendly controls.");
 
 /* ── Detected objects glow rather than being boxed ── */
 
@@ -432,7 +455,7 @@ assert.match(model, /const previousRow = new Float32Array\(columns\);[\s\S]{0,20
 // label and geometry only, so open-then-save silently erased every grade.
 const saveBranches = overlay.split("detections: chosen.map((box) => ({").length - 1;
 assert.equal(saveBranches, 2, "The save paths changed shape; re-check that every branch still preserves per-item condition.");
-assert.equal((overlay.match(/condition: box\.condition \|\| "", soiling: box\.soiling \|\| \[\]/g) || []).length, 2, "A save branch rebuilds detections without their condition, so saving an unchanged room erases its grading.");
+assert.equal((overlay.match(/condition: box\.condition \|\| "", conditionConfirmed: box\.conditionConfirmed === true,\s*soiling: box\.soiling \|\| \[\]/g) || []).length, 2, "A save branch rebuilds detections without its condition or the customer's confirmation, so saving an unchanged room erases the final grading.");
 
 // The first sample of a session must not count as fast motion: distance-from-null
 // is defined as 1, which would halve the streak the hint requires.
