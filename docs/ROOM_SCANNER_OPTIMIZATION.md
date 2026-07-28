@@ -49,6 +49,9 @@ The existing scanner remains the single scanner used by the Landlord booking jou
 
 ### Clearer progress
 
+- Finishing now warns once when a completed room still contains an unknown or
+  low-confidence item condition. The warning names the room and offers the
+  shortest correction path, while a deliberate second tap can still continue.
 - Room coverage advances only after a valid assisted reading returns. Provider attempts remain capped separately for cost safety, so a timeout or 5xx cannot turn the progress bar green or claim that an unanalysed room is covered. If the bounded allowance ends before useful coverage, the scanner gives one honest next action: confirm the room.
 - The scanner now shows a compact three-step state:
   1. Choose a room.

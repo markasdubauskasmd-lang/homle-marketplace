@@ -44,6 +44,7 @@ import {
   upsertRoom,
   removeRoom,
   unresolvedRoomReadKey,
+  unresolvedRoomConditionKey,
   rosterSummary
 } from "./room-scan-model.js";
 import { checklistFromTranscript } from "./checklist.js";
@@ -2976,14 +2977,32 @@ export function openRoomScan() {
       // Asked rather than blocked: they may genuinely want to get on, and their
       // photographs and notes are all saved either way.
       const unfinished = state.rooms.filter((room) => room.readingStatus === "reading" || room.readingStatus === "needs-retry");
-      const unresolvedKey = unresolvedRoomReadKey(state.rooms);
+      const readingKey = unresolvedRoomReadKey(state.rooms);
+      const conditionKey = unresolvedRoomConditionKey(state.rooms);
+      const unresolvedKey = [readingKey, conditionKey].filter(Boolean).join("||");
       if (unresolvedKey && state.finishWarningKey !== unresolvedKey) {
         state.finishWarningKey = unresolvedKey;
+        if (!readingKey) {
+          const names = state.rooms
+            .filter((room) => unresolvedRoomConditionKey([room]))
+            .map((room) => room.name)
+            .join(", ");
+          toast(`${names}: an item condition still needs checking. Tap the room to move closer or confirm it. Tap Done again to continue.`);
+          renderHub();
+          return;
+        }
         const names = unfinished.map((room) => room.name).join(", ");
         const deferred = unfinished.some((room) => room.readingStatus === "needs-retry");
-        toast(deferred
+        const conditionNames = state.rooms
+          .filter((room) => unresolvedRoomConditionKey([room]))
+          .map((room) => room.name)
+          .join(", ");
+        const conditionNotice = conditionNames
+          ? ` ${conditionNames}: an item condition also needs checking.`
+          : "";
+        toast((deferred
           ? `${names} still needs automatic reading. Keep this scan open until the connection returns, or tap Done again to finish with its photo and note only.`
-          : `Still reading ${names}. Tap Done again to finish now — that room keeps your photo and note but not the automatic detail.`);
+          : `Still reading ${names}. Tap Done again to finish now — that room keeps your photo and note but not the automatic detail.`) + conditionNotice);
         renderHub();
         return;
       }

@@ -16,6 +16,7 @@ import {
   scanSummary,
   removeRoom,
   walkingReadIsBlocked,
+  unresolvedRoomConditionKey,
   unresolvedRoomReadKey
 } from "../public/room-scan-model.js";
 import { encodeCanvasJpeg, waitForCameraFrame } from "../public/room-scan-overlay.js";
@@ -67,6 +68,41 @@ assert(
 assert(
   unresolvedRoomReadKey([{ name: "Kitchen", readingStatus: "reading", readingRevision: 5 }]) !== readingWarning,
   "A later unresolved read can reuse an earlier room-reading override."
+);
+const conditionWarning = unresolvedRoomConditionKey([
+  { name: "Kitchen", readingStatus: "ready", detections: [{ label: "Tap", condition: "" }] },
+  { name: "Bathroom", readingStatus: "ready", detections: [{ label: "Shower screen", condition: "medium" }] }
+]);
+assert(conditionWarning.includes("kitchen") && conditionWarning.includes("tap"), "A completed room with an ungraded item can finish without a condition-review warning.");
+assert(
+  unresolvedRoomConditionKey([{ name: "Kitchen", readingStatus: "ready", detections: [{ label: "Tap", condition: "medium", confidence: 0.3 }] }]),
+  "A low-confidence condition is presented as settled at the end of the scan."
+);
+assert(
+  unresolvedRoomConditionKey([{ name: "Kitchen", readingStatus: "ready", detections: [{ label: "Tap", condition: "medium", confidence: 0.8 }] }]) === "",
+  "A confident condition continues to block or warn at the end of the scan."
+);
+assert(
+  unresolvedRoomConditionKey([{ name: "Kitchen", readingStatus: "reading", detections: [{ label: "Tap", condition: "" }] }]) === "",
+  "An in-flight automatic read triggers a second, competing condition warning before its result can resolve the item."
+);
+assert(
+  unresolvedRoomConditionKey([
+    { name: "Kitchen", readingStatus: "ready", detections: [{ label: "Tap", condition: "" }] },
+    { name: "Bathroom", readingStatus: "manual", detections: [{ label: "Mirror", condition: "" }] }
+  ]) === unresolvedRoomConditionKey([
+    { name: "Bathroom", readingStatus: "manual", detections: [{ label: "Mirror", condition: "" }] },
+    { name: "Kitchen", readingStatus: "ready", detections: [{ label: "Tap", condition: "" }] }
+  ]),
+  "Harmless room reordering invalidates the same condition-review decision."
+);
+assert(
+  unresolvedRoomConditionKey([{ name: "Kitchen", readingStatus: "ready", detections: [
+    { label: "Tap", condition: "" }, { label: "Tap", condition: "" }
+  ] }]) === unresolvedRoomConditionKey([{ name: "Kitchen", readingStatus: "ready", detections: [
+    { label: "Tap", condition: "" }
+  ] }]),
+  "A duplicate detector row turns one unresolved condition into a new finish decision."
 );
 assert(scanHint(0).includes("shutter") && scanHint(2, { voiceUsed: false }).includes("mic"), "The scan does not tell a first-time user what to do, or never offers the voice note.");
 assert(!scanHint(2, { voiceUsed: true }).includes("mic"), "The voice tip is repeated after the Landlord has already used it.");
@@ -227,7 +263,7 @@ assert(!overlay.includes("localStorage") && !overlay.includes("JSON.stringify(st
 // Scoped to the function body. The window kept breaking as finishScan grew, and
 // widening a number teaches nothing; what is guarded is that the photos handed on
 // are the current rooms' own images.
-const finishBody = overlay.slice(overlay.indexOf("function finishScan()"), overlay.indexOf("function finishScan()") + 2600);
+const finishBody = overlay.slice(overlay.indexOf("function finishScan()"), overlay.indexOf("function close(result)"));
 assert(/photos: state\.rooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(finishBody), "A completed scan does not hand its current room photos directly to the authenticated booking journey.");
 // Finishing while a room is still being read would carry the provisional tasks
 // and grade into the booking, and close() aborts the read that was about to
@@ -237,6 +273,17 @@ assert(
     && finishBody.includes("state.finishWarningKey !== unresolvedKey")
     && finishBody.includes('"needs-retry"'),
   "Finishing does not protect a network-deferred room, or an old override can silently cover a different unresolved room read."
+);
+assert(
+  finishBody.includes("unresolvedRoomConditionKey(state.rooms)")
+    && finishBody.includes("condition still needs checking")
+    && finishBody.includes("Tap Done again"),
+  "Finishing a completed scan never warns that a saved object's cleaning condition is still unresolved."
+);
+assert(
+  finishBody.includes("conditionNotice")
+    && finishBody.includes("condition also needs checking"),
+  "A room still being read hides the unresolved condition warning from another completed room."
 );
 assert(!/sessionStorage\.setItem\([^)]*state\.rooms/.test(overlay) && !/sessionStorage\.setItem\([^)]*photos/.test(overlay), "Private room photos are written into browser storage instead of staying in the in-memory booking handoff.");
 assert(/filter\(\(room\) => room\?\.image\)/.test(finishBody), "A room photo is discarded merely because automatic object reading produced no tasks.");
@@ -543,7 +590,7 @@ assert(overlay.includes("state.capturing = true;") && overlay.indexOf("state.cap
 assert(!overlay.includes("Reading your home") && !/setTimeout\(\s*\(?\s*(?:wait|resolve)\)?\s*,\s*(?:340|700)\s*\)/.test(overlay), "The finish step still plays a loading animation over work that has already happened.");
 // Scoped to the function body rather than a character window, which grew stale
 // as finishScan gained its still-reading guard.
-assert(/stopCamera\(\);\s*\n\s*close\(\{/.test(overlay.slice(overlay.indexOf("function finishScan()"), overlay.indexOf("function finishScan()") + 2600)), "Finishing no longer closes cleanly with the gathered rooms.");
+assert(/stopCamera\(\);\s*\n\s*close\(\{/.test(finishBody), "Finishing no longer closes cleanly with the gathered rooms.");
 
 // Behind the hub the camera stays warm but detection is paused — no point
 // running inference at a menu.
