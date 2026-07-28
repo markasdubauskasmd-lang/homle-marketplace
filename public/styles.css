@@ -1,21 +1,26 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Sora:wght@600;700;800&display=swap');
+/* The Google Fonts import that was here asked for Inter and Sora. The site
+   serves under `style-src 'self'` with no allowance for fonts.googleapis.com, so
+   the browser refused it on every page load and the families never arrived —
+   which is why thirty pages rendered in system sans-serif. The fonts are now
+   vendored and declared in homle-tokens.css. Removing this also stops a CSP
+   violation being reported on every request. */
 
 :root {
   color-scheme: light;
-  --brand: var(--homle-coral);
-  --brand-dark: var(--homle-coral-hover);
-  --brand-tint: var(--homle-coral-tint);
-  --ink: var(--homle-ink);
-  --ink-soft: var(--homle-ink-2);
-  --muted: var(--homle-muted);
-  --paper: var(--homle-paper);
-  --surface: var(--homle-surface);
-  --line: var(--homle-line);
+  --brand: var(--homle-coral-action, #e31937);
+  --brand-dark: var(--homle-coral-hover, #b70f29);
+  --brand-tint: var(--homle-coral-tint, #ffe0e5);
+  --ink: var(--homle-ink, #0b090a);
+  --ink-soft: var(--homle-ink-2, #211d1e);
+  --muted: var(--homle-muted, #665f61);
+  --paper: var(--homle-paper, #fffefd);
+  --surface: var(--homle-surface, #f2eee9);
+  --line: var(--homle-line, #dcd4d1);
   /* This surface's own: a deeper brand shade, a paler tint, and a focus ring
      that has to stay legible on both cream and the dark header. */
-  --brand-deep: color-mix(in oklch, var(--homle-coral) 62%, black);
-  --brand-tint-pale: color-mix(in oklch, var(--homle-coral) 6%, white);
-  --focus: var(--homle-sky);
+  --brand-deep: #7f0a1d;
+  --brand-tint-pale: #fff2f4;
+  --focus: #2456e6;
   /* The landing page's two families, which are the only ones this product
      actually ships. These previously asked for "Sora" and Inter — neither
      vendored, and under `style-src 'self'` there is no font service to fetch
@@ -23,18 +28,18 @@
      sans-serif while the landing page rendered in Bricolage Grotesque. That
      dead declaration was the single biggest reason the app looked like two
      different products. */
-  --font-display: var(--homle-display);
-  --font-body: var(--homle-body);
-  --shadow-sm: var(--homle-shadow-sm);
-  --shadow: var(--homle-shadow);
-  --shadow-lg: var(--homle-shadow-lg);
+  --font-display: var(--homle-display, "Segoe UI", system-ui, sans-serif);
+  --font-body: var(--homle-body, system-ui, -apple-system, sans-serif);
+  --shadow-sm: var(--homle-shadow-sm, 0 8px 20px rgba(11, 9, 10, .08));
+  --shadow: var(--homle-shadow, 0 22px 56px rgba(11, 9, 10, .13));
+  --shadow-lg: var(--homle-shadow-lg, 0 34px 90px rgba(11, 9, 10, .2));
   --ease: cubic-bezier(.2, .7, .2, 1);
   --ease-spring: cubic-bezier(.34, 1.56, .64, 1); /* slight overshoot — rewards only */
   --dur-tap: 120ms;
   --dur-fast: 180ms;
   --dur-base: 260ms;
   --dur-reveal: 450ms;
-  --radius: var(--homle-radius-lg);
+  --radius: var(--homle-radius-lg, 18px);
   --shell: 1180px;
   --green: var(--brand);
   --green-dark: var(--brand-dark);
@@ -2823,7 +2828,7 @@ body {
   /* Cream, as the landing page. The old surface was a cool grey with a printed
      grid over it, which is what made walking from the landing page into the app
      feel like leaving the product. */
-  background: var(--homle-cream);
+  background: var(--homle-cream, #f2eee9);
 }
 
 .shell { width: min(calc(100% - 44px), 1240px); }

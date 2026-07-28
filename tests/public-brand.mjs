@@ -8,7 +8,15 @@ const publicFiles = (await readdir(publicRoot, { withFileTypes: true }))
   .filter((entry) => entry.isFile() && /\.(?:html|js|svg|webmanifest)$/.test(entry.name))
   .map((entry) => entry.name);
 const visibleOldBrand = /(?<![A-Za-z0-9_-])Tideway(?![A-Za-z0-9_-])/;
-const sharedStyleAsset = '/styles.css?v=20260723-1';
+// Derived, not pinned. The version is bumped on every deployment that touches
+// styles.css (docs/BRAND_AND_UI.md rule 4), and hard-coding it here meant a
+// routine cache bump failed a brand test. What this guarantees is unchanged and
+// is the thing that actually matters: every public page loads the SAME current
+// version, so none of them serves a stale stylesheet.
+const landingMarkup = await readFile(new URL("home.html", publicRoot), "utf8");
+const sharedStyleVersion = /\/styles\.css\?v=([\w-]+)/.exec(landingMarkup);
+if (!sharedStyleVersion) throw new Error("home.html no longer loads a versioned styles.css, so no page can be checked against it.");
+const sharedStyleAsset = `/styles.css?v=${sharedStyleVersion[1]}`;
 
 for (const name of publicFiles) {
   const source = await readFile(new URL(name, publicRoot), "utf8");
