@@ -1526,3 +1526,25 @@ export function movementAdvice(distances, { fastThreshold = 0.09, streak = 2 } =
   if (!fast) return null;
   return Object.freeze({ kind: "moving", message: "Moving fast — slow down a little so items can be read." });
 }
+
+// A detector box is expressed as a percentage of the visible viewfinder. When
+// every stable object occupies less than ~1.5% of that view, the room overview
+// may be useful but fine condition evidence (dust, limescale, grease) is not.
+// Geometry gives us that guidance locally and for free.
+//
+// Require three sightings and a currently visible track. One-frame guesses and
+// held tracks are deliberately ignored so the hint does not flicker or keep
+// nagging after the customer turns away. If even one object is framed usefully,
+// stay quiet: a tiny bottle beside a clear worktop is not a reason to interrupt.
+export function objectFramingAdvice(tracks, { maximumTinyAreaRatio = 0.015, minimumSeenFrames = 3 } = {}) {
+  const stable = (Array.isArray(tracks) ? tracks : []).filter((track) => {
+    const measurements = [track?.width, track?.height];
+    return measurements.every((value) => Number.isFinite(value) && value > 0 && value <= 100)
+      && Number(track?.seenFrames) >= minimumSeenFrames
+      && Number(track?.missedFrames || 0) === 0;
+  });
+  if (!stable.length) return null;
+  const allTiny = stable.every((track) => ((track.width * track.height) / 10_000) < maximumTinyAreaRatio);
+  if (!allTiny) return null;
+  return Object.freeze({ kind: "distance", message: "Move closer for better condition detail." });
+}
