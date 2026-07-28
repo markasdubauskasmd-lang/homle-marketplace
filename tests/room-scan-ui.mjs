@@ -15,7 +15,8 @@ import {
   scanTranscript,
   scanSummary,
   removeRoom,
-  walkingReadIsBlocked
+  walkingReadIsBlocked,
+  unresolvedRoomReadKey
 } from "../public/room-scan-model.js";
 import { encodeCanvasJpeg, waitForCameraFrame } from "../public/room-scan-overlay.js";
 
@@ -40,6 +41,33 @@ assert(guidedRooms.length >= 4 && nextRoomName(0) === guidedRooms[0], "The guide
 assert(nextRoomName(guidedRooms.length) === `Room ${guidedRooms.length + 1}`, "The scan stops guiding instead of continuing past the suggested rooms.");
 assert(canFinishScan(1) && !canFinishScan(0), "The scan can be finished with no rooms, or cannot be finished after one.");
 assert(!walkingReadIsBlocked(new Set(["kitchen"]), "bathroom"), "Moving to the next room remains blocked by the previous room's automatic read.");
+const readingWarning = unresolvedRoomReadKey([
+  { name: "Kitchen", readingStatus: "reading", readingRevision: 4 },
+  { name: "Bathroom", readingStatus: "ready", readingRevision: 2 }
+]);
+assert(readingWarning.includes("kitchen:reading:4") && !readingWarning.includes("bathroom"), "A room still being read is not isolated from completed rooms for the finish warning.");
+assert(
+  unresolvedRoomReadKey([{ name: "Kitchen", readingStatus: "needs-retry", readingRevision: 4 }]).includes("kitchen:needs-retry:4"),
+  "A room whose automatic read was deferred by the network can finish without a warning."
+);
+assert(
+  unresolvedRoomReadKey([{ name: "Kitchen", readingStatus: "ready", readingRevision: 4 }]) === "",
+  "A completed room continues to block or warn at the end of the scan."
+);
+assert(
+  unresolvedRoomReadKey([
+    { name: "Kitchen", readingStatus: "reading", readingRevision: 4 },
+    { name: "Bathroom", readingStatus: "needs-retry", readingRevision: 7 }
+  ]) === unresolvedRoomReadKey([
+    { name: "Bathroom", readingStatus: "needs-retry", readingRevision: 7 },
+    { name: "Kitchen", readingStatus: "reading", readingRevision: 4 }
+  ]),
+  "Reordering the room roster invalidates the exact same finish warning."
+);
+assert(
+  unresolvedRoomReadKey([{ name: "Kitchen", readingStatus: "reading", readingRevision: 5 }]) !== readingWarning,
+  "A later unresolved read can reuse an earlier room-reading override."
+);
 assert(scanHint(0).includes("shutter") && scanHint(2, { voiceUsed: false }).includes("mic"), "The scan does not tell a first-time user what to do, or never offers the voice note.");
 assert(!scanHint(2, { voiceUsed: true }).includes("mic"), "The voice tip is repeated after the Landlord has already used it.");
 assert(scanHint(maximumShots).includes("maximum"), "Reaching the capture limit is not explained.");
@@ -204,7 +232,12 @@ assert(/photos: state\.rooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(fini
 // Finishing while a room is still being read would carry the provisional tasks
 // and grade into the booking, and close() aborts the read that was about to
 // replace them — so the customer would be quoted from a placeholder.
-assert(/readingStatus === "reading"/.test(finishBody), "Finishing no longer notices a room still being read, so a booking can be priced from provisional tasks while the real reading is thrown away.");
+assert(
+  finishBody.includes("unresolvedRoomReadKey(state.rooms)")
+    && finishBody.includes("state.finishWarningKey !== unresolvedKey")
+    && finishBody.includes('"needs-retry"'),
+  "Finishing does not protect a network-deferred room, or an old override can silently cover a different unresolved room read."
+);
 assert(!/sessionStorage\.setItem\([^)]*state\.rooms/.test(overlay) && !/sessionStorage\.setItem\([^)]*photos/.test(overlay), "Private room photos are written into browser storage instead of staying in the in-memory booking handoff.");
 assert(/filter\(\(room\) => room\?\.image\)/.test(finishBody), "A room photo is discarded merely because automatic object reading produced no tasks.");
 

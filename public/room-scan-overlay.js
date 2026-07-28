@@ -41,6 +41,7 @@ import {
   canAddRoom,
   upsertRoom,
   removeRoom,
+  unresolvedRoomReadKey,
   rosterSummary
 } from "./room-scan-model.js";
 import { checklistFromTranscript } from "./checklist.js";
@@ -453,7 +454,7 @@ export function openRoomScan() {
       // event would drown the console; a running total answers the question that
       // actually gets asked when a scan looks wrong — is the room filter working,
       // or is it eating everything?
-      pendingReads: 0, roomReadControllers: new Set(), finishConfirmed: false,
+      pendingReads: 0, roomReadControllers: new Set(), finishWarningKey: "",
       // Monotonic identity for a saved room revision. A response from an older
       // photo must never update a same-named room that has since been removed,
       // rescanned or edited.
@@ -2900,14 +2901,21 @@ export function openRoomScan() {
       //
       // Asked rather than blocked: they may genuinely want to get on, and their
       // photographs and notes are all saved either way.
-      const unfinished = state.rooms.filter((room) => room.readingStatus === "reading");
-      if (unfinished.length && !state.finishConfirmed) {
-        state.finishConfirmed = true;
+      const unfinished = state.rooms.filter((room) => room.readingStatus === "reading" || room.readingStatus === "needs-retry");
+      const unresolvedKey = unresolvedRoomReadKey(state.rooms);
+      if (unresolvedKey && state.finishWarningKey !== unresolvedKey) {
+        state.finishWarningKey = unresolvedKey;
         const names = unfinished.map((room) => room.name).join(", ");
-        toast(`Still reading ${names}. Tap Done again to finish now — that room keeps your photo and note but not the automatic detail.`);
+        const deferred = unfinished.some((room) => room.readingStatus === "needs-retry");
+        toast(deferred
+          ? `${names} still needs automatic reading. Keep this scan open until the connection returns, or tap Done again to finish with its photo and note only.`
+          : `Still reading ${names}. Tap Done again to finish now — that room keeps your photo and note but not the automatic detail.`);
         renderHub();
         return;
       }
+      // Do not let a completed warning leak into a later room. If every read
+      // landed, the next unresolved set must earn its own explicit second tap.
+      if (!unresolvedKey) state.finishWarningKey = "";
       stopVoice({ silent: true });
       // The notes are being handed to the booking journey, so the recovery copy has
       // done its job and should not survive to be offered again.
