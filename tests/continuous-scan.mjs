@@ -142,6 +142,21 @@ assert.deepEqual(
 assert.equal(roomCoverageProgress(1).percent, 25, "The first distinct accepted view did not advance room coverage by one bounded step.");
 assert.equal(roomCoverageProgress(2).copy, "Show one more angle", "Half-room guidance does not tell the customer what to do next.");
 assert.equal(roomCoverageProgress(3).complete, false, "Good coverage was misreported as full coverage before the final distinct view.");
+assert.equal(
+  roomCoverageProgress(0, { attemptedCount: 4 }).copy,
+  "Automatic read incomplete — confirm room",
+  "Four failed provider attempts claim the room is covered or keep telling the customer to hold still when no automatic allowance remains."
+);
+assert.equal(
+  roomCoverageProgress(2, { attemptedCount: 4 }).copy,
+  "Automatic read incomplete — confirm room",
+  "Partly analysed coverage hides that the automatic allowance is exhausted."
+);
+assert.equal(
+  roomCoverageProgress(3, { attemptedCount: 4 }).copy,
+  "Good coverage — confirm",
+  "Three successfully analysed views are downgraded merely because the final bounded attempt failed."
+);
 assert.equal(roomCoverageProgress(3).copy, "Good coverage — confirm", "Three distinct views do not give the customer a clear, honest finish option.");
 assert.deepEqual(
   roomCoverageProgress(4),
@@ -435,7 +450,11 @@ assert.match(
   "On-device detection spends work on cropped-out sensor pixels and can highlight an object the Landlord cannot see."
 );
 assert.match(overlay, /data-live-progress-meter[^>]*role="progressbar"/, "The live scanner has no accessible current-room coverage indicator.");
-assert.match(overlay, /roomCoverageProgress\(budget\.capturedCount\)/, "Room coverage is not derived from the accepted distinct-view budget.");
+assert.match(
+  overlay,
+  /roomCoverageProgress\(budget\.completedCount,\s*\{\s*attemptedCount:\s*budget\.capturedCount\s*\}\)/,
+  "Room coverage is derived from provider attempts instead of views that were actually analysed successfully."
+);
 assert.match(overlay, /busy \? "Checking this view…" : progress\.copy/, "The coverage indicator cannot distinguish a view being analysed from one already accepted.");
 assert.ok(
   overlay.indexOf("budget.capturedCount += 1") < overlay.indexOf("budget.capturedCount += 1") + overlay.slice(overlay.indexOf("budget.capturedCount += 1")).indexOf("renderScanProgress()"),
@@ -455,6 +474,15 @@ assert.ok(
 assert.ok(
   keyframeBody.indexOf("await encodeCanvasJpeg(canvas, 0.72)") < keyframeBody.indexOf("budget.capturedCount += 1"),
   "A local JPEG failure consumes the paid room-read allowance before any provider request begins."
+);
+assert.match(
+  keyframeBody,
+  /if \(state\.closed \|\| keyframeBudget\(roomName\)\.generation !== generation\) return;[\s\S]{0,500}const completedBudget = keyframeBudget\(roomName\);\s*completedBudget\.completedCount = Math\.min\(completedBudget\.capturedCount, completedBudget\.completedCount \+ 1\);/,
+  "A successful walking read does not advance analysed coverage, advances it before stale-room protection, or can exceed the bounded attempt count."
+);
+assert.ok(
+  keyframeBody.indexOf("completedBudget.completedCount = Math.min") > keyframeBody.indexOf(".then((reading) =>"),
+  "Analysed coverage advances before the provider has returned a valid reading."
 );
 // Consent has to be asked on the way in, or the first room is walked with nothing
 // being read while the hint promises otherwise.
@@ -594,6 +622,8 @@ assert.ok(overlay.includes("scanDebug=1") && overlay.includes("window.location.s
 assert.match(overlay, /function renderScanDebug/, "The diagnostics counters are collected but never rendered, so a tester's screenshot still cannot say whether reads happened.");
 assert.match(overlay, /lastReadFailure/, "Read failures are counted but the last one's reason is not kept, which is the single most useful line in a bug report.");
 const debugRender = overlay.slice(overlay.indexOf("function renderScanDebug"), overlay.indexOf("function renderInventory"));
+assert.match(debugRender, /\["attempts",[\s\S]{0,120}budget\.capturedCount/, "The tester readout no longer distinguishes paid attempts from successful analysed coverage.");
+assert.match(debugRender, /\["analysed",[\s\S]{0,120}budget\.completedCount/, "The tester readout cannot prove whether attempted views were analysed successfully.");
 assert.match(debugRender, /if \(!state\.scanDebug/, "The readout renders without checking the opt-in, so customers see internals.");
 assert.doesNotMatch(debugRender, /innerHTML/, "The readout is rendered with innerHTML; failure messages can contain provider text.");
 assert.ok(styles.includes(".scan-debug{"), "The readout has no styling, so when enabled it lands unpositioned over the camera.");

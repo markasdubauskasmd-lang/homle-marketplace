@@ -846,7 +846,7 @@ export function openRoomScan() {
         el.liveProgressCopy.textContent = `${selectionCount()} selected — check and confirm`;
       } else if (state.readingAllowed && state.visionAvailable) {
         const budget = keyframeBudget(state.currentRoom);
-        const progress = roomCoverageProgress(budget.capturedCount);
+        const progress = roomCoverageProgress(budget.completedCount, { attemptedCount: budget.capturedCount });
         const busy = state.keyframeActiveRooms.has(transcriptKey(state.currentRoom));
         el.liveProgressMeter.hidden = false;
         el.liveProgressMeter.dataset.level = String(progress.count);
@@ -2016,6 +2016,11 @@ export function openRoomScan() {
           // The room may have been removed while this was in flight. Landing its
           // result anyway would recreate an inventory the Landlord just deleted.
           if (state.closed || keyframeBudget(roomName).generation !== generation) return;
+          // Coverage means analysed evidence, not a request that happened to
+          // leave the phone. The attempt was spent before the request to preserve
+          // the bounded cost; only a valid response earns a progress step.
+          const completedBudget = keyframeBudget(roomName);
+          completedBudget.completedCount = Math.min(completedBudget.capturedCount, completedBudget.completedCount + 1);
           state.diagnostics.keyframesRead += 1;
           state.diagnostics.lastReadMs = Date.now() - readStartedAt;
           state.diagnostics.lastReadFailure = "";
@@ -2074,7 +2079,8 @@ export function openRoomScan() {
       const inFlight = state.keyframeActiveRooms.has(transcriptKey(state.currentRoom) || "unnamed");
       const lines = [
         ["detector", state.detectorState],
-        ["reads", `${budget.capturedCount}/${keyframeDefaults.maxPerRoom}${inFlight ? " +1 in flight" : ""}`],
+        ["attempts", `${budget.capturedCount}/${keyframeDefaults.maxPerRoom}${inFlight ? " +1 in flight" : ""}`],
+        ["analysed", `${budget.completedCount}/${keyframeDefaults.maxPerRoom}`],
         ["read ok", String(state.diagnostics.keyframesRead)],
         ["room-filtered", String(state.diagnostics.suppressedByRoom)],
         ["errors", `${state.diagnostics.detectorErrors} read · ${state.diagnostics.keyframeEncodeErrors} encode`],
@@ -2207,7 +2213,7 @@ export function openRoomScan() {
         // `generation` is bumped whenever the room is removed. A read already in
         // flight carries the generation it started under, so its result lands
         // nowhere rather than recreating an inventory the Landlord just deleted.
-        budget = { lastReadSignature: null, lastCaptureAt: 0, capturedCount: 0, generation: 0 };
+        budget = { lastReadSignature: null, lastCaptureAt: 0, capturedCount: 0, completedCount: 0, generation: 0 };
         state.keyframeBudgets.set(key, budget);
       }
       return budget;

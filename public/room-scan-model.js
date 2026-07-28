@@ -1023,10 +1023,24 @@ export const keyframeDefaults = Object.freeze({
 // Progress is evidence-based: one step means one distinct, settled,
 // quality-approved room view that consumed a bounded read slot. It is not a
 // timer and it never advances merely because the camera stayed open.
-export function roomCoverageProgress(capturedCount, { maximum = keyframeDefaults.maxPerRoom } = {}) {
+export function roomCoverageProgress(completedCount, {
+  maximum = keyframeDefaults.maxPerRoom,
+  attemptedCount = completedCount
+} = {}) {
   const total = Number.isInteger(maximum) && maximum > 0 ? maximum : keyframeDefaults.maxPerRoom;
-  const count = Math.min(total, Math.max(0, Number.isFinite(capturedCount) ? Math.floor(capturedCount) : 0));
-  const copy = count === 0
+  const count = Math.min(total, Math.max(0, Number.isFinite(completedCount) ? Math.floor(completedCount) : 0));
+  const attempts = Math.min(total, Math.max(count, Number.isFinite(attemptedCount) ? Math.floor(attemptedCount) : count));
+  // The attempt allowance is a cost boundary, not evidence. A timeout or provider
+  // failure may still have been billed and therefore cannot be refunded, but it
+  // must not turn the progress bar green or claim that the room was analysed.
+  //
+  // Three successful angles are already honest "good coverage". Below that, an
+  // exhausted automatic allowance needs one clear next action rather than a
+  // permanently impossible "hold steady" instruction.
+  const automaticReadIncomplete = attempts >= total && count < Math.min(3, total);
+  const copy = automaticReadIncomplete
+    ? "Automatic read incomplete — confirm room"
+    : count === 0
     ? "Hold steady to begin"
     : count === 1
       ? "Turn to another side"
