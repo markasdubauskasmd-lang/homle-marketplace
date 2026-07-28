@@ -12,29 +12,29 @@
  */
 
 export const onboardingSteps = [
-  { key: "personal", title: "Personal details", icon: "user", sidebar: true, href: "/cleaner/profile",
+  { key: "personal", title: "Personal details", icon: "user", sidebar: true, href: "/cleaner/registration",
     derive: (d) => Boolean(d.account?.displayName && d.account?.email) },
-  { key: "identity", title: "Identity verification", icon: "id", sidebar: true, href: "/cleaner/profile",
+  { key: "identity", title: "Identity verification", icon: "id", sidebar: true, href: "/cleaner/registration",
     derive: (d) => d.profile?.identityCheckStatus === "verified" },
   { key: "rtw", title: "Right to work", icon: "folder", sidebar: false, href: "", derive: null },
-  { key: "dbs", title: "Background checks (DBS)", icon: "shield", sidebar: true, href: "/cleaner/profile",
+  { key: "dbs", title: "Background checks (DBS)", icon: "shield", sidebar: true, href: "/cleaner/registration",
     derive: (d) => d.profile?.backgroundCheckStatus === "verified" },
   { key: "business", title: "Business details", icon: "brief", sidebar: true, href: "", derive: null },
   { key: "tax", title: "Tax & self-employment", icon: "folder", sidebar: false, href: "", derive: null },
-  { key: "experience", title: "Cleaning experience", icon: "star", sidebar: true, href: "/cleaner/profile",
+  { key: "experience", title: "Cleaning experience", icon: "star", sidebar: true, href: "/cleaner/registration",
     derive: (d) => Number.isFinite(d.profile?.yearsExperience) },
   { key: "references", title: "References", icon: "users", sidebar: true, href: "", derive: null },
   { key: "insurance", title: "Insurance", icon: "umb", sidebar: true, href: "", derive: null },
   { key: "banking", title: "Banking & payments", icon: "card", sidebar: false, href: "/cleaner/payouts",
     derive: (d) => d.payoutState === "ready" },
-  { key: "equipment", title: "Equipment", icon: "box", sidebar: false, href: "/cleaner/profile",
+  { key: "equipment", title: "Equipment", icon: "box", sidebar: false, href: "/cleaner/registration",
     derive: (d) => (d.profile?.equipmentSupplied?.length || 0) + (d.profile?.productsSupplied?.length || 0) > 0 },
   { key: "transport", title: "Transport", icon: "truck", sidebar: false, href: "", derive: null },
   { key: "availability", title: "Availability", icon: "cal", sidebar: false, href: "/cleaner/availability",
     derive: (d) => (d.availabilityCount || 0) > 0 },
   { key: "areas", title: "Work areas", icon: "pin", sidebar: true, href: "/cleaner/availability",
     derive: (d) => (d.profile?.serviceAreas?.length || 0) > 0 },
-  { key: "languages", title: "Languages", icon: "lang", sidebar: false, href: "/cleaner/profile",
+  { key: "languages", title: "Languages", icon: "lang", sidebar: false, href: "/cleaner/registration",
     derive: (d) => (d.profile?.languages?.length || 0) > 0 },
   { key: "skills", title: "Skills", icon: "spark", sidebar: false, href: "", derive: null },
   { key: "training", title: "Training & certificates", icon: "award", sidebar: false, href: "", derive: null },
@@ -53,24 +53,23 @@ export const onboardingSteps = [
  * no `step` has nothing to derive from and shows an outstanding dot.
  */
 export const onboardingNav = [
-  { label: "Personal Details", icon: "user", step: "personal", href: "/cleaner/profile" },
+  { label: "Personal Details", icon: "user", step: "personal", href: "/cleaner/registration" },
   { label: "Business Details", icon: "brief", step: "business", href: "" },
-  { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/profile" },
-  { label: "Background Checks", icon: "shield", step: "dbs", href: "/cleaner/profile" },
+  { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/registration" },
+  { label: "Background Checks", icon: "shield", step: "dbs", href: "/cleaner/registration" },
   { label: "Work Areas", icon: "pin", step: "areas", href: "/cleaner/availability" },
-  { label: "Experience", icon: "star", step: "experience", href: "/cleaner/profile" },
+  { label: "Experience", icon: "star", step: "experience", href: "/cleaner/registration" },
   { label: "References", icon: "users", step: "references", href: "" },
   { label: "Insurance", icon: "umb", step: "insurance", href: "" },
   { label: "Banking", icon: "card", step: "banking", href: "/cleaner/payouts" },
   { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/availability" },
-  { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/profile" },
+  { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/registration" },
   { label: "Documents", icon: "folder", step: "", href: "" },
   { label: "Training", icon: "award", step: "training", href: "" },
   { label: "Contracts", icon: "pen", step: "compliance", href: "" }
 ];
 
 export const accountNav = [
-  { label: "My Profile", icon: "user", href: "/cleaner/profile" },
   { label: "Messages", icon: "chat", href: "/notifications", notificationHook: true },
   { label: "Public profile", icon: "id", href: "/cleaner/profile/preview" },
   { label: "Public directory", icon: "dash", href: "/cleaners" }

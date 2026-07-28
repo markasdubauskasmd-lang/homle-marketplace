@@ -1,67 +1,46 @@
-import { readFile } from "node:fs/promises";
-import { commaList, fixedPriceOptionsFromText, fixedPriceOptionsToText, moneyToPence, outwardPostcodes, penceToMoney, preservedServiceAreas, profileCompletion, profileCompletionDetails } from "../public/cleaner-profile-model.js";
+import { access, readFile, readdir } from "node:fs/promises";
+import { constants } from "node:fs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function throws(operation, expected) {
-  try { operation(); } catch (error) { return String(error.message).includes(expected); }
-  return false;
+async function fileExists(url) {
+  try {
+    await access(url, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-assert(moneyToPence("24.50", "Rate", true) === 2450 && penceToMoney(2450) === "24.50" && moneyToPence("", "Rate") === null, "Pound/pence profile conversion is not exact.");
-assert(throws(() => moneyToPence("24.999", "Rate", true), "two decimal") && throws(() => moneyToPence("0", "Rate", true), "between"), "Invalid or zero profile pricing was accepted.");
-const options = fixedPriceOptionsFromText("Studio turnover: 65.00\nTwo-bedroom turnover: 95");
-assert(options[0].pricePence === 6500 && options[1].label === "Two-bedroom turnover" && fixedPriceOptionsToText(options).includes("95.00") && throws(() => fixedPriceOptionsFromText("Missing price"), "must use"), "Fixed-price profile parsing or lossless display failed.");
-assert(commaList("English, Spanish, English", 20, 60, "Language").join(",") === "English,Spanish" && outwardPostcodes("sw2, EC1A").join(",") === "SW2,EC1A" && throws(() => outwardPostcodes("London"), "outward postcodes"), "Profile list deduplication or UK service-area validation failed.");
-
-const preserved = preservedServiceAreas(["SW2", "EC1A"], [{ outwardPostcode: "SW2", latitude: "51.44", longitude: "-0.12" }, { outwardPostcode: "N1", latitude: 51.5, longitude: -0.08 }]);
-assert(preserved[0].latitude === 51.44 && preserved[0].longitude === -0.12 && preserved[1].latitude === null && preserved[1].longitude === null && preserved.every((area) => area.outwardPostcode !== "N1"), "Editing outward codes lost matched private coordinates or retained a removed area.");
-
-const complete = {
-  profilePhotoUrl: "https://images.example/cleaner.jpg",
-  biography: "A careful Cleaner who communicates clearly and follows the agreed checklist.",
-  services: [{ serviceCode: "regular-domestic", pricingModel: "hourly", pricePence: 2400 }],
-  hourlyRatePence: 2400,
-  fixedPriceOptions: [],
-  travelRadiusKm: 12,
-  serviceAreas: [{ outwardPostcode: "SW2", latitude: null, longitude: null }],
-  yearsExperience: 0,
-  languages: ["English"],
-  equipmentSupplied: ["Vacuum cleaner"],
-  productsSupplied: [],
-  residentialPreference: true,
-  commercialPreference: false
-};
-assert(profileCompletion(complete) === 100 && profileCompletion({ ...complete, profilePhotoUrl: "http://unsafe.example/photo.jpg" }) === 100, "Client completion still depends on a Cleaner-supplied remote photo URL.");
-const incompleteDetails = profileCompletionDetails({ ...complete, biography: "", services: [], hourlyRatePence: null });
-assert(incompleteDetails.percent === 67 && incompleteDetails.completed === 6 && incompleteDetails.total === 9 && incompleteDetails.sections.find((section) => section.key === "introduction")?.missing.join(",") === "biography" && incompleteDetails.sections.find((section) => section.key === "services")?.missing.join(",") === "service,price" && incompleteDetails.sections.find((section) => section.key === "boundaries")?.complete === true, "Guided profile completion did not identify the exact next section and missing details.");
-
-const [page, script, styles, server] = await Promise.all([
-  readFile(new URL("../public/cleaner-profile.html", import.meta.url), "utf8"),
-  readFile(new URL("../public/cleaner-profile.js", import.meta.url), "utf8"),
-  readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
-  readFile(new URL("../server.mjs", import.meta.url), "utf8")
+const publicUrl = new URL("../public/", import.meta.url);
+const removedAssets = [
+  new URL("cleaner-profile.html", publicUrl),
+  new URL("cleaner-profile.js", publicUrl),
+  new URL("cleaner-profile-model.js", publicUrl)
+];
+const [server, marketplaceHttp, publicFiles] = await Promise.all([
+  readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+  readFile(new URL("../src/marketplace/marketplace-http.mjs", import.meta.url), "utf8"),
+  readdir(publicUrl)
 ]);
 
-assert(server.includes('"/cleaner/profile": "cleaner-profile.html"') && page.includes('data-cleaner-profile-form hidden') && page.includes('data-profile-controls disabled') && page.includes('name="isPublic" type="checkbox" disabled'), "The Cleaner profile editor route or fail-closed initial controls are missing.");
-assert(script.includes('fetch("/api/marketplace/cleaner/profile"') && script.includes('method: "PUT"') && script.includes('credentials: "same-origin"') && script.includes('"X-CSRF-Token": csrf'), "The editor is not bound to authenticated GET and CSRF-protected PUT profile routes.");
-assert(script.includes('response.status === 401') && script.includes('response.status === 403') && script.includes('response.status === 404 || response.status === 503') && script.includes('beforeunload') && !script.includes('innerHTML'), "The editor lacks honest account/runtime states, unsaved-change protection or safe rendering.");
-assert((page.match(/data-service-code=/g) || []).length === 6 && !page.includes('name="profilePhotoUrl"') && page.includes("public identity is handled automatically") && page.includes('name="biography"') && page.includes('name="serviceAreas"') && page.includes('name="equipmentSupplied"') && page.includes('name="productsSupplied"'), "The editor retained the external-photo friction or omitted a supported service or required profile field.");
-// An incomplete profile must still be unpublishable: the box is cleared and disabled.
-// This used to pin the exact line `if (publicControl.checked) publicControl.checked =
-// false`, which described the implementation rather than the rule — and that
-// implementation had a defect. Clearing the box was permanent, so a profile that dipped
-// below 100% mid-edit (retyping a field is enough) was silently unpublished and the save
-// reported success. The choice is now remembered in `publishIntent` and restored once
-// the profile is complete again, so what is pinned here is the rule plus that recovery.
-assert(script.includes('preservedServiceAreas') && script.includes('publicControl.checked = false') && script.includes('publicControl.disabled = true') && script.includes('Complete every required section before publishing'), "Profile editing can erase retained area coordinates or publish an incomplete profile.");
-assert(script.includes('publicControl.checked = publishIntent') && script.includes('publishIntent = publicControl.checked'), "A publish choice is not restored after the profile briefly dips below 100%, so an ordinary edit can silently remove a Cleaner from public search.");
-assert((page.match(/data-profile-step-target=/g) || []).length === 4 && (page.match(/data-profile-section=/g) || []).length === 4 && page.includes('data-profile-next-action') && page.includes('data-profile-continue="services"') && page.includes('data-profile-continue="boundaries"') && page.includes('data-profile-continue="review"') && page.includes('Save progress'), "The profile editor does not expose one guided next action, four bounded sections or progress saving.");
-assert(page.includes('href="/cleaner/availability"') && page.includes("Set your real working times separately") && !page.includes('name="currentAvailabilityStatus"') && !script.includes("form.elements.currentAvailabilityStatus"), "The profile still asks for a vague duplicate availability decision instead of linking to exact working times.");
-assert(script.includes('profileCompletionDetails') && script.includes('function selectProfileSection') && script.includes('profileNextAction.dataset.profileTarget') && script.includes('completion.sections.find((section) => !section.complete)') && script.includes('profileSectionFromHash()') && script.includes('history.pushState({ profileSection: selected }') && script.includes('window.addEventListener("popstate"') && script.includes('aria-current') && !script.includes('form.elements.profilePhotoUrl') && !script.includes('innerHTML'), "The profile editor does not open the first incomplete or restored section, cannot go Back/Forward between tabs, retained a remote-photo field or unsafely updates guided navigation.");
-assert(styles.includes('.cleaner-editor-page') && styles.includes('.cleaner-editor-save') && styles.includes('.cleaner-profile-next') && styles.includes('.cleaner-profile-steps') && styles.includes('.cleaner-profile-continue') && styles.includes('grid-template-columns: 1fr 1fr;') && page.includes('aria-live="polite"') && page.includes('Skip to profile editor'), "The profile editor lacks responsive one-handed navigation, saving or accessible feedback.");
-assert(styles.includes('.cleaner-profile-steps { position: sticky') && page.includes('cleaner-workspace-page') && page.includes('data-account-menu') && page.includes('aria-current="page"'), "Cleaner profile tabs or role navigation can scroll away, lose the account avatar or fail to show the active role page.");
+assert((await Promise.all(removedAssets.map(fileExists))).every((exists) => !exists), "A removed Cleaner profile-builder asset is still shipped.");
+assert(!server.includes('"/cleaner/profile": "cleaner-profile.html"'), "The removed Cleaner profile-builder route is still served.");
+assert(server.includes('"/cleaner/profile/preview": "cleaner-public-profile.html"'), "Removing the editor also removed the separate public-profile preview.");
 
-console.log("Cleaner profile UI tests passed: guided next action, exact completion sections, safe editing, publishing gate and mobile accessibility.");
+const publicSources = await Promise.all(
+  publicFiles
+    .filter((name) => name.endsWith(".html") || name.endsWith(".js"))
+    .map(async (name) => [name, await readFile(new URL(name, publicUrl), "utf8")])
+);
+const staleLinks = publicSources.flatMap(([name, source]) => {
+  const matches = [...source.matchAll(/(?:href\s*=\s*|\.href\s*=\s*|href\s*:\s*)["']\/cleaner\/profile["']/g)];
+  return matches.map(() => name);
+});
+assert(staleLinks.length === 0, `Public navigation still opens the removed Cleaner profile-builder route: ${[...new Set(staleLinks)].join(", ")}`);
+
+assert(marketplaceHttp.includes('pathname === "/api/marketplace/cleaner/profile"') && marketplaceHttp.includes('request.method === "PUT"'), "Removing the page accidentally removed the protected Cleaner profile backend.");
+
+console.log("Cleaner profile UI removal tests passed: page assets, route and entry points are gone while the profile preview and backend remain.");
