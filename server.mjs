@@ -235,7 +235,10 @@ const mimeTypes = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml; charset=utf-8",
-  ".webmanifest": "application/manifest+json; charset=utf-8"
+  ".webmanifest": "application/manifest+json; charset=utf-8",
+  // Vendored web fonts. Without this they fall through to application/octet-stream,
+  // which browsers accept for @font-face but report as a console warning.
+  ".woff2": "font/woff2"
 };
 
 function setSecurityHeaders(response, requestPath = "") {
@@ -5354,7 +5357,10 @@ async function serveFile(requestPath, response) {
     "/notifications": "notifications.html",
     "/cleaners": "cleaners.html",
     "/cleaner/dashboard": "cleaner-dashboard.html",
+    "/cleaner/schedule": "cleaner-schedule.html",
+    "/cleaner/reviews": "cleaner-reviews.html",
     "/cleaner/profile": "cleaner-profile.html",
+    "/cleaner/profile/preview": "cleaner-public-profile.html",
     "/cleaner/availability": "cleaner-availability.html",
     "/cleaner/payouts": "cleaner-payouts.html",
     "/landlord/dashboard": "landlord-dashboard.html",
@@ -5379,8 +5385,12 @@ async function serveFile(requestPath, response) {
     "/facebook-data-deletion": "facebook-data-deletion.html",
     "/terms": "terms.html"
   };
-  const activeJobRoute = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
-  const relative = activeJobRoute ? "active-job.html" : routes[requestPath] || requestPath.replace(/^\/+/, "");
+  const bookingId = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+  const activeJobRoute = new RegExp(`^/bookings/${bookingId}(?:/(?:tracking|cleaning-progress))?/?$`, "i").test(requestPath);
+  // Cleaner-facing pre-acceptance job view. Separate from the shared active-job screen:
+  // it shows the offer's scope, notes and access boundary before a decision is made.
+  const cleanerJobRoute = new RegExp(`^/cleaner/jobs/${bookingId}/?$`, "i").test(requestPath);
+  const relative = activeJobRoute ? "active-job.html" : cleanerJobRoute ? "cleaner-job.html" : routes[requestPath] || requestPath.replace(/^\/+/, "");
   const filePath = path.resolve(publicDir, relative);
   if (!filePath.startsWith(`${path.resolve(publicDir)}${path.sep}`)) return false;
 

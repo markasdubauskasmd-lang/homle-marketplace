@@ -191,9 +191,9 @@ function updateInvitationDeadlines() {
 }
 
 function requestScanPreview(booking, pending = false, onReady = () => {}) {
-  const details = element("details", "cleaner-request-scan");
+  const details = element("details", "hc-scan");
   details.append(element("summary", "", pending ? "Approved room checklist" : "View private room scan"));
-  const body = element("div", "cleaner-request-scan-body");
+  const body = element("div", "hc-scan-body");
   body.append(element("p", "", "Loading the Landlord-approved room checklist…"));
   details.append(body);
   let loaded = false;
@@ -269,54 +269,104 @@ function requestScanPreview(booking, pending = false, onReady = () => {}) {
   return details;
 }
 
+const londonDayFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short" });
+const londonDateFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", day: "numeric" });
+const londonTimeFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hour12: false });
+
+function jobDateBadge(booking) {
+  const badge = element("div", "hc-job-date");
+  const start = booking.scheduledStartAt ? new Date(booking.scheduledStartAt) : null;
+  const valid = start && Number.isFinite(start.getTime());
+  badge.append(
+    element("span", "hc-job-day", valid ? londonDayFormat.format(start).toUpperCase() : "TBC"),
+    element("span", "hc-job-dnum", valid ? londonDateFormat.format(start) : "—")
+  );
+  return badge;
+}
+
+function jobSlotLabel(booking) {
+  const start = booking.scheduledStartAt ? new Date(booking.scheduledStartAt) : null;
+  const end = booking.scheduledEndAt ? new Date(booking.scheduledEndAt) : null;
+  if (!start || !Number.isFinite(start.getTime())) return "Time to be confirmed";
+  const from = londonTimeFormat.format(start);
+  return end && Number.isFinite(end.getTime()) ? `${from}–${londonTimeFormat.format(end)}` : from;
+}
+
+// Mirrors the supplied design's job card: date badge, title/address, three chips,
+// right-aligned pay, a notes panel, then the decision row with the live expiry.
 function bookingCard(booking, pending = false) {
-  const card = element("article", "booking-summary-card");
-  const heading = element("div", "booking-summary-heading");
-  const title = element("div");
+  const card = element("article", "hc-job");
+  const top = element("div", "hc-job-top");
   const invitationState = cleanerInvitationDeadlineState(booking);
   const statusLabel = booking.status === "pending-cleaner-acceptance" && !["open", "urgent"].includes(invitationState.kind)
     ? invitationState.kind === "expired" ? "Offer window ended" : "Offer closed"
     : bookingSummaryStatusLabels[booking.status] || "Booking";
-  title.append(element("span", "booking-status-pill", statusLabel), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Cleaning property"} · ${booking.counterpartyName || "Landlord"}`));
-  const pay = element("div", "booking-summary-price");
-  pay.append(element("small", "", bookingSummaryPriceLabel("cleaner")), element("strong", "", formatBookingMoney(booking.pricePence)));
-  heading.append(title, pay);
-  card.append(heading, bookingFacts(booking), element("p", "booking-money-boundary", bookingSummaryMoneyBoundary(booking, "cleaner")));
+
+  const head = element("div", "hc-job-head");
+  const title = element("a", "hc-job-title", booking.cleaningType || "Cleaning");
+  title.href = `/cleaner/jobs/${booking.bookingId}`;
+  head.append(title, element("p", "hc-job-addr", `${booking.propertyArea || "Area shared after confirmation"} · ${booking.counterpartyName || "Landlord"}`));
+  const chips = element("div", "hc-job-chips");
+  chips.append(
+    element("span", "hc-chip hc-chip-slot", jobSlotLabel(booking)),
+    element("span", "hc-chip", `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`),
+    element("span", "hc-chip", statusLabel)
+  );
+  head.append(chips);
+
+  const pay = element("div", "hc-job-pay");
+  pay.append(
+    element("div", "hc-job-pay-amount", formatBookingMoney(booking.pricePence)),
+    element("div", "hc-job-pay-sub", bookingSummaryPriceLabel("cleaner"))
+  );
+
+  top.append(jobDateBadge(booking), head, pay);
+  card.append(top);
+
+  const notes = element("div", "hc-job-notes");
+  notes.append(element("b", "", "Homle note: "), document.createTextNode(bookingSummaryMoneyBoundary(booking, "cleaner")));
+  card.append(notes);
+
   if (pending) {
     card.dataset.invitationBookingId = booking.bookingId;
-    const deadline = element("p", "booking-response-deadline");
-    deadline.dataset.responseDeadline = "";
-    deadline.setAttribute("role", "status");
-    const actions = element("div", "booking-summary-actions");
-    const accept = element("button", "button", "Loading checklist…");
+    const foot = element("div", "hc-job-foot");
+    const accept = element("button", "hc-btn", "Loading checklist…");
     accept.type = "button";
     accept.disabled = true;
     accept.dataset.invitationDecision = "accept";
     accept.dataset.checklistReady = "false";
-    const decline = element("button", "button button-outline", "Decline");
+    const decline = element("button", "hc-btn-outline", "Decline");
     decline.type = "button";
     decline.dataset.invitationDecision = "decline";
     accept.addEventListener("click", () => acceptBooking(booking, accept));
     decline.addEventListener("click", () => openDecline(booking));
-    actions.append(accept, decline);
-    const scopeBoundary = element("p", "booking-accept-boundary", "Acceptance unlocks after the exact room checklist loads. Then one tap confirms this time, scope and pay; Homle rechecks overlaps before confirming.");
+    const deadline = element("span", "hc-job-expiry");
+    deadline.dataset.responseDeadline = "";
+    deadline.setAttribute("role", "status");
+    const scopeBoundary = element("p", "hc-job-boundary", "Acceptance unlocks after the exact room checklist loads. Then one tap confirms this time, scope and pay; Homle rechecks overlaps before confirming.");
     scopeBoundary.dataset.invitationScopeBoundary = "";
     if (booking.cleaningRequestId) card.append(requestScanPreview(booking, true, ({ taskCount, roomCount }) => {
       accept.dataset.checklistReady = "true";
-      accept.textContent = `Accept ${formatBookingMoney(booking.pricePence)} job`;
+      accept.textContent = `Accept ${formatBookingMoney(booking.pricePence)} job ↗`;
       scopeBoundary.textContent = `${taskCount} approved ${taskCount === 1 ? "task" : "tasks"} across ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. One tap confirms this exact time, scope and pay; Homle rechecks overlaps before confirming.`;
       updateInvitationDeadlineCard(card, booking);
     }));
     else scopeBoundary.textContent = "The exact room checklist is unavailable. Do not accept this request; refresh the dashboard to verify its status.";
-    card.append(deadline, scopeBoundary, actions);
+    foot.append(accept, decline, deadline, scopeBoundary);
+    card.append(foot);
     updateInvitationDeadlineCard(card, booking);
   } else {
+    const foot = element("div", "hc-job-foot");
     const action = bookingSummaryPrimaryAction(booking, "cleaner");
     if (action.kind === "active-job") {
-      const link = element("a", "button", action.label);
+      const link = element("a", "hc-job-accepted", `${action.label} →`);
       link.href = `/bookings/${booking.bookingId}`;
-      card.append(link);
+      foot.append(link);
     }
+    const details = element("a", "hc-job-link", "View details →");
+    details.href = `/cleaner/jobs/${booking.bookingId}`;
+    foot.append(details);
+    card.append(foot);
     if (booking.cleaningRequestId && booking.status !== "pending-cleaner-acceptance" && !["cancelled", "expired"].includes(booking.status)) card.append(requestScanPreview(booking));
   }
   return card;
@@ -339,7 +389,7 @@ function renderBookings() {
   document.querySelector("[data-cleaner-active-count]").textContent = String(buckets.active.length);
   document.querySelector("[data-cleaner-upcoming-count]").textContent = String(buckets.upcoming.length);
   document.querySelector("[data-cleaner-history-count]").textContent = String(buckets.history.length);
-  renderWorkOverview(cleanerDashboardSummary(cleanerProfile, availabilityWindows, bookings, payoutStatus), marketplaceCapabilities);
+  renderWorkOverview(cleanerDashboardSummary(cleanerProfile, availabilityWindows, bookings, payoutStatus), marketplaceCapabilities, buckets);
   renderNextAction(buckets, cleanerProfile, payoutStatus, availabilityWindows, marketplaceCapabilities);
   updateInvitationDeadlines();
 }
@@ -348,26 +398,133 @@ function dashboardMoney(pence) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
 }
 
-function renderWorkOverview(summary, capabilities) {
-  document.querySelector("[data-cleaner-profile-progress]").textContent = `${summary.profileCompletionPercent}%`;
-  document.querySelector("[data-cleaner-profile-state]").textContent = summary.profilePublished
-    ? capabilities.matchingReady ? "Published for matching" : capabilities.checked ? "Published · matching setup pending" : "Published · matching status unavailable"
-    : summary.profileCompletionPercent === 100 ? "Ready to publish" : "Profile incomplete";
-  document.querySelector("[data-cleaner-availability-count]").textContent = String(summary.availableWindowCount);
-  document.querySelector("[data-cleaner-rating]").textContent = summary.reviewCount > 0 ? `${summary.averageRating.toFixed(1)} ★` : "New";
-  document.querySelector("[data-cleaner-review-count]").textContent = summary.reviewCount > 0 ? `${summary.reviewCount} approved ${summary.reviewCount === 1 ? "review" : "reviews"}` : "No approved reviews yet";
-  document.querySelector("[data-cleaner-completed-jobs]").textContent = String(summary.completedJobCount);
-  document.querySelector("[data-cleaner-completed-value]").textContent = dashboardMoney(summary.completedJobValuePence);
-  document.querySelector("[data-cleaner-committed-value]").textContent = dashboardMoney(summary.committedJobValuePence);
-  const payoutState = document.querySelector("[data-cleaner-payout-state]");
-  const payoutCopy = document.querySelector("[data-cleaner-payout-copy]");
-  payoutState.textContent = summary.payoutState === "ready" ? "Ready" : summary.payoutState === "action-required" ? "Action needed" : summary.payoutState === "not-started" ? "Not set up" : "Not connected";
-  payoutCopy.textContent = summary.payoutState === "ready" ? "Verified for eligible transfers" : summary.payoutState === "action-required" ? "Finish the secure payout form" : summary.payoutState === "not-started" ? "Complete secure payout setup" : "Payout service is not attached";
+function setText(selector, value) {
+  const node = document.querySelector(selector);
+  if (node) node.textContent = value;
+}
+
+// The design's onboarding strip. Homle has no multi-step registration wizard, so the
+// chips are derived from the profile state the server actually reports rather than
+// from an invented step list.
+function renderSetupSteps(summary) {
+  const steps = [
+    { label: "Professional profile", done: summary.profileCompletionPercent === 100, href: "/cleaner/profile" },
+    { label: "Services & rates", done: summary.profileCompletionPercent === 100, href: "/cleaner/profile" },
+    { label: "Availability", done: summary.availableWindowCount > 0, href: "/cleaner/availability" },
+    { label: "Published listing", done: Boolean(summary.profilePublished), href: "/cleaner/profile" },
+    { label: "Payout account", done: summary.payoutState === "ready", href: "/cleaner/payouts" }
+  ];
+  const host = document.querySelector("[data-cleaner-steps]");
+  if (host) host.replaceChildren(...steps.map((step) => {
+    const chip = element("a", "hc-step", step.done ? `${step.label} ✓` : step.label);
+    chip.href = step.href;
+    chip.dataset.done = String(step.done);
+    return chip;
+  }));
+  const remaining = steps.filter((step) => !step.done).length;
+  setText("[data-cleaner-steps-left]", String(remaining));
+
+  // Identity and background checks are recorded separately. Never turn the visual
+  // design into a verification claim before the server has supplied that evidence.
+  const chipHost = document.querySelector("[data-cleaner-check-chips]");
+  if (chipHost) {
+    const chip = element("span", "hc-setup-chip");
+    chip.append(document.createTextNode("Identity and background checks "), element("i", "", "·"), document.createTextNode(" status appears only after Homle records it"));
+    chipHost.replaceChildren(chip);
+  }
+}
+
+function renderAlerts(summary, buckets) {
+  const host = document.querySelector("[data-cleaner-alerts]");
+  if (!host) return;
+  const alerts = [];
+  if (summary.profileCompletionPercent < 100) alerts.push(["red", "Your profile is not complete", "Finish it so suitable requests can reach you.", "Complete →", "/cleaner/profile"]);
+  if (summary.availableWindowCount === 0) alerts.push(["amber", "No future availability saved", "Add exact windows or Homle cannot match you.", "Add →", "/cleaner/availability"]);
+  if (summary.payoutState === "action-required") alerts.push(["amber", "Payout setup is unfinished", "Complete the secure form to receive transfers.", "Continue →", "/cleaner/payouts"]);
+  if (summary.payoutState === "not-started") alerts.push(["amber", "Payout account not set up", "Set it up before your first completed job.", "Set up →", "/cleaner/payouts"]);
+  if (buckets.pending.length > 0) alerts.push(["red", `${buckets.pending.length} offer${buckets.pending.length === 1 ? "" : "s"} awaiting your reply`, "Offers close automatically when the window ends.", "Review →", "#"]);
+  if (summary.profilePublished) alerts.push(["green", "Your public profile is live", "Landlords can find you in the Homle directory.", "", ""]);
+  if (!alerts.length) alerts.push(["green", "Nothing needs your attention", "You are set up and ready for suitable requests.", "", ""]);
+
+  host.replaceChildren(...alerts.map(([tone, title, sub, linkLabel, href]) => {
+    const row = element("div", `hc-alert hc-alert-${tone}`);
+    row.append(element("span", `hc-alert-dot hc-alert-dot-${tone}`));
+    const body = element("div", "hc-alert-body");
+    body.append(element("div", "hc-alert-title", title), element("div", "hc-alert-sub", sub));
+    row.append(body);
+    if (linkLabel && href) {
+      const link = element("a", "hc-alert-link", linkLabel);
+      link.href = href;
+      row.append(link);
+    }
+    return row;
+  }));
+}
+
+function renderMessages() {
+  const host = document.querySelector("[data-cleaner-messages]");
+  if (!host) return;
+  // Platform-to-Cleaner messaging does not exist; the private inbox does. This points at
+  // the real inbox rather than rendering sample messages from an onboarding team.
+  const row = element("div", "hc-msg");
+  row.append(element("div", "hc-msg-avatar", "H"));
+  const body = element("div", "hc-msg-body");
+  body.append(
+    element("div", "hc-msg-text", "Booking updates arrive in your private inbox."),
+    element("div", "hc-msg-meta", "Homle · open Messages to read them")
+  );
+  row.append(body);
+  host.replaceChildren(row);
+}
+
+function renderWorkOverview(summary, capabilities, buckets) {
+  const percent = summary.profileCompletionPercent;
+  setText("[data-cleaner-profile-progress]", `${percent}%`);
+  // The bars are presentational; the percentage text stays the accessible value. Width is
+  // set through CSSOM rather than a style attribute so `style-src 'self'` still holds.
+  const progressTrack = document.querySelector("[data-cleaner-progress-track]");
+  const progressFill = document.querySelector("[data-cleaner-progress-fill]");
+  const phoneFill = document.querySelector("[data-cleaner-phone-fill]");
+  if (progressTrack) progressTrack.setAttribute("aria-valuenow", String(percent));
+  if (progressFill) progressFill.style.width = `${percent}%`;
+  if (phoneFill) phoneFill.style.width = `${percent}%`;
+  setText("[data-cleaner-phone-pct]", String(percent));
+
+  const stateNode = document.querySelector("[data-cleaner-profile-state]");
+  if (stateNode) {
+    stateNode.textContent = summary.profilePublished
+      ? capabilities.matchingReady ? "Published for matching" : capabilities.checked ? "Published · matching setup pending" : "Published · matching status unavailable"
+      : percent === 100 ? "Ready to publish" : "Profile incomplete";
+    stateNode.dataset.state = summary.profilePublished ? "live" : percent === 100 ? "" : "action";
+  }
+
+  setText("[data-cleaner-availability-count]", String(summary.availableWindowCount));
+  setText("[data-cleaner-rating]", summary.reviewCount > 0 ? `${summary.averageRating.toFixed(1)} ★` : "—");
+  setText("[data-cleaner-review-count]", summary.reviewCount > 0 ? `${summary.reviewCount} approved ${summary.reviewCount === 1 ? "review" : "reviews"} · view →` : "after your first cleans · view →");
+  setText("[data-cleaner-completed-jobs]", String(summary.completedJobCount));
+  setText("[data-cleaner-completed-value]", dashboardMoney(summary.completedJobValuePence));
+  setText("[data-cleaner-committed-value]", dashboardMoney(summary.committedJobValuePence));
+
+  const currentJobs = buckets.active.length + buckets.upcoming.length;
+  setText("[data-cleaner-current-jobs]", String(currentJobs));
+  setText("[data-cleaner-current-sub]", currentJobs === 0 ? "none assigned yet" : `${buckets.active.length} active · ${buckets.upcoming.length} upcoming`);
+  // Homle dispatches by invitation; this is the count of real offers awaiting a
+  // response, not an invented browse-jobs-in-your-area total.
+  setText("[data-cleaner-jobs-available]", String(buckets.pending.length));
+
+  setText("[data-cleaner-payout-state]", summary.payoutState === "ready" ? "Ready" : summary.payoutState === "action-required" ? "Action needed" : summary.payoutState === "not-started" ? "Not set up" : "Not connected");
+  setText("[data-cleaner-payout-copy]", summary.payoutState === "ready" ? "Verified for eligible transfers" : summary.payoutState === "action-required" ? "Finish the secure payout form" : summary.payoutState === "not-started" ? "Complete secure payout setup" : "Payout service is not attached");
+
   const payoutLink = document.querySelector("[data-cleaner-overview-payout]");
-  payoutLink.hidden = summary.payoutState === "unavailable";
-  payoutLink.textContent = summary.payoutState === "ready" ? "Review payout account" : summary.payoutState === "action-required" ? "Continue payout setup" : "Set up payouts";
+  if (payoutLink) payoutLink.hidden = false;
   const publicProfile = document.querySelector("[data-cleaner-public-profile]");
-  publicProfile.hidden = !summary.profilePublished;
+  if (publicProfile) publicProfile.hidden = !summary.profilePublished;
+  const pendingDot = document.querySelector("[data-cleaner-pending-dot]");
+  if (pendingDot) pendingDot.hidden = buckets.pending.length === 0;
+
+  renderSetupSteps(summary);
+  renderAlerts(summary, buckets);
+  renderMessages();
 }
 
 function renderNextAction(buckets, profile, payout, availability, capabilities) {
