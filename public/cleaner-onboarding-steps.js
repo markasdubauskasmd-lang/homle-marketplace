@@ -12,7 +12,7 @@
  */
 
 export const onboardingSteps = [
-  { key: "personal", title: "Personal details", icon: "user", sidebar: true, href: "/cleaner/registration",
+  { key: "personal", title: "Personal details", icon: "user", sidebar: true, href: "/cleaner/personal-details",
     derive: (d) => Boolean(d.account?.displayName && d.account?.email) },
   { key: "identity", title: "Identity verification", icon: "id", sidebar: true, href: "/cleaner/registration",
     derive: (d) => d.profile?.identityCheckStatus === "verified" },
@@ -53,7 +53,7 @@ export const onboardingSteps = [
  * no `step` has nothing to derive from and shows an outstanding dot.
  */
 export const onboardingNav = [
-  { label: "Personal Details", icon: "user", step: "personal", href: "/cleaner/registration" },
+  { label: "Personal Details", icon: "user", step: "personal", href: "/cleaner/personal-details" },
   { label: "Business Details", icon: "brief", step: "business", href: "" },
   { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/registration" },
   { label: "Background Checks", icon: "shield", step: "dbs", href: "/cleaner/registration" },

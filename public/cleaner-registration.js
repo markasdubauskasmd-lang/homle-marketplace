@@ -1,5 +1,6 @@
-import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-2";
+import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-3";
 import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260728-1";
+import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260728-1";
 
 function stepIcon(name) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -18,7 +19,11 @@ function stepIcon(name) {
   return svg;
 }
 
-createCleanerPage("reg", async () => {
+createCleanerPage("reg", async (context) => {
+  if (location.pathname === "/cleaner/personal-details") {
+    await setupPersonalDetails(context);
+    return;
+  }
   const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
