@@ -208,6 +208,18 @@ for (const page of pages) {
   for (const [, version] of markup.matchAll(/styles\.css\?v=([\w-]+)/g)) versions.add(version);
 }
 assert.equal(versions.size, 1, `styles.css is requested at ${versions.size} different versions (${[...versions].join(", ")}); some pages would serve a stale copy against the new tokens.`);
+
+// The token file needs the same discipline, and did not have it: adding
+// --homle-eyebrow and --homle-success left 28 pages still asking for the
+// previous copy, which does not contain them. Every var() carries a literal
+// fallback so that degrades quietly rather than breaking — which is exactly why
+// nothing would have caught it.
+const tokenVersions = new Set();
+for (const page of pages) {
+  const markup = read(`public/${page}`);
+  for (const [, version] of markup.matchAll(/homle-tokens\.css\?v=([\w-]+)/g)) tokenVersions.add(version);
+}
+assert.ok(tokenVersions.size <= 1, `homle-tokens.css is requested at ${tokenVersions.size} versions (${[...tokenVersions].join(", ")}); pages on the older one resolve every shared colour to its literal fallback instead of the token.`);
 assert.ok(![...versions][0].startsWith("20260723"), "styles.css changed but its cache-busting version was not incremented, so returning visitors keep the old palette.");
 
 /* ── No panel is light-surfaced and light-texted at once ── */
