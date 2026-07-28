@@ -235,7 +235,10 @@ const mimeTypes = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml; charset=utf-8",
-  ".webmanifest": "application/manifest+json; charset=utf-8"
+  ".webmanifest": "application/manifest+json; charset=utf-8",
+  // Vendored web fonts. Without this they fall through to application/octet-stream,
+  // which browsers accept for @font-face but report as a console warning.
+  ".woff2": "font/woff2"
 };
 
 function setSecurityHeaders(response, requestPath = "") {

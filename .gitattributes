@@ -18,3 +18,7 @@ db/migration-lock.json text eol=lf
 # Config files read by tooling that is stricter about line endings than it looks.
 .npmrc text eol=lf
 .gitattributes text eol=lf
+
+# Font binaries. The rules above normalise many types to LF; woff2 must never be
+# touched or the file is corrupted on checkout.
+*.woff2 binary
