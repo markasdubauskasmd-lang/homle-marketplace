@@ -40,7 +40,7 @@ for (const file of ["bricolage-grotesque-wght.woff2", "dm-sans-wght.woff2", "OFL
 /* ── The design is actually wired in ────────────────── */
 
 assert(page.includes('<body class="landing">') && page.includes('href="/home.css') && page.includes('src="/home-hero.js'), "The landing page does not load its scoped stylesheet and scroll script.");
-assert(page.includes('href="/styles.css?v=20260728-2"') && page.includes('href="/home.css?v=20260728-2"') && page.includes('src="/home-hero.js?v=20260723-1"'), "The landing page still advertises stale shared, animation or landing-style assets, so browsers can miss the latest motion.");
+assert(page.includes('href="/styles.css?v=20260728-3"') && page.includes('href="/home.css?v=20260728-2"') && page.includes('src="/home-hero.js?v=20260723-1"'), "The landing page still advertises stale shared, animation or landing-style assets, so browsers can miss the latest motion.");
 // Every rule is scoped under body.landing so nothing leaks into the pages that
 // share styles.css. A top-level selector would begin a line with `.` or `#`.
 assert(css.includes("body.landing") && !/\n[.#][a-zA-Z]/.test(css), "A landing CSS rule is not scoped under body.landing and could leak into other pages.");
