@@ -48,5 +48,8 @@ assert(accountScript.includes('title.textContent = "Opening your workspace."'), 
 assert(!loadTimeCopy.includes("Account access is safely unavailable.") && !loadTimeCopy.includes("Secure account access is ready."), "Account entry states a readiness verdict before the provider check resolves, so it can flash a false unavailable or ready state.");
 const staticMarkup = await readFile(new URL("../public/account.html", import.meta.url), "utf8");
 assert(staticMarkup.includes("Checking secure account access"), "The served account page does not say that the capability check is still running.");
+assert(!staticMarkup.includes('<header class="site-header">'), "The retired account-page header returned.");
+assert(/<article class="ae-panel">[\s\S]*?<a class="ae-logo" href="\/" aria-label="Return to Homle home"><img src="\/homle-logo\.png"/.test(staticMarkup), "The Homle logo is not inside the account panel where the decorative tile used to be.");
+assert(!staticMarkup.includes('class="ae-pulse"'), "The green decorative pulse still occupies the account panel logo position.");
 
 console.log("Account-ready handoff tests passed: exact live provider copy, neutral capability loading, role-safe destinations and recoverable sign-out.");
