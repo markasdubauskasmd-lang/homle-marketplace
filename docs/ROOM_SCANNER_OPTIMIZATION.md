@@ -36,6 +36,12 @@ The existing scanner remains the single scanner used by the Landlord booking jou
 
 ### More accurate and easier to correct
 
+- A close-up condition reading now fills an earlier unknown grade even when its
+  object-name confidence is slightly lower. Label confidence and condition
+  evidence are no longer treated as the same signal.
+- Ungraded objects show **condition unclear**, and the live scanner asks the
+  user to move closer or tap the item. The prompt disappears as soon as a usable
+  grade is read or confirmed.
 - Heavy, same-class overlapping detections are de-duplicated before tracking. The highest-confidence box is kept.
 - Nearby objects and overlapping objects of different classes are not collapsed.
 - Detection boxes are real accessible buttons. They can be selected or removed with one tap or keyboard action and expose their selected state to assistive technology.

@@ -5,7 +5,7 @@ import {
   inventoryDisplayLabel, itemQuantity, maxConcurrentWalkingReads,
   mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
   roomCoverageProgress, rosterSummary, scanSummary, shouldCaptureKeyframe,
-  signatureDistance, walkingReadIsBlocked, conditionTag, movementAdvice,
+  signatureDistance, walkingReadIsBlocked, conditionReviewAdvice, conditionTag, movementAdvice,
   objectFramingAdvice, savedDetectionFromInventoryItem, usableLiveBoxes
 } from "../public/room-scan-model.js";
 
@@ -202,6 +202,24 @@ aliasInventory = mergeRoomInventory(aliasInventory, [{ label: "Tap", score: 0.84
 assert.equal(aliasInventory.length, 1, "Independent views using faucet and tap stored the same real object twice.");
 assert.equal(aliasInventory[0].label, "Tap", "The stronger reading did not supply the grouped object's visible label.");
 assert.equal(aliasInventory[0].sightings, 2, "Alias deduplication discarded the second view instead of strengthening the object evidence.");
+
+// Object-name confidence is not condition confidence. A broad first look can be
+// very sure this is a tap while still returning no condition; a later close-up
+// must be allowed to fill that missing cleaning evidence even if its label score
+// is slightly lower.
+const unclearTap = mergeRoomInventory([], [{
+  label: "Tap", score: 0.88, condition: ""
+}], { now: 1 });
+const resolvedTap = mergeRoomInventory(unclearTap, [{
+  label: "Tap", score: 0.72, condition: "medium",
+  soiling: ["limescale"], note: "White deposits around the tap base"
+}], { now: 2 });
+assert.equal(resolvedTap[0].condition, "medium", "A closer view could not fill a condition left unknown by a higher-confidence object label.");
+assert.deepEqual(resolvedTap[0].soiling, ["limescale"], "The condition was filled without carrying its structured cleaning evidence.");
+assert.equal(resolvedTap[0].note, "White deposits around the tap base", "The condition was filled without carrying its human-readable evidence.");
+assert.equal(resolvedTap[0].score, 0.88, "Accepting later condition evidence reduced the best object-label confidence.");
+assert.match(conditionReviewAdvice(unclearTap)?.message || "", /Condition unclear/i, "An item with no condition looks settled instead of asking for a closer look or one-tap correction.");
+assert.equal(conditionReviewAdvice(resolvedTap), null, "Condition guidance remains after the item has a usable grade.");
 
 const sameTapTwice = mergeRoomInventory([], [
   { label: "Faucet", score: 0.78, x: 20, y: 25, width: 18, height: 25 },
@@ -403,6 +421,10 @@ assert.match(overlay, /openItemEditor\(key, rename\)/, "The found-item button st
 assert.doesNotMatch(overlay, /window\.prompt\(/, "The scanner still uses a blocking browser prompt instead of its one-handed item editor.");
 assert.match(overlay, /change\.condition = condition/, "The item editor does not send the customer's cleaning-level correction to the model.");
 assert.match(styles, /\.scan-item-condition-options\{[^}]*grid-template-columns:repeat\(2/, "The cleaning-level choices are not presented as large mobile-friendly controls.");
+assert.match(inventoryRender, /grade\.dataset\.grade = "uncertain"/, "An item with no condition has no visible condition-unclear badge.");
+assert.match(inventoryRender, /condition unclear/, "The inventory does not explain that an ungraded item needs review.");
+assert.match(overlay, /conditionReviewAdvice\(inventoryFor\(\)\)\?\.message/, "Live guidance never asks for a closer view when a found item's condition is unresolved.");
+assert.match(styles, /\.found-grade\[data-grade="uncertain"\]/, "The unresolved-condition badge has no distinct visual treatment.");
 
 /* ── Detected objects glow rather than being boxed ── */
 
@@ -586,8 +608,8 @@ assert.match(
 );
 assert.match(
   overlay,
-  /const guidance = state\.qualityMessage \|\| state\.framingMessage/,
-  "The live view never turns stable small-object geometry into a move-closer prompt, or lets it pre-empt lighting and motion guidance."
+  /const guidance = state\.qualityMessage\s*\|\| state\.framingMessage\s*\|\| conditionReviewAdvice\(inventoryFor\(\)\)\?\.message/,
+  "The live view does not prioritise lighting, motion and distance before unresolved-condition guidance."
 );
 assert.equal((overlay.match(/getImageData\(/g) || []).length, 1, "Uneven exposure added another synchronous camera readback.");
 assert.match(model, /const previousRow = new Float32Array\(columns\);[\s\S]{0,2000}Math\.abs\(luma - previousRow\[x\]\)/, "Frame sharpness still depends on edge direction because vertical neighbours are not measured.");

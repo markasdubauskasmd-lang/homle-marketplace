@@ -12,6 +12,7 @@ import {
   signatureDistance,
   movementAdvice,
   objectFramingAdvice,
+  conditionReviewAdvice,
   shouldCaptureKeyframe,
   roomCoverageProgress,
   walkingReadIsBlocked,
@@ -2140,6 +2141,12 @@ export function openRoomScan() {
           grade.dataset.grade = item.condition;
           grade.textContent = item.condition === "clean" ? "clean" : item.condition;
           name.append(" ", grade);
+        } else {
+          const grade = document.createElement("em");
+          grade.className = "found-grade";
+          grade.dataset.grade = "uncertain";
+          grade.textContent = "condition unclear";
+          name.append(" ", grade);
         }
         // Marked when the reader said it was unsure, so an uncertain answer never
         // looks as settled as a confident one.
@@ -2201,6 +2208,7 @@ export function openRoomScan() {
       if (!key) return;
       state.inventories.set(key, items);
       renderInventory();
+      renderDetectorState();
     }
 
     // Each room keeps its own budget for the life of the scan. Looked up rather
@@ -2473,7 +2481,9 @@ export function openRoomScan() {
         // detail to a dark or swept frame. The distance hint comes only from
         // stable, currently visible tracks and disappears when one object fills
         // enough of the view for condition evidence.
-        const guidance = state.qualityMessage || state.framingMessage;
+        const guidance = state.qualityMessage
+          || state.framingMessage
+          || conditionReviewAdvice(inventoryFor())?.message;
         if (!guidance) {
           el.detectorState.hidden = true;
           return;

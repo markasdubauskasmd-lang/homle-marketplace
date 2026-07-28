@@ -1329,6 +1329,13 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     }
     // A Landlord's correction is final. A later reading that disagrees must not
     // quietly rename an item they have already put right.
+    const incomingCondition = String(item?.condition || "");
+    // Object-name confidence is not condition confidence. A broad view can be
+    // certain this is a tap while returning no cleaning grade; a slightly
+    // lower-scoring close-up can still supply the first useful condition evidence.
+    const fillsMissingCondition = !current.condition && Boolean(incomingCondition);
+    const incomingConditionWins = !current.conditionConfirmed
+      && (fillsMissingCondition || (score > current.score && Boolean(incomingCondition)));
     merged.set(key, {
       ...current,
       label: current.confirmed ? current.label : (score > current.score ? label : current.label),
@@ -1347,9 +1354,9 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       // never overwritten at all.
       condition: current.conditionConfirmed
         ? current.condition
-        : (score > current.score ? String(item?.condition || "") : current.condition) || current.condition,
-      note: score > current.score && item?.note ? String(item.note) : current.note,
-      soiling: score > current.score && Array.isArray(item?.soiling)
+        : (incomingConditionWins ? incomingCondition : current.condition) || current.condition,
+      note: incomingConditionWins && item?.note ? String(item.note) : current.note,
+      soiling: incomingConditionWins && Array.isArray(item?.soiling)
         ? Object.freeze(item.soiling
           .map((kind) => String(kind || "").trim().slice(0, 16))
           .filter(Boolean)
@@ -1561,4 +1568,19 @@ export function objectFramingAdvice(tracks, { maximumTinyAreaRatio = 0.015, mini
   const allTiny = stable.every((track) => ((track.width * track.height) / 10_000) < maximumTinyAreaRatio);
   if (!allTiny) return null;
   return Object.freeze({ kind: "distance", message: "Move closer for better condition detail." });
+}
+
+// A recognised object without a cleaning grade is not a finished result. Keep
+// this separate from label confidence: a high-confidence "Tap" can still have no
+// usable evidence about limescale.
+export function conditionReviewAdvice(items) {
+  const unresolved = (Array.isArray(items) ? items : []).filter((item) => {
+    const condition = String(item?.condition || "").toLowerCase().trim();
+    return !["clean", "light", "medium", "heavy"].includes(condition);
+  });
+  if (!unresolved.length) return null;
+  const message = unresolved.length === 1
+    ? "Condition unclear — move closer or tap the item to confirm."
+    : `${unresolved.length} item conditions unclear — move closer or tap an item to confirm.`;
+  return Object.freeze({ kind: "condition", count: unresolved.length, message });
 }
