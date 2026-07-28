@@ -1224,12 +1224,8 @@ export function shouldCaptureKeyframe({
   // The next quality sample arrives shortly after; if the view matches, the
   // first settled angle is accepted without any extra tap or decision.
   if (!Array.isArray(lastReadSignature)) {
-    if (!Array.isArray(previousSignature)) return false;
-    if (signatureDistance(previousSignature, signature) <= stillnessThreshold) return true;
-    // Same localized-flicker exemption as below: a room whose lighting animates
-    // must still be able to take its FIRST read while the phone is held still.
-    const firstSpread = signatureChangeSpread(previousSignature, signature);
-    return firstSpread !== null && firstSpread < movementSpreadThreshold;
+    return Array.isArray(previousSignature)
+      && signatureDistance(previousSignature, signature) <= stillnessThreshold;
   }
   if (signatureDistance(lastReadSignature, signature) < sceneChangeThreshold) return false;
   // A large change that is not WIDESPREAD is not a new view — it is the room
@@ -1239,18 +1235,20 @@ export function shouldCaptureKeyframe({
   // between two samples. A genuinely new view moves most of the frame.
   const sceneSpread = signatureChangeSpread(lastReadSignature, signature);
   if (sceneSpread !== null && sceneSpread < movementSpreadThreshold) return false;
-  // A new view, but only once the phone has settled on it. Settled is judged the
-  // same way: a localized flicker between consecutive samples is scene activity,
-  // not a moving hand, and must not hold captures hostage in a room whose
-  // lighting animates — the phone there can be perfectly still and never pass a
-  // bare distance test.
-  if (Array.isArray(previousSignature)) {
-    const consecutiveDistance = signatureDistance(previousSignature, signature);
-    if (consecutiveDistance > stillnessThreshold) {
-      const consecutiveSpread = signatureChangeSpread(previousSignature, signature);
-      if (consecutiveSpread === null || consecutiveSpread >= movementSpreadThreshold) return false;
-    }
-  }
+  // A new view, but only once the phone has settled on it.
+  //
+  // Deliberately NOT spread-exempted, unlike the new-view test above. A first
+  // version treated "large but localized" consecutive change as stillness, so a
+  // room with animated lighting could always capture. Review showed the maths
+  // cuts both ways: a high-contrast door edge crossing four cells during a slow
+  // pan is also large-but-localized (distance ~0.047, spread 0.25), and that
+  // exemption would have paid to read the exact blurred frame the stillness rule
+  // exists to refuse. Spread separates "changed a little everywhere" from
+  // "changed a lot somewhere"; it cannot separate lighting from a moving edge,
+  // so it may only ever REFUSE a spend (above), never authorise one. Field
+  // evidence agrees the strict rule is workable: the reported RGB-fan room still
+  // filled all four views, because cycling lights pause between hues.
+  if (Array.isArray(previousSignature) && signatureDistance(previousSignature, signature) > stillnessThreshold) return false;
   return true;
 }
 

@@ -698,7 +698,7 @@ console.log("Condition-on-object and movement guidance tests passed: graded obje
 const steadyRoom = new Array(48).fill(0.5);
 function fanCycle(phase) {
   const frame = [...steadyRoom];
-  for (const cell of [0, 1, 4]) {
+  for (const cell of [0, 1, 4, 5]) {
     frame[cell * 3] = phase ? 0.95 : 0.1;      // red channel swings
     frame[cell * 3 + 1] = 0.1;
     frame[cell * 3 + 2] = phase ? 0.1 : 0.95;  // blue channel swings opposite
@@ -716,6 +716,7 @@ const panSpread = signatureChangeSpread(steadyRoom, pannedRoom);
 // The premise of the bug, proven in the fixture: the fans clear the distance
 // threshold that used to be the only test.
 assert.ok(fanDistance > 0.09, `The fan fixture does not reproduce the report — its distance ${fanDistance.toFixed(3)} would never have fired the old hint either.`);
+assert.ok(fanDistance >= keyframeDefaults.sceneChangeThreshold, `The fan fixture (${fanDistance.toFixed(3)}) does not clear the scene-change threshold, so the paid-read assertion below would pass on the OLD code too and prove nothing about spread.`);
 assert.ok(fanSpread < movementSpreadThreshold, `The fan flicker reads as widespread (${fanSpread.toFixed(2)}), so spread cannot discriminate it.`);
 assert.ok(panSpread >= movementSpreadThreshold, `A genuine pan reads as localized (${panSpread.toFixed(2)}), so spread would silence real movement guidance.`);
 
@@ -724,8 +725,20 @@ assert.equal(movementAdvice([fanDistance, fanDistance], { spreads: [fanSpread, f
 assert.ok(movementAdvice([panDistance, panDistance], { spreads: [panSpread, panSpread] }), "A genuine sustained pan no longer earns the hint at all — the fix over-corrected.");
 assert.equal(movementAdvice([panDistance, panDistance], { spreads: [panSpread, null] }), null, "A sample with no comparable signatures was treated as proven camera motion.");
 
-// The paid-read gates: the fan room can still take its reads while held still…
-assert.ok(shouldCaptureKeyframe({ signature: fanCycle(1), previousSignature: fanCycle(0), lastReadSignature: null, now: 100000, lastCaptureAt: 0, capturedCount: 0, busy: false }), "A room with animated lighting can never take its FIRST read: the flicker fails the bare stillness test even with the phone perfectly still.");
+// Stillness stays strict — spread may only ever REFUSE a spend, never authorise
+// one. Review proved why with a case this fixture now pins: a door edge crossing
+// four cells during a slow pan is ALSO large-but-localized, and a spread
+// exemption on stillness would pay to read that exact blurred frame. So a
+// mid-cycle flicker sample is refused like any other unsettled frame (the fans
+// pause between hues, which is when the room reads — the reported room filled
+// all four views under the strict rule).
+assert.ok(!shouldCaptureKeyframe({ signature: fanCycle(1), previousSignature: fanCycle(0), lastReadSignature: null, now: 100000, lastCaptureAt: 0, capturedCount: 0, busy: false }), "A mid-flicker sample was treated as settled. Spread cannot tell lighting from a moving edge, so it must never stand in for stillness.");
+const edgeStep = [...steadyRoom];
+for (const cell of [3, 7, 11, 15]) { edgeStep[cell * 3] = 0.69; edgeStep[cell * 3 + 1] = 0.69; edgeStep[cell * 3 + 2] = 0.69; }
+const edgeDistance = signatureDistance(steadyRoom, edgeStep);
+const edgeSpread = signatureChangeSpread(steadyRoom, edgeStep);
+assert.ok(edgeDistance > 0.045 && edgeSpread < movementSpreadThreshold, `The edge-translation case (distance ${edgeDistance.toFixed(3)}, spread ${edgeSpread.toFixed(2)}) no longer models the review's blurred-pan scenario.`);
+assert.ok(!shouldCaptureKeyframe({ signature: edgeStep, previousSignature: steadyRoom, lastReadSignature: null, now: 100000, lastCaptureAt: 0, capturedCount: 0, busy: false }), "A slow pan whose motion lands in four high-contrast cells was read as a settled first frame — the exact blurred paid read the stillness rule exists to refuse.");
 // …and the flicker can no longer BUY a read of a wall already covered.
 assert.ok(!shouldCaptureKeyframe({ signature: fanCycle(1), previousSignature: fanCycle(1), lastReadSignature: fanCycle(0), now: 100000, lastCaptureAt: 0, capturedCount: 1, busy: false }), "The LED cycle registered as a new view, spending one of the room's four paid reads on a wall already covered — every time the fans cycled between samples.");
 // A real turn to a genuinely new wall still pays, exactly as before.
