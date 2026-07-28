@@ -116,6 +116,10 @@ const markup = `
       <ul class="found-list" data-found-list aria-live="polite"></ul>
     </div>
     <p class="deck-hint" data-hint role="status">Just walk around the room — items save themselves</p>
+    <!-- Opt-in (?scanDebug=1). Every screenshot of a misbehaving scan has forced
+         the same first question: were frames read at all, or read and wrong? The
+         counters that answer it were already kept and never shown. -->
+    <dl class="scan-debug" data-scan-debug hidden></dl>
     <div class="pick" data-selection hidden>
       <p class="pick-hint" data-selection-hint role="status">Tap what needs cleaning. Tap anywhere else to add something we missed.</p>
       <div class="pick-row">
@@ -426,6 +430,7 @@ export function openRoomScan() {
       liveProgress: $("[data-live-progress]"), liveProgressStep: $("[data-live-progress-step]"), liveProgressCopy: $("[data-live-progress-copy]"),
       liveProgressMeter: $("[data-live-progress-meter]"),
       mic: $("[data-mic]"), shutter: $("[data-shutter]"),
+      scanDebug: $("[data-scan-debug]"),
       found: $("[data-found]"), foundList: $("[data-found-list]"), foundCount: $("[data-found-count]"),
       foundNoun: $("[data-found-noun]"), foundBusy: $("[data-found-busy]"),
       selection: $("[data-selection]"), selectionHint: $("[data-selection-hint]"), retake: $("[data-retake]"), readRoom: $("[data-read-room]"),
@@ -464,6 +469,8 @@ export function openRoomScan() {
       // consuming the per-room allowance. Confirmed rooms saved during the gap
       // are retried once the browser reports a connection again.
       networkOffline: navigator.onLine === false, networkDeferredRooms: new Set(),
+      // Read once: the readout is for testers, and mid-scan URL edits are not a flow.
+      scanDebug: /[?&]scanDebug=1/.test(window.location.search),
       diagnostics: {
         suppressedByRoom: 0, framesInferred: 0, detectorErrors: 0,
         keyframeEncodeErrors: 0, keyframesRead: 0
@@ -2000,12 +2007,15 @@ export function openRoomScan() {
       // The one caller that is NOT a confirmation. Named explicitly rather than
       // relying on the default, so adding a caller cannot quietly put a walking
       // frame on the dearer tier.
+      const readStartedAt = Date.now();
       readRoom(image, roomName, [], roomTranscript(roomName), "walking")
         .then((reading) => {
           // The room may have been removed while this was in flight. Landing its
           // result anyway would recreate an inventory the Landlord just deleted.
           if (state.closed || keyframeBudget(roomName).generation !== generation) return;
           state.diagnostics.keyframesRead += 1;
+          state.diagnostics.lastReadMs = Date.now() - readStartedAt;
+          state.diagnostics.lastReadFailure = "";
           const dismissed = state.dismissed.get(transcriptKey(roomName)) || new Set();
           const found = (reading?.detections || [])
             // The room filter applies to what a reader names too. It is a better
@@ -2033,9 +2043,10 @@ export function openRoomScan() {
           if (!found.length) return;
           setInventory(roomName, mergeRoomInventory(inventoryFor(roomName), found, { now: Date.now() }));
         })
-        .catch(() => {
+        .catch((error) => {
           // Deliberately no refund. See the note where the count is spent.
           state.diagnostics.detectorErrors += 1;
+          state.diagnostics.lastReadFailure = String(error?.code || error?.message || "failed").slice(0, 60);
         })
         .finally(() => {
           state.keyframeActiveRooms.delete(roomKey);
@@ -2049,7 +2060,37 @@ export function openRoomScan() {
     // Rendered with replaceChildren and textContent throughout. Item labels come
     // back from a reader looking at a photograph of a stranger's home; treating
     // one as markup is how a room note becomes an injection.
+    // Answers, on screen, the question every bug report has forced us to guess
+    // at: did the scanner read frames at all, or read them and get them wrong?
+    // Those are different failures with different fixes, and a screenshot alone
+    // cannot tell them apart. Opt-in — ?scanDebug=1 — so a customer never sees
+    // it; a tester turns it on and their screenshot becomes a diagnosis.
+    function renderScanDebug() {
+      if (!state.scanDebug || !el.scanDebug) return;
+      const budget = keyframeBudget(state.currentRoom);
+      const inFlight = state.keyframeActiveRooms.has(transcriptKey(state.currentRoom) || "unnamed");
+      const lines = [
+        ["detector", state.detectorState],
+        ["reads", `${budget.capturedCount}/${keyframeDefaults.maxPerRoom}${inFlight ? " +1 in flight" : ""}`],
+        ["read ok", String(state.diagnostics.keyframesRead)],
+        ["room-filtered", String(state.diagnostics.suppressedByRoom)],
+        ["errors", `${state.diagnostics.detectorErrors} read · ${state.diagnostics.keyframeEncodeErrors} encode`],
+        ["last read", state.diagnostics.lastReadMs ? `${state.diagnostics.lastReadMs}ms` : "—"],
+        ["last failure", state.diagnostics.lastReadFailure || "—"],
+        ["quality", state.qualityKind || "ok"]
+      ];
+      el.scanDebug.replaceChildren(...lines.flatMap(([term, value]) => {
+        const dt = document.createElement("dt");
+        dt.textContent = term;
+        const dd = document.createElement("dd");
+        dd.textContent = value;
+        return [dt, dd];
+      }));
+      el.scanDebug.hidden = false;
+    }
+
     function renderInventory() {
+      renderScanDebug();
       const items = inventoryFor();
       const list = el.foundList;
       if (!list) return;
