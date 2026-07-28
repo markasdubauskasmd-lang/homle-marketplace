@@ -102,6 +102,7 @@ assert.match(source, /If you cannot name the evidence, you are guessing/, "The p
 // recover it.
 assert.match(overlay, /1600 \/ Math\.max\(sourceRect\.sWidth, sourceRect\.sHeight\)/, "The visible frame that condition is graded from was reduced again. Fine texture is the evidence, and it does not survive aggressive downscaling.");
 assert.match(overlay, /toDataURL\("image\/jpeg", 0\.9/, "The confirmation frame's JPEG quality was lowered again, which smooths away exactly the speckle and film that distinguish a limescaled tap from a white one.");
-assert.match(overlay, /toDataURL\("image\/jpeg", 0\.88\)/, "Item crops were compressed harder. A crop is a close-up of the one item being judged and is the last place to save bytes.");
+assert.match(overlay, /async function cropFor\(box, source\)[\s\S]*?encodeCanvasJpeg\(canvas, 0\.9\)/, "Item crops were compressed harder. A crop is a close-up of the one item being judged and is the last place to save bytes.");
+assert.doesNotMatch(overlay, /async function cropFor\(box, source\)[\s\S]*?canvas\.toDataURL\(/, "Item crops returned to synchronous JPEG encoding and can freeze the phone while condition evidence is prepared.");
 
 console.log("Room condition tests passed: every object carries its own condition, soiling type, confidence and evidence; 'clean' and 'unknown' are real answers rather than coerced grades; invented categories and out-of-scale grades are rejected; and the frame condition is judged from is sent at a quality that preserves the texture the judgement depends on.");

@@ -452,10 +452,17 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
       width: Number(item?.box?.width), height: Number(item?.box?.height)
     },
     score: Number.isFinite(item?.score) ? item.score : 0,
+    conditionConfidence: confidenceValue(item?.conditionConfidence),
     crop: typeof item?.crop === "string" ? item.crop : ""
   })).filter((item) => item.id);
 
-  const dropped = new Set();
+  // A hand-picked item has no trustworthy identity without its close-up. A
+  // detected item does: the local detector already supplied a label, so its crop
+  // can be removed under byte pressure without removing the item itself.
+  const droppedItems = new Set(items
+    .filter((item) => item.kind === "manual" && !item.crop)
+    .map((item) => item.id));
+  const droppedCrops = new Set();
   // Coordinates are deliberately not sent. The device owns the geometry, the
   // reader never returns any, and a box it cannot see is a box it cannot place
   // over the wrong thing.
@@ -469,8 +476,10 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
     purpose: request?.purpose === "confirmation" ? "confirmation" : "walking",
     image: roomFrame,
     items: items
-      .filter((item) => !dropped.has(item.id))
-      .map(({ id, kind, label, crop }) => (crop ? { id, kind, label, crop } : { id, kind, label }))
+      .filter((item) => !droppedItems.has(item.id))
+      .map(({ id, kind, label, crop }) => (crop && !droppedCrops.has(id)
+        ? { id, kind, label, crop }
+        : { id, kind, label }))
   });
   // The room name and the transcript are whatever the customer typed or said,
   // so they can hold characters that take more than one byte. Measuring
@@ -478,9 +487,28 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
   const encoder = new TextEncoder();
   const measure = () => encoder.encode(JSON.stringify(body())).length;
 
-  // The room frame is never dropped: it is what the condition grade is read
-  // from, and condition changes what the customer is charged. Bytes come off the
-  // hand-picked items instead, least confident first.
+  // The room frame is never dropped: it provides room context and the overall
+  // grade. First remove detected-item crops whose condition is already most
+  // certain. Their labels remain in the request, while focused evidence for an
+  // uncertain tap or shower screen is protected for as long as possible.
+  const removableDetectedCrops = items
+    .filter((item) => item.kind === "detected" && item.crop)
+    .sort((a, b) => {
+      const left = a.conditionConfidence === null ? 1 : 1 - a.conditionConfidence;
+      const right = b.conditionConfidence === null ? 1 : 1 - b.conditionConfidence;
+      return left - right || b.crop.length - a.crop.length;
+    });
+
+  let bytes = measure();
+  for (const item of removableDetectedCrops) {
+    if (bytes <= budget) break;
+    droppedCrops.add(item.id);
+    bytes = measure();
+  }
+
+  // If the request is still too large, hand-picked items are removed least
+  // confident first. They cannot travel without a crop: no coordinates cross
+  // the wire and their empty label gives the reader nothing safe to identify.
   //
   // Such an item is removed from the request outright rather than sent without
   // its crop. No coordinates cross the wire, so an unnamed id with no close-up
@@ -489,13 +517,12 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
   // the wrong one. Left out of the request, the item keeps its local placeholder
   // and is shown as needing a name, which is true.
   const droppableOrder = items
-    .filter((item) => item.crop)
+    .filter((item) => item.kind === "manual" && item.crop)
     .sort((a, b) => a.score - b.score);
 
-  let bytes = measure();
   for (const item of droppableOrder) {
     if (bytes <= budget) break;
-    dropped.add(item.id);
+    droppedItems.add(item.id);
     bytes = measure();
   }
 
@@ -505,7 +532,8 @@ export function roomReadingPayload(request, { limitBytes = roomReadingLimitBytes
     // False means even the room frame alone exceeds the budget; the caller must
     // re-encode it smaller rather than send a request that will 413.
     withinLimit: bytes <= budget,
-    droppedItemIds: Object.freeze([...dropped])
+    droppedItemIds: Object.freeze([...droppedItems]),
+    droppedCropIds: Object.freeze([...droppedCrops])
   });
 }
 
