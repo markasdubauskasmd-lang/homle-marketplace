@@ -53,20 +53,20 @@ export const onboardingSteps = [
  * no `step` has nothing to derive from and shows an outstanding dot.
  */
 export const onboardingNav = [
-  { label: "Personal Details", icon: "user", step: "personal", href: "/settings" },
-  { label: "Business Details", icon: "brief", step: "business", href: "" },
-  { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/profile" },
-  { label: "Background Checks", icon: "shield", step: "dbs", href: "/cleaner/profile" },
-  { label: "Work Areas", icon: "pin", step: "areas", href: "/cleaner/availability" },
-  { label: "Experience", icon: "star", step: "experience", href: "/cleaner/profile" },
-  { label: "References", icon: "users", step: "references", href: "" },
-  { label: "Insurance", icon: "umb", step: "insurance", href: "" },
-  { label: "Banking", icon: "card", step: "banking", href: "/cleaner/payouts" },
-  { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/availability" },
-  { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/profile" },
-  { label: "Documents", icon: "folder", step: "", href: "" },
-  { label: "Training", icon: "award", step: "training", href: "" },
-  { label: "Contracts", icon: "pen", step: "compliance", href: "" }
+  { label: "Personal Details", icon: "user", step: "personal", href: "/cleaner/registration?step=personal" },
+  { label: "Business Details", icon: "brief", step: "business", href: "/cleaner/registration?step=business" },
+  { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/registration?step=identity" },
+  { label: "Background Checks", icon: "shield", step: "dbs", href: "/cleaner/registration?step=dbs" },
+  { label: "Work Areas", icon: "pin", step: "areas", href: "/cleaner/registration?step=areas" },
+  { label: "Experience", icon: "star", step: "experience", href: "/cleaner/registration?step=experience" },
+  { label: "References", icon: "users", step: "references", href: "/cleaner/registration?step=references" },
+  { label: "Insurance", icon: "umb", step: "insurance", href: "/cleaner/registration?step=insurance" },
+  { label: "Banking", icon: "card", step: "banking", href: "/cleaner/registration?step=banking" },
+  { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/registration?step=availability" },
+  { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/registration?step=equipment" },
+  { label: "Documents", icon: "folder", step: "", href: "/cleaner/registration?step=review" },
+  { label: "Training", icon: "award", step: "training", href: "/cleaner/registration?step=training" },
+  { label: "Contracts", icon: "pen", step: "compliance", href: "/cleaner/registration?step=compliance" }
 ];
 
 export const accountNav = [
