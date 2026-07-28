@@ -1,20 +1,20 @@
 /*
- * Account entry (/login, /signup, /reset-password, /verify, /onboarding)
- * rebuilt on the landing design, per design_handoff_signin.
+ * Account entry (/login, /signup, /reset-password, /verify-email, /onboarding,
+ * /account-ready) on the landing design.
  *
- * Scoped to `body.account-entry` so nothing here can reach another page. The
- * page still loads styles.css for shared primitives; this file owns the shell.
- * New structure uses `ae-` class names rather than reusing .account-card and
- * friends, so the old rules in styles.css simply stop matching instead of
- * fighting this file at equal specificity.
+ * Built to redesign-gated.html: one centred panel on the landing wash, with the
+ * pulsing mint tile, the underlined headline, the indeterminate bar while the
+ * readiness check runs, and the four-pill trail beneath. The real sign-in
+ * controls live INSIDE that panel, because this page is the place where the
+ * check resolves into an actual sign-in rather than a link to one.
  *
- * Every data-* hook in the markup is load-bearing — auth-entry.js drives the
- * whole page through them. This file styles; it never renames.
+ * Scoped to `body.account-entry` so nothing here reaches another page. Every
+ * data-* hook is load-bearing — auth-entry.js drives the page through them.
+ * This file styles; it never renames.
  *
- * One deliberate departure from the handoff: the card is NOT a magic-link
- * request. This deployment has no magic-link endpoint. It authenticates with
- * email + password (plus Google/Apple/Facebook when configured), so the card
- * keeps the real form. Everything else follows the design.
+ * One deliberate departure from the handoff: the card is not a magic-link
+ * request. This deployment has no magic-link endpoint; it authenticates with
+ * email + password plus Google/Apple/Facebook when configured.
  */
 
 body.account-entry {
@@ -60,41 +60,91 @@ body.account-entry .brand img {
   border-radius: 12px;
   box-shadow: 0 8px 20px oklch(0.62 0.19 25 / .4);
 }
-body.account-entry .account-nav {
-  display: flex;
+/* The header link is drawn as an outline pill, as the design has it. It
+   previously inherited a light colour from the shared stylesheet and rendered
+   white on cream — invisible. It carries its own colour now for that reason. */
+body.account-entry .account-nav { display: flex; align-items: center; gap: 10px; }
+body.account-entry .account-nav a {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  padding: 9px 18px;
+  border: 1.5px solid oklch(0.2 0.03 60 / .18);
+  border-radius: 999px;
+  background: var(--homle-paper, #fff);
+  color: var(--homle-ink, #201308);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  transition: border-color .18s ease, transform .18s ease;
+}
+body.account-entry .account-nav a:hover { border-color: var(--homle-ink-2, #2a1c10); transform: translateY(-1px); }
+body.account-entry .account-nav a:focus-visible {
+  outline: none;
+  border-color: var(--homle-coral, #e24947);
+  box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .12);
 }
 
-/* ── Hero shell ───────────────────────────────────────────────────────── */
+/* ── The stage ────────────────────────────────────────────────────────── */
 
-body.account-entry .ae-hero {
+body.account-entry .ae-stage {
   flex: 1;
-  padding: 150px 0 110px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 130px 24px 90px;
   background:
-    radial-gradient(1000px 520px at 84% -6%, oklch(0.92 0.06 25 / .5) 0%, transparent 62%),
-    radial-gradient(900px 500px at 4% 106%, oklch(0.93 0.06 190 / .4) 0%, transparent 60%),
+    radial-gradient(1000px 520px at 82% -4%, oklch(0.92 0.06 25 / .5) 0%, transparent 62%),
+    radial-gradient(900px 500px at 8% 104%, oklch(0.93 0.06 190 / .4) 0%, transparent 60%),
     var(--homle-cream, #faf7ec);
 }
-body.account-entry .ae-shell {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 0 40px;
-}
-body.account-entry .ae-grid {
-  display: grid;
-  grid-template-columns: 1.05fr .95fr;
-  gap: 64px;
-  align-items: start;
+body.account-entry .ae-panel {
+  width: 100%;
+  max-width: 560px;
+  padding: 44px 44px 38px;
+  border-radius: 26px;
+  background: var(--homle-paper, #fff);
+  box-shadow: 0 24px 60px oklch(0.3 0.05 60 / .1);
 }
 
-/* ── Left column ──────────────────────────────────────────────────────── */
+/* The pulsing tile. Decorative: it says "something is happening" while the
+   readiness check runs, and settles once it has. */
+body.account-entry .ae-pulse { position: relative; width: 62px; height: 62px; margin: 0 auto 26px; }
+body.account-entry .ae-pulse i {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  background: oklch(0.9 0.07 150);
+  color: oklch(0.35 0.1 150);
+  font-size: 26px;
+  font-style: normal;
+}
+body.account-entry .ae-pulse i::before { content: "✦"; }
+body.account-entry .ae-pulse b {
+  position: absolute;
+  inset: -10px;
+  border-radius: 26px;
+  border: 2px solid oklch(0.78 0.17 150 / .45);
+  animation: ae-ring 2.2s ease-out infinite;
+}
+@keyframes ae-ring {
+  0% { transform: scale(.86); opacity: .9; }
+  100% { transform: scale(1.12); opacity: 0; }
+}
+/* Once the answer is in, the ring stops: a pulse that never ends reads as a
+   page that never finished loading. */
+body.account-entry [data-account-state]:not([data-state="checking"]) ~ * .ae-pulse b,
+body.account-entry .ae-panel[data-resolved] .ae-pulse b { animation: none; opacity: 0; }
 
 body.account-entry .ae-eyebrow {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
-  margin: 0 0 22px;
+  margin: 0 0 20px;
   font-weight: 600;
   font-size: 13px;
   letter-spacing: .22em;
@@ -108,152 +158,94 @@ body.account-entry .ae-eyebrow::before {
   background: var(--homle-coral, #e24947);
 }
 
-body.account-entry .ae-h1 {
-  margin: 0 0 26px;
+/* The headline text is replaced by auth-entry.js as the mode resolves, so the
+   mint underline is a SIBLING of the text node, never a child. textContent on
+   the span would delete a child SVG. */
+body.account-entry .ae-h {
+  position: relative;
+  display: inline-block;
+  margin: 0 0 16px;
   font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
   font-weight: 800;
-  font-size: 64px;
-  line-height: .96;
+  font-size: 40px;
+  line-height: 1;
   letter-spacing: -.025em;
   color: var(--homle-ink, #201308);
 }
-/* The mint underline is decorative and sits behind the word it marks. */
-body.account-entry .ae-mark {
-  position: relative;
-  display: inline-block;
-  white-space: nowrap;
-}
 body.account-entry .ae-underline {
-  position: absolute;
-  left: 0;
-  bottom: -.14em;
-  width: 100%;
-  height: .22em;
+  display: block;
+  width: 74%;
+  height: .2em;
+  margin: .08em auto 0;
   overflow: visible;
-  pointer-events: none;
 }
 
 body.account-entry .ae-lead {
-  max-width: 440px;
-  margin: 0 0 34px;
-  font-size: 18px;
+  max-width: 420px;
+  margin: 0 auto 26px;
+  font-size: 16.5px;
   line-height: 1.55;
-  color: var(--homle-muted, #564b42);
+  color: var(--homle-muted-2, #61564d);
 }
 
-/* Readiness pill. Driven by auth-entry.js through [data-state]; the dot is the
-   only thing that changes, because the copy already says what happened. */
-body.account-entry .ae-status {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 10px;
-  max-width: 440px;
-  margin: 0 0 26px;
-  padding: 9px 16px 9px 12px;
+/* Indeterminate bar. Shown only while the check is genuinely outstanding — a
+   progress bar under a resolved page is a lie about what is happening. */
+body.account-entry .ae-readiness { margin: 0 0 26px; }
+body.account-entry .ae-bar {
+  height: 8px;
+  margin: 0 0 14px;
   border-radius: 999px;
-  background: var(--homle-paper, #fff);
-  box-shadow: 0 8px 22px oklch(0.3 0.05 60 / .08);
-  font-size: 13.5px;
-  line-height: 1.45;
-  color: var(--homle-muted, #564b42);
+  background: oklch(0.5 0.02 60 / .12);
+  overflow: hidden;
 }
-body.account-entry .ae-status-mark {
+body.account-entry .ae-bar i {
+  display: block;
+  height: 100%;
+  width: 46%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, oklch(0.7 0.16 150), oklch(0.83 0.14 190));
+  animation: ae-slide 1.8s ease-in-out infinite;
+}
+@keyframes ae-slide {
+  0% { transform: translateX(-60%); }
+  100% { transform: translateX(180%); }
+}
+body.account-entry [data-account-state]:not([data-state="checking"]) .ae-bar { display: none; }
+
+body.account-entry .ae-readiness strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  font-size: 14px;
+}
+body.account-entry .ae-readiness strong::before {
+  content: "";
   flex: none;
   width: 9px;
   height: 9px;
-  margin-top: .42em;
   border-radius: 50%;
   background: var(--homle-dim, #999189);
   box-shadow: 0 0 0 4px oklch(0.66 0.015 65 / .18);
 }
-body.account-entry .ae-status[data-state="ready"] .ae-status-mark {
+body.account-entry [data-state="ready"] strong::before {
   background: var(--homle-success, #137738);
   box-shadow: 0 0 0 4px oklch(0.5 0.13 150 / .18);
 }
-body.account-entry .ae-status[data-state="unavailable"] .ae-status-mark,
-body.account-entry .ae-status[data-state="error"] .ae-status-mark {
+body.account-entry [data-state="unavailable"] strong::before,
+body.account-entry [data-state="error"] strong::before {
   background: var(--homle-coral-action, #d33a3c);
   box-shadow: 0 0 0 4px oklch(0.58 0.19 25 / .18);
 }
-/* The pill carries a title and one line of detail; the title is the sentence. */
-body.account-entry .ae-status strong { font-weight: 600; }
-body.account-entry .ae-status p { margin: 2px 0 0; font-size: 13px; }
-
-body.account-entry .ae-steps-title {
-  margin: 0 0 20px;
-  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
-  font-weight: 700;
-  font-size: 22px;
-  letter-spacing: -.01em;
-}
-body.account-entry .ae-steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 22px;
-}
-body.account-entry .ae-steps li {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-}
-body.account-entry .ae-steps > li > span {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: var(--homle-coral, #e24947);
-  color: #fff;
-  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
-  font-weight: 700;
-  font-size: 16px;
-}
-body.account-entry .ae-steps strong {
-  display: block;
-  margin-bottom: 3px;
-  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
-  font-weight: 700;
-  font-size: 18px;
-}
-body.account-entry .ae-steps small {
-  font-size: 14.5px;
-  line-height: 1.5;
-  color: var(--homle-muted-2, #61564d);
-}
-
-body.account-entry .ae-fine {
-  margin: 28px 0 0;
+body.account-entry .ae-readiness p {
+  margin: 6px 0 0;
   font-size: 13.5px;
   line-height: 1.5;
-  color: oklch(0.5 0.02 60);
-}
-
-/* ── The card ─────────────────────────────────────────────────────────── */
-
-body.account-entry .ae-card {
-  padding: 34px;
-  border-radius: 24px;
-  background: var(--homle-paper, #fff);
-  box-shadow: 0 20px 50px oklch(0.3 0.05 60 / .08);
-}
-body.account-entry .ae-card-title {
-  margin: 0 0 8px;
-  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
-  font-weight: 700;
-  font-size: 26px;
-  letter-spacing: -.01em;
-}
-body.account-entry .ae-card-lead {
-  margin: 0 0 24px;
-  font-size: 15.5px;
-  line-height: 1.55;
   color: var(--homle-muted-2, #61564d);
 }
 
-/* Feedback line. role="status" in the markup, so it is announced. */
+/* ── Feedback ─────────────────────────────────────────────────────────── */
+
 body.account-entry .account-feedback {
   margin: 0 0 18px;
   padding: 12px 14px;
@@ -262,6 +254,7 @@ body.account-entry .account-feedback {
   background: oklch(0.975 0.015 95);
   font-size: 13.5px;
   line-height: 1.5;
+  text-align: left;
   color: var(--homle-ink-2, #2a1c10);
 }
 body.account-entry .account-feedback[data-kind="error"] {
@@ -272,20 +265,15 @@ body.account-entry .account-feedback[data-kind="error"] {
 
 /* ── Provider buttons ─────────────────────────────────────────────────── */
 
-body.account-entry .account-social {
-  display: grid;
-  gap: 10px;
-  margin: 0 0 4px;
-}
+body.account-entry .account-social { display: grid; gap: 10px; margin: 0 0 4px; }
 body.account-entry .account-social > p {
   margin: 0 0 6px;
   font-size: 13.5px;
   line-height: 1.5;
   color: var(--homle-muted-2, #61564d);
 }
-/* A provider button is a white row with the provider's own mark, which is how
-   users recognise it. Google's brand guidance wants its mark unmodified on a
-   neutral surface, so this is not restyled into the coral system. */
+/* Google's brand guidance asks for its mark unmodified on a neutral surface, so
+   these are deliberately not restyled into the coral system. */
 body.account-entry .account-provider-button {
   display: flex;
   align-items: center;
@@ -298,7 +286,7 @@ body.account-entry .account-provider-button {
   border-radius: 14px;
   background: var(--homle-paper, #fff);
   color: var(--homle-ink, #201308);
-  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-family: inherit;
   font-weight: 600;
   font-size: 15.5px;
   text-decoration: none;
@@ -314,20 +302,16 @@ body.account-entry .account-provider-button:focus-visible {
   border-color: var(--homle-coral, #e24947);
   box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .12);
 }
-body.account-entry .account-provider-mark {
-  flex: none;
-  width: 20px;
-  height: 20px;
-}
+body.account-entry .account-provider-mark { flex: none; width: 20px; height: 20px; }
 
-/* ── Divider and the email toggle ─────────────────────────────────────── */
+/* ── Dividers and the email toggle ────────────────────────────────────── */
 
 body.account-entry .account-choice-divider,
 body.account-entry .ae-or {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin: 26px 0;
+  margin: 22px 0;
   font-size: 13px;
   color: var(--homle-dim, #999189);
 }
@@ -340,7 +324,8 @@ body.account-entry .ae-or::after {
   height: 1px;
   background: oklch(0.2 0.03 60 / .1);
 }
-body.account-entry .account-choice-divider span { white-space: nowrap; }
+body.account-entry .account-choice-divider span,
+body.account-entry .ae-or span { white-space: nowrap; }
 
 body.account-entry .account-email-toggle {
   width: 100%;
@@ -355,24 +340,24 @@ body.account-entry .account-email-toggle {
   cursor: pointer;
   transition: border-color .18s ease, transform .18s ease;
 }
-body.account-entry .account-email-toggle:hover {
-  border-color: var(--homle-ink-2, #2a1c10);
-  transform: translateY(-1px);
-}
+body.account-entry .account-email-toggle:hover { border-color: var(--homle-ink-2, #2a1c10); transform: translateY(-1px); }
 
 /* ── Forms ────────────────────────────────────────────────────────────── */
 
-body.account-entry .account-form fieldset {
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
+body.account-entry .account-form { text-align: left; }
+body.account-entry .account-form fieldset { margin: 0; padding: 0; border: 0; }
 body.account-entry .account-form legend {
   padding: 0;
   margin: 0 0 16px;
   font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
   font-weight: 700;
   font-size: 18px;
+}
+body.account-entry .account-form > fieldset > p {
+  margin: 0 0 16px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--homle-muted-2, #61564d);
 }
 body.account-entry .account-form label {
   display: block;
@@ -391,7 +376,7 @@ body.account-entry .account-form input:not([type="radio"]) {
   border: 1.5px solid oklch(0.2 0.03 60 / .14);
   border-radius: 14px;
   background: var(--homle-paper, #fff);
-  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-family: inherit;
   font-size: 16px;
   font-weight: 400;
   color: var(--homle-ink, #201308);
@@ -409,9 +394,8 @@ body.account-entry .account-form small {
   line-height: 1.5;
   color: var(--homle-muted-2, #61564d);
 }
-/* The primary action, matching the landing's coral CTA. */
-body.account-entry .account-form > fieldset > button[type="submit"],
-body.account-entry .ae-primary {
+/* The primary action is the landing's dark pill, as the design has it. */
+body.account-entry .account-form > fieldset > button[type="submit"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -421,28 +405,24 @@ body.account-entry .ae-primary {
   margin-top: 4px;
   padding: 0 22px;
   border: 0;
-  border-radius: 14px;
-  background: var(--homle-coral, #e24947);
+  border-radius: 999px;
+  background: var(--homle-ink, #201308);
   color: #fff;
-  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-family: inherit;
   font-weight: 600;
   font-size: 16px;
-  text-decoration: none;
   cursor: pointer;
-  box-shadow: 0 14px 30px oklch(0.62 0.19 25 / .4);
-  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
+  box-shadow: 0 14px 30px oklch(0.2 0.03 60 / .28);
+  transition: transform .18s ease, box-shadow .18s ease;
 }
-body.account-entry .account-form > fieldset > button[type="submit"]::after,
-body.account-entry .ae-primary::after { content: "↗"; font-size: .9em; }
-body.account-entry .account-form > fieldset > button[type="submit"]:hover,
-body.account-entry .ae-primary:hover {
+body.account-entry .account-form > fieldset > button[type="submit"]::after { content: "↗"; font-size: .9em; }
+body.account-entry .account-form > fieldset > button[type="submit"]:hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 38px oklch(0.62 0.19 25 / .48);
+  box-shadow: 0 18px 38px oklch(0.2 0.03 60 / .34);
 }
-body.account-entry .account-form > fieldset > button[type="submit"]:focus-visible,
-body.account-entry .ae-primary:focus-visible {
+body.account-entry .account-form > fieldset > button[type="submit"]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .3), 0 14px 30px oklch(0.62 0.19 25 / .4);
+  box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .3), 0 14px 30px oklch(0.2 0.03 60 / .28);
 }
 body.account-entry fieldset[disabled] button[type="submit"] {
   opacity: .55;
@@ -453,6 +433,7 @@ body.account-entry fieldset[disabled] button[type="submit"] {
 body.account-entry .account-form-link {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 6px 16px;
   margin: 16px 0 0;
   font-size: 13.5px;
@@ -460,7 +441,6 @@ body.account-entry .account-form-link {
 }
 body.account-entry .account-form-link a { color: var(--homle-eyebrow, #8b5148); }
 
-/* Role choice on /onboarding. */
 body.account-entry .account-role {
   display: block;
   margin-bottom: 12px;
@@ -482,14 +462,14 @@ body.account-entry .account-role strong {
   font-weight: 700;
   font-size: 16px;
 }
-body.account-entry .account-role small { margin: 2px 0 0; }
 
-/* Signed-in panel. */
 body.account-entry .account-ready-person {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 14px;
   margin: 18px 0;
+  text-align: left;
 }
 body.account-entry .role-account-avatar {
   display: grid;
@@ -504,9 +484,9 @@ body.account-entry .role-account-avatar {
 }
 body.account-entry .account-ready-panel .account-actions { display: grid; gap: 10px; }
 
-/* ── The two routes that need no account ──────────────────────────────── */
+/* ── Workspace routes ─────────────────────────────────────────────────── */
 
-body.account-entry .ae-alt { display: grid; gap: 12px; }
+body.account-entry .ae-alt { display: grid; gap: 12px; text-align: left; }
 body.account-entry .ae-alt a {
   display: flex;
   align-items: center;
@@ -538,11 +518,42 @@ body.account-entry .ae-ico {
 body.account-entry .ae-ico-mint { background: oklch(0.9 0.07 150); }
 body.account-entry .ae-ico-citrus { background: oklch(0.92 0.08 95); }
 
+body.account-entry .ae-fine {
+  margin: 26px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: oklch(0.5 0.02 60);
+}
 body.account-entry .account-noscript {
   margin: 18px 0 0;
   font-size: 13.5px;
   line-height: 1.5;
   color: var(--homle-muted-2, #61564d);
+}
+
+/* ── The step trail ───────────────────────────────────────────────────── */
+
+body.account-entry .ae-crumbs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 34px 0 0;
+  padding: 0;
+  list-style: none;
+}
+body.account-entry .ae-crumbs li {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--homle-paper, #fff);
+  box-shadow: 0 8px 22px oklch(0.3 0.05 60 / .07);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--homle-muted, #564b42);
+}
+body.account-entry .ae-crumbs li[aria-current] {
+  background: var(--homle-ink, #201308);
+  color: #fff;
 }
 
 /* ── Footer ───────────────────────────────────────────────────────────── */
@@ -567,33 +578,27 @@ body.account-entry .account-footer a { color: #fff; }
 
 /* ── Responsive ───────────────────────────────────────────────────────── */
 
-@media (max-width: 900px) {
-  body.account-entry .ae-hero { padding: 120px 0 80px; }
-  body.account-entry .ae-grid { grid-template-columns: 1fr; gap: 40px; }
-  /* Card first on small screens: someone opening /login came to sign in. */
-  body.account-entry .ae-card { order: -1; }
-  body.account-entry .ae-h1 { font-size: 44px; }
-}
 @media (max-width: 560px) {
   body.account-entry .site-header .shell,
-  body.account-entry .ae-shell,
   body.account-entry .account-footer .shell { padding: 0 20px; }
-  body.account-entry .ae-card { padding: 24px; }
-  body.account-entry .ae-h1 { font-size: 38px; }
-  body.account-entry .account-nav { display: none; }
+  body.account-entry .ae-stage { padding: 110px 16px 70px; }
+  body.account-entry .ae-panel { padding: 30px 22px 26px; border-radius: 22px; }
+  body.account-entry .ae-h { font-size: 31px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  body.account-entry .ae-pulse b,
+  body.account-entry .ae-bar i { animation: none; }
   body.account-entry .account-provider-button,
   body.account-entry .account-email-toggle,
   body.account-entry .account-role,
+  body.account-entry .account-nav a,
   body.account-entry .ae-alt a,
-  body.account-entry .account-form > fieldset > button[type="submit"],
-  body.account-entry .ae-primary { transition: none; }
+  body.account-entry .account-form > fieldset > button[type="submit"] { transition: none; }
   body.account-entry .account-provider-button:hover,
   body.account-entry .account-email-toggle:hover,
   body.account-entry .account-role:hover,
+  body.account-entry .account-nav a:hover,
   body.account-entry .ae-alt a:hover,
-  body.account-entry .account-form > fieldset > button[type="submit"]:hover,
-  body.account-entry .ae-primary:hover { transform: none; }
+  body.account-entry .account-form > fieldset > button[type="submit"]:hover { transform: none; }
 }

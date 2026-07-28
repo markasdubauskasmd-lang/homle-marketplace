@@ -9,8 +9,8 @@
   <link rel="icon" href="/homle-logo.png" type="image/png">
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/account-entry.css?v=20260728-1">
-  <script src="/auth-entry.js?v=20260728-3" type="module"></script>
+  <link rel="stylesheet" href="/account-entry.css?v=20260728-2">
+  <script src="/auth-entry.js?v=20260728-4" type="module"></script>
 </head>
 <body class="account-page account-entry">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -21,34 +21,22 @@
     </div>
   </header>
 
-  <main id="main" class="ae-hero">
-    <div class="ae-shell ae-grid">
-      <div class="ae-intro">
-        <p class="ae-eyebrow">Cleaner and landlord accounts</p>
-        <h1 id="account-title" class="ae-h1">Sign in and pick up where you <span class="ae-mark">left off.<svg class="ae-underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M2 14 Q 80 2 150 10 T 298 8" fill="none" stroke="oklch(0.78 0.17 150)" stroke-width="5" stroke-linecap="round"></path></svg></span></h1>
-        <p class="ae-lead">One account for both sides of a clean — landlords follow a request through to completion, cleaners see the jobs they have accepted.</p>
+  <main id="main" class="ae-stage">
+      <article class="ae-panel">
+        <div class="ae-pulse" aria-hidden="true"><b></b><i></i></div>
+        <p class="ae-eyebrow" data-account-side-title>Cleaner and landlord accounts</p>
 
-        <div class="ae-status" role="status" aria-live="polite" data-account-state data-state="checking">
-          <span class="ae-status-mark" aria-hidden="true"></span>
-          <div><strong data-account-state-title>Checking account readiness…</strong><p data-account-state-copy>No sign-in form will appear unless every security dependency is ready.</p></div>
+        <!-- The headline text is swapped by auth-entry.js as the mode resolves, so
+             the mint underline is a SIBLING of the text node rather than a child:
+             a textContent update would delete a child SVG outright. -->
+        <h1 id="account-title" class="ae-h"><span data-account-title>Opening your workspace.</span><svg class="ae-underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M2 14 Q 80 2 150 10 T 298 8" fill="none" stroke="oklch(0.78 0.17 150)" stroke-width="5" stroke-linecap="round"></path></svg></h1>
+        <p class="ae-lead" data-account-lead>Your booking, room checklist and cleaner updates appear here once Homle confirms this browser is signed in.</p>
+
+        <div class="ae-readiness" role="status" aria-live="polite" data-account-state data-state="checking">
+          <div class="ae-bar" aria-hidden="true"><i></i></div>
+          <strong data-account-state-title>Checking secure account access</strong>
+          <p data-account-state-copy>No sign-in form will appear unless every security dependency is ready.</p>
         </div>
-
-        <h2 class="ae-steps-title" data-account-side-title>Keep the booking path simple.</h2>
-        <ol class="ae-steps">
-          <li><span>1</span><div><strong data-account-step-title="1">Request the clean</strong><small data-account-step-copy="1">Share the property, timing and contact details.</small></div></li>
-          <li><span>2</span><div><strong data-account-step-title="2">Scan and speak</strong><small data-account-step-copy="2">Add room photos and turn natural notes into concise tasks.</small></div></li>
-          <li><span>3</span><div><strong data-account-step-title="3">Review before matching</strong><small data-account-step-copy="3">Homle checks scope, coverage and real availability before any quote.</small></div></li>
-        </ol>
-
-        <p class="ae-fine" data-account-side-note>No payment is collected and no cleaner is promised from this account page.</p>
-      </div>
-
-      <article class="ae-card">
-        <!-- The card opens as the readiness check, not as a sign-in promise: until
-             /api/auth/providers answers, this deployment may have no working method.
-             auth-entry.js replaces both lines with the mode's own copy once it knows. -->
-        <h2 class="ae-card-title" data-account-title>Checking secure account access</h2>
-        <p class="ae-card-lead" data-account-lead>Homle is confirming the sign-in methods available on this deployment.</p>
 
         <section class="account-runtime" data-account-runtime hidden aria-label="Secure account form">
           <div class="account-feedback" data-account-feedback role="status" aria-live="polite" hidden></div>
@@ -163,10 +151,18 @@
           <a href="/cleaner/dashboard"><span class="ae-ico ae-ico-citrus" aria-hidden="true">✓</span><div><strong>Open Cleaner dashboard</strong><small>Choose the areas and times that suit you.</small></div></a>
         </div>
 
-        <p class="ae-fine">Homle never asks for a payment card on this page, and no cleaner is promised here.</p>
-        <noscript><p class="account-noscript">Account access is not enabled. JavaScript is not required to use the working request or cleaner application routes above.</p></noscript>
+        <p class="ae-fine" data-account-side-note>Nothing is booked and no payment is taken while this check runs.</p>
+        <noscript><p class="account-noscript">Account access needs JavaScript. No booking, payment or account action happens on this page without it.</p></noscript>
       </article>
-    </div>
+
+      <!-- What signing in leads to. Presentational only; the first pill is the
+           step this page performs, the rest are what the workspace loads next. -->
+      <ol class="ae-crumbs">
+        <li aria-current="step">Checking session</li>
+        <li>Loading booking</li>
+        <li>Room checklist</li>
+        <li>Live updates</li>
+      </ol>
   </main>
 
   <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle private pilot.</span><a href="/privacy">Privacy notice</a></div></footer>

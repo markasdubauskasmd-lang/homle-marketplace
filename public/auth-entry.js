@@ -62,8 +62,11 @@ const accountRequestTimeoutMs = 15_000;
 
 if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
 document.title = `${selectedMode.title} — Homle`;
-if (title) title.textContent = "Checking secure account access";
-if (lead) lead.textContent = "Homle is confirming the sign-in methods available on this deployment.";
+// The headline and lead stay on the designed "opening your workspace" copy while
+// the check runs; the readiness line beneath states plainly that nothing is
+// confirmed yet, so this says what is happening without claiming sign-in works.
+if (title) title.textContent = "Opening your workspace.";
+if (lead) lead.textContent = "Your booking, room checklist and cleaner updates appear here once Homle confirms this browser is signed in.";
 document.querySelectorAll("[data-year]").forEach((element) => { element.textContent = String(new Date().getFullYear()); });
 
 if (bookingIntent && ["login", "signup"].includes(selectedMode.form)) {
