@@ -1635,6 +1635,354 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   outline-offset: 2px;
 }
 
+/* ----------------------------------------------------------- work areas -- */
+
+.hc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.hc-work-progress-track span {
+  width: 73.684%;
+}
+
+.hc-work-card {
+  align-self: start;
+}
+
+.hc-work-form {
+  padding: 0 34px 24px;
+}
+
+.hc-work-builder {
+  display: grid;
+  grid-template-columns: minmax(260px, .82fr) minmax(310px, 1.18fr);
+  min-height: 510px;
+  margin-top: 2px;
+  overflow: hidden;
+  border: 1px solid #e7dccb;
+  border-radius: 16px;
+  background: #f8f1e5;
+}
+
+.hc-work-panel {
+  min-width: 0;
+  padding: 22px 16px 16px;
+  overflow-y: auto;
+  border-right: 1px solid #e7dccb;
+}
+
+.hc-work-panel > h2 {
+  margin: 0;
+  color: var(--hc-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.hc-work-panel > p {
+  margin: 5px 0 14px;
+  color: var(--hc-muted);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.hc-work-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.hc-work-search input {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 12px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.hc-work-search button {
+  min-width: 48px;
+  min-height: 38px;
+  padding: 0 13px;
+  color: #ffffff;
+  border: 0;
+  border-radius: 10px;
+  background: var(--hc-red);
+  box-shadow: 0 7px 15px rgba(198, 42, 26, .2);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hc-work-search input:focus,
+.hc-work-search button:focus-visible {
+  outline: 2px solid var(--hc-red);
+  outline-offset: 2px;
+}
+
+.hc-work-role-choices {
+  margin-top: 9px;
+  gap: 6px;
+}
+
+.hc-work-role-choices span {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 9px;
+}
+
+.hc-work-role-note {
+  margin: 8px 0 14px !important;
+  font-size: 8.5px !important;
+}
+
+.hc-work-base {
+  padding: 12px;
+  border: 1px solid #e4d9c8;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.hc-work-base > div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.hc-work-base strong {
+  color: var(--hc-ink);
+  font-size: 10px;
+}
+
+.hc-work-base > div span {
+  overflow: hidden;
+  color: var(--hc-red);
+  font-size: 9px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-work-base label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+  color: var(--hc-muted);
+  font-size: 8.5px;
+}
+
+.hc-work-base output {
+  color: var(--hc-ink);
+  font-weight: 600;
+}
+
+.hc-work-base input[type="range"],
+.hc-work-area-card input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 4px;
+  margin: 3px 0 0;
+  accent-color: var(--hc-red);
+}
+
+.hc-work-list-section {
+  margin-top: 16px;
+}
+
+.hc-work-list-section > h2 {
+  margin: 0 0 9px;
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.hc-work-list {
+  display: grid;
+  gap: 8px;
+}
+
+.hc-work-empty {
+  margin: 0 !important;
+  padding: 14px 12px;
+  color: var(--hc-muted-2);
+  border: 1px dashed #ddc7a4;
+  border-radius: 11px;
+  background: #fdfaf4;
+  text-align: center;
+}
+
+.hc-work-area-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px 10px;
+  padding: 11px 12px;
+  border: 1px solid #eadfce;
+  border-radius: 11px;
+  background: #ffffff;
+}
+
+.hc-work-area-title {
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  align-items: center;
+  color: var(--hc-ink);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.hc-work-area-title::before {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--hc-red);
+  content: "";
+}
+
+.hc-work-area-card select {
+  min-height: 28px;
+  padding: 0 25px 0 9px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 8px;
+  background: #fffaf2;
+  font-size: 8.5px;
+}
+
+.hc-work-area-copy {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  color: var(--hc-muted-2);
+  font-size: 8px;
+}
+
+.hc-work-area-radius {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 10px;
+  color: var(--hc-muted-2);
+  font-size: 8px;
+}
+
+.hc-work-area-remove {
+  justify-self: end;
+  padding: 0;
+  color: var(--hc-red);
+  border: 0;
+  background: transparent;
+  font-size: 8.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hc-work-map-shell {
+  position: relative;
+  min-height: 510px;
+  overflow: hidden;
+  background: #dbe7c7;
+}
+
+.hc-work-map {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 510px;
+}
+
+.hc-work-map-land { fill: #e5e9c9; }
+.hc-work-map-water { fill: #c4e0dd; opacity: .9; }
+.hc-work-map-road { fill: none; stroke: #edba8a; stroke-width: 3; opacity: .75; }
+.hc-work-map-road.major { stroke: #df8f6d; stroke-width: 5; }
+.hc-work-map-boundary { fill: none; stroke: #b5c596; stroke-width: 2; stroke-dasharray: 5 5; }
+
+.hc-work-map-marker-radius {
+  fill: rgba(215, 57, 43, .12);
+  stroke: rgba(215, 57, 43, .42);
+  stroke-width: 3;
+}
+
+.hc-work-map-marker {
+  fill: var(--hc-red);
+  stroke: #ffffff;
+  stroke-width: 5;
+}
+
+.hc-work-map-label {
+  fill: var(--hc-ink);
+  font-size: 17px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #fffaf1;
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+
+.hc-work-map-controls {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  left: 12px;
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #c8bca9;
+  border-radius: 7px;
+  box-shadow: 0 5px 14px rgba(51, 44, 32, .16);
+}
+
+.hc-work-map-controls button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--hc-ink);
+  border: 0;
+  border-bottom: 1px solid #d8ccba;
+  background: #ffffff;
+  font-size: 19px;
+  cursor: pointer;
+}
+
+.hc-work-map-controls button:last-child { border-bottom: 0; }
+
+.hc-work-map-shell > p {
+  position: absolute;
+  right: 7px;
+  bottom: 5px;
+  margin: 0;
+  padding: 3px 6px;
+  color: var(--hc-muted);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .82);
+  font-size: 7.5px;
+}
+
+.hc-work-guidance {
+  margin: 14px 0 0;
+  padding: 13px 15px;
+  color: var(--hc-muted);
+  border-radius: 11px;
+  background: #f2eadb;
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
 /* ----------------------------------------------------------- responsive -- */
 
 @media (max-width: 1000px) {
@@ -1645,6 +1993,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-personal-layout { grid-template-columns: 160px minmax(0, 1fr); }
   .hc-personal-grid-four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-personal-address-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hc-work-builder { grid-template-columns: minmax(230px, .8fr) minmax(280px, 1.2fr); }
 }
 
 @media (max-width: 900px) {
@@ -1677,6 +2026,9 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-identity-status { margin-left: 20px; margin-right: 20px; }
   .hc-identity-documents { grid-template-columns: 1fr; }
   .hc-background-certificate { grid-template-columns: 1fr; }
+  .hc-work-builder { grid-template-columns: 1fr; }
+  .hc-work-panel { border-right: 0; border-bottom: 1px solid #e7dccb; }
+  .hc-work-map-shell, .hc-work-map { min-height: 360px; }
 }
 
 @media (max-width: 600px) {
@@ -1694,6 +2046,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-business-actions .hc-personal-submit { width: 100%; }
   .hc-background-form { padding-left: 20px; padding-right: 20px; }
   .hc-background-dates { grid-template-columns: 1fr; }
+  .hc-work-form { padding-left: 20px; padding-right: 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

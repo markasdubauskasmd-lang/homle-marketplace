@@ -5365,6 +5365,7 @@ async function serveFile(requestPath, response) {
     "/cleaner/business-details": "cleaner-registration.html",
     "/cleaner/identity-verification": "cleaner-registration.html",
     "/cleaner/background-checks": "cleaner-registration.html",
+    "/cleaner/work-areas": "cleaner-registration.html",
     "/cleaner/sign-off": "cleaner-sign-off.html",
     "/cleaner/profile/preview": "cleaner-public-profile.html",
     "/cleaner/availability": "cleaner-availability.html",
