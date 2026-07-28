@@ -11,6 +11,7 @@ import {
   frameSignature,
   signatureDistance,
   movementAdvice,
+  signatureChangeSpread,
   objectFramingAdvice,
   conditionReviewAdvice,
   shouldCaptureKeyframe,
@@ -474,6 +475,7 @@ export function openRoomScan() {
       networkOffline: navigator.onLine === false, networkDeferredRooms: new Set(),
       // Read once: the readout is for testers, and mid-scan URL edits are not a flow.
       scanDebug: /[?&]scanDebug=1/.test(window.location.search),
+      motionSpreads: [],
       diagnostics: {
         suppressedByRoom: 0, framesInferred: 0, detectorErrors: 0,
         keyframeEncodeErrors: 0, keyframesRead: 0
@@ -993,6 +995,7 @@ export function openRoomScan() {
       // and a stale fast sample from the previous room plus the scene jump into
       // this one would read as a sweep and hold back the first paid read.
       state.motionDistances = [];
+      state.motionSpreads = [];
       state.signature = null;
       state.previousSignature = null;
       state.qualityMessage = "";
@@ -1411,6 +1414,7 @@ export function openRoomScan() {
       // and a stale fast sample from the previous room plus the scene jump into
       // this one would read as a sweep and hold back the first paid read.
       state.motionDistances = [];
+      state.motionSpreads = [];
       state.signature = null;
       state.previousSignature = null;
       state.qualityMessage = "";
@@ -2694,13 +2698,18 @@ export function openRoomScan() {
       // fast one here, halving the streak the hint is supposed to require.
       if (Array.isArray(state.previousSignature) && Array.isArray(state.signature)) {
         state.motionDistances.push(signatureDistance(state.previousSignature, state.signature));
+        // Spread rides alongside distance so the hint can tell a moving camera
+        // from a room that moves by itself — colour-cycling fans, an LED wash, a
+        // playing television. Both series are trimmed together to stay aligned.
+        state.motionSpreads.push(signatureChangeSpread(state.previousSignature, state.signature));
         if (state.motionDistances.length > 3) state.motionDistances.shift();
+        if (state.motionSpreads.length > 3) state.motionSpreads.shift();
       }
 
       // Lighting problems outrank movement: a dark room stays dark however
       // slowly the phone moves, so that is the thing worth saying first.
       const advice = frameQualityAdvice(quality)
-        || movementAdvice(state.motionDistances);
+        || movementAdvice(state.motionDistances, { spreads: state.motionSpreads });
       const key = advice ? advice.kind : "";
       if (key === state.qualityKind) return true;
       state.qualityKind = key;

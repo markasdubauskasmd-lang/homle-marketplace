@@ -1224,12 +1224,33 @@ export function shouldCaptureKeyframe({
   // The next quality sample arrives shortly after; if the view matches, the
   // first settled angle is accepted without any extra tap or decision.
   if (!Array.isArray(lastReadSignature)) {
-    return Array.isArray(previousSignature)
-      && signatureDistance(previousSignature, signature) <= stillnessThreshold;
+    if (!Array.isArray(previousSignature)) return false;
+    if (signatureDistance(previousSignature, signature) <= stillnessThreshold) return true;
+    // Same localized-flicker exemption as below: a room whose lighting animates
+    // must still be able to take its FIRST read while the phone is held still.
+    const firstSpread = signatureChangeSpread(previousSignature, signature);
+    return firstSpread !== null && firstSpread < movementSpreadThreshold;
   }
   if (signatureDistance(lastReadSignature, signature) < sceneChangeThreshold) return false;
-  // A new view, but only once the phone has settled on it.
-  if (Array.isArray(previousSignature) && signatureDistance(previousSignature, signature) > stillnessThreshold) return false;
+  // A large change that is not WIDESPREAD is not a new view — it is the room
+  // moving by itself. Colour-cycling fans or a television can swing a few cells
+  // hard enough to clear the distance threshold, and before this check that
+  // bought a paid read of a wall already covered every time the LEDs cycled
+  // between two samples. A genuinely new view moves most of the frame.
+  const sceneSpread = signatureChangeSpread(lastReadSignature, signature);
+  if (sceneSpread !== null && sceneSpread < movementSpreadThreshold) return false;
+  // A new view, but only once the phone has settled on it. Settled is judged the
+  // same way: a localized flicker between consecutive samples is scene activity,
+  // not a moving hand, and must not hold captures hostage in a room whose
+  // lighting animates — the phone there can be perfectly still and never pass a
+  // bare distance test.
+  if (Array.isArray(previousSignature)) {
+    const consecutiveDistance = signatureDistance(previousSignature, signature);
+    if (consecutiveDistance > stillnessThreshold) {
+      const consecutiveSpread = signatureChangeSpread(previousSignature, signature);
+      if (consecutiveSpread === null || consecutiveSpread >= movementSpreadThreshold) return false;
+    }
+  }
   return true;
 }
 
@@ -1638,12 +1659,23 @@ export function resolveRoomCondition(confirmed, observed) {
 // Two consecutive fast samples, not one. The sample gap is ~900ms, so a single
 // spike is just the customer turning to the next wall — exactly the motion the
 // scan is FOR — and nagging on every turn would teach them to ignore the hint.
-export function movementAdvice(distances, { fastThreshold = 0.09, streak = 2 } = {}) {
+export function movementAdvice(distances, { fastThreshold = 0.09, streak = 2, spreads = null, spreadThreshold = movementSpreadThreshold } = {}) {
   const recent = (Array.isArray(distances) ? distances : [])
     .filter((value) => Number.isFinite(value));
   if (recent.length < streak) return null;
   const fast = recent.slice(-streak).every((value) => value > fastThreshold);
   if (!fast) return null;
+  // Large is not enough — it must also be WIDESPREAD, or a customer standing
+  // still in front of colour-cycling PC fans is told to slow down. Camera
+  // movement shifts most cells; an LED wash or a playing television shifts a
+  // few violently. When the caller supplies the spread series, every sample in
+  // the streak has to clear it; a null entry (no comparable signatures) is
+  // treated as not proven to be camera motion.
+  if (Array.isArray(spreads)) {
+    const recentSpreads = spreads.slice(-streak);
+    if (recentSpreads.length < streak) return null;
+    if (!recentSpreads.every((value) => Number.isFinite(value) && value >= spreadThreshold)) return null;
+  }
   return Object.freeze({ kind: "moving", message: "Moving fast — slow down a little so items can be read." });
 }
 
@@ -1688,3 +1720,47 @@ export function conditionReviewAdvice(items) {
     : `${unresolved.length} item conditions unclear — move closer or tap an item to confirm.`;
   return Object.freeze({ kind: "condition", count: unresolved.length, message });
 }
+
+/* ── Camera movement versus a room that moves by itself ─────────────────── */
+
+// How much of the VIEW changed, as distinct from how much the numbers changed.
+//
+// The global distance cannot tell these apart:
+//   - the customer turning the phone: most of the sixteen cells shift;
+//   - a PC's colour-cycling fans, an LED strip washing a wall, a television
+//     playing: a few cells shift violently while the rest of the frame is rock
+//     still. The colour-aware signatures that catch same-brightness walls
+//     (#117) made this second kind LOUDER, because hue cycling is exactly a
+//     colour change.
+//
+// This was not hypothetical. A customer standing still in front of an RGB PC
+// tower was told "Moving fast — slow down", and the same flicker could make the
+// stillness gate believe the phone never settled — or worse, fake a "new view"
+// and spend one of the room's four paid reads on a wall already covered,
+// because the fans happened to cycle between two samples.
+//
+// Spread is the fraction of cells whose own change is material. Camera motion
+// is widespread; scene activity is localized; auto-white-balance drift touches
+// everything but below the materiality bar. Null-safe: no comparable
+// signatures means no claim about spread.
+export function signatureChangeSpread(previous, current, { cellChangeThreshold = 0.06 } = {}) {
+  if (!Array.isArray(previous) || !Array.isArray(current)
+    || previous.length !== current.length || !previous.length) return null;
+  // Colour signatures carry three channels per cell; the tiny test fixtures and
+  // any legacy luminance grids carry one. A cell is judged by its own mean.
+  const channels = previous.length % 3 === 0 && previous.length >= 6 ? 3 : 1;
+  const cells = previous.length / channels;
+  let changed = 0;
+  for (let cell = 0; cell < cells; cell += 1) {
+    let difference = 0;
+    for (let channel = 0; channel < channels; channel += 1) {
+      const index = cell * channels + channel;
+      difference += Math.abs(current[index] - previous[index]);
+    }
+    if (difference / channels > cellChangeThreshold) changed += 1;
+  }
+  return changed / cells;
+}
+
+// The change is only CAMERA movement when it is both large and widespread.
+export const movementSpreadThreshold = 0.5;
