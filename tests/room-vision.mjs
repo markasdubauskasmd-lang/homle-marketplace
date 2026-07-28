@@ -56,6 +56,32 @@ assert(roomVisionFromEnvironment({ ANTHROPIC_API_KEY: "test-key", ROOM_VISION_PR
   assert(capture.request.output_config.format.type === "json_schema", "The reading was requested without a schema.");
 }
 
+// Object identity and cleaning-condition evidence are independent. A clear tap
+// in a dark corner can be named confidently while its limescale remains
+// uncertain; preserving two scores is what lets the client ask for the right
+// correction without throwing away the correct label.
+{
+  const capture = {};
+  const vision = createAnthropicRoomVision({
+    apiKey: "test-key",
+    client: stub(jsonReply({
+      condition: "medium",
+      detections: [{
+        label: "Tap", condition: "medium", soiling: ["limescale"],
+        labelConfidence: 0.96, conditionConfidence: 0.31,
+        evidence: "faint white marks near the base",
+        x: 10, y: 10, width: 20, height: 30
+      }],
+      tasks: ["Descale the tap"]
+    }), capture)
+  });
+  const result = await vision.readRoom({ image: pixel, roomName: "Bathroom", purpose: "confirmation" });
+  assert(result.detections[0].confidence === 0.96, "The object-label confidence was not retained independently.");
+  assert(result.detections[0].conditionConfidence === 0.31, "The condition confidence was lost or replaced by label confidence.");
+  const required = capture.request.output_config.format.schema.properties.detections.items.required;
+  assert(required.includes("labelConfidence") && required.includes("conditionConfidence") && !required.includes("confidence"), "The provider schema still asks for one ambiguous confidence score.");
+}
+
 // A box that does not fit the frame is dropped rather than clamped: a clamped
 // box would be drawn confidently over the wrong part of the room.
 {
@@ -108,8 +134,8 @@ for (const [label, reply] of [
     client: stub(jsonReply({
       condition: "medium",
       items: [
-        { id: "d1", label: "Sofa", note: "visible soiling" },
-        { id: "m1", label: "Air fryer", note: "grease" },
+        { id: "d1", label: "Sofa", condition: "light", soiling: ["dust"], labelConfidence: 0.92, conditionConfidence: 0.74, evidence: "dust along the top edge" },
+        { id: "m1", label: "Air fryer", condition: "medium", soiling: ["grease"], labelConfidence: 0.86, conditionConfidence: 0.63, evidence: "greasy film around the controls" },
         { id: "ghost", label: "Chandelier", note: "invented" }
       ],
       tasks: ["Vacuum the sofa"]
@@ -128,6 +154,7 @@ for (const [label, reply] of [
   // and be drawn as a box the Landlord did not choose.
   assert(result.items.length === 2 && !result.items.some((item) => item.id === "ghost"), `An item that was never selected was returned: ${JSON.stringify(result.items)}`);
   assert(result.items[1].label === "Air fryer", "A hand-picked item the detector cannot see was not named.");
+  assert(result.items[1].confidence === 0.86 && result.items[1].conditionConfidence === 0.63, "Selected-item label and condition confidence were collapsed into one value.");
   assert(result.condition === "medium" && result.tasks.length === 1, "The room grade or its tasks were lost.");
 
   // The room frame goes first for the condition grade; only the hand-picked item
@@ -138,6 +165,8 @@ for (const [label, reply] of [
   assert(content[0].type === "image", "The room photograph was not sent first.");
   assert(content.some((block) => block.type === "text" && block.text.includes("id m1")), "The selected items were not described to the reader.");
   assert(!JSON.stringify(capture.request.output_config).includes('"x"'), "The reader was asked for coordinates it has no way to place correctly.");
+  const required = capture.request.output_config.format.schema.properties.items.items.required;
+  assert(required.includes("labelConfidence") && required.includes("conditionConfidence"), "The selected-item schema still asks for one ambiguous confidence score.");
 }
 
 // A reply naming nothing that was asked for leaves the labels the device

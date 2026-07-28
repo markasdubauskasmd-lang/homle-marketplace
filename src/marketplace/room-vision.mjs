@@ -35,14 +35,15 @@ const readingSchema = Object.freeze({
             description: "What is actually visible on it. Empty when clean or unknown.",
             items: { type: "string", enum: ["dust", "grease", "limescale", "stain", "mould", "soap-scum", "food-debris", "pet-hair", "damage", "clutter"] }
           },
-          confidence: { type: "number", description: "0-1, how sure you are of BOTH the label and the condition. Below 0.5 means genuinely unsure — say so rather than committing." },
+          labelConfidence: { type: "number", description: "0-1, how sure you are that the object label is correct. Judge identity only; do not lower it merely because the surface condition is unclear." },
+          conditionConfidence: { type: "number", description: "0-1, how sure you are that the cleaning condition and soiling assessment are correct. Judge visible surface evidence only; below 0.5 needs customer review." },
           evidence: { type: "string", description: "What you can actually see that supports the condition, e.g. 'white deposits around the tap base'. Empty when clean or unknown." },
           x: { type: "number", description: "Left edge as a percentage of image width, 0-100." },
           y: { type: "number", description: "Top edge as a percentage of image height, 0-100." },
           width: { type: "number", description: "Width as a percentage of image width." },
           height: { type: "number", description: "Height as a percentage of image height." }
         },
-        required: ["label", "condition", "soiling", "confidence", "evidence", "x", "y", "width", "height"],
+        required: ["label", "condition", "soiling", "labelConfidence", "conditionConfidence", "evidence", "x", "y", "width", "height"],
         additionalProperties: false
       }
     },
@@ -79,7 +80,8 @@ const conditionGuidance = [
   "",
   "Do not infer condition from the type of object. An oven is not heavy because ovens are usually dirty; a bathroom is not limescaled because bathrooms usually are. Report what THIS photograph shows, and 'unknown' when it shows you nothing.",
   "State your evidence for anything other than clean or unknown — the specific thing you can see. If you cannot name the evidence, you are guessing, and the condition should be 'unknown'.",
-  "Set confidence honestly and low when the object is small in frame, blurred, dark or partly hidden. An uncertain answer that says so is useful; a confident wrong one changes what a customer is charged.",
+  "Score object identity and cleaning condition separately. labelConfidence answers only 'what is this?'; conditionConfidence answers only 'what cleaning state does the visible surface support?'. A clear tap in shadow can have high labelConfidence and low conditionConfidence. Do not let one score stand in for the other.",
+  "Set conditionConfidence honestly and low when the relevant surface is small in frame, blurred, dark or partly hidden. An uncertain condition that says so is useful; a confident wrong one changes what a customer is charged.",
   ""
 ].join("\n");
 
@@ -147,6 +149,21 @@ function confidenceValue(value) {
   return Math.max(0, Math.min(1, supplied));
 }
 
+function confidencePair(value = {}) {
+  // `confidence` was the original combined field. Retain it as an input-only
+  // fallback so a provider response already in flight during a deployment can
+  // still be read safely; every new schema response supplies the two independent
+  // values.
+  const legacy = confidenceValue(value?.confidence);
+  const label = value?.labelConfidence === undefined
+    ? legacy
+    : confidenceValue(value.labelConfidence);
+  const condition = value?.conditionConfidence === undefined
+    ? legacy
+    : confidenceValue(value.conditionConfidence);
+  return Object.freeze({ label, condition });
+}
+
 const soilingWords = Object.freeze({
   dust: "Dusty", grease: "Greasy", limescale: "Limescale", stain: "Stained",
   mould: "Mould", "soap-scum": "Soap scum", "food-debris": "Food debris",
@@ -165,20 +182,26 @@ function reading(payload) {
   // photograph that could not be judged never reads as a confident "Light".
   const condition = ["light", "medium", "heavy"].includes(payload?.condition) ? payload.condition : "";
   const detections = (Array.isArray(payload?.detections) ? payload.detections : [])
-    .map((detection) => ({
-      label: boundedText(detection?.label, 28),
-      condition: itemCondition(detection?.condition),
-      soiling: soilingTypes(detection?.soiling),
-      confidence: confidenceValue(detection?.confidence),
-      // The old free-text `note`, now derived so nothing downstream has to change
-      // shape. A named soiling type and the model's own evidence read better than
-      // either alone: "Limescale — white deposits around the tap base".
-      note: boundedText(itemNote(detection), 60),
-      x: Number(detection?.x),
-      y: Number(detection?.y),
-      width: Number(detection?.width),
-      height: Number(detection?.height)
-    }))
+    .map((detection) => {
+      const confidence = confidencePair(detection);
+      return {
+        label: boundedText(detection?.label, 28),
+        condition: itemCondition(detection?.condition),
+        soiling: soilingTypes(detection?.soiling),
+        // Keep the established `confidence` output for the client: it now means
+        // object-label confidence only. Condition decisions use the explicit field.
+        confidence: confidence.label,
+        conditionConfidence: confidence.condition,
+        // The old free-text `note`, now derived so nothing downstream has to change
+        // shape. A named soiling type and the model's own evidence read better than
+        // either alone: "Limescale — white deposits around the tap base".
+        note: boundedText(itemNote(detection), 60),
+        x: Number(detection?.x),
+        y: Number(detection?.y),
+        width: Number(detection?.width),
+        height: Number(detection?.height)
+      };
+    })
     // A box that does not fit the frame is dropped rather than clamped: a
     // clamped box would be drawn confidently in the wrong place.
     .filter((detection) => detection.label
@@ -220,10 +243,11 @@ const selectionSchema = Object.freeze({
             description: "What is actually visible on it. Empty when clean or unknown.",
             items: { type: "string", enum: ["dust", "grease", "limescale", "stain", "mould", "soap-scum", "food-debris", "pet-hair", "damage", "clutter"] }
           },
-          confidence: { type: "number", description: "0-1, how sure you are of BOTH the name and the condition. Below 0.5 means genuinely unsure — say so rather than committing." },
+          labelConfidence: { type: "number", description: "0-1, how sure you are that the item name is correct. Judge identity only." },
+          conditionConfidence: { type: "number", description: "0-1, how sure you are that the cleaning condition and soiling assessment are correct. Judge visible surface evidence only; below 0.5 needs customer review." },
           evidence: { type: "string", description: "What you can actually see that supports the condition, e.g. 'white deposits around the tap base'. Empty when clean or unknown." }
         },
-        required: ["id", "label", "condition", "soiling", "confidence", "evidence"],
+        required: ["id", "label", "condition", "soiling", "labelConfidence", "conditionConfidence", "evidence"],
         additionalProperties: false
       }
     },
@@ -262,18 +286,22 @@ function selectionReading(payload, allowedIds) {
   const condition = ["light", "medium", "heavy"].includes(payload?.condition) ? payload.condition : "";
   const seen = new Set();
   const items = (Array.isArray(payload?.items) ? payload.items : [])
-    .map((item) => ({
-      id: boundedText(item?.id, 40),
-      label: boundedText(item?.label, 28),
-      condition: itemCondition(item?.condition),
-      soiling: soilingTypes(item?.soiling),
-      confidence: confidenceValue(item?.confidence),
-      // Longer than the 28 it used to be. The evidence is what makes a grade
-      // checkable — "white deposits around the tap base" is the whole reason a
-      // customer can agree or argue with "medium" — and clipping it mid-phrase
-      // left a sentence that proved nothing.
-      note: boundedText(itemNote(item), 60)
-    }))
+    .map((item) => {
+      const confidence = confidencePair(item);
+      return {
+        id: boundedText(item?.id, 40),
+        label: boundedText(item?.label, 28),
+        condition: itemCondition(item?.condition),
+        soiling: soilingTypes(item?.soiling),
+        confidence: confidence.label,
+        conditionConfidence: confidence.condition,
+        // Longer than the 28 it used to be. The evidence is what makes a grade
+        // checkable — "white deposits around the tap base" is the whole reason a
+        // customer can agree or argue with "medium" — and clipping it mid-phrase
+        // left a sentence that proved nothing.
+        note: boundedText(itemNote(item), 60)
+      };
+    })
     // An id the client never sent is dropped rather than returned. The client
     // owns the geometry, so an invented id would otherwise be drawn as a box the
     // Landlord never selected.

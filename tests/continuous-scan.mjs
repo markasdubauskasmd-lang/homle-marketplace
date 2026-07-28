@@ -208,20 +208,36 @@ assert.equal(aliasInventory[0].sightings, 2, "Alias deduplication discarded the 
 // must be allowed to fill that missing cleaning evidence even if its label score
 // is slightly lower.
 const unclearTap = mergeRoomInventory([], [{
-  label: "Tap", score: 0.88, condition: ""
+  label: "Tap", score: 0.88, condition: "", conditionConfidence: 0.1
 }], { now: 1 });
 const resolvedTap = mergeRoomInventory(unclearTap, [{
-  label: "Tap", score: 0.72, condition: "medium",
+  label: "Tap", score: 0.72, condition: "medium", conditionConfidence: 0.91,
   soiling: ["limescale"], note: "White deposits around the tap base"
 }], { now: 2 });
 assert.equal(resolvedTap[0].condition, "medium", "A closer view could not fill a condition left unknown by a higher-confidence object label.");
 assert.deepEqual(resolvedTap[0].soiling, ["limescale"], "The condition was filled without carrying its structured cleaning evidence.");
 assert.equal(resolvedTap[0].note, "White deposits around the tap base", "The condition was filled without carrying its human-readable evidence.");
 assert.equal(resolvedTap[0].score, 0.88, "Accepting later condition evidence reduced the best object-label confidence.");
+assert.equal(resolvedTap[0].conditionConfidence, 0.91, "The saved item lost the confidence of the view that supplied its condition.");
 assert.match(conditionReviewAdvice(unclearTap)?.message || "", /Condition unclear/i, "An item with no condition looks settled instead of asking for a closer look or one-tap correction.");
 assert.equal(conditionReviewAdvice(resolvedTap), null, "Condition guidance remains after the item has a usable grade.");
-assert.ok(conditionReviewAdvice([{ label: "Tap", condition: "medium", score: 0.3 }]), "A low-confidence condition is displayed as settled.");
-assert.equal(conditionReviewAdvice([{ label: "Tap", condition: "medium", score: 0.3, conditionConfirmed: true }]), null, "The scanner continues to question a condition the customer explicitly confirmed.");
+assert.ok(conditionReviewAdvice([{ label: "Tap", condition: "medium", score: 0.95, conditionConfidence: 0.3 }]), "A confident object name hid a low-confidence condition.");
+assert.equal(conditionReviewAdvice([{ label: "Tap", condition: "medium", score: 0.3, conditionConfidence: 0.9 }]), null, "A low label score incorrectly made strong condition evidence look uncertain.");
+assert.equal(conditionReviewAdvice([{ label: "Tap", condition: "medium", conditionConfidence: 0.3, conditionConfirmed: true }]), null, "The scanner continues to question a condition the customer explicitly confirmed.");
+
+const disputedTap = mergeRoomInventory([], [{
+  label: "Tap", score: 0.96, condition: "light", conditionConfidence: 0.24,
+  note: "Faint mark"
+}], { now: 1 });
+const strongerConditionTap = mergeRoomInventory(disputedTap, [{
+  label: "Faucet", score: 0.62, condition: "heavy", conditionConfidence: 0.93,
+  soiling: ["limescale"], note: "Thick white crust around the base"
+}], { now: 2 });
+assert.equal(strongerConditionTap[0].label, "Tap", "A weaker object-name reading replaced the stronger label.");
+assert.equal(strongerConditionTap[0].score, 0.96, "Condition evidence reduced the independent object-label confidence.");
+assert.equal(strongerConditionTap[0].condition, "heavy", "A stronger condition reading could not replace a weak earlier grade.");
+assert.equal(strongerConditionTap[0].conditionConfidence, 0.93, "The grade was replaced without retaining its stronger condition confidence.");
+assert.equal(strongerConditionTap[0].note, "Thick white crust around the base", "The stronger grade did not carry its supporting evidence.");
 
 const sameTapTwice = mergeRoomInventory([], [
   { label: "Faucet", score: 0.78, x: 20, y: 25, width: 18, height: 25 },
@@ -298,6 +314,7 @@ const customerGraded = correctInventoryItem([{
 });
 assert.equal(customerGraded[0].condition, "heavy", "The customer could not replace the automatic condition grade.");
 assert.equal(customerGraded[0].conditionConfirmed, true, "The customer's condition choice was not marked final.");
+assert.equal(customerGraded[0].conditionConfidence, 1, "A customer-confirmed condition was not stored as authoritative evidence.");
 const customerGradedSaved = mergeInventoryIntoSavedDetections([
   { id: "tap-box", label: "Tap", condition: "medium", x: 20, y: 20, width: 30, height: 30 }
 ], customerGraded);
@@ -311,20 +328,24 @@ assert.equal(afterAutomaticRevisit[0].condition, "heavy", "A later automatic rev
 /* ── Walking evidence survives the red save button ── */
 
 const limescaleInventory = mergeRoomInventory([], [{
-  label: "Tap", score: 0.82, condition: "medium",
+  label: "Tap", score: 0.82, condition: "medium", conditionConfidence: 0.77,
   soiling: ["limescale"], note: "Limescale — white deposits around the tap base"
 }], { now: 10 });
 assert.deepEqual(limescaleInventory[0].soiling, ["limescale"], "The walking inventory discarded the named cleaning issue before the room could be saved.");
 const storedTap = savedDetectionFromInventoryItem(limescaleInventory[0]);
 assert.equal(storedTap.condition, "medium", "The saved walking object lost its condition grade.");
+assert.equal(storedTap.confidence, 0.82, "The saved walking object lost its independent label confidence.");
+assert.equal(storedTap.conditionConfidence, 0.77, "The saved walking object lost its condition confidence.");
 assert.deepEqual(storedTap.soiling, ["limescale"], "The saved walking object lost its structured soiling type.");
 assert.equal(storedTap.note, "Limescale — white deposits around the tap base", "The saved walking object replaced visible evidence with a generic provenance note.");
 
 const closerTap = mergeRoomInventory(limescaleInventory, [{
-  label: "Tap", score: 0.91, condition: "heavy",
+  label: "Tap", score: 0.71, condition: "heavy", conditionConfidence: 0.94,
   soiling: ["limescale", "damage"], note: "Heavy crust and a chipped finish"
 }], { now: 11 });
 assert.equal(closerTap[0].condition, "heavy", "A better-evidenced walking view did not update the object's grade.");
+assert.equal(closerTap[0].score, 0.82, "A stronger condition view weakened the independent label confidence.");
+assert.equal(closerTap[0].conditionConfidence, 0.94, "A stronger condition view did not replace the earlier condition confidence.");
 assert.deepEqual(closerTap[0].soiling, ["limescale", "damage"], "A better-evidenced walking view updated the grade but left stale soiling evidence.");
 assert.equal(savedDetectionFromInventoryItem({ label: "   " }), null, "A blank inventory row became a stored room detection.");
 
@@ -613,6 +634,11 @@ assert.match(
   /const guidance = state\.qualityMessage\s*\|\| state\.framingMessage\s*\|\| conditionReviewAdvice\(inventoryFor\(\)\)\?\.message/,
   "The live view does not prioritise lighting, motion and distance before unresolved-condition guidance."
 );
+assert.match(
+  overlay,
+  /score: Number\.isFinite\(detection\.confidence\)[\s\S]{0,240}conditionConfidence: Number\.isFinite\(detection\.conditionConfidence\)/,
+  "Walking reads collapse object-label and condition confidence before the room inventory can use them independently."
+);
 assert.equal((overlay.match(/getImageData\(/g) || []).length, 1, "Uneven exposure added another synchronous camera readback.");
 assert.match(model, /const previousRow = new Float32Array\(columns\);[\s\S]{0,2000}Math\.abs\(luma - previousRow\[x\]\)/, "Frame sharpness still depends on edge direction because vertical neighbours are not measured.");
 
@@ -623,7 +649,7 @@ assert.match(model, /const previousRow = new Float32Array\(columns\);[\s\S]{0,20
 // label and geometry only, so open-then-save silently erased every grade.
 const saveBranches = overlay.split("detections: chosen.map((box) => ({").length - 1;
 assert.equal(saveBranches, 2, "The save paths changed shape; re-check that every branch still preserves per-item condition.");
-assert.equal((overlay.match(/condition: box\.condition \|\| "", conditionConfirmed: box\.conditionConfirmed === true,\s*soiling: box\.soiling \|\| \[\]/g) || []).length, 2, "A save branch rebuilds detections without its condition or the customer's confirmation, so saving an unchanged room erases the final grading.");
+assert.equal((overlay.match(/condition: box\.condition \|\| "",\s*conditionConfidence: box\.conditionConfidence,\s*conditionConfirmed: box\.conditionConfirmed === true,\s*soiling: box\.soiling \|\| \[\]/g) || []).length, 2, "A save branch rebuilds detections without its condition confidence or the customer's confirmation, so saving an unchanged room erases the final grading.");
 
 // The first sample of a session must not count as fast motion: distance-from-null
 // is defined as 1, which would halve the streak the hint requires.

@@ -8,6 +8,19 @@ export const guidedRooms = Object.freeze(["Living room", "Kitchen", "Bathroom", 
 export const maximumShots = 12;
 export const minimumShots = 1;
 
+function confidenceValue(value) {
+  return Number.isFinite(value) ? Math.max(0, Math.min(1, Number(value))) : null;
+}
+
+// New readings carry an independent condition-confidence value. The fallbacks
+// keep rooms captured immediately before this release reviewable: the old API
+// exposed one combined `confidence`, and the inventory stored it as `score`.
+function conditionEvidenceConfidence(item) {
+  return confidenceValue(item?.conditionConfidence)
+    ?? confidenceValue(item?.confidence)
+    ?? confidenceValue(item?.score);
+}
+
 // Wording matches what is genuinely happening. Nothing here claims a
 // measurement the phone cannot take.
 
@@ -63,7 +76,8 @@ export function usableDetections(detections) {
       // before anything could use it.
       condition: String(detection.condition || "").trim().slice(0, 12),
       soiling: Object.freeze((Array.isArray(detection.soiling) ? detection.soiling : []).map((kind) => String(kind).trim().slice(0, 16)).slice(0, 4)),
-      confidence: Number.isFinite(detection.confidence) ? detection.confidence : 0
+      confidence: confidenceValue(detection.confidence) ?? 0,
+      conditionConfidence: conditionEvidenceConfidence(detection)
     }));
 }
 
@@ -193,6 +207,7 @@ export function usableLiveBoxes(boxes) {
       // which meant the one screen where the customer is looking straight at the
       // thing itself said nothing about it.
       condition: String(box.condition || "").trim().slice(0, 12),
+      conditionConfidence: conditionEvidenceConfidence(box),
       // A customer-confirmed grade is contract evidence, not another model
       // suggestion. Keep that distinction while a saved room is reopened so a
       // later automatic read cannot silently replace what they chose.
@@ -526,7 +541,8 @@ export function mergeItemReadings(selected, response) {
         // just paid a vision model to work out.
         condition: String(reading.condition || "").trim().slice(0, 12),
         soiling: Object.freeze((Array.isArray(reading.soiling) ? reading.soiling : []).slice(0, 4)),
-        confidence: Number.isFinite(reading.confidence) ? reading.confidence : 0
+        confidence: confidenceValue(reading.confidence) ?? 0,
+        conditionConfidence: conditionEvidenceConfidence(reading)
       });
     })
     .filter(Boolean)
@@ -1344,6 +1360,7 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       merged.set(key, {
         key, label, score, quantity, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false,
         condition: String(item?.condition || ""), note: String(item?.note || ""),
+        conditionConfidence: conditionEvidenceConfidence(item),
         conditionConfirmed: item?.conditionConfirmed === true,
         soiling: Object.freeze((Array.isArray(item?.soiling) ? item.soiling : [])
           .map((kind) => String(kind || "").trim().slice(0, 16))
@@ -1356,12 +1373,17 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     // A Landlord's correction is final. A later reading that disagrees must not
     // quietly rename an item they have already put right.
     const incomingCondition = String(item?.condition || "");
+    const currentConditionConfidence = conditionEvidenceConfidence(current);
+    const incomingConditionConfidence = conditionEvidenceConfidence(item);
     // Object-name confidence is not condition confidence. A broad view can be
     // certain this is a tap while returning no cleaning grade; a slightly
     // lower-scoring close-up can still supply the first useful condition evidence.
     const fillsMissingCondition = !current.condition && Boolean(incomingCondition);
     const incomingConditionWins = !current.conditionConfirmed
-      && (fillsMissingCondition || (score > current.score && Boolean(incomingCondition)));
+      && (fillsMissingCondition
+        || (Boolean(incomingCondition)
+          && incomingConditionConfidence !== null
+          && (currentConditionConfidence === null || incomingConditionConfidence > currentConditionConfidence)));
     merged.set(key, {
       ...current,
       label: current.confirmed ? current.label : (score > current.score ? label : current.label),
@@ -1381,6 +1403,9 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       condition: current.conditionConfirmed
         ? current.condition
         : (incomingConditionWins ? incomingCondition : current.condition) || current.condition,
+      conditionConfidence: current.conditionConfirmed
+        ? currentConditionConfidence
+        : (incomingConditionWins ? incomingConditionConfidence : currentConditionConfidence),
       note: incomingConditionWins && item?.note ? String(item.note) : current.note,
       soiling: incomingConditionWins && Array.isArray(item?.soiling)
         ? Object.freeze(item.soiling
@@ -1429,6 +1454,10 @@ export function savedDetectionFromInventoryItem(item) {
     quantity: itemQuantity(item),
     note: evidence || (item?.confirmed ? "Confirmed while scanning" : "Seen while scanning"),
     condition: String(item?.condition || "").trim().slice(0, 12),
+    // Label and condition certainty are different evidence. Preserve both while
+    // the walking inventory is folded into the final saved room.
+    confidence: confidenceValue(item?.score) ?? 0,
+    conditionConfidence: conditionEvidenceConfidence(item),
     conditionConfirmed: item?.conditionConfirmed === true,
     soiling: Object.freeze((Array.isArray(item?.soiling) ? item.soiling : [])
       .map((kind) => String(kind || "").trim().slice(0, 16))
@@ -1485,9 +1514,22 @@ export function mergeSavedDetections(existing, incoming) {
       merged.set(key, { ...detection, ...current, conditionConfirmed: true });
       continue;
     }
-    const better = (detection.width > 0 && !(current.width > 0))
-      || (detection.condition && !current.condition);
-    merged.set(key, better ? { ...current, ...detection } : { ...detection, ...current });
+    const betterGeometry = detection.width > 0 && !(current.width > 0);
+    const base = betterGeometry ? { ...current, ...detection } : { ...detection, ...current };
+    const currentConditionConfidence = conditionEvidenceConfidence(current);
+    const incomingConditionConfidence = conditionEvidenceConfidence(detection);
+    const incomingConditionWins = Boolean(detection.condition)
+      && (!current.condition
+        || (incomingConditionConfidence !== null
+          && (currentConditionConfidence === null || incomingConditionConfidence > currentConditionConfidence)));
+    const conditionSource = incomingConditionWins ? detection : current;
+    merged.set(key, {
+      ...base,
+      condition: conditionSource.condition || "",
+      conditionConfidence: conditionEvidenceConfidence(conditionSource),
+      note: conditionSource.note || base.note || "",
+      soiling: Object.freeze(Array.isArray(conditionSource.soiling) ? conditionSource.soiling.slice(0, 4) : [])
+    });
   }
   return Object.freeze([...merged.entries()].map(([key, detection]) => Object.freeze({
     ...detection,
@@ -1517,6 +1559,9 @@ export function correctInventoryItem(items, key, change = {}) {
       ...item,
       label: renamed || item.label,
       condition: regraded || item.condition,
+      // A customer standing in front of the item is the authoritative condition
+      // assessment for this booking.
+      conditionConfidence: regraded ? 1 : conditionEvidenceConfidence(item),
       conditionConfirmed: Boolean(regraded) || item.conditionConfirmed === true,
       // Renaming is itself a confirmation: the Landlord has looked at it and said
       // what it is, so a later automatic reading must not overwrite them.
@@ -1603,13 +1648,7 @@ function conditionNeedsReview(item) {
   const condition = String(item?.condition || "").toLowerCase().trim();
   if (!["clean", "light", "medium", "heavy"].includes(condition)) return true;
   if (item?.conditionConfirmed === true) return false;
-  const confidence = Number.isFinite(item?.conditionConfidence)
-    ? Number(item.conditionConfidence)
-    : Number.isFinite(item?.confidence)
-      ? Number(item.confidence)
-      : Number.isFinite(item?.score)
-        ? Number(item.score)
-        : null;
+  const confidence = conditionEvidenceConfidence(item);
   return confidence !== null && confidence >= 0 && confidence < 0.5;
 }
 
