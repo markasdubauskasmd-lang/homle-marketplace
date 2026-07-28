@@ -44,6 +44,13 @@ The existing scanner remains the single scanner used by the Landlord booking jou
 - A close-up condition reading now fills an earlier unknown grade even when its
   object-name confidence is slightly lower. Label confidence and condition
   evidence are no longer treated as the same signal.
+- Every object the customer deliberately selects now receives a stable,
+  asynchronously encoded close-up for the confirmation read. The room photograph
+  still supplies context, while the crop identifies the exact tap, shower screen
+  or appliance and preserves fine limescale, grease, mould and stain evidence.
+  Crops for already-certain detected items are removed first if the request nears
+  its byte limit; the item label remains, and hand-marked items never travel
+  without the close-up required to identify them.
 - Ungraded objects show **condition unclear**, and the live scanner asks the
   user to move closer or tap the item. The prompt disappears as soon as a usable
   grade is read or confirmed.

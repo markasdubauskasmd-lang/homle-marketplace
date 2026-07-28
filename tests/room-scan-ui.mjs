@@ -303,7 +303,7 @@ assert(overlay.includes("roomTranscripts: new Map()") && overlay.includes("trans
 // The signature gained a `purpose` (which model tier answers the read); what this
 // guards is unchanged — a room read is given that room's note, not the whole
 // walkthrough, so one room's spoken instructions cannot be priced into another.
-assert(/async function readRoom\(image, roomName, items = \[\], transcript = "", purpose = "confirmation"\)[\s\S]{0,1200}roomReadingPayload\(\{ roomName, transcript: String\(transcript/.test(overlay), "A room read still receives the global walkthrough instead of only that room's spoken note.");
+assert(/async function readRoom\(image, roomName, items = \[\], transcript = "", purpose = "confirmation"\)[\s\S]{0,2600}roomReadingPayload\(\{ roomName, transcript: String\(transcript/.test(overlay), "A room read still receives the global walkthrough instead of only that room's spoken note.");
 // Defaulting to `confirmation` is deliberate: a new caller that forgets to say
 // what it is gets the accurate-but-dearer tier, never a cheap read of the frame
 // that sets the price. Only the walking loop opts down.
@@ -451,7 +451,8 @@ assert(overlay.includes("function drawVisibleRegion"), "The capture no longer ma
 // COCO has no class for — air fryer, shower, worktop, radiator, extractor.
 assert(overlay.includes("function onViewfinderTap") && overlay.includes('kind: "manual"'), "There is no way to mark something the detector cannot see.");
 assert(overlay.includes('document.createElement("button")') && overlay.includes('setAttribute("aria-pressed"') && overlay.includes("toggleDetectedItem"), "Detected objects cannot be selected or removed as accessible one-tap controls.");
-assert(/cropFor[\s\S]{0,220}if \(box\.kind !== "manual"\) return ""/.test(overlay), "Every selected item is cropped and sent, including ones already visible in the room frame.");
+assert(/async function cropFor\(box, source\)[\s\S]{0,1400}encodeCanvasJpeg\(canvas, 0\.9\)/.test(overlay), "A selected detected item does not receive the focused, asynchronous condition crop used by a hand-marked item.");
+assert(!/function cropFor[\s\S]{0,220}box\.kind !== "manual"/.test(overlay), "Detected items are still excluded from focused condition evidence.");
 
 // Rotating the phone while choosing changes the viewfinder's aspect ratio.
 // Unless the still and the boxes are pinned to one rectangle with the captured
@@ -563,9 +564,12 @@ assert(overlay.includes("const changed = chosen.some((box) => box.kind === \"man
 // the room now on screen.
 assert(overlay.includes("state.roomSession") && /function enterRoom[\s\S]{0,700}state\.roomSession \+= 1/.test(overlay) && /function toHub[\s\S]{0,700}state\.roomSession \+= 1/.test(overlay), "Room navigation does not invalidate a read still in flight for the room just left.");
 assert((overlay.match(/session !== state\.roomSession/g) || []).length >= 3, "A read or photo decode that resolves after leaving its room is not dropped.");
-// Crops are cut from the canvas before the network await, so a later capture
-// redrawing the shared canvas cannot corrupt the crop mid-request.
-assert(/const selected = items\.map[\s\S]{0,400}cropFor\(item\)[\s\S]{0,900}await recoverCsrf\(\)/.test(overlay), "Crops are taken after an await, so a later capture can cut them from the wrong frame.");
+// Crops decode from the immutable captured frame rather than the shared canvas,
+// so scanning a later room cannot corrupt a background confirmation.
+assert(/function snapshotCropSource\(frame\)[\s\S]{0,700}image\.src = frame/.test(overlay), "Selected-item crops are not tied to the immutable captured room frame.");
+assert(/const cropSource = items\.length \? await snapshotCropSource\(image\) : null[\s\S]{0,500}await cropFor\(item, cropSource\)[\s\S]{0,900}await recoverCsrf\(\)/.test(overlay), "Selected-item crops do not consistently use the decoded captured-frame snapshot.");
+// The confirmed room and toast paint before background crop preparation begins.
+assert(/toHub\(\)[\s\S]{0,1800}toast\([\s\S]{0,900}window\.setTimeout\(\(\) => \{[\s\S]{0,240}readRoomInBackground/.test(overlay), "Condition crop preparation can still delay the red-button save confirmation.");
 // Rescanning a revisited room takes a fresh photo, which must read on save.
 // `revisiting` (edit-a-stored-frame) is cleared whenever a fresh frame is
 // frozen — a live capture or a phone-camera photo — so neither skips the read.

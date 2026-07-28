@@ -136,8 +136,9 @@ assert(cocoLabel("") === "Item" && cocoLabel(null) === "Item", "An unnamed class
 
 // A 413 reaches the Landlord as a generic failure with no way to act on it, so
 // the budget is enforced before the request is made.
-// Only hand-picked items ever carry a crop: a detected one is already visible
-// in the room frame, so sending it twice would be waste.
+// Every item the customer deliberately selected can carry a close-up. The room
+// frame supplies context; the crop identifies the exact surface whose limescale,
+// grease, stain or other condition is being judged.
 const bigCrop = `data:image/jpeg;base64,${"A".repeat(40_000)}`;
 const budgeted = roomReadingPayload({
   roomName: "Kitchen",
@@ -145,7 +146,7 @@ const budgeted = roomReadingPayload({
   items: [
     { id: "m1", kind: "manual", label: "", box: { x: 1, y: 1, width: 5, height: 5 }, score: 0.9, crop: bigCrop },
     { id: "m2", kind: "manual", label: "", box: { x: 2, y: 2, width: 5, height: 5 }, score: 0.2, crop: bigCrop },
-    { id: "d1", kind: "detected", label: "Sofa", box: { x: 3, y: 3, width: 5, height: 5 }, score: 0.8 }
+    { id: "d1", kind: "detected", label: "Sofa", box: { x: 3, y: 3, width: 5, height: 5 }, score: 0.8, conditionConfidence: 0.95, crop: bigCrop }
   ]
 }, { limitBytes: 260_000, safetyMargin: 1 });
 
@@ -155,6 +156,10 @@ assert(budgeted.bytes <= 260_000 && budgeted.withinLimit, `The request was allow
 assert(budgeted.body.image.length > 100_000, "The room frame was dropped to save bytes, taking the condition grade with it.");
 // The least confident hand-picked item goes first.
 assert(budgeted.droppedItemIds[0] === "m2", `Items were dropped in the wrong order: ${JSON.stringify(budgeted.droppedItemIds)}`);
+// A detected item can safely lose its crop under byte pressure because its local
+// label still identifies it. It must remain in the manifest.
+assert(budgeted.droppedCropIds.includes("d1"), `The redundant detected-item crop was not removed first: ${JSON.stringify(budgeted.droppedCropIds)}`);
+assert(budgeted.body.items.some((item) => item.id === "d1" && !item.crop), "Dropping a detected close-up removed the selected item itself.");
 // It leaves the request entirely rather than travelling without its close-up.
 // No coordinates are sent, so an unnamed id with no crop gives the reader
 // nothing to identify — in a kitchen holding a kettle, a toaster and an air
@@ -162,6 +167,19 @@ assert(budgeted.droppedItemIds[0] === "m2", `Items were dropped in the wrong ord
 assert(!budgeted.body.items.some((item) => item.id === "m2"), "A hand-picked item was sent with nothing to identify it by.");
 assert(budgeted.body.items.every((item) => item.kind !== "manual" || item.crop), "A hand-picked item was sent without its close-up.");
 assert(roomReadingLimitBytes === 900 * 1024, "The client budget no longer matches the route's body limit.");
+
+// When only one detected close-up can fit, protect the one whose condition is
+// uncertain. The already-certain surface is the least useful duplicate image.
+const conditionBudget = roomReadingPayload({
+  roomFrame: `data:image/jpeg;base64,${"R".repeat(100_000)}`,
+  items: [
+    { id: "certain", kind: "detected", label: "Tap", conditionConfidence: 0.96, crop: bigCrop },
+    { id: "uncertain", kind: "detected", label: "Shower screen", conditionConfidence: 0.18, crop: bigCrop }
+  ]
+}, { limitBytes: 150_000, safetyMargin: 1 });
+assert(conditionBudget.withinLimit, "The selected-item crop budget could not reduce a valid confirmation request.");
+assert(conditionBudget.droppedCropIds.includes("certain") && !conditionBudget.droppedCropIds.includes("uncertain"), "Byte pressure discarded the uncertain condition evidence before the already-certain crop.");
+assert(conditionBudget.body.items.some((item) => item.id === "uncertain" && item.crop), "The close-up needed to resolve an uncertain condition did not survive budgeting.");
 
 // An oversized room frame on its own must be reported, not silently sent.
 const impossible = roomReadingPayload({ roomFrame: `data:image/jpeg;base64,${"C".repeat(400_000)}`, items: [] }, { limitBytes: 100_000, safetyMargin: 1 });

@@ -512,7 +512,7 @@ export function openRoomScan() {
       // Selection. The frame is frozen before anything is chosen, so a crop can
       // never be cut from pixels the camera has since moved on from.
       frozen: false, frozenFrame: "", candidates: [], selectedIds: new Set(),
-      manualCount: 0, cropCanvas: null,
+      manualCount: 0,
       // On-device detection. Entirely local: the model is same-origin and no
       // frame it looks at leaves the phone.
       detector: null, detectorState: "idle", detecting: false,
@@ -1504,26 +1504,47 @@ export function openRoomScan() {
       refreshSelection();
     }
 
-    // Only a hand-picked box needs its own close-up. A detected one is already
-    // visible in the room frame, so paying to send it twice would be waste.
-    function cropFor(box) {
-      if (box.kind !== "manual") return "";
-      const rect = frameBoxToSourceRect(box, { canvasWidth: el.canvas.width, canvasHeight: el.canvas.height });
+    // The room frame gives context, but it cannot tell the reader WHICH tap,
+    // shower screen or appliance the customer selected when several are visible.
+    // Every deliberately selected object therefore gets a focused crop. This is
+    // condition evidence as much as identity evidence: limescale, mould and fine
+    // grease disappear first when a surface is only a small part of a room photo.
+    //
+    // `source` was decoded from the immutable room-frame data URL. A later room
+    // capture therefore cannot change these pixels.
+    async function cropFor(box, source) {
+      if (!source) return "";
+      const rect = frameBoxToSourceRect(box, { canvasWidth: source.width, canvasHeight: source.height });
       if (!rect) return "";
-      if (!state.cropCanvas) state.cropCanvas = document.createElement("canvas");
+      const canvas = document.createElement("canvas");
       const longEdge = Math.max(rect.sWidth, rect.sHeight);
       // Never upscale: enlarging a small crop costs bytes and adds nothing.
-      const scale = Math.min(1, 384 / longEdge);
-      state.cropCanvas.width = Math.max(1, Math.round(rect.sWidth * scale));
-      state.cropCanvas.height = Math.max(1, Math.round(rect.sHeight * scale));
-      state.cropCanvas.getContext("2d").drawImage(
-        el.canvas, rect.sx, rect.sy, rect.sWidth, rect.sHeight,
-        0, 0, state.cropCanvas.width, state.cropCanvas.height
+      const scale = Math.min(1, 512 / longEdge);
+      canvas.width = Math.max(1, Math.round(rect.sWidth * scale));
+      canvas.height = Math.max(1, Math.round(rect.sHeight * scale));
+      canvas.getContext("2d").drawImage(
+        source, rect.sx, rect.sy, rect.sWidth, rect.sHeight,
+        0, 0, canvas.width, canvas.height
       );
-      // A crop is a close-up of the one item whose condition is being judged, so
-      // it is the last place to save bytes. Small in absolute terms even at this
-      // quality, because it is a fraction of the frame.
-      return state.cropCanvas.toDataURL("image/jpeg", 0.88);
+      // Blob encoding yields instead of synchronously compressing every selected
+      // object on the same frame as the red-button press.
+      return encodeCanvasJpeg(canvas, 0.9);
+    }
+
+    function snapshotCropSource(frame) {
+      if (typeof frame !== "string" || !frame.startsWith("data:image/")) return Promise.resolve(null);
+      return new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => {
+          const snapshot = document.createElement("canvas");
+          snapshot.width = image.naturalWidth;
+          snapshot.height = image.naturalHeight;
+          snapshot.getContext("2d").drawImage(image, 0, 0);
+          resolve(snapshot);
+        };
+        image.onerror = () => resolve(null);
+        image.src = frame;
+      });
     }
 
     function askConsent() {
@@ -1697,11 +1718,6 @@ export function openRoomScan() {
       state.tracks = [];
       state.capturing = false;
       toHub();
-      // The room must be in the roster before the reader starts. The offline
-      // branch is synchronous and needs to mark this exact saved revision for a
-      // retry; starting it above the upsert left a fresh offline room stuck on
-      // "reading" forever because there was nothing to find yet.
-      if (mustRead) readRoomInBackground({ frame, roomName, chosen, spokenNote, readingRevision });
       // Saving a room used to be silent: the only sign it had worked was a new row
       // appearing on the hub. Confirm it explicitly, and say what the next room
       // would be so the walkthrough keeps its momentum.
@@ -1717,6 +1733,14 @@ export function openRoomScan() {
         const remaining = roomPresets.filter((preset) => !findRoom(state.rooms, preset));
         const upcoming = remaining.length ? ` Next: ${remaining[0].toLowerCase()}?` : "";
         toast(`${room.name} saved — ${items}${replacing ? " updated" : ""}.${upcoming}`);
+      }
+      // The room is already in the roster. Let the browser paint the saved hub
+      // and confirmation before any snapshot or crop work begins; condition
+      // analysis can follow without tying the red button to image processing.
+      if (mustRead) {
+        window.setTimeout(() => {
+          if (!state.closed) readRoomInBackground({ frame, roomName, chosen, spokenNote, readingRevision });
+        }, 0);
       }
     }
 
@@ -2341,15 +2365,20 @@ export function openRoomScan() {
         return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), condition: "", readingStatus: "manual" };
       }
 
-      // Crops are cut from the capture canvas up front, before any await. Once
-      // the network call is in flight a later capture could redraw that canvas,
-      // and a crop taken then would be of the wrong room; taking them now ties
-      // them to the frame that is on screen.
-      const selected = items.map((item) => ({
-        id: item.id, kind: item.kind, label: item.label,
-        box: { x: item.x, y: item.y, width: item.width, height: item.height },
-        score: item.score, crop: cropFor(item)
-      }));
+      // Decode the immutable frame rather than reading the shared capture canvas.
+      // The customer can already be scanning the next room while crops encode;
+      // this source can never become that later room.
+      const cropSource = items.length ? await snapshotCropSource(image) : null;
+      const selected = [];
+      for (const item of items) {
+        selected.push({
+          id: item.id, kind: item.kind, label: item.label,
+          box: { x: item.x, y: item.y, width: item.width, height: item.height },
+          score: item.score,
+          conditionConfidence: item.conditionConfidence,
+          crop: await cropFor(item, cropSource)
+        });
+      }
       // The route rejects anything over its body limit with a 413 the Landlord
       // could only ever read as a generic failure, so the budget is settled here
       // rather than discovered on the way back.
