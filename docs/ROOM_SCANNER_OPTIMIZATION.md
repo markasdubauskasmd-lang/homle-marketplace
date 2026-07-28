@@ -31,6 +31,7 @@ The existing scanner remains the single scanner used by the Landlord booking jou
 - Objects found while walking retain their per-item condition, structured soiling type and visible evidence after the red save action, including objects outside the final confirmation frame.
 - Same-label objects are grouped with the largest quantity proven simultaneously in one frame. Overlapping duplicate boxes are removed, later camera angles do not inflate the count, and genuinely separate items remain visible as labels such as `3 × Chair` through room save and the final scan handoff.
 - The quality gate now catches mixed shadow and glare that average brightness alone hides. It reuses the existing small pixel sample, adds no camera readback, and withholds the paid condition read until exposure is usable—protecting fine evidence such as limescale, grease and stains.
+- Sharpness is measured across both image axes. A crisp horizontal edge now scores the same as an equivalent vertical edge, so rotating the phone or framing a worktop no longer produces a false blur warning.
 - Hidden/backgrounded scans still release the camera, microphone and detector.
 
 ### More accurate and easier to correct

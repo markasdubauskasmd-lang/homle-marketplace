@@ -257,6 +257,7 @@ console.log("Continuous scan tests passed: frames are read only when the view ha
 
 /* ── The overlay actually walks the room ── */
 
+const model = readFileSync(new URL("../public/room-scan-model.js", import.meta.url), "utf8");
 const overlay = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
 const styles = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
 
@@ -422,6 +423,7 @@ assert.match(
   "The quality gate either ignores clipped shadows/highlights or lets movement advice pre-empt the lighting problem."
 );
 assert.equal((overlay.match(/getImageData\(/g) || []).length, 1, "Uneven exposure added another synchronous camera readback.");
+assert.match(model, /const previousRow = new Float32Array\(columns\);[\s\S]{0,2000}Math\.abs\(luma - previousRow\[x\]\)/, "Frame sharpness still depends on edge direction because vertical neighbours are not measured.");
 
 /* ── Review-caught regressions, pinned ── */
 
