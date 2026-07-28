@@ -25,6 +25,7 @@ import {
   correctInventoryItem,
   detectionMinimumScore,
   joinSpokenText,
+  preferredSpeechLanguage,
   roomReadingPayload,
   mergeItemReadings,
   trackDetections,
@@ -2734,7 +2735,10 @@ export function openRoomScan() {
       const recognition = new Recognition();
       const generation = state.voiceGeneration + 1;
       state.voiceGeneration = generation;
-      recognition.lang = document.documentElement.lang || "en-GB";
+      recognition.lang = preferredSpeechLanguage(
+        document.documentElement.lang,
+        navigator.languages || navigator.language
+      );
       recognition.continuous = true;
       recognition.interimResults = true;
       // The note as it stood when listening started. Everything this session

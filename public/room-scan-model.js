@@ -324,6 +324,41 @@ export function joinSpokenText(existing, spoken) {
   return `${before} ${after}`;
 }
 
+function regionalEnglishLocale(value) {
+  const normalised = String(value || "").trim().replaceAll("_", "-");
+  // A bare `en` does not identify an accent model. Keep looking so the scanner
+  // can use a regional phone locale or its explicit UK fallback.
+  if (!/^en(?:-[a-z0-9]{2,8})+$/i.test(normalised)) return "";
+  try {
+    const [canonical] = typeof Intl?.getCanonicalLocales === "function"
+      ? Intl.getCanonicalLocales(normalised)
+      : [normalised];
+    return String(canonical || "").toLowerCase().startsWith("en-") ? canonical : "";
+  } catch {
+    return "";
+  }
+}
+
+// Web Speech uses `lang` to choose its acoustic/language model. The page's
+// `en-GB` describes Homle's interface, not necessarily the speaker's accent.
+// Prefer the phone's first regional English setting (en-US, en-IN, en-AU, …),
+// then the page locale, while preserving UK English as the deterministic
+// fallback. The helper also accepts Speech API-era indexed DOM lists.
+export function preferredSpeechLanguage(pageLanguage, browserLanguages) {
+  const candidates = [];
+  if (typeof browserLanguages === "string") candidates.push(browserLanguages);
+  else if (Array.isArray(browserLanguages)) candidates.push(...browserLanguages);
+  else if (browserLanguages && Number.isFinite(Number(browserLanguages.length))) {
+    const length = Math.max(0, Math.min(32, Number(browserLanguages.length)));
+    for (let index = 0; index < length; index += 1) candidates.push(browserLanguages[index]);
+  }
+  for (const candidate of candidates) {
+    const locale = regionalEnglishLocale(candidate);
+    if (locale) return locale;
+  }
+  return regionalEnglishLocale(pageLanguage) || "en-GB";
+}
+
 /* ── Which detections are plausible in this room ────────────────────────── */
 
 // COCO-SSD has eighty classes and no idea which room it is looking at. On a cream
