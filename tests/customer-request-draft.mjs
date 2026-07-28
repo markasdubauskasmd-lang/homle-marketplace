@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { clearCustomerRequestDraft, customerRequestDraftFingerprint, customerRequestDraftLifetimeMs, readCustomerRequestDraft, saveCustomerRequestDraft } from "../public/customer-request-draft.js";
 import { pilotServiceSuggestionState, suggestedPilotService } from "../public/pilot-request-model.js";
 
-const root = fileURLToPath(new URL("..", import.meta.url));
 const values = new Map();
 const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), removeItem: (key) => values.delete(key) };
 const now = Date.UTC(2026, 6, 15, 22, 0, 0);
@@ -67,22 +63,4 @@ storage.setItem("tidewayCustomerRequestDraftV1", "broken-json");
 assert.equal(readCustomerRequestDraft(storage, now), null);
 assert.equal(values.size, 0, "Corrupt drafts must be removed.");
 
-const [html, app, privacy] = await Promise.all([
-  readFile(path.join(root, "public", "index.html"), "utf8"),
-  readFile(path.join(root, "public", "app.js"), "utf8"),
-  readFile(path.join(root, "public", "privacy.html"), "utf8")
-]);
-assert(html.includes("data-customer-draft-status") && html.includes("Access codes and privacy consent are never stored"));
-assert(html.includes("<option>Regular home clean</option>"), "The working customer request omitted ordinary household cleaning.");
-assert(html.includes('type="hidden" name="customerType" value="Cleaning customer"') && html.includes('type="hidden" name="accessNotes" value="Confirm privately after booking"') && !html.includes("I am a <select") && !html.includes("General access approach"), "The public request still asks for premature customer classification or access arrangements.");
-assert(html.includes("Add phone or organisation") && !/name="phone"[^>]*required/.test(html.match(/data-guided-kind="customer"[\s\S]*?<\/form>/)?.[0] || "") && html.includes("We use this for your private scan and request updates."), "The customer request still requires secondary contact details or does not explain its required email.");
-assert(html.includes("Add recurring or extra details") && html.indexOf("Add recurring or extra details") < html.indexOf('name="frequency"') && html.indexOf("Add recurring or extra details") < html.indexOf('name="details"'), "Optional recurrence and free-text details still compete with the primary timing decisions.");
-assert(app.includes("readCustomerRequestDraft") && app.includes("clearCustomerRequestDraft(window.sessionStorage)"));
-assert(app.includes("containsSensitiveAccessDetails") && app.includes("accessDetailsSafetyMessage"));
-assert(app.includes("pilotServiceSuggestionState({ propertyType: propertyType.value") && app.includes("if (event.isTrusted) customerSelected = true") && app.includes('new Event("input"') && html.includes("data-service-suggestion"), "The public request does not suggest a safe service or preserve a restored/manual choice.");
-assert(app.includes("customerDraftControls.get(form) || cleanerDraftControls.get(form)") && app.includes("draftControls?.rememberSubmission(pending.key)"));
-assert(app.includes('["customer", "cleaner"].includes(form.dataset.guidedKind)') && app.includes("AbortController"));
-assert(!app.includes('form.elements.namedItem("consent").checked = true'));
-assert(privacy.includes("An incomplete cleaning request may keep"));
-
-console.log("customer request draft tests passed");
+console.log("customer request draft module tests passed");

@@ -12,8 +12,8 @@
 
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-3";
-import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-2";
+import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-7";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-6";
 
 export function element(name, className, text) {
   const node = document.createElement(name);

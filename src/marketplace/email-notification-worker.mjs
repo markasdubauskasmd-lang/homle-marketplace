@@ -66,7 +66,7 @@ function notificationActionPath(record) {
   if (record.eventType === "new-booking-request") return "/cleaner/dashboard";
   if (record.eventType === "cleaner-declined") return "/landlord/dashboard";
   if (record.eventType === "cleaner-invitation-expired") return record.payload?.matchingReopened === true ? "/landlord/dashboard" : "/cleaner/dashboard";
-  if (["payment-window-opened", "payment-action-required"].includes(record.eventType)) return `/booking-payment?bookingId=${record.bookingId.toLowerCase()}`;
+  if (["payment-window-opened", "payment-action-required"].includes(record.eventType)) return "/landlord/dashboard";
   return `/bookings/${record.bookingId.toLowerCase()}`;
 }
 

@@ -1,6 +1,10 @@
-import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-3";
+import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-7";
 import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260728-1";
 import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260728-1";
+import { setupBusinessDetails } from "./cleaner-business-details.js?v=20260728-1";
+import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=20260728-1";
+import { setupBackgroundChecks } from "./cleaner-background-checks.js?v=20260728-1";
+import { setupWorkAreas } from "./cleaner-work-areas.js?v=20260728-1";
 
 function stepIcon(name) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -22,6 +26,22 @@ function stepIcon(name) {
 createCleanerPage("reg", async (context) => {
   if (location.pathname === "/cleaner/personal-details") {
     await setupPersonalDetails(context);
+    return;
+  }
+  if (location.pathname === "/cleaner/business-details") {
+    await setupBusinessDetails(context);
+    return;
+  }
+  if (location.pathname === "/cleaner/identity-verification") {
+    await setupIdentityVerification(context);
+    return;
+  }
+  if (location.pathname === "/cleaner/background-checks") {
+    await setupBackgroundChecks(context);
+    return;
+  }
+  if (location.pathname === "/cleaner/work-areas") {
+    await setupWorkAreas(context);
     return;
   }
   const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([

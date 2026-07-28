@@ -14,12 +14,12 @@
 export const onboardingSteps = [
   { key: "personal", title: "Personal details", icon: "user", sidebar: true, href: "/cleaner/personal-details",
     derive: (d) => Boolean(d.account?.displayName && d.account?.email) },
-  { key: "identity", title: "Identity verification", icon: "id", sidebar: true, href: "/cleaner/registration",
+  { key: "identity", title: "Identity verification", icon: "id", sidebar: true, href: "/cleaner/identity-verification",
     derive: (d) => d.profile?.identityCheckStatus === "verified" },
   { key: "rtw", title: "Right to work", icon: "folder", sidebar: false, href: "", derive: null },
-  { key: "dbs", title: "Background checks (DBS)", icon: "shield", sidebar: true, href: "/cleaner/registration",
+  { key: "dbs", title: "Background checks (DBS)", icon: "shield", sidebar: true, href: "/cleaner/background-checks",
     derive: (d) => d.profile?.backgroundCheckStatus === "verified" },
-  { key: "business", title: "Business details", icon: "brief", sidebar: true, href: "", derive: null },
+  { key: "business", title: "Business details", icon: "brief", sidebar: true, href: "/cleaner/business-details", derive: null },
   { key: "tax", title: "Tax & self-employment", icon: "folder", sidebar: false, href: "", derive: null },
   { key: "experience", title: "Cleaning experience", icon: "star", sidebar: true, href: "/cleaner/registration",
     derive: (d) => Number.isFinite(d.profile?.yearsExperience) },
@@ -30,9 +30,9 @@ export const onboardingSteps = [
   { key: "equipment", title: "Equipment", icon: "box", sidebar: false, href: "/cleaner/registration",
     derive: (d) => (d.profile?.equipmentSupplied?.length || 0) + (d.profile?.productsSupplied?.length || 0) > 0 },
   { key: "transport", title: "Transport", icon: "truck", sidebar: false, href: "", derive: null },
-  { key: "availability", title: "Availability", icon: "cal", sidebar: false, href: "/cleaner/availability",
+  { key: "availability", title: "Availability", icon: "cal", sidebar: false, href: "/cleaner/dashboard",
     derive: (d) => (d.availabilityCount || 0) > 0 },
-  { key: "areas", title: "Work areas", icon: "pin", sidebar: true, href: "/cleaner/availability",
+  { key: "areas", title: "Work areas", icon: "pin", sidebar: true, href: "/cleaner/work-areas",
     derive: (d) => (d.profile?.serviceAreas?.length || 0) > 0 },
   { key: "languages", title: "Languages", icon: "lang", sidebar: false, href: "/cleaner/registration",
     derive: (d) => (d.profile?.languages?.length || 0) > 0 },
@@ -54,15 +54,15 @@ export const onboardingSteps = [
  */
 export const onboardingNav = [
   { label: "Personal Details", icon: "user", step: "personal", href: "/cleaner/personal-details" },
-  { label: "Business Details", icon: "brief", step: "business", href: "" },
-  { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/registration" },
-  { label: "Background Checks", icon: "shield", step: "dbs", href: "/cleaner/registration" },
-  { label: "Work Areas", icon: "pin", step: "areas", href: "/cleaner/availability" },
+  { label: "Business Details", icon: "brief", step: "business", href: "/cleaner/business-details" },
+  { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/identity-verification" },
+  { label: "Background Checks", icon: "shield", step: "dbs", href: "/cleaner/background-checks" },
+  { label: "Work Areas", icon: "pin", step: "areas", href: "/cleaner/work-areas" },
   { label: "Experience", icon: "star", step: "experience", href: "/cleaner/registration" },
   { label: "References", icon: "users", step: "references", href: "" },
   { label: "Insurance", icon: "umb", step: "insurance", href: "" },
   { label: "Banking", icon: "card", step: "banking", href: "/cleaner/payouts" },
-  { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/availability" },
+  { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/dashboard" },
   { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/registration" },
   { label: "Documents", icon: "folder", step: "", href: "" },
   { label: "Training", icon: "award", step: "training", href: "" },
@@ -72,7 +72,7 @@ export const onboardingNav = [
 export const accountNav = [
   { label: "Messages", icon: "chat", href: "/notifications", notificationHook: true },
   { label: "Public profile", icon: "id", href: "/cleaner/profile/preview" },
-  { label: "Public directory", icon: "dash", href: "/cleaners" }
+  { label: "Dashboard", icon: "dash", href: "/cleaner/dashboard" }
 ];
 
 // Icon paths transcribed from the design's ICONS table.

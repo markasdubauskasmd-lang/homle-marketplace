@@ -153,10 +153,14 @@
           </section>
         </section>
 
-        <div class="ae-or" data-pilot-divider><span>or continue without an account</span></div>
+        <!-- The design called these "continue without an account", but the public
+             /request and /join journeys were retired in #146 — every route into the
+             product is account-first now. So these are the two private workspaces,
+             which is what the retired links became. -->
+        <div class="ae-or" data-pilot-divider><span>or go straight to a workspace</span></div>
         <div class="ae-alt" data-pilot-actions>
-          <a href="/request"><span class="ae-ico ae-ico-mint" aria-hidden="true">✦</span><div><strong>Request a clean</strong><small>Scope every room in three short steps.</small></div></a>
-          <a href="/join"><span class="ae-ico ae-ico-citrus" aria-hidden="true">✓</span><div><strong>Work as a cleaner</strong><small>Choose the areas and times that suit you.</small></div></a>
+          <a href="/landlord/dashboard"><span class="ae-ico ae-ico-mint" aria-hidden="true">✦</span><div><strong>Open Landlord dashboard</strong><small>Add a property, scan rooms and follow a booking.</small></div></a>
+          <a href="/cleaner/dashboard"><span class="ae-ico ae-ico-citrus" aria-hidden="true">✓</span><div><strong>Open Cleaner dashboard</strong><small>Choose the areas and times that suit you.</small></div></a>
         </div>
 
         <p class="ae-fine">Homle never asks for a payment card on this page, and no cleaner is promised here.</p>

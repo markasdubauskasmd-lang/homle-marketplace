@@ -49,7 +49,7 @@ const csrfSource = read("public/session-csrf.js");
 assert.match(csrfSource, /sessionStorage\.getItem\("tideway_csrf"\)/, "The shared CSRF read no longer reads the session token, so every protected mutation would be sent without one.");
 assert.match(csrfSource, /catch \{ return ""; \}/, "The shared CSRF read lost its catch. `sessionStorage` throws on access where the browser blocks storage, which would take down the action rather than let the server reject it cleanly.");
 
-const csrfConsumers = ["active-job", "admin-cases", "admin-payments", "auth-entry", "booking-payment", "cleaner-availability", "cleaner-dashboard", "landlord-dashboard", "room-scan-overlay"];
+const csrfConsumers = ["active-job", "admin-cases", "admin-payments", "auth-entry", "cleaner-dashboard", "landlord-dashboard", "room-scan-overlay"];
 for (const name of csrfConsumers) {
   const source = read(`public/${name}.js`);
   assert.ok(source.includes('from "./session-csrf.js"'), `${name} no longer reads the CSRF token through public/session-csrf.js, so its protected mutations may be sent without a token.`);
@@ -62,8 +62,8 @@ for (const name of csrfConsumers) {
 // from this list keep their own request on purpose: they detect offline state, word
 // failures differently for a mutation than a read, and for payments set an `uncertain`
 // flag meaning a step may already have been prepared.
-const delegating = ["account-menu", "active-job", "admin-cases", "admin-verifications", "cleaner-availability", "cleaner-payouts", "notifications"];
-const ownRequest = ["admin-bookings", "admin-payments", "booking-payment", "cleaner-dashboard", "landlord-dashboard", "landlord-journey"];
+const delegating = ["account-menu", "active-job", "admin-cases", "admin-verifications", "cleaner-payouts", "notifications"];
+const ownRequest = ["admin-bookings", "admin-payments", "cleaner-dashboard", "landlord-dashboard", "landlord-journey"];
 
 for (const name of delegating) {
   const source = read(`public/${name}.js`);

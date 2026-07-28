@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-5">
-  <script src="/cleaner-registration.js?v=20260728-2" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-9">
+  <script src="/cleaner-registration.js?v=20260728-6" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -90,7 +90,7 @@
             <span class="hc-nav-chevron" aria-hidden="true">▾</span>
           </summary>
           <div>
-            <a class="hc-nav-item" href="/cleaner/availability">
+            <a class="hc-nav-item" href="/cleaner/dashboard">
               <span class="hc-nav-label">Availability</span>
             </a>
             <a class="hc-nav-item" href="/notifications" data-notification-link>
@@ -102,7 +102,7 @@
               <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v13H3zM7 11a2 2 0 1 0 4 0 2 2 0 0 0-4 0M6 15.5c.7-1.3 1.8-2 3-2s2.3.7 3 2M15 10h4M15 13h3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
               <span class="hc-nav-label">Public profile</span>
             </a>
-            <a class="hc-nav-item" href="/cleaners" data-cleaner-public-profile hidden>
+            <a class="hc-nav-item" href="/cleaner/dashboard" data-cleaner-public-profile hidden>
               <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
               <span class="hc-nav-label">Public directory</span>
             </a>
@@ -193,6 +193,46 @@
         </div>
 
           <div class="hc-personal-layout" data-personal-details hidden>
+            <header class="hc-business-topbar" data-identity-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 2 of 19 &mdash; Identity verification</strong>
+                <div class="hc-business-progress-track hc-identity-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="2"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-background-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 4 of 19 &mdash; Background checks (DBS)</strong>
+                <div class="hc-business-progress-track hc-background-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="4"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-work-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 14 of 19 &mdash; Work areas</strong>
+                <div class="hc-business-progress-track hc-work-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="14"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-business-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 5 of 19 &mdash; Business details</strong>
+                <div class="hc-business-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="5"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
             <ol class="hc-personal-rail" aria-label="Cleaner registration steps">
               <li class="hc-personal-rail-step is-current" data-personal-step-key="personal"><span>1</span><strong>Personal details</strong></li>
               <li class="hc-personal-rail-step" data-personal-step-key="identity"><span>2</span><strong>Identity verification</strong></li>
@@ -215,7 +255,7 @@
               <li class="hc-personal-rail-step"><span>19</span><strong>Review &amp; submit</strong></li>
             </ol>
 
-            <section class="hc-personal-card" aria-labelledby="cleaner-personal-title">
+            <section class="hc-personal-card" data-personal-card aria-labelledby="cleaner-personal-title">
               <header class="hc-personal-head">
                 <h1 id="cleaner-personal-title">Personal details</h1>
                 <p>Tell us who you are and how to reach you. This is the name clients will see once you go live.</p>
@@ -282,6 +322,216 @@
                 <div class="hc-personal-actions">
                   <p data-personal-save-status role="status" aria-live="polite">Progress is saved for this browser tab as you type.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">↗</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-business-card" data-business-details hidden aria-labelledby="cleaner-business-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-business-title">Business details</h1>
+                <p>How you’ll operate. Solo cleaners need no company paperwork.</p>
+              </header>
+
+              <form class="hc-business-form" data-business-form>
+                <fieldset class="hc-business-section">
+                  <legend>How you’ll work</legend>
+                  <p class="hc-business-question">Are you joining as…</p>
+                  <div class="hc-business-choices">
+                    <label><input type="radio" name="businessType" value="solo" checked><span>Solo cleaner</span></label>
+                    <label><input type="radio" name="businessType" value="business"><span>Cleaning business</span></label>
+                    <label><input type="radio" name="businessType" value="limited"><span>Limited company</span></label>
+                    <label><input type="radio" name="businessType" value="partnership"><span>Partnership</span></label>
+                  </div>
+                </fieldset>
+
+                <section class="hc-business-section" aria-labelledby="cleaner-business-guidance-title">
+                  <h2 id="cleaner-business-guidance-title">Good to know</h2>
+                  <p class="hc-business-note" data-business-guidance>Joining solo — no company paperwork needed. You can switch to a business account later without re-onboarding.</p>
+                </section>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/personal-details">&larr; Back</a>
+                  <p data-business-save-status role="status" aria-live="polite">Progress is saved for this browser tab as you choose.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-identity-card" data-identity-verification hidden aria-labelledby="cleaner-identity-title">
+              <p class="hc-identity-status" data-identity-status role="status">Checking your verification status…</p>
+              <header class="hc-personal-head">
+                <h1 id="cleaner-identity-title">Identity verification</h1>
+                <p>Government-issued photo ID. Homle verifies documents through an approved secure process.</p>
+              </header>
+
+              <form class="hc-personal-form hc-identity-form" data-identity-form>
+                <fieldset class="hc-identity-section">
+                  <legend>Documents</legend>
+                  <div class="hc-identity-documents">
+                    <label class="hc-identity-document">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Passport photo page</strong><small>PDF, JPEG or PNG · max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="passportPhoto" accept="application/pdf,image/jpeg,image/png" data-identity-file>
+                    </label>
+                    <label class="hc-identity-document">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Driving licence front</strong><small>JPEG or PNG · max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="licenceFront" accept="image/jpeg,image/png" data-identity-file>
+                    </label>
+                    <label class="hc-identity-document">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Driving licence back</strong><small>JPEG or PNG · max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="licenceBack" accept="image/jpeg,image/png" data-identity-file>
+                    </label>
+                    <label class="hc-identity-document hc-identity-document-optional">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Birth certificate (optional)</strong><small>PDF, JPEG or PNG · max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="birthCertificate" accept="application/pdf,image/jpeg,image/png" data-identity-file>
+                    </label>
+                    <label class="hc-identity-document hc-identity-document-optional">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Visa / residence permit (if applicable)</strong><small>PDF, JPEG or PNG · max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="residencePermit" accept="application/pdf,image/jpeg,image/png" data-identity-file>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-identity-section">
+                  <legend>Document details</legend>
+                  <div class="hc-personal-grid hc-personal-grid-four">
+                    <label><span>Passport number</span><input name="passportNumber" autocomplete="off" spellcheck="false" maxlength="32"></label>
+                    <label><span>Passport expiry</span><input name="passportExpiry" type="date" autocomplete="off"></label>
+                    <label><span>Driving licence number</span><input name="drivingLicenceNumber" autocomplete="off" spellcheck="false" maxlength="32"></label>
+                    <label><span>Licence expiry</span><input name="licenceExpiry" type="date" autocomplete="off"></label>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/business-details">&larr; Back</a>
+                  <p data-identity-save-status role="status" aria-live="polite">Sensitive documents and numbers are not stored in this browser.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-identity-card hc-background-card" data-background-checks hidden aria-labelledby="cleaner-background-title">
+              <p class="hc-identity-status" data-background-status role="status">Checking your background-check status&hellip;</p>
+              <header class="hc-personal-head">
+                <h1 id="cleaner-background-title">Background checks (DBS)</h1>
+                <p>Your criminal-record check. A DBS can make you eligible for more jobs, including schools and care settings.</p>
+              </header>
+
+              <form class="hc-personal-form hc-identity-form hc-background-form" data-background-form>
+                <fieldset class="hc-business-section">
+                  <legend>Current DBS status</legend>
+                  <p class="hc-business-question">Which check do you hold today?</p>
+                  <div class="hc-business-choices hc-background-choices">
+                    <label><input type="radio" name="dbsLevel" value="none"><span>No DBS</span></label>
+                    <label><input type="radio" name="dbsLevel" value="basic"><span>Basic DBS</span></label>
+                    <label><input type="radio" name="dbsLevel" value="standard"><span>Standard DBS</span></label>
+                    <label><input type="radio" name="dbsLevel" value="enhanced"><span>Enhanced DBS</span></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-identity-section">
+                  <legend>Certificate</legend>
+                  <div class="hc-background-certificate">
+                    <label class="hc-identity-document">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>DBS certificate</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="dbsCertificate" accept="application/pdf,image/jpeg,image/png" data-background-file>
+                    </label>
+                    <label><span>DBS certificate number</span><input name="dbsCertificateNumber" autocomplete="off" spellcheck="false" maxlength="32"></label>
+                    <div class="hc-background-dates">
+                      <label><span>Issue date</span><input name="dbsIssueDate" type="date" autocomplete="off"></label>
+                      <label><span>Expiry date</span><input name="dbsExpiryDate" type="date" autocomplete="off"></label>
+                    </div>
+                    <p class="hc-business-note">Update Service membership cannot be verified in this preview. Homle will only show it after a secure provider confirms it.</p>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-identity-section">
+                  <legend>Consent</legend>
+                  <label class="hc-background-consent">
+                    <input type="checkbox" name="backgroundConsent">
+                    <span>I authorise Homle to carry out background checks and verify my documents with the issuing bodies.</span>
+                  </label>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/identity-verification">&larr; Back</a>
+                  <p data-background-save-status role="status" aria-live="polite">Sensitive DBS documents and details are not stored in this browser.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-work-card" data-work-areas hidden aria-labelledby="cleaner-work-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-work-title">Work areas</h1>
+                <p>Choose the outward postcodes where you can genuinely accept work.</p>
+              </header>
+
+              <form class="hc-work-form" data-work-form>
+                <div class="hc-work-builder">
+                  <section class="hc-work-panel" aria-labelledby="cleaner-work-choose-title">
+                    <h2 id="cleaner-work-choose-title">Choose where you work</h2>
+                    <p>Search an outward postcode, choose how it should be treated, then add it to the preview.</p>
+                    <div class="hc-work-search">
+                      <label class="hc-sr-only" for="cleaner-work-search">Outward postcode</label>
+                      <input id="cleaner-work-search" name="outwardPostcode" autocomplete="postal-code" maxlength="4" placeholder="e.g. LS1 or SW1A" data-work-search>
+                      <button type="button" data-work-add>Add</button>
+                    </div>
+                    <div class="hc-business-choices hc-work-role-choices" aria-label="Area treatment">
+                      <label><input type="radio" name="workAreaRole" value="primary" checked><span>Primary</span></label>
+                      <label><input type="radio" name="workAreaRole" value="secondary"><span>Secondary</span></label>
+                      <label><input type="radio" name="workAreaRole" value="excluded"><span>Excluded</span></label>
+                    </div>
+                    <p class="hc-work-role-note">Primary areas can be saved for matching. Secondary and excluded labels are a design preview until those rules are supported.</p>
+
+                    <section class="hc-work-base" aria-labelledby="cleaner-work-base-title">
+                      <div><strong id="cleaner-work-base-title">Profile base</strong><span data-work-base>Not set</span></div>
+                      <label><span>Maximum travel distance</span><output data-work-radius-output>15 miles</output><input type="range" name="travelRadiusMiles" min="1" max="50" value="15" data-work-radius></label>
+                    </section>
+
+                    <section class="hc-work-list-section" aria-labelledby="cleaner-work-list-title">
+                      <h2 id="cleaner-work-list-title">Your service areas</h2>
+                      <div class="hc-work-list" data-work-list></div>
+                      <p class="hc-work-empty" data-work-empty>No service areas added yet.</p>
+                    </section>
+                  </section>
+
+                  <section class="hc-work-map-shell" aria-label="Work-area map preview">
+                    <div class="hc-work-map-controls" aria-label="Map zoom controls">
+                      <button type="button" data-work-zoom-in aria-label="Zoom map preview in">+</button>
+                      <button type="button" data-work-zoom-out aria-label="Zoom map preview out">&minus;</button>
+                    </div>
+                    <svg class="hc-work-map" viewBox="0 0 600 680" role="img" aria-labelledby="cleaner-work-map-title cleaner-work-map-desc">
+                      <title id="cleaner-work-map-title">Service-area postcode preview</title>
+                      <desc id="cleaner-work-map-desc">A private schematic preview of the postcode coordinates stored by Homle, not a street map.</desc>
+                      <rect class="hc-work-map-land" x="0" y="0" width="600" height="680" rx="4"></rect>
+                      <path class="hc-work-map-water" d="M0 120C90 84 128 142 188 110s103-78 171-43 117 20 241-37V0H0zM0 605c104-37 152 9 224-27s130-28 191 12 109 37 185 10v80H0z"></path>
+                      <path class="hc-work-map-road major" d="M42 598C116 522 143 438 205 381s130-86 177-166S462 79 563 35"></path>
+                      <path class="hc-work-map-road" d="M11 445c111 1 162-64 259-45s167 85 319 37M70 182c92 62 184 55 265 18s139-36 226 35M155 644c23-96 94-173 162-216s105-104 120-196"></path>
+                      <path class="hc-work-map-boundary" d="M100 70l75 80-38 78 86 60-35 104 98 49-33 106 83 70M414 48l-41 91 64 72-56 79 65 86-46 76 67 95"></path>
+                      <g data-work-map-markers></g>
+                    </svg>
+                    <p>Homle postcode preview &middot; no third-party map requests</p>
+                  </section>
+                </div>
+
+                <p class="hc-work-guidance"><strong>Primary areas</strong> drive matching today. Secondary and excluded categories will not be saved until Homle can enforce those rules accurately.</p>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/background-checks">&larr; Back</a>
+                  <p data-work-save-status role="status" aria-live="polite">Saved areas use outward postcodes only; exact addresses are never shown here.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
             </section>

@@ -29,16 +29,16 @@ export function accountReadyPresentation(account, workspaceReady = false) {
     ? {
         role,
         title: "Your Cleaner profile is created.",
-        copy: "Your secure Cleaner account and role are saved for your next sign-in. Professional profile tools will open after Homle's private booking services pass staging. Today, you can submit or update a separate Cleaner pilot application.",
-        actionHref: "/join",
-        actionLabel: "Apply for the Cleaner pilot"
+        copy: "Your secure Cleaner account and role are saved for your next sign-in. Open the private Cleaner dashboard to continue setup and review service readiness.",
+        actionHref: "/cleaner/dashboard",
+        actionLabel: "Open Cleaner dashboard"
       }
     : {
         role,
         title: "Your Landlord profile is created.",
-        copy: "Your secure Landlord account and role are saved for your next sign-in. Property and booking tools will open after Homle's private booking services pass staging. Today, you can prepare a separate private-pilot cleaning request and room scan.",
-        actionHref: "/request",
-        actionLabel: "Prepare a cleaning request"
+        copy: "Your secure Landlord account and role are saved for your next sign-in. Open the private Landlord dashboard to continue property setup and check booking readiness.",
+        actionHref: "/landlord/dashboard",
+        actionLabel: "Open Landlord dashboard"
       };
 }
 
