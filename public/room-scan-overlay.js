@@ -11,6 +11,7 @@ import {
   signatureDistance,
   movementAdvice,
   shouldCaptureKeyframe,
+  roomCoverageProgress,
   walkingReadIsBlocked,
   mergeRoomInventory,
   mergeSavedDetections,
@@ -86,7 +87,11 @@ const markup = `
     <div class="scan-room-lbl"><span class="rec-dot" aria-hidden="true"></span><span data-room-label>Kitchen</span></div>
     <button class="scan-count" type="button" data-rooms-open><span data-shot-count>0</span> rooms</button>
   </div>
-  <p class="scan-progress" data-live-progress role="status" aria-live="polite"><b data-live-progress-step>1 of 3</b><span data-live-progress-copy>Choose a room</span></p>
+  <p class="scan-progress" data-live-progress role="status" aria-live="polite">
+    <b data-live-progress-step>1 of 3</b>
+    <span data-live-progress-copy>Choose a room</span>
+    <span class="scan-progress-meter" data-live-progress-meter role="progressbar" aria-label="Room coverage" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0" hidden><i aria-hidden="true"></i></span>
+  </p>
 
   <section class="voice" data-voice-panel aria-label="Room note" hidden>
     <div class="voice-head">
@@ -416,6 +421,7 @@ export function openRoomScan() {
       mesh: $("[data-mesh]"), detections: $("[data-detection-layer]"), detectorState: $("[data-detector-state]"), flash: $("[data-flash]"),
       still: $("[data-still]"), roomLabel: $("[data-room-label]"), shotCount: $("[data-shot-count]"), hint: $("[data-hint]"),
       liveProgress: $("[data-live-progress]"), liveProgressStep: $("[data-live-progress-step]"), liveProgressCopy: $("[data-live-progress-copy]"),
+      liveProgressMeter: $("[data-live-progress-meter]"),
       mic: $("[data-mic]"), shutter: $("[data-shutter]"),
       found: $("[data-found]"), foundList: $("[data-found-list]"), foundCount: $("[data-found-count]"),
       foundNoun: $("[data-found-noun]"), foundBusy: $("[data-found-busy]"),
@@ -816,12 +822,26 @@ export function openRoomScan() {
         return;
       }
       if (state.capturing) {
+        el.liveProgressMeter.hidden = true;
         el.liveProgressStep.textContent = "Saving";
         el.liveProgressCopy.textContent = `Reading ${state.currentRoom}`;
       } else if (state.frozen) {
+        el.liveProgressMeter.hidden = true;
         el.liveProgressStep.textContent = "3 of 3";
         el.liveProgressCopy.textContent = `${selectionCount()} selected — check and confirm`;
+      } else if (state.readingAllowed && state.visionAvailable) {
+        const budget = keyframeBudget(state.currentRoom);
+        const progress = roomCoverageProgress(budget.capturedCount);
+        const busy = state.keyframeActiveRooms.has(transcriptKey(state.currentRoom));
+        el.liveProgressMeter.hidden = false;
+        el.liveProgressMeter.dataset.level = String(progress.count);
+        el.liveProgressMeter.setAttribute("aria-valuemax", String(progress.total));
+        el.liveProgressMeter.setAttribute("aria-valuenow", String(progress.count));
+        el.liveProgressMeter.setAttribute("aria-valuetext", `${progress.count} of ${progress.total} distinct room views`);
+        el.liveProgressStep.textContent = `${progress.count} of ${progress.total} views`;
+        el.liveProgressCopy.textContent = busy ? "Checking this view…" : progress.copy;
       } else {
+        el.liveProgressMeter.hidden = true;
         el.liveProgressStep.textContent = "2 of 3";
         el.liveProgressCopy.textContent = `Capture ${state.currentRoom}`;
       }
@@ -1488,6 +1508,7 @@ export function openRoomScan() {
           el.consentAllow.removeEventListener("click", allow);
           el.consentDecline.removeEventListener("click", decline);
           state.readingAllowed = allowed;
+          renderScanProgress();
           if (!allowed) toast("Photos stay on your phone. You'll write the checklist yourself.");
           settleConsent(allowed);
         };
@@ -1894,6 +1915,7 @@ export function openRoomScan() {
       state.keyframeActiveRooms.add(roomKey);
       const generation = budget.generation;
       renderInventory();
+      renderScanProgress();
       let image = "";
       try {
         // Its own canvas. `el.canvas` belongs to the shutter path, and a keyframe
@@ -1915,7 +1937,10 @@ export function openRoomScan() {
       } catch {
         state.diagnostics.keyframeEncodeErrors += 1;
         state.keyframeActiveRooms.delete(roomKey);
-        if (!state.closed) renderInventory();
+        if (!state.closed) {
+          renderInventory();
+          renderScanProgress();
+        }
         return;
       }
       if (!image
@@ -1924,7 +1949,10 @@ export function openRoomScan() {
         || state.networkOffline
         || (state.frozen && transcriptKey(state.currentRoom) === roomKey)) {
         state.keyframeActiveRooms.delete(roomKey);
-        if (!state.closed) renderInventory();
+        if (!state.closed) {
+          renderInventory();
+          renderScanProgress();
+        }
         return;
       }
 
@@ -1935,6 +1963,7 @@ export function openRoomScan() {
       // timeout or a 5xx can arrive long after the provider has already been
       // billed, so a failed response does not mean a free one.
       budget.capturedCount += 1;
+      renderScanProgress();
 
       // The one caller that is NOT a confirmation. Named explicitly rather than
       // relying on the default, so adding a caller cannot quietly put a walking
@@ -1978,7 +2007,10 @@ export function openRoomScan() {
         })
         .finally(() => {
           state.keyframeActiveRooms.delete(roomKey);
-          if (!state.closed) renderInventory();
+          if (!state.closed) {
+            renderInventory();
+            renderScanProgress();
+          }
         });
     }
 
