@@ -27,6 +27,7 @@ import {
   mergeItemReadings,
   trackDetections,
   drawableTracks,
+  frameQualityStats,
   frameQualityAdvice,
   nextDetectionDelay,
   scanSummary,
@@ -2418,22 +2419,8 @@ export function openRoomScan() {
         pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
       } catch { return false; }
       const { width, height } = canvas;
-      let total = 0;
-      let deltas = 0;
-      let pairs = 0;
-      // Walked as a grid rather than a flat array: comparing the last pixel of one
-      // row with the first of the next is not a neighbouring pair, and those
-      // wrap-around edges inflate "detail" enough to let a blurred frame pass.
-      for (let y = 0; y < height; y += 1) {
-        let previous = null;
-        for (let x = 0; x < width; x += 1) {
-          const index = (y * width + x) * 4;
-          const luma = pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
-          total += luma;
-          if (previous !== null) { deltas += Math.abs(luma - previous); pairs += 1; }
-          previous = luma;
-        }
-      }
+      const quality = frameQualityStats(pixels, width, height);
+      if (!quality) return false;
       // Piggy-backed on the pixel read that was already happening for the quality
       // hint. Walking a room needs to know whether the view has changed, and a
       // second readback purely to answer that would cost a GPU sync every frame.
@@ -2453,11 +2440,9 @@ export function openRoomScan() {
         if (state.motionDistances.length > 3) state.motionDistances.shift();
       }
 
-      const samples = width * height;
-      if (!samples || !pairs) return false;
       // Lighting problems outrank movement: a dark room stays dark however
       // slowly the phone moves, so that is the thing worth saying first.
-      const advice = frameQualityAdvice({ luma: total / samples, detail: deltas / pairs })
+      const advice = frameQualityAdvice(quality)
         || movementAdvice(state.motionDistances);
       const key = advice ? advice.kind : "";
       if (key === state.qualityKind) return true;

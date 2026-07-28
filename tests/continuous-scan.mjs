@@ -75,7 +75,7 @@ assert.ok(!shouldCaptureKeyframe({ ...base, signature: bright, previousSignature
 // conditions the live quality pass reports. Each one would make object and dirt
 // assessment unreliable, and each rejected frame must leave the room's read
 // budget untouched so the corrected view can still be captured.
-for (const qualityKind of ["dark", "bright", "soft"]) {
+for (const qualityKind of ["dark", "bright", "uneven", "soft"]) {
   assert.ok(
     !shouldCaptureKeyframe({ ...base, signature: bright, previousSignature: bright, lastReadSignature: grey, qualityKind }),
     `A ${qualityKind} frame consumed a paid room read even though the scanner had already told the Landlord to correct it.`
@@ -416,7 +416,12 @@ assert.equal(movementAdvice([]), null, "No samples produced advice.");
 assert.equal(movementAdvice([0.2]), null, "One sample is not a streak.");
 assert.equal(movementAdvice([NaN, 0.5, 0.5]) === null, false, "Garbage samples poisoned real ones.");
 // Lighting outranks movement: a dark room stays dark however slowly you move.
-assert.match(overlay, /frameQualityAdvice\(\{ luma: total \/ samples, detail: deltas \/ pairs \}\)\s*\|\| movementAdvice\(state\.motionDistances\)/, "Movement advice can pre-empt a lighting warning, telling someone to slow down in a room that is simply too dark.");
+assert.match(
+  overlay,
+  /const quality = frameQualityStats\(pixels, width, height\);[\s\S]{0,4000}frameQualityAdvice\(quality\)\s*\|\| movementAdvice\(state\.motionDistances\)/,
+  "The quality gate either ignores clipped shadows/highlights or lets movement advice pre-empt the lighting problem."
+);
+assert.equal((overlay.match(/getImageData\(/g) || []).length, 1, "Uneven exposure added another synchronous camera readback.");
 
 /* ── Review-caught regressions, pinned ── */
 

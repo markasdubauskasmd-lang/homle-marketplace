@@ -30,6 +30,7 @@ The existing scanner remains the single scanner used by the Landlord booking jou
 - Automatic walking frames are JPEG-encoded through the browser's asynchronous Blob path. The live camera no longer waits for synchronous `toDataURL()` compression up to four times per room; the 1024px dimensions, 0.72 quality, request budget and backend payload remain unchanged. The compatibility path stays available for older browsers.
 - Objects found while walking retain their per-item condition, structured soiling type and visible evidence after the red save action, including objects outside the final confirmation frame.
 - Same-label objects are grouped with the largest quantity proven simultaneously in one frame. Overlapping duplicate boxes are removed, later camera angles do not inflate the count, and genuinely separate items remain visible as labels such as `3 × Chair` through room save and the final scan handoff.
+- The quality gate now catches mixed shadow and glare that average brightness alone hides. It reuses the existing small pixel sample, adds no camera readback, and withholds the paid condition read until exposure is usable—protecting fine evidence such as limescale, grease and stains.
 - Hidden/backgrounded scans still release the camera, microphone and detector.
 
 ### More accurate and easier to correct
