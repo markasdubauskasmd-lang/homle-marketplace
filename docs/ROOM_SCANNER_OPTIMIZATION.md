@@ -36,6 +36,11 @@ The existing scanner remains the single scanner used by the Landlord booking jou
 
 ### More accurate and easier to correct
 
+- Object-label confidence and cleaning-condition confidence now travel as two
+  independent signals from the vision model through live inventory, room save,
+  correction and final review. A clearly recognised tap can therefore keep its
+  correct name while an uncertain limescale assessment asks for a closer look;
+  stronger condition evidence no longer has to overwrite the stronger label.
 - A close-up condition reading now fills an earlier unknown grade even when its
   object-name confidence is slightly lower. Label confidence and condition
   evidence are no longer treated as the same signal.

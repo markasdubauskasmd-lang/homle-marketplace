@@ -75,12 +75,12 @@ const conditionWarning = unresolvedRoomConditionKey([
 ]);
 assert(conditionWarning.includes("kitchen") && conditionWarning.includes("tap"), "A completed room with an ungraded item can finish without a condition-review warning.");
 assert(
-  unresolvedRoomConditionKey([{ name: "Kitchen", readingStatus: "ready", detections: [{ label: "Tap", condition: "medium", confidence: 0.3 }] }]),
-  "A low-confidence condition is presented as settled at the end of the scan."
+  unresolvedRoomConditionKey([{ name: "Kitchen", readingStatus: "ready", detections: [{ label: "Tap", condition: "medium", confidence: 0.95, conditionConfidence: 0.3 }] }]),
+  "A confident object label hides a low-confidence condition at the end of the scan."
 );
 assert(
-  unresolvedRoomConditionKey([{ name: "Kitchen", readingStatus: "ready", detections: [{ label: "Tap", condition: "medium", confidence: 0.8 }] }]) === "",
-  "A confident condition continues to block or warn at the end of the scan."
+  unresolvedRoomConditionKey([{ name: "Kitchen", readingStatus: "ready", detections: [{ label: "Tap", condition: "medium", confidence: 0.3, conditionConfidence: 0.8 }] }]) === "",
+  "A weak object-label score incorrectly turns a confident condition into a finish warning."
 );
 assert(
   unresolvedRoomConditionKey([{ name: "Kitchen", readingStatus: "reading", detections: [{ label: "Tap", condition: "" }] }]) === "",
@@ -112,6 +112,11 @@ assert(shotLabel("Living room") === "LIVI" && shotLabel("") === "ROOM", "Shot la
 // A detection box that does not fit the frame would be painted across the whole
 // photograph and read as a confident detection of the entire room.
 assert(usableDetections([{ x: 10, y: 10, width: 20, height: 20, label: "Worktop" }]).length === 1, "A valid detection was discarded.");
+const confidenceDetection = usableDetections([{
+  x: 10, y: 10, width: 20, height: 20, label: "Tap",
+  confidence: 0.94, condition: "medium", conditionConfidence: 0.28
+}])[0];
+assert(confidenceDetection.confidence === 0.94 && confidenceDetection.conditionConfidence === 0.28, "Detection shaping collapsed label and condition confidence.");
 for (const invalid of [
   { x: -1, y: 10, width: 20, height: 20, label: "Sofa" },
   { x: 90, y: 10, width: 20, height: 20, label: "Sofa" },

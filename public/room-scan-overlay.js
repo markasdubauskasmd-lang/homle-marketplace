@@ -1038,7 +1038,9 @@ export function openRoomScan() {
           label: detection.label, note: detection.note || "", kind: "detected", score: 1,
           // The reader's verdict about this object, so the review paints it where
           // the customer is actually looking — on the thing itself.
-          condition: detection.condition || "", conditionConfirmed: detection.conditionConfirmed === true,
+          condition: detection.condition || "",
+          conditionConfidence: detection.conditionConfidence,
+          conditionConfirmed: detection.conditionConfirmed === true,
           soiling: detection.soiling || []
         })));
         state.selectedIds = new Set(state.candidates.map((box) => box.id));
@@ -1614,7 +1616,9 @@ export function openRoomScan() {
             // Kept even though a fresh reading is coming: if that background read
             // fails, "needs-retry" keeps THESE detections, and losing their grades
             // to a transient network error would un-grade the room silently.
-            condition: box.condition || "", conditionConfirmed: box.conditionConfirmed === true,
+            condition: box.condition || "",
+            conditionConfidence: box.conditionConfidence,
+            conditionConfirmed: box.conditionConfirmed === true,
             soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
@@ -1634,7 +1638,9 @@ export function openRoomScan() {
             // An unchanged revisit deliberately buys no new reading, which only
             // works if it also keeps the old one. Dropping condition here meant
             // open-then-save was enough to erase every grade in the room.
-            condition: box.condition || "", conditionConfirmed: box.conditionConfirmed === true,
+            condition: box.condition || "",
+            conditionConfidence: box.conditionConfidence,
+            conditionConfirmed: box.conditionConfirmed === true,
             soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
@@ -2040,6 +2046,9 @@ export function openRoomScan() {
               // unsure about must not sort above one it was certain of, and the
               // list is ordered by how sure the room is.
               score: Number.isFinite(detection.confidence) ? detection.confidence : 0.5,
+              conditionConfidence: Number.isFinite(detection.conditionConfidence)
+                ? detection.conditionConfidence
+                : Number.isFinite(detection.confidence) ? detection.confidence : null,
               condition: detection.condition || "",
               soiling: Array.isArray(detection.soiling) ? detection.soiling : [],
               note: detection.note || "",
