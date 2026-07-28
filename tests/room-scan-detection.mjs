@@ -1,4 +1,5 @@
 import {
+  coverSourceRect,
   fitBoxToFrame,
   frameBoxToSourceRect,
   usableLiveBoxes,
@@ -25,6 +26,45 @@ import {
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 const close = (value, expected, tolerance = 0.001) => Math.abs(value - expected) < tolerance;
+
+// A landscape camera stream behind a portrait phone viewfinder is heavily
+// cropped by object-fit: cover. Automatic reads must analyse this same centre
+// strip, not the much wider sensor frame the customer cannot see.
+const portraitCrop = coverSourceRect({
+  sourceWidth: 1920,
+  sourceHeight: 1080,
+  frameWidth: 390,
+  frameHeight: 844
+});
+assert(
+  close(portraitCrop.sx, 710.4739336492892)
+    && close(portraitCrop.sy, 0)
+    && close(portraitCrop.sWidth, 499.0521327014218)
+    && close(portraitCrop.sHeight, 1080),
+  `A portrait viewfinder did not select its centred visible strip: ${JSON.stringify(portraitCrop)}`
+);
+
+// The inverse case crops top and bottom. Matching aspect ratios keep every
+// source pixel, and invalid geometry must fail closed.
+const landscapeCrop = coverSourceRect({
+  sourceWidth: 1080,
+  sourceHeight: 1920,
+  frameWidth: 844,
+  frameHeight: 390
+});
+assert(
+  close(landscapeCrop.sx, 0)
+    && close(landscapeCrop.sy, 710.4739336492892)
+    && close(landscapeCrop.sWidth, 1080)
+    && close(landscapeCrop.sHeight, 499.0521327014218),
+  `A landscape viewfinder did not select its centred visible band: ${JSON.stringify(landscapeCrop)}`
+);
+const matchingCrop = coverSourceRect({ sourceWidth: 1280, sourceHeight: 720, frameWidth: 640, frameHeight: 360 });
+assert(
+  matchingCrop.sx === 0 && matchingCrop.sy === 0 && matchingCrop.sWidth === 1280 && matchingCrop.sHeight === 720,
+  `A matching viewfinder aspect cropped pixels that are genuinely visible: ${JSON.stringify(matchingCrop)}`
+);
+assert(coverSourceRect({ sourceWidth: 0, sourceHeight: 720, frameWidth: 390, frameHeight: 844 }) === null, "Invalid source geometry invented a visible crop.");
 
 /* ── Mapping detector pixels onto the viewfinder ────── */
 

@@ -100,7 +100,7 @@ assert.match(source, /If you cannot name the evidence, you are guessing/, "The p
 // the first thing downscaling and JPEG discard. At 1280px and quality 0.82 the
 // evidence was being destroyed before the model ever saw it, and no prompt could
 // recover it.
-assert.match(overlay, /1600 \/ Math\.max\(regionWidth, regionHeight\)/, "The frame that condition is graded from was reduced again. Fine texture is the evidence, and it does not survive aggressive downscaling.");
+assert.match(overlay, /1600 \/ Math\.max\(sourceRect\.sWidth, sourceRect\.sHeight\)/, "The visible frame that condition is graded from was reduced again. Fine texture is the evidence, and it does not survive aggressive downscaling.");
 assert.match(overlay, /toDataURL\("image\/jpeg", 0\.9/, "The confirmation frame's JPEG quality was lowered again, which smooths away exactly the speckle and film that distinguish a limescaled tap from a white one.");
 assert.match(overlay, /toDataURL\("image\/jpeg", 0\.88\)/, "Item crops were compressed harder. A crop is a close-up of the one item being judged and is the last place to save bytes.");
 

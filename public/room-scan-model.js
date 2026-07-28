@@ -76,6 +76,33 @@ export function usableDetections(detections) {
 //
 // `cover` is assumed to be centred (`object-position: 50% 50%`, the default and
 // what styles.css relies on). If that ever changes, this maths changes with it.
+export function coverSourceRect({ sourceWidth, sourceHeight, frameWidth, frameHeight } = {}) {
+  const measurements = [sourceWidth, sourceHeight, frameWidth, frameHeight];
+  if (!measurements.every((value) => Number.isFinite(value) && value > 0)) return null;
+
+  const sourceAspect = sourceWidth / sourceHeight;
+  const frameAspect = frameWidth / frameHeight;
+  if (Math.abs(sourceAspect - frameAspect) < Number.EPSILON * 16) {
+    return Object.freeze({ sx: 0, sy: 0, sWidth: sourceWidth, sHeight: sourceHeight });
+  }
+  if (sourceAspect > frameAspect) {
+    const sWidth = sourceHeight * frameAspect;
+    return Object.freeze({
+      sx: (sourceWidth - sWidth) / 2,
+      sy: 0,
+      sWidth,
+      sHeight: sourceHeight
+    });
+  }
+  const sHeight = sourceWidth / frameAspect;
+  return Object.freeze({
+    sx: 0,
+    sy: (sourceHeight - sHeight) / 2,
+    sWidth: sourceWidth,
+    sHeight
+  });
+}
+
 export function fitBoxToFrame(box, { videoWidth, videoHeight, frameWidth, frameHeight, fit = "cover" } = {}) {
   const measurements = [videoWidth, videoHeight, frameWidth, frameHeight];
   if (!measurements.every((value) => Number.isFinite(value) && value > 0)) return null;
