@@ -857,6 +857,23 @@ export const keyframeDefaults = Object.freeze({
   maxPerRoom: 4
 });
 
+// One slow read from the room just left must not stop the room now in front of
+// the camera from being read. Two concurrent walking reads are enough to cover
+// that hand-off without turning a fast walk through several rooms into an
+// unbounded burst of provider calls.
+export const maxConcurrentWalkingReads = 2;
+
+export function walkingReadIsBlocked(activeRoomKeys, roomKey, { maximum = maxConcurrentWalkingReads } = {}) {
+  const key = String(roomKey || "").trim();
+  if (!key) return true;
+  const active = activeRoomKeys && typeof activeRoomKeys[Symbol.iterator] === "function"
+    ? new Set(activeRoomKeys)
+    : new Set();
+  if (active.has(key)) return true;
+  const limit = Number.isInteger(maximum) && maximum > 0 ? maximum : maxConcurrentWalkingReads;
+  return active.size >= limit;
+}
+
 // A coarse grid of average brightness. Deliberately tiny: this is compared many
 // times a second, and the question is "is this a different view of the room", not
 // "what is in it". A 4x4 grid survives a hand tremor and changes when the phone

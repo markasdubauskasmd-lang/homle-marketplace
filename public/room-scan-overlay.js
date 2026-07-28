@@ -11,6 +11,7 @@ import {
   signatureDistance,
   movementAdvice,
   shouldCaptureKeyframe,
+  walkingReadIsBlocked,
   mergeRoomInventory,
   inventoryKey,
   resolveRoomCondition,
@@ -368,8 +369,10 @@ export function openRoomScan() {
       // Per room, and NOT reset when the Landlord walks back in. A scalar counter
       // reset on entry meant a lap of the hall bought another four reads of the
       // same kitchen, and the consent promises a per-room bound, not a per-visit
-      // one. `busy` stays global: only one read is ever in flight.
-      keyframeBudgets: new Map(), keyframeBusy: false,
+      // one. Reads are tracked by room: a slow Kitchen response cannot block the
+      // Bathroom now in front of the camera, while the model helper still caps
+      // total walking-read concurrency at two.
+      keyframeBudgets: new Map(), keyframeActiveRooms: new Set(),
       // What the room has accumulated so far, keyed by room name. Survives the
       // Landlord walking out and back in, which one-shot capture never did.
       inventories: new Map(),
@@ -1741,7 +1744,9 @@ export function openRoomScan() {
     // which is most of what a cleaning quote actually turns on.
     function maybeReadKeyframe(video) {
       if (!state.readingAllowed || !state.visionAvailable || state.frozen || state.closed) return;
-      const budget = keyframeBudget(state.currentRoom);
+      const roomName = state.currentRoom;
+      const roomKey = transcriptKey(roomName);
+      const budget = keyframeBudget(roomName);
       const decision = {
         signature: state.signature,
         previousSignature: state.previousSignature,
@@ -1749,7 +1754,9 @@ export function openRoomScan() {
         now: Date.now(),
         lastCaptureAt: budget.lastCaptureAt,
         capturedCount: budget.capturedCount,
-        busy: state.keyframeBusy,
+        // Per-room overlap is never useful. One other room may still be landing
+        // while the Landlord moves on, but a third waits until capacity returns.
+        busy: walkingReadIsBlocked(state.keyframeActiveRooms, roomKey),
         // Guidance is not cosmetic. A frame already judged too dark,
         // overexposed or motion-soft must not become paid pricing evidence or
         // consume one of the room's four reads. The view stays eligible after
@@ -1780,7 +1787,7 @@ export function openRoomScan() {
       } catch { return; }
       if (!image) return;
 
-      state.keyframeBusy = true;
+      state.keyframeActiveRooms.add(roomKey);
       budget.lastCaptureAt = decision.now;
       budget.lastReadSignature = decision.signature;
       // Counted BEFORE the request and never refunded. A failure that refunds the
@@ -1788,7 +1795,6 @@ export function openRoomScan() {
       // timeout or a 5xx can arrive long after the provider has already been
       // billed, so a failed response does not mean a free one.
       budget.capturedCount += 1;
-      const roomName = state.currentRoom;
       const generation = budget.generation;
       renderInventory();
 
@@ -1830,7 +1836,7 @@ export function openRoomScan() {
           state.diagnostics.detectorErrors += 1;
         })
         .finally(() => {
-          state.keyframeBusy = false;
+          state.keyframeActiveRooms.delete(roomKey);
           if (!state.closed) renderInventory();
         });
     }
@@ -1842,8 +1848,9 @@ export function openRoomScan() {
       const items = inventoryFor();
       const list = el.foundList;
       if (!list) return;
-      el.found.hidden = items.length === 0 && !state.keyframeBusy;
-      el.foundBusy.hidden = !state.keyframeBusy;
+      const currentRoomBusy = state.keyframeActiveRooms.has(transcriptKey());
+      el.found.hidden = items.length === 0 && !currentRoomBusy;
+      el.foundBusy.hidden = !currentRoomBusy;
       // Says how many need attention, not how many exist. "16 items found" over a
       // list whose visible rows all read CLEAN told a customer nothing and looked
       // like padding; what they want to know is how much work this room is.
