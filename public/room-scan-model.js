@@ -1050,9 +1050,14 @@ export function shouldCaptureKeyframe({
   if (String(qualityKind || "").trim()) return false;
   if (capturedCount >= maxPerRoom) return false;
   if (now - lastCaptureAt < minIntervalMs) return false;
-  // Nothing read yet: the first steady frame of a room is always worth reading.
+  // Nothing read yet: require one earlier sample before spending the first of
+  // only four room reads. A lone frame cannot prove the phone is steady and is
+  // commonly captured while the Landlord is still turning through a doorway.
+  // The next quality sample arrives shortly after; if the view matches, the
+  // first settled angle is accepted without any extra tap or decision.
   if (!Array.isArray(lastReadSignature)) {
-    return Array.isArray(previousSignature) ? signatureDistance(previousSignature, signature) <= stillnessThreshold : true;
+    return Array.isArray(previousSignature)
+      && signatureDistance(previousSignature, signature) <= stillnessThreshold;
   }
   if (signatureDistance(lastReadSignature, signature) < sceneChangeThreshold) return false;
   // A new view, but only once the phone has settled on it.
