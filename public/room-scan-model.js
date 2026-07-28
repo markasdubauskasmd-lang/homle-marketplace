@@ -1005,6 +1005,10 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       merged.set(key, {
         key, label, score, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false,
         condition: String(item?.condition || ""), note: String(item?.note || ""),
+        soiling: Object.freeze((Array.isArray(item?.soiling) ? item.soiling : [])
+          .map((kind) => String(kind || "").trim().slice(0, 16))
+          .filter(Boolean)
+          .slice(0, 4)),
         source: item?.source || "read"
       });
       continue;
@@ -1026,7 +1030,13 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       condition: current.conditionConfirmed
         ? current.condition
         : (score > current.score ? String(item?.condition || "") : current.condition) || current.condition,
-      note: score > current.score && item?.note ? String(item.note) : current.note
+      note: score > current.score && item?.note ? String(item.note) : current.note,
+      soiling: score > current.score && Array.isArray(item?.soiling)
+        ? Object.freeze(item.soiling
+          .map((kind) => String(kind || "").trim().slice(0, 16))
+          .filter(Boolean)
+          .slice(0, 4))
+        : Object.freeze(Array.isArray(current.soiling) ? current.soiling.slice(0, 4) : [])
     });
   }
   return Object.freeze([...merged.values()]
@@ -1046,6 +1056,29 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     .sort((a, b) => (usefulness(b) - usefulness(a)) || (b.sightings - a.sightings) || a.label.localeCompare(b.label, "en"))
     .slice(0, limit)
     .map((item) => Object.freeze(item)));
+}
+
+// A walking read can see an object that is outside the final confirmation frame.
+// That object still belongs in the saved room, together with the condition and
+// evidence the customer already reviewed while walking. Reducing it to a name
+// here made "Tap · Limescale" become a generic "Tap" after the red save button,
+// which removed the exact cleaning evidence the scan exists to collect.
+export function savedDetectionFromInventoryItem(item) {
+  const key = String(item?.key || inventoryKey(item?.label)).trim();
+  const label = String(item?.label || "").trim().slice(0, 40);
+  if (!key || !label) return null;
+  const evidence = String(item?.note || "").trim().slice(0, 60);
+  return Object.freeze({
+    id: `w-${key}`,
+    label,
+    note: evidence || (item?.confirmed ? "Confirmed while scanning" : "Seen while scanning"),
+    condition: String(item?.condition || "").trim().slice(0, 12),
+    soiling: Object.freeze((Array.isArray(item?.soiling) ? item.soiling : [])
+      .map((kind) => String(kind || "").trim().slice(0, 16))
+      .filter(Boolean)
+      .slice(0, 4)),
+    x: 0, y: 0, width: 0, height: 0
+  });
 }
 
 // Rename, remove and confirm, as one operation so the correction UI has a single
