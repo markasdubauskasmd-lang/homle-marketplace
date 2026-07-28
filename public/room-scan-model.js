@@ -966,13 +966,23 @@ export function walkingReadIsBlocked(activeRoomKeys, roomKey, { maximum = maxCon
   return active.size >= limit;
 }
 
-// A coarse grid of average brightness. Deliberately tiny: this is compared many
+// A coarse grid of average colour. Deliberately tiny: this is compared many
 // times a second, and the question is "is this a different view of the room", not
-// "what is in it". A 4x4 grid survives a hand tremor and changes when the phone
-// turns, which is exactly the sensitivity wanted.
+// "what is in it". Brightness alone has a serious blind spot: a red sofa and a
+// green wall can have the same luminance, so turning between them looked like no
+// movement and one whole area could be skipped. Three channels preserve that
+// difference using the pixel sample the quality pass already drew; no extra
+// canvas read, provider request or image is created.
+//
+// A 4x4 RGB grid is still only 48 numbers, survives a hand tremor and changes
+// when the phone turns, which is exactly the sensitivity wanted.
 export function frameSignature(pixels, width, height, { grid = 4 } = {}) {
-  if (!pixels || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
-  const cells = new Array(grid * grid).fill(0);
+  if (!pixels
+    || !Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0
+    || !Number.isInteger(grid) || grid <= 0 || grid > 8
+    || pixels.length < width * height * 4) return null;
+  const channels = 3;
+  const cells = new Array(grid * grid * channels).fill(0);
   const counts = new Array(grid * grid).fill(0);
   for (let y = 0; y < height; y += 1) {
     const row = Math.min(grid - 1, Math.floor((y / height) * grid));
@@ -980,11 +990,19 @@ export function frameSignature(pixels, width, height, { grid = 4 } = {}) {
       const column = Math.min(grid - 1, Math.floor((x / width) * grid));
       const index = (y * width + x) * 4;
       const cell = row * grid + column;
-      cells[cell] += pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
+      const offset = cell * channels;
+      cells[offset] += pixels[index];
+      cells[offset + 1] += pixels[index + 1];
+      cells[offset + 2] += pixels[index + 2];
       counts[cell] += 1;
     }
   }
-  for (let cell = 0; cell < cells.length; cell += 1) cells[cell] = counts[cell] ? cells[cell] / counts[cell] / 255 : 0;
+  for (let cell = 0; cell < counts.length; cell += 1) {
+    const offset = cell * channels;
+    for (let channel = 0; channel < channels; channel += 1) {
+      cells[offset + channel] = counts[cell] ? cells[offset + channel] / counts[cell] / 255 : 0;
+    }
+  }
   return Object.freeze(cells);
 }
 
