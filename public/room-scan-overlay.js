@@ -8,11 +8,14 @@ import {
   cocoLabel,
   implausibleForRoom,
   frameSignature,
+  signatureDistance,
+  movementAdvice,
   shouldCaptureKeyframe,
   walkingReadIsBlocked,
   mergeRoomInventory,
   inventoryKey,
   resolveRoomCondition,
+  conditionTag,
   correctInventoryItem,
   detectionMinimumScore,
   joinSpokenText,
@@ -403,7 +406,7 @@ export function openRoomScan() {
       // pass. Both are recreated on demand, so an orientation change is safe.
       detectCanvas: null, viewRect: null,
       // Framing guidance, sampled off the detector's own frame.
-      lastQualityAt: 0, qualityKind: "", qualityMessage: "", qualityCanvas: null,
+      lastQualityAt: 0, qualityKind: "", qualityMessage: "", qualityCanvas: null, motionDistances: [],
       notesForgotten: false,
       // Detection boxes, reused between passes and keyed by tracker id.
       boxNodes: new Map(),
@@ -824,6 +827,12 @@ export function openRoomScan() {
       state.tracks = [];
       // Advice about the last room's lighting must not carry into this one.
       state.qualityKind = "";
+      // The motion memory goes with it. Walking through a doorway IS fast motion,
+      // and a stale fast sample from the previous room plus the scene jump into
+      // this one would read as a sweep and hold back the first paid read.
+      state.motionDistances = [];
+      state.signature = null;
+      state.previousSignature = null;
       state.qualityMessage = "";
       state.lastQualityAt = 0;
       unfreeze();
@@ -863,7 +872,10 @@ export function openRoomScan() {
         // collide with one of them.
         state.candidates = usableLiveBoxes((room.detections || []).map((detection, index) => ({
           id: `s${index}`, x: detection.x, y: detection.y, width: detection.width, height: detection.height,
-          label: detection.label, note: detection.note || "", kind: "detected", score: 1
+          label: detection.label, note: detection.note || "", kind: "detected", score: 1,
+          // The reader's verdict about this object, so the review paints it where
+          // the customer is actually looking — on the thing itself.
+          condition: detection.condition || "", soiling: detection.soiling || []
         })));
         state.selectedIds = new Set(state.candidates.map((box) => box.id));
         state.manualCount = 0;
@@ -1069,7 +1081,7 @@ export function openRoomScan() {
           const tag = document.createElement("span");
           tag.className = "det-tag";
           box.appendChild(tag);
-          node = { box, tag, className: "", geometry: "", label: null };
+          node = { box, tag, className: "", geometry: "", label: null, grade: "" };
           pool.set(item.id, node);
           el.detections.appendChild(box);
         }
@@ -1087,7 +1099,21 @@ export function openRoomScan() {
           node.box.style.cssText = geometry;
           node.geometry = geometry;
         }
-        const label = item.label || "";
+        // The grade colours the glow. Live boxes carry no condition, so the live
+        // view keeps its single neutral state; on the review, a limescaled tap
+        // reads amber or red AT the tap rather than only in the side list.
+        const grade = item.condition || "";
+        if (node.grade !== grade) {
+          if (grade) node.box.dataset.grade = grade; else delete node.box.dataset.grade;
+          node.grade = grade;
+        }
+        // What the tag says, in order of usefulness: the soiling seen ("Limescale"),
+        // else the item's name. Clean objects show their name only when selectable —
+        // a caption on every clean thing would bury the ones needing attention.
+        const conditionText = conditionTag(item);
+        const label = conditionText
+          ? (item.label ? `${item.label} · ${conditionText}` : conditionText)
+          : (item.label || "");
         if (node.label !== label) {
           node.tag.textContent = label;
           node.tag.hidden = !label;
@@ -1209,6 +1235,12 @@ export function openRoomScan() {
       state.frozen = false;
       // Stale guidance from before the freeze must not reappear with the live feed.
       state.qualityKind = "";
+      // The motion memory goes with it. Walking through a doorway IS fast motion,
+      // and a stale fast sample from the previous room plus the scene jump into
+      // this one would read as a sweep and hold back the first paid read.
+      state.motionDistances = [];
+      state.signature = null;
+      state.previousSignature = null;
       state.qualityMessage = "";
       state.lastQualityAt = 0;
       renderDetectorState();
@@ -1404,6 +1436,10 @@ export function openRoomScan() {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
             id: box.id, label: box.label || "Marked item", note: box.note || "",
+            // Kept even though a fresh reading is coming: if that background read
+            // fails, "needs-retry" keeps THESE detections, and losing their grades
+            // to a transient network error would un-grade the room silently.
+            condition: box.condition || "", soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: localRoomTasks(roomName, spokenNote),
@@ -1419,6 +1455,10 @@ export function openRoomScan() {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
             id: box.id, label: box.label, note: box.note || "",
+            // An unchanged revisit deliberately buys no new reading, which only
+            // works if it also keeps the old one. Dropping condition here meant
+            // open-then-save was enough to erase every grade in the room.
+            condition: box.condition || "", soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: Array.isArray(existing.tasks) ? existing.tasks : [],
@@ -2338,9 +2378,25 @@ export function openRoomScan() {
       state.previousSignature = state.signature;
       state.signature = frameSignature(pixels, width, height);
 
+      // A short memory of how fast the view is changing, for the movement hint.
+      // Two samples is ~1.8s of sustained motion — a deliberate sweep, not the
+      // single turn to a new wall that walking a room is supposed to involve.
+      //
+      // Only when both signatures are real. `signatureDistance(null, …)` is
+      // defined as 1 — maximally different — which is the right answer for the
+      // keyframe picker but would count the first sample of every session as a
+      // fast one here, halving the streak the hint is supposed to require.
+      if (Array.isArray(state.previousSignature) && Array.isArray(state.signature)) {
+        state.motionDistances.push(signatureDistance(state.previousSignature, state.signature));
+        if (state.motionDistances.length > 3) state.motionDistances.shift();
+      }
+
       const samples = width * height;
       if (!samples || !pairs) return false;
-      const advice = frameQualityAdvice({ luma: total / samples, detail: deltas / pairs });
+      // Lighting problems outrank movement: a dark room stays dark however
+      // slowly the phone moves, so that is the thing worth saying first.
+      const advice = frameQualityAdvice({ luma: total / samples, detail: deltas / pairs })
+        || movementAdvice(state.motionDistances);
       const key = advice ? advice.kind : "";
       if (key === state.qualityKind) return true;
       state.qualityKind = key;

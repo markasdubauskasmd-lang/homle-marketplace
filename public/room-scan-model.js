@@ -160,8 +160,35 @@ export function usableLiveBoxes(boxes) {
       height: box.height,
       label: String(box.label || "").trim().slice(0, 28),
       kind: box.kind === "manual" ? "manual" : "detected",
-      score: Number.isFinite(box.score) ? box.score : 0
+      score: Number.isFinite(box.score) ? box.score : 0,
+      // What the reader concluded about this object, kept so the review screen
+      // can paint it ON the object. The grade lived only in the side list before,
+      // which meant the one screen where the customer is looking straight at the
+      // thing itself said nothing about it.
+      condition: String(box.condition || "").trim().slice(0, 12),
+      soiling: Object.freeze((Array.isArray(box.soiling) ? box.soiling : []).map((kind) => String(kind).trim().slice(0, 16)).slice(0, 4)),
+      note: String(box.note || "").trim().slice(0, 60)
     }));
+}
+
+// The word painted next to a graded object. The soiling type is the most useful
+// thing to say — "Limescale" tells the customer what was seen, where "medium"
+// alone is a verdict with no subject. Falls back to the grade only when the
+// reader named no soiling, and stays silent for clean or ungraded objects so the
+// screen highlights what needs attention rather than captioning everything.
+const soilingTagWords = Object.freeze({
+  dust: "Dust build-up", grease: "Grease", limescale: "Limescale", stain: "Possible stain",
+  mould: "Mould", "soap-scum": "Soap scum", "food-debris": "Food debris",
+  "pet-hair": "Pet hair", damage: "Damage", clutter: "Needs tidying"
+});
+const gradeTagWords = Object.freeze({ heavy: "Heavy build-up", medium: "Needs cleaning", light: "Light clean" });
+export function conditionTag(box) {
+  const condition = String(box?.condition || "").trim().toLowerCase();
+  if (!condition || condition === "clean") return "";
+  const soiling = Array.isArray(box?.soiling) ? box.soiling : [];
+  const named = soilingTagWords[String(soiling[0] || "").toLowerCase()];
+  if (named) return soiling.length > 1 ? `${named} +${soiling.length - 1}` : named;
+  return gradeTagWords[condition] || "";
 }
 
 // Which box did the Landlord tap? The smallest containing box wins, so a tap on
@@ -1067,4 +1094,28 @@ export function resolveRoomCondition(confirmed, observed) {
   if (authoritative && authoritative !== "unknown") return authoritative;
   const fallback = String(observed || "").toLowerCase();
   return fallback && fallback !== "unknown" ? fallback : "";
+}
+
+/* ── Movement guidance ──────────────────────────────────────────────────── */
+
+// "Move slowly around the room" — said only when the phone is actually being
+// swept, and silent again the moment it settles.
+//
+// Sustained fast motion is the one problem the quality pass cannot see: a
+// swept frame is often bright enough and, sampled at an instant, can still show
+// detail. But every downstream consumer suffers — the on-device tracker loses
+// its locks, the keyframe picker refuses to spend a read (correctly), and the
+// customer walks a whole room wondering why nothing is being found. Telling
+// them to slow down fixes all three at once, which is why it earns a prompt.
+//
+// Two consecutive fast samples, not one. The sample gap is ~900ms, so a single
+// spike is just the customer turning to the next wall — exactly the motion the
+// scan is FOR — and nagging on every turn would teach them to ignore the hint.
+export function movementAdvice(distances, { fastThreshold = 0.09, streak = 2 } = {}) {
+  const recent = (Array.isArray(distances) ? distances : [])
+    .filter((value) => Number.isFinite(value));
+  if (recent.length < streak) return null;
+  const fast = recent.slice(-streak).every((value) => value > fastThreshold);
+  if (!fast) return null;
+  return Object.freeze({ kind: "moving", message: "Moving fast — slow down a little so items can be read." });
 }
