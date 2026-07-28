@@ -196,10 +196,23 @@ assert(second.tracks[0].id === 1 && second.tracks[0].seenFrames === 2, "A moving
 assert(second.tracks[0].x > 10 && second.tracks[0].x < 14, `The box was not smoothed between frames: ${second.tracks[0].x}`);
 assert(drawableTracks(second.tracks).length === 1, "A box confirmed by a second frame was still not drawn.");
 
+// Stepping closer changes the detector's box scale. The new tight box can sit
+// fully inside the old wide box while their IoU is far below the motion
+// threshold. It is still unambiguously the same-class object and must keep
+// one identity rather than showing an old held glow plus a fresh glow.
+const wideSofa = trackDetections([], [{ x: 15, y: 20, width: 60, height: 50, className: "couch", score: 0.88 }]);
+const closeSofa = trackDetections(wideSofa.tracks, [{ x: 30, y: 32, width: 24, height: 20, className: "couch", score: 0.92 }], { nextId: wideSofa.nextId });
+assert(closeSofa.tracks.length === 1, "One sofa became two live tracks when the user stepped closer.");
+assert(closeSofa.tracks[0].id === wideSofa.tracks[0].id, "A nested same-object box lost its stable tracking identity.");
+assert(closeSofa.tracks[0].seenFrames === 2, "A contained second view did not strengthen the existing track.");
+
 // Beyond roughly half a box width of movement in one frame the overlap is too
 // weak to claim it is the same object, and a fresh track is the honest answer.
 const jumped = trackDetections(second.tracks, [{ x: 60, y: 10, width: 20, height: 20, className: "couch", score: 0.9 }], { nextId: second.nextId });
 assert(jumped.tracks.some((track) => track.id !== 1 && track.seenFrames === 1), "A box that jumped across the frame kept an identity it had not earned.");
+
+const adjacentSofa = trackDetections(second.tracks, [{ x: 29, y: 10, width: 20, height: 20, className: "couch", score: 0.9 }], { nextId: second.nextId });
+assert(adjacentSofa.tracks.some((track) => track.id !== 1 && track.seenFrames === 1), "A weakly overlapping neighbouring object adopted the existing track.");
 
 // A different class must never adopt an existing track, or the label follows
 // the wrong object across the frame.

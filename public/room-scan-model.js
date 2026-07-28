@@ -535,7 +535,7 @@ export function containmentRatio(first, second) {
 }
 
 export function trackDetections(previousTracks, rawDetections, {
-  iouThreshold = 0.35, duplicateIouThreshold = 0.68, holdFrames = 6, smoothing = 0.4, minScore = detectionMinimumScore, nextId = 1
+  iouThreshold = 0.35, containmentThreshold = 0.6, duplicateIouThreshold = 0.68, holdFrames = 6, smoothing = 0.4, minScore = detectionMinimumScore, nextId = 1
 } = {}) {
   const previous = Array.isArray(previousTracks) ? previousTracks : [];
   const raw = deduplicateDetections((Array.isArray(rawDetections) ? rawDetections : [])
@@ -556,10 +556,21 @@ export function trackDetections(previousTracks, rawDetections, {
       // beside it and the label follows the wrong object across the frame.
       if (track.className !== detection.className) continue;
       const iou = intersectionOverUnion(track, detection);
-      if (iou >= iouThreshold) pairs.push({ trackIndex, rawIndex, iou });
+      // A closer or wider view can put one box almost fully inside the other
+      // while their IoU becomes small. Strong same-class containment is still
+      // good evidence for one object and prevents an old held glow plus a new
+      // glow appearing together as the Landlord changes distance.
+      const containment = containmentRatio(track, detection);
+      if (iou >= iouThreshold || containment >= containmentThreshold) {
+        pairs.push({ trackIndex, rawIndex, iou, containment, similarity: Math.max(iou, containment) });
+      }
     }
   }
-  pairs.sort((a, b) => b.iou - a.iou);
+  pairs.sort((a, b) => (b.similarity - a.similarity)
+    || (b.iou - a.iou)
+    || (b.containment - a.containment)
+    || (a.trackIndex - b.trackIndex)
+    || (a.rawIndex - b.rawIndex));
 
   const takenTracks = new Set();
   const takenRaw = new Set();
