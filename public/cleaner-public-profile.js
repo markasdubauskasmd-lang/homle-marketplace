@@ -1,6 +1,6 @@
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-3";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-4";
 
 const gate = document.querySelector("[data-profile-gate]");
 const gateTitle = document.querySelector("[data-profile-gate-title]");

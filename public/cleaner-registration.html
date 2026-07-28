@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-6">
-  <script src="/cleaner-registration.js?v=20260728-3" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-7">
+  <script src="/cleaner-registration.js?v=20260728-4" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -193,6 +193,16 @@
         </div>
 
           <div class="hc-personal-layout" data-personal-details hidden>
+            <header class="hc-business-topbar" data-identity-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 2 of 19 &mdash; Identity verification</strong>
+                <div class="hc-business-progress-track hc-identity-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="2"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
             <header class="hc-business-topbar" data-business-topbar hidden>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
               <div class="hc-business-progress">
@@ -322,6 +332,68 @@
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/personal-details">&larr; Back</a>
                   <p data-business-save-status role="status" aria-live="polite">Progress is saved for this browser tab as you choose.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-identity-card" data-identity-verification hidden aria-labelledby="cleaner-identity-title">
+              <p class="hc-identity-status" data-identity-status role="status">Checking your verification status…</p>
+              <header class="hc-personal-head">
+                <h1 id="cleaner-identity-title">Identity verification</h1>
+                <p>Government-issued photo ID. Homle verifies documents through an approved secure process.</p>
+              </header>
+
+              <form class="hc-personal-form hc-identity-form" data-identity-form>
+                <fieldset class="hc-identity-section">
+                  <legend>Documents</legend>
+                  <div class="hc-identity-documents">
+                    <label class="hc-identity-document">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Passport photo page</strong><small>PDF, JPEG or PNG · max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="passportPhoto" accept="application/pdf,image/jpeg,image/png" data-identity-file>
+                    </label>
+                    <label class="hc-identity-document">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Driving licence front</strong><small>JPEG or PNG · max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="licenceFront" accept="image/jpeg,image/png" data-identity-file>
+                    </label>
+                    <label class="hc-identity-document">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Driving licence back</strong><small>JPEG or PNG · max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="licenceBack" accept="image/jpeg,image/png" data-identity-file>
+                    </label>
+                    <label class="hc-identity-document hc-identity-document-optional">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Birth certificate (optional)</strong><small>PDF, JPEG or PNG · max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="birthCertificate" accept="application/pdf,image/jpeg,image/png" data-identity-file>
+                    </label>
+                    <label class="hc-identity-document hc-identity-document-optional">
+                      <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Visa / residence permit (if applicable)</strong><small>PDF, JPEG or PNG · max 20MB</small></span>
+                      <span class="hc-identity-document-action">Choose file</span>
+                      <input type="file" name="residencePermit" accept="application/pdf,image/jpeg,image/png" data-identity-file>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-identity-section">
+                  <legend>Document details</legend>
+                  <div class="hc-personal-grid hc-personal-grid-four">
+                    <label><span>Passport number</span><input name="passportNumber" autocomplete="off" spellcheck="false" maxlength="32"></label>
+                    <label><span>Passport expiry</span><input name="passportExpiry" type="date" autocomplete="off"></label>
+                    <label><span>Driving licence number</span><input name="drivingLicenceNumber" autocomplete="off" spellcheck="false" maxlength="32"></label>
+                    <label><span>Licence expiry</span><input name="licenceExpiry" type="date" autocomplete="off"></label>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/business-details">&larr; Back</a>
+                  <p data-identity-save-status role="status" aria-live="polite">Sensitive documents and numbers are not stored in this browser.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
