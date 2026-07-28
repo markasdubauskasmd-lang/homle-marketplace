@@ -166,6 +166,29 @@ const markup = `
     </div>
   </div>
 
+  <div class="scan-item-editor" data-item-editor hidden role="dialog" aria-modal="true" aria-labelledby="homle-item-editor-title">
+    <form class="scan-item-editor-in" data-item-editor-form>
+      <p class="scan-item-editor-eyebrow">Check detected item</p>
+      <h2 id="homle-item-editor-title">Name and cleaning level</h2>
+      <label class="scan-item-editor-label" for="homle-item-editor-name">Item name</label>
+      <input class="scan-item-editor-name" id="homle-item-editor-name" data-item-editor-name type="text" maxlength="40" autocomplete="off" required>
+      <fieldset class="scan-item-condition">
+        <legend>How much cleaning does it need?</legend>
+        <div class="scan-item-condition-options">
+          <label><input type="radio" name="homle-item-condition" value="clean"><span>Clean</span></label>
+          <label><input type="radio" name="homle-item-condition" value="light"><span>Light</span></label>
+          <label><input type="radio" name="homle-item-condition" value="medium"><span>Medium</span></label>
+          <label><input type="radio" name="homle-item-condition" value="heavy"><span>Heavy</span></label>
+        </div>
+      </fieldset>
+      <p class="scan-item-editor-help">Choose a level only when you can tell. Your choice replaces the automatic assessment.</p>
+      <div class="scan-item-editor-actions">
+        <button class="button ghost" type="button" data-item-editor-cancel>Cancel</button>
+        <button class="button" type="submit">Save item</button>
+      </div>
+    </form>
+  </div>
+
   <div class="scan-discard" data-discard hidden role="alertdialog" aria-modal="true" aria-labelledby="homle-discard-title" aria-describedby="homle-discard-copy">
     <div class="scan-discard-in">
       <p class="scan-discard-eyebrow" data-discard-eyebrow>Unsaved room scan</p>
@@ -405,6 +428,8 @@ export function openRoomScan() {
       voiceStatus: $("[data-voice-status]"), note: $("[data-room-note]"), noteDone: $("[data-note-done]"), noteOpen: $$("[data-note-open]"),
       deck: $("[data-camera-deck]"),
       consent: $("[data-consent]"), consentAllow: $("[data-consent-allow]"), consentDecline: $("[data-consent-decline]"),
+      itemEditor: $("[data-item-editor]"), itemEditorForm: $("[data-item-editor-form]"),
+      itemEditorName: $("[data-item-editor-name]"), itemEditorCancel: $("[data-item-editor-cancel]"),
       discard: $("[data-discard]"), discardEyebrow: $("[data-discard-eyebrow]"),
       discardTitle: $("[data-discard-title]"), discardCopy: $("[data-discard-copy]"),
       discardKeep: $("[data-discard-keep]"), discardConfirm: $("[data-discard-confirm]"),
@@ -489,6 +514,8 @@ export function openRoomScan() {
     let discardPreviousFocus = null;
     let discardMode = "scan";
     let discardRoomName = "";
+    let itemEditorKey = "";
+    let itemEditorPreviousFocus = null;
     function toast(message) {
       el.toast.textContent = message;
       el.toast.hidden = false;
@@ -501,13 +528,43 @@ export function openRoomScan() {
       return [...state.roomTranscripts.values()].some((note) => String(note || "").trim());
     }
 
-    function setScanBackgroundInert(inert) {
+    function setScanBackgroundInert(inert, except = el.discard) {
       for (const child of el.stage.children) {
-        if (child === el.discard) continue;
+        if (child === except) continue;
         child.inert = inert;
         if (inert) child.setAttribute("aria-hidden", "true");
         else child.removeAttribute("aria-hidden");
       }
+    }
+
+    function closeItemEditor({ restoreFocus = true } = {}) {
+      if (el.itemEditor.hidden) return;
+      el.itemEditor.hidden = true;
+      setScanBackgroundInert(false, el.itemEditor);
+      const focusTarget = itemEditorPreviousFocus;
+      itemEditorPreviousFocus = null;
+      itemEditorKey = "";
+      if (state.screen === "live" && !state.frozen && state.stream) startDetection();
+      if (restoreFocus && focusTarget instanceof HTMLElement && overlay.contains(focusTarget)) {
+        focusTarget.focus({ preventScroll: true });
+      }
+    }
+
+    function openItemEditor(key, trigger) {
+      const current = inventoryFor().find((item) => item.key === key);
+      if (!current || state.closed) return;
+      itemEditorKey = key;
+      itemEditorPreviousFocus = trigger instanceof HTMLElement ? trigger : document.activeElement;
+      el.itemEditorName.value = current.label;
+      const options = el.itemEditorForm.elements["homle-item-condition"];
+      for (const option of options ? [...options] : []) option.checked = option.value === current.condition;
+      stopDetection();
+      el.itemEditor.hidden = false;
+      setScanBackgroundInert(true, el.itemEditor);
+      requestAnimationFrame(() => {
+        el.itemEditorName.focus({ preventScroll: true });
+        el.itemEditorName.select();
+      });
     }
 
     function hideDiscard({ restoreFocus = true } = {}) {
@@ -943,7 +1000,8 @@ export function openRoomScan() {
           label: detection.label, note: detection.note || "", kind: "detected", score: 1,
           // The reader's verdict about this object, so the review paints it where
           // the customer is actually looking — on the thing itself.
-          condition: detection.condition || "", soiling: detection.soiling || []
+          condition: detection.condition || "", conditionConfirmed: detection.conditionConfirmed === true,
+          soiling: detection.soiling || []
         })));
         state.selectedIds = new Set(state.candidates.map((box) => box.id));
         state.manualCount = 0;
@@ -1507,7 +1565,8 @@ export function openRoomScan() {
             // Kept even though a fresh reading is coming: if that background read
             // fails, "needs-retry" keeps THESE detections, and losing their grades
             // to a transient network error would un-grade the room silently.
-            condition: box.condition || "", soiling: box.soiling || [],
+            condition: box.condition || "", conditionConfirmed: box.conditionConfirmed === true,
+            soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: localRoomTasks(roomName, spokenNote),
@@ -1526,7 +1585,8 @@ export function openRoomScan() {
             // An unchanged revisit deliberately buys no new reading, which only
             // works if it also keeps the old one. Dropping condition here meant
             // open-then-save was enough to erase every grade in the room.
-            condition: box.condition || "", soiling: box.soiling || [],
+            condition: box.condition || "", conditionConfirmed: box.conditionConfirmed === true,
+            soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: Array.isArray(existing.tasks) ? existing.tasks : [],
@@ -1951,6 +2011,7 @@ export function openRoomScan() {
         // "this is really there", and the tick is the feedback that it is saved.
         if (item.confirmed || item.sightings > 1) row.classList.add("is-sure");
         if (item.confirmed) row.classList.add("is-confirmed");
+        if (item.conditionConfirmed) row.classList.add("is-condition-confirmed");
 
         const name = document.createElement("button");
         name.type = "button";
@@ -1971,7 +2032,7 @@ export function openRoomScan() {
         if (Number.isFinite(item.score) && item.score > 0 && item.score < 0.5) name.dataset.unsure = "true";
         if (item.note) name.title = item.note;
         name.dataset.inventoryRename = item.key;
-        name.setAttribute("aria-label", `Rename ${inventoryDisplayLabel(item)}`);
+        name.setAttribute("aria-label", `Edit ${inventoryDisplayLabel(item)} name and cleaning level`);
 
         const remove = document.createElement("button");
         remove.type = "button";
@@ -2828,6 +2889,7 @@ export function openRoomScan() {
     function onKeyDown(event) {
       if (event.key !== "Escape") return;
       if (!el.discard.hidden) hideDiscard();
+      else if (!el.itemEditor.hidden) closeItemEditor();
       else requestClose();
     }
 
@@ -2850,14 +2912,30 @@ export function openRoomScan() {
       const key = rename.dataset.inventoryRename;
       const current = inventoryFor().find((item) => item.key === key);
       if (!current) return;
-      // `prompt` rather than a bespoke dialog: it is one field, it is reachable by
-      // keyboard and screen reader for free, and it cannot trap focus behind a
-      // live camera the way a hand-rolled modal on this screen already can.
-      const next = window.prompt("What is this?", current.label);
-      if (next === null) return;
-      const label = String(next).trim();
-      setInventory(state.currentRoom, correctInventoryItem(inventoryFor(), key, label ? { label } : { confirmed: true }));
-      toast(label && label !== current.label ? `Saved as ${label}.` : "Confirmed.");
+      openItemEditor(key, rename);
+    });
+    el.itemEditorCancel.addEventListener("click", () => closeItemEditor());
+    el.itemEditor.addEventListener("click", (event) => {
+      if (event.target === el.itemEditor) closeItemEditor();
+    });
+    el.itemEditorForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const current = inventoryFor().find((item) => item.key === itemEditorKey);
+      if (!current) return closeItemEditor({ restoreFocus: false });
+      const label = String(el.itemEditorName.value || "").trim();
+      if (!label) {
+        el.itemEditorName.setCustomValidity("Enter a name for this item.");
+        el.itemEditorName.reportValidity();
+        return;
+      }
+      el.itemEditorName.setCustomValidity("");
+      const selected = el.itemEditorForm.elements["homle-item-condition"];
+      const condition = [...(selected ? selected : [])].find((option) => option.checked)?.value || "";
+      const change = { label, confirmed: true };
+      if (condition) change.condition = condition;
+      setInventory(state.currentRoom, correctInventoryItem(inventoryFor(), itemEditorKey, change));
+      closeItemEditor({ restoreFocus: false });
+      toast(label !== current.label || (condition && condition !== current.condition) ? `${label} updated.` : `${label} confirmed.`);
     });
     el.viewfinder.addEventListener("click", onViewfinderTap);
     el.detections.addEventListener("click", (event) => {

@@ -166,6 +166,10 @@ export function usableLiveBoxes(boxes) {
       // which meant the one screen where the customer is looking straight at the
       // thing itself said nothing about it.
       condition: String(box.condition || "").trim().slice(0, 12),
+      // A customer-confirmed grade is contract evidence, not another model
+      // suggestion. Keep that distinction while a saved room is reopened so a
+      // later automatic read cannot silently replace what they chose.
+      conditionConfirmed: box.conditionConfirmed === true,
       soiling: Object.freeze((Array.isArray(box.soiling) ? box.soiling : []).map((kind) => String(kind).trim().slice(0, 16)).slice(0, 4)),
       note: String(box.note || "").trim().slice(0, 60)
     }));
@@ -1109,6 +1113,7 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       merged.set(key, {
         key, label, score, quantity, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false,
         condition: String(item?.condition || ""), note: String(item?.note || ""),
+        conditionConfirmed: item?.conditionConfirmed === true,
         soiling: Object.freeze((Array.isArray(item?.soiling) ? item.soiling : [])
           .map((kind) => String(kind || "").trim().slice(0, 16))
           .filter(Boolean)
@@ -1178,10 +1183,15 @@ export function savedDetectionFromInventoryItem(item) {
   const evidence = String(item?.note || "").trim().slice(0, 60);
   return Object.freeze({
     id: `w-${key}`,
+    // Stable identity from before any customer rename. The saved confirmation
+    // box may still say "Tap" while this row now says "Bathroom tap"; merging
+    // by the displayed label would store both as separate objects.
+    inventoryKey: key,
     label,
     quantity: itemQuantity(item),
     note: evidence || (item?.confirmed ? "Confirmed while scanning" : "Seen while scanning"),
     condition: String(item?.condition || "").trim().slice(0, 12),
+    conditionConfirmed: item?.conditionConfirmed === true,
     soiling: Object.freeze((Array.isArray(item?.soiling) ? item.soiling : [])
       .map((kind) => String(kind || "").trim().slice(0, 16))
       .filter(Boolean)
@@ -1199,7 +1209,7 @@ export function mergeSavedDetections(existing, incoming) {
   const incomingCounts = new Map();
   const countBatch = (source, target) => {
     for (const detection of Array.isArray(source) ? source : []) {
-      const key = inventoryKey(detection?.label);
+      const key = String(detection?.inventoryKey || inventoryKey(detection?.label)).trim();
       if (!key) continue;
       target.set(key, (target.get(key) || 0) + itemQuantity(detection));
     }
@@ -1209,11 +1219,32 @@ export function mergeSavedDetections(existing, incoming) {
 
   const merged = new Map();
   for (const detection of [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]) {
-    const key = inventoryKey(detection?.label);
+    const key = String(detection?.inventoryKey || inventoryKey(detection?.label)).trim();
     if (!key) continue;
     const current = merged.get(key);
     if (!current) {
       merged.set(key, { ...detection });
+      continue;
+    }
+    const currentConfirmed = current.conditionConfirmed === true;
+    const incomingConfirmed = detection.conditionConfirmed === true;
+    if (incomingConfirmed) {
+      // The newest explicit customer choice wins, even over a better-framed or
+      // more severe automatic assessment. This is the user's final scope. A
+      // walking row has no coordinates, though, so keep the real confirmation
+      // box underneath the corrected label and grade.
+      const corrected = { ...current, ...detection, conditionConfirmed: true };
+      if (!(detection.width > 0 && detection.height > 0) && current.width > 0 && current.height > 0) {
+        Object.assign(corrected, {
+          id: current.id, x: current.x, y: current.y,
+          width: current.width, height: current.height
+        });
+      }
+      merged.set(key, corrected);
+      continue;
+    }
+    if (currentConfirmed) {
+      merged.set(key, { ...detection, ...current, conditionConfirmed: true });
       continue;
     }
     const better = (detection.width > 0 && !(current.width > 0))
