@@ -149,8 +149,35 @@ assert.equal(radiator.score, 0.8, "A lower-confidence second sighting overwrote 
 // Casing, articles and plurals are the same item to a Landlord reading a checklist.
 assert.equal(inventoryKey("The Blinds"), inventoryKey("blind"), "Article and plural differences created two rows for one item.");
 assert.equal(inventoryKey("  Chest of Drawers "), inventoryKey("chest of drawers"), "Whitespace and casing created two rows for one item.");
+assert.equal(inventoryKey("Faucet"), inventoryKey("Tap"), "UK/US names for one tap created duplicate room items.");
+assert.equal(inventoryKey("Countertops"), inventoryKey("Worktop"), "Countertop and worktop readings created duplicate room items.");
+assert.equal(inventoryKey("Couch"), inventoryKey("Sofa"), "Couch and sofa readings created duplicate room items.");
+assert.equal(inventoryKey("Refrigerator"), inventoryKey("Fridge"), "Refrigerator and fridge readings created duplicate room items.");
+assert.equal(inventoryKey("Shower glass"), inventoryKey("Shower screen"), "Shower glass and shower screen readings created duplicate room items.");
+assert.equal(inventoryKey("Glasses"), inventoryKey("Glass"), "Pluralising a word ending in -ss changed its object identity.");
+assert.notEqual(inventoryKey("Sink"), inventoryKey("Tap"), "Alias matching collapsed a sink and its tap into one object.");
+assert.notEqual(inventoryKey("Dining table"), inventoryKey("Worktop"), "Alias matching collapsed two different cleanable surfaces.");
 assert.equal(inventoryKey(""), "", "An empty label produced a key.");
 assert.equal(mergeRoomInventory([], [{ label: "   ", score: 1 }], { now: 1 }).length, 0, "A blank label was added to the inventory.");
+
+let aliasInventory = mergeRoomInventory([], [{ label: "Faucet", score: 0.71, condition: "light" }], { now: 1 });
+aliasInventory = mergeRoomInventory(aliasInventory, [{ label: "Tap", score: 0.84, condition: "medium" }], { now: 2 });
+assert.equal(aliasInventory.length, 1, "Independent views using faucet and tap stored the same real object twice.");
+assert.equal(aliasInventory[0].label, "Tap", "The stronger reading did not supply the grouped object's visible label.");
+assert.equal(aliasInventory[0].sightings, 2, "Alias deduplication discarded the second view instead of strengthening the object evidence.");
+
+const sameTapTwice = mergeRoomInventory([], [
+  { label: "Faucet", score: 0.78, x: 20, y: 25, width: 18, height: 25 },
+  { label: "Tap", score: 0.82, x: 21, y: 26, width: 17, height: 24 }
+], { now: 1 });
+assert.equal(sameTapTwice.length, 1, "Two names for one overlapping tap created two inventory rows.");
+assert.equal(sameTapTwice[0].quantity, 1, "One overlapping tap was presented as a quantity of two after alias normalisation.");
+
+const twoRealTaps = mergeRoomInventory([], [
+  { label: "Faucet", score: 0.78, x: 5, y: 25, width: 15, height: 25 },
+  { label: "Tap", score: 0.82, x: 70, y: 25, width: 15, height: 25 }
+], { now: 1 });
+assert.equal(twoRealTaps[0].quantity, 2, "Two visibly separate taps were incorrectly collapsed into one.");
 
 /* ── The list is ordered by usefulness, not by repetition ── */
 
