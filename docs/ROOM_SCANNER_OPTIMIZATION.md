@@ -25,6 +25,7 @@ The existing scanner remains the single scanner used by the Landlord booking jou
 - The camera now asks for a practical 720p/24fps stream, with bounded higher-resolution fallbacks, rather than requiring full HD immediately.
 - Detection work is scheduled against newly presented video frames with `requestVideoFrameCallback()` where the browser supports it. Older browsers retain the animation-frame fallback.
 - Existing adaptive detection throttling remains in place, so slower phones do less work rather than freezing the viewfinder.
+- Automatic walking reads no longer depend on WebGL or the optional local object-glow model. If that model is loading or unavailable, a lightweight quality/signature pass still selects bounded settled views for assisted room reading.
 - Hidden/backgrounded scans still release the camera, microphone and detector.
 
 ### More accurate and easier to correct
@@ -47,6 +48,7 @@ The existing scanner remains the single scanner used by the Landlord booking jou
 ### Better failure recovery
 
 - Automatic room reading has a bounded timeout. A slow provider no longer leaves the scanner spinning indefinitely.
+- A phone that is explicitly offline keeps object detection on-device and does not consume any of the room's four assisted-reading slots. A confirmed room remains in the open scan and its assisted reading resumes automatically after reconnection.
 - A timed-out or temporarily failed read keeps the captured image, chosen objects and spoken instructions.
 - Spoken notes are converted locally into room-labelled task bullets when assisted reading is unavailable.
 - A captured room photo is always handed to the authenticated booking journey, even if automatic analysis produces no tasks. Previously, such a photo could be silently omitted.

@@ -890,10 +890,18 @@ export function signatureDistance(first, second) {
 export function shouldCaptureKeyframe({
   signature, previousSignature, lastReadSignature,
   now = 0, lastCaptureAt = 0, capturedCount = 0, busy = false,
-  qualityKind = ""
+  qualityKind = "", online = true
 } = {}, options = {}) {
   const { sceneChangeThreshold, stillnessThreshold, minIntervalMs, maxPerRoom } = { ...keyframeDefaults, ...options };
   if (busy || !Array.isArray(signature)) return false;
+  // `navigator.onLine === false` is a strong signal that no request can leave
+  // the phone. Do not reserve a frame, signature or paid-read slot while that is
+  // true. The same settled view becomes eligible as soon as connectivity returns.
+  //
+  // A true value is not treated as proof of Internet access; normal request
+  // failures remain bounded and non-refundable because the provider may already
+  // have received them.
+  if (online === false) return false;
   // The guidance pass has already established that this frame cannot support a
   // reliable condition judgement. Sending it anyway used one of the room's four
   // paid reads on the exact dark, blown-out or motion-soft image we had just told

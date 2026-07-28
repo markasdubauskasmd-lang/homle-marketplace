@@ -355,6 +355,11 @@ export function openRoomScan() {
       // actually gets asked when a scan looks wrong — is the room filter working,
       // or is it eating everything?
       pendingReads: 0, roomReadControllers: new Set(), finishConfirmed: false,
+      // `navigator.onLine === false` is the browser's explicit no-network state.
+      // Local detection keeps running, while paid room reads wait without
+      // consuming the per-room allowance. Confirmed rooms saved during the gap
+      // are retried once the browser reports a connection again.
+      networkOffline: navigator.onLine === false, networkDeferredRooms: new Set(),
       diagnostics: { suppressedByRoom: 0, framesInferred: 0, detectorErrors: 0, keyframesRead: 0 },
       // Walking the room. `signature` and `previousSignature` are the coarse
       // brightness grids the quality pass already computes; the rest is what
@@ -1749,7 +1754,11 @@ export function openRoomScan() {
         // overexposed or motion-soft must not become paid pricing evidence or
         // consume one of the room's four reads. The view stays eligible after
         // the Landlord corrects it because no budget state changes here.
-        qualityKind: state.qualityKind
+        qualityKind: state.qualityKind,
+        // A known-offline frame is kept local. Crucially, the decision happens
+        // before the budget and signature below are advanced, so reconnection
+        // can read the same settled view instead of leaving the room exhausted.
+        online: !state.networkOffline
       };
       if (!shouldCaptureKeyframe(decision)) return;
 
@@ -1979,6 +1988,16 @@ export function openRoomScan() {
     }
 
     function readRoomInBackground({ frame, roomName, chosen, spokenNote, session }) {
+      if (state.networkOffline) {
+        const current = findRoom(state.rooms, roomName);
+        if (current?.readingStatus === "reading") {
+          state.rooms = upsertRoom(state.rooms, { ...current, readingStatus: "needs-retry" });
+          state.networkDeferredRooms.add(transcriptKey(roomName));
+        }
+        toast(`${roomName} is saved in this scan — keep it open and automatic reading will resume when you're online.`);
+        renderHub();
+        return;
+      }
       state.pendingReads += 1;
       renderHub();
       readRoom(frame, roomName, chosen, spokenNote)
@@ -2012,15 +2031,37 @@ export function openRoomScan() {
           if (current?.readingStatus === "reading") {
             state.rooms = upsertRoom(state.rooms, { ...current, readingStatus: "needs-retry" });
           }
-          toast(error?.code === "sign-in-required"
-            ? `${roomName} saved. Sign in to let Homle name objects automatically.`
-            : `${roomName} saved, but automatic reading did not finish. Tap the room to retry.`);
+          const disconnected = state.networkOffline || navigator.onLine === false;
+          if (disconnected) state.networkDeferredRooms.add(transcriptKey(roomName));
+          toast(disconnected
+            ? `${roomName} is saved in this scan — keep it open and automatic reading will resume when you're online.`
+            : error?.code === "sign-in-required"
+              ? `${roomName} saved. Sign in to let Homle name objects automatically.`
+              : `${roomName} saved, but automatic reading did not finish. Tap the room to retry.`);
           renderHub();
         })
         .finally(() => {
           state.pendingReads = Math.max(0, state.pendingReads - 1);
           if (!state.closed) renderHub();
         });
+    }
+
+    function resumeDeferredRoomReads() {
+      if (state.closed || state.networkOffline || document.hidden || !state.networkDeferredRooms.size) return;
+      for (const roomKey of [...state.networkDeferredRooms]) {
+        const room = state.rooms.find((candidate) => transcriptKey(candidate?.name) === roomKey);
+        state.networkDeferredRooms.delete(roomKey);
+        if (!room?.image || room.readingStatus !== "needs-retry") continue;
+        state.rooms = upsertRoom(state.rooms, { ...room, readingStatus: "reading" });
+        readRoomInBackground({
+          frame: room.image,
+          roomName: room.name,
+          chosen: room.detections || [],
+          spokenNote: room.transcript || "",
+          session: state.roomSession
+        });
+      }
+      renderHub();
     }
 
     async function readRoom(image, roomName, items = [], transcript = "", purpose = "confirmation") {
@@ -2147,8 +2188,10 @@ export function openRoomScan() {
         state.detectorState = "ready";
         renderDetectorState();
       }).catch(() => {
-        // The scan carries on exactly as it did before any of this existed:
-        // photographs, voice notes and boxes added by hand.
+        // The glow is optional, the automatic room reader is not. The lightweight
+        // frame-quality/keyframe loop below keeps running without WebGL or this
+        // model, so a phone that cannot load COCO still gets the promised
+        // walk-around room reading as well as photos, notes and manual marking.
         state.detectorState = "unavailable";
         state.liveDetectionAvailable = false;
         renderDetectorState();
@@ -2164,6 +2207,12 @@ export function openRoomScan() {
       const live = state.screen === "live";
       if (!live || state.frozen) {
         el.detectorState.hidden = true;
+        return;
+      }
+      if (state.networkOffline) {
+        el.detectorState.hidden = false;
+        el.detectorState.dataset.kind = "guide";
+        el.detectorState.textContent = "Connection paused — object finding stays on your phone. Keep this scan open and room reading will resume automatically.";
         return;
       }
       // Once the detector is up, this line is where framing guidance goes: it is
@@ -2182,7 +2231,7 @@ export function openRoomScan() {
       if (state.detectorState === "unavailable") {
         el.detectorState.hidden = false;
         el.detectorState.dataset.kind = "off";
-        el.detectorState.textContent = "Automatic object finding is unavailable — tap anything in the frame to mark it yourself.";
+        el.detectorState.textContent = "Live object glow is unavailable — room reading still runs automatically. Tap anything to mark it yourself.";
         return;
       }
       el.detectorState.hidden = false;
@@ -2194,7 +2243,7 @@ export function openRoomScan() {
       // Only while the Landlord is actually pointing at a room. Behind the hub
       // the camera is warm but there is nothing to detect, so the loop stays off.
       if (state.screen !== "live" || state.closed || state.frozen || !state.stream) return;
-      if (!state.liveDetectionAvailable || state.rafId) return;
+      if (state.rafId) return;
       warmDetector();
 
       state.detectionGeneration += 1;
@@ -2203,13 +2252,32 @@ export function openRoomScan() {
         state.rafId = 0;
         if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
         scheduleDetectionFrame(step);
-        if (state.detectorState !== "ready" || detectorBusy) return;
+        // Frame selection and assisted reading are not a feature of COCO. While
+        // that optional model is loading—or when WebGL/model loading failed—the
+        // cheap quality pass still chooses settled views for the room reader.
+        if (state.detectorState !== "ready") {
+          runKeyframePass(generation);
+          return;
+        }
+        if (detectorBusy) return;
         const now = Date.now();
         if (now - state.lastDetectionAt < state.detectionInterval) return;
         state.lastDetectionAt = now;
         runDetection(generation);
       }
       scheduleDetectionFrame(step);
+    }
+
+    function runKeyframePass(generation) {
+      const video = el.camera;
+      if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
+      if (!video.videoWidth || !video.videoHeight) return;
+      // `sampleFrameQuality` owns its 900ms throttle and returns true only when a
+      // fresh signature was actually measured. This keeps the fallback far
+      // lighter than object inference and prevents repeated decisions on stale
+      // pixels.
+      if (!sampleFrameQuality(video)) return;
+      maybeReadKeyframe(video);
     }
 
     function scheduleDetectionFrame(callback) {
@@ -2262,9 +2330,9 @@ export function openRoomScan() {
     // than any extra work on the camera path. Sampled every few passes, not every
     // pass — a readback is the one genuinely synchronous thing here.
     function sampleFrameQuality(source) {
-      if (!source) return;
+      if (!source) return false;
       const now = Date.now();
-      if (now - state.lastQualityAt < QUALITY_SAMPLE_MS) return;
+      if (now - state.lastQualityAt < QUALITY_SAMPLE_MS) return false;
       state.lastQualityAt = now;
       // Its own small canvas, flagged for readback. Reading pixels back off the
       // detector's canvas would push that one off the GPU path it is there to use.
@@ -2279,7 +2347,7 @@ export function openRoomScan() {
         const context = canvas.getContext("2d", { willReadFrequently: true });
         context.drawImage(source, 0, 0, canvas.width, canvas.height);
         pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-      } catch { return; }
+      } catch { return false; }
       const { width, height } = canvas;
       let total = 0;
       let deltas = 0;
@@ -2317,16 +2385,17 @@ export function openRoomScan() {
       }
 
       const samples = width * height;
-      if (!samples || !pairs) return;
+      if (!samples || !pairs) return false;
       // Lighting problems outrank movement: a dark room stays dark however
       // slowly the phone moves, so that is the thing worth saying first.
       const advice = frameQualityAdvice({ luma: total / samples, detail: deltas / pairs })
         || movementAdvice(state.motionDistances);
       const key = advice ? advice.kind : "";
-      if (key === state.qualityKind) return;
+      if (key === state.qualityKind) return true;
       state.qualityKind = key;
       state.qualityMessage = advice ? advice.message : "";
       renderDetectorState();
+      return true;
     }
 
     // Measuring the viewfinder forces layout. It only changes when the window or
@@ -2420,6 +2489,7 @@ export function openRoomScan() {
       if (state.closed || document.hidden) return;
       if (state.resumeCameraOnVisible) scheduleCameraResume();
       else if (state.stream) startDetection();
+      resumeDeferredRoomReads();
     }
 
     function onVisibility() {
@@ -2429,6 +2499,19 @@ export function openRoomScan() {
 
     function onPageHide() { flushRoomNotes(); pauseForBackground(); }
     function onPageShow() { resumeAfterBackground(); }
+
+    function onNetworkChange() {
+      const offline = navigator.onLine === false;
+      if (offline === state.networkOffline) return;
+      state.networkOffline = offline;
+      renderDetectorState();
+      if (offline) {
+        toast("Connection paused — keep this scan open. Local object finding still works.");
+        return;
+      }
+      toast("Back online — automatic room reading resumed.");
+      resumeDeferredRoomReads();
+    }
 
     /* ── Voice ── */
     function buildWave() {
@@ -2679,6 +2762,8 @@ export function openRoomScan() {
       window.visualViewport?.removeEventListener("resize", onViewportResize);
       window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("online", onNetworkChange);
+      window.removeEventListener("offline", onNetworkChange);
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.body.style.overflow = previousOverflow;
       overlay.remove();
@@ -2795,6 +2880,8 @@ export function openRoomScan() {
     window.visualViewport?.addEventListener("resize", onViewportResize);
     window.addEventListener("pagehide", onPageHide);
     window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("online", onNetworkChange);
+    window.addEventListener("offline", onNetworkChange);
     window.addEventListener("beforeunload", onBeforeUnload);
 
     // Open on the hub so the first thing asked is which room — and warm the

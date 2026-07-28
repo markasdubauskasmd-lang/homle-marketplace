@@ -251,15 +251,30 @@ assert(readRoomBody && /if \(!state\.readingAllowed/.test(readRoomBody), "The ro
 assert(/state\.roomReadControllers\.add\(controller\)/.test(overlay), "Room reads share one abort controller again, so starting a new read cancels the one in flight.");
 assert(!/state\.roomReadController\?\.abort\(\)/.test(overlay), "A new read aborts its predecessor again.");
 assert(overlay.includes("!state.consentAsked) await askConsent();"), "A photograph can be read before consent has been given.");
+const keyframeDecisionBody = overlay.slice(
+  overlay.indexOf("function maybeReadKeyframe(video)"),
+  overlay.indexOf('let image = "";', overlay.indexOf("function maybeReadKeyframe(video)"))
+);
 assert(
-  /function maybeReadKeyframe\(video\)[\s\S]{0,900}qualityKind: state\.qualityKind[\s\S]{0,180}shouldCaptureKeyframe\(decision\)/.test(overlay),
+  keyframeDecisionBody.includes("qualityKind: state.qualityKind")
+    && keyframeDecisionBody.includes("shouldCaptureKeyframe(decision)"),
   "The live quality warning is not part of the keyframe decision, so dark, overexposed or blurred frames can still consume paid room reads."
+);
+assert(
+  keyframeDecisionBody.includes("online: !state.networkOffline")
+    && keyframeDecisionBody.includes("shouldCaptureKeyframe(decision)"),
+  "A known-offline frame can still advance the paid room-read budget before the phone reconnects."
 );
 
 // A detector that cannot load must leave the scan exactly as good as it was
 // before any of this existed.
 assert(overlay.includes("state.liveDetectionAvailable = false") && overlay.includes('state.detectorState = "unavailable"'), "A detector that fails to load is not degraded away cleanly.");
 assert(/catch[\s\S]{0,500}state\.liveDetectionAvailable = false/.test(overlay), "A detector that starts failing mid-scan can wedge the loop.");
+assert(
+  /function runKeyframePass\(generation\)[\s\S]{0,600}sampleFrameQuality\(video\)[\s\S]{0,180}maybeReadKeyframe\(video\)/.test(overlay)
+    && overlay.includes("room reading still runs automatically"),
+  "Losing the optional live glow also disables automatic room reading or falsely tells the Landlord the whole scanner stopped."
+);
 // A rejection arriving from a previous run must not wipe the boxes off a frame
 // the Landlord has since frozen and is choosing on.
 // The binding is optional — the catch takes an `error` so the failure can be logged —
@@ -302,6 +317,13 @@ assert(overlay.includes("let detectorBusy = false") && !overlay.includes("state.
 // The detector's loop and its listeners must not outlive the overlay.
 assert(/function close\(result\)[\s\S]{0,700}stopDetection\(\)/.test(overlay), "Closing the scan leaves the detection loop running.");
 assert(overlay.includes('document.removeEventListener("visibilitychange"') && overlay.includes('window.removeEventListener("resize"'), "A listener is left on document or window, holding the camera and the model alive for the life of the page.");
+assert(
+  overlay.includes('window.addEventListener("online", onNetworkChange)')
+    && overlay.includes('window.addEventListener("offline", onNetworkChange)')
+    && overlay.includes('window.removeEventListener("online", onNetworkChange)')
+    && overlay.includes('window.removeEventListener("offline", onNetworkChange)'),
+  "Online/offline recovery listeners are missing or remain attached after the scanner closes."
+);
 
 // Camera refusal is explained and never dead-ends the booking.
 assert(overlay.includes("data-camera-blocked") && overlay.includes("NotAllowedError") && overlay.includes("Describe by voice or typing"), "A declined camera leaves the Landlord stuck with no way to continue.");
@@ -327,6 +349,12 @@ assert(overlay.includes("async function recoverCsrf") && overlay.includes('fetch
 // round trip — waiting on one is what made the button feel dead.
 assert(/readRoomInBackground\(\{ frame, roomName, chosen, spokenNote, session \}\)/.test(overlay), "Saving a room waits on the vision model again, so the confirm button blocks for as long as the provider and the connection take.");
 assert(/readingStatus: "reading"/.test(overlay), "A room saved before its reading completes is not marked, so the hub cannot show that it is still being read.");
+assert(
+  /function readRoomInBackground[\s\S]{0,700}state\.networkDeferredRooms\.add\(transcriptKey\(roomName\)\)/.test(overlay)
+    && /function resumeDeferredRoomReads[\s\S]{0,1100}readingStatus: "reading"[\s\S]{0,500}readRoomInBackground/.test(overlay)
+    && /function onNetworkChange[\s\S]{0,500}resumeDeferredRoomReads\(\)/.test(overlay),
+  "A room confirmed while offline is not retained and retried automatically after connectivity returns."
+);
 // A late reading must land only on the room it was started for.
 assert(/current\.readingStatus !== "reading"\) return;/.test(overlay), "A background reading is applied without checking the room is still awaiting one, so it could overwrite a room the customer has since edited or re-saved.");
 
