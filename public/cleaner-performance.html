@@ -7,21 +7,21 @@
   <meta name="theme-color" content="#d63a2a" />
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Homle">
-  <title>Job detail | Homle</title>
+  <title>Performance | Homle</title>
   <link rel="icon" href="/homle-logo.png" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-2">
   <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-4">
-  <script src="/cleaner-job.js?v=20260727-1" type="module"></script>
+  <script src="/cleaner-performance.js?v=20260728-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
 <body class="cleaner-workspace-page">
-  <a class="hc-skip" href="#cleaner-job-main">Skip to job detail</a>
+  <a class="hc-skip" href="#cleaner-performance-main">Skip to Performance</a>
 
   <div class="hc">
-    <aside class="hc-side cleaner-site-header">
+<aside class="hc-side cleaner-site-header">
       <div class="hc-brand">
         <div class="hc-brand-mark" aria-hidden="true">
           <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 4 4.5 10.5V20h15v-9.5z" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path><path d="M10 20v-5h4v5" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path></svg>
@@ -65,7 +65,7 @@
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.7 6.3.9-4.5 4.4 1 6.3-5.5-3-5.5 3 1-6.3L3 9.6l6.3-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Reviews</span>
         </a>
-        <a class="hc-nav-item" href="/cleaner/performance">
+        <a class="hc-nav-item" href="/cleaner/performance" aria-current="page">
           <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           <span class="hc-nav-label">Performance</span>
         </a>
@@ -142,100 +142,73 @@
       </div>
     </aside>
 
-    <main class="hc-main" id="cleaner-job-main">
-      <div class="hc-main-inner">
+    <main class="hc-main" id="cleaner-performance-main">
+      <a class="hc-bell" href="/notifications" aria-label="Updates">
+        <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 1 1 12 0v5l2 3H4zM10 19a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span class="hc-bell-dot" data-notification-count hidden></span>
+      </a>
 
-        <section class="hc-gate" data-job-gate role="status" aria-live="polite">
-          <h1 class="hc-h3" data-job-gate-title>Loading this job…</h1>
-          <p class="hc-card-sub" data-job-gate-copy>Job details open only for the invited or assigned Cleaner.</p>
+      <div class="hc-main-inner">
+        <section class="hc-gate" data-perf-gate role="status" aria-live="polite">
+          <h1 class="hc-h3" data-perf-gate-title>Checking secure Cleaner access…</h1>
+          <p class="hc-card-sub" data-perf-gate-copy>This page opens only inside the assigned Cleaner account.</p>
           <div class="hc-gate-actions">
-            <a class="hc-btn" href="/login?intent=work" data-job-sign-in hidden>Sign in as a Cleaner</a>
-            <a class="hc-btn-outline" href="/cleaner/dashboard" data-job-dashboard-link hidden>Back to dashboard</a>
-            <button class="hc-btn-outline" type="button" data-job-retry hidden>Try again</button>
+            <a class="hc-btn" href="/login?intent=work" data-perf-sign-in hidden>Sign in as a Cleaner</a>
+            <button class="hc-btn-outline" type="button" data-perf-retry hidden>Try again</button>
           </div>
         </section>
 
-        <div data-job hidden>
-          <div class="hc-feedback hc-feedback-error" data-job-offline role="status" aria-live="polite" hidden>
-            <strong>You are offline.</strong> Homle will not send or automatically retry an accept or decline decision until the connection returns.
+        <div data-perf hidden>
+          <div class="hc-feedback hc-feedback-error" data-perf-offline role="status" aria-live="polite" hidden>
+            <strong>You are offline.</strong> This page shows the last loaded data and will not refresh until the connection returns.
           </div>
 
-          <a class="hc-back" href="/cleaner/dashboard">← Dashboard</a>
+        <h1 class="hc-page-title">Performance</h1>
+        <p class="hc-page-sub hc-page-sub-wide">Your rank is calculated from reviews, punctuality, completed jobs and cancellations — updated after every job.</p>
 
-          <section class="hc-jd-head">
-            <div class="hc-jd-head-row">
-              <div class="hc-jd-date">
-                <span class="hc-jd-day" data-job-day>—</span>
-                <span class="hc-jd-dnum" data-job-dnum>—</span>
-              </div>
-              <div class="hc-jd-body">
-                <h1 class="hc-jd-title" data-job-title>Cleaning</h1>
-                <div class="hc-jd-addr" data-job-addr>Area shared after confirmation</div>
-                <div class="hc-jd-chips" data-job-chips></div>
-              </div>
-              <div class="hc-jd-pay">
-                <div class="hc-jd-pay-amount" data-job-pay>£0.00</div>
-                <div class="hc-jd-pay-sub" data-job-pay-sub>Your pay</div>
-                <div class="hc-jd-actions" data-job-actions></div>
-              </div>
+        <section class="hc-rank">
+          <div class="hc-rank-body">
+            <div class="hc-rank-eyebrow">YOUR RANK</div>
+            <h2 class="hc-rank-tier" data-perf-tier>Not ranked yet</h2>
+            <div class="hc-rank-perks" data-perf-perks></div>
+          </div>
+        </section>
+
+        <section class="hc-panel hc-panel-spaced">
+          <h4 class="hc-h4">Rank ladder</h4>
+          <div class="hc-ladder" data-perf-ladder></div>
+        </section>
+
+        <div class="hc-criteria" data-perf-criteria></div>
+
+        <div class="hc-split">
+          <section class="hc-panel">
+            <h4 class="hc-h4">How to guide</h4>
+            <div class="hc-guide">
+              <div><span aria-hidden="true">✓</span>Arrive within the app's check-in window on every job — it's tracked automatically by GPS check-in.</div>
+              <div><span aria-hidden="true">✓</span>Finish within the booked time, or message the client early if you're running over.</div>
+              <div><span aria-hidden="true">✓</span>Only accept jobs you're confident you can keep — cancelling after accepting hurts your rate more than never accepting.</div>
+              <div><span aria-hidden="true">✓</span>Send sign-off photos every time — clients who see them rate higher on average.</div>
+              <div><span aria-hidden="true">✓</span>Keep completing jobs steadily — your total job count only ever goes up.</div>
             </div>
           </section>
+          <section class="hc-panel">
+            <h4 class="hc-h4">Why rankings matter</h4>
+            <p class="hc-prose">Homle uses your rank to decide which jobs you see first. Gold and Platinum cleaners are shown to clients before Bronze and Silver cleaners for every matching job — and pay a lower platform fee.</p>
+            <p class="hc-prose">Ranks are recalculated after every completed job, so a slow patch never locks you out permanently — it just takes consistent, reliable work to climb back up.</p>
+          </section>
+        </div>
 
-          <div class="hc-jd-grid">
-            <div class="hc-jd-col">
-              <section class="hc-jd-card">
-                <div class="hc-jd-card-head">
-                  <h4 class="hc-h4">Task checklist</h4>
-                  <span class="hc-jd-note"><span data-job-task-count>0</span> tasks · ticked off in the app as you go</span>
-                </div>
-                <div data-job-tasks></div>
-              </section>
+        <!--
+          Punctuality, cancellation rate and the rank tiers themselves are not recorded
+          anywhere in this codebase. The tiles below show the two figures Homle does hold
+          (completed jobs and approved rating) and state which inputs are not yet tracked,
+          rather than presenting a rank derived from data that does not exist.
+        -->
+        <p class="hc-boundary" data-perf-boundary>Ranking is not live yet. Homle records completed jobs and approved reviews, but does not yet track arrival punctuality or cancellation rate, so no rank is assigned.</p>
 
-              <section class="hc-jd-card">
-                <h4 class="hc-h4">Client photos</h4>
-                <div class="hc-jd-note" data-job-photos-note>Taken by the client in the Homle app.</div>
-                <div class="hc-jd-photos" data-job-photos></div>
-              </section>
-            </div>
 
-            <div class="hc-jd-col">
-              <section class="hc-jd-card">
-                <h4 class="hc-h4">Client notes</h4>
-                <div class="hc-jd-notes-box" data-job-notes>No notes were added to this request.</div>
-              </section>
-
-              <section class="hc-jd-card">
-                <h4 class="hc-h4">Access &amp; entry</h4>
-                <div class="hc-jd-rows">
-                  <div class="hc-jd-row"><span>Entry</span><b data-job-access-entry>Shared after acceptance</b></div>
-                  <div class="hc-jd-row"><span>Property</span><b data-job-access-property>—</b></div>
-                  <div class="hc-jd-row"><span>Area</span><b data-job-access-area>—</b></div>
-                </div>
-                <div class="hc-jd-boundary" data-job-access-boundary>Exact codes and the full address unlock when you accept the job.</div>
-              </section>
-
-              <section class="hc-jd-card">
-                <h4 class="hc-h4">Client</h4>
-                <div class="hc-jd-client">
-                  <div class="hc-jd-client-avatar" data-job-client-initial>L</div>
-                  <div>
-                    <div class="hc-jd-client-name" data-job-client-name>Landlord</div>
-                    <div class="hc-jd-client-meta" data-job-client-meta>Contact details stay private</div>
-                  </div>
-                </div>
-                <a class="hc-jd-client-action" href="#" data-job-message hidden>Message client</a>
-              </section>
-
-              <!--
-                The design's "Getting there" card opens a map route. Homle has no map
-                provider configured (MAP_PROVIDER=none) and the design's own map page
-                needs Leaflet plus OpenStreetMap tiles, which the CSP blocks. The travel
-                panel is therefore omitted rather than shipped as a dead control.
-              -->
-            </div>
-          </div>
-
-          <div class="hc-feedback" data-job-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
+          <div class="hc-feedback" data-perf-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
 
           <footer class="hc-foot">
             <span>© <span data-year></span> Homle.</span>
@@ -243,21 +216,12 @@
           </footer>
         </div>
       </div>
+
+      <a class="hc-fab" href="/notifications" aria-label="Open your private inbox">
+        <svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span class="hc-fab-dot" data-notification-count hidden></span>
+      </a>
     </main>
   </div>
-
-  <dialog class="active-job-dialog" data-decline-dialog>
-    <form method="dialog" data-decline-form>
-      <h2>Decline this request?</h2>
-      <p>The Landlord will be told that this Cleaner invitation was declined. Homle will reopen matching without exposing your private information.</p>
-      <label>Short reason <span>(optional)</span>
-        <textarea name="reason" rows="3" maxlength="1000" placeholder="For example: I am no longer available at this time"></textarea>
-      </label>
-      <div>
-        <button class="button button-outline" type="button" data-decline-cancel>Keep request</button>
-        <button class="button" type="submit">Decline request</button>
-      </div>
-    </form>
-  </dialog>
 </body>
 </html>

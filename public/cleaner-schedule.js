@@ -1,6 +1,7 @@
 import { bookingSummaryBuckets, bookingSummaryStatusLabels, formatBookingMoney } from "./booking-summary-model.js?v=20260723-3";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-1";
 
 const gate = document.querySelector("[data-schedule-gate]");
 const gateTitle = document.querySelector("[data-schedule-gate-title]");
@@ -214,6 +215,7 @@ async function loadSchedule() {
     renderAccountAvatar(account);
     const nameNode = document.querySelector("[data-account-name]");
     if (nameNode) nameNode.textContent = account.displayName || "Cleaner";
+    renderCleanerNav(null);
     gate.hidden = true;
     view.hidden = false;
 

@@ -1,4 +1,6 @@
 import { bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, cleanerMarketplaceCapabilityState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260723-3";
+import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-2";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-1";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { storedCsrf } from "./session-csrf.js";
@@ -13,6 +15,7 @@ const declineDialog = document.querySelector("[data-decline-dialog]");
 const declineForm = document.querySelector("[data-decline-form]");
 const declineCancel = document.querySelector("[data-decline-cancel]");
 const networkStatus = document.querySelector("[data-cleaner-network-status]");
+let accountRecord = null;
 let bookings = [];
 let selectedDeclineBookingId = "";
 let loading = false;
@@ -403,34 +406,58 @@ function setText(selector, value) {
   if (node) node.textContent = value;
 }
 
-// The design's onboarding strip. Homle has no multi-step registration wizard, so the
-// chips are derived from the profile state the server actually reports rather than
-// from an invented step list.
-function renderSetupSteps(summary) {
-  const steps = [
-    { label: "Professional profile", done: summary.profileCompletionPercent === 100, href: "/cleaner/profile" },
-    { label: "Services & rates", done: summary.profileCompletionPercent === 100, href: "/cleaner/profile" },
-    { label: "Availability", done: summary.availableWindowCount > 0, href: "/cleaner/availability" },
-    { label: "Published listing", done: Boolean(summary.profilePublished), href: "/cleaner/profile" },
-    { label: "Payout account", done: summary.payoutState === "ready", href: "/cleaner/payouts" }
-  ];
-  const host = document.querySelector("[data-cleaner-steps]");
-  if (host) host.replaceChildren(...steps.map((step) => {
-    const chip = element("a", "hc-step", step.done ? `${step.label} ✓` : step.label);
-    chip.href = step.href;
+function stepIcon(name) {
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", onboardingIcons[name] || onboardingIcons.folder);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "currentColor");
+  path.setAttribute("stroke-width", "1.7");
+  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("stroke-linejoin", "round");
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "17");
+  svg.setAttribute("height", "17");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.append(path);
+  return svg;
+}
+
+// The design's onboarding strip and sidebar sub-nav, driven by the step list transcribed
+// from its own STEPS/TITLES tables. A step Homle cannot record shows as outstanding — it
+// is never ticked to flatter the progress bar.
+function renderSetupSteps(progress) {
+  const chipHost = document.querySelector("[data-cleaner-steps]");
+  if (chipHost) chipHost.replaceChildren(...progress.steps.map((step) => {
+    const chip = element(step.href ? "a" : "span", "hc-step", `${step.done ? "✓" : "○"} ${step.title}`);
+    if (step.href) chip.href = step.href;
     chip.dataset.done = String(step.done);
+    if (!step.tracked) chip.title = "Homle does not record this step yet.";
     return chip;
   }));
-  const remaining = steps.filter((step) => !step.done).length;
-  setText("[data-cleaner-steps-left]", String(remaining));
 
-  // Identity and background checks are recorded separately. Never turn the visual
-  // design into a verification claim before the server has supplied that evidence.
-  const chipHost = document.querySelector("[data-cleaner-check-chips]");
-  if (chipHost) {
+  renderCleanerNav(progress);
+
+  // The phone mock's four rows track the first four steps, matching the design.
+  const rowHost = document.querySelector("[data-cleaner-phone-rows]");
+  if (rowHost) rowHost.replaceChildren(...progress.steps.slice(0, 4).map((step) => {
+    const row = element("div", "hc-phone-row");
+    row.append(
+      element("span", `hc-phone-tick${step.done ? "" : " hc-phone-tick-empty"}`, step.done ? "✓" : ""),
+      element("span", `hc-phone-bar${step.done ? "" : " hc-phone-bar-empty"}`)
+    );
+    return row;
+  }));
+
+  setText("[data-cleaner-steps-left]", String(progress.remaining));
+
+  // Do not turn the design into unsupported verification claims. These checks are
+  // recorded separately and their status appears only after Homle has evidence.
+  const checkHost = document.querySelector("[data-cleaner-check-chips]");
+  if (checkHost) {
     const chip = element("span", "hc-setup-chip");
     chip.append(document.createTextNode("Identity and background checks "), element("i", "", "·"), document.createTextNode(" status appears only after Homle records it"));
-    chipHost.replaceChildren(chip);
+    checkHost.replaceChildren(chip);
   }
 }
 
@@ -478,7 +505,15 @@ function renderMessages() {
 }
 
 function renderWorkOverview(summary, capabilities, buckets) {
-  const percent = summary.profileCompletionPercent;
+  // Progress follows the design's 18-step onboarding model, not the server's
+  // profile-completion percentage — the two count different things.
+  const progress = onboardingProgress({
+    account: accountRecord,
+    profile: cleanerProfile,
+    payoutState: summary.payoutState,
+    availabilityCount: summary.availableWindowCount
+  });
+  const percent = progress.percent;
   setText("[data-cleaner-profile-progress]", `${percent}%`);
   // The bars are presentational; the percentage text stays the accessible value. Width is
   // set through CSSOM rather than a style attribute so `style-src 'self'` still holds.
@@ -492,10 +527,8 @@ function renderWorkOverview(summary, capabilities, buckets) {
 
   const stateNode = document.querySelector("[data-cleaner-profile-state]");
   if (stateNode) {
-    stateNode.textContent = summary.profilePublished
-      ? capabilities.matchingReady ? "Published for matching" : capabilities.checked ? "Published · matching setup pending" : "Published · matching status unavailable"
-      : percent === 100 ? "Ready to publish" : "Profile incomplete";
-    stateNode.dataset.state = summary.profilePublished ? "live" : percent === 100 ? "" : "action";
+    stateNode.textContent = applicationStatusLabel({ profile: cleanerProfile }, progress);
+    stateNode.dataset.state = summary.profilePublished ? "live" : progress.remaining > 0 ? "action" : "";
   }
 
   setText("[data-cleaner-availability-count]", String(summary.availableWindowCount));
@@ -522,7 +555,7 @@ function renderWorkOverview(summary, capabilities, buckets) {
   const pendingDot = document.querySelector("[data-cleaner-pending-dot]");
   if (pendingDot) pendingDot.hidden = buckets.pending.length === 0;
 
-  renderSetupSteps(summary);
+  renderSetupSteps(progress);
   renderAlerts(summary, buckets);
   renderMessages();
 }
@@ -706,6 +739,7 @@ async function loadDashboard() {
   try {
     const accountResult = await requestJson("/api/marketplace/account");
     const account = accountResult.account;
+    accountRecord = account;
     const access = dashboardWorkspaceAccess(account, "cleaner");
     if (!access.ready) return access.reason === "different-workspace"
       ? showGate(`Your ${access.label} workspace is active.`, "Cleaner jobs and professional controls remain in a separate private dashboard.", { kind: "authentication", workspaceDestination: access.destination, workspaceLabel: access.label })
