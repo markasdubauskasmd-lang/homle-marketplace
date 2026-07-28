@@ -12,6 +12,8 @@
 
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
+import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-2";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-1";
 
 export function element(name, className, text) {
   const node = document.createElement(name);
@@ -96,6 +98,20 @@ export function createCleanerPage(key, render) {
       if (view) view.hidden = false;
       const payoutLink = document.querySelector("[data-cleaner-payout-link]");
       if (payoutLink) payoutLink.hidden = false;
+      // One profile read so the shared sidebar shows the same completion marks here as on
+      // the dashboard. Failure is not fatal: the nav still renders, without marks.
+      try {
+        const [profileResult, availabilityResult] = await Promise.allSettled([
+          requestJson("/api/marketplace/cleaner/profile"),
+          requestJson("/api/marketplace/cleaner/availability")
+        ]);
+        renderCleanerNav(onboardingProgress({
+          account,
+          profile: profileResult.status === "fulfilled" ? profileResult.value.profile : null,
+          payoutState: "unavailable",
+          availabilityCount: availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability.length : 0
+        }));
+      } catch { renderCleanerNav(null); }
       await render({ account, showFeedback, requestJson });
       showFeedback("");
     } catch (error) {

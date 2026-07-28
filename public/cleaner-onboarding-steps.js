@@ -41,6 +41,42 @@ export const onboardingSteps = [
   { key: "compliance", title: "Compliance & declarations", icon: "pen", sidebar: false, href: "", derive: null }
 ];
 
+/*
+ * The design's ONBOARDING and ACCOUNT sidebar groups.
+ *
+ * This is deliberately a separate list from `onboardingSteps` above, because the design
+ * treats them separately: the sidebar uses shorter labels ("Banking", "Contracts"), adds
+ * a Documents entry that is not a progress step, and omits Right to work, Tax, Transport
+ * and Skills, which appear only as progress chips.
+ *
+ * `step` links an entry to a step key so its tick reflects real completion. An entry with
+ * no `step` has nothing to derive from and shows an outstanding dot.
+ */
+export const onboardingNav = [
+  { label: "Personal Details", icon: "user", step: "personal", href: "/settings" },
+  { label: "Business Details", icon: "brief", step: "business", href: "" },
+  { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/profile" },
+  { label: "Background Checks", icon: "shield", step: "dbs", href: "/cleaner/profile" },
+  { label: "Work Areas", icon: "pin", step: "areas", href: "/cleaner/availability" },
+  { label: "Experience", icon: "star", step: "experience", href: "/cleaner/profile" },
+  { label: "References", icon: "users", step: "references", href: "" },
+  { label: "Insurance", icon: "umb", step: "insurance", href: "" },
+  { label: "Banking", icon: "card", step: "banking", href: "/cleaner/payouts" },
+  { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/availability" },
+  { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/profile" },
+  { label: "Documents", icon: "folder", step: "", href: "" },
+  { label: "Training", icon: "award", step: "training", href: "" },
+  { label: "Contracts", icon: "pen", step: "compliance", href: "" }
+];
+
+export const accountNav = [
+  { label: "My Profile", icon: "user", href: "/cleaner/profile" },
+  { label: "Messages", icon: "chat", href: "/notifications", notificationHook: true },
+  { label: "Public profile", icon: "id", href: "/cleaner/profile/preview" },
+  { label: "Public directory", icon: "dash", href: "/cleaners" },
+  { label: "Settings", icon: "gear", href: "/settings" }
+];
+
 // Icon paths transcribed from the design's ICONS table.
 export const onboardingIcons = {
   dash: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",

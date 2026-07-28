@@ -1,5 +1,6 @@
 import { bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, cleanerMarketplaceCapabilityState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260723-3";
-import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-1";
+import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-2";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-1";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { storedCsrf } from "./session-csrf.js";
@@ -435,16 +436,7 @@ function renderSetupSteps(progress) {
     return chip;
   }));
 
-  const navHost = document.querySelector("[data-onboarding-nav]");
-  if (navHost) navHost.replaceChildren(...progress.steps.filter((step) => step.sidebar).map((step) => {
-    const item = element(step.href ? "a" : "span", "hc-nav-item hc-nav-sub");
-    if (step.href) item.href = step.href;
-    else item.setAttribute("aria-disabled", "true");
-    item.append(stepIcon(step.icon), element("span", "hc-nav-label", step.title));
-    if (step.done) item.append(element("span", "hc-nav-tick", "✓"));
-    else if (!step.tracked) item.append(element("span", "hc-nav-dot"));
-    return item;
-  }));
+  renderCleanerNav(progress);
 
   // The phone mock's four rows track the first four steps, matching the design.
   const rowHost = document.querySelector("[data-cleaner-phone-rows]");
