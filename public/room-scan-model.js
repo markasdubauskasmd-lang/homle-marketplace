@@ -1041,14 +1041,63 @@ export function shouldCaptureKeyframe({
 // what the checklist prices. Two frames of the same radiator produce "Radiator"
 // twice, and one item is the honest answer. Plurals and articles are folded so
 // "the blinds" and "Blind" do not become two rows.
+// The room reader sees several independent angles. Even when every reading is
+// correct, one frame can call the same real object a "faucet" and the next a
+// "tap"; literal-label deduplication then shows two rows and stores two tasks.
+//
+// Keep this deliberately small and exact. These are established UK/US names for
+// the same cleaning object, not fuzzy semantic matching. "Table" and "worktop",
+// for example, stay separate even when their boxes overlap because they can both
+// genuinely exist and need different work.
+const inventoryLabelAliases = Object.freeze({
+  faucet: "tap",
+  "mixer faucet": "tap",
+  "mixer tap": "tap",
+  countertop: "worktop",
+  "kitchen counter": "worktop",
+  couch: "sofa",
+  settee: "sofa",
+  refrigerator: "fridge",
+  stovetop: "hob",
+  cooktop: "hob",
+  bathtub: "bath",
+  tub: "bath",
+  washbasin: "sink",
+  "hand basin": "sink",
+  television: "tv",
+  nightstand: "bedside table",
+  "bedside cabinet": "bedside table",
+  closet: "wardrobe",
+  drape: "curtain",
+  baseboard: "skirting board",
+  "range hood": "extractor hood",
+  "cooker hood": "extractor hood",
+  "shower door": "shower screen",
+  "shower glass": "shower screen"
+});
+
+function singularInventoryKey(key) {
+  return key.replace(/[a-z0-9]+$/, (word) => {
+    // Protect singular words ending in -ss ("glass", "mattress"). The former
+    // implementation blindly removed their last letter, so "glass" and
+    // "glasses" produced different identities.
+    if (word.endsWith("ss") || word.endsWith("us") || word.endsWith("is")) return word;
+    if (word.endsWith("ies") && word.length > 3) return `${word.slice(0, -3)}y`;
+    if (/(?:sses|ches|shes|xes|zes)$/.test(word)) return word.slice(0, -2);
+    if (word.endsWith("s")) return word.slice(0, -1);
+    return word;
+  });
+}
+
 export function inventoryKey(label) {
-  return String(label || "")
+  const normalised = String(label || "")
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\b(?:the|a|an)\b/g, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    .replace(/(?:es|s)$/, "");
+    .trim();
+  const singular = singularInventoryKey(normalised);
+  return inventoryLabelAliases[singular] || singular;
 }
 
 export const inventoryLimit = 40;

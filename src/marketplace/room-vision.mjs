@@ -93,6 +93,7 @@ const instructions = [
   "- Include anything a cleaner would clean, clean around, move, or need to know about: surfaces and fixtures (worktops, floors, windows, sills, mirrors, shower screens, sinks, baths, toilets, radiators, skirting, tiles), appliances large and small (oven, hob, extractor, fridge, microwave, air fryer, kettle, toaster, washing machine, dishwasher), and furniture (sofa, bed, table, chairs, shelving, wardrobe, rug).",
   "- Name each object as a person would: 'Air fryer', 'Window', 'Floor', 'Extractor hood'. Not a category like 'appliance' or 'surface'.",
   "- Prefer naming the specific object over a general one: 'Air fryer' rather than 'small appliance', 'Shower screen' rather than 'glass'.",
+  "- Use consistent UK object names across different views: tap, worktop, sofa, fridge, hob, bath, sink, TV, bedside table, wardrobe, curtain, skirting board, extractor hood and shower screen.",
   "- Do not report an object you cannot see. An empty list is a valid and useful answer.",
   "",
   "CONDITION IS THE POINT. Naming a worktop is easy; saying whether it needs degreasing is the answer the customer is paying for. Judge every object you name.",
