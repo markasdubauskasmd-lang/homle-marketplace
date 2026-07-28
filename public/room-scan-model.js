@@ -640,6 +640,7 @@ export function frameQualityStats(pixels, width, height, { shadowCutoff = 24, hi
   let pairs = 0;
   let shadowSamples = 0;
   let highlightSamples = 0;
+  const previousRow = new Float32Array(columns);
   for (let y = 0; y < rows; y += 1) {
     let previous = null;
     for (let x = 0; x < columns; x += 1) {
@@ -654,6 +655,15 @@ export function frameQualityStats(pixels, width, height, { shadowCutoff = 24, hi
         deltas += Math.abs(luma - previous);
         pairs += 1;
       }
+      // Sharpness must not depend on how the phone is rotated. Horizontal-only
+      // neighbours rate vertical edges correctly but call an equally crisp set of
+      // horizontal edges "blurred". Compare the pixel above as well, using one
+      // tiny row buffer rather than another image readback.
+      if (y > 0) {
+        deltas += Math.abs(luma - previousRow[x]);
+        pairs += 1;
+      }
+      previousRow[x] = luma;
       previous = luma;
     }
   }

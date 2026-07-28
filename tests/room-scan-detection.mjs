@@ -248,6 +248,27 @@ assert(
 assert(frameQualityAdvice(unevenStats)?.kind === "uneven", "A measured backlit frame passed the condition-quality gate.");
 assert(frameQualityStats(unevenPixels, 0, 1) === null && frameQualityStats(new Uint8ClampedArray(4), 2, 1) === null, "Invalid or truncated pixel data invented quality statistics.");
 assert(Object.isFrozen(unevenStats), "Frame-quality statistics are mutable.");
+const stripedFrame = (direction) => {
+  const pixels = new Uint8ClampedArray(8 * 8 * 4);
+  for (let y = 0; y < 8; y += 1) {
+    for (let x = 0; x < 8; x += 1) {
+      const value = ((direction === "vertical" ? x : y) % 2) ? 200 : 56;
+      const index = (y * 8 + x) * 4;
+      pixels.set([value, value, value, 255], index);
+    }
+  }
+  return frameQualityStats(pixels, 8, 8);
+};
+const verticalEdges = stripedFrame("vertical");
+const horizontalEdges = stripedFrame("horizontal");
+assert(
+  close(verticalEdges.detail, horizontalEdges.detail) && verticalEdges.detail > 50,
+  `Sharpness changes when the phone rotates: vertical ${verticalEdges.detail}, horizontal ${horizontalEdges.detail}.`
+);
+assert(
+  frameQualityAdvice(verticalEdges) === null && frameQualityAdvice(horizontalEdges) === null,
+  "A sharp room becomes a false blur warning when its strongest edges change orientation."
+);
 assert(frameQualityAdvice({ luma: 120, detail: 22 }) === null, "A perfectly usable frame was nagged about.");
 assert(frameQualityAdvice({ luma: 20, detail: 30 })?.kind === "dark", "An unlit room was not called out.");
 assert(frameQualityAdvice({ luma: 240, detail: 30 })?.kind === "bright", "A blown-out frame was not called out.");
