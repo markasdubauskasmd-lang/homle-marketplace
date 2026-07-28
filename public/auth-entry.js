@@ -2,6 +2,7 @@ import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, re
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { accountReadyPresentation, availableAccountMethodLabel } from "./account-ready-model.js?v=20260723-1";
 import { storedCsrf } from "./session-csrf.js";
+import { accountWorkspaceDestination } from "./workspace-access.js?v=20260728-1";
 
 const modes = Object.freeze({
   "/login": { form: "login", title: "Sign in to Homle", lead: "Use your verified account to open the correct private workspace." },
@@ -219,12 +220,7 @@ function clearStoredCsrf() {
 }
 
 function workspacePath(account) {
-  let destination = "";
-  if (accountIntent === "book") destination = account?.roles?.includes("landlord") ? "/landlord/book" : "";
-  else if (accountIntent === "work") destination = account?.roles?.includes("cleaner") ? "/cleaner/profile" : "";
-  else if (account?.selectedRole === "cleaner" && account?.roles?.includes("cleaner")) destination = "/cleaner/dashboard";
-  else if (account?.selectedRole === "landlord" && account?.roles?.includes("landlord")) destination = "/landlord/dashboard";
-  return destination && !workspaceReady ? "/account-ready" : destination;
+  return accountWorkspaceDestination(account, accountIntent, workspaceReady);
 }
 
 async function openSignedInWorkspace() {

@@ -8,6 +8,15 @@ const workspaceLabels = Object.freeze({
   landlord: "Landlord"
 });
 
+export function accountWorkspaceDestination(account, intent = "", workspaceReady = true) {
+  const roles = Array.isArray(account?.roles) ? account.roles.filter((role) => workspaceDestinations[role]) : [];
+  let destination = "";
+  if (intent === "book") destination = roles.includes("landlord") ? "/landlord/book" : "";
+  else if (intent === "work") destination = roles.includes("cleaner") ? workspaceDestinations.cleaner : "";
+  else if (roles.includes(account?.selectedRole)) destination = workspaceDestinations[account.selectedRole] || "";
+  return destination && !workspaceReady ? "/account-ready" : destination;
+}
+
 export function dashboardWorkspaceAccess(account, expectedRole) {
   if (!workspaceDestinations[expectedRole]) throw new TypeError("A supported dashboard role is required.");
   const roles = Array.isArray(account?.roles) ? account.roles.filter((role) => workspaceDestinations[role]) : [];
