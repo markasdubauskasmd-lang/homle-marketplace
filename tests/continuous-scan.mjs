@@ -419,6 +419,21 @@ assert.equal(
 // of the hallway bought another four reads of the same kitchen.
 assert.match(overlay, /function keyframeBudget/, "The keyframe budget is no longer looked up per room.");
 assert.doesNotMatch(overlay, /resetKeyframeBudget/, "The per-room budget is reset again on room entry, so walking out and back in buys a fresh set of paid reads.");
+assert.match(
+  overlay,
+  /const sourceRect = viewfinderSourceRect\(width, height\);[\s\S]*canvas\.getContext\("2d"\)\.drawImage\(\s*video,\s*sourceRect\.sx,\s*sourceRect\.sy,\s*sourceRect\.sWidth,\s*sourceRect\.sHeight,/,
+  "Automatic walking reads analyse the full camera sensor instead of the exact viewfinder crop the Landlord saw."
+);
+assert.match(
+  overlay,
+  /function sampleFrameQuality\(source\)[\s\S]*const sourceRect = viewfinderSourceRect\(sourceWidth, sourceHeight\);[\s\S]*context\.drawImage\(\s*source,\s*sourceRect\.sx,\s*sourceRect\.sy,\s*sourceRect\.sWidth,\s*sourceRect\.sHeight,/,
+  "Lighting, movement and keyframe signatures are measured from pixels outside the visible viewfinder."
+);
+assert.match(
+  overlay,
+  /function inferenceFrame\(video\)[\s\S]*const sourceRect = viewfinderSourceRect\(sourceWidth, sourceHeight\);[\s\S]*canvas\.getContext\("2d"\)\.drawImage\(\s*video,\s*sourceRect\.sx,\s*sourceRect\.sy,\s*sourceRect\.sWidth,\s*sourceRect\.sHeight,/,
+  "On-device detection spends work on cropped-out sensor pixels and can highlight an object the Landlord cannot see."
+);
 assert.match(overlay, /data-live-progress-meter[^>]*role="progressbar"/, "The live scanner has no accessible current-room coverage indicator.");
 assert.match(overlay, /roomCoverageProgress\(budget\.capturedCount\)/, "Room coverage is not derived from the accepted distinct-view budget.");
 assert.match(overlay, /busy \? "Checking this view…" : progress\.copy/, "The coverage indicator cannot distinguish a view being analysed from one already accepted.");

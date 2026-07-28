@@ -3,6 +3,7 @@ import {
   usableDetections,
   usableLiveBoxes,
   boxAtPoint,
+  coverSourceRect,
   fitBoxToFrame,
   frameBoxToSourceRect,
   cocoLabel,
@@ -1145,28 +1146,34 @@ export function openRoomScan() {
     // Capturing exactly the region `cover` displays collapses that to a single
     // coordinate space: a percentage of the viewfinder is a percentage of this
     // canvas. It also means what gets read is precisely what was on screen.
+    function viewfinderSourceRect(sourceWidth, sourceHeight) {
+      const rect = viewfinderRect();
+      // Before first layout (or in a synthetic test host) the source aspect is
+      // the only honest fallback. That keeps every pixel rather than inventing a
+      // crop from a zero-sized viewfinder.
+      const frameWidth = rect.width || sourceWidth;
+      const frameHeight = rect.height || sourceHeight;
+      return coverSourceRect({ sourceWidth, sourceHeight, frameWidth, frameHeight });
+    }
+
     function drawVisibleRegion(source, sourceWidth, sourceHeight) {
       if (!sourceWidth || !sourceHeight) return null;
-      const rect = el.viewfinder.getBoundingClientRect();
-      const aspect = rect.width && rect.height ? rect.width / rect.height : sourceWidth / sourceHeight;
-      let regionWidth = sourceWidth;
-      let regionHeight = Math.round(sourceWidth / aspect);
-      if (regionHeight > sourceHeight) {
-        regionHeight = sourceHeight;
-        regionWidth = Math.round(sourceHeight * aspect);
-      }
-      const offsetX = Math.round((sourceWidth - regionWidth) / 2);
-      const offsetY = Math.round((sourceHeight - regionHeight) / 2);
+      const sourceRect = viewfinderSourceRect(sourceWidth, sourceHeight);
+      if (!sourceRect) return null;
       // 1600, not 1280. This frame is what the room's condition is graded from,
       // and condition is decided by fine texture: the chalky ring at a tap base,
       // the sheen of grease on a splashback, the grey film along a skirting
       // board. Those are high-frequency detail, which is the first thing
       // downscaling and JPEG throw away — so at 1280 the evidence was being
       // destroyed before the model ever saw it, and no prompt could recover it.
-      const scale = Math.min(1, 1600 / Math.max(regionWidth, regionHeight));
-      el.canvas.width = Math.max(1, Math.round(regionWidth * scale));
-      el.canvas.height = Math.max(1, Math.round(regionHeight * scale));
-      el.canvas.getContext("2d").drawImage(source, offsetX, offsetY, regionWidth, regionHeight, 0, 0, el.canvas.width, el.canvas.height);
+      const scale = Math.min(1, 1600 / Math.max(sourceRect.sWidth, sourceRect.sHeight));
+      el.canvas.width = Math.max(1, Math.round(sourceRect.sWidth * scale));
+      el.canvas.height = Math.max(1, Math.round(sourceRect.sHeight * scale));
+      el.canvas.getContext("2d").drawImage(
+        source,
+        sourceRect.sx, sourceRect.sy, sourceRect.sWidth, sourceRect.sHeight,
+        0, 0, el.canvas.width, el.canvas.height
+      );
       // 0.90, and deliberately generous. At 0.82 the compressor was smoothing
       // away exactly the speckle and film that distinguish a limescaled tap from
       // a white one. `roomReadingPayload` measures the real serialized size and
@@ -1939,10 +1946,20 @@ export function openRoomScan() {
         const width = video.videoWidth || 0;
         const height = video.videoHeight || 0;
         if (!width || !height) throw new TypeError("The camera frame is not ready.");
-        const scale = Math.min(1, 1024 / Math.max(width, height));
-        canvas.width = Math.max(1, Math.round(width * scale));
-        canvas.height = Math.max(1, Math.round(height * scale));
-        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Read exactly the same centred object-fit:cover crop that is visible in
+        // the viewfinder. Analysing the full sensor frame can spend most of a
+        // portrait phone's read on off-screen pixels and save objects the
+        // Landlord never saw.
+        const sourceRect = viewfinderSourceRect(width, height);
+        if (!sourceRect) throw new TypeError("The visible camera frame is not ready.");
+        const scale = Math.min(1, 1024 / Math.max(sourceRect.sWidth, sourceRect.sHeight));
+        canvas.width = Math.max(1, Math.round(sourceRect.sWidth * scale));
+        canvas.height = Math.max(1, Math.round(sourceRect.sHeight * scale));
+        canvas.getContext("2d").drawImage(
+          video,
+          sourceRect.sx, sourceRect.sy, sourceRect.sWidth, sourceRect.sHeight,
+          0, 0, canvas.width, canvas.height
+        );
         // `toDataURL` compressed the JPEG synchronously here, pausing the live
         // camera up to four times per room. The Blob path yields immediately and
         // keeps the exact same 1024px / 0.72 evidence supplied to the reader.
@@ -2487,22 +2504,33 @@ export function openRoomScan() {
 
     // A phone camera hands us 720p or more. The detector only ever sees a few
     // hundred pixels a side, so uploading the full frame to the GPU and letting
-    // the model shrink it is work paid for on every pass. Copying into one
-    // reusable small canvas first keeps the aspect ratio — which is what makes
-    // the box maths below scale-invariant — and cuts the per-frame cost sharply.
+    // the model shrink it is work paid for on every pass. The reusable canvas
+    // holds the exact visible crop, so cropped-out sensor pixels cannot create a
+    // false glow and the model spends its limited resolution on what the
+    // Landlord is actually pointing at.
     function inferenceFrame(video) {
-      const longest = Math.max(video.videoWidth, video.videoHeight);
-      if (longest <= DETECT_INPUT_SIZE) return video;
-      const scale = DETECT_INPUT_SIZE / longest;
-      const width = Math.max(1, Math.round(video.videoWidth * scale));
-      const height = Math.max(1, Math.round(video.videoHeight * scale));
+      const sourceWidth = video.videoWidth || 0;
+      const sourceHeight = video.videoHeight || 0;
+      const sourceRect = viewfinderSourceRect(sourceWidth, sourceHeight);
+      if (!sourceRect) return video;
+      const fullFrame = sourceRect.sx === 0 && sourceRect.sy === 0
+        && sourceRect.sWidth === sourceWidth && sourceRect.sHeight === sourceHeight;
+      const longest = Math.max(sourceRect.sWidth, sourceRect.sHeight);
+      if (fullFrame && longest <= DETECT_INPUT_SIZE) return video;
+      const scale = Math.min(1, DETECT_INPUT_SIZE / longest);
+      const width = Math.max(1, Math.round(sourceRect.sWidth * scale));
+      const height = Math.max(1, Math.round(sourceRect.sHeight * scale));
       let canvas = state.detectCanvas;
       if (!canvas) canvas = state.detectCanvas = document.createElement("canvas");
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
       }
-      canvas.getContext("2d").drawImage(video, 0, 0, width, height);
+      canvas.getContext("2d").drawImage(
+        video,
+        sourceRect.sx, sourceRect.sy, sourceRect.sWidth, sourceRect.sHeight,
+        0, 0, width, height
+      );
       return canvas;
     }
 
@@ -2525,8 +2553,20 @@ export function openRoomScan() {
       }
       let pixels;
       try {
+        const sourceWidth = source.videoWidth || source.naturalWidth || source.width || 0;
+        const sourceHeight = source.videoHeight || source.naturalHeight || source.height || 0;
+        const sourceRect = viewfinderSourceRect(sourceWidth, sourceHeight);
+        if (!sourceRect) return false;
         const context = canvas.getContext("2d", { willReadFrequently: true });
-        context.drawImage(source, 0, 0, canvas.width, canvas.height);
+        // Guidance and scene signatures must judge the same pixels the
+        // Landlord sees and the room reader receives. The full sensor can be
+        // mostly outside a portrait viewfinder and can otherwise trigger a
+        // movement or lighting decision from invisible pixels.
+        context.drawImage(
+          source,
+          sourceRect.sx, sourceRect.sy, sourceRect.sWidth, sourceRect.sHeight,
+          0, 0, canvas.width, canvas.height
+        );
         pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
       } catch { return false; }
       const { width, height } = canvas;
