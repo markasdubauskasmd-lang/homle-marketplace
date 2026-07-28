@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-2">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-4">
-  <script src="/cleaner-registration.js?v=20260728-1" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-5">
+  <script src="/cleaner-registration.js?v=20260728-2" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -154,6 +154,7 @@
             <strong>You are offline.</strong> This page shows the last loaded data and will not refresh until the connection returns.
           </div>
 
+        <div data-registration-overview>
         <div class="hc-page-head">
           <div>
             <h1 class="hc-page-title">Complete registration</h1>
@@ -189,7 +190,102 @@
           of which exists in this codebase.
         -->
         <div class="hc-reg-list" data-reg-steps></div>
+        </div>
 
+          <div class="hc-personal-layout" data-personal-details hidden>
+            <ol class="hc-personal-rail" aria-label="Cleaner registration steps">
+              <li class="hc-personal-rail-step is-current" data-personal-step-key="personal"><span>1</span><strong>Personal details</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="identity"><span>2</span><strong>Identity verification</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="rtw"><span>3</span><strong>Right to work</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="dbs"><span>4</span><strong>Background checks (DBS)</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="business"><span>5</span><strong>Business details</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="tax"><span>6</span><strong>Tax &amp; self-employment</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="experience"><span>7</span><strong>Cleaning experience</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="references"><span>8</span><strong>References</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="insurance"><span>9</span><strong>Insurance</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="banking"><span>10</span><strong>Banking &amp; payments</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="equipment"><span>11</span><strong>Equipment</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="transport"><span>12</span><strong>Transport</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="availability"><span>13</span><strong>Availability</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="areas"><span>14</span><strong>Work areas</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="languages"><span>15</span><strong>Languages</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="skills"><span>16</span><strong>Skills</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="training"><span>17</span><strong>Training &amp; certificates</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="compliance"><span>18</span><strong>Compliance &amp; declarations</strong></li>
+              <li class="hc-personal-rail-step"><span>19</span><strong>Review &amp; submit</strong></li>
+            </ol>
+
+            <section class="hc-personal-card" aria-labelledby="cleaner-personal-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-personal-title">Personal details</h1>
+                <p>Tell us who you are and how to reach you. This is the name clients will see once you go live.</p>
+              </header>
+
+              <form class="hc-personal-form" data-personal-form novalidate>
+                <fieldset class="hc-personal-section">
+                  <legend>Your details</legend>
+                  <div class="hc-personal-grid hc-personal-grid-four">
+                    <label><span>First name <b aria-hidden="true">*</b></span><input name="firstName" autocomplete="given-name" maxlength="60" required></label>
+                    <label><span>Middle name</span><input name="middleName" autocomplete="additional-name" maxlength="60"></label>
+                    <label><span>Last name <b aria-hidden="true">*</b></span><input name="lastName" autocomplete="family-name" maxlength="60" required></label>
+                    <label><span>Preferred name</span><input name="preferredName" autocomplete="nickname" maxlength="60"></label>
+                  </div>
+                  <div class="hc-personal-grid hc-personal-grid-three">
+                    <label><span>Date of birth <b aria-hidden="true">*</b></span><input name="dateOfBirth" type="date" autocomplete="bday" required></label>
+                    <label><span>Gender (optional)</span><select name="gender"><option value="">Select</option><option>Prefer not to say</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Self-describe</option></select></label>
+                    <label><span>Nationality <b aria-hidden="true">*</b></span><select name="nationality" autocomplete="country-name" required><option value="">Select</option><option>British</option><option>Irish</option><option>Other</option><option>Prefer not to say</option></select></label>
+                    <label><span>Mobile number <b aria-hidden="true">*</b></span><input name="mobileNumber" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" required></label>
+                    <label><span>Alternative phone</span><input name="alternativePhone" type="tel" inputmode="tel" maxlength="30"></label>
+                    <label><span>Email address <b aria-hidden="true">*</b></span><input name="email" type="email" autocomplete="email" readonly required></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-personal-section">
+                  <legend>Emergency contact</legend>
+                  <div class="hc-personal-grid hc-personal-grid-three">
+                    <label><span>Name <b aria-hidden="true">*</b></span><input name="emergencyName" autocomplete="off" maxlength="120" required></label>
+                    <label><span>Number <b aria-hidden="true">*</b></span><input name="emergencyNumber" type="tel" inputmode="tel" maxlength="30" required></label>
+                    <label><span>Relationship <b aria-hidden="true">*</b></span><select name="emergencyRelationship" required><option value="">Select</option><option>Parent</option><option>Partner</option><option>Sibling</option><option>Friend</option><option>Other</option></select></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-personal-section">
+                  <legend>Address</legend>
+                  <div class="hc-personal-address-top">
+                    <label><span>Postcode <b aria-hidden="true">*</b></span><input name="postcode" autocomplete="postal-code" maxlength="10" required><small>Used for distances &amp; job matching</small></label>
+                    <button class="hc-personal-lookup" type="button" data-address-lookup>Look up address</button>
+                    <label><span>House number <b aria-hidden="true">*</b></span><input name="houseNumber" autocomplete="address-line1" maxlength="40" required></label>
+                    <label><span>Street <b aria-hidden="true">*</b></span><input name="street" autocomplete="address-line2" maxlength="120" required></label>
+                  </div>
+                  <div class="hc-personal-grid hc-personal-grid-three">
+                    <label><span>Town <b aria-hidden="true">*</b></span><input name="town" autocomplete="address-level2" maxlength="100" required></label>
+                    <label><span>County</span><input name="county" autocomplete="address-level1" maxlength="100"></label>
+                    <label><span>Country <b aria-hidden="true">*</b></span><select name="country" autocomplete="country-name" required><option value="United Kingdom">United Kingdom</option><option>Ireland</option><option>Other</option></select></label>
+                  </div>
+                  <label class="hc-personal-toggle-row">
+                    <span><strong>Lived here less than 5 years?</strong><small>If so, we need your previous addresses for background checks.</small></span>
+                    <span class="hc-personal-toggle-copy" data-under-five-copy>No</span>
+                    <input class="hc-personal-toggle-input" name="livedUnderFiveYears" type="checkbox">
+                    <span class="hc-personal-toggle" aria-hidden="true"></span>
+                  </label>
+                </fieldset>
+
+                <fieldset class="hc-personal-section">
+                  <legend>Profile photo</legend>
+                  <div class="hc-personal-photo">
+                    <span class="hc-personal-photo-check" aria-hidden="true">✓</span>
+                    <span><strong data-personal-photo-title>Profile photo from your verified sign-in</strong><small data-personal-photo-copy>Homle uses the verified account photo when one is available.</small></span>
+                    <span class="hc-personal-photo-action">Connected</span>
+                  </div>
+                </fieldset>
+
+                <div class="hc-personal-actions">
+                  <p data-personal-save-status role="status" aria-live="polite">Progress is saved for this browser tab as you type.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">↗</span></button>
+                </div>
+              </form>
+            </section>
+          </div>
 
           <div class="hc-feedback" data-reg-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
 
