@@ -559,4 +559,19 @@ assert.match(overlay, /state\.motionDistances = \[\];\s*state\.signature = null;
 // this the two states rendered almost identically and a wrong selection saved.
 assert.ok(styles.includes(".det-box.pickable[data-grade]:not(.picked)"), "A deselected graded box renders the same as a kept one, so the review cannot show what is about to be saved.");
 
+/* ── The tester's readout exists, and only for testers ── */
+
+// Every screenshot of a misbehaving scan has forced the same first question:
+// were frames read at all, or read and wrong? Different failures, different
+// fixes, indistinguishable in a photo. The counters that answer it were kept
+// and never shown anywhere.
+assert.ok(overlay.includes("scanDebug=1") && overlay.includes("window.location.search"), "The diagnostics readout has no opt-in flag, so it is either always on (technical clutter for customers) or unreachable.");
+assert.match(overlay, /function renderScanDebug/, "The diagnostics counters are collected but never rendered, so a tester's screenshot still cannot say whether reads happened.");
+assert.match(overlay, /lastReadFailure/, "Read failures are counted but the last one's reason is not kept, which is the single most useful line in a bug report.");
+const debugRender = overlay.slice(overlay.indexOf("function renderScanDebug"), overlay.indexOf("function renderInventory"));
+assert.match(debugRender, /if \(!state\.scanDebug/, "The readout renders without checking the opt-in, so customers see internals.");
+assert.doesNotMatch(debugRender, /innerHTML/, "The readout is rendered with innerHTML; failure messages can contain provider text.");
+assert.ok(styles.includes(".scan-debug{"), "The readout has no styling, so when enabled it lands unpositioned over the camera.");
+assert.ok(styles.includes(".scan-debug") && /\.scan-debug\{[^}]*pointer-events:none/.test(styles), "The readout intercepts taps meant for the viewfinder beneath it.");
+
 console.log("Condition-on-object and movement guidance tests passed: graded objects carry their verdict and its colour on the object itself, clean objects stay quiet, the box pipeline preserves condition, and sustained sweeping earns one clearing hint that lighting problems outrank.");
