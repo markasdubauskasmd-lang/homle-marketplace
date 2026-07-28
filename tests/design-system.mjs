@@ -218,25 +218,65 @@ assert.ok(![...versions][0].startsWith("20260723"), "styles.css changed but its 
 // screenshotted. They are now landing surfaces. The hazard in that move is
 // doing half of it: flip the background to cream and leave `color: #fff`, and
 // the panel reads as blank. This asserts the two halves stay together.
-const panels = ["account-side", "brief-hero", "cleaner-publish-section", "landlord-scan-boundary", "booking-payment-summary"];
+// The first version of this check asked "does the colour LOOK near-white", by
+// matching #fff and friends. Review showed that was too weak twice over: it
+// missed `.account-steps small` at #c9dfd9 (1.33:1) because that is not a
+// near-white literal, and it missed `.booking-payment-status span` entirely
+// because the colour arrives through var(--homle-line-soft) and the check never
+// resolved tokens. So it now MEASURES, against the surface these panels use.
+const panels = ["account-side", "brief-hero", "cleaner-publish-section", "landlord-scan-boundary", "booking-payment-summary",
+  // Selectors that render inside those panels without naming them.
+  "account-steps", "booking-payment-status", "brief-steps", "brief-panel", "account-actions"];
+
+// Resolve a CSS colour to linear RGB, following one level of var() into the
+// token file and honouring the literal fallback the way a browser would when
+// the Cleaner workspace loads styles.css without the tokens.
+const hexToRgb = (hex) => [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16) / 255);
+const resolveColour = (value) => {
+  const variable = /var\(\s*(--[a-z0-9-]+)\s*(?:,\s*([^)]+))?\)/i.exec(value);
+  if (variable) {
+    const declared = new RegExp(`${variable[1]}:\\s*([^;]+);`).exec(stripComments(tokens));
+    if (declared) {
+      const oklch = /oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/i.exec(declared[1]);
+      if (oklch) return oklchToRgb(Number(oklch[1]), Number(oklch[2]), Number(oklch[3]));
+      const inner = /#([0-9a-f]{6})\b/i.exec(declared[1]);
+      if (inner) return hexToRgb(inner[1]);
+    }
+    if (variable[2]) return resolveColour(variable[2].trim());   // the literal fallback
+    return null;                                                  // color-mix and friends
+  }
+  const oklch = /oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)/i.exec(value);
+  if (oklch) return oklchToRgb(Number(oklch[1]), Number(oklch[2]), Number(oklch[3]));
+  const hex = /#([0-9a-f]{6})\b/i.exec(value);
+  if (hex) return hexToRgb(hex[1]);
+  if (/\bwhite\b/i.test(value)) return white;
+  return null;
+};
+
+const surface = resolveColour("var(--homle-surface, #fbf9f3)") || cream;
 const shared = stripComments(read("public/styles.css"));
+let panelRulesMeasured = 0;
 for (const rule of shared.split("}")) {
+  if (rule.indexOf("{") < 0) continue;
   const head = (rule.split("{")[0] || "").trim();
   const body = rule.slice(rule.indexOf("{") + 1);
-  if (rule.indexOf("{") < 0) continue;
   if (!panels.some((panel) => head.includes(panel))) continue;
-  // Light text is not banned outright — a white label on the coral action
-  // button is correct and is how the landing page draws a primary button. What
-  // is banned is light text with no dark fill of its own, because that text
-  // inherits the panel's cream surface and disappears. So: if a rule inside
-  // these panels sets near-white text, the same rule must also lay down an
-  // accent or ink background for it to sit on.
-  const lightText = /(^|[;{\s])color:\s*(#fff\b|#ffffff\b|white\b|#d[0-9a-f]{5}|#e[0-9a-f]{5})/i.test(body);
-  const darkFill = /background(-color)?:[^;}]*(--brand|--homle-coral|--homle-ink|--ink\b|--green)/i.test(body);
+  const declared = /(?:^|[;{\s])color:\s*([^;}]+)/i.exec(body);
+  if (!declared) continue;
+  const fg = resolveColour(declared[1].trim());
+  if (!fg) continue;
+  // A rule that lays down its own fill is judged against that fill, not the
+  // panel — white on the coral action button is correct, and is how the landing
+  // page draws a primary button.
+  const fill = /background(?:-color)?:\s*([^;}]+)/i.exec(body);
+  const bg = (fill && resolveColour(fill[1].trim())) || surface;
+  const measured = contrast(fg, bg);
+  panelRulesMeasured++;
   assert.ok(
-    !lightText || darkFill,
-    `"${head.slice(0, 70)}" sets near-white text but lays down no dark fill for it. These panels now sit on the landing's cream surface, so that text would be invisible.`,
+    measured >= 4.5,
+    `"${head.slice(0, 70)}" measures ${measured.toFixed(2)}:1 against the surface it sits on, under the 4.5:1 normal text needs. These panels are on the landing's cream now, so text written for the old dark ground disappears.`,
   );
 }
+assert.ok(panelRulesMeasured >= 10, `Only ${panelRulesMeasured} panel text rules were measured; the selector list has drifted away from the markup and this check is no longer covering the panels.`);
 
 console.log(`Design system contrast and isolation tests passed: every shared variable carries a literal fallback so the Cleaner workspace is unaffected, the five formerly-maroon panels carry no leftover light text, white-on-action measures ${actionOnWhite.toFixed(2)}:1 and the focus ring ${focusOnCream.toFixed(2)}:1 on cream and ${focusOnHeader.toFixed(2)}:1 on the header, no stylesheet imports an off-origin font the CSP would refuse, and styles.css is served at one fresh version.`);

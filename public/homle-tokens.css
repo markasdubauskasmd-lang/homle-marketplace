@@ -75,7 +75,15 @@
      landing already solved this by dropping chroma and lightness instead of
      shouting, so eyebrows use that value rather than a second guess at it. */
   --homle-eyebrow: oklch(0.5 0.08 30);
-  --homle-mint: oklch(0.78 0.17 150);      /* success / confirmed */
+  --homle-mint: oklch(0.78 0.17 150);      /* decorative mint, as the landing uses it */
+  /* Status green, and deliberately NOT --homle-mint. The mint above measures
+     1.75:1 against cream, so an "available" dot painted in it is invisible on a
+     cream page — a non-text indicator needs 3:1. This value measures 5.26:1 on
+     cream and carries white text at a similar ratio, so the same token works for
+     a dot, a border, a label and a filled badge. Mint stays what it is: a
+     decorative colour that works on the dark scan surfaces it was designed for. */
+  --homle-success: oklch(0.5 0.13 150);
+  --homle-success-wash: color-mix(in oklch, var(--homle-success) 10%, white);
   --homle-beam: oklch(0.86 0.16 150);
   --homle-sky: oklch(0.83 0.14 190);       /* informational */
 
