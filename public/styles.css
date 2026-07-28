@@ -3814,3 +3814,14 @@ textarea.inp{resize:vertical;line-height:1.6;font-size:15px}
 .det-box[data-grade="heavy"] .det-tag{background:var(--scan-red-hot)}
 .det-box[data-grade="medium"] .det-tag{background:#B87A18}
 .det-box[data-grade="clean"] .det-tag{background:var(--scan-ok);color:#0A0A0B}
+
+/* Selection must stay visible on a graded box. The grade rules above share
+   specificity with `.picked` and come later in the file, so they were winning:
+   tapping a graded object out of the room left virtually the same glow, and on
+   a clean object exactly the same one — easy to save the wrong selection.
+
+   The distinction is carried by opacity, not by colour or animation, so it
+   survives reduced-motion and does not depend on telling red from green:
+   kept = the full graded glow, removed = the same box faded to a remnant. */
+.det-box.pickable[data-grade]:not(.picked){opacity:.32;animation:none}
+.det-box.pickable[data-grade]:not(.picked) .det-tag{text-decoration:line-through;opacity:.8}

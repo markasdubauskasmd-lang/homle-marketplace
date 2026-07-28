@@ -819,6 +819,12 @@ export function openRoomScan() {
       state.tracks = [];
       // Advice about the last room's lighting must not carry into this one.
       state.qualityKind = "";
+      // The motion memory goes with it. Walking through a doorway IS fast motion,
+      // and a stale fast sample from the previous room plus the scene jump into
+      // this one would read as a sweep and hold back the first paid read.
+      state.motionDistances = [];
+      state.signature = null;
+      state.previousSignature = null;
       state.qualityMessage = "";
       state.lastQualityAt = 0;
       unfreeze();
@@ -1221,6 +1227,12 @@ export function openRoomScan() {
       state.frozen = false;
       // Stale guidance from before the freeze must not reappear with the live feed.
       state.qualityKind = "";
+      // The motion memory goes with it. Walking through a doorway IS fast motion,
+      // and a stale fast sample from the previous room plus the scene jump into
+      // this one would read as a sweep and hold back the first paid read.
+      state.motionDistances = [];
+      state.signature = null;
+      state.previousSignature = null;
       state.qualityMessage = "";
       state.lastQualityAt = 0;
       renderDetectorState();
@@ -1416,6 +1428,10 @@ export function openRoomScan() {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
             id: box.id, label: box.label || "Marked item", note: box.note || "",
+            // Kept even though a fresh reading is coming: if that background read
+            // fails, "needs-retry" keeps THESE detections, and losing their grades
+            // to a transient network error would un-grade the room silently.
+            condition: box.condition || "", soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: localRoomTasks(roomName, spokenNote),
@@ -1431,6 +1447,10 @@ export function openRoomScan() {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
             id: box.id, label: box.label, note: box.note || "",
+            // An unchanged revisit deliberately buys no new reading, which only
+            // works if it also keeps the old one. Dropping condition here meant
+            // open-then-save was enough to erase every grade in the room.
+            condition: box.condition || "", soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: Array.isArray(existing.tasks) ? existing.tasks : [],
@@ -2286,8 +2306,15 @@ export function openRoomScan() {
       // A short memory of how fast the view is changing, for the movement hint.
       // Two samples is ~1.8s of sustained motion — a deliberate sweep, not the
       // single turn to a new wall that walking a room is supposed to involve.
-      state.motionDistances.push(signatureDistance(state.previousSignature, state.signature));
-      if (state.motionDistances.length > 3) state.motionDistances.shift();
+      //
+      // Only when both signatures are real. `signatureDistance(null, …)` is
+      // defined as 1 — maximally different — which is the right answer for the
+      // keyframe picker but would count the first sample of every session as a
+      // fast one here, halving the streak the hint is supposed to require.
+      if (Array.isArray(state.previousSignature) && Array.isArray(state.signature)) {
+        state.motionDistances.push(signatureDistance(state.previousSignature, state.signature));
+        if (state.motionDistances.length > 3) state.motionDistances.shift();
+      }
 
       const samples = width * height;
       if (!samples || !pairs) return;

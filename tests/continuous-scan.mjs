@@ -301,4 +301,24 @@ assert.equal(movementAdvice([NaN, 0.5, 0.5]) === null, false, "Garbage samples p
 // Lighting outranks movement: a dark room stays dark however slowly you move.
 assert.match(overlay, /frameQualityAdvice\(\{ luma: total \/ samples, detail: deltas \/ pairs \}\)\s*\|\| movementAdvice\(state\.motionDistances\)/, "Movement advice can pre-empt a lighting warning, telling someone to slow down in a room that is simply too dark.");
 
+/* ── Review-caught regressions, pinned ── */
+
+// Saving an unchanged revisit deliberately buys no new reading — which only works
+// if it KEEPS the old one. Both save branches used to rebuild detections with
+// label and geometry only, so open-then-save silently erased every grade.
+const saveBranches = overlay.split("detections: chosen.map((box) => ({").length - 1;
+assert.equal(saveBranches, 2, "The save paths changed shape; re-check that every branch still preserves per-item condition.");
+assert.equal((overlay.match(/condition: box\.condition \|\| "", soiling: box\.soiling \|\| \[\]/g) || []).length, 2, "A save branch rebuilds detections without their condition, so saving an unchanged room erases its grading.");
+
+// The first sample of a session must not count as fast motion: distance-from-null
+// is defined as 1, which would halve the streak the hint requires.
+assert.match(overlay, /if \(Array\.isArray\(state\.previousSignature\) && Array\.isArray\(state\.signature\)\) \{\s*state\.motionDistances\.push/, "Motion is measured against a missing signature, so the first sample of every room counts as a sweep.");
+// And the history dies with the room, or a doorway walk blocks the next room's first read.
+assert.match(overlay, /state\.motionDistances = \[\];\s*state\.signature = null;\s*state\.previousSignature = null;/, "Motion history survives a room change, so a fast sample from the hallway can hold back the new room's first paid read.");
+
+// Removing a graded item from the selection must look different from keeping it.
+// The grade rules share specificity with `.picked` and come later, so without
+// this the two states rendered almost identically and a wrong selection saved.
+assert.ok(styles.includes(".det-box.pickable[data-grade]:not(.picked)"), "A deselected graded box renders the same as a kept one, so the review cannot show what is about to be saved.");
+
 console.log("Condition-on-object and movement guidance tests passed: graded objects carry their verdict and its colour on the object itself, clean objects stay quiet, the box pipeline preserves condition, and sustained sweeping earns one clearing hint that lighting problems outrank.");
