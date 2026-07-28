@@ -1,0 +1,599 @@
+/*
+ * Account entry (/login, /signup, /reset-password, /verify, /onboarding)
+ * rebuilt on the landing design, per design_handoff_signin.
+ *
+ * Scoped to `body.account-entry` so nothing here can reach another page. The
+ * page still loads styles.css for shared primitives; this file owns the shell.
+ * New structure uses `ae-` class names rather than reusing .account-card and
+ * friends, so the old rules in styles.css simply stop matching instead of
+ * fighting this file at equal specificity.
+ *
+ * Every data-* hook in the markup is load-bearing — auth-entry.js drives the
+ * whole page through them. This file styles; it never renames.
+ *
+ * One deliberate departure from the handoff: the card is NOT a magic-link
+ * request. This deployment has no magic-link endpoint. It authenticates with
+ * email + password (plus Google/Apple/Facebook when configured), so the card
+ * keeps the real form. Everything else follows the design.
+ */
+
+body.account-entry {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--homle-cream, #faf7ec);
+  color: var(--homle-ink, #201308);
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+
+body.account-entry .site-header {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 10;
+  padding: 26px 0;
+  background: none;
+  border: 0;
+}
+body.account-entry .site-header .shell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+body.account-entry .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: -.01em;
+  color: var(--homle-ink, #201308);
+  text-decoration: none;
+}
+body.account-entry .brand img {
+  border-radius: 12px;
+  box-shadow: 0 8px 20px oklch(0.62 0.19 25 / .4);
+}
+body.account-entry .account-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Hero shell ───────────────────────────────────────────────────────── */
+
+body.account-entry .ae-hero {
+  flex: 1;
+  padding: 150px 0 110px;
+  background:
+    radial-gradient(1000px 520px at 84% -6%, oklch(0.92 0.06 25 / .5) 0%, transparent 62%),
+    radial-gradient(900px 500px at 4% 106%, oklch(0.93 0.06 190 / .4) 0%, transparent 60%),
+    var(--homle-cream, #faf7ec);
+}
+body.account-entry .ae-shell {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+body.account-entry .ae-grid {
+  display: grid;
+  grid-template-columns: 1.05fr .95fr;
+  gap: 64px;
+  align-items: start;
+}
+
+/* ── Left column ──────────────────────────────────────────────────────── */
+
+body.account-entry .ae-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 22px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--homle-eyebrow, #8b5148);
+}
+body.account-entry .ae-eyebrow::before {
+  content: "";
+  width: 34px;
+  height: 2px;
+  background: var(--homle-coral, #e24947);
+}
+
+body.account-entry .ae-h1 {
+  margin: 0 0 26px;
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-weight: 800;
+  font-size: 64px;
+  line-height: .96;
+  letter-spacing: -.025em;
+  color: var(--homle-ink, #201308);
+}
+/* The mint underline is decorative and sits behind the word it marks. */
+body.account-entry .ae-mark {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+body.account-entry .ae-underline {
+  position: absolute;
+  left: 0;
+  bottom: -.14em;
+  width: 100%;
+  height: .22em;
+  overflow: visible;
+  pointer-events: none;
+}
+
+body.account-entry .ae-lead {
+  max-width: 440px;
+  margin: 0 0 34px;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--homle-muted, #564b42);
+}
+
+/* Readiness pill. Driven by auth-entry.js through [data-state]; the dot is the
+   only thing that changes, because the copy already says what happened. */
+body.account-entry .ae-status {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 440px;
+  margin: 0 0 26px;
+  padding: 9px 16px 9px 12px;
+  border-radius: 999px;
+  background: var(--homle-paper, #fff);
+  box-shadow: 0 8px 22px oklch(0.3 0.05 60 / .08);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--homle-muted, #564b42);
+}
+body.account-entry .ae-status-mark {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: .42em;
+  border-radius: 50%;
+  background: var(--homle-dim, #999189);
+  box-shadow: 0 0 0 4px oklch(0.66 0.015 65 / .18);
+}
+body.account-entry .ae-status[data-state="ready"] .ae-status-mark {
+  background: var(--homle-success, #137738);
+  box-shadow: 0 0 0 4px oklch(0.5 0.13 150 / .18);
+}
+body.account-entry .ae-status[data-state="unavailable"] .ae-status-mark,
+body.account-entry .ae-status[data-state="error"] .ae-status-mark {
+  background: var(--homle-coral-action, #d33a3c);
+  box-shadow: 0 0 0 4px oklch(0.58 0.19 25 / .18);
+}
+/* The pill carries a title and one line of detail; the title is the sentence. */
+body.account-entry .ae-status strong { font-weight: 600; }
+body.account-entry .ae-status p { margin: 2px 0 0; font-size: 13px; }
+
+body.account-entry .ae-steps-title {
+  margin: 0 0 20px;
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: -.01em;
+}
+body.account-entry .ae-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 22px;
+}
+body.account-entry .ae-steps li {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+body.account-entry .ae-steps > li > span {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--homle-coral, #e24947);
+  color: #fff;
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-weight: 700;
+  font-size: 16px;
+}
+body.account-entry .ae-steps strong {
+  display: block;
+  margin-bottom: 3px;
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-weight: 700;
+  font-size: 18px;
+}
+body.account-entry .ae-steps small {
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--homle-muted-2, #61564d);
+}
+
+body.account-entry .ae-fine {
+  margin: 28px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: oklch(0.5 0.02 60);
+}
+
+/* ── The card ─────────────────────────────────────────────────────────── */
+
+body.account-entry .ae-card {
+  padding: 34px;
+  border-radius: 24px;
+  background: var(--homle-paper, #fff);
+  box-shadow: 0 20px 50px oklch(0.3 0.05 60 / .08);
+}
+body.account-entry .ae-card-title {
+  margin: 0 0 8px;
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: -.01em;
+}
+body.account-entry .ae-card-lead {
+  margin: 0 0 24px;
+  font-size: 15.5px;
+  line-height: 1.55;
+  color: var(--homle-muted-2, #61564d);
+}
+
+/* Feedback line. role="status" in the markup, so it is announced. */
+body.account-entry .account-feedback {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1.5px solid oklch(0.2 0.03 60 / .12);
+  background: oklch(0.975 0.015 95);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--homle-ink-2, #2a1c10);
+}
+body.account-entry .account-feedback[data-kind="error"] {
+  border-color: oklch(0.58 0.19 25 / .35);
+  background: oklch(0.58 0.19 25 / .07);
+  color: var(--homle-coral-action, #d33a3c);
+}
+
+/* ── Provider buttons ─────────────────────────────────────────────────── */
+
+body.account-entry .account-social {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 4px;
+}
+body.account-entry .account-social > p {
+  margin: 0 0 6px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--homle-muted-2, #61564d);
+}
+/* A provider button is a white row with the provider's own mark, which is how
+   users recognise it. Google's brand guidance wants its mark unmodified on a
+   neutral surface, so this is not restyled into the coral system. */
+body.account-entry .account-provider-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 18px;
+  border: 1.5px solid oklch(0.2 0.03 60 / .16);
+  border-radius: 14px;
+  background: var(--homle-paper, #fff);
+  color: var(--homle-ink, #201308);
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-weight: 600;
+  font-size: 15.5px;
+  text-decoration: none;
+  transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+body.account-entry .account-provider-button:hover {
+  border-color: var(--homle-ink-2, #2a1c10);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px oklch(0.3 0.05 60 / .1);
+}
+body.account-entry .account-provider-button:focus-visible {
+  outline: none;
+  border-color: var(--homle-coral, #e24947);
+  box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .12);
+}
+body.account-entry .account-provider-mark {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+/* ── Divider and the email toggle ─────────────────────────────────────── */
+
+body.account-entry .account-choice-divider,
+body.account-entry .ae-or {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 26px 0;
+  font-size: 13px;
+  color: var(--homle-dim, #999189);
+}
+body.account-entry .account-choice-divider::before,
+body.account-entry .account-choice-divider::after,
+body.account-entry .ae-or::before,
+body.account-entry .ae-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: oklch(0.2 0.03 60 / .1);
+}
+body.account-entry .account-choice-divider span { white-space: nowrap; }
+
+body.account-entry .account-email-toggle {
+  width: 100%;
+  min-height: 54px;
+  border: 1.5px solid oklch(0.2 0.03 60 / .16);
+  border-radius: 14px;
+  background: none;
+  color: var(--homle-ink, #201308);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 15.5px;
+  cursor: pointer;
+  transition: border-color .18s ease, transform .18s ease;
+}
+body.account-entry .account-email-toggle:hover {
+  border-color: var(--homle-ink-2, #2a1c10);
+  transform: translateY(-1px);
+}
+
+/* ── Forms ────────────────────────────────────────────────────────────── */
+
+body.account-entry .account-form fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+body.account-entry .account-form legend {
+  padding: 0;
+  margin: 0 0 16px;
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-weight: 700;
+  font-size: 18px;
+}
+body.account-entry .account-form label {
+  display: block;
+  margin-bottom: 16px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--homle-ink-2, #2a1c10);
+}
+body.account-entry .account-form input:not([type="radio"]) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  height: 54px;
+  margin-top: 8px;
+  padding: 0 18px;
+  border: 1.5px solid oklch(0.2 0.03 60 / .14);
+  border-radius: 14px;
+  background: var(--homle-paper, #fff);
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--homle-ink, #201308);
+}
+body.account-entry .account-form input::placeholder { color: var(--homle-dim, #999189); }
+body.account-entry .account-form input:focus {
+  outline: none;
+  border-color: var(--homle-coral, #e24947);
+  box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .12);
+}
+body.account-entry .account-form small {
+  display: block;
+  margin: -8px 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--homle-muted-2, #61564d);
+}
+/* The primary action, matching the landing's coral CTA. */
+body.account-entry .account-form > fieldset > button[type="submit"],
+body.account-entry .ae-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 54px;
+  margin-top: 4px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--homle-coral, #e24947);
+  color: #fff;
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-weight: 600;
+  font-size: 16px;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 14px 30px oklch(0.62 0.19 25 / .4);
+  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+body.account-entry .account-form > fieldset > button[type="submit"]::after,
+body.account-entry .ae-primary::after { content: "↗"; font-size: .9em; }
+body.account-entry .account-form > fieldset > button[type="submit"]:hover,
+body.account-entry .ae-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 38px oklch(0.62 0.19 25 / .48);
+}
+body.account-entry .account-form > fieldset > button[type="submit"]:focus-visible,
+body.account-entry .ae-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .3), 0 14px 30px oklch(0.62 0.19 25 / .4);
+}
+body.account-entry fieldset[disabled] button[type="submit"] {
+  opacity: .55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+body.account-entry .account-form-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 16px 0 0;
+  font-size: 13.5px;
+  color: var(--homle-muted-2, #61564d);
+}
+body.account-entry .account-form-link a { color: var(--homle-eyebrow, #8b5148); }
+
+/* Role choice on /onboarding. */
+body.account-entry .account-role {
+  display: block;
+  margin-bottom: 12px;
+  padding: 16px 18px;
+  border: 1.5px solid oklch(0.2 0.03 60 / .12);
+  border-radius: 16px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: border-color .18s ease, transform .18s ease;
+}
+body.account-entry .account-role:hover { border-color: var(--homle-ink-2, #2a1c10); transform: translateY(-1px); }
+body.account-entry .account-role:has(input:checked) {
+  border-color: var(--homle-coral, #e24947);
+  box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .1);
+}
+body.account-entry .account-role strong {
+  display: block;
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-weight: 700;
+  font-size: 16px;
+}
+body.account-entry .account-role small { margin: 2px 0 0; }
+
+/* Signed-in panel. */
+body.account-entry .account-ready-person {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 18px 0;
+}
+body.account-entry .role-account-avatar {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--homle-coral, #e24947);
+  color: #fff;
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-weight: 700;
+}
+body.account-entry .account-ready-panel .account-actions { display: grid; gap: 10px; }
+
+/* ── The two routes that need no account ──────────────────────────────── */
+
+body.account-entry .ae-alt { display: grid; gap: 12px; }
+body.account-entry .ae-alt a {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1.5px solid oklch(0.2 0.03 60 / .12);
+  border-radius: 16px;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .18s ease, transform .18s ease;
+}
+body.account-entry .ae-alt a:hover { border-color: var(--homle-ink-2, #2a1c10); transform: translateY(-1px); }
+body.account-entry .ae-alt a:focus-visible {
+  outline: none;
+  border-color: var(--homle-coral, #e24947);
+  box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .12);
+}
+body.account-entry .ae-alt strong { display: block; font-weight: 600; font-size: 15.5px; }
+body.account-entry .ae-alt small { font-size: 13.5px; color: var(--homle-muted-2, #61564d); }
+body.account-entry .ae-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  font-size: 20px;
+}
+body.account-entry .ae-ico-mint { background: oklch(0.9 0.07 150); }
+body.account-entry .ae-ico-citrus { background: oklch(0.92 0.08 95); }
+
+body.account-entry .account-noscript {
+  margin: 18px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--homle-muted-2, #61564d);
+}
+
+/* ── Footer ───────────────────────────────────────────────────────────── */
+
+body.account-entry .account-footer {
+  padding: 26px 0;
+  background: var(--homle-ink, #201308);
+  color: oklch(0.86 0.01 60);
+  font-size: 13.5px;
+}
+body.account-entry .account-footer .shell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+body.account-entry .account-footer a { color: #fff; }
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  body.account-entry .ae-hero { padding: 120px 0 80px; }
+  body.account-entry .ae-grid { grid-template-columns: 1fr; gap: 40px; }
+  /* Card first on small screens: someone opening /login came to sign in. */
+  body.account-entry .ae-card { order: -1; }
+  body.account-entry .ae-h1 { font-size: 44px; }
+}
+@media (max-width: 560px) {
+  body.account-entry .site-header .shell,
+  body.account-entry .ae-shell,
+  body.account-entry .account-footer .shell { padding: 0 20px; }
+  body.account-entry .ae-card { padding: 24px; }
+  body.account-entry .ae-h1 { font-size: 38px; }
+  body.account-entry .account-nav { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.account-entry .account-provider-button,
+  body.account-entry .account-email-toggle,
+  body.account-entry .account-role,
+  body.account-entry .ae-alt a,
+  body.account-entry .account-form > fieldset > button[type="submit"],
+  body.account-entry .ae-primary { transition: none; }
+  body.account-entry .account-provider-button:hover,
+  body.account-entry .account-email-toggle:hover,
+  body.account-entry .account-role:hover,
+  body.account-entry .ae-alt a:hover,
+  body.account-entry .account-form > fieldset > button[type="submit"]:hover,
+  body.account-entry .ae-primary:hover { transform: none; }
+}

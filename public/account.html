@@ -3,15 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Homle cleaner and landlord account access is being prepared. Use the working private pilot request and cleaner application routes today.">
-  <meta name="theme-color" content="#d7182a" />
-  <title>Homle account access</title>
+  <meta name="description" content="Sign in to Homle to follow a cleaning request through to completion, or take one of the two routes that need no account.">
+  <meta name="theme-color" content="#faf7ec" />
+  <title>Sign in to Homle</title>
   <link rel="icon" href="/homle-logo.png" type="image/png">
-  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-1">
+  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <script src="/auth-entry.js?v=20260728-2" type="module"></script>
+  <link rel="stylesheet" href="/account-entry.css?v=20260728-1">
+  <script src="/auth-entry.js?v=20260728-3" type="module"></script>
 </head>
-<body class="account-page">
+<body class="account-page account-entry">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
     <div class="shell nav-wrap">
@@ -20,26 +21,43 @@
     </div>
   </header>
 
-  <main id="main" class="account-main">
-    <section class="shell account-grid" aria-labelledby="account-title">
-      <article class="account-card">
-        <p class="eyebrow">Cleaner and landlord accounts</p>
-        <h1 id="account-title" data-account-title>Checking secure account access</h1>
-        <p class="account-lead" data-account-lead>Homle is confirming the sign-in methods available on this deployment.</p>
+  <main id="main" class="ae-hero">
+    <div class="ae-shell ae-grid">
+      <div class="ae-intro">
+        <p class="ae-eyebrow">Cleaner and landlord accounts</p>
+        <h1 id="account-title" class="ae-h1">Sign in and pick up where you <span class="ae-mark">left off.<svg class="ae-underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M2 14 Q 80 2 150 10 T 298 8" fill="none" stroke="oklch(0.78 0.17 150)" stroke-width="5" stroke-linecap="round"></path></svg></span></h1>
+        <p class="ae-lead">One account for both sides of a clean — landlords follow a request through to completion, cleaners see the jobs they have accepted.</p>
 
-        <div class="account-state" role="status" aria-live="polite" data-account-state>
-          <span class="account-state-mark" aria-hidden="true">i</span>
+        <div class="ae-status" role="status" aria-live="polite" data-account-state data-state="checking">
+          <span class="ae-status-mark" aria-hidden="true"></span>
           <div><strong data-account-state-title>Checking account readiness…</strong><p data-account-state-copy>No sign-in form will appear unless every security dependency is ready.</p></div>
         </div>
+
+        <h2 class="ae-steps-title" data-account-side-title>Keep the booking path simple.</h2>
+        <ol class="ae-steps">
+          <li><span>1</span><div><strong data-account-step-title="1">Request the clean</strong><small data-account-step-copy="1">Share the property, timing and contact details.</small></div></li>
+          <li><span>2</span><div><strong data-account-step-title="2">Scan and speak</strong><small data-account-step-copy="2">Add room photos and turn natural notes into concise tasks.</small></div></li>
+          <li><span>3</span><div><strong data-account-step-title="3">Review before matching</strong><small data-account-step-copy="3">Homle checks scope, coverage and real availability before any quote.</small></div></li>
+        </ol>
+
+        <p class="ae-fine" data-account-side-note>No payment is collected and no cleaner is promised from this account page.</p>
+      </div>
+
+      <article class="ae-card">
+        <!-- The card opens as the readiness check, not as a sign-in promise: until
+             /api/auth/providers answers, this deployment may have no working method.
+             auth-entry.js replaces both lines with the mode's own copy once it knows. -->
+        <h2 class="ae-card-title" data-account-title>Checking secure account access</h2>
+        <p class="ae-card-lead" data-account-lead>Homle is confirming the sign-in methods available on this deployment.</p>
 
         <section class="account-runtime" data-account-runtime hidden aria-label="Secure account form">
           <div class="account-feedback" data-account-feedback role="status" aria-live="polite" hidden></div>
 
           <div class="account-social" data-social-actions hidden>
             <p data-social-copy>Choose the quickest secure option. A new verified social identity creates its account automatically.</p>
-            <a class="button account-provider-button" data-social-provider="google" href="/api/marketplace/auth/google/start" hidden>Continue with Google</a>
-            <a class="button account-provider-button account-provider-apple" data-social-provider="apple" href="/api/marketplace/auth/apple/start" hidden>Continue with Apple</a>
-            <a class="button account-provider-button account-provider-facebook" data-social-provider="facebook" href="/api/marketplace/auth/facebook/start" hidden>Continue with Facebook</a>
+            <a class="button account-provider-button" data-social-provider="google" href="/api/marketplace/auth/google/start" hidden><svg class="account-provider-mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.7-2.1 5-4.4 6.6v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.1z"/><path fill="#34A853" d="M24 46c6 0 11-2 14.6-5.4l-7.1-5.5c-2 1.3-4.5 2.1-7.5 2.1-5.8 0-10.7-3.9-12.4-9.1H4.3v5.7C7.9 41 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.6 28.1c-.4-1.3-.7-2.7-.7-4.1s.3-2.8.7-4.1v-5.7H4.3C2.8 17.1 2 20.4 2 24s.8 6.9 2.3 9.8l7.3-5.7z"/><path fill="#EA4335" d="M24 10.8c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.1 30 2 24 2 15.4 2 7.9 7 4.3 14.2l7.3 5.7c1.7-5.2 6.6-9.1 12.4-9.1z"/></svg>Continue with Google</a>
+            <a class="button account-provider-button account-provider-apple" data-social-provider="apple" href="/api/marketplace/auth/apple/start" hidden><svg class="account-provider-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M16.4 12.8c0-2.6 2.1-3.9 2.2-4-1.2-1.8-3.1-2-3.8-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.3 2.6 1.3-.1 1.8-.9 3.4-.9s2 .9 3.4.8c1.4 0 2.3-1.2 3.2-2.5 1-1.4 1.4-2.8 1.4-2.9-.1 0-2.7-1-2.7-4zM14 4.6c.7-.9 1.2-2.1 1.1-3.3-1.1 0-2.4.7-3.1 1.6-.7.8-1.3 2-1.1 3.2 1.2.1 2.4-.6 3.1-1.5z"/></svg>Continue with Apple</a>
+            <a class="button account-provider-button account-provider-facebook" data-social-provider="facebook" href="/api/marketplace/auth/facebook/start" hidden><svg class="account-provider-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="#1877F2" d="M24 12a12 12 0 1 0-13.9 11.9v-8.4H7.1V12h3V9.4c0-3 1.8-4.6 4.5-4.6 1.3 0 2.6.2 2.6.2v2.9h-1.5c-1.5 0-1.9.9-1.9 1.8V12h3.3l-.5 3.5h-2.8v8.4A12 12 0 0 0 24 12z"/></svg>Continue with Facebook</a>
           </div>
 
           <div class="account-choice-divider" data-account-choice-divider hidden><span>or</span></div>
@@ -48,7 +66,7 @@
           <form id="account-email-login" class="account-form" data-account-form="login" hidden novalidate>
             <fieldset data-account-controls disabled>
               <legend>Sign in securely</legend>
-              <label>Email address<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+              <label>Email address<input name="email" type="email" autocomplete="email" placeholder="you@example.com" maxlength="254" required></label>
               <label>Password<input name="password" type="password" autocomplete="current-password" minlength="12" maxlength="128" required></label>
               <button class="button" type="submit">Sign in</button>
               <p class="account-form-link"><a href="/reset-password">Forgot your password?</a> <a href="/signup">Create an account</a></p>
@@ -59,7 +77,7 @@
             <fieldset data-account-controls disabled>
               <legend>Create your account</legend>
               <label>Full name<input name="displayName" autocomplete="name" maxlength="120" required></label>
-              <label>Email address<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+              <label>Email address<input name="email" type="email" autocomplete="email" placeholder="you@example.com" maxlength="254" required></label>
               <label>Password<input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" aria-describedby="password-help" required></label>
               <small id="password-help">Use 12 to 128 characters and a password you do not use elsewhere.</small>
               <button class="button" type="submit">Create account</button>
@@ -86,7 +104,7 @@
           <form class="account-form" data-account-form="verification-request" hidden novalidate>
             <fieldset data-account-controls disabled>
               <legend>Send a new verification link</legend>
-              <label>Email address<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+              <label>Email address<input name="email" type="email" autocomplete="email" placeholder="you@example.com" maxlength="254" required></label>
               <button class="button" type="submit">Send verification link</button>
               <p class="account-form-link"><a href="/login">Back to sign in</a></p>
             </fieldset>
@@ -104,7 +122,7 @@
           <form class="account-form" data-account-form="reset-request" hidden novalidate>
             <fieldset data-account-controls disabled>
               <legend>Reset your password</legend>
-              <label>Email address<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+              <label>Email address<input name="email" type="email" autocomplete="email" placeholder="you@example.com" maxlength="254" required></label>
               <button class="button" type="submit">Send reset link</button>
               <p class="account-form-link"><a href="/login">Back to sign in</a></p>
             </fieldset>
@@ -121,9 +139,9 @@
           </form>
 
           <section class="account-ready-panel" data-account-ready hidden aria-labelledby="account-ready-title">
-            <p class="eyebrow">Private staging account</p>
-            <h2 id="account-ready-title" data-account-ready-title>Your Homle profile is ready.</h2>
-            <p data-account-ready-copy>Your role and secure account have been saved.</p>
+            <p class="ae-eyebrow">Private staging account</p>
+            <h2 id="account-ready-title" class="ae-card-title" data-account-ready-title>Your Homle profile is ready.</h2>
+            <p class="ae-card-lead" data-account-ready-copy>Your role and secure account have been saved.</p>
             <div class="account-ready-person">
               <span class="role-account-avatar" data-account-avatar aria-hidden="true">H</span>
               <div><strong data-account-name>Your account</strong><small data-account-email></small></div>
@@ -135,24 +153,16 @@
           </section>
         </section>
 
-        <div class="account-actions" data-pilot-actions>
-          <a class="button" href="/request">Request a clean</a>
-          <a class="button button-outline" href="/join">Join as a cleaner</a>
+        <div class="ae-or" data-pilot-divider><span>or continue without an account</span></div>
+        <div class="ae-alt" data-pilot-actions>
+          <a href="/request"><span class="ae-ico ae-ico-mint" aria-hidden="true">✦</span><div><strong>Request a clean</strong><small>Scope every room in three short steps.</small></div></a>
+          <a href="/join"><span class="ae-ico ae-ico-citrus" aria-hidden="true">✓</span><div><strong>Work as a cleaner</strong><small>Choose the areas and times that suit you.</small></div></a>
         </div>
+
+        <p class="ae-fine">Homle never asks for a payment card on this page, and no cleaner is promised here.</p>
         <noscript><p class="account-noscript">Account access is not enabled. JavaScript is not required to use the working request or cleaner application routes above.</p></noscript>
       </article>
-
-      <aside class="account-side" aria-labelledby="pilot-title" data-account-side>
-        <p class="eyebrow light">Working private pilot</p>
-        <h2 id="pilot-title" data-account-side-title>Keep the booking path simple.</h2>
-        <ol class="account-steps">
-          <li><span>1</span><div><strong data-account-step-title="1">Request the clean</strong><small data-account-step-copy="1">Share the property, timing and contact details.</small></div></li>
-          <li><span>2</span><div><strong data-account-step-title="2">Scan and speak</strong><small data-account-step-copy="2">Add room photos and turn natural notes into concise tasks.</small></div></li>
-          <li><span>3</span><div><strong data-account-step-title="3">Review before matching</strong><small data-account-step-copy="3">Homle checks scope, coverage and real availability before any quote.</small></div></li>
-        </ol>
-        <p class="account-side-note" data-account-side-note>No payment is collected and no cleaner is promised from this account page.</p>
-      </aside>
-    </section>
+    </div>
   </main>
 
   <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle private pilot.</span><a href="/privacy">Privacy notice</a></div></footer>

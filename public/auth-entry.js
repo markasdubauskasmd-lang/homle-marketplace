@@ -19,6 +19,11 @@ const title = document.querySelector("[data-account-title]");
 const lead = document.querySelector("[data-account-lead]");
 const stateTitle = document.querySelector("[data-account-state-title]");
 const stateCopy = document.querySelector("[data-account-state-copy]");
+const statePill = document.querySelector("[data-account-state]");
+// The pill's dot colour is the only visual difference between the readiness
+// states, so it is driven from the same branch that writes the copy rather than
+// inferred from the text. `checking` is the markup default.
+const setReadiness = (state) => { if (statePill) statePill.dataset.state = state; };
 const runtime = document.querySelector("[data-account-runtime]");
 const feedback = document.querySelector("[data-account-feedback]");
 const forms = [...document.querySelectorAll("[data-account-form]")];
@@ -469,6 +474,7 @@ try {
   const providers = result?.providers || {};
   const authenticationReady = providers.emailPassword === true || providers.google === true || providers.apple === true || providers.facebook === true;
   if (authenticationReady) {
+    setReadiness("ready");
     stateTitle.textContent = "Secure account access is ready.";
     stateCopy.textContent = "Available sign-in methods use rate limits, secure sessions and server-side role checks.";
     activateForm(providers);
@@ -532,10 +538,12 @@ try {
       showFeedback("Too many sign-in attempts were made. Please wait before trying again.", "error");
     }
   } else {
+    setReadiness("unavailable");
     stateTitle.textContent = "Account access is safely unavailable.";
     stateCopy.textContent = "The database, verified email delivery and sign-in runtime are not active, so Homle is not showing buttons that cannot work.";
   }
 } catch {
+  setReadiness("error");
   stateTitle.textContent = "Account availability could not be checked.";
   stateCopy.textContent = "Use the working private pilot routes below; no account action has been attempted.";
 }
