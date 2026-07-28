@@ -69,6 +69,12 @@
      text and fills, where 3:1 is the bar; a button with white 15px on it is a
      different job and needs its own value rather than a hopeful reuse. */
   --homle-coral-action: oklch(0.58 0.19 25);
+  /* The landing's eyebrow/kicker colour, copied from `.lp-eyebrow` in home.css.
+     It is deliberately NOT the coral above: a full-chroma coral set at 13px
+     uppercase measures 4.41:1 on cream, which fails normal-text contrast. The
+     landing already solved this by dropping chroma and lightness instead of
+     shouting, so eyebrows use that value rather than a second guess at it. */
+  --homle-eyebrow: oklch(0.5 0.08 30);
   --homle-mint: oklch(0.78 0.17 150);      /* success / confirmed */
   --homle-beam: oklch(0.86 0.16 150);
   --homle-sky: oklch(0.83 0.14 190);       /* informational */

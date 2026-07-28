@@ -210,4 +210,33 @@ for (const page of pages) {
 assert.equal(versions.size, 1, `styles.css is requested at ${versions.size} different versions (${[...versions].join(", ")}); some pages would serve a stale copy against the new tokens.`);
 assert.ok(![...versions][0].startsWith("20260723"), "styles.css changed but its cache-busting version was not incremented, so returning visitors keep the old palette.");
 
-console.log(`Design system contrast and isolation tests passed: every shared variable carries a literal fallback so the Cleaner workspace is unaffected, white-on-action measures ${actionOnWhite.toFixed(2)}:1 and the focus ring ${focusOnCream.toFixed(2)}:1 on cream and ${focusOnHeader.toFixed(2)}:1 on the header, no stylesheet imports an off-origin font the CSP would refuse, and styles.css is served at one fresh version.`);
+/* ── No panel is light-surfaced and light-texted at once ── */
+
+// .account-side, .brief-hero, .cleaner-publish-section, .landlord-scan-boundary
+// and .booking-payment-summary were near-black maroon gradients with white text
+// on them — a second design living inside the app, and the one the Landlord
+// screenshotted. They are now landing surfaces. The hazard in that move is
+// doing half of it: flip the background to cream and leave `color: #fff`, and
+// the panel reads as blank. This asserts the two halves stay together.
+const panels = ["account-side", "brief-hero", "cleaner-publish-section", "landlord-scan-boundary", "booking-payment-summary"];
+const shared = stripComments(read("public/styles.css"));
+for (const rule of shared.split("}")) {
+  const head = (rule.split("{")[0] || "").trim();
+  const body = rule.slice(rule.indexOf("{") + 1);
+  if (rule.indexOf("{") < 0) continue;
+  if (!panels.some((panel) => head.includes(panel))) continue;
+  // Light text is not banned outright — a white label on the coral action
+  // button is correct and is how the landing page draws a primary button. What
+  // is banned is light text with no dark fill of its own, because that text
+  // inherits the panel's cream surface and disappears. So: if a rule inside
+  // these panels sets near-white text, the same rule must also lay down an
+  // accent or ink background for it to sit on.
+  const lightText = /(^|[;{\s])color:\s*(#fff\b|#ffffff\b|white\b|#d[0-9a-f]{5}|#e[0-9a-f]{5})/i.test(body);
+  const darkFill = /background(-color)?:[^;}]*(--brand|--homle-coral|--homle-ink|--ink\b|--green)/i.test(body);
+  assert.ok(
+    !lightText || darkFill,
+    `"${head.slice(0, 70)}" sets near-white text but lays down no dark fill for it. These panels now sit on the landing's cream surface, so that text would be invisible.`,
+  );
+}
+
+console.log(`Design system contrast and isolation tests passed: every shared variable carries a literal fallback so the Cleaner workspace is unaffected, the five formerly-maroon panels carry no leftover light text, white-on-action measures ${actionOnWhite.toFixed(2)}:1 and the focus ring ${focusOnCream.toFixed(2)}:1 on cream and ${focusOnHeader.toFixed(2)}:1 on the header, no stylesheet imports an off-origin font the CSP would refuse, and styles.css is served at one fresh version.`);
