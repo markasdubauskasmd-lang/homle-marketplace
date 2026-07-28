@@ -2,7 +2,7 @@ import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, re
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { accountReadyPresentation, availableAccountMethodLabel } from "./account-ready-model.js?v=20260723-1";
 import { storedCsrf } from "./session-csrf.js";
-import { accountWorkspaceDestination } from "./workspace-access.js?v=20260728-1";
+import { accountIntentWorkspaceActivation, accountWorkspaceDestination } from "./workspace-access.js?v=20260728-2";
 
 const modes = Object.freeze({
   "/login": { form: "login", title: "Sign in to Homle", lead: "Use your verified account to open the correct private workspace." },
@@ -202,6 +202,15 @@ async function recoverOnboardingCsrf() {
   return result.csrfToken;
 }
 
+async function recoverWorkspaceCsrf() {
+  const result = await post("/api/marketplace/auth/session", {});
+  if (!storeCsrf(result.csrfToken)) {
+    await post("/api/marketplace/auth/logout", {}, result.csrfToken);
+    throw new Error("Secure browser storage is unavailable, so Homle closed the refreshed session. Sign in again in a standard browser window.");
+  }
+  return result.csrfToken;
+}
+
 function setPending(form, pending) {
   const button = form.querySelector('button[type="submit"]');
   if (!button) return;
@@ -223,6 +232,27 @@ function workspacePath(account) {
   return accountWorkspaceDestination(account, accountIntent, workspaceReady);
 }
 
+async function activateIntendedWorkspace(account) {
+  const role = accountIntentWorkspaceActivation(account, accountIntent);
+  if (!role) return account;
+  let csrfToken = storedCsrf();
+  if (!csrfToken) csrfToken = await recoverWorkspaceCsrf();
+  let result;
+  try {
+    result = await post("/api/marketplace/auth/workspace", { role }, csrfToken);
+  } catch (error) {
+    const refreshedToken = await recoverWorkspaceCsrf();
+    if (refreshedToken === csrfToken) throw error;
+    result = await post("/api/marketplace/auth/workspace", { role }, refreshedToken);
+  }
+  if (!storeCsrf(result.csrfToken)) {
+    await post("/api/marketplace/auth/logout", {}, result.csrfToken);
+    throw new Error("Secure browser storage is unavailable, so Homle closed the rotated session. Sign in again in a standard browser window.");
+  }
+  signedInAccount = result.account || account;
+  return signedInAccount;
+}
+
 async function openSignedInWorkspace() {
   const response = await accountFetch("/api/marketplace/account", { credentials: "same-origin", headers: { Accept: "application/json" }, cache: "no-store" });
   if (!response.ok) return false;
@@ -239,7 +269,8 @@ async function openSignedInWorkspace() {
     else showFeedback("Your Landlord workspace stays separate. Confirm below to add a private Cleaner workspace to this same verified account.", "info");
     return true;
   }
-  const destination = workspacePath(result.account);
+  const activeAccount = await activateIntendedWorkspace(result.account);
+  const destination = workspacePath(activeAccount);
   if (!destination) return false;
   clearCompletedIntent();
   location.assign(destination);
@@ -259,6 +290,7 @@ async function loadAccountReady() {
     return;
   }
   workspaceReady = result.workspaceReady === true;
+  result.account = await activateIntendedWorkspace(result.account);
   if (workspaceReady) {
     const destination = workspacePath(result.account);
     if (destination && destination !== "/account-ready") {
@@ -327,7 +359,8 @@ async function submitAccountForm(event) {
         location.assign("/onboarding?intent=work");
         return;
       }
-      const destination = workspacePath(result.account);
+      signedInAccount = await activateIntendedWorkspace(result.account);
+      const destination = workspacePath(signedInAccount);
       if (destination) {
         clearCompletedIntent();
         location.assign(destination);
@@ -377,7 +410,7 @@ async function submitAccountForm(event) {
       form.reset();
       form.querySelector("fieldset").disabled = true;
     } else if (kind === "onboarding") {
-      const csrfToken = storedCsrf() || await recoverOnboardingCsrf();
+      const csrfToken = storedCsrf() || (signedInAccount?.roles?.length ? await recoverWorkspaceCsrf() : await recoverOnboardingCsrf());
       const endpoint = signedInAccount?.roles?.length ? "/api/marketplace/auth/workspace" : "/api/marketplace/onboarding";
       const result = await post(endpoint, { role: body.role }, csrfToken);
       if (!storeCsrf(result.csrfToken)) {

@@ -8,6 +8,19 @@ const workspaceLabels = Object.freeze({
   landlord: "Landlord"
 });
 
+export function accountIntentWorkspaceRole(intent = "") {
+  if (intent === "work") return "cleaner";
+  if (intent === "book") return "landlord";
+  return "";
+}
+
+export function accountIntentWorkspaceActivation(account, intent = "") {
+  const intendedRole = accountIntentWorkspaceRole(intent);
+  if (!intendedRole) return "";
+  const roles = Array.isArray(account?.roles) ? account.roles.filter((role) => workspaceDestinations[role]) : [];
+  return roles.includes(intendedRole) && account?.selectedRole !== intendedRole ? intendedRole : "";
+}
+
 export function accountWorkspaceDestination(account, intent = "", workspaceReady = true) {
   const roles = Array.isArray(account?.roles) ? account.roles.filter((role) => workspaceDestinations[role]) : [];
   let destination = "";

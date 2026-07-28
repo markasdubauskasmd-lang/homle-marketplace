@@ -50,7 +50,7 @@ function element(name, className, text) {
   return node;
 }
 
-function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry = false, workspaceDestination = "", workspaceLabel = "" } = {}) {
+function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry = false, workspaceDestination = "", workspaceLabel = "", workspaceActionLabel = "" } = {}) {
   gate.hidden = false;
   gate.dataset.kind = kind;
   document.querySelector("[data-cleaner-gate-title]").textContent = title;
@@ -60,7 +60,7 @@ function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry 
   workspaceLink.hidden = !workspaceDestination;
   if (workspaceDestination) {
     workspaceLink.href = workspaceDestination;
-    workspaceLink.textContent = `Open ${workspaceLabel} dashboard`;
+    workspaceLink.textContent = workspaceActionLabel || `Open ${workspaceLabel} dashboard`;
   }
   dashboard.hidden = true;
 }
@@ -742,7 +742,7 @@ async function loadDashboard() {
     accountRecord = account;
     const access = dashboardWorkspaceAccess(account, "cleaner");
     if (!access.ready) return access.reason === "different-workspace"
-      ? showGate(`Your ${access.label} workspace is active.`, "Cleaner jobs and professional controls remain in a separate private dashboard.", { kind: "authentication", workspaceDestination: access.destination, workspaceLabel: access.label })
+      ? showGate(`Your ${access.label} workspace is active.`, "Cleaner jobs and professional controls remain in a separate private dashboard. Switch this verified account to its Cleaner workspace to continue.", { kind: "authentication", workspaceDestination: "/onboarding?intent=work", workspaceLabel: "Cleaner", workspaceActionLabel: "Switch to Cleaner workspace" })
       : showGate("This account has no Cleaner workspace.", "Sign in through Work as a Cleaner to create the separate professional workspace.", { kind: "authentication", allowSignIn: true });
     document.querySelector("[data-cleaner-name]").textContent = account.displayName || "Cleaner";
     renderAccountAvatar(account);
