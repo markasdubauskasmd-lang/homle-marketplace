@@ -1,5 +1,54 @@
 # Render activation handoff
 
+## Merged on 2026-07-28 — visual system and sign-in page (needs a redeploy, nothing else)
+
+All merged to `main`, CI green. **None of it is live**, because `autoDeployTrigger`
+is off. One redeploy publishes all of it. No migration, no new secret and no
+Render setting is required for any of it to work.
+
+- **PR #135 + #140 — one visual system across the app.** `public/homle-tokens.css`
+  is now the single owner of typography, palette, radius and shadow, and every
+  page reads from it. Two things were badly wrong before and are fixed: `styles.css`
+  asked for `"Sora"` and `Inter`, neither of which is vendored or loadable under the
+  CSP, so ~30 pages silently rendered in system sans-serif while the landing page
+  used real Bricolage Grotesque; and five shared panels (account side, brief hero,
+  Cleaner publish, Landlord scan boundary, booking payment summary) were near-black
+  maroon gradients — a second visual identity inside the same stylesheet. They now
+  use the landing's cream surface. Distinct hex values went 492 → 384.
+- **PR #147 — the sign-in page (`/login`) rebuilt on the landing design.** New
+  `public/account-entry.css`. Same page also serves `/signup`, `/verify-email`,
+  `/reset-password`, `/onboarding` and `/account-ready`, and every one of those
+  modes still works — the redesign changed presentation only, not the auth flow.
+
+### The one thing you may want to switch on: Google sign-in
+
+`Continue with Google` is built, styled and merged, but **hidden**, because the
+page refuses to show a provider the deployment cannot honour. It is gated on
+`providers.google`, which is `false` until both of these exist in the Render
+environment (`src/marketplace/config.mjs`):
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+
+Set both, redeploy, and the button appears with no code change. Apple and Facebook
+behave identically via their own variable pairs. **Do not remove the gate to make
+the button visible** — without working credentials it is a dead control that errors
+on click, and `tests/smoke.mjs` asserts this page never advertises an unavailable
+provider.
+
+### Deliberate decisions — do not "fix" these
+
+- **The sign-in card is not a magic link.** The design handoff proposed
+  `Email me a sign-in link`, and flagged it as an open question. This deployment has
+  no magic-link endpoint; it uses email + password plus OAuth. The card keeps the
+  real form on purpose.
+- **`.scan-page` and `.journey-page` keep their dark palettes.** Those are
+  full-screen camera experiences where a dark ground is the design, not drift.
+- **The Cleaner workspace (`homle-cleaner.css`) was left alone** at the owner's
+  request, and loads `styles.css` *without* the token file — which is why every
+  shared `var()` carries a literal fallback. Removing those fallbacks breaks the
+  Cleaner pages.
+
 ## Local verified improvement awaiting publication
 
 - Landlords now have one private notification bell beside the signed-in account picture, and Cleaner invitations no longer require a reload while transactional email is unavailable. Migration 072 emits a commit-bound, privacy-minimal PostgreSQL signal for each in-app notification. An authenticated account-scoped SSE route sends the browser only `{"changed":true}`, then the existing protected inbox is reread and the Cleaner dashboard refreshes actionable invitations. Cross-account isolation, session expiry, connection limits, backpressure cleanup, reconnect catch-up, database trigger safety, package identity and dedicated booking/account LISTEN readiness are covered. Commit `d218ddf` plus the current verified migration/SSE work are local only and have not been pushed, merged or deployed.
