@@ -925,6 +925,30 @@ export const keyframeDefaults = Object.freeze({
   maxPerRoom: 4
 });
 
+// Progress is evidence-based: one step means one distinct, settled,
+// quality-approved room view that consumed a bounded read slot. It is not a
+// timer and it never advances merely because the camera stayed open.
+export function roomCoverageProgress(capturedCount, { maximum = keyframeDefaults.maxPerRoom } = {}) {
+  const total = Number.isInteger(maximum) && maximum > 0 ? maximum : keyframeDefaults.maxPerRoom;
+  const count = Math.min(total, Math.max(0, Number.isFinite(capturedCount) ? Math.floor(capturedCount) : 0));
+  const copy = count === 0
+    ? "Hold steady to begin"
+    : count === 1
+      ? "Turn to another side"
+      : count === 2
+        ? "Show one more angle"
+        : count < total
+          ? "Good coverage — confirm"
+          : "Room covered — confirm";
+  return Object.freeze({
+    count,
+    total,
+    percent: Math.round((count / total) * 100),
+    complete: count === total,
+    copy
+  });
+}
+
 // One slow read from the room just left must not stop the room now in front of
 // the camera from being read. Two concurrent walking reads are enough to cover
 // that hand-off without turning a fast walk through several rooms into an

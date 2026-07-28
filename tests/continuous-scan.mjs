@@ -4,7 +4,7 @@ import {
   correctInventoryItem, frameSignature, inventoryKey, keyframeDefaults,
   inventoryDisplayLabel, itemQuantity, maxConcurrentWalkingReads,
   mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
-  rosterSummary, scanSummary, shouldCaptureKeyframe,
+  roomCoverageProgress, rosterSummary, scanSummary, shouldCaptureKeyframe,
   signatureDistance, walkingReadIsBlocked, conditionTag, movementAdvice,
   savedDetectionFromInventoryItem, usableLiveBoxes
 } from "../public/room-scan-model.js";
@@ -109,6 +109,25 @@ assert.ok(walkingReadIsBlocked(new Set(["kitchen"]), "kitchen"), "A room started
 assert.ok(walkingReadIsBlocked(new Set(["kitchen", "bathroom"]), "bedroom"), "A third room exceeded the global walking-read concurrency bound.");
 assert.ok(!walkingReadIsBlocked(new Set(), "bedroom"), "An idle scanner reported no walking-read capacity.");
 assert.ok(walkingReadIsBlocked(null, ""), "An unnamed room was allowed to consume a walking read.");
+
+/* ── Room coverage reports accepted views, not elapsed time ── */
+
+assert.deepEqual(
+  roomCoverageProgress(0),
+  { count: 0, total: 4, percent: 0, complete: false, copy: "Hold steady to begin" },
+  "A room with no accepted view reported progress."
+);
+assert.equal(roomCoverageProgress(1).percent, 25, "The first distinct accepted view did not advance room coverage by one bounded step.");
+assert.equal(roomCoverageProgress(2).copy, "Show one more angle", "Half-room guidance does not tell the customer what to do next.");
+assert.equal(roomCoverageProgress(3).complete, false, "Good coverage was misreported as full coverage before the final distinct view.");
+assert.equal(roomCoverageProgress(3).copy, "Good coverage — confirm", "Three distinct views do not give the customer a clear, honest finish option.");
+assert.deepEqual(
+  roomCoverageProgress(4),
+  { count: 4, total: 4, percent: 100, complete: true, copy: "Room covered — confirm" },
+  "The bounded final view did not report complete room coverage."
+);
+assert.equal(roomCoverageProgress(99).count, 4, "Coverage exceeded the same four-view bound enforced for provider reads.");
+assert.equal(roomCoverageProgress(-5).count, 0, "Invalid negative coverage escaped into the UI.");
 
 /* ── The inventory accumulates rather than replaces ── */
 
@@ -351,6 +370,14 @@ assert.equal(
 // of the hallway bought another four reads of the same kitchen.
 assert.match(overlay, /function keyframeBudget/, "The keyframe budget is no longer looked up per room.");
 assert.doesNotMatch(overlay, /resetKeyframeBudget/, "The per-room budget is reset again on room entry, so walking out and back in buys a fresh set of paid reads.");
+assert.match(overlay, /data-live-progress-meter[^>]*role="progressbar"/, "The live scanner has no accessible current-room coverage indicator.");
+assert.match(overlay, /roomCoverageProgress\(budget\.capturedCount\)/, "Room coverage is not derived from the accepted distinct-view budget.");
+assert.match(overlay, /busy \? "Checking this view…" : progress\.copy/, "The coverage indicator cannot distinguish a view being analysed from one already accepted.");
+assert.ok(
+  overlay.indexOf("budget.capturedCount += 1") < overlay.indexOf("budget.capturedCount += 1") + overlay.slice(overlay.indexOf("budget.capturedCount += 1")).indexOf("renderScanProgress()"),
+  "Accepting a distinct room view does not immediately redraw coverage."
+);
+assert.match(styles, /\.scan-progress-meter\[data-level="4"\] i\{[^}]*scaleX\(1\)[^}]*var\(--scan-ok\)/, "Full room coverage has no settled visual completion state.");
 // A refund on failure is a re-entry hole: the next steady view spends it again,
 // and a timeout can arrive after the provider has already been billed.
 const keyframeBody = overlay.slice(overlay.indexOf("function maybeReadKeyframe"), overlay.indexOf("function inventoryFor"));
