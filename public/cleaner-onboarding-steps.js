@@ -64,7 +64,7 @@ export const onboardingNav = [
   { label: "Banking", icon: "card", step: "banking", href: "/cleaner/banking" },
   { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/availability" },
   { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/equipment" },
-  { label: "Documents", icon: "folder", step: "", href: "" },
+  { label: "Documents", icon: "folder", step: "", href: "/cleaner/documents" },
   { label: "Training", icon: "award", step: "training", href: "" },
   { label: "Contracts", icon: "pen", step: "compliance", href: "" }
 ];

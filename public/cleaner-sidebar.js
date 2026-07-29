@@ -10,7 +10,7 @@
  * keeping literal.
  */
 
-import { onboardingIcons, onboardingNav } from "./cleaner-onboarding-steps.js?v=20260729-5";
+import { onboardingIcons, onboardingNav } from "./cleaner-onboarding-steps.js?v=20260729-6";
 
 function icon(name) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
