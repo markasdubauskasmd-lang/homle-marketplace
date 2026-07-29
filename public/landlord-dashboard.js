@@ -6,7 +6,7 @@ import { maximumRoomPhotos, validatedRoomPhotoSelection } from "./room-photo-sel
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260719-1";
+import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260730-1";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260723-3";
 import { storedCsrf } from "./session-csrf.js";
 
@@ -107,6 +107,7 @@ let mediaReady = false;
 let pricingReady = false;
 let geocodingReady = false;
 let matchingReady = false;
+let automaticDispatchReady = false;
 let requestRecoveryChecked = false;
 let requestRecoveryTimer = null;
 let invitationStream = null;
@@ -971,7 +972,9 @@ function requestScanPanel(request) {
     auto.type = "checkbox";
     auto.name = "automaticDispatch";
     const automaticMaximumPricePence = automaticMaximumPrice(request);
-    autoLabel.append(auto, element("span", "", automaticMaximumPricePence == null
+    autoLabel.append(auto, element("span", "", !automaticDispatchReady
+      ? "Automatic matching is temporarily unavailable. Submit the reviewed request and it will stay safely open for Homle review; no Cleaner is contacted automatically."
+      : automaticMaximumPricePence == null
       ? "Automatic matching needs a maximum booking total. Keep this request open and choose a Cleaner directly, or create a new request with a maximum."
       : `After submission, invite the best eligible profitable match only when the exact total is ${formatBookingMoney(automaticMaximumPricePence)} or less. No booking exists until a Cleaner accepts.`));
     const preferredLabel = element("label", "checkbox landlord-preferred-cleaner");
@@ -987,12 +990,13 @@ function requestScanPanel(request) {
     attempts.disabled = true;
     for (const value of [1, 2, 3, 4, 5]) { const option = element("option", "", String(value)); option.value = String(value); if (value === 3) option.selected = true; attempts.append(option); }
     attemptsLabel.append(attempts);
-    auto.addEventListener("change", () => { attempts.disabled = !auto.checked; });
+    auto.addEventListener("change", () => { attempts.disabled = !automaticDispatchReady || !auto.checked; });
     const submit = element("button", "button", "Submit cleaning request");
     submit.type = "submit";
     for (const control of [confirm, preview, submit]) control.disabled = !mediaReady;
-    for (const control of [auto, preferred, attempts]) control.disabled = !mediaReady || !matchingReady || control === attempts;
-    if (automaticMaximumPricePence == null || !matchingReady) auto.disabled = true;
+    preferred.disabled = !mediaReady || !matchingReady;
+    auto.disabled = !mediaReady || !automaticDispatchReady || automaticMaximumPricePence == null;
+    attempts.disabled = true;
     if (!mediaReady) submit.textContent = "Room photos required before submission";
     submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerReady ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
     submitForm.addEventListener("submit", async (event) => {
@@ -1000,6 +1004,7 @@ function requestScanPanel(request) {
       feedback.hidden = true;
       if (!submitForm.reportValidity()) return;
       if (!(requestScans.get(request.requestId)?.photos?.length > 0)) return showFeedback(feedback, "Upload and finish at least one current room photo before submission.");
+      if (auto.checked && !automaticDispatchReady) return showFeedback(feedback, "Automatic matching is temporarily unavailable. Leave it off and submit the request for Homle review.");
       if (auto.checked && !(await approveAutomaticDispatchPrice(automaticMaximumPricePence, Number(attempts.value)))) return;
       setPending(submit, true, "Submitting reviewed scan…");
       const csrf = await recoverCsrf(feedback, "submitting this cleaning request");
@@ -1084,7 +1089,14 @@ function renderRequests() {
       dispatchPanel.dataset.dispatchRequestId = request.requestId;
       const dispatchFeedback = element("p", "form-feedback");
       dispatchFeedback.hidden = true;
-      if (uncertainDispatchRequests.has(request.requestId)) {
+      if (!automaticDispatchReady) {
+        dispatchPanel.append(
+          element("strong", "", "Automatic matching is temporarily paused"),
+          element("p", "", dispatchAction.kind === "waiting"
+            ? "Your matching authorization remains saved, but no background invitation is running. The request stays open for Homle review and no Cleaner is contacted automatically."
+            : "This request stays safely open for Homle review. No Cleaner is contacted automatically while the background matching service is unavailable.")
+        );
+      } else if (uncertainDispatchRequests.has(request.requestId)) {
         dispatchPanel.append(element("strong", "", "Check whether matching was authorised"), element("p", "", "The last connection ended before Homle could confirm the result. Refresh the saved request before authorising anything again."));
         const refresh = element("button", "button button-outline", "Refresh matching status");
         refresh.type = "button";
@@ -1129,6 +1141,7 @@ function renderRequests() {
 
 async function authorizeNextCleaner(requestId, attemptLimit, button, feedback) {
   feedback.hidden = true;
+  if (!automaticDispatchReady) return showFeedback(feedback, "Automatic matching is temporarily unavailable. This request remains safely open for Homle review; no Cleaner was contacted.");
   const request = requests.find((item) => item.requestId === requestId);
   const approvedMaximumPricePence = automaticMaximumPrice(request);
   if (approvedMaximumPricePence == null) return showFeedback(feedback, "This request has no approved maximum total. Choose a Cleaner directly or create a new request with a maximum.");
@@ -1610,9 +1623,10 @@ async function loadWorkspace() {
     const capabilities = landlordMarketplaceCapabilityState({
       mediaReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.mediaReady === true,
       pricingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.matchingReady === true,
-      geocodingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.geocodingReady === true
+      geocodingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.geocodingReady === true,
+      automaticDispatchReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.automaticDispatchReady === true
     });
-    ({ mediaReady, pricingReady, geocodingReady, matchingReady } = capabilities);
+    ({ mediaReady, pricingReady, geocodingReady, matchingReady, automaticDispatchReady } = capabilities);
     mediaReadiness.hidden = capabilities.notice === null;
     if (capabilities.notice) {
       capabilityTitle.textContent = capabilities.notice.title;
