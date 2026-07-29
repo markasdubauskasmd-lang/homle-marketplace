@@ -1,6 +1,6 @@
 import { bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, cleanerMarketplaceCapabilityState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260723-3";
-import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-7";
-import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-6";
+import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-8";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-7";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { storedCsrf } from "./session-csrf.js";
