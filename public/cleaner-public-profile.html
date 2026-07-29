@@ -12,12 +12,12 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
-  <script src="/cleaner-public-profile.js?v=20260729-2" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-11">
+  <script src="/cleaner-public-profile.js?v=20260729-3" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
-<body class="cleaner-workspace-page">
+<body class="cleaner-workspace-page cleaner-public-profile-page">
   <a class="hc-skip" href="#cleaner-public-profile-main">Skip to your public profile</a>
 
   <div class="hc">
@@ -146,21 +146,21 @@
           </div>
         </section>
 
-        <div data-profile hidden>
+        <div class="hc-profile-preview" data-profile hidden>
           <div class="hc-feedback hc-feedback-error" data-profile-offline role="status" aria-live="polite" hidden>
             <strong>You are offline.</strong> This preview shows the last loaded profile and will not refresh until the connection returns.
           </div>
 
-          <div class="hc-page-head">
+          <div class="hc-page-head hc-profile-preview-head">
             <div>
               <h1 class="hc-page-title">Your public profile</h1>
-              <p class="hc-page-sub">Exactly what clients see when Homle offers them your profile. It updates as you edit your registration.</p>
+              <p class="hc-page-sub">Exactly what clients see when Homle offers them your profile. It updates live as you edit your registration.</p>
             </div>
             <span class="hc-pill-amber" data-profile-live-state>Checking…</span>
           </div>
 
-          <div class="hc-two-col">
-            <div class="hc-col">
+          <div class="hc-profile-preview-layout">
+            <div class="hc-profile-preview-main">
               <article class="hc-pp">
                 <div class="hc-pp-banner">
                   <span class="hc-pp-banner-label">HOMLE CLEANER</span>
@@ -201,61 +201,97 @@
                   <div class="hc-pp-section">
                     <div class="hc-pp-section-head">
                       <div class="hc-pp-section-label">ABOUT</div>
+                      <a class="hc-pp-section-edit" href="/cleaner/experience">Edit</a>
                     </div>
                     <p class="hc-pp-about" data-profile-about>You have not added an introduction yet.</p>
                   </div>
 
                   <div class="hc-pp-section">
                     <div class="hc-pp-section-head">
-                      <div class="hc-pp-section-label">SERVICES</div>
+                      <div class="hc-pp-section-label">SPECIALISMS</div>
+                      <a class="hc-pp-section-edit" href="/cleaner/experience">Edit</a>
                     </div>
                     <div class="hc-pp-chips" data-profile-services></div>
                   </div>
 
                   <div class="hc-pp-section">
                     <div class="hc-pp-section-head">
-                      <div class="hc-pp-section-label">LANGUAGES</div>
+                      <div class="hc-pp-section-label">EXTRA SKILLS</div>
+                      <a class="hc-pp-section-edit" href="/cleaner/experience">Edit</a>
                     </div>
-                    <div class="hc-pp-chips" data-profile-languages></div>
+                    <div class="hc-pp-chips" data-profile-skills></div>
+                  </div>
+
+                  <div class="hc-pp-section">
+                    <div class="hc-pp-section-head">
+                      <div class="hc-pp-section-label">TRAINING BADGES <span class="hc-pp-section-note" data-profile-training-count></span></div>
+                      <a class="hc-pp-section-edit" href="/cleaner/training">Academy &#8599;</a>
+                    </div>
+                    <div class="hc-pp-chips" data-profile-training></div>
+                  </div>
+
+                  <div class="hc-pp-section">
+                    <div class="hc-pp-section-head">
+                      <div class="hc-pp-section-label">UPCOMING AVAILABILITY</div>
+                      <a class="hc-pp-section-edit" href="/cleaner/availability">Edit</a>
+                    </div>
+                    <div class="hc-pp-availability" data-profile-availability aria-label="Upcoming availability by weekday"></div>
+                    <p class="hc-pp-availability-note">Dots run top to bottom: morning &middot; afternoon &middot; evening &middot; night. Only confirmed future windows are shown.</p>
                   </div>
 
                   <div class="hc-pp-section">
                     <div class="hc-pp-section-head">
                       <div class="hc-pp-section-label">WORKS IN</div>
-                      <a class="hc-pp-section-edit" href="/cleaner/dashboard">Edit in dashboard</a>
+                      <a class="hc-pp-section-edit" href="/cleaner/work-areas">Edit</a>
                     </div>
                     <div class="hc-pp-chips" data-profile-areas></div>
+                  </div>
+
+                  <div class="hc-pp-section hc-pp-reviews">
+                    <div class="hc-pp-section-head">
+                      <div class="hc-pp-section-label">REVIEWS</div>
+                    </div>
+                    <div class="hc-pp-review-empty" data-profile-reviews>No reviews yet &mdash; new to Homle.</div>
                   </div>
                 </div>
               </article>
             </div>
 
-            <div class="hc-col hc-col-wide">
-              <section class="hc-panel">
-                <h4 class="hc-h4">Before it goes live</h4>
-                <div class="hc-bars" data-profile-checklist></div>
+            <aside class="hc-profile-preview-rail">
+              <section class="hc-profile-strength-card">
+                <div class="hc-profile-strength-head">
+                  <h2>Profile strength</h2>
+                  <strong data-profile-strength>0%</strong>
+                </div>
+                <div class="hc-profile-strength-track" aria-hidden="true">
+                  <span data-profile-strength-bar></span>
+                </div>
+                <div class="hc-profile-checklist" data-profile-checklist></div>
+                <p class="hc-profile-strength-tip">Strong profiles get offered jobs first &mdash; photos and specialisms matter most.</p>
               </section>
 
-              <section class="hc-panel">
-                <h4 class="hc-h4">What clients cannot see</h4>
-                <div class="hc-tip">Your email, phone number and home address are never shown on this profile. A booking's exact address is released to you only after you accept it.</div>
+              <section class="hc-profile-side-card">
+                <div class="hc-profile-visibility-head">
+                  <div>
+                    <h2>Visible to clients</h2>
+                    <p>Hide your profile to pause new offers.</p>
+                  </div>
+                  <span class="hc-profile-switch" data-profile-visibility role="switch" aria-checked="false" aria-readonly="true">
+                    <span></span>
+                  </span>
+                </div>
+                <p>Clients only ever see your first name, photo, badges and reviews &mdash; never your contact details or exact address.</p>
               </section>
 
-              <!--
-                The design also shows training badges from Homle Academy and a typical
-                availability grid on the public card. There is no Academy in this codebase,
-                and availability is stored as exact future windows rather than a recurring
-                weekly pattern, so neither is rendered here.
-              -->
-            </div>
+              <section class="hc-profile-side-card hc-profile-booking-card">
+                <h2>See how clients book you</h2>
+                <p>Walk the four-step booking flow a client sees. Confirming never sends a real offer from this preview.</p>
+                <button type="button" data-profile-booking-preview>Preview client booking &#8599;</button>
+              </section>
+            </aside>
           </div>
 
           <div class="hc-feedback" data-profile-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
-
-          <footer class="hc-foot">
-            <span>© <span data-year></span> Homle.</span>
-            <a href="/privacy">Privacy notice</a>
-          </footer>
         </div>
       </div>
     </main>
