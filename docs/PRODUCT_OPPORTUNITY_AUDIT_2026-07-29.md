@@ -59,6 +59,23 @@ Expected benefit: provider connection callbacks have a valid destination, Landlo
 can manage account access without leaving the product, and UK privacy-rights intake
 is once again reachable without exposing provider subjects or private identifiers.
 
+## Non-Cleaner route and asset defect fixed
+
+The public Facebook data-deletion status page requested `/account.css`, an asset that
+has never existed in the repository and returned a live 404. The page already uses
+the shared account primitives shipped in `styles.css`, so the dead request added no
+visual behavior; it only wasted a request and left a production error on a required
+provider-compliance journey.
+
+The invalid stylesheet reference is removed. A new source-level integrity gate now
+checks every local route and asset reference across the shipped customer, Landlord,
+account, legal and Administrator HTML pages while explicitly excluding the Cleaner
+workspace. API actions are left to their existing HTTP authorization suites.
+
+Expected benefit: the Facebook deletion journey loads without a known production
+404, and future non-Cleaner page changes fail CI when they introduce a missing local
+route, script, stylesheet, image or manifest.
+
 ## Prioritised opportunities
 
 ### P0 — prove one genuine two-account booking rehearsal
