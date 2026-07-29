@@ -42,9 +42,39 @@ body.landing .site-header {
   position: absolute;
   inset: 0 0 auto 0;
   z-index: 40;
-  background: transparent;
+  overflow: hidden;
+  isolation: isolate;
+  background: oklch(0.98 0.012 88 / 0.58);
+  border-bottom: 1px solid oklch(1 0 0 / 0.48);
+  box-shadow:
+    0 1px 0 oklch(0.2 0.03 60 / 0.1),
+    0 14px 38px oklch(0.2 0.03 60 / 0.12);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  backdrop-filter: blur(22px) saturate(1.35);
+  animation: lp-glass-header-in 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* One quiet light sweep makes the glass treatment legible without leaving a
+   distracting loop running over the navigation. */
+body.landing .site-header::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0 auto 0 -32%;
+  width: 24%;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    102deg,
+    transparent,
+    oklch(1 0 0 / 0.58),
+    transparent
+  );
+  transform: translateX(0) skewX(-18deg);
+  animation: lp-glass-header-sheen 1.15s 0.28s ease-out both;
 }
 body.landing .site-header .shell.nav-wrap {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -656,6 +686,11 @@ body.landing .footer-bottom { display: flex; justify-content: space-between; gap
 }
 
 @media (max-width: 720px) {
+  body.landing .site-header {
+    background: oklch(0.98 0.012 88 / 0.72);
+    -webkit-backdrop-filter: blur(18px) saturate(1.25);
+    backdrop-filter: blur(18px) saturate(1.25);
+  }
   body.landing .site-header .shell.nav-wrap { padding: 12px 18px; }
   body.landing .menu-toggle { display: inline-block; }
   body.landing .main-nav {
@@ -720,6 +755,8 @@ body.landing .lp-stage.scan-done .lp-btn-primary {
 /* ── Reduced motion: no idle loops; JS also jumps the scan to its end. ─── */
 
 @media (prefers-reduced-motion: reduce) {
+  body.landing .site-header,
+  body.landing .site-header::after,
   body.landing .lp-scrollcue .mouse i,
   body.landing .lp-sparkles span,
   body.landing .lp-badge,
@@ -738,6 +775,15 @@ body.landing .lp-stage.scan-done .lp-btn-primary {
 @keyframes lp-scanline { 0%, 100% { top: 14%; } 50% { top: 80%; } }
 @keyframes lp-cta-breath { 50% { transform: scale(1.015); } }
 @keyframes lp-counter-tick { 30% { transform: scale(1.22); color: oklch(0.7 0.16 150); } }
+@keyframes lp-glass-header-in {
+  from { opacity: 0; transform: translateY(-14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes lp-glass-header-sheen {
+  0% { opacity: 0; transform: translateX(0) skewX(-18deg); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(710%) skewX(-18deg); }
+}
 
 /* ══ Premium pass: depth, lighting, ambience, reward ═══════════════════════ */
 
