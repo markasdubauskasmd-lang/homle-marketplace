@@ -101,6 +101,7 @@ const cleanerWorkspace = new Set([
   "cleaner-registration",
   "cleaner-reviews",
   "cleaner-schedule",
+  "cleaner-settings",
   "cleaner-sign-off",
   "cleaner-training"
 ]);
