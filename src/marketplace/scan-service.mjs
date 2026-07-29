@@ -3,6 +3,7 @@ import { uuid } from "./validation.mjs";
 import {
   conditionReviewThreshold, isItemCondition, isRoomCondition, isSoilingKind, objectOrigins
 } from "./room-condition-vocabulary.mjs";
+import { assessCleaningComplexity } from "./cleaning-complexity.mjs";
 
 // Structured room scans: what the scanner actually saw, kept.
 //
@@ -206,7 +207,12 @@ export function scanProjection(record) {
     // How much of this scan is still asking a question. The booking journey
     // shows it rather than burying it, because the alternative is a confident
     // summary built on readings the scan itself was unsure about.
-    unresolvedCount: rooms.reduce((total, room) => total + room.unresolvedCount, 0)
+    unresolvedCount: rooms.reduce((total, room) => total + room.unresolvedCount, 0),
+    // Derived on read, never stored. The observations are the record; this is a
+    // reading of them. Keeping it derived means a weight change re-scores every
+    // historical scan and can be evaluated against them, which is impossible
+    // once a score has been frozen into a row.
+    complexity: assessCleaningComplexity({ rooms })
   });
 }
 

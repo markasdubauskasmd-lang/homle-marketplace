@@ -1866,7 +1866,20 @@ async function requestAssistedSummary() {
     renderTaskPreview();
     requestDirty = true;
     scheduleWorkingRequestRecovery();
-    speechStatus.textContent = `${tasks.length} room ${tasks.length === 1 ? "task" : "tasks"} understood from your walkthrough. Review every bullet before confirming.`;
+    // Restrictions and safety warnings are called out by name rather than left
+    // to blend into the checklist. "Do not move the paperwork" and "mind the
+    // loose stair" are not work to do, and a Landlord who cannot see that they
+    // were understood as restrictions has no way to check that they were.
+    const structured = Array.isArray(result?.instructions) ? result.instructions : [];
+    const guardCounts = ["restriction", "safety"]
+      .map((kind) => ({ kind, count: structured.filter((entry) => entry?.kind === kind).length }))
+      .filter((entry) => entry.count);
+    const guardNote = guardCounts
+      .map((entry) => `${entry.count} ${entry.kind === "safety"
+        ? `safety ${entry.count === 1 ? "warning" : "warnings"}`
+        : `do-not ${entry.count === 1 ? "instruction" : "instructions"}`}`)
+      .join(" and ");
+    speechStatus.textContent = `${tasks.length} room ${tasks.length === 1 ? "task" : "tasks"} understood from your walkthrough${guardNote ? `, including ${guardNote}` : ""}. Review every bullet before confirming.`;
   } catch (error) {
     // A 503 means no provider is configured on this deployment; stop asking for
     // the rest of the session rather than retrying on every pause.

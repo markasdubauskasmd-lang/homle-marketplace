@@ -189,3 +189,125 @@ the recording function accepts a scan only while the request is still a draft.
   identically on an unmodified checkout in this container and is unrelated to
   this change.
 - No existing table, API, price, booking rule or scanner behaviour was altered.
+
+---
+
+# Phase 3 — cleaning complexity
+
+`src/marketplace/cleaning-complexity.mjs` turns the stored per-object readings
+into a level on a defined 1–5 scale, with the evidence that produced it.
+
+## The scale
+
+| Level | Meaning |
+| --- | --- |
+| 1 | Light maintenance clean |
+| 2 | Standard clean |
+| 3 | Heavy clean |
+| 4 | Deep-clean conditions |
+| 5 | Specialist review required |
+
+Level 5 is **not** "very dirty". It means a person must look before a cleaner is
+sent, and the honest trigger is confirmed mould at medium or heavy: that is a
+health matter and a treatment, not harder cleaning. A level 5 assessment
+deliberately recommends **no bookable service** — sending someone to choose a
+service for a property that needs looking at first is the failure the level
+exists to prevent.
+
+## Three properties that are load-bearing
+
+1. **Pure and deterministic.** No clock, no randomness, no I/O, no model call.
+   The same scan always produces the same level, which is what makes a disputed
+   assessment answerable rather than a matter of opinion.
+2. **Derived, never stored.** The observations are the record; the assessment is
+   a reading of them. Changing a weight therefore re-scores every historical
+   scan and can be evaluated against them — impossible once a score has been
+   frozen into a row. `complexityModelVersion` identifies the weights used.
+3. **It refuses to fill gaps.** Where the scan was unsure it produces a question
+   for the customer rather than a number.
+
+## What it will not do
+
+- **An empty scan is not level 1.** It is `assessed: false`, "Not assessed". An
+  empty scan reported as a light clean is a confident answer built on nothing.
+- **Dust is not scored on top of its own grade.** Dust is the default soiling
+  and how much of it there is *is* the condition. Scoring it twice would inflate
+  the most common finding in every home.
+- **Damage is not priced as cleaning.** A cracked tile is not cleanable. It
+  scores zero and becomes a question instead, because the cleaner still needs to
+  know and must not be booked as though they will fix it.
+- **Uncertain mould does not escalate anyone.** Mould the reader itself scored
+  below the review threshold becomes a question, not a specialist referral.
+  A customer-confirmed reading counts whatever the model scored it.
+- **A low-confidence level is still reported, never as settled.** Withholding it
+  leaves the customer with nothing; `provisional` and `confidence` say what it
+  rests on.
+
+A whole property in heavy condition escalates one level above the heaviest
+single room, because three heavy rooms is a bigger job than one heavy room in an
+otherwise tidy home, and the heaviest-room rule alone cannot see that.
+
+## Honest limitations
+
+- **Duration is uncalibrated** and labelled `durationCalibrated: false`
+  everywhere it appears. Nothing consumes it — the booking journey still derives
+  duration from the reviewed checklist exactly as before.
+- **Quantity multiplies linearly.** Cleaning four identical chairs is genuinely
+  faster per chair than cleaning one, but by how much is a measurement, not a
+  guess, and it is measurable from the job durations the platform already
+  records. Guessing a batching discount now would bake an invented number into
+  every assessment. Linear over-states slightly, which is stated rather than
+  hidden.
+- **The weights are not yet operator-configurable.** They are exported, frozen
+  and versioned so they can be audited and changed in one place; the admin
+  interface arrives with the pricing work in Phase 6.
+- **No measurements feed it**, under the web-only decision. Room size is
+  represented only by how many things were found in the room.
+
+# Phase 4 — structured voice instructions
+
+`speech-summary.mjs` now classifies every spoken instruction as **request**,
+**restriction**, **safety** or **preference**, alongside the subject it concerns
+and whether the speaker stressed it.
+
+The failure this ends: *"do not move the paperwork"* and *"degrease the
+worktops"* both arrived as lines on the same to-do list, leaving the cleaner to
+work out which was which — which is exactly what they should not have to do.
+
+## Design decisions
+
+- **One provider call, two views.** `summariseDetailed()` returns the checklist
+  lines and the structured instructions from a single reading. Two calls could
+  disagree about what was said, and the checklist and the restrictions must not
+  be able to contradict each other.
+- **`tasks` is byte-identical to before**, refusal lines included. Filtering
+  restrictions out of the checklist before anything renders them separately
+  would silently drop a customer instruction — worse than showing it in the
+  wrong place. The structured view is additive until the interface catches up.
+- **The fallback falls the safe way.** A response carrying no `kind` — one
+  already in flight during a deployment — resolves a refusal to `restriction`,
+  never to `request`. A refusal the model itself labelled `request` is corrected
+  to `restriction`, because that is the one combination that cannot be honoured.
+- **A fabricated priority is not trusted.** Anything other than an explicit
+  `high` resolves to `normal`, so nothing can push a cleaner's attention onto
+  something the customer never stressed.
+- **Classification degrading never costs the checklist.** If structuring fails
+  while the lines are usable, the Landlord keeps what they had before.
+
+The Landlord dashboard now names restrictions and safety warnings in the
+walkthrough status — *"4 room tasks understood from your walkthrough, including
+1 do-not instruction and 1 safety warning"* — so a customer can check that a
+restriction was understood as one.
+
+## Honest limitations
+
+- **The cleaner-facing rendering is Phase 7.** The classification exists, is
+  returned by the API and is surfaced to the Landlord, but the do-not-touch
+  panel in the cleaner's checklist arrives with the operational output.
+- **Structured instructions are not yet persisted.** They travel with the
+  walkthrough response. Storing them against the request is small and belongs
+  with the checklist work, where there is something that consumes them.
+- **Classification is a model judgement**, unlike the complexity level. It is
+  bounded by an enum and corrected where it contradicts the refusal flag, but
+  whether a given sentence is a safety warning or a restriction is not
+  deterministic and is not claimed to be.

@@ -631,7 +631,15 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           }
           const body = await readJsonObject(request);
           try {
-            sendJson(response, 200, { ok: true, tasks: await speechSummary.summarise(body?.transcript) });
+            // One provider call, two views of the same reading. `tasks` is
+            // exactly what this route has always returned, so nothing that
+            // consumes it changes. `instructions` classifies each entry, so a
+            // restriction like "do not move the paperwork" can be shown as a
+            // restriction rather than as another line on a to-do list.
+            const detailed = typeof speechSummary.summariseDetailed === "function"
+              ? await speechSummary.summariseDetailed(body?.transcript)
+              : { tasks: await speechSummary.summarise(body?.transcript), instructions: [] };
+            sendJson(response, 200, { ok: true, tasks: detailed.tasks, instructions: detailed.instructions });
           } catch (error) {
             // The provider being unavailable must never block the walkthrough,
             // and its internal error text is never surfaced to the Landlord.
