@@ -62,6 +62,8 @@ GRANT EXECUTE ON FUNCTION tideway_private.record_room_scan_measurements(uuid,jso
 GRANT EXECUTE ON FUNCTION tideway_private.get_active_scan_pricing_ruleset(text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.publish_scan_pricing_ruleset(text,jsonb,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_scan_pricing_rulesets(text,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_scan_estimate_observation(uuid,text,integer,integer,smallint,integer,boolean,integer,integer,integer,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.scan_estimate_shadow_report(text,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_request_photo_object(uuid,uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.submit_cleaning_request(uuid,boolean,boolean) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.withdraw_cleaning_request(uuid,text) TO tideway_app;
@@ -168,6 +170,10 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON room_scan_measurements FROM tideway_app
 -- so an estimate can always be recomputed from the rules that produced it. A
 -- direct UPDATE would silently rewrite the past.
 REVOKE SELECT, INSERT, UPDATE, DELETE ON scan_pricing_rulesets FROM tideway_app;
+-- Individual observations carry a request id. The reporting function returns
+-- statistics instead, because an error distribution discloses nothing while a
+-- list of requests and agreed prices is a list of what customers paid.
+REVOKE SELECT, INSERT, UPDATE, DELETE ON scan_estimate_observations FROM tideway_app;
 REVOKE INSERT, UPDATE, DELETE ON room_scan_model_versions FROM tideway_app;
 
 COMMIT;

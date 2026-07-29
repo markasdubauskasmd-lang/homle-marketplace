@@ -376,12 +376,17 @@
       "order": 75,
       "file": "075_scan_pricing_rulesets.sql",
       "sha256": "f9dcc3dee5c2eab09566bfa08485c179d0417030a1edfa5b6c0daf18d45ddf65"
+    },
+    {
+      "order": 76,
+      "file": "076_scan_estimate_observations.sql",
+      "sha256": "7f10a2a9e4ca7ed05390dd9baf1b83e103dc0f3bb46d282af7bf745089878f18"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "e05a12a299caf8a70ab93d1d5ba9583bb574de5f0a63d6ab313fc00b2030233e"
+      "sha256": "aa738ab5ae10012a711ec4ea0b1eb3d706811f44d59b70c0943fd88ddcde5e3c"
     },
     {
       "file": "worker-role-grants.sql",

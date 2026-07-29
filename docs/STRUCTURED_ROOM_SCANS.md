@@ -554,3 +554,125 @@ zero — "no scans completed" and "no scans started" are different facts.
 - **Model rollback is still an environment variable.** Readings are now
   attributed to a model version, so a regression is traceable; reverting is
   still a redeploy.
+
+---
+
+# Benchmark and shadow measurement
+
+The audit set acceptance criteria in §10 and observed that none could be
+measured. This is the measurement — in two halves, because the criteria split
+into two genuinely different problems.
+
+## Half one: the benchmark harness
+
+`src/marketplace/scan-benchmark.mjs`, run by `tools/run-scan-benchmark.mjs`.
+
+It computes real statistics over labelled cases: pooled object precision and
+recall, duplicate rate, condition agreement, calibration, and complexity level
+accuracy.
+
+Three choices worth stating:
+
+- **Cohen's kappa, not raw agreement.** Most objects in most homes are clean or
+  light, so a grader that always answered "light" would score 90% raw agreement
+  while being useless. Kappa subtracts chance agreement from the marginals —
+  that grader scores **0**, which is what it deserves. There is a test asserting
+  exactly this.
+- **Pooled, not averaged per room.** A macro average gives a one-object bathroom
+  the same weight as a twenty-object kitchen, flattering a model that is good at
+  small rooms and hiding where the work actually is.
+- **A rename is not two errors.** Comparison is on the identity key, for the
+  same reason storage merges on it. "Tap" renamed to "Bathroom tap" would
+  otherwise score as a miss *and* a false positive.
+
+Calibration is reported as a Brier score, because a model can be accurate and
+badly calibrated — and a badly calibrated confidence is worse than none here,
+since the review threshold, the price range and the cleaner's "check this on
+arrival" all read it as if it meant something.
+
+### The dataset rule
+
+**A case is either `"synthetic": true` or it carries real consent** —
+`consent.recordedAt`, `consent.reference` so it can be withdrawn, and
+`truth.labelledBy` by name. There is no third state, and a case that leaves it
+unstated is refused. "Unlabelled" is exactly how a real customer's scan ends up
+quoted as a fixture, or the reverse. No case may contain image data: a `data:`
+URL in the repository is a photograph of somebody's home in the repository.
+
+**Any run containing a synthetic case reports `datasetIsSynthetic: true` and can
+never report `acceptable: true`, whatever the numbers say.**
+
+### What the seed dataset is
+
+`data/scan-benchmark/synthetic-seed.json` — **11 hand-written cases. Not real
+rooms.** They prove the harness computes what it claims and lock in regression
+behaviour: a change that grades a greasy kitchen as a light clean fails the
+build. They span level 1 to level 5, low light, and the camera-fallback path, so
+a later edit cannot quietly drop the hard cases to make everything look better.
+
+Its current run reports one deliberately missed target — `duplicateRate`, because
+`syn-10-duplicated-chair` reports four chair rows for a room holding two. The
+metric working is the point, and there is an assertion so nobody "fixes" it by
+tuning the model.
+
+It carries **no `reviewedTotalPence`**. A reviewed total is a human's judgement
+of a real job; inventing one would measure this project's arithmetic against its
+own guess. Price error therefore reports **"not measured"** on the seed — which
+is the truthful answer, and is why the second half exists.
+
+## Half two: shadow observations from real bookings
+
+Migration `076_scan_estimate_observations.sql`.
+
+Price error does not need a labelling exercise. Every estimate produced against
+a request is recorded; the agreed customer price already exists on the booking.
+The error is the difference, and it accrues from ordinary trading.
+
+- **No reviewed total is stored here.** The agreed price is joined from
+  `bookings` at read time. Copying it in would create a second version of the
+  truth that could drift from what the customer actually agreed.
+- **A proposal is not a reviewed price.** Only bookings a Cleaner has accepted
+  are compared. Comparing against a pending invitation would measure the
+  estimate against another estimate.
+- **One observation per request per rules version.** Reading a scan repeatedly
+  must not weight one indecisive customer as heavily as a hundred bookings.
+- **A refusal is recorded, and cannot carry a price.** How often the estimate
+  declines to answer is itself worth watching; a CHECK constraint stops a
+  refusal being stored with a total that would skew every aggregate.
+- **Statistics, not rows.** `scan_estimate_shadow_report` returns an error
+  distribution. An error distribution discloses nothing; a list of request ids
+  and agreed prices is a list of what customers paid. Median, not mean, so one
+  absurd outlier does not decide whether the estimate is trusted with money.
+- **`sufficient` is false below 50 comparisons**, so a promising figure from nine
+  bookings is not mistaken for evidence.
+- **Recording never fails a read.** The database function returns `false` for a
+  malformed observation and the service swallows failures. This measures the
+  estimate; it is not the estimate.
+
+`GET /api/marketplace/admin/pricing/scan-shadow-report` — Administrator only.
+
+## What is measured now, and what is still a target
+
+| Criterion | Status |
+| --- | --- |
+| Object precision / recall | **Harness works.** Figures exist only for fixtures. |
+| Duplicate-object rate | **Harness works**, deliberately exercised by a fixture. |
+| Condition agreement (κ) | **Harness works**, including the always-"light" degenerate case. |
+| Confidence calibration | **Harness works** (Brier). |
+| Complexity within ±1 | **Harness works.** |
+| Price error | **Accrues automatically** from real bookings. Zero comparisons so far. |
+| Measurement error | **Not measured.** Needs real scans with known ground-truth dimensions. |
+| Completion / correction / crash-free rate | **Definitions exist** in `scan-telemetry.mjs`; not yet emitted. |
+| Time to complete a room, latency | **Buckets defined**; not yet emitted. |
+
+**No figure in this project has been measured on real homes.** Every accuracy
+number remains a target. What has changed is that measuring them is now a matter
+of collecting data rather than of building anything.
+
+## The gate on leaving shadow mode
+
+Phase 6's estimate influences nothing. It should continue to influence nothing
+until `scan_estimate_shadow_report` reports `sufficient: true` — at least 50
+accepted bookings — with `within15Percent` at or above 0.9. That is a business
+decision at that point, not a technical one, and the report deliberately encodes
+no verdict of its own.

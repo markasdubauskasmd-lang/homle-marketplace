@@ -299,8 +299,15 @@ export function createScanService(repository, options = {}) {
       if (!actor?.userId || !actor.roles?.some((role) => role === "landlord" || role === "administrator")) {
         throw new TypeError("A Landlord or Administrator account is required to view this room scan.");
       }
-      const scan = scanProjection(await repository.getScan(actor, uuid(cleaningRequestId, "cleaning request id")));
-      return Object.freeze({ ...scan, estimate: await estimateFor(actor, scan) });
+      const requestId = uuid(cleaningRequestId, "cleaning request id");
+      const scan = scanProjection(await repository.getScan(actor, requestId));
+      const estimate = await estimateFor(actor, scan);
+      // Recorded so the estimate's error against the price a Cleaner actually
+      // accepted accrues from ordinary trading. Awaited rather than fired and
+      // forgotten, because an unawaited promise rejecting after the response is
+       // an unhandled rejection; the recorder swallows its own failures instead.
+      if (estimate && pricing?.recordObservation) await pricing.recordObservation(actor, requestId, estimate);
+      return Object.freeze({ ...scan, estimate });
     },
     async correctOwnObject(actor, objectId, input = {}) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to correct a room scan.");

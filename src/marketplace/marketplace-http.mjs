@@ -710,6 +710,16 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         }
         // Changing these numbers changes what every customer is charged, so it
         // is Administrator-only, append-only and audited at the database.
+        // How far the shadow estimate is currently missing. Administrator-only and
+        // aggregate-only: an error distribution discloses nothing, a list of
+        // requests and agreed prices is a list of what customers paid.
+        if (pathname === "/api/marketplace/admin/pricing/scan-shadow-report") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const report = await scanPricing.shadowReport(context.actor, url.searchParams.get("rulesetId"), url.searchParams.get("modelVersion"));
+          sendJson(response, 200, { ok: true, report });
+          return true;
+        }
         if (pathname === "/api/marketplace/admin/pricing/scan-ruleset") {
           const context = await security.protect(request, { mutation: request.method !== "GET", roles: ["administrator"] });
           if (request.method === "GET") {
