@@ -1,4 +1,4 @@
-import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-3";
+import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-4";
 import { storedCsrf } from "./session-csrf.js";
 
 const experienceOptions = [

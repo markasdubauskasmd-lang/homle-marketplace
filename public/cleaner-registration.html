@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-3">
-  <script src="/cleaner-registration.js?v=20260729-3" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-4">
+  <script src="/cleaner-registration.js?v=20260729-4" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -249,6 +249,16 @@
                 <span>Complete registration</span>
                 <strong>Step 10 of 19 &mdash; Banking &amp; payments</strong>
                 <div class="hc-business-progress-track hc-banking-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="10"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-availability-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 13 of 19 &mdash; Availability</strong>
+                <div class="hc-business-progress-track hc-availability-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="13"><span></span></div>
               </div>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
             </header>
@@ -771,6 +781,113 @@
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/insurance">&larr; Back</a>
                   <p data-banking-save-status role="status" aria-live="polite">No bank details are collected by this page.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-availability-card" data-availability hidden aria-labelledby="cleaner-availability-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-availability-title">Availability</h1>
+                <p>Tap the slots you can work. Clients book within these windows, and you can change the preview at any time.</p>
+              </header>
+
+              <form class="hc-availability-form" data-availability-form>
+                <fieldset class="hc-availability-section hc-availability-week-section">
+                  <legend class="hc-sr-only">Weekly availability preview</legend>
+                  <div class="hc-availability-week">
+                    <table class="hc-availability-table">
+                      <caption class="hc-sr-only">Preview of weekly working slots</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col"></th>
+                          <th scope="col">Mon</th>
+                          <th scope="col">Tue</th>
+                          <th scope="col">Wed</th>
+                          <th scope="col">Thu</th>
+                          <th scope="col">Fri</th>
+                          <th scope="col">Sat</th>
+                          <th scope="col">Sun</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <th scope="row">Morning</th>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="mon-morning" data-availability-slot><span><span class="hc-sr-only">Monday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="tue-morning" data-availability-slot><span><span class="hc-sr-only">Tuesday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="wed-morning" data-availability-slot><span><span class="hc-sr-only">Wednesday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="thu-morning" data-availability-slot><span><span class="hc-sr-only">Thursday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="fri-morning" data-availability-slot><span><span class="hc-sr-only">Friday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sat-morning" data-availability-slot><span><span class="hc-sr-only">Saturday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sun-morning" data-availability-slot><span><span class="hc-sr-only">Sunday morning</span></span></label></td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Afternoon</th>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="mon-afternoon" data-availability-slot><span><span class="hc-sr-only">Monday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="tue-afternoon" data-availability-slot><span><span class="hc-sr-only">Tuesday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="wed-afternoon" data-availability-slot><span><span class="hc-sr-only">Wednesday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="thu-afternoon" data-availability-slot><span><span class="hc-sr-only">Thursday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="fri-afternoon" data-availability-slot><span><span class="hc-sr-only">Friday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sat-afternoon" data-availability-slot><span><span class="hc-sr-only">Saturday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sun-afternoon" data-availability-slot><span><span class="hc-sr-only">Sunday afternoon</span></span></label></td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Evening</th>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="mon-evening" data-availability-slot><span><span class="hc-sr-only">Monday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="tue-evening" data-availability-slot><span><span class="hc-sr-only">Tuesday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="wed-evening" data-availability-slot><span><span class="hc-sr-only">Wednesday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="thu-evening" data-availability-slot><span><span class="hc-sr-only">Thursday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="fri-evening" data-availability-slot><span><span class="hc-sr-only">Friday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sat-evening" data-availability-slot><span><span class="hc-sr-only">Saturday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sun-evening" data-availability-slot><span><span class="hc-sr-only">Sunday evening</span></span></label></td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Night</th>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="mon-night" data-availability-slot><span><span class="hc-sr-only">Monday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="tue-night" data-availability-slot><span><span class="hc-sr-only">Tuesday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="wed-night" data-availability-slot><span><span class="hc-sr-only">Wednesday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="thu-night" data-availability-slot><span><span class="hc-sr-only">Thursday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="fri-night" data-availability-slot><span><span class="hc-sr-only">Friday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sat-night" data-availability-slot><span><span class="hc-sr-only">Saturday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sun-night" data-availability-slot><span><span class="hc-sr-only">Sunday night</span></span></label></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p class="hc-availability-preview-note">Selected slots stay on this open page. Existing confirmed dated windows are not changed.</p>
+                </fieldset>
+
+                <fieldset class="hc-availability-section">
+                  <legend>Limits</legend>
+                  <div class="hc-availability-hours">
+                    <label for="cleaner-maximum-hours">Maximum hours per week</label>
+                    <output for="cleaner-maximum-hours" data-availability-hours>0 hours</output>
+                    <input id="cleaner-maximum-hours" type="range" name="maximumHours" min="0" max="60" step="1" value="0">
+                  </div>
+                  <div class="hc-availability-limits">
+                    <label class="hc-availability-holiday">
+                      <span><strong>Holiday mode &mdash; pause all new job offers</strong></span>
+                      <span class="hc-availability-toggle"><span>No</span><input type="checkbox" name="holidayMode"><i aria-hidden="true"></i></span>
+                    </label>
+                    <label class="hc-availability-date"><span>Unavailable date</span><input type="date" name="unavailableDate"><small>We will not offer jobs on this preview date.</small></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-availability-section">
+                  <legend>Preferred jobs</legend>
+                  <div class="hc-availability-jobs">
+                    <label><input type="checkbox" name="preferredJob" value="regular-weekly" data-availability-job><span>Regular weekly cleans</span></label>
+                    <label><input type="checkbox" name="preferredJob" value="one-off-deep" data-availability-job><span>One-off deep cleans</span></label>
+                    <label><input type="checkbox" name="preferredJob" value="end-of-tenancy" data-availability-job><span>End of tenancy</span></label>
+                    <label><input type="checkbox" name="preferredJob" value="airbnb-turnovers" data-availability-job><span>Airbnb turnovers</span></label>
+                    <label><input type="checkbox" name="preferredJob" value="office-contracts" data-availability-job><span>Office contracts</span></label>
+                    <label><input type="checkbox" name="preferredJob" value="short-notice-cover" data-availability-job><span>Short-notice cover</span></label>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/banking">&larr; Back</a>
+                  <p data-availability-save-status role="status" aria-live="polite">Checking your confirmed future availability&hellip;</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
