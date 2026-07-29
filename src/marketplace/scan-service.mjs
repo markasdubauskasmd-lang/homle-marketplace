@@ -6,6 +6,7 @@ import {
 import { assessCleaningComplexity } from "./cleaning-complexity.mjs";
 import { measurementLabel, normalizedMeasurements } from "./room-measurement.mjs";
 import { defaultPricingRuleset, estimateScanPrice, normalizedPricingRuleset } from "./scan-pricing.mjs";
+import { instructionKinds } from "./speech-summary.mjs";
 
 // Structured room scans: what the scanner actually saw, kept.
 //
@@ -276,7 +277,7 @@ export function createScanService(repository, options = {}) {
   // behaviour: this observes the scan, it is not part of it.
   const telemetry = options.telemetry || null;
   const observe = (metric, extra) => { try { telemetry?.record(metric, extra); } catch { /* never the reason a scan fails */ } };
-  async function estimateFor(actor, scan) {
+  async function estimateFor(actor, scan, chosenAddOnCodes = []) {
     if (!scan?.complexity?.assessed) return null;
     let ruleset = defaultPricingRuleset;
     try {
@@ -287,12 +288,26 @@ export function createScanService(repository, options = {}) {
       const published = pricing ? await pricing.getActiveRuleset(actor, "default") : null;
       if (published) ruleset = normalizedPricingRuleset(published);
     } catch { ruleset = defaultPricingRuleset; }
-    return estimateScanPrice(scan, ruleset);
+
+    // Add-ons are resolved against the catalogue, never taken from the request.
+    // A client that could name its own price for an extra could name any price,
+    // and the whole point of the ruleset is that every component has a reviewed
+    // amount behind it.
+    let addOns = [];
+    const requested = Array.isArray(chosenAddOnCodes) ? chosenAddOnCodes.slice(0, 10).map((code) => String(code || "")) : [];
+    if (requested.length && pricing?.listAddons) {
+      try {
+        const catalogue = await pricing.listAddons(actor);
+        addOns = (Array.isArray(catalogue) ? catalogue : []).filter((entry) => requested.includes(String(entry?.code || "")));
+      } catch { addOns = []; }
+    }
+    return estimateScanPrice(scan, ruleset, addOns);
   }
 
   if (!repository || typeof repository.recordScan !== "function" || typeof repository.getScan !== "function"
     || typeof repository.correctObject !== "function" || typeof repository.deleteScan !== "function"
-    || typeof repository.recordMeasurements !== "function") {
+    || typeof repository.recordMeasurements !== "function"
+    || typeof repository.recordVoiceInstructions !== "function" || typeof repository.getVoiceInstructions !== "function") {
     throw new TypeError("A complete room-scan repository is required.");
   }
   const vision = options.vision || null;
@@ -335,7 +350,7 @@ export function createScanService(repository, options = {}) {
           objects: room.objects.map((object) => ({ ...object, objectId: object.inventoryKey }))
         }))
       });
-      return Object.freeze({ ...scan, estimate: await estimateFor(actor, scan) });
+      return Object.freeze({ ...scan, estimate: await estimateFor(actor, scan, input.addOns) });
     },
     async getScan(actor, cleaningRequestId) {
       if (!actor?.userId || !actor.roles?.some((role) => role === "landlord" || role === "administrator")) {
@@ -352,6 +367,29 @@ export function createScanService(repository, options = {}) {
        // an unhandled rejection; the recorder swallows its own failures instead.
       if (estimate && pricing?.recordObservation) await pricing.recordObservation(actor, requestId, estimate);
       return Object.freeze({ ...scan, estimate });
+    },
+    async recordOwnVoiceInstructions(actor, cleaningRequestId, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to save spoken instructions.");
+      // Filtered before normalising, not after. These arrive from the
+      // classifier rather than from the customer, so a blank entry is our own
+      // malformed output — and throwing would lose every good instruction
+      // alongside it. Same trade as everywhere else in this feature: one lost
+      // line, not a lost set.
+      const supplied = (Array.isArray(input.instructions) ? input.instructions : [])
+        .filter((entry) => String(entry?.instruction ?? "").trim().length > 0)
+        .slice(0, 60);
+      const instructions = supplied.map((entry) => ({
+        roomName: boundedText(entry?.roomName, 120, "Instruction room"),
+        instruction: boundedText(entry?.instruction, 300, "Spoken instruction", 1),
+        // An unrecognised kind resolves the cautious way, exactly as the
+        // classifier does: a refusal becomes a restriction, never work to do.
+        kind: instructionKinds.includes(String(entry?.kind || "")) ? String(entry.kind) : (entry?.excluded === true ? "restriction" : "request"),
+        subject: boundedText(entry?.subject, 80, "Instruction subject"),
+        priority: String(entry?.priority || "") === "high" ? "high" : "normal",
+        excluded: entry?.excluded === true
+      }));
+      const stored = await repository.recordVoiceInstructions(actor, uuid(cleaningRequestId, "cleaning request id"), instructions);
+      return Object.freeze({ instructions: Object.freeze(Array.isArray(stored) ? stored.map((entry) => Object.freeze({ ...entry })) : []) });
     },
     async correctOwnObject(actor, objectId, input = {}) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to correct a room scan.");

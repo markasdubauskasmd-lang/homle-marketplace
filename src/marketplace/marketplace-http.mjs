@@ -18,6 +18,7 @@ const requestScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidP
 const requestRoomScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan$`);
 const requestRoomScanObjectPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan/objects/(${uuidPattern})$`);
 const requestRoomScanMeasurementPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan/rooms/(${uuidPattern})/measurements$`);
+const requestVoiceInstructionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/voice-instructions$`);
 const requestPhotoIntentPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/intents$`);
 const requestPhotoCompletionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/complete$`);
 const requestPhotoAccessPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/access$`);
@@ -391,6 +392,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, withdrawal });
           return true;
         }
+        const selectedVoiceInstructions = pathname.match(requestVoiceInstructionPath);
+        if (selectedVoiceInstructions) {
+          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const stored = await scans.recordOwnVoiceInstructions(context.actor, selectedVoiceInstructions[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, ...stored });
+          return true;
+        }
         const selectedRoomScanMeasurement = pathname.match(requestRoomScanMeasurementPath);
         if (selectedRoomScanMeasurement) {
           if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
@@ -752,6 +761,24 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, accepted });
           return true;
         }
+        if (pathname === "/api/marketplace/pricing/scan-addons") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          sendJson(response, 200, { ok: true, addons: await scanPricing.listAddons(context.actor) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/pricing/scan-addons") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          sendJson(response, 200, { ok: true, addons: await scanPricing.upsertAddon(context.actor, await readJsonObject(request)) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/scan-retention") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          sendJson(response, 200, { ok: true, policy: await scanPricing.setRetention(context.actor, await readJsonObject(request)) });
+          return true;
+        }
         if (pathname === "/api/marketplace/admin/scan-telemetry") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           await security.protect(request, { roles: ["administrator"] });
@@ -776,7 +803,11 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             sendJson(response, 200, {
               ok: true,
               ruleset: await scanPricing.getActiveRuleset(context.actor, url.searchParams.get("rulesetId")),
-              history: await scanPricing.listRulesets(context.actor, url.searchParams.get("rulesetId"), url.searchParams.get("limit"))
+              history: await scanPricing.listRulesets(context.actor, url.searchParams.get("rulesetId"), url.searchParams.get("limit")),
+              // Returned alongside the rates because both are things an operator
+              // adjusts about the same feature, and a second round trip to read
+              // two integers is waste.
+              retention: await scanPricing.getRetention(context.actor)
             });
             return true;
           }

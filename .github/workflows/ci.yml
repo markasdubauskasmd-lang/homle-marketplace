@@ -41,6 +41,16 @@ jobs:
         run: pnpm run check
       - name: Test suite (pretest + test + posttest)
         run: pnpm test
+      # These scanner checks are intentionally explicit. Keeping experimental
+      # benchmark and browser-harness evidence outside the large legacy test
+      # command makes it obvious when a new scanner module is not being gated.
+      - name: Scanner benchmark, review and browser-harness checks
+        run: |
+          node tests/scan-benchmark.mjs
+          node tests/room-measure-model.mjs
+          node tests/scan-events.mjs
+          node tests/scan-review-render.mjs
+          node tests/browser-scan-pipeline.mjs
 
   database:
     name: Real PostgreSQL integration and RLS

@@ -676,3 +676,121 @@ until `scan_estimate_shadow_report` reports `sufficient: true` — at least 50
 accepted bookings — with `within15Percent` at or above 0.9. That is a business
 decision at that point, not a technical one, and the report deliberately encodes
 no verdict of its own.
+
+---
+
+# Closing the remaining gaps
+
+## Retention (migration 078)
+
+A structured scan is a description of the inside of somebody's home, and until
+now it lived as long as the request did. Customer deletion worked; time never
+removed anything.
+
+Two periods, both operator-configurable without a deployment: a scan whose
+request was never submitted or was withdrawn, and one a Cleaner was actually
+sent to work from. The second cannot be set shorter than the first — it is the
+evidence in any dispute about what was agreed.
+
+Deletion is an hourly worker job in bounded `SKIP LOCKED` batches, granted only
+to the restricted worker role. A deletion loop belongs to a supervised process,
+not to a web request. It deletes the **session** and lets the cascade take rooms,
+objects and measurements: deleting rows individually would leave a window in
+which a scan existed with half its contents.
+
+## Spoken instructions are persisted
+
+Phase 4 classified every instruction and then nothing kept it, so the
+do-not-touch panel was populated only when a caller happened to be holding the
+classification — the most safety-critical part of the checklist was the least
+reliable part.
+
+Now stored against the request in their own shape, and the checklist **reads**
+them rather than waiting to be handed them. Separate from the tasks on purpose:
+a restriction stored as a checklist line is an operational hazard, and the
+checklist text is where that mistake would be impossible to undo. The words are
+retained because the customer said them, not because a model classified them —
+if the classification is later found wrong, the instruction survives.
+
+## Add-on catalogue
+
+The pricing engine has always accepted add-ons and nothing defined them, so an
+add-on could only come from a caller inventing one — a price component with no
+reviewed amount behind it.
+
+Estimates now resolve every add-on **against the catalogue**. A price sent by a
+browser is ignored. Upsert is by code, so editing an amount cannot create a
+second extra a customer could be charged twice for, and deactivating removes it
+from what can be chosen without destroying the record of what was once charged.
+
+## The scan save is retried
+
+The scan lives only in the tab's memory and is deliberately never written to
+browser storage, so one dropped response lost it for good. Now retried three
+times with backoff — safe because recording is idempotent by session id, so a
+retry after a response that never arrived is absorbed rather than duplicated.
+
+Only failures that might pass next time are worth retrying, and when it
+ultimately fails the customer is **told**: *"Your checklist is saved. The
+detailed room findings could not be, so your cleaner will work from the
+checklist alone."* The booking still proceeds on the reviewed checklist, which
+is what it has always run on.
+
+## Operations page
+
+`/admin/scan-operations` — the shadow price error against accepted bookings, the
+telemetry rates, the retention periods and the add-on catalogue.
+
+It states the gate explicitly: **50 or more comparisons with 90% inside 15%.**
+The report itself deliberately encodes no verdict, so the page names the
+threshold rather than leaving it to be remembered. With nothing compared it says
+so, and distinguishes that from an error of zero.
+
+## Still outstanding, honestly
+
+- **No physical device trial.** The browser test below is desktop Chromium with
+  a synthetic camera. A real iPhone and Android handset over HTTPS is still
+  required before activation, and it is the last thing between this feature and
+  being trustworthy on a phone.
+- **No benchmark dataset.** The harness and the consent rules exist; 200
+  consented rooms do not.
+- **Zero shadow comparisons.** The pipeline records them from ordinary trading;
+  no accepted booking has been compared yet, so the estimate's error is still
+  unknown.
+- **Measurement capture has a model and no screen.** The geometry, the
+  validation, the wording and the storage are complete and tested; the in-scanner
+  tap-two-ends flow is not built. Measurements can be recorded through the API
+  and by customer entry.
+- **`processing_jobs` was not built**, and on reflection is not needed: the
+  idempotency it was proposed for is already enforced by the unique constraints
+  on the scan session and the measurement and observation tables. The real gap
+  was the client-side retry above.
+
+# Real-browser verification
+
+`tests/browser-scan-pipeline.mjs` drives Chromium over the DevTools Protocol
+using Node's built-in WebSocket — no new dependencies, because adding one would
+break the locked dependency graph this project is gated on.
+
+**It found a real defect.** The test fills a region with a checkerboard, redacts
+it, and measures the surviving variance. It should collapse; it fell by about a
+fifth. A single large `drawImage` downscale uses bilinear filtering, which
+*samples* rather than averages, so a 20× reduction of a high-contrast pattern
+keeps most of its contrast — and the "pixels are genuinely resampled away" claim
+that function was written to make was false. A face would have been recoverable
+from a photograph the code reported as redacted.
+
+Fixed by downscaling through repeated halving, which averages each 2×2 block
+properly. Verified in both directions: variance now collapses to under a quarter,
+and reverting to the one-step downscale makes the test fail again.
+
+That is the class of bug no unit test could have found — the maths was right, the
+intent was right, and the platform did something other than what the API name
+suggested.
+
+The run also proves the module graph resolves in a browser, a live camera track
+and a non-blank JPEG are produced, a detection box in the cropped-away part of a
+portrait viewfinder is refused rather than clamped, every selector the review
+renderer targets exists and the panel starts hidden, the pure models return
+identical results in a browser, and the event reporter batches without a room
+name reaching the payload.

@@ -386,16 +386,21 @@
       "order": 77,
       "file": "077_scan_preview_rate_limit.sql",
       "sha256": "b9f89b5a78d204889889d8b657a66591c9952b91cfcd8007bf471a97cae257bf"
+    },
+    {
+      "order": 78,
+      "file": "078_scan_retention_voice_and_addons.sql",
+      "sha256": "c7e3c767b4918ac102f2d624663d740717028662797cd5e1369eb297dc87138d"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "aa738ab5ae10012a711ec4ea0b1eb3d706811f44d59b70c0943fd88ddcde5e3c"
+      "sha256": "8d1e02e7c64aa6aa17b850976761d7488dfdb82619b16f431d04a96dbea53538"
     },
     {
       "file": "worker-role-grants.sql",
-      "sha256": "37a558f9ff8339f3f7105fbebe7005fb554fb9a861018462f18b664dee464c5c"
+      "sha256": "ad8116f468627ed9d6f8c4351990951c9d3e52fec0fd93c99070f5b6b52549c0"
     }
   ]
 }

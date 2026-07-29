@@ -207,4 +207,24 @@ assert(reviewSection.length > 500, "The review renderer was not found in the jou
 assert(!/innerHTML/.test(reviewSection), "The review renderer assigns innerHTML.");
 assert(/textContent/.test(reviewSection), "The review renderer does not write text content.");
 
+
+/* ── A scan lost to one dropped response is lost for good ──────────────── */
+
+// It lives only in this tab's memory and is deliberately never written to
+// browser storage, so the save is retried rather than attempted once.
+assert(/saveStructuredScanWithRetry/.test(script), "The scan save is not retried.");
+assert(/attempt \* 700/.test(script), "The retry has no backoff.");
+// The scan is idempotent by session id, which is what makes retrying safe.
+assert(script.includes("state.scanSessionId"), "The retry has no stable session id, so a retry could duplicate the scan.");
+// And when it ultimately fails, the customer is told rather than reassured.
+assert(/could not be, so your cleaner will work from the checklist alone/.test(script),
+  "A failed scan save is reported as success.");
+
+/* ── Restrictions are persisted in their own shape ─────────────────────── */
+
+// A restriction stored as a checklist task is an operational hazard, and the
+// checklist text is where that mistake would be impossible to undo.
+assert(script.includes("/voice-instructions"), "Classified spoken instructions are never persisted.");
+assert(/saveVoiceInstructions\(csrf, requestId\)/.test(script), "Spoken instructions are not saved with the scan.");
+
 console.log("Customer scan-review checks passed.");

@@ -108,6 +108,7 @@ const state = {
   // rather than being overwritten by the truth the customer asserted.
   scanCorrections: [],
   scanReview: null,
+  scanInstructions: [],
   draft: {
     postcode: "",
     outward: "",
@@ -920,6 +921,31 @@ async function replayScanCorrections(csrf, requestId, savedScan) {
   }
 }
 
+
+// Stores the classified spoken instructions against the request.
+//
+// Separate from the checklist on purpose. A restriction stored as a task is an
+// operational hazard, and the checklist text is where that mistake would be
+// impossible to undo — so the classification travels in its own shape and the
+// cleaner's do-not-touch panel reads it from here.
+async function saveVoiceInstructions(csrf, requestId) {
+  const instructions = Array.isArray(state.scanInstructions) ? state.scanInstructions : [];
+  if (!instructions.length) return false;
+  try {
+    await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/voice-instructions`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ instructions })
+    });
+    return true;
+  } catch (error) {
+    console.warn("[room-scan] spoken instructions could not be saved", {
+      code: String(error?.code || "unknown").slice(0, 40)
+    });
+    return false;
+  }
+}
+
 async function saveStructuredScan(csrf, requestId) {
   const rooms = state.scanRooms
     .filter((room) => room && String(room.name || "").trim())
@@ -948,6 +974,7 @@ async function saveStructuredScan(csrf, requestId) {
     // them in first would have overwritten the most valuable label in the
     // product with the answer.
     await replayScanCorrections(csrf, requestId, saved?.scan);
+    await saveVoiceInstructions(csrf, requestId);
     return true;
   } catch (error) {
     console.warn("[room-scan] the structured reading could not be saved", {
@@ -956,6 +983,24 @@ async function saveStructuredScan(csrf, requestId) {
     });
     return false;
   }
+}
+
+// Retries a failed save a small number of times before giving up.
+//
+// The scan is idempotent by session id, so a retry after a response that never
+// arrived is absorbed rather than duplicated — which is what makes retrying safe
+// here at all. Bounded and short: this runs while the customer is waiting at
+// checkout, and a scan is worth a few seconds of patience, not a minute of it.
+//
+// Only worth retrying a failure that might pass next time. A 4xx means the
+// server understood and refused, and retrying it just wastes the wait.
+async function saveStructuredScanWithRetry(csrf, requestId, attempts = 3) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (await saveStructuredScan(csrf, requestId)) return true;
+    if (attempt === attempts) break;
+    await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+  }
+  return false;
 }
 
 async function uploadRoomPhotos(csrf, requestId) {
@@ -1130,7 +1175,16 @@ async function confirmJourney() {
     // function accepts a scan only while the request is still a draft — after
     // submission the scope is frozen and a Cleaner may already have accepted
     // work against it.
-    await saveStructuredScan(csrf, request.requestId);
+    // Retried, because a scan lost to one dropped response is a scan lost for
+    // good: it lives only in this tab's memory and is deliberately never written
+    // to browser storage.
+    const scanSaved = await saveStructuredScanWithRetry(csrf, request.requestId);
+    if (!scanSaved && state.scanRooms.length) {
+      // Said rather than swallowed. The booking still proceeds on the reviewed
+      // checklist, which is what it has always run on, but the customer is not
+      // told everything worked when part of it did not.
+      el.checkoutState.textContent = "Your checklist is saved. The detailed room findings could not be, so your cleaner will work from the checklist alone.";
+    }
     let submitted = false;
     let invitation = { invited: false, reason: "" };
     if (state.capabilities.mediaReady && state.scanPhotos.length) {
