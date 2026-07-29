@@ -30,6 +30,10 @@ GRANT EXECUTE ON FUNCTION tideway_private.complete_email_notification(uuid,uuid,
 GRANT EXECUTE ON FUNCTION tideway_private.purge_expired_sessions(integer) TO tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.purge_expired_rate_limits(integer) TO tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.purge_expired_pending_social_identities(integer) TO tideway_worker;
+-- Time-based deletion of room scans. Only the restricted worker may run it, for
+-- the same reason only it may purge sessions: a deletion loop belongs to a
+-- supervised process, not to a web request.
+GRANT EXECUTE ON FUNCTION tideway_private.purge_expired_room_scans(integer) TO tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.claim_due_automatic_dispatch(uuid,integer,integer) TO tideway_worker;
 REVOKE ALL ON FUNCTION tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer) FROM tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.get_automatic_dispatch_candidates(uuid,uuid,integer,boolean) TO tideway_worker;

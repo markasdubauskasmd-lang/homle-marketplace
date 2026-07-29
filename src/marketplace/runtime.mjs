@@ -17,6 +17,7 @@ import { createCleaningRequestService } from "./cleaning-request-service.mjs";
 import { createScanRepository } from "./scan-repository.mjs";
 import { createScanService } from "./scan-service.mjs";
 import { createScanPricingRepository, createScanPricingService } from "./scan-pricing-repository.mjs";
+import { createScanTelemetry } from "./scan-telemetry.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config.mjs";
 import { createCredentialService } from "./credential-service.mjs";
 import { createMarketplaceDatabase } from "./database.mjs";
@@ -146,12 +147,16 @@ export function createMarketplaceRuntime(pool, options = {}) {
   // The vision reader is passed in so a stored scan can name the model that
   // read it. It stays optional: with no provider configured the scan still
   // records everything the device found, simply without attribution.
+  // In-memory and process-local by design. Telemetry must not be able to slow
+  // down or fail a scan, so it neither writes to the database nor contacts a
+  // network; an Administrator reads the snapshot out.
+  const scanTelemetry = options.scanTelemetry || createScanTelemetry();
   const scanPricingService = createScanPricingService(createScanPricingRepository(database));
   // The pricing service is passed in so a scan can be estimated against the
   // rules an operator actually published. With nothing published the estimate
   // falls back to the shipped defaults, so an unconfigured deployment prices
   // identically to a configured one rather than not pricing at all.
-  const scanService = createScanService(createScanRepository(database), { vision: roomVision, pricing: scanPricingService });
+  const scanService = createScanService(createScanRepository(database), { vision: roomVision, pricing: scanPricingService, telemetry: scanTelemetry });
   const bookingRepository = createBookingRepository(database);
   const bookingPricingPolicy = options.bookingPricingPolicy || bookingPricingPolicyFromEnvironment(env);
   const paymentRepository = createPaymentRepository(database);
@@ -190,7 +195,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const administratorVerificationService = createAdministratorVerificationService(administratorVerificationRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
   const authenticationRouter = options.emailDelivery || googleOidcProvider || appleSignInProvider
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, appleSignInProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: true })
@@ -230,6 +235,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     geocodingReady: geocoder !== null,
     scanService,
     scanPricingService,
+    scanTelemetry,
     speechSummary,
     speechSummaryReady: speechSummary !== null,
     roomVision,

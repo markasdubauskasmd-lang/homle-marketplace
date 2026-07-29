@@ -192,7 +192,10 @@ function repositoryStub(capture = {}) {
     async getScan(actor, id) { capture.read = id; return { cleaningRequestId: requestId, session: null, rooms: [] }; },
     async correctObject(actor, objectId, correction) { capture.correction = { objectId, correction }; return { objectId, label: "Kitchen worktop", quantity: 1, condition: "light", conditionConfirmed: true, confidenceLabel: 1, confidenceCondition: 1, removed: false }; },
     async deleteScan(actor, id) { capture.deleted = id; return true; },
-    async recordMeasurements(actor, roomScanId, measurements) { capture.measurements = { roomScanId, measurements }; return measurements.map((entry, index) => ({ ...entry, measurementId: `m${index}` })); }
+    async recordMeasurements(actor, roomScanId, measurements) { capture.measurements = { roomScanId, measurements }; return measurements.map((entry, index) => ({ ...entry, measurementId: `m${index}` })); },
+    async recordVoiceInstructions(actor, id, instructions) { capture.voice = { id, instructions }; return instructions; },
+    async getVoiceInstructions(actor, id) { capture.voiceRead = id; return capture.storedVoice || []; },
+    async listAddons() { capture.addonsRead = true; return [{ code: "oven-deep-clean", label: "Oven deep clean", pence: 4500, addedMinutes: 45 }]; }
   };
 }
 
@@ -316,6 +319,63 @@ assert(throwsWith(() => createScanService(null), "complete room-scan repository"
   const projected = await service.getScan(landlord, requestId);
   assert(Array.isArray(projected.rooms[0].measurements) && projected.rooms[0].measurements.length === 0,
     "An unmeasured room did not project as unmeasured.");
+}
+
+
+/* ── Spoken instructions are persisted, and the cautious default holds ───── */
+
+{
+  const capture = {};
+  const service = createScanService(repositoryStub(capture), {});
+  await service.recordOwnVoiceInstructions(landlord, requestId, { instructions: [
+    { roomName: "Study", instruction: "Move the paperwork", kind: "restriction", subject: "the paperwork", priority: "high", excluded: true },
+    { roomName: "Kitchen", instruction: "Degrease the worktops", kind: "request" },
+    // No kind stated, but refused. The cautious resolution is a restriction,
+    // never work to do — the same rule the classifier applies.
+    { roomName: "Study", instruction: "Open the filing cabinet", excluded: true },
+    { roomName: "", instruction: "", kind: "request" }
+  ] });
+  const stored = capture.voice.instructions;
+  assert(stored.length === 3, `An instruction was lost or an empty one kept: ${stored.length}`);
+  assert(stored[2].kind === "restriction", "A refusal with no stated kind was persisted as work to do.");
+  assert(stored[0].priority === "high" && stored[0].subject === "the paperwork", "A restriction lost its priority or subject.");
+  assert(await rejects(() => service.recordOwnVoiceInstructions(cleaner, requestId, { instructions: [] }), "Landlord account is required"),
+    "A Cleaner saved spoken instructions.");
+}
+
+/* ── An add-on's price comes from the catalogue, never the request ───────── */
+
+// A client that could name its own price for an extra could name any price, and
+// the point of the ruleset is that every price component has a reviewed amount
+// behind it.
+{
+  const capture = {};
+  const pricing = {
+    async getActiveRuleset() { return null; },
+    async listAddons() { capture.addonsRead = true; return [{ code: "oven-deep-clean", label: "Oven deep clean", pence: 4500, addedMinutes: 45 }]; },
+    async recordObservation() { return true; }
+  };
+  const service = createScanService(repositoryStub(capture), { pricing });
+  const previewed = await service.previewScan(landlord, {
+    ...scan(),
+    // A real code, an unknown one, and an attempt to set the price directly.
+    addOns: ["oven-deep-clean", "not-in-the-catalogue", { code: "oven-deep-clean", pence: 999999 }]
+  });
+  assert(capture.addonsRead === true, "The add-on catalogue was not consulted.");
+  const addOnLines = previewed.estimate.lines.filter((line) => line.code.startsWith("add-on:"));
+  assert(addOnLines.length === 1, `${addOnLines.length} add-on lines were priced rather than one.`);
+  assert(addOnLines[0].pence === 4500, `The add-on was priced at ${addOnLines[0].pence} rather than the catalogue amount.`);
+}
+
+// No add-ons requested means the catalogue is not even read: an estimate should
+// not cost a lookup nobody asked for.
+{
+  const capture = {};
+  const service = createScanService(repositoryStub(capture), {
+    pricing: { async getActiveRuleset() { return null; }, async listAddons() { capture.addonsRead = true; return []; }, async recordObservation() { return true; } }
+  });
+  await service.previewScan(landlord, scan());
+  assert(capture.addonsRead !== true, "The add-on catalogue was read for an estimate with no add-ons.");
 }
 
 console.log("Structured room-scan service checks passed.");

@@ -24,6 +24,7 @@ import {
   checkoutCopy
 } from "./landlord-journey-model.js?v=journey7";
 import { openRoomScan } from "./room-scan-overlay.js";
+import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
 import { isUkPostcode } from "./contact-validation.js";
 
@@ -101,6 +102,13 @@ const state = {
   // Stable across retries so a save that timed out and is tried again is
   // absorbed by the server rather than recorded twice.
   scanSessionId: "",
+  // Held apart from the scan itself. The scan keeps what was DETECTED so the
+  // server stores the original reading; corrections are replayed against it
+  // afterwards, which is what makes the original survive as a training label
+  // rather than being overwritten by the truth the customer asserted.
+  scanCorrections: [],
+  scanReview: null,
+  scanInstructions: [],
   draft: {
     postcode: "",
     outward: "",
@@ -224,6 +232,8 @@ function adoptScan() {
   state.draft.guideTime = typeof scan?.guideTime === "string" ? scan.guideTime : "";
   state.scanPhotos = [];
   state.scanRooms = [];
+  state.scanCorrections = [];
+  state.scanReview = null;
   state.draft.durationMinutes = suggestedDurationMinutes(tasks);
   state.step = "results";
   return true;
@@ -357,6 +367,9 @@ el.scanLink.addEventListener("click", async () => {
     state.scanPhotos = Array.isArray(result.photos) ? result.photos : [];
     state.scanRooms = Array.isArray(result.rooms) ? result.rooms : [];
     state.scanDeviceClass = typeof result.deviceClass === "string" ? result.deviceClass : "unknown";
+    state.scanCorrections = [];
+    state.scanReview = null;
+    refreshScanReview();
     state.draft.durationMinutes = suggestedDurationMinutes(state.draft.tasks);
     saveDraft();
     show("results");
@@ -695,6 +708,244 @@ async function createOrRecoverRequest(csrf, propertyId) {
 // a description of a worktop could not be stored. A failure leaves the reading
 // in memory, keeps the journey moving, and is reported rather than swallowed —
 // silent loss here is the exact failure this whole change exists to end.
+
+/* ── The review step: what the scan found, and what it is unsure of ─────── */
+
+const reviewHost = el.review || document.querySelector("[data-review]");
+const reviewElement = (selector) => document.querySelector(selector);
+
+function textNode(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+// Every value below is written with textContent. A customer-entered object name
+// rendered as markup would make the one screen they are asked to correct into an
+// injection surface.
+function renderReviewLevel(review) {
+  reviewElement("[data-review-level-label]").textContent = review.levelLabel;
+  reviewElement("[data-review-level-scale]").textContent = review.levelScale;
+  reviewElement("[data-review-explanation]").textContent = review.explanation;
+  const provisional = reviewElement("[data-review-provisional]");
+  provisional.textContent = review.provisional;
+  provisional.hidden = !review.provisional;
+}
+
+function renderReviewPrice(review) {
+  const host = reviewElement("[data-review-estimate]");
+  const refusal = reviewElement("[data-review-refusal]");
+  if (!review.price) {
+    host.hidden = true;
+    refusal.hidden = !review.refusal;
+    reviewElement("[data-review-refusal-reason]").textContent = review.refusal;
+    return;
+  }
+  refusal.hidden = true;
+  host.hidden = false;
+  reviewElement("[data-review-price]").textContent = review.price.total;
+  reviewElement("[data-review-price-range]").textContent = review.price.range;
+  reviewElement("[data-review-rates]").textContent = review.ratesNote;
+  const breakdown = reviewElement("[data-review-breakdown]");
+  breakdown.replaceChildren(...review.price.lines.map((line) => {
+    const row = textNode("li", "scan-review-line");
+    row.append(textNode("span", "", line.label), textNode("b", "", line.amount));
+    return row;
+  }));
+}
+
+function renderReviewQuestions(review) {
+  const host = reviewElement("[data-review-questions]");
+  const list = reviewElement("[data-review-question-list]");
+  list.replaceChildren(...review.questions.map((question) => {
+    const row = textNode("li", "scan-review-question");
+    row.append(textNode("p", "", question.question));
+    return row;
+  }));
+  host.hidden = review.questions.length === 0;
+}
+
+// A correction control per object, and only for the things a person can actually
+// judge about their own home. Nothing here offers to edit a confidence score.
+function objectControls(roomName, object) {
+  const row = textNode("div", "scan-review-object");
+  const head = textNode("div", "scan-review-object-head");
+  head.append(textNode("b", "", object.displayLabel), textNode("span", "scan-review-state", object.state));
+  row.append(head);
+  if (object.detail) row.append(textNode("p", "scan-review-detail", object.detail));
+
+  const actions = textNode("div", "scan-review-object-actions");
+
+  const rename = textNode("button", "scan-review-edit");
+  rename.type = "button";
+  rename.textContent = "Rename";
+  rename.addEventListener("click", () => {
+    const value = window.prompt(`What is this? (currently "${object.label}")`, object.label);
+    if (value === null) return;
+    const trimmed = value.trim().slice(0, 40);
+    if (!trimmed) return toast("An object needs a name.");
+    correctScanObject(roomName, object.inventoryKey, "label", trimmed);
+  });
+  actions.append(rename);
+
+  // The grade a customer sets is evidence, so the options are the same scale the
+  // reader uses — including "cannot tell", because a customer saying they cannot
+  // tell either is more honest than the grade that was there.
+  const grade = document.createElement("select");
+  grade.className = "scan-review-grade";
+  grade.setAttribute("aria-label", `How dirty is the ${object.label}?`);
+  for (const [value, label] of [["", "Cannot tell"], ["clean", "Clean"], ["light", "Light"], ["medium", "Needs attention"], ["heavy", "Heavily soiled"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    if (value === object.condition) option.selected = true;
+    grade.append(option);
+  }
+  grade.addEventListener("change", () => correctScanObject(roomName, object.inventoryKey, "condition", grade.value));
+  actions.append(grade);
+
+  const remove = textNode("button", "scan-review-remove");
+  remove.type = "button";
+  remove.textContent = "Not here";
+  remove.addEventListener("click", () => correctScanObject(roomName, object.inventoryKey, "removed", ""));
+  actions.append(remove);
+
+  row.append(actions);
+  return row;
+}
+
+function renderReviewRooms(review) {
+  const host = reviewElement("[data-review-room-list]");
+  host.replaceChildren(...review.rooms.map((room) => {
+    const block = textNode("section", "scan-review-room");
+    block.append(textNode("h4", "scan-review-room-name", room.roomName));
+    for (const measurement of room.measurements) block.append(textNode("p", "hint", measurement));
+    if (!room.objects.length) block.append(textNode("p", "hint", "Nothing was picked out in this room."));
+    for (const object of room.objects) block.append(objectControls(room.roomName, object));
+    return block;
+  }));
+}
+
+function renderReview() {
+  if (!reviewHost) return;
+  const review = state.scanReview;
+  if (!review?.assessed) {
+    reviewHost.hidden = true;
+    return;
+  }
+  reviewHost.hidden = false;
+  renderReviewLevel(review);
+  renderReviewPrice(review);
+  renderReviewQuestions(review);
+  renderReviewRooms(review);
+}
+
+// Asks the server to assess the scan the customer is still holding.
+//
+// Deliberately silent on failure. The review panel is additional information;
+// the checklist below it is what the booking has always run on, and losing the
+// assessment must not cost the customer their scan.
+async function refreshScanReview() {
+  if (!reviewHost || !state.scanRooms.length) return;
+  const rooms = correctedScanRooms();
+  try {
+    const result = await requestJson("/api/marketplace/landlord/scan-preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": await recoverCsrf() },
+      body: JSON.stringify({
+        deviceClass: state.scanDeviceClass || "unknown",
+        rooms: rooms.map((room) => ({
+          roomName: room.name, condition: room.condition || "", note: room.note || "",
+          objects: Array.isArray(room.objects) ? room.objects : []
+        }))
+      })
+    });
+    state.scanReview = scanReview(result.scan);
+    renderReview();
+  } catch (error) {
+    // A rate-limited or unavailable assessment leaves the panel as it was.
+    if (!state.scanReview) reviewHost.hidden = true;
+  }
+}
+
+// What the customer currently sees: the detected scan with their corrections
+// applied on top. The stored scan stays the detected one.
+function correctedScanRooms() {
+  let rooms = state.scanRooms;
+  for (const correction of state.scanCorrections) {
+    rooms = applyCorrection(rooms, correction).rooms;
+  }
+  return rooms;
+}
+
+function correctScanObject(roomName, inventoryKey, field, value) {
+  const { corrections } = applyCorrection(correctedScanRooms(), { roomName, inventoryKey, field, value });
+  if (!corrections.length) return;
+  state.scanCorrections.push({ roomName, inventoryKey, field, value, originalValue: corrections[0].originalValue });
+  refreshScanReview();
+}
+
+
+// Sends each customer correction against the object the server actually stored.
+//
+// Matched by identity key rather than position, because the server orders objects
+// by its own ids and a positional match would correct the wrong thing. Individual
+// failures are skipped rather than aborting the rest: losing one training label is
+// better than losing them all, and none of this may fail the booking.
+async function replayScanCorrections(csrf, requestId, savedScan) {
+  if (!state.scanCorrections.length || !savedScan?.rooms) return;
+  const objectIdFor = new Map();
+  for (const room of savedScan.rooms) {
+    for (const object of room.objects || []) {
+      objectIdFor.set(`${room.roomName}\u0000${object.inventoryKey}`, object.objectId);
+    }
+  }
+  for (const correction of state.scanCorrections) {
+    const objectId = objectIdFor.get(`${correction.roomName}\u0000${correction.inventoryKey}`);
+    if (!objectId) continue;
+    try {
+      await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/room-scan/objects/${encodeURIComponent(objectId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({
+          field: correction.field,
+          value: correction.field === "quantity" ? Number(correction.value) : correction.value,
+          // Consent is a separate, explicit choice the customer has not been
+          // asked for here, so it stays false. The correction is still recorded
+          // for the audit trail; it simply may not train anything.
+          trainingConsent: false
+        })
+      });
+    } catch { /* one lost label, not a lost booking */ }
+  }
+}
+
+
+// Stores the classified spoken instructions against the request.
+//
+// Separate from the checklist on purpose. A restriction stored as a task is an
+// operational hazard, and the checklist text is where that mistake would be
+// impossible to undo — so the classification travels in its own shape and the
+// cleaner's do-not-touch panel reads it from here.
+async function saveVoiceInstructions(csrf, requestId) {
+  const instructions = Array.isArray(state.scanInstructions) ? state.scanInstructions : [];
+  if (!instructions.length) return false;
+  try {
+    await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/voice-instructions`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ instructions })
+    });
+    return true;
+  } catch (error) {
+    console.warn("[room-scan] spoken instructions could not be saved", {
+      code: String(error?.code || "unknown").slice(0, 40)
+    });
+    return false;
+  }
+}
+
 async function saveStructuredScan(csrf, requestId) {
   const rooms = state.scanRooms
     .filter((room) => room && String(room.name || "").trim())
@@ -707,7 +958,7 @@ async function saveStructuredScan(csrf, requestId) {
   if (!rooms.length) return false;
   if (!state.scanSessionId) state.scanSessionId = randomId();
   try {
-    await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/room-scan`, {
+    const saved = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/room-scan`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
       body: JSON.stringify({
@@ -717,6 +968,13 @@ async function saveStructuredScan(csrf, requestId) {
         rooms
       })
     });
+    // Replayed after the scan is stored, not folded into it. The saved scan holds
+    // what was DETECTED; each correction is then applied through its own endpoint
+    // so the database keeps the original value beside the corrected one. Folding
+    // them in first would have overwritten the most valuable label in the
+    // product with the answer.
+    await replayScanCorrections(csrf, requestId, saved?.scan);
+    await saveVoiceInstructions(csrf, requestId);
     return true;
   } catch (error) {
     console.warn("[room-scan] the structured reading could not be saved", {
@@ -725,6 +983,24 @@ async function saveStructuredScan(csrf, requestId) {
     });
     return false;
   }
+}
+
+// Retries a failed save a small number of times before giving up.
+//
+// The scan is idempotent by session id, so a retry after a response that never
+// arrived is absorbed rather than duplicated — which is what makes retrying safe
+// here at all. Bounded and short: this runs while the customer is waiting at
+// checkout, and a scan is worth a few seconds of patience, not a minute of it.
+//
+// Only worth retrying a failure that might pass next time. A 4xx means the
+// server understood and refused, and retrying it just wastes the wait.
+async function saveStructuredScanWithRetry(csrf, requestId, attempts = 3) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (await saveStructuredScan(csrf, requestId)) return true;
+    if (attempt === attempts) break;
+    await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+  }
+  return false;
 }
 
 async function uploadRoomPhotos(csrf, requestId) {
@@ -899,7 +1175,16 @@ async function confirmJourney() {
     // function accepts a scan only while the request is still a draft — after
     // submission the scope is frozen and a Cleaner may already have accepted
     // work against it.
-    await saveStructuredScan(csrf, request.requestId);
+    // Retried, because a scan lost to one dropped response is a scan lost for
+    // good: it lives only in this tab's memory and is deliberately never written
+    // to browser storage.
+    const scanSaved = await saveStructuredScanWithRetry(csrf, request.requestId);
+    if (!scanSaved && state.scanRooms.length) {
+      // Said rather than swallowed. The booking still proceeds on the reviewed
+      // checklist, which is what it has always run on, but the customer is not
+      // told everything worked when part of it did not.
+      el.checkoutState.textContent = "Your checklist is saved. The detailed room findings could not be, so your cleaner will work from the checklist alone.";
+    }
     let submitted = false;
     let invitation = { invited: false, reason: "" };
     if (state.capabilities.mediaReady && state.scanPhotos.length) {
@@ -921,6 +1206,8 @@ async function confirmJourney() {
     state.draft.propertyDraftId = "";
     state.scanPhotos = [];
     state.scanRooms = [];
+    state.scanCorrections = [];
+    state.scanReview = null;
     el.doneTitle.textContent = invitation.invited ? "Your Cleaner has been invited." : submitted ? "Your request is ready for matching." : "Your private draft is saved.";
     el.doneBody.textContent = invitation.reason || (submitted
       ? "The reviewed room photos and checklist are saved. A booking exists only after an eligible Cleaner accepts the exact time, work and price. No payment was taken."

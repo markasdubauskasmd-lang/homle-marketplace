@@ -578,6 +578,15 @@ hallway; light / medium / heavy condition; daylight / artificial / low light;
 carpet / hard floor; cluttered / clear; at least 6 phone models across iOS and
 Android including one 4-year-old device. Consented and PII-stripped.
 
+**Status.** The harness that measures against this dataset now exists
+(`tools/run-scan-benchmark.mjs`), along with the consent and PII rules that
+refuse a case without them. The dataset itself does **not** exist: what is
+committed is 11 hand-written fixtures which prove the harness and lock in
+regression behaviour, and which can never report a pass. Price error accrues
+separately and automatically from accepted bookings via migration 076, so it
+does not wait on this collection. See
+[Structured room scans](STRUCTURED_ROOM_SCANS.md#benchmark-and-shadow-measurement).
+
 | Metric | Target |
 | --- | --- |
 | Object detection precision (top 20 labels) | ≥ 0.85 |
@@ -595,6 +604,18 @@ Android including one 4-year-old device. Consented and PII-stripped.
 | Crash-free scan sessions | ≥ 99.5% |
 | Room reading latency | ≤ 6s p95 |
 | Viewfinder frame rate, 4-year-old device | ≥ 15fps sustained |
+
+### Measurement status
+
+No figure in this project has been measured on real homes. Every number in the
+table above remains a target. What has changed since this audit was written is
+that measuring them is now a matter of collecting data rather than of building
+anything: the harness, the metric definitions, the consent rules and the
+shadow-observation pipeline are all in place and tested.
+
+The estimate from Phase 6 influences nothing, and should continue to influence
+nothing until the shadow report covers at least 50 accepted bookings with 90% of
+them inside 15%.
 
 ### Non-negotiable release gates
 

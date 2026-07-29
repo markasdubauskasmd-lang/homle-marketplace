@@ -376,16 +376,31 @@
       "order": 75,
       "file": "075_scan_pricing_rulesets.sql",
       "sha256": "f9dcc3dee5c2eab09566bfa08485c179d0417030a1edfa5b6c0daf18d45ddf65"
+    },
+    {
+      "order": 76,
+      "file": "076_scan_estimate_observations.sql",
+      "sha256": "7f10a2a9e4ca7ed05390dd9baf1b83e103dc0f3bb46d282af7bf745089878f18"
+    },
+    {
+      "order": 77,
+      "file": "077_scan_preview_rate_limit.sql",
+      "sha256": "b9f89b5a78d204889889d8b657a66591c9952b91cfcd8007bf471a97cae257bf"
+    },
+    {
+      "order": 78,
+      "file": "078_scan_retention_voice_and_addons.sql",
+      "sha256": "c7e3c767b4918ac102f2d624663d740717028662797cd5e1369eb297dc87138d"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "e05a12a299caf8a70ab93d1d5ba9583bb574de5f0a63d6ab313fc00b2030233e"
+      "sha256": "8d1e02e7c64aa6aa17b850976761d7488dfdb82619b16f431d04a96dbea53538"
     },
     {
       "file": "worker-role-grants.sql",
-      "sha256": "37a558f9ff8339f3f7105fbebe7005fb554fb9a861018462f18b664dee464c5c"
+      "sha256": "ad8116f468627ed9d6f8c4351990951c9d3e52fec0fd93c99070f5b6b52549c0"
     }
   ]
 }

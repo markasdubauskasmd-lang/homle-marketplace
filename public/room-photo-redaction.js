@@ -129,18 +129,60 @@ export function applyRedaction(context, regions, { document: documentRef } = {})
     const height = Math.max(1, Math.round(region.height));
     const smaller = Math.min(width, height);
     const scale = Math.max(1, Math.round(smaller * redactionCoarseness));
-    const smallWidth = Math.max(1, Math.round(width / scale));
-    const smallHeight = Math.max(1, Math.round(height / scale));
+    const targetWidth = Math.max(1, Math.round(width / scale));
+    const targetHeight = Math.max(1, Math.round(height / scale));
+
+    // Downscaled by repeated halving, not in one step.
+    //
+    // This is not fussiness. A single large `drawImage` downscale uses bilinear
+    // filtering, which SAMPLES the source rather than averaging it — so a 20×
+    // reduction of a high-contrast pattern keeps most of its contrast, and the
+    // "detail is resampled away" claim this function exists to make would be
+    // false. A browser test measuring variance across a checkerboard found
+    // exactly that: one-step downscaling removed about a fifth of the detail.
+    //
+    // Halving averages each 2×2 block properly, so repeating it genuinely
+    // destroys high-frequency detail. Bounded to 12 steps, which is far more
+    // than any real region needs and stops a malformed region looping.
+    let sourceCanvas = owner.createElement("canvas");
+    sourceCanvas.width = width;
+    sourceCanvas.height = height;
+    let sourceContext = sourceCanvas.getContext("2d");
+    if (!sourceContext) continue;
+    sourceContext.drawImage(context.canvas, region.x, region.y, width, height, 0, 0, width, height);
+
+    let currentWidth = width;
+    let currentHeight = height;
+    for (let step = 0; step < 12 && (currentWidth > targetWidth * 2 || currentHeight > targetHeight * 2); step += 1) {
+      const nextWidth = Math.max(targetWidth, Math.floor(currentWidth / 2));
+      const nextHeight = Math.max(targetHeight, Math.floor(currentHeight / 2));
+      const halved = owner.createElement("canvas");
+      halved.width = nextWidth;
+      halved.height = nextHeight;
+      const halvedContext = halved.getContext("2d");
+      if (!halvedContext) break;
+      halvedContext.imageSmoothingEnabled = true;
+      halvedContext.drawImage(sourceCanvas, 0, 0, currentWidth, currentHeight, 0, 0, nextWidth, nextHeight);
+      sourceCanvas = halved;
+      sourceContext = halvedContext;
+      currentWidth = nextWidth;
+      currentHeight = nextHeight;
+    }
+
+    // The final reduction to the target, still averaging.
     const scratch = owner.createElement("canvas");
-    scratch.width = smallWidth;
-    scratch.height = smallHeight;
+    scratch.width = targetWidth;
+    scratch.height = targetHeight;
     const scratchContext = scratch.getContext("2d");
     if (!scratchContext) continue;
     scratchContext.imageSmoothingEnabled = true;
-    scratchContext.drawImage(context.canvas, region.x, region.y, width, height, 0, 0, smallWidth, smallHeight);
+    scratchContext.drawImage(sourceCanvas, 0, 0, currentWidth, currentHeight, 0, 0, targetWidth, targetHeight);
+
+    // Drawn back up with smoothing OFF, so the result is visibly blocked rather
+    // than a soft, partly legible reconstruction.
     const previousSmoothing = context.imageSmoothingEnabled;
     context.imageSmoothingEnabled = false;
-    context.drawImage(scratch, 0, 0, smallWidth, smallHeight, region.x, region.y, width, height);
+    context.drawImage(scratch, 0, 0, targetWidth, targetHeight, region.x, region.y, width, height);
     context.imageSmoothingEnabled = previousSmoothing;
     applied += 1;
   }

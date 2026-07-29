@@ -60,6 +60,10 @@ export function createMaintenanceRepository(pool) {
       const selected = boundedLimit(limit, 5000, "Rate-limit purge batch limit");
       return scalarResult(await pool.query("SELECT tideway_private.purge_expired_rate_limits($1::integer) AS processed_count", [selected]), selected);
     },
+    async purgeRoomScans(limit) {
+      const selected = boundedLimit(limit, 5000, "Room-scan retention batch limit");
+      return scalarResult(await pool.query("SELECT tideway_private.purge_expired_room_scans($1::integer) AS processed_count", [selected]), selected);
+    },
     async purgePendingSocialIdentities(limit) {
       const selected = boundedLimit(limit, 5000, "Pending social-identity purge batch limit");
       return scalarResult(await pool.query("SELECT tideway_private.purge_expired_pending_social_identities($1::integer) AS processed_count", [selected]), selected);

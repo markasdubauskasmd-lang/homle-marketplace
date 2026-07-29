@@ -65,7 +65,10 @@ export function createMarketplaceMaintenanceJobs(repository, options = {}) {
     createDrainJob(repository, "queueBookingVisitReminders", { name: "booking-visit-reminders", intervalMs: quarterHour, batchLimit: 100, defaultLimit: 100, maximumLimit: 500 }),
     createDrainJob(repository, "purgeSessions", { name: "session-expiry", intervalMs: quarterHour, batchLimit: 500, defaultLimit: 500, maximumLimit: 5000 }),
     createDrainJob(repository, "purgeRateLimits", { name: "rate-limit-retention", intervalMs: hourly, batchLimit: 1000, defaultLimit: 1000, maximumLimit: 5000 }),
-    createDrainJob(repository, "purgePendingSocialIdentities", { name: "social-identity-retention", intervalMs: hourly, batchLimit: 1000, defaultLimit: 1000, maximumLimit: 5000 })
+    createDrainJob(repository, "purgePendingSocialIdentities", { name: "social-identity-retention", intervalMs: hourly, batchLimit: 1000, defaultLimit: 1000, maximumLimit: 5000 }),
+    // Hourly rather than by the minute: retention is measured in days, and a
+    // deletion loop that wakes constantly to find nothing is cost without benefit.
+    createDrainJob(repository, "purgeRoomScans", { name: "room-scan-retention", intervalMs: hourly, batchLimit: 200, defaultLimit: 200, maximumLimit: 2000 })
   ];
   if (options.objectStorage) {
     jobs.push(createUploadExpiryJob(repository, "expireJobPhotoUploads", options.objectStorage, { name: "job-photo-upload-expiry", intervalMs: minute }));

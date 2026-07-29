@@ -38,6 +38,15 @@ const measurementErrors = Object.freeze({
   "room-measurement-method-unavailable": [422, "room-measurement-method-unavailable", "This device cannot take a sensor measurement."]
 });
 
+const voiceErrors = Object.freeze({
+  "landlord-required": [403, "landlord-required", "A Landlord account is required to save spoken instructions."],
+  "request-not-found": [404, "request-not-found", "The cleaning request was not found."],
+  "request-not-editable": [409, "request-not-editable", "A submitted request's instructions can no longer be changed."],
+  "invalid-voice-instructions": [422, "invalid-voice-instructions", "Those spoken instructions could not be read."],
+  "invalid-voice-instruction": [422, "invalid-voice-instruction", "One of those spoken instructions could not be read."],
+  "authentication-required": [401, "authentication-required", "Sign in to view these instructions."]
+});
+
 const readErrors = Object.freeze({
   "authentication-required": [401, "authentication-required", "Sign in to view this room scan."],
   "request-not-found": [404, "request-not-found", "The room scan was not found."]
@@ -75,6 +84,25 @@ export function createScanRepository(database) {
           );
           return result.rows[0]?.correction;
         } catch (error) { return mapped(error, correctionErrors); }
+      });
+    },
+    recordVoiceInstructions(actor, cleaningRequestId, instructions) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query(
+            "SELECT tideway_private.record_request_voice_instructions($1::uuid,$2::jsonb) AS instructions",
+            [cleaningRequestId, JSON.stringify(instructions)]
+          );
+          return result.rows[0]?.instructions ?? [];
+        } catch (error) { return mapped(error, voiceErrors); }
+      });
+    },
+    getVoiceInstructions(actor, cleaningRequestId) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.get_request_voice_instructions($1::uuid) AS instructions", [cleaningRequestId]);
+          return result.rows[0]?.instructions ?? [];
+        } catch (error) { return mapped(error, voiceErrors); }
       });
     },
     recordMeasurements(actor, roomScanId, measurements) {
