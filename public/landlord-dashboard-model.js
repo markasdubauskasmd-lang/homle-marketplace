@@ -81,6 +81,11 @@ export function landlordMarketplaceCapabilityState(input = {}) {
   const pricingReady = input.pricingReady === true;
   const geocodingReady = input.geocodingReady === true;
   const matchingReady = pricingReady && geocodingReady;
+  // Direct invitations and automatic dispatch are different capabilities.
+  // Pricing plus distance evidence can make a direct invitation safe while the
+  // background worker is absent. Combining them made the dashboard offer an
+  // automatic action that no process would ever perform.
+  const automaticDispatchReady = matchingReady && input.automaticDispatchReady === true;
   let notice = null;
   if (!mediaReady) {
     notice = Object.freeze({
@@ -100,6 +105,12 @@ export function landlordMarketplaceCapabilityState(input = {}) {
       title: "Postcode distance matching is being connected.",
       copy: "You can complete and submit the private room scan now. Homle will keep it safely saved and will not invite a Cleaner until property and service-area postcodes can be checked by real distance."
     });
+  } else if (!automaticDispatchReady) {
+    notice = Object.freeze({
+      key: "automatic-dispatch",
+      title: "Automatic Cleaner matching is temporarily paused.",
+      copy: "You can still submit the reviewed room scan. It will stay safely open for Homle review, and no Cleaner will be contacted automatically while the background matching service is unavailable."
+    });
   }
-  return Object.freeze({ mediaReady, pricingReady, geocodingReady, matchingReady, notice });
+  return Object.freeze({ mediaReady, pricingReady, geocodingReady, matchingReady, automaticDispatchReady, notice });
 }
