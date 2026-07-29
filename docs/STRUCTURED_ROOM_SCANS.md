@@ -794,3 +794,12 @@ portrait viewfinder is refused rather than clamped, every selector the review
 renderer targets exists and the panel starts hidden, the pure models return
 identical results in a browser, and the event reporter batches without a room
 name reaching the payload.
+
+The harness discovers ordinary Chrome or Chromium installations on Windows,
+macOS and Linux, while an explicit `CHROMIUM_PATH` remains the first choice for
+CI or an unusual installation. Discovery starts an isolated temporary browser
+profile with the synthetic camera; it never opens or reads a person's normal
+Chrome profile. A missing browser is reported with every checked location
+instead of claiming that the scanner passed. This closes the earlier Windows
+verification gap where the machine already had Chrome but the test silently
+looked only for the Linux Playwright path and skipped the real pipeline.

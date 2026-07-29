@@ -1,4 +1,9 @@
-import { launchBrowser, serveStatic } from "../tools/browser-harness.mjs";
+import {
+  chromiumExecutableCandidates,
+  launchBrowser,
+  resolveChromiumPath,
+  serveStatic
+} from "../tools/browser-harness.mjs";
 
 // The real camera pipeline, in a real browser.
 //
@@ -15,10 +20,27 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 
 // Skipped rather than failed where Chromium is absent, so this cannot break a
 // build on a machine that has no browser. It is reported loudly either way.
-const chromiumPath = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
-const { existsSync } = await import("node:fs");
-if (!existsSync(chromiumPath)) {
-  console.log(`Browser scan-pipeline checks SKIPPED: no Chromium at ${chromiumPath}.`);
+const windowsCandidates = chromiumExecutableCandidates({
+  platform: "win32",
+  env: {
+    ProgramFiles: "C:\\Program Files",
+    "ProgramFiles(x86)": "C:\\Program Files (x86)",
+    LOCALAPPDATA: "C:\\Users\\scanner\\AppData\\Local"
+  }
+});
+assert(windowsCandidates.includes("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")
+  && windowsCandidates.includes("C:\\Users\\scanner\\AppData\\Local\\Chromium\\Application\\chrome.exe"),
+"The browser proof no longer discovers ordinary Windows Chrome or Chromium installations.");
+const macCandidates = chromiumExecutableCandidates({ platform: "darwin", env: {} });
+assert(macCandidates.includes("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+  "The browser proof no longer discovers an ordinary macOS Chrome installation.");
+const override = chromiumExecutableCandidates({ platform: "linux", env: { CHROMIUM_PATH: "/private/reviewed/chrome" } });
+assert(override[0] === "/private/reviewed/chrome",
+  "An explicit CI Chromium path no longer takes precedence over platform discovery.");
+
+const chromiumPath = resolveChromiumPath();
+if (!chromiumPath) {
+  console.log(`Browser scan-pipeline checks SKIPPED: no Chromium executable found. Checked ${chromiumExecutableCandidates().join(", ")}.`);
   process.exit(0);
 }
 

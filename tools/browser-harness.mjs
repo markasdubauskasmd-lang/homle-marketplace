@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -23,7 +24,52 @@ import { fileURLToPath } from "node:url";
 // activation, and nothing here substitutes for it.
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const chromiumPath = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+
+/**
+ * Returns the reviewed Chromium locations for the current platform.
+ *
+ * `CHROMIUM_PATH` always wins, so CI and unusual installations stay explicit.
+ * The platform fallbacks exist because silently skipping the real camera/canvas
+ * proof on a developer machine that already has Chrome is weaker than running
+ * it. Discovery never launches a user profile: `launchBrowser` still creates an
+ * isolated temporary profile with a synthetic camera.
+ */
+export function chromiumExecutableCandidates({ env = process.env, platform = process.platform } = {}) {
+  const configured = String(env.CHROMIUM_PATH || "").trim();
+  const candidates = configured ? [configured] : [];
+  if (platform === "win32") {
+    // Candidate generation is unit-tested for every platform on every host.
+    // Use win32 explicitly so a Linux CI runner still produces valid Windows
+    // paths rather than mixing the supplied platform with its own separator.
+    const windowsPath = path.win32;
+    const programFiles = env.ProgramFiles || env.PROGRAMFILES;
+    const programFilesX86 = env["ProgramFiles(x86)"] || env["PROGRAMFILES(X86)"];
+    if (programFiles) candidates.push(windowsPath.join(programFiles, "Google", "Chrome", "Application", "chrome.exe"));
+    if (programFilesX86) candidates.push(windowsPath.join(programFilesX86, "Google", "Chrome", "Application", "chrome.exe"));
+    if (env.LOCALAPPDATA) {
+      candidates.push(windowsPath.join(env.LOCALAPPDATA, "Google", "Chrome", "Application", "chrome.exe"));
+      candidates.push(windowsPath.join(env.LOCALAPPDATA, "Chromium", "Application", "chrome.exe"));
+    }
+  } else if (platform === "darwin") {
+    candidates.push(
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "/Applications/Chromium.app/Contents/MacOS/Chromium"
+    );
+  } else {
+    candidates.push(
+      "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+      "/usr/bin/google-chrome",
+      "/usr/bin/google-chrome-stable",
+      "/usr/bin/chromium",
+      "/usr/bin/chromium-browser"
+    );
+  }
+  return [...new Set(candidates)];
+}
+
+export function resolveChromiumPath(options = {}) {
+  return chromiumExecutableCandidates(options).find((candidate) => existsSync(candidate)) || "";
+}
 
 const mimeTypes = Object.freeze({
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -83,6 +129,10 @@ function nextId(state) {
  * `getUserMedia` path runs without a human or a webcam.
  */
 export async function launchBrowser({ headless = true } = {}) {
+  const chromiumPath = resolveChromiumPath();
+  if (!chromiumPath) {
+    throw new Error("No supported Chromium executable was found. Set CHROMIUM_PATH to run the browser proof.");
+  }
   const profile = await mkdtemp(path.join(tmpdir(), "homle-cdp-"));
   const args = [
     headless ? "--headless=new" : "--start-maximized",
