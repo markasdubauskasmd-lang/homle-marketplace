@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-9">
-  <script src="/cleaner-registration.js?v=20260728-6" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-10">
+  <script src="/cleaner-registration.js?v=20260728-7" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -209,6 +209,16 @@
                 <span>Complete registration</span>
                 <strong>Step 4 of 19 &mdash; Background checks (DBS)</strong>
                 <div class="hc-business-progress-track hc-background-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="4"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-experience-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 7 of 19 &mdash; Cleaning experience</strong>
+                <div class="hc-business-progress-track hc-experience-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="7"><span></span></div>
               </div>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
             </header>
@@ -467,6 +477,108 @@
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/identity-verification">&larr; Back</a>
                   <p data-background-save-status role="status" aria-live="polite">Sensitive DBS documents and details are not stored in this browser.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-experience-card" data-experience hidden aria-labelledby="cleaner-experience-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-experience-title">Cleaning experience</h1>
+                <p>What you’re great at. Specialisms drive which jobs we offer you first.</p>
+              </header>
+
+              <form class="hc-experience-form" data-experience-form>
+                <fieldset class="hc-experience-section">
+                  <legend>Experience</legend>
+                  <div class="hc-experience-years">
+                    <label><span>Years of experience</span>
+                      <select name="yearsExperience" required>
+                        <option value="">Choose</option>
+                        <option value="0">Less than 1 year</option>
+                        <option value="1">1&ndash;2 years</option>
+                        <option value="3">3&ndash;5 years</option>
+                        <option value="6">6&ndash;10 years</option>
+                        <option value="11">10+ years</option>
+                      </select>
+                    </label>
+                    <p>Tick every specialism you’re confident in. Connected services can be saved now; training evidence can be added later.</p>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-experience-section">
+                  <legend>Specialisms &mdash; tick all that apply</legend>
+                  <p class="hc-sr-only" id="experience-availability-note">Unavailable specialisms are shown to preserve the registration design, but cannot be selected until secure support is connected.</p>
+                  <div class="hc-experience-specialisms" aria-describedby="experience-availability-note">
+                    <label><input type="checkbox" data-experience-service="regular-domestic"><span>Domestic</span></label>
+                    <label><input type="checkbox" data-experience-service="communal-areas"><span>Commercial</span></label>
+                    <label><input type="checkbox" data-experience-service="rental-turnovers"><span>Holiday lets</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Airbnb</span></label>
+                    <label><input type="checkbox" data-experience-service="deep-cleans"><span>Deep cleaning</span></label>
+                    <label><input type="checkbox" data-experience-service="end-of-tenancy"><span>End of tenancy</span></label>
+                    <label><input type="checkbox" data-experience-service="workplaces"><span>Office cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Builders cleans</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Carpet cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Oven cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Window cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Biohazard cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>School cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Medical cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Care home cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Hotel cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Other</span></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-experience-section hc-experience-preview-section" disabled aria-describedby="experience-history-note">
+                  <legend>Employment history &mdash; most recent role</legend>
+                  <p class="hc-sr-only" id="experience-history-note">Secure employment-history storage is being connected. These fields are shown in place but do not accept or store information yet.</p>
+                  <div class="hc-experience-history">
+                    <label><span>Company</span><input name="company" autocomplete="organization"></label>
+                    <label><span>Start date</span><input name="employmentStart" type="month"></label>
+                    <label><span>End date</span><input name="employmentEnd" type="month"></label>
+                    <label><span>Reason for leaving</span><input name="reasonForLeaving" maxlength="160"></label>
+                  </div>
+                  <div class="hc-experience-add">
+                    <span>Add more</span>
+                    <button type="button" disabled>+ Add another role</button>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-experience-section hc-experience-preview-section" disabled aria-describedby="experience-files-note">
+                  <legend>CV &amp; certificates</legend>
+                  <p class="hc-sr-only" id="experience-files-note">Secure certificate storage is being connected. No files are accepted or stored on this page yet.</p>
+                  <div class="hc-experience-documents">
+                    <label>
+                      <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>CV</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-experience-upload-action">Choose file</span>
+                      <input type="file" name="cv" accept="application/pdf,image/jpeg,image/png" disabled>
+                    </label>
+                    <label>
+                      <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Cleaning certificates</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-experience-upload-action">Choose file</span>
+                      <input type="file" name="cleaningCertificates" accept="application/pdf,image/jpeg,image/png" disabled>
+                    </label>
+                    <label>
+                      <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>COSHH certificate</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-experience-upload-action">Choose file</span>
+                      <input type="file" name="coshhCertificate" accept="application/pdf,image/jpeg,image/png" disabled>
+                    </label>
+                    <label>
+                      <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Health &amp; safety certificate</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-experience-upload-action">Choose file</span>
+                      <input type="file" name="healthSafetyCertificate" accept="application/pdf,image/jpeg,image/png" disabled>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/business-details">&larr; Back</a>
+                  <p data-experience-save-status role="status" aria-live="polite">Years of experience and connected specialisms are saved securely when you continue.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>

@@ -1635,6 +1635,243 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   outline-offset: 2px;
 }
 
+/* -------------------------------------------------- cleaning experience -- */
+
+.hc-experience-progress-track span {
+  width: 36.842%;
+}
+
+.hc-experience-card {
+  align-self: start;
+}
+
+.hc-experience-form {
+  padding: 0 34px 24px;
+}
+
+.hc-experience-section {
+  min-width: 0;
+  margin: 0;
+  padding: 20px 0 22px;
+  border: 0;
+  border-top: 1px solid #eadfce;
+}
+
+.hc-experience-section > legend {
+  padding: 0 8px 0 0;
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.hc-experience-years {
+  display: grid;
+  grid-template-columns: minmax(190px, .72fr) minmax(260px, 1.28fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.hc-experience-years label,
+.hc-experience-history label {
+  display: grid;
+  gap: 7px;
+  color: var(--hc-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.hc-experience-years select,
+.hc-experience-history input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 13px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font: inherit;
+}
+
+.hc-experience-years select:focus,
+.hc-experience-history input:focus {
+  border-color: var(--hc-red);
+  outline: 2px solid rgba(198, 42, 26, .14);
+  outline-offset: 1px;
+}
+
+.hc-experience-years > p {
+  margin: 0;
+  padding: 13px 15px;
+  color: var(--hc-muted);
+  border-radius: 10px;
+  background: #f2eadb;
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+.hc-experience-specialisms {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.hc-experience-specialisms label {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 38px;
+  gap: 9px;
+  align-items: center;
+  padding: 0 12px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+.hc-experience-specialisms label:has(input:checked) {
+  border-color: #e79689;
+  background: #fff4ef;
+}
+
+.hc-experience-specialisms label.is-unavailable {
+  color: #8f877d;
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+.hc-experience-specialisms input {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--hc-red);
+}
+
+.hc-experience-specialisms label:focus-within {
+  outline: 2px solid var(--hc-red);
+  outline-offset: 2px;
+}
+
+.hc-experience-preview-section[disabled] {
+  opacity: 1;
+}
+
+.hc-experience-history {
+  display: grid;
+  grid-template-columns: 1.2fr .55fr .55fr 1.2fr;
+  gap: 10px;
+}
+
+.hc-experience-history input:disabled {
+  color: var(--hc-muted-2);
+  background: #fcfaf6;
+}
+
+.hc-experience-add {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.hc-experience-add > span {
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.hc-experience-add button {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 16px;
+  color: var(--hc-red);
+  border: 1px solid #efb8ae;
+  border-radius: 18px;
+  background: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.hc-experience-add button:disabled {
+  cursor: not-allowed;
+  opacity: .72;
+}
+
+.hc-experience-documents {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hc-experience-documents label {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-height: 62px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  color: var(--hc-ink);
+  border: 1px dashed #ddc7a4;
+  border-radius: 12px;
+  background: #fdfaf4;
+}
+
+.hc-experience-documents label > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.hc-experience-documents strong {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-experience-documents small {
+  overflow: hidden;
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-experience-upload-icon {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  color: #947b58;
+  border-radius: 50%;
+  background: #f2e6d2;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hc-experience-upload-action {
+  color: var(--hc-red);
+  font-size: 8.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hc-experience-documents input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* ----------------------------------------------------------- work areas -- */
 
 .hc-sr-only {
@@ -2026,6 +2263,8 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-identity-status { margin-left: 20px; margin-right: 20px; }
   .hc-identity-documents { grid-template-columns: 1fr; }
   .hc-background-certificate { grid-template-columns: 1fr; }
+  .hc-experience-specialisms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hc-experience-history { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-work-builder { grid-template-columns: 1fr; }
   .hc-work-panel { border-right: 0; border-bottom: 1px solid #e7dccb; }
   .hc-work-map-shell, .hc-work-map { min-height: 360px; }
@@ -2046,6 +2285,10 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-business-actions .hc-personal-submit { width: 100%; }
   .hc-background-form { padding-left: 20px; padding-right: 20px; }
   .hc-background-dates { grid-template-columns: 1fr; }
+  .hc-experience-form { padding-left: 20px; padding-right: 20px; }
+  .hc-experience-years,
+  .hc-experience-history,
+  .hc-experience-documents { grid-template-columns: 1fr; }
   .hc-work-form { padding-left: 20px; padding-right: 20px; }
 }
 
