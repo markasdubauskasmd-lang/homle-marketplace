@@ -51,5 +51,7 @@ assert(staticMarkup.includes("Checking secure account access"), "The served acco
 assert(!staticMarkup.includes('<header class="site-header">'), "The retired account-page header returned.");
 assert(/<article class="ae-panel">[\s\S]*?<a class="ae-logo" href="\/" aria-label="Return to Homle home"><img src="\/homle-logo\.png"/.test(staticMarkup), "The Homle logo is not inside the account panel where the decorative tile used to be.");
 assert(!staticMarkup.includes('class="ae-pulse"'), "The green decorative pulse still occupies the account panel logo position.");
+assert(!staticMarkup.includes("data-pilot-actions") && !staticMarkup.includes("or go straight to a workspace") && !staticMarkup.includes('href="/cleaner/dashboard"') && !staticMarkup.includes('href="/landlord/dashboard"'), "Unsigned account entry still offers protected or cross-role dashboard shortcuts instead of one focused sign-in journey.");
+assert(!accountScript.includes("pilotActions"), "The removed cross-role account shortcuts left dead controller logic behind.");
 
 console.log("Account-ready handoff tests passed: exact live provider copy, neutral capability loading, role-safe destinations and recoverable sign-out.");

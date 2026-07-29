@@ -36,7 +36,6 @@ const accountReadyTitle = document.querySelector("[data-account-ready-title]");
 const accountReadyCopy = document.querySelector("[data-account-ready-copy]");
 const accountReadyLogout = document.querySelector("[data-account-ready-logout]");
 const accountReadyDashboard = document.querySelector("[data-account-ready-dashboard]");
-const pilotActions = document.querySelector("[data-pilot-actions]");
 const accountSideTitle = document.querySelector("[data-account-side-title]");
 const accountSideNote = document.querySelector("[data-account-side-note]");
 const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
@@ -163,7 +162,6 @@ function activateForm(providers) {
   }
   if (bookingIntent) setAccountSide("landlord");
   else if (cleanerIntent) setAccountSide("cleaner");
-  if (pilotActions) pilotActions.hidden = selectedMode.form === "ready";
   if ((selectedMode.form === "verify" || selectedMode.form === "facebook-verify") && !privateToken) showFeedback("This verification link is incomplete or has already been removed.", "error");
 }
 
@@ -313,7 +311,6 @@ async function loadAccountReady() {
   if (accountReadyCopy) accountReadyCopy.textContent = presentation.copy;
   renderAccountAvatar(result.account);
   setAccountSide(cleaner ? "cleaner" : "landlord");
-  if (pilotActions) pilotActions.hidden = true;
   if (accountReadyDashboard) {
     accountReadyDashboard.href = presentation.actionHref;
     accountReadyDashboard.textContent = presentation.actionLabel;
