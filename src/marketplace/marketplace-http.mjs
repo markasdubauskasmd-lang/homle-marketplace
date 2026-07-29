@@ -91,6 +91,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const favouriteCleaners = dependencies?.favouriteCleanerService;
   const cleaningRequests = dependencies?.cleaningRequestService;
   const scans = dependencies?.scanService;
+  const scanPricing = dependencies?.scanPricingService;
   const bookings = dependencies?.bookingWorkflowService;
   const matching = dependencies?.matchingService;
   const journeys = dependencies?.journeyService;
@@ -697,6 +698,34 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             sendJson(response, 502, { ok: false, error: "This room could not be read automatically." });
           }
           return true;
+        }
+        // The rules a customer's estimate was built from. Readable by any
+        // authenticated account on purpose: someone quoted a number is entitled
+        // to see the rates behind it, and the row holds no personal data.
+        if (pathname === "/api/marketplace/pricing/scan-ruleset") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          sendJson(response, 200, { ok: true, ruleset: await scanPricing.getActiveRuleset(context.actor, url.searchParams.get("rulesetId")) });
+          return true;
+        }
+        // Changing these numbers changes what every customer is charged, so it
+        // is Administrator-only, append-only and audited at the database.
+        if (pathname === "/api/marketplace/admin/pricing/scan-ruleset") {
+          const context = await security.protect(request, { mutation: request.method !== "GET", roles: ["administrator"] });
+          if (request.method === "GET") {
+            sendJson(response, 200, {
+              ok: true,
+              ruleset: await scanPricing.getActiveRuleset(context.actor, url.searchParams.get("rulesetId")),
+              history: await scanPricing.listRulesets(context.actor, url.searchParams.get("rulesetId"), url.searchParams.get("limit"))
+            });
+            return true;
+          }
+          if (request.method === "POST") {
+            const body = await readJsonObject(request);
+            sendJson(response, 200, { ok: true, ruleset: await scanPricing.publishRuleset(context.actor, body?.rulesetId, body) });
+            return true;
+          }
+          return methodNotAllowed(response, ["GET", "POST"]), true;
         }
         if (pathname === "/api/marketplace/landlord/favourite-cleaners") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;

@@ -5388,6 +5388,7 @@ async function serveFile(requestPath, response) {
     "/admin": "admin.html",
     "/admin/cases": "admin-cases.html",
     "/admin/payments": "admin-payments.html",
+    "/admin/scan-pricing": "admin-scan-pricing.html",
     "/admin/bookings": "admin-bookings.html",
     "/admin/verifications": "admin-verifications.html",
     "/privacy": "privacy.html",

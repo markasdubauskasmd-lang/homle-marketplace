@@ -34,6 +34,7 @@ const scripts = Object.freeze({
   cleaningRequestRealtimeAndAvatar: "cleaning-request-realtime-and-avatar.sql",
   facebookDataDeletion: "facebook-data-deletion-behaviour.sql",
   structuredRoomScan: "structured-room-scan-behaviour.sql",
+  scanPricingRuleset: "scan-pricing-ruleset-behaviour.sql",
   rls: "marketplace-rls-behaviour.sql",
   acceptA: "accept-booking-a.sql",
   acceptB: "accept-booking-b.sql",
@@ -249,6 +250,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     // role is deliberately forbidden to read. It names tideway_app explicitly
     // when proving that boundary, so running as the owner does not weaken it.
     runPsqlSync({ label: "Structured room-scan behaviour test", file: scripts.structuredRoomScan, environment: ownerEnvironment, command, execute });
+    runPsqlSync({ label: "Scan pricing ruleset behaviour test", file: scripts.scanPricingRuleset, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "RLS behaviour test", file: scripts.rls, environment: appEnvironment, command, execute });
 
     const concurrentResults = await executeConcurrent([
@@ -280,7 +282,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {

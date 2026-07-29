@@ -5,6 +5,7 @@ import {
 } from "./room-condition-vocabulary.mjs";
 import { assessCleaningComplexity } from "./cleaning-complexity.mjs";
 import { measurementLabel, normalizedMeasurements } from "./room-measurement.mjs";
+import { defaultPricingRuleset, estimateScanPrice, normalizedPricingRuleset } from "./scan-pricing.mjs";
 
 // Structured room scans: what the scanner actually saw, kept.
 //
@@ -263,6 +264,25 @@ function normalizedCorrection(input = {}) {
 }
 
 export function createScanService(repository, options = {}) {
+  // The estimate is layered onto the projection rather than computed inside it,
+  // because reading the operator's published rates is a database call and the
+  // projection is pure. Keeping the projection pure is what lets every
+  // structural rule above be tested without a database.
+  const pricing = options.pricing || null;
+  async function estimateFor(actor, scan) {
+    if (!scan?.complexity?.assessed) return null;
+    let ruleset = defaultPricingRuleset;
+    try {
+      // An unconfigured deployment prices identically to a configured one. A
+      // failure to read the rates must never turn into a differently-priced
+      // estimate, so it falls back to the shipped defaults rather than to
+      // nothing or to a partial ruleset.
+      const published = pricing ? await pricing.getActiveRuleset(actor, "default") : null;
+      if (published) ruleset = normalizedPricingRuleset(published);
+    } catch { ruleset = defaultPricingRuleset; }
+    return estimateScanPrice(scan, ruleset);
+  }
+
   if (!repository || typeof repository.recordScan !== "function" || typeof repository.getScan !== "function"
     || typeof repository.correctObject !== "function" || typeof repository.deleteScan !== "function"
     || typeof repository.recordMeasurements !== "function") {
@@ -277,7 +297,8 @@ export function createScanService(repository, options = {}) {
     },
     async getScan(actor, cleaningRequestId) {
       if (!actor?.userId) throw new TypeError("Sign in to view this room scan.");
-      return scanProjection(await repository.getScan(actor, uuid(cleaningRequestId, "cleaning request id")));
+      const scan = scanProjection(await repository.getScan(actor, uuid(cleaningRequestId, "cleaning request id")));
+      return Object.freeze({ ...scan, estimate: await estimateFor(actor, scan) });
     },
     async correctOwnObject(actor, objectId, input = {}) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to correct a room scan.");
