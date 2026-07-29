@@ -242,8 +242,7 @@ body.account-entry .account-provider-mark { flex: none; width: 20px; height: 20p
 
 /* ── Dividers and the email toggle ────────────────────────────────────── */
 
-body.account-entry .account-choice-divider,
-body.account-entry .ae-or {
+body.account-entry .account-choice-divider {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -252,16 +251,13 @@ body.account-entry .ae-or {
   color: var(--homle-dim, #999189);
 }
 body.account-entry .account-choice-divider::before,
-body.account-entry .account-choice-divider::after,
-body.account-entry .ae-or::before,
-body.account-entry .ae-or::after {
+body.account-entry .account-choice-divider::after {
   content: "";
   flex: 1;
   height: 1px;
   background: oklch(0.2 0.03 60 / .1);
 }
-body.account-entry .account-choice-divider span,
-body.account-entry .ae-or span { white-space: nowrap; }
+body.account-entry .account-choice-divider span { white-space: nowrap; }
 
 body.account-entry .account-email-toggle {
   width: 100%;
@@ -420,40 +416,6 @@ body.account-entry .role-account-avatar {
 }
 body.account-entry .account-ready-panel .account-actions { display: grid; gap: 10px; }
 
-/* ── Workspace routes ─────────────────────────────────────────────────── */
-
-body.account-entry .ae-alt { display: grid; gap: 12px; text-align: left; }
-body.account-entry .ae-alt a {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px 18px;
-  border: 1.5px solid oklch(0.2 0.03 60 / .12);
-  border-radius: 16px;
-  color: inherit;
-  text-decoration: none;
-  transition: border-color .18s ease, transform .18s ease;
-}
-body.account-entry .ae-alt a:hover { border-color: var(--homle-ink-2, #2a1c10); transform: translateY(-1px); }
-body.account-entry .ae-alt a:focus-visible {
-  outline: none;
-  border-color: var(--homle-coral, #e24947);
-  box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .12);
-}
-body.account-entry .ae-alt strong { display: block; font-weight: 600; font-size: 15.5px; }
-body.account-entry .ae-alt small { font-size: 13.5px; color: var(--homle-muted-2, #61564d); }
-body.account-entry .ae-ico {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  font-size: 20px;
-}
-body.account-entry .ae-ico-mint { background: oklch(0.9 0.07 150); }
-body.account-entry .ae-ico-citrus { background: oklch(0.92 0.08 95); }
-
 body.account-entry .ae-fine {
   margin: 26px 0 0;
   font-size: 13.5px;
@@ -527,12 +489,10 @@ body.account-entry .account-footer a { color: #fff; }
   body.account-entry .account-provider-button,
   body.account-entry .account-email-toggle,
   body.account-entry .account-role,
-  body.account-entry .ae-alt a,
   body.account-entry .account-form > fieldset > button[type="submit"] { transition: none; }
   body.account-entry .ae-logo:hover,
   body.account-entry .account-provider-button:hover,
   body.account-entry .account-email-toggle:hover,
   body.account-entry .account-role:hover,
-  body.account-entry .ae-alt a:hover,
   body.account-entry .account-form > fieldset > button[type="submit"]:hover { transform: none; }
 }

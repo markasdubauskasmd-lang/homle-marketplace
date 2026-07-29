@@ -33,7 +33,7 @@ assert(!page.includes('href="/request"') && !page.includes('href="/join"') && !p
 assert(page.includes('/account-menu.js?') && script.includes('window.addEventListener("homle:account-ready"'), "Homepage session recovery or account menu was removed.");
 assert(page.includes("data-signup-menu") && page.includes("<strong>Book service</strong>") && page.includes("<strong>Join as an Associate</strong>") && script.includes("signupMenu.open = false"), "The two-button header or its safely dismissible role-selection menu is missing.");
 assert(script.includes('signedInWorkspace?.role === "landlord" ? "/landlord/book"') && script.includes('signedInWorkspace?.role === "cleaner" ? "/cleaner/dashboard"'), "Signed-in roles do not open their current workspaces.");
-assert(accountPage.includes('href="/landlord/dashboard"') && accountPage.includes('href="/cleaner/dashboard"'), "Account completion still links to retired public journeys.");
+assert(!accountPage.includes('href="/landlord/dashboard"') && !accountPage.includes('href="/cleaner/dashboard"'), "Unsigned account entry still exposes cross-role dashboard shortcuts.");
 assert(server.includes('"/landlord/dashboard": "landlord-dashboard.html"') && server.includes('"/cleaner/dashboard": "cleaner-dashboard.html"'), "Current role dashboards are not served.");
 assert(packageFile.includes("tests/home-entry-ui.mjs") && packageFile.includes("tests/retired-pages.mjs"), "Dashboard-first entry verification is not part of the project gate.");
 
