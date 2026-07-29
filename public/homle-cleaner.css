@@ -2503,6 +2503,325 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   line-height: 1.45;
 }
 
+/* ---------------------------------------------------------- availability -- */
+
+.hc-availability-progress-track span {
+  width: 68.421%;
+}
+
+.hc-availability-card {
+  align-self: start;
+}
+
+.hc-availability-form {
+  padding: 0 34px 24px;
+}
+
+.hc-availability-section {
+  min-width: 0;
+  margin: 0;
+  padding: 20px 0 22px;
+  border: 0;
+  border-top: 1px solid #eadfce;
+}
+
+.hc-availability-week-section {
+  padding-top: 16px;
+}
+
+.hc-availability-section > legend {
+  padding: 0 8px 0 0;
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.hc-availability-week {
+  overflow-x: auto;
+  border: 1px solid #eadfce;
+  border-radius: 14px;
+  background: #fdfaf4;
+}
+
+.hc-availability-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.hc-availability-table th,
+.hc-availability-table td {
+  height: 40px;
+  padding: 0;
+  border-right: 1px solid #eee4d5;
+  border-bottom: 1px solid #eee4d5;
+}
+
+.hc-availability-table tr > :last-child {
+  border-right: 0;
+}
+
+.hc-availability-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.hc-availability-table thead th {
+  height: 35px;
+  color: #765a3a;
+  background: #f8f1e5;
+  font-size: 8.5px;
+  font-weight: 700;
+}
+
+.hc-availability-table thead th:first-child,
+.hc-availability-table tbody th {
+  width: 86px;
+}
+
+.hc-availability-table tbody th {
+  padding-left: 12px;
+  color: #765a3a;
+  background: #fdfaf4;
+  font-size: 8.5px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.hc-availability-table label,
+.hc-availability-table label > span {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
+.hc-availability-table label {
+  position: relative;
+  cursor: pointer;
+}
+
+.hc-availability-table input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.hc-availability-table label > span {
+  color: #ffffff;
+  background: #ffffff;
+  transition: background-color .16s ease;
+}
+
+.hc-availability-table input:checked + span {
+  background: #dc3929;
+}
+
+.hc-availability-table input:checked + span::after {
+  content: "✓";
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.hc-availability-table input:focus-visible + span {
+  outline: 2px solid var(--hc-red);
+  outline-offset: -3px;
+}
+
+.hc-availability-preview-note {
+  margin: 9px 0 0;
+  color: var(--hc-muted-2);
+  font-size: 8.5px;
+}
+
+.hc-availability-hours {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 9px 14px;
+  color: var(--hc-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.hc-availability-hours output {
+  color: var(--hc-red);
+  font-weight: 700;
+}
+
+.hc-availability-hours input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--hc-red);
+}
+
+.hc-availability-limits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.hc-availability-holiday {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 13px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font-size: 9.5px;
+}
+
+.hc-availability-toggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  color: var(--hc-muted-2);
+  font-size: 8.5px;
+}
+
+.hc-availability-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.hc-availability-toggle i {
+  position: relative;
+  display: block;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: #ded3bf;
+  cursor: pointer;
+}
+
+.hc-availability-toggle i::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  content: "";
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(36, 24, 13, .2);
+  transition: transform .16s ease;
+}
+
+.hc-availability-toggle input:checked + i {
+  background: var(--hc-red);
+}
+
+.hc-availability-toggle input:checked + i::after {
+  transform: translateX(16px);
+}
+
+.hc-availability-toggle input:focus-visible + i {
+  outline: 2px solid rgba(198, 42, 26, .32);
+  outline-offset: 2px;
+}
+
+.hc-availability-date {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: var(--hc-ink);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.hc-availability-date input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 13px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font: inherit;
+}
+
+.hc-availability-date small {
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  font-weight: 400;
+}
+
+.hc-availability-jobs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hc-availability-jobs label {
+  position: relative;
+  min-width: 0;
+}
+
+.hc-availability-jobs input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.hc-availability-jobs span {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  padding: 9px 10px 9px 31px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.hc-availability-jobs span::before {
+  position: absolute;
+  left: 10px;
+  width: 13px;
+  height: 13px;
+  content: "";
+  border: 1px solid #dfd0bb;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.hc-availability-jobs input:checked + span {
+  border-color: #eda99f;
+  background: #fff0ed;
+}
+
+.hc-availability-jobs input:checked + span::before {
+  content: "✓";
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  border-color: var(--hc-red);
+  background: var(--hc-red);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.hc-availability-jobs input:focus-visible + span {
+  outline: 2px solid rgba(198, 42, 26, .3);
+  outline-offset: 2px;
+}
+
 /* ----------------------------------------------------------- work areas -- */
 
 .hc-sr-only {
@@ -2899,6 +3218,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-references-contact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-insurance-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-banking-account-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hc-availability-jobs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-work-builder { grid-template-columns: 1fr; }
   .hc-work-panel { border-right: 0; border-bottom: 1px solid #e7dccb; }
   .hc-work-map-shell, .hc-work-map { min-height: 360px; }
@@ -2935,6 +3255,9 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-banking-account-primary,
   .hc-banking-account-secondary,
   .hc-banking-invoices { grid-template-columns: 1fr; }
+  .hc-availability-form { padding-left: 20px; padding-right: 20px; }
+  .hc-availability-limits,
+  .hc-availability-jobs { grid-template-columns: 1fr; }
   .hc-work-form { padding-left: 20px; padding-right: 20px; }
 }
 
