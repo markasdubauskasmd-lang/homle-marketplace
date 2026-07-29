@@ -134,7 +134,10 @@ const [
   cleanerPerformancePage,
   cleanerSignOffPage,
   cleanerPublicProfilePage,
-  cleanerPublicProfileScript
+  cleanerPublicProfileScript,
+  cleanerMessagesPage,
+  cleanerMessagesScript,
+  notificationsScript
 ] = await Promise.all([
   readFile(new URL("../public/cleaner-schedule.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-schedule.js", import.meta.url), "utf8"),
@@ -152,10 +155,13 @@ const [
   readFile(new URL("../public/cleaner-performance.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-sign-off.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-public-profile.html", import.meta.url), "utf8"),
-  readFile(new URL("../public/cleaner-public-profile.js", import.meta.url), "utf8")
+  readFile(new URL("../public/cleaner-public-profile.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-messages.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-messages.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/notifications.js", import.meta.url), "utf8")
 ]);
 
-const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage];
+const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage];
 const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
 for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(page.includes('class="cleaner-workspace-page') && page.includes("/homle-cleaner.css?") && page.includes('aria-label="Cleaner navigation"'), `Cleaner workspace page ${index + 1} is not using the separate Cleaner shell.`);
@@ -168,7 +174,7 @@ for (const [index, page] of cleanerWorkspacePages.entries()) {
 }
 for (const [label, href] of [
   ["My Profile", "/cleaner/profile/preview"],
-  ["Messages", "/notifications?view=messages"],
+  ["Messages", "/cleaner/messages"],
   ["Notifications", "/notifications"],
   ["Help Centre", "/cleaner/help-centre"],
   ["Support Tickets", "/cleaner/support-tickets"],
@@ -180,6 +186,14 @@ for (const [label, href] of [
 }
 assert(cleanerOnboardingSteps.includes('label: "Logout", icon: "logout", action: "logout"') && cleanerOnboardingSteps.includes('awaitingDesign: true'), "The Account navigation omits secure Logout or fails to distinguish screenshot-led pages whose content is still pending.");
 assert(cleanerSidebar.includes("renderCleanerAccountNav") && cleanerSidebar.includes("accountNav.map") && cleanerSidebar.includes('entry.action === "logout" ? "button" : "a"') && cleanerSidebar.includes("item.dataset.accountSignOut") && cleanerSidebar.includes("item.dataset.notificationLink") && cleanerSidebar.includes("host.replaceChildren") && cleanerSidebar.includes("renderCleanerAccountNav();") && !cleanerSidebar.includes("innerHTML"), "The Account tabs are not centrally, safely or synchronously rendered for account and notification controllers.");
+assert(server.includes('"/cleaner/messages": "cleaner-messages.html"') && cleanerOnboardingSteps.includes('label: "Messages", icon: "chat", href: "/cleaner/messages"'), "The Cleaner Messages tab does not open its dedicated private inbox.");
+assert(notificationsScript.includes('new URLSearchParams(location.search).get("view") === "messages"') && notificationsScript.includes('location.replace("/cleaner/messages")'), "The retired Messages query-string page does not forward safely to the replacement inbox.");
+assert(cleanerMessagesPage.includes('class="cleaner-workspace-page cleaner-messages-page"') && cleanerMessagesPage.includes("Chat with clients and the Homle team.") && cleanerMessagesPage.includes("Auto-translate off") && cleanerMessagesPage.includes("data-message-conversations") && cleanerMessagesPage.includes("data-message-thread") && cleanerMessagesPage.includes("Running 10 minutes late — sorry!") && cleanerMessagesPage.includes("Messages are monitored for safety"), "The supplied Messages heading, two-column inbox, quick replies or safety note is missing.");
+assert(cleanerMessagesScript.includes('createCleanerPage("messages"') && cleanerMessagesScript.includes('requestJson("/api/marketplace/bookings?limit=50")') && cleanerMessagesScript.includes("activeJobMessagingOpen(booking.status)") && cleanerMessagesScript.includes("booking?.counterpartyName") && cleanerMessagesScript.includes("/messages?limit=100") && cleanerMessagesScript.includes("createClientMessageId()") && cleanerMessagesScript.includes('"X-CSRF-Token": csrf') && cleanerMessagesScript.includes("form.reportValidity()") && !cleanerMessagesScript.includes("innerHTML") && !cleanerMessagesScript.includes("localStorage"), "The Messages page is not role-gated, booking-participant-backed, idempotent, CSRF-protected or safely rendered.");
+for (const copiedSample of ["Homle Onboarding", "Priya S.", "Whitfield Lettings", "James & Rowan", "Sadie"]) {
+  assert(!`${cleanerMessagesPage}\n${cleanerMessagesScript}`.includes(copiedSample), `The Messages page copied the screenshot's ${copiedSample} identity instead of using real booking participants.`);
+}
+assert(cleanerStyles.includes(".hc-message-shell") && cleanerStyles.includes(".hc-message-conversation") && cleanerStyles.includes(".hc-message-bubble.is-mine") && cleanerStyles.includes(".hc-message-quick-replies") && cleanerStyles.includes(".cleaner-messages-page .hc-side.cleaner-site-header"), "The supplied Messages shell, conversation list, chat bubbles, quick replies or cream sidebar treatment is missing.");
 for (const [index, script] of cleanerWorkspaceScripts.entries()) {
   assert(script.includes('requestJson("/api/marketplace/account")') && script.includes('dashboardWorkspaceAccess(account, "cleaner")') && script.includes('credentials: "same-origin"') && script.includes("new AbortController()") && script.includes("30_000"), `Cleaner workspace script ${index + 1} lacks authenticated role gating or a bounded private request.`);
   assert(script.includes("error.statusCode === 401") && script.includes("error.statusCode === 403") && !script.includes("innerHTML"), `Cleaner workspace script ${index + 1} lacks a safe authentication failure state or uses unsafe HTML rendering.`);

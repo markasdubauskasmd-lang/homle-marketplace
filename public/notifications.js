@@ -2,6 +2,12 @@ import { readSignedInAccount } from "./account-menu.js?v=20260718-3";
 import { notificationActionPath, notificationPresentation, notificationWorkspace } from "./notification-inbox-model.js";
 import { createRequestJson } from "./request-json.js";
 
+// The old Cleaner Messages tab pointed at this generic Updates page with a query
+// string. Keep that bookmark working while giving Messages its own private inbox.
+if (new URLSearchParams(location.search).get("view") === "messages") {
+  location.replace("/cleaner/messages");
+}
+
 const gate = document.querySelector("[data-notification-gate]");
 const gateTitle = document.querySelector("[data-notification-gate-title]");
 const gateCopy = document.querySelector("[data-notification-gate-copy]");

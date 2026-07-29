@@ -69,6 +69,7 @@ assert(cleanerDashboard.includes("/notification-badge.js?v=20260729-1") && landl
 assert(badgeScript.includes("textContent") && !badgeScript.includes("innerHTML") && !badgeScript.includes("setInterval"), "The dashboard badge uses unsafe rendering or constant polling.");
 assert(styles.includes(".cleaner-workspace-page .directory-nav, .landlord-dashboard-page .directory-nav") && styles.includes(".cleaner-workspace-page .directory-nav a, .landlord-dashboard-page .directory-nav a") && styles.includes(".notifications-page .directory-nav a") && styles.includes(".workspace-role-nav[hidden]"), "Mobile navigation can hide the Updates or workspace return action.");
 assert(packageFile.includes("tests/notification-inbox-ui.mjs"), "Notification inbox verification is not part of the project gate.");
+assert(script.includes('new URLSearchParams(location.search).get("view") === "messages"') && script.includes('location.replace("/cleaner/messages")'), "The old Messages query-string destination does not forward to the dedicated Cleaner inbox.");
 
 
 console.log("Notification inbox UI tests passed: private role return, safe event copy, pagination, read controls, mobile states and booking actions.");
