@@ -37,7 +37,7 @@ export const onboardingSteps = [
   { key: "languages", title: "Languages", icon: "lang", sidebar: false, href: "/cleaner/registration",
     derive: (d) => (d.profile?.languages?.length || 0) > 0 },
   { key: "skills", title: "Skills", icon: "spark", sidebar: false, href: "", derive: null },
-  { key: "training", title: "Training & certificates", icon: "award", sidebar: false, href: "", derive: null },
+  { key: "training", title: "Training & certificates", icon: "award", sidebar: false, href: "/cleaner/training", derive: null },
   { key: "compliance", title: "Compliance & declarations", icon: "pen", sidebar: false, href: "", derive: null }
 ];
 
@@ -65,7 +65,7 @@ export const onboardingNav = [
   { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/availability" },
   { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/equipment" },
   { label: "Documents", icon: "folder", step: "", href: "/cleaner/documents" },
-  { label: "Training", icon: "award", step: "training", href: "" },
+  { label: "Training", icon: "award", step: "training", href: "/cleaner/training" },
   { label: "Contracts", icon: "pen", step: "compliance", href: "" }
 ];
 

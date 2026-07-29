@@ -94,7 +94,8 @@ const cleanerWorkspace = new Set([
   "cleaner-registration",
   "cleaner-reviews",
   "cleaner-schedule",
-  "cleaner-sign-off"
+  "cleaner-sign-off",
+  "cleaner-training"
 ]);
 const pages = readdirSync(new URL("../public", import.meta.url)).filter((name) => name.endsWith(".html"));
 const missing = [];
