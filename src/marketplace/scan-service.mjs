@@ -32,6 +32,9 @@ export const maximumScanRooms = 20;
 export const maximumRoomObjects = 40;
 export const maximumScanObjects = 200;
 const deviceClasses = Object.freeze(["guided-web", "camera-fallback", "unknown"]);
+// A preview is never stored, so it has no request. This satisfies the shared
+// normaliser's id check without implying a request exists.
+const previewRequestId = "00000000-0000-4000-8000-000000000000";
 const correctionFields = Object.freeze(["label", "condition", "quantity", "removed"]);
 
 function boundedText(value, maximum, label, minimum = 0) {
@@ -269,6 +272,10 @@ export function createScanService(repository, options = {}) {
   // projection is pure. Keeping the projection pure is what lets every
   // structural rule above be tested without a database.
   const pricing = options.pricing || null;
+  // Optional, and every call is guarded. A missing collector must not change
+  // behaviour: this observes the scan, it is not part of it.
+  const telemetry = options.telemetry || null;
+  const observe = (metric, extra) => { try { telemetry?.record(metric, extra); } catch { /* never the reason a scan fails */ } };
   async function estimateFor(actor, scan) {
     if (!scan?.complexity?.assessed) return null;
     let ruleset = defaultPricingRuleset;
@@ -293,7 +300,42 @@ export function createScanService(repository, options = {}) {
     async recordOwnScan(actor, input = {}) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to save a room scan.");
       const scan = normalizedRoomScan(input, options);
-      return scanProjection(await repository.recordScan(actor, { ...scan, model: modelAttribution(vision) }));
+      const recorded = scanProjection(await repository.recordScan(actor, { ...scan, model: modelAttribution(vision) }));
+      // A recorded scan is a completed one: the customer finished the walkthrough
+      // and reached the point of saving it.
+      observe("scan.session.completed", { dimensions: { deviceClass: scan.deviceClass } });
+      if (recorded.roomCount) observe("scan.room.completed", { count: recorded.roomCount, dimensions: { deviceClass: scan.deviceClass } });
+      return recorded;
+    },
+    // Assesses a scan the customer is still holding, before any draft exists.
+    //
+    // Stores absolutely nothing. The booking journey needs to show a complexity
+    // level, an explanation and an estimate at the review step, and at that
+    // point there is no request to attach a scan to — the private draft is
+    // created at checkout. Computing it here rather than in the browser keeps
+    // one implementation of the model and applies the rates an operator actually
+    // published, which client-side arithmetic could not.
+    async previewScan(actor, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to review a room scan.");
+      // Normalised through exactly the same path as a stored scan, so the
+      // preview cannot show a level the saved scan would not produce.
+      const normalized = normalizedRoomScan({ ...input, cleaningRequestId: input.cleaningRequestId || previewRequestId }, options);
+      const scan = scanProjection({
+        cleaningRequestId: null,
+        session: null,
+        rooms: normalized.rooms.map((room) => ({
+          roomScanId: null,
+          roomName: room.roomName,
+          condition: room.condition,
+          note: room.note,
+          measurements: room.measurements || [],
+          // The preview has no server-assigned ids, so the identity key stands
+          // in. The client already tracks objects by it, and inventing a uuid
+          // here would hand back an id that matches nothing once saved.
+          objects: room.objects.map((object) => ({ ...object, objectId: object.inventoryKey }))
+        }))
+      });
+      return Object.freeze({ ...scan, estimate: await estimateFor(actor, scan) });
     },
     async getScan(actor, cleaningRequestId) {
       if (!actor?.userId || !actor.roles?.some((role) => role === "landlord" || role === "administrator")) {
@@ -302,6 +344,8 @@ export function createScanService(repository, options = {}) {
       const requestId = uuid(cleaningRequestId, "cleaning request id");
       const scan = scanProjection(await repository.getScan(actor, requestId));
       const estimate = await estimateFor(actor, scan);
+      if (estimate) observe(estimate.priceable ? "scan.estimate.produced" : "scan.estimate.refused", { dimensions: { level: String(estimate.complexityLevel ?? 0) } });
+      observe("scan.condition.unresolved", { count: Math.max(1, scan.unresolvedCount) });
       // Recorded so the estimate's error against the price a Cleaner actually
       // accepted accrues from ordinary trading. Awaited rather than fired and
       // forgotten, because an unawaited promise rejecting after the response is
@@ -311,7 +355,11 @@ export function createScanService(repository, options = {}) {
     },
     async correctOwnObject(actor, objectId, input = {}) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to correct a room scan.");
-      const correction = await repository.correctObject(actor, uuid(objectId, "scan object id"), normalizedCorrection(input));
+      const normalizedInput = normalizedCorrection(input);
+      const correction = await repository.correctObject(actor, uuid(objectId, "scan object id"), normalizedInput);
+      // Counted separately, because a customer deleting a detection and a customer
+      // renaming one say different things about the model.
+      observe(normalizedInput.field === "removed" ? "scan.object.removed" : "scan.object.corrected");
       if (correction?.removed === true) return Object.freeze({ objectId: correction.objectId, removed: true });
       return Object.freeze({ ...objectProjection(correction), removed: false });
     },

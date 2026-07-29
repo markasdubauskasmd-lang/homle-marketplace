@@ -53,6 +53,7 @@ import { clearRoomNotesDraft, readRoomNotesDraft, saveRoomNotesDraft } from "./r
 import { validatedGuidedRoomPhotoDimensions, validatedGuidedRoomPhotoFile } from "./room-photo-selection.js";
 import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js";
 import { applyRedaction, redactedAreaRatio, redactionRegions, redactionSummary, shouldRedact, unusableRedactionRatio } from "./room-photo-redaction.js";
+import { createScanEventReporter, elapsedSince } from "./scan-events.js";
 import { storedCsrf } from "./session-csrf.js";
 
 // The room scan as an overlay any page can open in place. It builds and owns
@@ -455,11 +456,18 @@ export function openRoomScan() {
       toast: $("[data-toast]")
     };
 
+    // Created per scan, so a queue can never outlive the overlay that filled it.
+    const scanEvents = createScanEventReporter({
+      send: (path, options) => fetch(path, { credentials: "same-origin", cache: "no-store", ...options }),
+      token: storedCsrf
+    });
+
     const state = {
       stream: null, cameraStarting: false, resumeCameraOnVisible: false,
       rooms: [], capturing: false, photoProcessing: false, videoProcessing: false,
       liveCaptureUsed: false, fallbackCaptureUsed: false,
       privateRegions: [], privateRegionSource: null, lastRedaction: null,
+      startedAt: Date.now(), roomStartedAt: Date.now(),
       voiceOn: false, voiceUsed: false, roomTranscripts: new Map(), seconds: 0,
       voiceGeneration: 0,
       // Counters, not a log. Inference runs several times a second, so a line per
@@ -1121,6 +1129,10 @@ export function openRoomScan() {
     }
 
     function blockCamera(reason) {
+      // The single most useful device-compatibility signal there is, and one only
+      // the browser can see. The reason string is deliberately not sent — it is
+      // written for a person and can name a file the customer chose.
+      scanEvents.record("scan.camera.unavailable");
       el.blockedReason.textContent = reason;
       el.blocked.hidden = false;
       // The recovery card sits over the camera deck. Inert keeps the covered
@@ -1212,7 +1224,12 @@ export function openRoomScan() {
         summary: redactionSummary(mappedRegions),
         ratio: redactedAreaRatio(mappedRegions, { width: canvas.width, height: canvas.height })
       };
+      // A count, never what was hidden. "One person was blurred" is a statistic;
+      // "a person was blurred in the bedroom" is not.
+      scanEvents.record("scan.redaction.applied", { count: mappedRegions.length });
     }
+
+    scanEvents.record("scan.session.started");
 
     function drawVisibleRegion(source, sourceWidth, sourceHeight) {
       if (!sourceWidth || !sourceHeight) return null;
@@ -1674,6 +1691,15 @@ export function openRoomScan() {
       if (state.capturing || state.closed) return;
       if (state.voiceOn) stopVoice({ silent: true });
       setRoomTranscript(el.note.value);
+      // Emitted after the guards, so a double tap that returns early does not
+      // count a second room. Per room rather than per session, so "time to
+      // complete a room" is measured rather than inferred by dividing a session
+      // by a count.
+      scanEvents.record("scan.room.duration_ms", { durationMs: elapsedSince(state.roomStartedAt) ?? 0 });
+      scanEvents.record("scan.room.completed", {
+        dimensions: { deviceClass: state.liveCaptureUsed ? "guided-web" : state.fallbackCaptureUsed ? "camera-fallback" : "unknown" }
+      });
+      state.roomStartedAt = Date.now();
       // Claimed before the consent prompt is awaited, not after: otherwise a
       // second activation during that await would slip past — consent already
       // asked, reading not yet allowed — and save an empty room over this one.
@@ -1854,6 +1880,7 @@ export function openRoomScan() {
       // it is also the frame most likely to have contained somebody. Asking for
       // another is better than storing one whose useful content is gone.
       if (state.lastRedaction && state.lastRedaction.ratio > unusableRedactionRatio) {
+        scanEvents.record("scan.redaction.frame_rejected");
         return toast("Most of that photo was a person or a screen, so it was not kept. Point the camera at the room itself.");
       }
       freezeFrame(frame);
@@ -3185,6 +3212,10 @@ export function openRoomScan() {
       // done its job and should not survive to be offered again.
       forgetRoomNotes();
       const summary = scanSummary(state.rooms);
+      scanEvents.record("scan.session.duration_ms", { durationMs: elapsedSince(state.startedAt) ?? 0 });
+      // Flushed here rather than left to the timer: the overlay is about to be
+      // torn down and an unsent batch would simply vanish.
+      scanEvents.flush();
       // The camera has no further job once the rooms are gathered.
       stopCamera();
       close({
@@ -3279,6 +3310,17 @@ export function openRoomScan() {
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.body.style.overflow = previousOverflow;
       overlay.remove();
+      // After teardown, deliberately. Releasing the camera and microphone comes
+      // before reporting anything, and an abandoned scan is distinguished from a
+      // completed one by whether a result is being handed back. Drop-off is the
+      // funnel number the audit asked for and nothing the server sees can
+      // recover it.
+      if (!result) {
+        scanEvents.record("scan.session.abandoned", {
+          dimensions: { deviceClass: state.liveCaptureUsed ? "guided-web" : state.fallbackCaptureUsed ? "camera-fallback" : "unknown" }
+        });
+        scanEvents.flush();
+      }
       if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus({ preventScroll: true });
       resolve(result || null);
     }

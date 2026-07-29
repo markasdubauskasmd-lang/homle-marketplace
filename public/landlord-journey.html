@@ -116,6 +116,49 @@
         <p class="res-hero-note">Guide time comes from the work listed, not from measuring your home. Your cleaner confirms the final time.</p>
       </div>
 
+      <!-- Everything below appears only once the scan has been assessed. It is
+           hidden rather than empty, because a review panel with nothing in it
+           teaches people to scroll past the one place they are asked to check
+           what we got wrong. -->
+      <div class="scan-review" data-review hidden>
+        <div class="scan-review-level" data-review-level>
+          <b data-review-level-label>—</b>
+          <span data-review-level-scale>Level — of 5</span>
+          <p data-review-explanation></p>
+          <p class="hint" data-review-provisional hidden></p>
+        </div>
+
+        <div class="scan-review-estimate" data-review-estimate hidden>
+          <div class="scan-review-estimate-head">
+            <b data-review-price>—</b>
+            <span data-review-price-range></span>
+          </div>
+          <p class="hint">An estimate from what the scan found, not a quote. Your cleaner confirms the price before anything is booked, and nothing is charged now.</p>
+          <details data-review-breakdown-wrap>
+            <summary>How this was worked out</summary>
+            <ul class="scan-review-lines" data-review-breakdown></ul>
+            <p class="hint" data-review-rates></p>
+          </details>
+        </div>
+
+        <div class="scan-review-refusal" data-review-refusal hidden role="note">
+          <b>We are not going to guess a price for this</b>
+          <p data-review-refusal-reason></p>
+        </div>
+
+        <div class="scan-review-questions" data-review-questions hidden>
+          <h3 class="scan-review-h3">Can you check these?</h3>
+          <p class="hint">The scan was not sure, so it is asking rather than guessing. Answering makes the estimate tighter.</p>
+          <ul class="scan-review-question-list" data-review-question-list></ul>
+        </div>
+
+        <div class="scan-review-rooms" data-review-rooms>
+          <h3 class="scan-review-h3">What we found, room by room</h3>
+          <p class="hint">Tap anything we read wrong. Your corrections are what your cleaner is sent.</p>
+          <div data-review-room-list></div>
+        </div>
+      </div>
+
       <div class="field">
         <label for="tasks">Room checklist</label>
         <textarea class="inp" id="tasks" name="tasks" data-tasks rows="9" placeholder="Kitchen: degrease the worktops&#10;Bathroom: remove limescale from the shower screen"></textarea>

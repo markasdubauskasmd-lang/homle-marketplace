@@ -1,3 +1,4 @@
+import { scanRates } from "./scan-telemetry.mjs";
 import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 
@@ -92,6 +93,16 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const cleaningRequests = dependencies?.cleaningRequestService;
   const scans = dependencies?.scanService;
   const scanPricing = dependencies?.scanPricingService;
+  const scanTelemetry = dependencies?.scanTelemetry || null;
+  // Guarded at every call site. Telemetry observes the scanner; it is never a
+  // reason a request fails.
+  // Returns whether the event was actually counted, so the ingest route below can
+  // tell a client that a name it sent was rejected rather than letting it believe
+  // it is being measured.
+  const observeScan = (metric, extra) => {
+    try { return scanTelemetry?.record(metric, extra) === true; }
+    catch { return false; }
+  };
   const bookings = dependencies?.bookingWorkflowService;
   const matching = dependencies?.matchingService;
   const journeys = dependencies?.journeyService;
@@ -664,6 +675,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
           await limitPublicRead(request, "marketplace-landlord:room-reading");
           if (!roomVision) {
+            observeScan("scan.reading.unavailable");
             sendJson(response, 503, { ok: false, error: "Assisted room reading is not configured." });
             return true;
           }
@@ -685,8 +697,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             const result = selectedItems.length
               ? await roomVision.readSelectedItems({ image: body?.image, items: selectedItems, roomName: body?.roomName, transcript: body?.transcript })
               : await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript, purpose });
+            observeScan("scan.reading.succeeded", { dimensions: { outcome: "ok" } });
             sendJson(response, 200, { ok: true, ...result });
           } catch (error) {
+            // Bucketed by cause, so a provider outage and a malformed photograph
+            // are distinguishable without recording either.
+            observeScan("scan.reading.failed", {
+              dimensions: { outcome: error?.name === "AbortError" || error?.status === 408 ? "timeout" : "provider-error" }
+            });
             // The scan must never be blocked by the reader being unavailable.
             // Keep photographs and provider messages out of logs, but retain a
             // bounded diagnostic signature so a broken model call is visible.
@@ -713,6 +731,38 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         // How far the shadow estimate is currently missing. Administrator-only and
         // aggregate-only: an error distribution discloses nothing, a list of
         // requests and agreed prices is a list of what customers paid.
+        // The browser reports what only it can see: a denied camera, an
+        // unavailable detector, a redaction, an abandoned scan. Every name and
+        // every label is checked against the allowlist in scan-telemetry.mjs
+        // before it is counted, so this cannot become a channel for arbitrary
+        // strings — which is exactly what it would be if it accepted free text.
+        if (pathname === "/api/marketplace/landlord/scan-events") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const body = await readJsonObject(request);
+          const submitted = Array.isArray(body?.events) ? body.events.slice(0, 40) : [];
+          let accepted = 0;
+          for (const event of submitted) {
+            if (observeScan(String(event?.metric || ""), {
+              count: event?.count, durationMs: event?.durationMs, dimensions: event?.dimensions
+            })) accepted += 1;
+          }
+          // The count is returned so a client can tell that an event name it sent
+          // was rejected, rather than silently believing it is being measured.
+          sendJson(response, 200, { ok: true, accepted });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/scan-telemetry") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          await security.protect(request, { roles: ["administrator"] });
+          if (!scanTelemetry) {
+            sendJson(response, 503, { ok: false, error: "Scan telemetry is not configured." });
+            return true;
+          }
+          const snapshot = scanTelemetry.snapshot();
+          sendJson(response, 200, { ok: true, snapshot, rates: scanRates(snapshot) });
+          return true;
+        }
         if (pathname === "/api/marketplace/admin/pricing/scan-shadow-report") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { roles: ["administrator"] });
@@ -736,6 +786,18 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             return true;
           }
           return methodNotAllowed(response, ["GET", "POST"]), true;
+        }
+        // Assesses a scan the customer is still holding. Stores nothing, so it is
+        // rate-limited against the read allowance rather than treated as a write:
+        // it costs CPU and a rates lookup, and a replayed session should not be
+        // able to spend either without bound.
+        if (pathname === "/api/marketplace/landlord/scan-preview") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          await limitPublicRead(request, "marketplace-landlord:scan-preview");
+          const body = await readJsonObject(request, maximumRoomScanBodyBytes);
+          sendJson(response, 200, { ok: true, scan: await scans.previewScan(context.actor, body) });
+          return true;
         }
         if (pathname === "/api/marketplace/landlord/favourite-cleaners") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;

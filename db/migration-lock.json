@@ -381,6 +381,11 @@
       "order": 76,
       "file": "076_scan_estimate_observations.sql",
       "sha256": "7f10a2a9e4ca7ed05390dd9baf1b83e103dc0f3bb46d282af7bf745089878f18"
+    },
+    {
+      "order": 77,
+      "file": "077_scan_preview_rate_limit.sql",
+      "sha256": "b9f89b5a78d204889889d8b657a66591c9952b91cfcd8007bf471a97cae257bf"
     }
   ],
   "grantFiles": [
