@@ -608,7 +608,36 @@ Android including one 4-year-old device. Consented and PII-stripped.
 
 ---
 
-## 11. Decision required before Phase 5
+## 11. Decision taken: web application only
+
+**Decided 29 July 2026: no native iOS or Android applications.**
+
+The consequences, so they are not rediscovered later as surprises:
+
+- Tier A (`sensor-measured`) is **out of scope**. RoomPlan, ARKit, RealityKit
+  and ARCore Depth are unreachable from a web page, and iOS Safari has no WebXR
+  AR session at all.
+- Phase 5 delivers **guided multi-frame estimation only**. Every measurement is
+  labelled `ai-estimated` with an honest band, or `user-confirmed` once the
+  customer corrects it. No measurement will ever be presented as exact.
+- No floor plan of usable quality and no 3D preview. Both move from
+  "Recommended" to "Not planned" in §8 unless the decision is revisited.
+- Everything through Phase 4 — the structured scan, the complexity model, the
+  voice classification, the pricing engine, the cleaner checklist — is
+  unaffected. That is where most of the business value is, and it ships
+  continuously with no store review in the way.
+- The PWA remains the install path (`public/site.webmanifest` already ships a
+  "Scan rooms" shortcut).
+
+No Swift or Kotlin is to be written under this decision. If measurement
+accuracy later proves to be the binding constraint on pricing honestly, that is
+the signal to revisit it — and the data model in §6 is deliberately
+tier-agnostic so a native path could be added later without reshaping storage.
+
+The original framing of the decision is kept below, because the trade-off it
+records is what a future revisit would need.
+
+### The decision as it stood
 
 **Do we ship native iOS and Android applications?**
 

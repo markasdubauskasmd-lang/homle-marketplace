@@ -457,6 +457,7 @@ export function openRoomScan() {
     const state = {
       stream: null, cameraStarting: false, resumeCameraOnVisible: false,
       rooms: [], capturing: false, photoProcessing: false, videoProcessing: false,
+      liveCaptureUsed: false, fallbackCaptureUsed: false,
       voiceOn: false, voiceUsed: false, roomTranscripts: new Map(), seconds: 0,
       voiceGeneration: 0,
       // Counters, not a log. Inference runs several times a second, so a line per
@@ -1385,10 +1386,17 @@ export function openRoomScan() {
     // Freezing before anything is chosen is what makes the crops trustworthy: a
     // box picked on a live feed would be cut from whatever the phone had moved
     // on to by the time the request was built.
-    function freezeFrame(frame, { preselect = "" } = {}) {
+    //
+    // `live` records which capture path produced the frame. A live viewfinder
+    // gets detection, tracking, quality gating and movement guidance; a photo
+    // chosen from the phone's own camera gets none of them. Reporting the two
+    // as one device class would average their accuracy together and hide the
+    // gap, which is the opposite of what the stored scan is for.
+    function freezeFrame(frame, { preselect = "", live = true } = {}) {
       // A live capture or a phone photo is a fresh frame, not an edit of a stored
       // one, so its save must read. Only openRevisit marks a frame as an edit.
       state.revisiting = false;
+      if (live) state.liveCaptureUsed = true; else state.fallbackCaptureUsed = true;
       state.frozen = true;
       state.frozenFrame = frame;
       stopDetection();
@@ -1808,7 +1816,7 @@ export function openRoomScan() {
         // A photo chosen from the phone's own camera never had a live
         // viewfinder, so there are no detected boxes to start from — but it can
         // still be marked up by hand before it is read.
-        freezeFrame(frame);
+        freezeFrame(frame, { live: false });
       } catch (error) {
         if (session === state.roomSession) blockCamera(error?.message || "That room photo could not be opened. Try another one.");
       } finally {
@@ -3080,8 +3088,39 @@ export function openRoomScan() {
           name: room.name,
           condition: room.condition,
           fixtures: (room.detections || []).map(inventoryDisplayLabel),
-          note: String(room.transcript || "").trim()
+          note: String(room.transcript || "").trim(),
+          // The structured reading, not just its display label.
+          //
+          // `fixtures` is what the journey has always shown: "3 × Chair". It is
+          // a rendering, and it was also, until now, the only thing that
+          // survived this boundary — the per-item condition, the soiling type,
+          // the two confidence scores and the evidence were all discarded when
+          // this overlay closed. Everything downstream that needs to explain a
+          // price, or improve on one, needs the reading rather than the caption.
+          //
+          // Geometry is deliberately left behind. The boxes describe one frame
+          // of one camera pose and mean nothing outside it, and shipping
+          // coordinates that cannot be verified later invites drawing them over
+          // the wrong thing.
+          objects: (room.detections || []).map((detection) => ({
+            inventoryKey: detection.inventoryKey || inventoryKey(detection.label),
+            label: detection.label,
+            quantity: itemQuantity(detection),
+            condition: detection.condition || "",
+            soiling: Array.isArray(detection.soiling) ? [...detection.soiling] : [],
+            confidenceLabel: Number(detection.confidence) || 0,
+            confidenceCondition: Number(detection.conditionConfidence) || 0,
+            conditionConfirmed: detection.conditionConfirmed === true,
+            evidence: String(detection.note || "").trim(),
+            // Hand-marked items reach the reader with no name and are the ones
+            // a correction rate should never be measured against.
+            origin: detection.conditionConfirmed === true ? "manual" : detection.condition ? "vision" : "detector"
+          }))
         })),
+        // Which capture path produced this scan. The live viewfinder and the
+        // native camera-roll fallback do not see equally well, and averaging
+        // their accuracy into one number would hide that.
+        deviceClass: state.liveCaptureUsed ? "guided-web" : state.fallbackCaptureUsed ? "camera-fallback" : "unknown",
         guideTime: summary.durationLabel,
         capturedAt: new Date().toISOString()
       });

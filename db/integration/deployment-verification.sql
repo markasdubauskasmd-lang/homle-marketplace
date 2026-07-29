@@ -30,6 +30,7 @@ DECLARE
   bookings_cleaning_request_index_installed boolean := false;
   payment_and_directory_indexes_installed boolean := false;
   account_notification_realtime_installed boolean := false;
+  structured_room_scans_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -223,6 +224,8 @@ BEGIN
       INTO payment_and_directory_indexes_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 72)'
       INTO account_notification_realtime_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 73)'
+      INTO structured_room_scans_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -246,6 +249,7 @@ BEGIN
     minimum_contribution_migration_installed := to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL;
     public_cleaner_lookup_migration_installed := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)') IS NOT NULL;
     account_notification_realtime_installed := to_regprocedure('tideway_private.emit_account_notification_realtime_event()') IS NOT NULL;
+    structured_room_scans_installed := to_regclass('public.room_scan_sessions') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
@@ -426,6 +430,70 @@ BEGIN
       OR position('NEW.recipient_user_id' IN COALESCE(selected_source,''))=0
       OR position('NEW.id' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'The account notification real-time trigger leaks payload data or does not emit the privacy-minimal account wake-up';
+    END IF;
+  END IF;
+  IF structured_room_scans_installed THEN
+    -- A structured scan describes the inside of a customer's home. Its entire
+    -- participant boundary is the SECURITY DEFINER projection, so a deployment
+    -- where the runtime role can read the tables directly has no boundary at
+    -- all — the RLS policies would be the only thing left, and they were never
+    -- meant to carry that weight alone.
+    IF has_table_privilege('tideway_app','public.room_scan_sessions','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scans','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scan_object_corrections','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','INSERT')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','UPDATE')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','DELETE') THEN
+      RAISE EXCEPTION 'The runtime role can read or write structured room scans directly, bypassing the participant-aware projection';
+    END IF;
+    IF has_table_privilege('tideway_app','public.room_scan_model_versions','INSERT')
+      OR has_table_privilege('tideway_app','public.room_scan_model_versions','UPDATE')
+      OR has_table_privilege('tideway_app','public.room_scan_model_versions','DELETE') THEN
+      RAISE EXCEPTION 'The runtime role can write model attribution directly, so a stored scan cannot be trusted to name the model that read it';
+    END IF;
+    FOR selected_source IN SELECT unnest(ARRAY[
+      'tideway_private.record_room_scan(uuid,uuid,text,timestamp with time zone,jsonb,text,text,text,smallint)',
+      'tideway_private.get_room_scan(uuid)',
+      'tideway_private.correct_room_scan_object(uuid,text,text,boolean)',
+      'tideway_private.delete_room_scan(uuid)'
+    ]) LOOP
+      selected_function := to_regprocedure(selected_source);
+      IF selected_function IS NULL
+        OR NOT EXISTS (
+          SELECT 1 FROM pg_proc procedure
+          WHERE procedure.oid=selected_function
+            AND procedure.prosecdef
+            AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+        )
+        OR has_function_privilege('public', selected_function, 'EXECUTE') THEN
+        RAISE EXCEPTION 'The room-scan function % is missing, not SECURITY DEFINER with a pinned search_path, or executable by PUBLIC', selected_source;
+      END IF;
+      IF NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE') THEN
+        RAISE EXCEPTION 'The runtime role cannot execute the room-scan function %, so the structured scan is unreachable', selected_source;
+      END IF;
+    END LOOP;
+    -- The read must apply the same participant rule as the photo projection it
+    -- sits beside. Two access rules meant to agree drift apart precisely when
+    -- nothing checks that they still do.
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.get_room_scan(uuid)');
+    IF position('cleaner_preview_authorized' IN COALESCE(selected_source,''))=0
+      OR position('pending-cleaner-acceptance' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'The structured room-scan read does not enforce the Cleaner preview-consent boundary';
+    END IF;
+    -- One scan per request. Without this, a retried save writes a second scan
+    -- and every object count downstream doubles.
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint constraint_entry
+      WHERE constraint_entry.conrelid='public.room_scan_sessions'::regclass
+        AND constraint_entry.contype='u'
+        AND array_length(constraint_entry.conkey,1)=1
+        AND constraint_entry.conkey[1]=(
+          SELECT attribute.attnum FROM pg_attribute attribute
+          WHERE attribute.attrelid='public.room_scan_sessions'::regclass AND attribute.attname='cleaning_request_id')
+    ) THEN
+      RAISE EXCEPTION 'room_scan_sessions does not restrict a cleaning request to one structured scan, so a retried save can duplicate every room';
     END IF;
   END IF;
   IF bookings_cleaning_request_index_installed THEN

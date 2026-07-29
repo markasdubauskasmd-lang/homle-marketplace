@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 72);
-  assert.equal(repositoryResult.migrations.at(-1), "072_account_notification_realtime_events.sql");
+  assert.equal(repositoryResult.migrations.length, 73);
+  assert.equal(repositoryResult.migrations.at(-1), "073_structured_room_scans.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
@@ -71,6 +71,14 @@ try {
   // correction cannot be lost again.
   assert(t71Payment(deploymentVerifier) && t71Directory(deploymentVerifier), "Migration-71 verification must prove the Administrator payment page and the unauthenticated Cleaner directory both have an index that their query shape can actually use.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 72\)'/, "Deployment verification must detect account notification real-time signals dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 73\)'/, "Deployment verification must detect the structured room-scan migration dynamically.");
+  // The structured scan's only participant boundary is the SECURITY DEFINER
+  // projection. A deployment that grants the runtime role direct table access
+  // has no boundary left, so the check has to run on every deployment rather
+  // than once in CI.
+  assert(deploymentVerifier.includes("bypassing the participant-aware projection") && deploymentVerifier.includes("room_scan_object_corrections"), "Migration-73 verification must prove the runtime role cannot reach structured room scans directly.");
+  assert(deploymentVerifier.includes("does not enforce the Cleaner preview-consent boundary"), "Migration-73 verification must prove the structured scan read applies the same Cleaner preview rule as the photo projection.");
+  assert(deploymentVerifier.includes("one structured scan, so a retried save can duplicate every room"), "Migration-73 verification must prove a cleaning request cannot carry two structured scans.");
   assert(deploymentVerifier.includes("The account notification real-time trigger is missing or unsafe") && deploymentVerifier.includes("account_notification_realtime_after_insert"), "Migration-72 verification must prove the notification trigger is commit-bound, internal-only and safe.");
   assert(deploymentVerifier.includes("A fully manual fresh install has no private migration ledger") && deploymentVerifier.includes("activate_my_workspace(user_role)") && deploymentVerifier.includes("recommend_cleaners_for_request_v2(uuid,integer)") && deploymentVerifier.includes("position('avatar_url' IN pg_get_function_result(procedure.oid))") && deploymentVerifier.includes("get_public_cleaner_profile(uuid)') IS NOT NULL"), "A ledger-free fresh install can still be mistaken for the historical migration-45 baseline instead of detecting its actual schema level.");
   const migration48VerificationStart = deploymentVerifier.indexOf("IF latest_migration_installed THEN");

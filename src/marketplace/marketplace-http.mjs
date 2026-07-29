@@ -1,4 +1,4 @@
-import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes } from "./http-support.mjs";
+import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
@@ -11,6 +11,11 @@ const requestAutomaticDispatchPath = new RegExp(`^/api/marketplace/cleaning-requ
 const requestSubmissionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/submit$`);
 const requestWithdrawalPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/withdraw$`);
 const requestScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/scan$`);
+// The structured scan lives beside the photo metadata rather than replacing
+// it: `/scan` reports which private images exist, `/room-scan` reports what
+// was actually seen in them.
+const requestRoomScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan$`);
+const requestRoomScanObjectPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan/objects/(${uuidPattern})$`);
 const requestPhotoIntentPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/intents$`);
 const requestPhotoCompletionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/complete$`);
 const requestPhotoAccessPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/access$`);
@@ -84,6 +89,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const cleaners = dependencies?.cleanerProfileService;
   const favouriteCleaners = dependencies?.favouriteCleanerService;
   const cleaningRequests = dependencies?.cleaningRequestService;
+  const scans = dependencies?.scanService;
   const bookings = dependencies?.bookingWorkflowService;
   const matching = dependencies?.matchingService;
   const journeys = dependencies?.journeyService;
@@ -371,6 +377,38 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const withdrawal = await cleaningRequests.withdrawOwnRequest(context.actor, selectedRequestWithdrawal[1], await readJsonObject(request));
           sendJson(response, 200, { ok: true, withdrawal });
           return true;
+        }
+        const selectedRoomScanObject = pathname.match(requestRoomScanObjectPath);
+        if (selectedRoomScanObject) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const correction = await scans.correctOwnObject(context.actor, selectedRoomScanObject[2], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, correction });
+          return true;
+        }
+        const selectedRoomScan = pathname.match(requestRoomScanPath);
+        if (selectedRoomScan) {
+          // GET is participant-aware and deliberately not landlord-only: an
+          // assigned Cleaner reads the same projection to build their checklist,
+          // and the reviewed database function decides who that is.
+          if (request.method === "GET") {
+            const context = await security.protect(request);
+            sendJson(response, 200, { ok: true, scan: await scans.getScan(context.actor, selectedRoomScan[1]) });
+            return true;
+          }
+          if (request.method === "PUT") {
+            const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+            const body = await readJsonObject(request, maximumRoomScanBodyBytes);
+            const scan = await scans.recordOwnScan(context.actor, { ...body, cleaningRequestId: selectedRoomScan[1] });
+            sendJson(response, 200, { ok: true, scan });
+            return true;
+          }
+          if (request.method === "DELETE") {
+            const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+            sendJson(response, 200, { ok: true, ...await scans.deleteOwnScan(context.actor, selectedRoomScan[1]) });
+            return true;
+          }
+          return methodNotAllowed(response, ["GET", "PUT", "DELETE"]), true;
         }
         const selectedRequestScan = pathname.match(requestScanPath);
         if (selectedRequestScan) {

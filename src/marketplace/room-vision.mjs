@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { itemConditions, soilingKinds } from "./room-condition-vocabulary.mjs";
 
 // Reads one captured room photo and returns what is actually visible in it:
 // fixtures with their position in the frame, the condition, and the cleaning
@@ -12,6 +13,12 @@ import Anthropic from "@anthropic-ai/sdk";
 const maximumImageBytes = 4 * 1024 * 1024;
 const maximumDetections = 12;
 const maximumTasks = 8;
+
+// Bumped whenever the reading schema or the condition scale changes meaning.
+// A stored scan records it alongside the model id, because "medium" graded
+// under a different scale is not the same observation even from the same model,
+// and comparing the two as if they were would corrupt any accuracy measurement.
+export const readingSchemaVersion = 1;
 
 const readingSchema = Object.freeze({
   type: "object",
@@ -124,13 +131,11 @@ function boundedText(value, limit) {
 // Anything the model returns outside the enum becomes "" — no assessment — rather
 // than being coerced to a grade. A guess presented as a grade changes what a
 // customer is charged.
-const itemConditions = Object.freeze(["clean", "light", "medium", "heavy"]);
 function itemCondition(value) {
   const supplied = String(value || "").toLowerCase().trim();
   return itemConditions.includes(supplied) ? supplied : "";
 }
 
-const soilingKinds = Object.freeze(["dust", "grease", "limescale", "stain", "mould", "soap-scum", "food-debris", "pet-hair", "damage", "clutter"]);
 function soilingTypes(value) {
   const supplied = Array.isArray(value) ? value : [];
   const kept = [];
@@ -354,6 +359,12 @@ export function createAnthropicRoomVision(options = {}) {
 
   return Object.freeze({
     provider: "anthropic",
+    // Which model answered which read, so a stored scan can name what produced
+    // it. Without this a regression is unattributable: two scans graded
+    // differently by two model tiers are indistinguishable after the fact, and
+    // a rollback has nothing to roll back to.
+    models: Object.freeze({ walking: model, confirmation: confirmationModel }),
+    schemaVersion: readingSchemaVersion,
     // `purpose` decides the tier. A confirmation where the customer tapped nothing
     // still comes through here, which is why the split cannot key off the method:
     // that read sets the price and would silently get the cheap model.

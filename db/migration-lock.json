@@ -361,12 +361,17 @@
       "order": 72,
       "file": "072_account_notification_realtime_events.sql",
       "sha256": "83f6b15726a8a9f1940a66644f6d1ae51ecabb3a6d3610aa735ced10968547bf"
+    },
+    {
+      "order": 73,
+      "file": "073_structured_room_scans.sql",
+      "sha256": "26f41421d61ec9e13d33aff1af1362ffe1af73abd4db65987898e20ca4a26efc"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "3e0b561573083a83fa8302b23e65f1953a3b83cb49fe63e6c5a4814f8e8604e2"
+      "sha256": "00edb14ac16d550ad962d6e1ac42b267717c38efa5082de508173b349756c35b"
     },
     {
       "file": "worker-role-grants.sql",
