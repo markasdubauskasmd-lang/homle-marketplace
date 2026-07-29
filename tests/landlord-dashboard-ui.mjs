@@ -138,4 +138,17 @@ assert(page.includes("workspace-brand-copy") && page.includes("landlord-sidebar-
 assert(designStyles.includes("grid-template-columns: minmax(0, 1fr) 180px") && designStyles.includes("landlordPhoneScan") && designStyles.includes("@media (max-width: 700px)") && designStyles.includes("overflow-x: auto"), "The reference dashboard styling lost its desktop scan composition or mobile adaptation.");
 assert(designStyles.includes("grid-template-areas: none") && designStyles.includes(".landlord-dashboard-identity > .role-dashboard-welcome { grid-area: auto; }") && designStyles.includes("color: var(--ld-ink)") && designStyles.includes("background: none") && designStyles.includes(".landlord-dashboard-identity .role-dashboard-welcome > p:last-child { color: #755548; }"), "Older shared dashboard grid or colour rules can still displace or wash out the approved Landlord welcome header.");
 
+
+/* ── Spoken restrictions are named, not blended into the checklist ─────── */
+
+// "Do not move the paperwork" is not work to do. A Landlord who cannot see that
+// it was understood as a restriction has no way to check that it was, and the
+// cleaner inherits the ambiguity.
+assert(script.includes("Array.isArray(result?.instructions)"),
+  "The walkthrough response's structured instructions are ignored.");
+assert(script.includes('["restriction", "safety"]'),
+  "Restrictions and safety warnings are not counted separately from tasks.");
+assert(script.includes("do-not") && script.includes("safety ${entry.count === 1"),
+  "The walkthrough status does not tell the Landlord that restrictions were understood as restrictions.");
+
 console.log("Landlord dashboard UI tests passed: simplified navigation, selected-Cleaner continuation, voice-first scope, grouped bullet review, accessible fallbacks, owner APIs, direct room-scan continuation, safe rendering and mobile accessibility.");

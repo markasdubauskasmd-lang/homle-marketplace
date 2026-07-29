@@ -91,6 +91,16 @@ const state = {
   signedIn: false,
   properties: [],
   scanPhotos: [],
+  // The structured reading — per-object condition, soiling, confidence and
+  // evidence — held in memory only, exactly like the photographs beside it.
+  // saveDraft() serialises `state.draft` into sessionStorage, and a description
+  // of the inside of someone's home does not belong there before the
+  // authenticated private draft exists to receive it.
+  scanRooms: [],
+  scanDeviceClass: "unknown",
+  // Stable across retries so a save that timed out and is tried again is
+  // absorbed by the server rather than recorded twice.
+  scanSessionId: "",
   draft: {
     postcode: "",
     outward: "",
@@ -213,6 +223,7 @@ function adoptScan() {
   state.draft.rooms = Array.isArray(scan?.rooms) ? scan.rooms : [];
   state.draft.guideTime = typeof scan?.guideTime === "string" ? scan.guideTime : "";
   state.scanPhotos = [];
+  state.scanRooms = [];
   state.draft.durationMinutes = suggestedDurationMinutes(tasks);
   state.step = "results";
   return true;
@@ -344,6 +355,8 @@ el.scanLink.addEventListener("click", async () => {
     state.draft.rooms = Array.isArray(result.rooms) ? result.rooms : [];
     state.draft.guideTime = typeof result.guideTime === "string" ? result.guideTime : "";
     state.scanPhotos = Array.isArray(result.photos) ? result.photos : [];
+    state.scanRooms = Array.isArray(result.rooms) ? result.rooms : [];
+    state.scanDeviceClass = typeof result.deviceClass === "string" ? result.deviceClass : "unknown";
     state.draft.durationMinutes = suggestedDurationMinutes(state.draft.tasks);
     saveDraft();
     show("results");
@@ -674,6 +687,46 @@ async function createOrRecoverRequest(csrf, propertyId) {
   }
 }
 
+// Saves what the scan actually saw, against the private draft that now exists
+// to hold it.
+//
+// Deliberately best-effort. This is an observation record: it explains a scan,
+// and from Phase 6 it will inform a price, but a booking must not fail because
+// a description of a worktop could not be stored. A failure leaves the reading
+// in memory, keeps the journey moving, and is reported rather than swallowed —
+// silent loss here is the exact failure this whole change exists to end.
+async function saveStructuredScan(csrf, requestId) {
+  const rooms = state.scanRooms
+    .filter((room) => room && String(room.name || "").trim())
+    .map((room) => ({
+      roomName: room.name,
+      condition: room.condition || "",
+      note: room.note || "",
+      objects: Array.isArray(room.objects) ? room.objects : []
+    }));
+  if (!rooms.length) return false;
+  if (!state.scanSessionId) state.scanSessionId = randomId();
+  try {
+    await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/room-scan`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({
+        sessionId: state.scanSessionId,
+        deviceClass: state.scanDeviceClass || "unknown",
+        capturedAt: new Date().toISOString(),
+        rooms
+      })
+    });
+    return true;
+  } catch (error) {
+    console.warn("[room-scan] the structured reading could not be saved", {
+      code: String(error?.code || "unknown").slice(0, 40),
+      status: Number.isInteger(error?.statusCode) ? error.statusCode : null
+    });
+    return false;
+  }
+}
+
 async function uploadRoomPhotos(csrf, requestId) {
   const existing = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/scan`);
   const attachedRooms = new Set((existing.scan?.photos || []).map((photo) => String(photo.roomName || "").trim().toLowerCase()));
@@ -842,6 +895,11 @@ async function confirmJourney() {
     const propertyId = await createOrRecoverProperty(csrf);
     el.checkoutState.textContent = "Saving the private request…";
     const request = await createOrRecoverRequest(csrf, propertyId);
+    // Before the photo upload and the submission, because the recording
+    // function accepts a scan only while the request is still a draft — after
+    // submission the scope is frozen and a Cleaner may already have accepted
+    // work against it.
+    await saveStructuredScan(csrf, request.requestId);
     let submitted = false;
     let invitation = { invited: false, reason: "" };
     if (state.capabilities.mediaReady && state.scanPhotos.length) {
@@ -862,6 +920,7 @@ async function confirmJourney() {
     state.draft.requestId = "";
     state.draft.propertyDraftId = "";
     state.scanPhotos = [];
+    state.scanRooms = [];
     el.doneTitle.textContent = invitation.invited ? "Your Cleaner has been invited." : submitted ? "Your request is ready for matching." : "Your private draft is saved.";
     el.doneBody.textContent = invitation.reason || (submitted
       ? "The reviewed room photos and checklist are saved. A booking exists only after an eligible Cleaner accepts the exact time, work and price. No payment was taken."

@@ -361,12 +361,27 @@
       "order": 72,
       "file": "072_account_notification_realtime_events.sql",
       "sha256": "83f6b15726a8a9f1940a66644f6d1ae51ecabb3a6d3610aa735ced10968547bf"
+    },
+    {
+      "order": 73,
+      "file": "073_structured_room_scans.sql",
+      "sha256": "83617dce614cee47da314d9d95e0ab458b5436a4b4c182d2a0c7048bf2c41001"
+    },
+    {
+      "order": 74,
+      "file": "074_room_scan_measurements.sql",
+      "sha256": "2a46c5f8018085e2d5cd64ab1dc324a921abc02b7f266d5259b18a6d80f4d4d9"
+    },
+    {
+      "order": 75,
+      "file": "075_scan_pricing_rulesets.sql",
+      "sha256": "f9dcc3dee5c2eab09566bfa08485c179d0417030a1edfa5b6c0daf18d45ddf65"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "3e0b561573083a83fa8302b23e65f1953a3b83cb49fe63e6c5a4814f8e8604e2"
+      "sha256": "e05a12a299caf8a70ab93d1d5ba9583bb574de5f0a63d6ab313fc00b2030233e"
     },
     {
       "file": "worker-role-grants.sql",

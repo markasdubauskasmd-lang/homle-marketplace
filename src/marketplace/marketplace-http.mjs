@@ -1,4 +1,4 @@
-import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes } from "./http-support.mjs";
+import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
@@ -11,6 +11,12 @@ const requestAutomaticDispatchPath = new RegExp(`^/api/marketplace/cleaning-requ
 const requestSubmissionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/submit$`);
 const requestWithdrawalPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/withdraw$`);
 const requestScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/scan$`);
+// The structured scan lives beside the photo metadata rather than replacing
+// it: `/scan` reports which private images exist, `/room-scan` reports what
+// was actually seen in them.
+const requestRoomScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan$`);
+const requestRoomScanObjectPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan/objects/(${uuidPattern})$`);
+const requestRoomScanMeasurementPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan/rooms/(${uuidPattern})/measurements$`);
 const requestPhotoIntentPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/intents$`);
 const requestPhotoCompletionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/complete$`);
 const requestPhotoAccessPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/access$`);
@@ -84,6 +90,8 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const cleaners = dependencies?.cleanerProfileService;
   const favouriteCleaners = dependencies?.favouriteCleanerService;
   const cleaningRequests = dependencies?.cleaningRequestService;
+  const scans = dependencies?.scanService;
+  const scanPricing = dependencies?.scanPricingService;
   const bookings = dependencies?.bookingWorkflowService;
   const matching = dependencies?.matchingService;
   const journeys = dependencies?.journeyService;
@@ -372,6 +380,46 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, withdrawal });
           return true;
         }
+        const selectedRoomScanMeasurement = pathname.match(requestRoomScanMeasurementPath);
+        if (selectedRoomScanMeasurement) {
+          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const stored = await scans.recordOwnMeasurements(context.actor, selectedRoomScanMeasurement[2], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, ...stored });
+          return true;
+        }
+        const selectedRoomScanObject = pathname.match(requestRoomScanObjectPath);
+        if (selectedRoomScanObject) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const correction = await scans.correctOwnObject(context.actor, selectedRoomScanObject[2], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, correction });
+          return true;
+        }
+        const selectedRoomScan = pathname.match(requestRoomScanPath);
+        if (selectedRoomScan) {
+          if (request.method === "GET") {
+            // Structured scan observations and pricing are a Landlord/Admin
+            // review surface. Cleaner scope continues through the existing,
+            // separately reviewed request-media/checklist projection.
+            const context = await security.protect(request, { roles: ["landlord", "administrator"] });
+            sendJson(response, 200, { ok: true, scan: await scans.getScan(context.actor, selectedRoomScan[1]) });
+            return true;
+          }
+          if (request.method === "PUT") {
+            const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+            const body = await readJsonObject(request, maximumRoomScanBodyBytes);
+            const scan = await scans.recordOwnScan(context.actor, { ...body, cleaningRequestId: selectedRoomScan[1] });
+            sendJson(response, 200, { ok: true, scan });
+            return true;
+          }
+          if (request.method === "DELETE") {
+            const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+            sendJson(response, 200, { ok: true, ...await scans.deleteOwnScan(context.actor, selectedRoomScan[1]) });
+            return true;
+          }
+          return methodNotAllowed(response, ["GET", "PUT", "DELETE"]), true;
+        }
         const selectedRequestScan = pathname.match(requestScanPath);
         if (selectedRequestScan) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
@@ -593,7 +641,15 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           }
           const body = await readJsonObject(request);
           try {
-            sendJson(response, 200, { ok: true, tasks: await speechSummary.summarise(body?.transcript) });
+            // One provider call, two views of the same reading. `tasks` is
+            // exactly what this route has always returned, so nothing that
+            // consumes it changes. `instructions` classifies each entry, so a
+            // restriction like "do not move the paperwork" can be shown as a
+            // restriction rather than as another line on a to-do list.
+            const detailed = typeof speechSummary.summariseDetailed === "function"
+              ? await speechSummary.summariseDetailed(body?.transcript)
+              : { tasks: await speechSummary.summarise(body?.transcript), instructions: [] };
+            sendJson(response, 200, { ok: true, tasks: detailed.tasks, instructions: detailed.instructions });
           } catch (error) {
             // The provider being unavailable must never block the walkthrough,
             // and its internal error text is never surfaced to the Landlord.
@@ -642,6 +698,34 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             sendJson(response, 502, { ok: false, error: "This room could not be read automatically." });
           }
           return true;
+        }
+        // The rules a customer's estimate was built from. Readable by any
+        // authenticated account on purpose: someone quoted a number is entitled
+        // to see the rates behind it, and the row holds no personal data.
+        if (pathname === "/api/marketplace/pricing/scan-ruleset") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          sendJson(response, 200, { ok: true, ruleset: await scanPricing.getActiveRuleset(context.actor, url.searchParams.get("rulesetId")) });
+          return true;
+        }
+        // Changing these numbers changes what every customer is charged, so it
+        // is Administrator-only, append-only and audited at the database.
+        if (pathname === "/api/marketplace/admin/pricing/scan-ruleset") {
+          const context = await security.protect(request, { mutation: request.method !== "GET", roles: ["administrator"] });
+          if (request.method === "GET") {
+            sendJson(response, 200, {
+              ok: true,
+              ruleset: await scanPricing.getActiveRuleset(context.actor, url.searchParams.get("rulesetId")),
+              history: await scanPricing.listRulesets(context.actor, url.searchParams.get("rulesetId"), url.searchParams.get("limit"))
+            });
+            return true;
+          }
+          if (request.method === "POST") {
+            const body = await readJsonObject(request);
+            sendJson(response, 200, { ok: true, ruleset: await scanPricing.publishRuleset(context.actor, body?.rulesetId, body) });
+            return true;
+          }
+          return methodNotAllowed(response, ["GET", "POST"]), true;
         }
         if (pathname === "/api/marketplace/landlord/favourite-cleaners") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;

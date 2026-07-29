@@ -54,6 +54,14 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_request_photo_upload_for_completio
 GRANT EXECUTE ON FUNCTION tideway_private.reject_request_photo_upload(uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.complete_request_photo_upload(uuid,integer,text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_request_scan(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_room_scan(uuid,uuid,text,timestamptz,jsonb,text,text,text,smallint) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_room_scan(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.correct_room_scan_object(uuid,text,text,boolean) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.delete_room_scan(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_room_scan_measurements(uuid,jsonb) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_active_scan_pricing_ruleset(text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.publish_scan_pricing_ruleset(text,jsonb,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_scan_pricing_rulesets(text,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_request_photo_object(uuid,uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.submit_cleaning_request(uuid,boolean,boolean) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.withdraw_cleaning_request(uuid,text) TO tideway_app;
@@ -149,5 +157,17 @@ REVOKE DELETE ON sessions FROM tideway_app;
 -- Submitted requests may be created directly under owner RLS, but dispatch consent and lifecycle changes are function-only.
 REVOKE UPDATE, DELETE ON cleaning_requests FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaning_request_photos, cleaning_request_photo_uploads FROM tideway_app;
+-- A structured scan is a description of the inside of someone's home. It is
+-- reachable only through the participant-aware projections above, so no future
+-- direct query can widen the audience by accident. The model-version table is
+-- readable because attributing a reading to a model discloses nothing about a
+-- customer, and the projection needs it to report which model produced a scan.
+REVOKE SELECT, INSERT, UPDATE, DELETE ON room_scan_sessions, room_scans, room_scan_objects, room_scan_object_corrections FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON room_scan_measurements FROM tideway_app;
+-- These numbers decide what customers are charged, and the table is append-only
+-- so an estimate can always be recomputed from the rules that produced it. A
+-- direct UPDATE would silently rewrite the past.
+REVOKE SELECT, INSERT, UPDATE, DELETE ON scan_pricing_rulesets FROM tideway_app;
+REVOKE INSERT, UPDATE, DELETE ON room_scan_model_versions FROM tideway_app;
 
 COMMIT;

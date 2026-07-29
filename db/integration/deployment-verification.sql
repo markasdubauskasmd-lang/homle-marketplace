@@ -30,6 +30,8 @@ DECLARE
   bookings_cleaning_request_index_installed boolean := false;
   payment_and_directory_indexes_installed boolean := false;
   account_notification_realtime_installed boolean := false;
+  structured_room_scans_installed boolean := false;
+  room_measurements_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -223,6 +225,10 @@ BEGIN
       INTO payment_and_directory_indexes_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 72)'
       INTO account_notification_realtime_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 73)'
+      INTO structured_room_scans_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 74)'
+      INTO room_measurements_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -246,6 +252,8 @@ BEGIN
     minimum_contribution_migration_installed := to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL;
     public_cleaner_lookup_migration_installed := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)') IS NOT NULL;
     account_notification_realtime_installed := to_regprocedure('tideway_private.emit_account_notification_realtime_event()') IS NOT NULL;
+    structured_room_scans_installed := to_regclass('public.room_scan_sessions') IS NOT NULL;
+    room_measurements_installed := to_regclass('public.room_scan_measurements') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
@@ -426,6 +434,118 @@ BEGIN
       OR position('NEW.recipient_user_id' IN COALESCE(selected_source,''))=0
       OR position('NEW.id' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'The account notification real-time trigger leaks payload data or does not emit the privacy-minimal account wake-up';
+    END IF;
+  END IF;
+  IF structured_room_scans_installed THEN
+    -- A structured scan describes the inside of a customer's home. Its entire
+    -- participant boundary is the SECURITY DEFINER projection, so a deployment
+    -- where the runtime role can read the tables directly has no boundary at
+    -- all — the RLS policies would be the only thing left, and they were never
+    -- meant to carry that weight alone.
+    IF has_table_privilege('tideway_app','public.room_scan_sessions','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scans','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scan_object_corrections','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','INSERT')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','UPDATE')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','DELETE') THEN
+      RAISE EXCEPTION 'The runtime role can read or write structured room scans directly, bypassing the participant-aware projection';
+    END IF;
+    IF has_table_privilege('tideway_app','public.room_scan_model_versions','INSERT')
+      OR has_table_privilege('tideway_app','public.room_scan_model_versions','UPDATE')
+      OR has_table_privilege('tideway_app','public.room_scan_model_versions','DELETE') THEN
+      RAISE EXCEPTION 'The runtime role can write model attribution directly, so a stored scan cannot be trusted to name the model that read it';
+    END IF;
+    FOR selected_source IN SELECT unnest(ARRAY[
+      'tideway_private.record_room_scan(uuid,uuid,text,timestamp with time zone,jsonb,text,text,text,smallint)',
+      'tideway_private.get_room_scan(uuid)',
+      'tideway_private.correct_room_scan_object(uuid,text,text,boolean)',
+      'tideway_private.delete_room_scan(uuid)'
+    ]) LOOP
+      selected_function := to_regprocedure(selected_source);
+      IF selected_function IS NULL
+        OR NOT EXISTS (
+          SELECT 1 FROM pg_proc procedure
+          WHERE procedure.oid=selected_function
+            AND procedure.prosecdef
+            AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+        )
+        OR has_function_privilege('public', selected_function, 'EXECUTE') THEN
+        RAISE EXCEPTION 'The room-scan function % is missing, not SECURITY DEFINER with a pinned search_path, or executable by PUBLIC', selected_source;
+      END IF;
+      IF NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE') THEN
+        RAISE EXCEPTION 'The runtime role cannot execute the room-scan function %, so the structured scan is unreachable', selected_source;
+      END IF;
+    END LOOP;
+    -- The detailed structured observation/pricing read is deliberately narrower
+    -- than the Cleaner photo/checklist projection: only the owning Landlord and
+    -- an Administrator may use it.
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.get_room_scan(uuid)');
+    IF position('request_record.landlord_user_id = actor_id' IN COALESCE(selected_source,''))=0
+      OR position('has_role(''administrator'')' IN COALESCE(selected_source,''))=0
+      OR position('cleaner_preview_authorized' IN COALESCE(selected_source,''))>0
+      OR position('cleaner_user_id' IN COALESCE(selected_source,''))>0 THEN
+      RAISE EXCEPTION 'The structured room-scan read is not restricted to the owning Landlord and an Administrator';
+    END IF;
+    -- One scan per request. Without this, a retried save writes a second scan
+    -- and every object count downstream doubles.
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint constraint_entry
+      WHERE constraint_entry.conrelid='public.room_scan_sessions'::regclass
+        AND constraint_entry.contype='u'
+        AND array_length(constraint_entry.conkey,1)=1
+        AND constraint_entry.conkey[1]=(
+          SELECT attribute.attnum FROM pg_attribute attribute
+          WHERE attribute.attrelid='public.room_scan_sessions'::regclass AND attribute.attname='cleaning_request_id')
+    ) THEN
+      RAISE EXCEPTION 'room_scan_sessions does not restrict a cleaning request to one structured scan, so a retried save can duplicate every room';
+    END IF;
+  END IF;
+  IF room_measurements_installed THEN
+    -- Under the web-only decision nothing a browser produces is exact. A stored
+    -- measurement with no band would read as exact for ever after, so the
+    -- constraint that forbids it is verified on every deployment rather than
+    -- trusted to have survived a later migration.
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint constraint_entry
+      WHERE constraint_entry.conrelid='public.room_scan_measurements'::regclass
+        AND constraint_entry.conname='room_scan_measurements_estimate_has_band'
+    ) THEN
+      RAISE EXCEPTION 'room_scan_measurements does not require an estimated measurement to carry a tolerance, so an estimate can be stored looking exact';
+    END IF;
+    IF has_table_privilege('tideway_app','public.room_scan_measurements','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scan_measurements','INSERT')
+      OR has_table_privilege('tideway_app','public.room_scan_measurements','UPDATE')
+      OR has_table_privilege('tideway_app','public.room_scan_measurements','DELETE') THEN
+      RAISE EXCEPTION 'The runtime role can reach room measurements directly, bypassing the participant-aware projection';
+    END IF;
+    selected_function := to_regprocedure('tideway_private.record_room_scan_measurements(uuid,jsonb)');
+    IF selected_function IS NULL
+      OR NOT EXISTS (
+        SELECT 1 FROM pg_proc procedure
+        WHERE procedure.oid=selected_function
+          AND procedure.prosecdef
+          AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+      )
+      OR has_function_privilege('public', selected_function, 'EXECUTE')
+      OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'The room-measurement recording function is missing, unsafe, or unreachable by the runtime role';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    -- A browser cannot take a sensor reading. The enum keeps the value so a
+    -- native path is a code change later, but nothing may store one now.
+    IF position('room-measurement-method-unavailable' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'The room-measurement function does not refuse sensor readings, so a web client can claim an accuracy no browser delivers';
+    END IF;
+    -- One value per subject per room. Two floor areas for one room is an
+    -- unresolved disagreement nothing downstream could act on.
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint constraint_entry
+      WHERE constraint_entry.conrelid='public.room_scan_measurements'::regclass
+        AND constraint_entry.contype='u' AND array_length(constraint_entry.conkey,1)=2
+    ) THEN
+      RAISE EXCEPTION 'room_scan_measurements allows two values for one subject in one room';
     END IF;
   END IF;
   IF bookings_cleaning_request_index_installed THEN

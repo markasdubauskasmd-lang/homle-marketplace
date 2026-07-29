@@ -52,6 +52,7 @@ import { checklistFromTranscript } from "./checklist.js";
 import { clearRoomNotesDraft, readRoomNotesDraft, saveRoomNotesDraft } from "./room-note-draft.js";
 import { validatedGuidedRoomPhotoDimensions, validatedGuidedRoomPhotoFile } from "./room-photo-selection.js";
 import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js";
+import { applyRedaction, redactedAreaRatio, redactionRegions, redactionSummary, shouldRedact, unusableRedactionRatio } from "./room-photo-redaction.js";
 import { storedCsrf } from "./session-csrf.js";
 
 // The room scan as an overlay any page can open in place. It builds and owns
@@ -457,6 +458,8 @@ export function openRoomScan() {
     const state = {
       stream: null, cameraStarting: false, resumeCameraOnVisible: false,
       rooms: [], capturing: false, photoProcessing: false, videoProcessing: false,
+      liveCaptureUsed: false, fallbackCaptureUsed: false,
+      privateRegions: [], privateRegionSource: null, lastRedaction: null,
       voiceOn: false, voiceUsed: false, roomTranscripts: new Map(), seconds: 0,
       voiceGeneration: 0,
       // Counters, not a log. Inference runs several times a second, so a line per
@@ -1174,6 +1177,43 @@ export function openRoomScan() {
       return coverSourceRect({ sourceWidth, sourceHeight, frameWidth, frameHeight });
     }
 
+    // Maps the detector's source-space boxes onto the cropped, scaled canvas and
+    // erases them.
+    //
+    // A photograph of a home is being handed to a stranger. The scanner already
+    // asks the Landlord not to photograph people or paperwork, but asking is not
+    // a control, and until this existed a face or a payslip in frame was stored
+    // intact and served to the assigned Cleaner under a signed URL.
+    function redactPrivateContent(canvas, sourceRect, scale) {
+      const regions = state.privateRegions;
+      if (!Array.isArray(regions) || !regions.length) {
+        state.lastRedaction = null;
+        return;
+      }
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      // Source pixels to canvas pixels: subtract the crop origin, then apply the
+      // same scale the frame was drawn at.
+      const onCanvas = regions.map((region) => {
+        const [x, y, width, height] = region.bbox.map(Number);
+        if (![x, y, width, height].every(Number.isFinite)) return null;
+        return {
+          class: region.class,
+          bbox: [(x - sourceRect.sx) * scale, (y - sourceRect.sy) * scale, width * scale, height * scale]
+        };
+      }).filter(Boolean);
+      const mappedRegions = redactionRegions(onCanvas, { width: canvas.width, height: canvas.height });
+      if (!mappedRegions.length) {
+        state.lastRedaction = null;
+        return;
+      }
+      applyRedaction(context, mappedRegions, { document });
+      state.lastRedaction = {
+        summary: redactionSummary(mappedRegions),
+        ratio: redactedAreaRatio(mappedRegions, { width: canvas.width, height: canvas.height })
+      };
+    }
+
     function drawVisibleRegion(source, sourceWidth, sourceHeight) {
       if (!sourceWidth || !sourceHeight) return null;
       const sourceRect = viewfinderSourceRect(sourceWidth, sourceHeight);
@@ -1192,6 +1232,13 @@ export function openRoomScan() {
         sourceRect.sx, sourceRect.sy, sourceRect.sWidth, sourceRect.sHeight,
         0, 0, el.canvas.width, el.canvas.height
       );
+      // Nothing leaves this function unredacted.
+      //
+      // This is the one place every uploaded frame, every crop source and every
+      // frame sent for reading is produced, which is exactly why the erasure
+      // belongs here rather than at each call site: a new caller added later
+      // inherits it instead of having to remember it.
+      redactPrivateContent(el.canvas, sourceRect, scale);
       // 0.90, and deliberately generous. At 0.82 the compressor was smoothing
       // away exactly the speckle and film that distinguish a limescaled tap from
       // a white one. `roomReadingPayload` measures the real serialized size and
@@ -1232,6 +1279,47 @@ export function openRoomScan() {
         image.onerror = () => { URL.revokeObjectURL(objectUrl); rejectImage(new TypeError("That photo could not be opened.")); };
         image.src = objectUrl;
       });
+    }
+
+    // A phone-camera photo and a locally-built video contact sheet never pass
+    // through the live detection loop. They need their own inference before the
+    // shared canvas is drawn; otherwise an earlier live frame's boxes can blur
+    // the wrong pixels while a person in the selected photo remains visible.
+    async function refreshPrivateRegionsForSource(source, width, height) {
+      state.privateRegions = [];
+      state.privateRegionSource = null;
+      state.lastRedaction = null;
+      let detector = state.detector;
+      if (!detector) {
+        try {
+          detector = await loadDetectorOnce();
+          state.detector = detector;
+          state.detectorState = "ready";
+          renderDetectorState();
+        } catch {
+          state.detectorState = "unavailable";
+          state.liveDetectionAvailable = false;
+          renderDetectorState();
+          throw new TypeError("This phone could not run the private-content check. Use the live camera or a voice note instead.");
+        }
+      }
+      const deadline = Date.now() + 6_000;
+      while (detectorBusy && Date.now() < deadline) {
+        await new Promise((resume) => window.setTimeout(resume, 40));
+      }
+      if (detectorBusy) throw new TypeError("The private-content check is still busy. Try this photo again.");
+      detectorBusy = true;
+      try {
+        const found = await detector.detect(source, 12, detectionMinimumScore);
+        state.privateRegions = (Array.isArray(found) ? found : [])
+          .filter((item) => shouldRedact(item?.class))
+          .map((item) => ({ class: item.class, bbox: Array.isArray(item?.bbox) ? item.bbox : [] }));
+        state.privateRegionSource = { width, height };
+      } catch {
+        throw new TypeError("This photo could not be checked for people or private screens. Use the live camera or a voice note instead.");
+      } finally {
+        detectorBusy = false;
+      }
     }
 
     /* ── Choosing what matters ── */
@@ -1385,10 +1473,17 @@ export function openRoomScan() {
     // Freezing before anything is chosen is what makes the crops trustworthy: a
     // box picked on a live feed would be cut from whatever the phone had moved
     // on to by the time the request was built.
-    function freezeFrame(frame, { preselect = "" } = {}) {
+    //
+    // `live` records which capture path produced the frame. A live viewfinder
+    // gets detection, tracking, quality gating and movement guidance; a photo
+    // chosen from the phone's own camera gets none of them. Reporting the two
+    // as one device class would average their accuracy together and hide the
+    // gap, which is the opposite of what the stored scan is for.
+    function freezeFrame(frame, { preselect = "", live = true } = {}) {
       // A live capture or a phone photo is a fresh frame, not an edit of a stored
       // one, so its save must read. Only openRevisit marks a frame as an edit.
       state.revisiting = false;
+      if (live) state.liveCaptureUsed = true; else state.fallbackCaptureUsed = true;
       state.frozen = true;
       state.frozenFrame = frame;
       stopDetection();
@@ -1397,10 +1492,10 @@ export function openRoomScan() {
       el.selection.hidden = false;
       el.viewfinder.classList.add("picking");
       // Whatever the detector had settled on becomes the starting selection.
-      state.candidates = usableLiveBoxes(drawableTracks(state.tracks).map((track) => ({
+      state.candidates = live ? usableLiveBoxes(drawableTracks(state.tracks).map((track) => ({
         id: `d${track.id}`, x: track.x, y: track.y, width: track.width, height: track.height,
         label: track.label, kind: "detected", score: track.score
-      })));
+      }))) : [];
       state.selectedIds = new Set(preselect ? [preselect] : []);
       layoutFrozen();
       refreshSelection();
@@ -1755,7 +1850,17 @@ export function openRoomScan() {
       if (state.frozen) return confirmSelection();
       const frame = currentFrame();
       if (!frame) return toast("The camera is still warming up — try again in a moment.");
+      // A frame that is mostly erased is no longer a photograph of a room, and
+      // it is also the frame most likely to have contained somebody. Asking for
+      // another is better than storing one whose useful content is gone.
+      if (state.lastRedaction && state.lastRedaction.ratio > unusableRedactionRatio) {
+        return toast("Most of that photo was a person or a screen, so it was not kept. Point the camera at the room itself.");
+      }
       freezeFrame(frame);
+      // Said plainly rather than logged quietly. Somebody handing a photograph
+      // of their home to a stranger is entitled to know what was removed from
+      // it, and to check that against what they remember being in the room.
+      if (state.lastRedaction?.summary) toast(state.lastRedaction.summary);
     }
 
     async function confirmSelection() {
@@ -1799,8 +1904,13 @@ export function openRoomScan() {
         // Decoding is async; if the Landlord has since left this room or a stored
         // photo is loading into the canvas, drop it before it can draw over.
         if (state.closed || session !== state.roomSession || state.loadingRoom || state.capturing) return;
+        await refreshPrivateRegionsForSource(image, image.naturalWidth, image.naturalHeight);
+        if (state.closed || session !== state.roomSession || state.loadingRoom || state.capturing) return;
         const frame = drawVisibleRegion(image, image.naturalWidth, image.naturalHeight);
         if (!frame) throw new TypeError("That photo could not be opened.");
+        if (state.lastRedaction && state.lastRedaction.ratio > unusableRedactionRatio) {
+          throw new TypeError("Most of that photo was a person or a private screen. Point the camera at the room itself and try again.");
+        }
         el.blocked.hidden = true;
         el.deck.hidden = false;
         el.deck.inert = false;
@@ -1808,7 +1918,8 @@ export function openRoomScan() {
         // A photo chosen from the phone's own camera never had a live
         // viewfinder, so there are no detected boxes to start from — but it can
         // still be marked up by hand before it is read.
-        freezeFrame(frame);
+        freezeFrame(frame, { live: false });
+        if (state.lastRedaction?.summary) toast(state.lastRedaction.summary);
       } catch (error) {
         if (session === state.roomSession) blockCamera(error?.message || "That room photo could not be opened. Try another one.");
       } finally {
@@ -2762,6 +2873,19 @@ export function openRoomScan() {
           });
           if (box) mapped.push({ ...box, className: item.class, score: item.score });
         }
+        // People, screens and documents are kept in the SOURCE coordinates the
+        // detector returned, not the mapped viewfinder ones. The frame that gets
+        // uploaded is cut from the source, so redacting it needs boxes measured
+        // against the same thing — mapped boxes are for drawing on screen.
+        //
+        // Deliberately gathered from `found` rather than from the tracks: a
+        // person is filtered out of the tracker by implausibleForRoom and by
+        // the tracking threshold, and neither of those is a reason to publish
+        // their face.
+        state.privateRegions = found
+          .filter((item) => shouldRedact(item?.class))
+          .map((item) => ({ class: item.class, bbox: Array.isArray(item?.bbox) ? item.bbox : [] }));
+        state.privateRegionSource = { width: source.width || video.videoWidth, height: source.height || video.videoHeight };
         // Counted rather than logged per frame: at several frames a second, a line
         // per suppression would bury anything else in the console. A running total
         // is enough to tell "the filter is working" from "the filter is eating
@@ -3080,8 +3204,39 @@ export function openRoomScan() {
           name: room.name,
           condition: room.condition,
           fixtures: (room.detections || []).map(inventoryDisplayLabel),
-          note: String(room.transcript || "").trim()
+          note: String(room.transcript || "").trim(),
+          // The structured reading, not just its display label.
+          //
+          // `fixtures` is what the journey has always shown: "3 × Chair". It is
+          // a rendering, and it was also, until now, the only thing that
+          // survived this boundary — the per-item condition, the soiling type,
+          // the two confidence scores and the evidence were all discarded when
+          // this overlay closed. Everything downstream that needs to explain a
+          // price, or improve on one, needs the reading rather than the caption.
+          //
+          // Geometry is deliberately left behind. The boxes describe one frame
+          // of one camera pose and mean nothing outside it, and shipping
+          // coordinates that cannot be verified later invites drawing them over
+          // the wrong thing.
+          objects: (room.detections || []).map((detection) => ({
+            inventoryKey: detection.inventoryKey || inventoryKey(detection.label),
+            label: detection.label,
+            quantity: itemQuantity(detection),
+            condition: detection.condition || "",
+            soiling: Array.isArray(detection.soiling) ? [...detection.soiling] : [],
+            confidenceLabel: Number(detection.confidence) || 0,
+            confidenceCondition: Number(detection.conditionConfidence) || 0,
+            conditionConfirmed: detection.conditionConfirmed === true,
+            evidence: String(detection.note || "").trim(),
+            // Hand-marked items reach the reader with no name and are the ones
+            // a correction rate should never be measured against.
+            origin: detection.conditionConfirmed === true ? "manual" : detection.condition ? "vision" : "detector"
+          }))
         })),
+        // Which capture path produced this scan. The live viewfinder and the
+        // native camera-roll fallback do not see equally well, and averaging
+        // their accuracy into one number would hide that.
+        deviceClass: state.liveCaptureUsed ? "guided-web" : state.fallbackCaptureUsed ? "camera-fallback" : "unknown",
         guideTime: summary.durationLabel,
         capturedAt: new Date().toISOString()
       });
