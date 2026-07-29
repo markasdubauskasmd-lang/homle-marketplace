@@ -74,7 +74,7 @@ export const accountNav = [
   { label: "Messages", icon: "chat", href: "/cleaner/messages", notificationHook: true },
   { label: "Notifications", icon: "bell", href: "/cleaner/notifications", notificationHook: true },
   { label: "Help Centre", icon: "help", href: "/cleaner/help-centre" },
-  { label: "Support Tickets", icon: "chat", href: "/cleaner/support-tickets", awaitingDesign: true },
+  { label: "Support Tickets", icon: "chat", href: "/cleaner/support-tickets" },
   { label: "Report an Incident", icon: "shield", href: "/cleaner/report-incident", awaitingDesign: true },
   { label: "My Disputes", icon: "shield", href: "/cleaner/disputes", awaitingDesign: true },
   { label: "Settings", icon: "gear", href: "/settings" },

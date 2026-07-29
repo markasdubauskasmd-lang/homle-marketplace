@@ -141,6 +141,8 @@ const [
   cleanerNotificationsScript,
   cleanerHelpCentrePage,
   cleanerHelpCentreScript,
+  cleanerSupportTicketsPage,
+  cleanerSupportTicketsScript,
   notificationsScript
 ] = await Promise.all([
   readFile(new URL("../public/cleaner-schedule.html", import.meta.url), "utf8"),
@@ -166,10 +168,12 @@ const [
   readFile(new URL("../public/cleaner-notifications.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-help-centre.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-help-centre.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-support-tickets.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-support-tickets.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8")
 ]);
 
-const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage];
+const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage];
 const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
 for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(page.includes('class="cleaner-workspace-page') && page.includes("/homle-cleaner.css?") && page.includes('aria-label="Cleaner navigation"'), `Cleaner workspace page ${index + 1} is not using the separate Cleaner shell.`);
@@ -217,6 +221,13 @@ for (const copiedSample of ["0113 496 0500", "cleaners@homle.uk", "8am – 8pm d
   assert(!`${cleanerHelpCentrePage}\n${cleanerHelpCentreScript}`.includes(copiedSample), `The Help Centre copied the screenshot's ${copiedSample} sample instead of showing truthful support availability.`);
 }
 assert(cleanerStyles.includes(".hc-help-grid") && cleanerStyles.includes(".hc-help-article") && cleanerStyles.includes(".hc-help-contact") && cleanerStyles.includes(".hc-help-search") && cleanerStyles.includes(".cleaner-help-centre-page .hc-side.cleaner-site-header"), "The supplied Help Centre card grid, FAQ rows, contact card, search or cream sidebar treatment is missing.");
+assert(server.includes('"/cleaner/support-tickets": "cleaner-support-tickets.html"') && cleanerOnboardingSteps.includes('label: "Support Tickets", icon: "chat", href: "/cleaner/support-tickets"') && !cleanerOnboardingSteps.includes('label: "Support Tickets", icon: "chat", href: "/cleaner/support-tickets", awaitingDesign: true'), "The Cleaner Support Tickets tab is not routed to its completed private page.");
+assert(cleanerSupportTicketsPage.includes('class="cleaner-workspace-page cleaner-support-tickets-page"') && cleanerSupportTicketsPage.includes("Every conversation with Homle support, all in one thread per issue.") && cleanerSupportTicketsPage.includes("data-support-new") && cleanerSupportTicketsPage.includes("data-support-ticket-list") && cleanerSupportTicketsPage.includes("data-support-ticket-empty") && cleanerSupportTicketsPage.includes("Start from the relevant booking"), "The supplied Support Tickets heading, ticket card, new-ticket action or honest empty state is missing.");
+assert(cleanerSupportTicketsScript.includes('createCleanerPage("support-tickets"') && cleanerSupportTicketsScript.includes('requestJson("/api/marketplace/bookings?limit=50")') && cleanerSupportTicketsScript.includes("/dispute") && cleanerSupportTicketsScript.includes("Promise.allSettled") && cleanerSupportTicketsScript.includes("replaceChildren") && cleanerSupportTicketsScript.includes("showModal") && cleanerSupportTicketsScript.includes("/bookings/") && !cleanerSupportTicketsScript.includes("innerHTML") && !cleanerSupportTicketsScript.includes("localStorage") && !cleanerSupportTicketsScript.includes("sessionStorage") && !cleanerSupportTicketsScript.includes("fetch(") && !cleanerSupportTicketsScript.includes('method: "POST"'), "The Support Tickets page is not role-gated, real booking-case-backed, safely rendered or honest about ticket creation.");
+for (const copiedSample of ["Question about the referral bonus timing", "Perfect, thank you!", "Insurance renewal not showing as uploaded", "Thanks Sadie", "9 Jul 2026"]) {
+  assert(!`${cleanerSupportTicketsPage}\n${cleanerSupportTicketsScript}`.includes(copiedSample), `The Support Tickets page copied the screenshot's ${copiedSample} sample instead of using real private case data.`);
+}
+assert(cleanerStyles.includes(".hc-support-tickets") && cleanerStyles.includes(".hc-support-row") && cleanerStyles.includes(".hc-support-pill") && cleanerStyles.includes(".hc-support-dialog") && cleanerStyles.includes(".cleaner-support-tickets-page .hc-side.cleaner-site-header"), "The supplied Support Tickets card, compact rows, status pills, booking guidance or cream sidebar treatment is missing.");
 for (const [index, script] of cleanerWorkspaceScripts.entries()) {
   assert(script.includes('requestJson("/api/marketplace/account")') && script.includes('dashboardWorkspaceAccess(account, "cleaner")') && script.includes('credentials: "same-origin"') && script.includes("new AbortController()") && script.includes("30_000"), `Cleaner workspace script ${index + 1} lacks authenticated role gating or a bounded private request.`);
   assert(script.includes("error.statusCode === 401") && script.includes("error.statusCode === 403") && !script.includes("innerHTML"), `Cleaner workspace script ${index + 1} lacks a safe authentication failure state or uses unsafe HTML rendering.`);
