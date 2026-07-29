@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-10">
-  <script src="/cleaner-registration.js?v=20260728-7" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-1">
+  <script src="/cleaner-registration.js?v=20260729-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -219,6 +219,16 @@
                 <span>Complete registration</span>
                 <strong>Step 7 of 19 &mdash; Cleaning experience</strong>
                 <div class="hc-business-progress-track hc-experience-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="7"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-references-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 8 of 19 &mdash; References</strong>
+                <div class="hc-business-progress-track hc-references-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="8"><span></span></div>
               </div>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
             </header>
@@ -579,6 +589,66 @@
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/business-details">&larr; Back</a>
                   <p data-experience-save-status role="status" aria-live="polite">Years of experience and connected specialisms are saved securely when you continue.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-references-card" data-references hidden aria-labelledby="cleaner-references-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-references-title">References</h1>
+                <p>Two references minimum &mdash; recent managers or regular clients work best.</p>
+              </header>
+
+              <form class="hc-references-form" data-references-form>
+                <fieldset class="hc-references-section">
+                  <legend>Reference 1</legend>
+                  <div class="hc-references-primary-grid">
+                    <label><span>Name <b aria-hidden="true">*</b></span><input name="reference1Name" autocomplete="off" maxlength="120" required></label>
+                    <label><span>Company</span><input name="reference1Company" autocomplete="off" maxlength="120"></label>
+                    <label><span>Job title</span><input name="reference1JobTitle" autocomplete="off" maxlength="120"></label>
+                  </div>
+                  <div class="hc-references-contact-grid">
+                    <label><span>Phone <b aria-hidden="true">*</b></span><input name="reference1Phone" type="tel" autocomplete="off" inputmode="tel" maxlength="30" required></label>
+                    <label><span>Email <b aria-hidden="true">*</b></span><input name="reference1Email" type="email" autocomplete="off" maxlength="254" required></label>
+                    <label><span>Relationship</span><select name="reference1Relationship"><option value="">Select</option><option>Manager</option><option>Client</option><option>Colleague</option><option>Other</option></select></label>
+                    <label><span>Years known</span><select name="reference1YearsKnown"><option value="">Select</option><option>Less than 1 year</option><option>1&ndash;2 years</option><option>3&ndash;5 years</option><option>6&ndash;10 years</option><option>10+ years</option></select></label>
+                  </div>
+                  <button class="hc-references-email-button" type="button" data-reference-email>Email this referee a request</button>
+                </fieldset>
+
+                <fieldset class="hc-references-section">
+                  <legend>Reference 2</legend>
+                  <div class="hc-references-primary-grid">
+                    <label><span>Name <b aria-hidden="true">*</b></span><input name="reference2Name" autocomplete="off" maxlength="120" required></label>
+                    <label><span>Company</span><input name="reference2Company" autocomplete="off" maxlength="120"></label>
+                    <label><span>Job title</span><input name="reference2JobTitle" autocomplete="off" maxlength="120"></label>
+                  </div>
+                  <div class="hc-references-contact-grid">
+                    <label><span>Phone <b aria-hidden="true">*</b></span><input name="reference2Phone" type="tel" autocomplete="off" inputmode="tel" maxlength="30" required></label>
+                    <label><span>Email <b aria-hidden="true">*</b></span><input name="reference2Email" type="email" autocomplete="off" maxlength="254" required></label>
+                    <label><span>Relationship</span><select name="reference2Relationship"><option value="">Select</option><option>Manager</option><option>Client</option><option>Colleague</option><option>Other</option></select></label>
+                    <label><span>Years known</span><select name="reference2YearsKnown"><option value="">Select</option><option>Less than 1 year</option><option>1&ndash;2 years</option><option>3&ndash;5 years</option><option>6&ndash;10 years</option><option>10+ years</option></select></label>
+                  </div>
+                  <button class="hc-references-email-button" type="button" data-reference-email>Email this referee a request</button>
+                </fieldset>
+
+                <fieldset class="hc-references-section">
+                  <legend>Letters</legend>
+                  <div class="hc-references-letters">
+                    <label class="hc-references-document">
+                      <span class="hc-references-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Reference letters (optional)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-references-document-action">Choose file</span>
+                      <input type="file" name="referenceLetters" accept="application/pdf,image/jpeg,image/png" data-references-file>
+                    </label>
+                    <p class="hc-references-status-note">Reference confirmation appears here only after Homle securely records a referee response. No confirmation is recorded yet.</p>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/experience">&larr; Back</a>
+                  <p data-references-save-status role="status" aria-live="polite">Referee contact details are not stored in this browser or sent anywhere.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
