@@ -85,7 +85,7 @@ async function recoverCsrf() {
 }
 
 function showStatus(button, message) {
-  const status = button.closest("[data-account-menu]")?.querySelector("[data-account-sign-out-status]");
+  const status = button.closest("[data-account-menu], [data-account-group]")?.querySelector("[data-account-sign-out-status]");
   if (!status) return;
   status.textContent = message;
   status.hidden = !message;

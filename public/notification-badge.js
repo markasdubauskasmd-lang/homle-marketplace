@@ -10,9 +10,10 @@ function render(value) {
   for (const link of links) {
     const count = link.querySelector("[data-notification-count]");
     if (!count) continue;
+    const label = link.dataset.notificationLabel || "Notifications";
     count.textContent = badge.label;
     count.hidden = !badge.visible;
-    link.setAttribute("aria-label", badge.visible ? `Notifications, ${badge.count} unread` : "Notifications");
+    link.setAttribute("aria-label", badge.visible ? `${label}, ${badge.count} unread` : label);
   }
 }
 

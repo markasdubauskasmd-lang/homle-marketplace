@@ -82,7 +82,7 @@ assert(readyCleanerCapability.matchingReady && readyCleanerCapability.notice ===
 
 assert(formatBookingMoment(earlyBooking.paymentStepOpensAt).includes("15 Aug 2026") && formatBookingMoment("bad") === "Date unavailable", "Payment opening time is not presented in the visit timezone or does not fail safely.");
 
-const [cleanerPage, cleanerScript, cleanerStyles, cleanerRegistrationPage, cleanerRegistrationScript, cleanerPersonalDetailsScript, cleanerBusinessDetailsScript, cleanerIdentityVerificationScript, cleanerBackgroundChecksScript, cleanerWorkAreasScript, cleanerExperienceScript, cleanerReferencesScript, cleanerInsuranceScript, cleanerBankingScript, cleanerEquipmentScript, cleanerAvailabilityScript, cleanerOnboardingSteps, landlordPage, landlordScript, accountAvatar, accountMenu, model, styles, landlordStyles, server, authEntry, migration, paymentWindowMigration, responseDeadlineMigration, grants, packageFile] = await Promise.all([
+const [cleanerPage, cleanerScript, cleanerStyles, cleanerRegistrationPage, cleanerRegistrationScript, cleanerPersonalDetailsScript, cleanerBusinessDetailsScript, cleanerIdentityVerificationScript, cleanerBackgroundChecksScript, cleanerWorkAreasScript, cleanerExperienceScript, cleanerReferencesScript, cleanerInsuranceScript, cleanerBankingScript, cleanerEquipmentScript, cleanerAvailabilityScript, cleanerOnboardingSteps, cleanerSidebar, landlordPage, landlordScript, accountAvatar, accountMenu, model, styles, landlordStyles, server, authEntry, migration, paymentWindowMigration, responseDeadlineMigration, grants, packageFile] = await Promise.all([
   readFile(new URL("../public/cleaner-dashboard.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-dashboard.js", import.meta.url), "utf8"),
   readFile(new URL("../public/homle-cleaner.css", import.meta.url), "utf8"),
@@ -100,6 +100,7 @@ const [cleanerPage, cleanerScript, cleanerStyles, cleanerRegistrationPage, clean
   readFile(new URL("../public/cleaner-equipment.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-availability.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-onboarding-steps.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-sidebar.js", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.html", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8"),
   readFile(new URL("../public/account-avatar.js", import.meta.url), "utf8"),
@@ -129,6 +130,9 @@ const [
   cleanerTrainingScript,
   cleanerContractsPage,
   cleanerContractsScript,
+  cleanerJobsMapPage,
+  cleanerPerformancePage,
+  cleanerSignOffPage,
   cleanerPublicProfilePage,
   cleanerPublicProfileScript
 ] = await Promise.all([
@@ -144,11 +148,14 @@ const [
   readFile(new URL("../public/cleaner-training.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-contracts.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-contracts.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-jobs-map.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-performance.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-sign-off.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-public-profile.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-public-profile.js", import.meta.url), "utf8")
 ]);
 
-const cleanerWorkspacePages = [cleanerPage, cleanerSchedulePage, cleanerJobPage, cleanerReviewsPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage];
+const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage];
 const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
 for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(page.includes('class="cleaner-workspace-page') && page.includes("/homle-cleaner.css?") && page.includes('aria-label="Cleaner navigation"'), `Cleaner workspace page ${index + 1} is not using the separate Cleaner shell.`);
@@ -156,8 +163,23 @@ for (const [index, page] of cleanerWorkspacePages.entries()) {
     assert(page.includes(`href="${href}"`), `Cleaner workspace page ${index + 1} strands the user because ${href} is missing from its navigation.`);
   }
   assert(page.includes("data-account-menu") && page.includes("data-account-avatar") && page.includes("data-account-sign-out"), `Cleaner workspace page ${index + 1} cannot show or manage the signed-in Cleaner identity.`);
+  assert(page.includes("data-account-group open") && page.includes("data-account-nav") && page.includes("hc-account-nav-status"), `Cleaner workspace page ${index + 1} does not expose the shared open Account navigation or secure Logout recovery state.`);
   assert(!primaryNavigation(page).includes("/landlord/dashboard") && !primaryNavigation(page).includes("Properties"), `Cleaner workspace page ${index + 1} mixes Landlord controls into its primary navigation.`);
 }
+for (const [label, href] of [
+  ["My Profile", "/cleaner/profile/preview"],
+  ["Messages", "/notifications?view=messages"],
+  ["Notifications", "/notifications"],
+  ["Help Centre", "/cleaner/help-centre"],
+  ["Support Tickets", "/cleaner/support-tickets"],
+  ["Report an Incident", "/cleaner/report-incident"],
+  ["My Disputes", "/cleaner/disputes"],
+  ["Settings", "/settings"]
+]) {
+  assert(cleanerOnboardingSteps.includes(`label: "${label}"`) && cleanerOnboardingSteps.includes(`href: "${href}"`), `The shared Cleaner Account navigation omitted the clickable ${label} tab.`);
+}
+assert(cleanerOnboardingSteps.includes('label: "Logout", icon: "logout", action: "logout"') && cleanerOnboardingSteps.includes('awaitingDesign: true'), "The Account navigation omits secure Logout or fails to distinguish screenshot-led pages whose content is still pending.");
+assert(cleanerSidebar.includes("renderCleanerAccountNav") && cleanerSidebar.includes("accountNav.map") && cleanerSidebar.includes('entry.action === "logout" ? "button" : "a"') && cleanerSidebar.includes("item.dataset.accountSignOut") && cleanerSidebar.includes("item.dataset.notificationLink") && cleanerSidebar.includes("host.replaceChildren") && cleanerSidebar.includes("renderCleanerAccountNav();") && !cleanerSidebar.includes("innerHTML"), "The Account tabs are not centrally, safely or synchronously rendered for account and notification controllers.");
 for (const [index, script] of cleanerWorkspaceScripts.entries()) {
   assert(script.includes('requestJson("/api/marketplace/account")') && script.includes('dashboardWorkspaceAccess(account, "cleaner")') && script.includes('credentials: "same-origin"') && script.includes("new AbortController()") && script.includes("30_000"), `Cleaner workspace script ${index + 1} lacks authenticated role gating or a bounded private request.`);
   assert(script.includes("error.statusCode === 401") && script.includes("error.statusCode === 403") && !script.includes("innerHTML"), `Cleaner workspace script ${index + 1} lacks a safe authentication failure state or uses unsafe HTML rendering.`);
@@ -254,7 +276,7 @@ assert(server.includes("https://*.googleusercontent.com") && server.includes("ht
 assert(cleanerScript.indexOf('const accountResult = await requestJson("/api/marketplace/account")') < cleanerScript.indexOf("Promise.allSettled") && cleanerScript.indexOf("renderAccountAvatar(account)") < cleanerScript.indexOf("Promise.allSettled") && landlordScript.indexOf('const accountResult = await requestJson("/api/marketplace/account")') < landlordScript.indexOf("Promise.allSettled") && landlordScript.indexOf("renderAccountAvatar(account)") < landlordScript.indexOf("Promise.allSettled"), "A slow secondary dashboard service can still hide the signed-in user's role identity or profile picture.");
 assert(landlordPage.includes("data-landlord-load-status") && landlordPage.includes("data-landlord-load-retry") && cleanerScript.includes("Your Cleaner account is open, but some job or profile details could not be refreshed") && landlordPage.includes("Your Landlord account is open, but some information could not be refreshed") && styles.includes(".dashboard-partial-status"), "A partial dashboard failure still presents an empty or mixed workspace without a truthful retry state.");
 assert(cleanerPage.includes('data-sign-out-destination="/login?intent=work"') && landlordPage.includes('data-sign-out-destination="/login?intent=book"') && cleanerPage.includes('/account-menu.js?') && landlordPage.includes('/account-menu.js?'), "The role-specific account menus cannot sign out to the correct next entry point.");
-assert(accountMenu.includes('requestJson("/api/marketplace/auth/session"') && accountMenu.includes('requestJson("/api/marketplace/auth/logout"') && accountMenu.includes('"X-CSRF-Token": csrf') && accountMenu.includes("navigator.onLine") && accountMenu.includes("It may have completed") && !accountMenu.includes("innerHTML"), "Dashboard sign-out lacks session recovery, CSRF protection, a bounded request, offline handling or safe rendering.");
+assert(accountMenu.includes('requestJson("/api/marketplace/auth/session"') && accountMenu.includes('requestJson("/api/marketplace/auth/logout"') && accountMenu.includes('"X-CSRF-Token": csrf') && accountMenu.includes("navigator.onLine") && accountMenu.includes("It may have completed") && accountMenu.includes('closest("[data-account-menu], [data-account-group]")') && !accountMenu.includes("innerHTML"), "Dashboard and sidebar sign-out lack session recovery, CSRF protection, a bounded request, visible failure handling or safe rendering.");
 assert(accountMenu.includes('requestJson("/api/marketplace/account"') && accountMenu.includes("renderAccountAvatar(result.account)") && accountMenu.includes('document.documentElement.dataset.accountState = "signed-in"') && accountMenu.includes("data-account-dashboard"), "A valid saved session cannot hydrate the signed-in identity, provider photo or correct role dashboard outside the private dashboard page.");
 assert(styles.includes(".account-menu-panel .account-sign-out") && styles.includes(".account-menu-status"), "The profile-picture account menu lacks readable sign-out and failure states.");
 assert(!primaryNavigation(cleanerPage).includes('data-target-workspace="landlord"') && !primaryNavigation(landlordPage).includes('data-target-workspace="cleaner"'), "The other role workspace is still presented as primary dashboard navigation instead of an account-menu choice.");
@@ -290,7 +312,7 @@ assert(!cleanerPage.includes("data-workspace-switch") && !landlordPage.includes(
 assert(!landlordPage.includes('role="tablist"') && !landlordPage.includes("landlord-workspace-tabs") && !landlordPage.includes("data-landlord-tab=") && landlordScript.includes("workspaceTabFromHash") && landlordScript.includes('history.pushState({ landlordTab: selected }') && landlordScript.includes('window.addEventListener("popstate"') && landlordPage.includes('data-open-landlord-section="properties"') && landlordPage.includes('data-open-landlord-section="account"') && landlordPage.includes('data-open-request-tab') && landlordScript.includes('requestBuilderMount.replaceWith(requestBuilderPanel)'), "The duplicate Landlord tab strip still exists, or the main navigation/account actions no longer open the persistent workspace sections and the in-place cleaning builder.");
 assert(cleanerPage.includes("Landlord properties and booking forms stay in the separate Landlord dashboard") && landlordPage.includes("professional-profile controls stay in the separate Cleaner dashboard") && cleanerPage.includes("/homle-cleaner.css?") && cleanerStyles.includes(".hc-side") && cleanerStyles.includes(".hc-main") && styles.includes(".landlord-dashboard-page { min-height: 100vh; background:"), "The role dashboards do not explain or visually enforce their separate responsibilities.");
 assert(landlordScript.includes('payment.href = "/landlord/dashboard"') && landlordScript.includes("/bookings/${booking.bookingId}") && model.includes("Your booking total") && !landlordScript.includes("cleanerPayPence"), "Landlord booking cards lost dashboard/live links or exposed Cleaner pay.");
-assert(landlordPage.includes("/landlord-dashboard.js?v=20260726-1") && cleanerPage.includes("/cleaner-dashboard.js?v=20260729-1") && landlordScript.includes("./booking-summary-model.js?v=20260723-3") && cleanerScript.includes("./booking-summary-model.js?v=20260723-3") && landlordScript.indexOf("if (booking.paymentStepAvailable)") < landlordScript.indexOf("if (booking.activeJobAvailable)") && landlordScript.includes("View booking details"), "The participant dashboard can show stale payment wording or a misleading live-job action before booking authorization.");
+assert(landlordPage.includes("/landlord-dashboard.js?v=20260726-1") && cleanerPage.includes("/cleaner-dashboard.js?v=20260729-2") && landlordScript.includes("./booking-summary-model.js?v=20260723-3") && cleanerScript.includes("./booking-summary-model.js?v=20260723-3") && landlordScript.indexOf("if (booking.paymentStepAvailable)") < landlordScript.indexOf("if (booking.activeJobAvailable)") && landlordScript.includes("View booking details"), "The participant dashboard can show stale payment wording or a misleading live-job action before booking authorization.");
 assert(landlordScript.includes("Payment authorization is ready for this clean") && landlordScript.includes("No action is needed yet") && landlordScript.includes("paymentAuthorizationReady") && model.includes('kind: "payment-waiting"'), "The Landlord booking card still offers an early failing payment action or cannot confirm readiness.");
 assert(cleanerScript.includes('bookingSummaryMoneyBoundary(booking, "cleaner")') && landlordScript.includes('bookingSummaryMoneyBoundary(booking, "landlord")') && model.includes("Payout evidence is verified separately") && model.includes("Final payment evidence is verified separately") && styles.includes(".booking-money-boundary"), "Participant booking cards do not distinguish job value, authorization, payment evidence and Cleaner transfer evidence.");
 assert(cleanerScript.includes('error.code === "payout-setup-required"') && cleanerScript.includes('error.code === "payout-readiness-unavailable"') && cleanerScript.includes('link.href = "/cleaner/payouts"') && cleanerScript.indexOf('error.code === "payout-setup-required"') < cleanerScript.indexOf("error.statusCode === 409") && styles.includes(".booking-dashboard-feedback:has(.button)"), "A paid Cleaner invitation does not explain or recover from missing payout setup before generic conflict reconciliation.");
