@@ -4,6 +4,7 @@ import {
   conditionReviewThreshold, isItemCondition, isRoomCondition, isSoilingKind, objectOrigins
 } from "./room-condition-vocabulary.mjs";
 import { assessCleaningComplexity } from "./cleaning-complexity.mjs";
+import { measurementLabel, normalizedMeasurements } from "./room-measurement.mjs";
 
 // Structured room scans: what the scanner actually saw, kept.
 //
@@ -176,13 +177,41 @@ function objectProjection(record) {
   });
 }
 
+// A measurement always travels with how it was arrived at and how far out it
+// could be. There is no shape in which one leaves this module as a bare number.
+function measurementProjection(record) {
+  const projected = {
+    measurementId: record?.measurementId,
+    subject: String(record?.subject || ""),
+    method: String(record?.method || ""),
+    valueMm: Number(record?.valueMm) || 0,
+    toleranceMm: Number(record?.toleranceMm) || 0,
+    confidence: String(record?.confidence || "low"),
+    reference: String(record?.reference || ""),
+    // Both figures survive a correction, for the same reason object
+    // corrections keep theirs: the first is the label, the second is the truth
+    // the customer asserted.
+    originalValueMm: record?.originalValueMm == null ? null : Number(record.originalValueMm)
+  };
+  return Object.freeze({
+    ...projected,
+    relativeTolerance: projected.valueMm ? Math.round((projected.toleranceMm / projected.valueMm) * 10000) / 10000 : 0,
+    // Only a person's own figure about their own home is settled. Everything
+    // else stays an estimate however tight the arithmetic came out.
+    estimated: projected.method !== "user-confirmed",
+    label: measurementLabel({ ...projected, referenceLabel: projected.reference.replace(/-/g, " "), relativeTolerance: projected.valueMm ? projected.toleranceMm / projected.valueMm : 0 })
+  });
+}
+
 function roomProjection(record) {
   const objects = (Array.isArray(record?.objects) ? record.objects : []).map(objectProjection);
+  const measurements = (Array.isArray(record?.measurements) ? record.measurements : []).map(measurementProjection);
   return Object.freeze({
     roomScanId: record?.roomScanId,
     roomName: record?.roomName || "",
     condition: roomCondition(record?.condition),
     note: String(record?.note || ""),
+    measurements: Object.freeze(measurements),
     objects: Object.freeze(objects),
     objectCount: objects.reduce((total, object) => total + object.quantity, 0),
     unresolvedCount: objects.filter((object) => object.needsConfirmation).length
@@ -235,7 +264,8 @@ function normalizedCorrection(input = {}) {
 
 export function createScanService(repository, options = {}) {
   if (!repository || typeof repository.recordScan !== "function" || typeof repository.getScan !== "function"
-    || typeof repository.correctObject !== "function" || typeof repository.deleteScan !== "function") {
+    || typeof repository.correctObject !== "function" || typeof repository.deleteScan !== "function"
+    || typeof repository.recordMeasurements !== "function") {
     throw new TypeError("A complete room-scan repository is required.");
   }
   const vision = options.vision || null;
@@ -254,6 +284,17 @@ export function createScanService(repository, options = {}) {
       const correction = await repository.correctObject(actor, uuid(objectId, "scan object id"), normalizedCorrection(input));
       if (correction?.removed === true) return Object.freeze({ objectId: correction.objectId, removed: true });
       return Object.freeze({ ...objectProjection(correction), removed: false });
+    },
+    async recordOwnMeasurements(actor, roomScanId, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to save room measurements.");
+      // Normalised before it reaches the database, which then applies the same
+      // rules again. Both layers refuse a bare number on purpose: a measurement
+      // whose provenance is unknown sits in the same column as the others and
+      // looks exactly like them.
+      const measurements = normalizedMeasurements(input.measurements);
+      if (!measurements.length) throw new TypeError("A measurement needs a supported subject, a method and a tolerance.");
+      const stored = await repository.recordMeasurements(actor, uuid(roomScanId, "room scan id"), measurements);
+      return Object.freeze({ measurements: Object.freeze((Array.isArray(stored) ? stored : []).map(measurementProjection)) });
     },
     async deleteOwnScan(actor, cleaningRequestId) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to delete a room scan.");

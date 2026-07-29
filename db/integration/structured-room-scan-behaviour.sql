@@ -276,6 +276,64 @@ $cleaner$;
 SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000001',true);
 SELECT set_config('app.user_roles','landlord',true);
 
+-- Measurements carry their provenance or they are not stored. Under the
+-- web-only decision nothing here is exact, and a bare number would sit in the
+-- same column as the rest and look exactly like them.
+DO $measurements$
+DECLARE target uuid; stored jsonb;
+BEGIN
+  SELECT scan.id INTO target FROM room_scans scan
+    JOIN room_scan_sessions session ON session.id = scan.room_scan_session_id
+    WHERE session.cleaning_request_id = '3a000000-0000-4000-8000-000000000001' LIMIT 1;
+
+  stored := tideway_private.record_room_scan_measurements(target,
+    '[{"subject":"room-length","method":"reference-calibrated","valueMm":3400,"toleranceMm":420,"confidence":"medium","reference":"bank-card"},
+      {"subject":"ceiling-height","method":"user-confirmed","valueMm":2400,"toleranceMm":0,"confidence":"high"}]'::jsonb);
+  IF jsonb_array_length(stored) <> 2 THEN RAISE EXCEPTION 'Room measurements were not stored'; END IF;
+  -- Selected by subject, not by position: the projection orders by subject, and
+  -- a test that assumes an index is asserting on the sort order rather than on
+  -- the measurement it means to check.
+  IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(stored) AS entry
+    WHERE entry.value->>'subject' = 'room-length' AND entry.value->>'reference' = 'bank-card')
+  THEN RAISE EXCEPTION 'A measurement lost the reference it was scaled from'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(stored) AS entry
+    WHERE entry.value->>'subject' = 'ceiling-height' AND (entry.value->>'toleranceMm')::bigint = 0)
+  THEN RAISE EXCEPTION 'A customer-confirmed exact figure was not stored as exact'; END IF;
+
+  -- Recording replaces wholesale. A floor area derived from a length and a
+  -- width must never outlive the figures it came from, and leaving a stale one
+  -- behind would store two numbers that disagree.
+  stored := tideway_private.record_room_scan_measurements(target,
+    '[{"subject":"room-length","method":"user-confirmed","valueMm":3600,"toleranceMm":20,"confidence":"high","originalValueMm":3400}]'::jsonb);
+  IF jsonb_array_length(stored) <> 1 THEN RAISE EXCEPTION 'Re-measuring a room left stale measurements behind'; END IF;
+  IF (stored->0->>'originalValueMm')::bigint <> 3400 THEN RAISE EXCEPTION 'Correcting a measurement destroyed the original estimate'; END IF;
+
+  -- An estimate with no band would read as exact for ever after.
+  BEGIN
+    PERFORM tideway_private.record_room_scan_measurements(target,
+      '[{"subject":"room-width","method":"reference-calibrated","valueMm":2600,"toleranceMm":0,"confidence":"medium"}]'::jsonb);
+    RAISE EXCEPTION 'An estimated measurement was stored with no tolerance';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    IF SQLERRM <> 'room-measurement-needs-tolerance' THEN RAISE; END IF;
+  END;
+
+  -- No browser can produce a sensor reading, and a stored one would claim an
+  -- accuracy nothing delivered.
+  BEGIN
+    PERFORM tideway_private.record_room_scan_measurements(target,
+      '[{"subject":"room-width","method":"sensor","valueMm":2600,"toleranceMm":5,"confidence":"high"}]'::jsonb);
+    RAISE EXCEPTION 'A sensor measurement was accepted from a web client';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    IF SQLERRM <> 'room-measurement-method-unavailable' THEN RAISE; END IF;
+  END;
+
+  -- The measurements reach the participant projection alongside the objects.
+  IF jsonb_array_length(tideway_private.get_room_scan('3a000000-0000-4000-8000-000000000001')->'rooms'->0->'measurements') <> 1 THEN
+    RAISE EXCEPTION 'Stored measurements did not reach the room projection';
+  END IF;
+END
+$measurements$;
+
 -- A submitted request is frozen scope a Cleaner may already have accepted work
 -- against, so neither a new scan nor a correction may change it underneath them.
 DO $frozen$

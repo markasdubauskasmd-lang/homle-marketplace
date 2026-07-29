@@ -191,7 +191,8 @@ function repositoryStub(capture = {}) {
     async recordScan(actor, value) { capture.recorded = value; return { cleaningRequestId: requestId, session: null, rooms: [] }; },
     async getScan(actor, id) { capture.read = id; return { cleaningRequestId: requestId, session: null, rooms: [] }; },
     async correctObject(actor, objectId, correction) { capture.correction = { objectId, correction }; return { objectId, label: "Kitchen worktop", quantity: 1, condition: "light", conditionConfirmed: true, confidenceLabel: 1, confidenceCondition: 1, removed: false }; },
-    async deleteScan(actor, id) { capture.deleted = id; return true; }
+    async deleteScan(actor, id) { capture.deleted = id; return true; },
+    async recordMeasurements(actor, roomScanId, measurements) { capture.measurements = { roomScanId, measurements }; return measurements.map((entry, index) => ({ ...entry, measurementId: `m${index}` })); }
   };
 }
 
@@ -273,6 +274,48 @@ assert(throwsWith(() => createScanService(null), "complete room-scan repository"
   }, {});
   const result = await removing.correctOwnObject(landlord, sessionId, { field: "removed" });
   assert(result.removed === true && result.objectId === sessionId, "Removing an object did not report the removal.");
+}
+
+
+/* ── Measurements never leave as bare numbers ──────────────────────────── */
+
+{
+  const capture = {};
+  const service = createScanService(repositoryStub(capture), {});
+  const stored = await service.recordOwnMeasurements(landlord, "3c000000-0000-4000-8000-000000000001", {
+    measurements: [
+      { subject: "room-length", method: "reference-calibrated", valueMm: 3400, toleranceMm: 420, reference: "bank-card" },
+      { subject: "ceiling-height", method: "user-confirmed", valueMm: 2400, toleranceMm: 0 },
+      // No method, so no provenance. Dropped rather than stored looking like
+      // the others.
+      { subject: "room-width", valueMm: 2600, toleranceMm: 300 }
+    ]
+  });
+  assert(capture.measurements.measurements.length === 2, "A measurement with no provenance reached the database boundary.");
+  assert(stored.measurements.every((entry) => entry.method && entry.confidence && entry.label),
+    "A measurement was projected without its method, confidence or label.");
+  const [length, height] = stored.measurements;
+  assert(length.estimated === true && length.label.includes("±"), `An estimate was projected without a range: ${length.label}`);
+  // Only a person's own figure about their own home is settled.
+  assert(height.estimated === false, "A customer-confirmed figure was reported as an estimate.");
+  assert(await rejects(() => service.recordOwnMeasurements(landlord, "3c000000-0000-4000-8000-000000000001", { measurements: [] }), "supported subject"),
+    "An empty measurement set was accepted.");
+  assert(await rejects(() => service.recordOwnMeasurements(cleaner, "3c000000-0000-4000-8000-000000000001", { measurements: [] }), "Landlord account is required"),
+    "A Cleaner recorded room measurements.");
+}
+
+// A room with no measurements projects as an empty list, not as a room with
+// unknown dimensions dressed up as zeroes.
+{
+  const service = createScanService({
+    ...repositoryStub(),
+    async getScan() {
+      return { cleaningRequestId: requestId, session: null, rooms: [{ roomScanId: "r1", roomName: "Kitchen", objects: [], measurements: [] }] };
+    }
+  }, {});
+  const projected = await service.getScan(landlord, requestId);
+  assert(Array.isArray(projected.rooms[0].measurements) && projected.rooms[0].measurements.length === 0,
+    "An unmeasured room did not project as unmeasured.");
 }
 
 console.log("Structured room-scan service checks passed.");

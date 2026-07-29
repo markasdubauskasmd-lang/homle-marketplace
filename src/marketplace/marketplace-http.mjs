@@ -16,6 +16,7 @@ const requestScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidP
 // was actually seen in them.
 const requestRoomScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan$`);
 const requestRoomScanObjectPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan/objects/(${uuidPattern})$`);
+const requestRoomScanMeasurementPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan/rooms/(${uuidPattern})/measurements$`);
 const requestPhotoIntentPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/intents$`);
 const requestPhotoCompletionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/complete$`);
 const requestPhotoAccessPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/access$`);
@@ -376,6 +377,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
           const withdrawal = await cleaningRequests.withdrawOwnRequest(context.actor, selectedRequestWithdrawal[1], await readJsonObject(request));
           sendJson(response, 200, { ok: true, withdrawal });
+          return true;
+        }
+        const selectedRoomScanMeasurement = pathname.match(requestRoomScanMeasurementPath);
+        if (selectedRoomScanMeasurement) {
+          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const stored = await scans.recordOwnMeasurements(context.actor, selectedRoomScanMeasurement[2], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, ...stored });
           return true;
         }
         const selectedRoomScanObject = pathname.match(requestRoomScanObjectPath);

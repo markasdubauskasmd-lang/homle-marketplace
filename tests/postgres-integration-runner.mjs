@@ -75,6 +75,11 @@ assert.match(sources.get("structured-room-scan-behaviour.sql"), /A retried scan 
 assert.match(sources.get("structured-room-scan-behaviour.sql"), /An unknown object condition was stored as a grade/);
 assert.match(sources.get("structured-room-scan-behaviour.sql"), /Removing an object destroyed the record that it was rejected/);
 assert.match(sources.get("structured-room-scan-behaviour.sql"), /An unrelated account read another customer room scan/);
+// Measurements are the part a customer is most likely to be quoted on, so the
+// behaviour script has to prove the two properties that keep them honest: an
+// estimate always carries a band, and a browser cannot claim a sensor reading.
+assert.match(sources.get("structured-room-scan-behaviour.sql"), /An estimated measurement was stored with no tolerance/);
+assert.match(sources.get("structured-room-scan-behaviour.sql"), /A sensor measurement was accepted from a web client/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Pending Cleaner scope handoff bypassed separate Landlord photo-preview consent/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Landlord booking summaries lost the shared deadline, response-role isolation or property privacy/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Cleaner booking summaries lost the exact actionable response deadline/);

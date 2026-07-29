@@ -366,12 +366,17 @@
       "order": 73,
       "file": "073_structured_room_scans.sql",
       "sha256": "26f41421d61ec9e13d33aff1af1362ffe1af73abd4db65987898e20ca4a26efc"
+    },
+    {
+      "order": 74,
+      "file": "074_room_scan_measurements.sql",
+      "sha256": "90dba49b877bf2d97398a66edde414ecbf4cc1432adbcfafc0dd0969bf127530"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "00edb14ac16d550ad962d6e1ac42b267717c38efa5082de508173b349756c35b"
+      "sha256": "8b8557f10d39dae5957e656b05fc72efbde3ea7bdaf69bb7cbd884d8b8421df7"
     },
     {
       "file": "worker-role-grants.sql",

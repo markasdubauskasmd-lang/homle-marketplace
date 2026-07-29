@@ -28,6 +28,16 @@ const correctionErrors = Object.freeze({
   "invalid-room-scan-correction": [422, "invalid-room-scan-correction", "That correction could not be applied."]
 });
 
+const measurementErrors = Object.freeze({
+  "landlord-required": [403, "landlord-required", "A Landlord account is required to save room measurements."],
+  "room-scan-not-found": [404, "room-scan-not-found", "That scanned room was not found."],
+  "room-scan-not-correctable": [409, "room-scan-not-correctable", "A submitted scan can no longer be measured."],
+  "invalid-room-measurements": [422, "invalid-room-measurements", "The room measurements could not be read."],
+  "invalid-room-measurement": [422, "invalid-room-measurement", "One of the room measurements could not be read."],
+  "room-measurement-needs-tolerance": [422, "room-measurement-needs-tolerance", "An estimated measurement must state how far out it could be."],
+  "room-measurement-method-unavailable": [422, "room-measurement-method-unavailable", "This device cannot take a sensor measurement."]
+});
+
 const readErrors = Object.freeze({
   "authentication-required": [401, "authentication-required", "Sign in to view this room scan."],
   "request-not-found": [404, "request-not-found", "The room scan was not found."]
@@ -65,6 +75,17 @@ export function createScanRepository(database) {
           );
           return result.rows[0]?.correction;
         } catch (error) { return mapped(error, correctionErrors); }
+      });
+    },
+    recordMeasurements(actor, roomScanId, measurements) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query(
+            "SELECT tideway_private.record_room_scan_measurements($1::uuid,$2::jsonb) AS measurements",
+            [roomScanId, JSON.stringify(measurements)]
+          );
+          return result.rows[0]?.measurements;
+        } catch (error) { return mapped(error, measurementErrors); }
       });
     },
     deleteScan(actor, cleaningRequestId) {

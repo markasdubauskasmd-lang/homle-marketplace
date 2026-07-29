@@ -311,3 +311,98 @@ restriction was understood as one.
   bounded by an enum and corrected where it contradicts the refusal flag, but
   whether a given sentence is a safety warning or a restriction is not
   deterministic and is not claimed to be.
+
+---
+
+# Phase 5 — measurement without a depth sensor
+
+Under the web-only decision there is no `sensor-measured` path, and this phase
+does not pretend otherwise. What is left is genuinely useful and genuinely
+imprecise: an object of known real size in the same frame gives a scale, and
+that scale gives everything else in the same plane.
+
+The whole design is about making the imprecision explicit rather than rounding
+it away. **Every value has a `method`, a `confidence` and a `toleranceMm`, and
+there is no code path that produces one without them.**
+
+## Reference objects
+
+| Reference | Real size | Uncertainty |
+| --- | --- | --- |
+| Bank card (ISO/IEC 7810 ID-1) | 85.6 × 53.98 mm | ±0.5 mm |
+| A4 sheet (ISO 216) | 210 × 297 mm | ±2 mm |
+| Internal door (BS 4787 convention) | 762 × 1981 mm | ±40 mm |
+| Brick (BS EN 1996) | 215 × 65 mm | ±10 mm |
+| Plug socket faceplate (BS 1363) | 86 × 86 mm | ±3 mm |
+
+The uncertainty column is the point. A bank card is manufactured to a standard
+and is exact to a fraction of a millimetre; a "standard" UK door is standard
+only by convention and varies by tens of millimetres between houses. Treating
+those as equally good references would produce two answers with the same stated
+confidence and very different real accuracy.
+
+## The perspective floor
+
+`minimumReferenceRelativeTolerance` is **12%**, and no arithmetic can go below
+it. A single frame cannot know whether the reference and the thing being
+measured are the same distance from the lens. A bank card held 200 mm nearer the
+phone than the wall behind it is reported as a larger card, and everything
+scaled from it comes out proportionally small. Pixel arithmetic cannot see that
+error, so it is added by hand and cannot be optimised away.
+
+Nothing a web application measures is described as **high** confidence — the
+top band for an estimate is *medium*. Only a figure a person confirmed is high,
+and even that carries a small non-zero tolerance by default, because a stated
+zero would make a typed figure look like a laser reading.
+
+## Compounding
+
+Relative tolerances add. Two lengths each good to ±12% produce a floor area good
+to ±24%, which is exactly why a photographed floor area must never be quoted as
+a figure. It is reported with its band, or it is not reported. An area derived
+from two confirmed figures stays confirmed; an area derived from anything
+estimated does not, whatever the arithmetic works out to.
+
+A measurement worse than ±35% is marked `usable: false`. "Between 1.8 and 6.2
+metres" is not a measurement, it is a way of appearing to answer.
+
+## How a measurement is written
+
+> Length 3.4m ± 0.4m, estimated from a bank card in the photo
+
+That tells the truth in the same space that "3.4m" tells a lie.
+
+## Storage
+
+Migration `074_room_scan_measurements.sql`. `method`, `tolerance_mm` and
+`confidence` are all `NOT NULL`, and a CHECK constraint makes an estimate with a
+zero tolerance physically unstorable — only a person may state a figure with no
+band, and only about their own home. A measurement whose provenance is unknown
+is worse than no measurement, because it sits in the same column as the others
+and looks like them.
+
+`sensor` is present in the enum but unreachable: the service and the database
+function both refuse it, so adding a native path later is a code change rather
+than a migration on a table already holding customer data.
+
+Recording replaces a room's measurements wholesale, because a floor area derived
+from a length and a width must never outlive the figures it came from. A
+correction retains `original_value_mm` for the same reason object corrections
+retain theirs.
+
+`PUT /api/marketplace/cleaning-requests/:id/room-scan/rooms/:roomScanId/measurements`
+
+## Honest limitations
+
+- **No capture interface yet.** The maths, the storage, the API and the
+  labelling are complete and tested; the in-scanner flow that asks the customer
+  to place a bank card against a wall and drag a line is not built. Measurements
+  can be recorded today through the API and by customer entry.
+- **±12% is optimistic for a careless capture** and pessimistic for a careful
+  one. It is a fixed floor, not a measurement of the actual perspective error in
+  a given frame, which a single photograph cannot recover.
+- **Coplanarity is assumed and unverified.** Nothing checks that the reference
+  is actually on the surface being measured.
+- **Wall area is a supported subject but nothing derives it**, because it needs
+  a ceiling height and a perimeter, and a perimeter needs more than two lengths.
+- **No measurement influences price.** That is Phase 6, and only in shadow.
