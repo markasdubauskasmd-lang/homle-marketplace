@@ -38,7 +38,7 @@ export const onboardingSteps = [
     derive: (d) => (d.profile?.languages?.length || 0) > 0 },
   { key: "skills", title: "Skills", icon: "spark", sidebar: false, href: "", derive: null },
   { key: "training", title: "Training & certificates", icon: "award", sidebar: false, href: "/cleaner/training", derive: null },
-  { key: "compliance", title: "Compliance & declarations", icon: "pen", sidebar: false, href: "", derive: null }
+  { key: "compliance", title: "Compliance & declarations", icon: "pen", sidebar: false, href: "/cleaner/contracts", derive: null }
 ];
 
 /*
@@ -66,7 +66,7 @@ export const onboardingNav = [
   { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/equipment" },
   { label: "Documents", icon: "folder", step: "", href: "/cleaner/documents" },
   { label: "Training", icon: "award", step: "training", href: "/cleaner/training" },
-  { label: "Contracts", icon: "pen", step: "compliance", href: "" }
+  { label: "Contracts", icon: "pen", step: "compliance", href: "/cleaner/contracts" }
 ];
 
 export const accountNav = [

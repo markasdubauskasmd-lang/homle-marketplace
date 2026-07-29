@@ -1,5 +1,5 @@
 import { bookingSummaryBuckets, bookingSummaryStatusLabels, formatBookingMoney } from "./booking-summary-model.js?v=20260723-3";
-import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260728-1";
+import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260729-5";
 
 const dayFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short" });
 const dayNumFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", day: "numeric" });

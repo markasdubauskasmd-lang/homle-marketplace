@@ -1,4 +1,4 @@
-import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260728-1";
+import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260729-5";
 
 // The design's four rank tiers. Homle assigns none of them: there is no ranking engine,
 // and two of the four inputs the design names (punctuality, cancellation rate) are not
