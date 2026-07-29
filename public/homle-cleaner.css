@@ -584,6 +584,13 @@ a.hc-tile:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-decorati
 .hc-foot { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--hc-rule); font-size: 12px; color: var(--hc-muted-2); }
 
 /* Document centre */
+.cleaner-documents-page .hc-side.cleaner-site-header {
+  color: var(--hc-ink);
+  border-top: 0;
+  border-bottom: 0;
+  background: var(--hc-ground);
+  box-shadow: none;
+}
 .hc-documents { width: min(100%, 840px); margin: 0 auto; }
 .hc-documents-heading { margin: 0 0 22px; padding-right: 72px; }
 .hc-documents-heading h1 {
