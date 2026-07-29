@@ -7,7 +7,7 @@ function renderRail(progress) {
   const steps = new Map(progress.steps.map((step) => [step.key, step]));
   document.querySelectorAll("[data-personal-step-key]").forEach((node) => {
     const key = node.dataset.personalStepKey;
-    node.classList.toggle("is-current", key === "references");
+    node.classList.toggle("is-current", key === "banking");
     node.classList.toggle("is-complete", steps.get(key)?.done === true);
   });
 }
@@ -17,8 +17,14 @@ function selectedFileCopy(file) {
   return `${file.name} · ${megabytes} MB · selected for this page only`;
 }
 
-export async function setupReferences({ account, showFeedback, requestJson }) {
-  document.title = "References | Homle";
+function payoutStatusCopy(payout) {
+  if (payout?.ready) return "Payout destination verified by Stripe. Homle cannot see or display the full bank details.";
+  if (payout?.status === "action-required") return "Stripe needs more information before payouts can be enabled. Continue securely to finish setup.";
+  return "No payout destination is connected yet. Continue securely to provide details directly to Stripe.";
+}
+
+export async function setupBanking({ account, showFeedback, requestJson }) {
+  document.title = "Banking & payments | Homle";
   const overview = document.querySelector("[data-registration-overview]");
   const layout = document.querySelector("[data-personal-details]");
   const cards = [
@@ -27,25 +33,32 @@ export async function setupReferences({ account, showFeedback, requestJson }) {
     document.querySelector("[data-identity-verification]"),
     document.querySelector("[data-background-checks]"),
     document.querySelector("[data-experience]"),
+    document.querySelector("[data-references]"),
+    document.querySelector("[data-insurance]"),
     document.querySelector("[data-work-areas]")
   ];
-  const referencesCard = document.querySelector("[data-references]");
+  const bankingCard = document.querySelector("[data-banking]");
   const topbars = [
     document.querySelector("[data-business-topbar]"),
     document.querySelector("[data-identity-topbar]"),
     document.querySelector("[data-background-topbar]"),
     document.querySelector("[data-experience-topbar]"),
+    document.querySelector("[data-references-topbar]"),
+    document.querySelector("[data-insurance-topbar]"),
     document.querySelector("[data-work-topbar]")
   ];
-  const referencesTopbar = document.querySelector("[data-references-topbar]");
-  const form = document.querySelector("[data-references-form]");
+  const bankingTopbar = document.querySelector("[data-banking-topbar]");
+  const form = document.querySelector("[data-banking-form]");
   if (overview) overview.hidden = true;
   if (layout) layout.hidden = false;
   for (const card of cards) if (card) card.hidden = true;
-  if (referencesCard) referencesCard.hidden = false;
+  if (bankingCard) bankingCard.hidden = false;
   for (const topbar of topbars) if (topbar) topbar.hidden = true;
-  if (referencesTopbar) referencesTopbar.hidden = false;
+  if (bankingTopbar) bankingTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
+
+  const holder = form.querySelector("[data-banking-holder]");
+  if (holder instanceof HTMLInputElement) holder.value = account?.displayName || "";
 
   const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
@@ -56,22 +69,32 @@ export async function setupReferences({ account, showFeedback, requestJson }) {
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
     ? availabilityResult.value.availability.length
     : 0;
-  const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
+  const payout = payoutResult.status === "fulfilled" ? payoutResult.value.payout : null;
+  const payoutState = payout?.ready ? "ready" : payoutResult.status === "fulfilled" ? "not-started" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
 
-  document.querySelectorAll("[data-reference-email]").forEach((button) => {
-    button.addEventListener("click", () => {
-      showFeedback("Reference email delivery is not connected yet. Nothing was sent and no referee details were stored.", "error");
+  const providerStatus = form.querySelector("[data-banking-provider-status]");
+  if (providerStatus) {
+    providerStatus.textContent = payoutResult.status === "fulfilled"
+      ? payoutStatusCopy(payout)
+      : "Payout status is temporarily unavailable. No bank details were requested or exposed.";
+    providerStatus.classList.toggle("is-ready", payout?.ready === true);
+  }
+
+  form.querySelectorAll('input[name="paymentFrequency"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      const status = form.querySelector("[data-banking-save-status]");
+      if (status) status.textContent = "Payment preference selected for this page only. Stripe controls the actual payout schedule.";
     });
   });
 
-  const fileInput = document.querySelector("[data-references-file]");
+  const fileInput = form.querySelector("[data-banking-file]");
   fileInput?.addEventListener("change", () => {
     if (!(fileInput instanceof HTMLInputElement)) return;
     const file = fileInput.files?.[0];
-    const row = fileInput.closest(".hc-references-document");
+    const row = fileInput.closest(".hc-banking-document");
     const copy = row?.querySelector("small");
-    const action = row?.querySelector(".hc-references-document-action");
+    const action = row?.querySelector(".hc-banking-document-action");
     if (!file) {
       row?.classList.remove("is-selected");
       return;
@@ -79,23 +102,19 @@ export async function setupReferences({ account, showFeedback, requestJson }) {
     if (!allowedDocumentTypes.has(file.type) || file.size > maximumDocumentBytes) {
       fileInput.value = "";
       row?.classList.remove("is-selected");
-      showFeedback("Choose a PDF, JPEG or PNG reference letter no larger than 20MB.", "error");
+      showFeedback("Choose a PDF, JPEG or PNG invoice template no larger than 20MB.", "error");
       return;
     }
     row?.classList.add("is-selected");
     if (copy) copy.textContent = selectedFileCopy(file);
     if (action) action.textContent = "Replace";
-    showFeedback("Reference letter selected for this page only. It has not been uploaded or stored.");
-  });
-
-  form.addEventListener("input", () => {
-    const status = document.querySelector("[data-references-save-status]");
-    if (status) status.textContent = "Referee contact details remain only in this open page and are not stored.";
+    const status = form.querySelector("[data-banking-save-status]");
+    if (status) status.textContent = "Invoice template selected for this page only. It has not been uploaded or stored.";
   });
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (!form.reportValidity()) return;
-    showFeedback("Secure reference storage, email requests and confirmation are not connected yet. Nothing was uploaded, emailed or saved.", "error");
+    showFeedback("Opening secure Stripe payout setup. Homle will not receive your full bank details.");
+    location.assign(payout?.ready ? "/cleaner/payouts" : "/cleaner/payouts?resume=1");
   });
 }

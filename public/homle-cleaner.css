@@ -2256,6 +2256,253 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   outline-offset: 1px;
 }
 
+/* --------------------------------------------------------------- banking -- */
+
+.hc-banking-progress-track span {
+  width: 52.632%;
+}
+
+.hc-banking-card {
+  align-self: start;
+}
+
+.hc-banking-form {
+  padding: 0 34px 24px;
+}
+
+.hc-banking-section {
+  min-width: 0;
+  margin: 0;
+  padding: 20px 0 22px;
+  border: 0;
+  border-top: 1px solid #eadfce;
+}
+
+.hc-banking-section > legend {
+  padding: 0 8px 0 0;
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.hc-banking-account {
+  display: grid;
+  gap: 12px;
+}
+
+.hc-banking-account + .hc-banking-account {
+  margin-top: 12px;
+}
+
+.hc-banking-account-primary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hc-banking-account-secondary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hc-banking-account label {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  color: var(--hc-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.hc-banking-account b {
+  color: var(--hc-red);
+}
+
+.hc-banking-account input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 13px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font: inherit;
+}
+
+.hc-banking-account input:disabled,
+.hc-banking-account input[readonly] {
+  color: #796f64;
+  opacity: 1;
+  background: #f7f2e8;
+}
+
+.hc-banking-security-note {
+  margin: 12px 0 0;
+  padding: 11px 13px;
+  color: #765a14;
+  border-radius: 10px;
+  background: #fbf2da;
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+.hc-banking-security-note.is-ready {
+  color: #256b3c;
+  background: var(--hc-green-note);
+}
+
+.hc-banking-question {
+  margin: 0 0 9px;
+  color: var(--hc-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.hc-banking-frequency {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hc-banking-frequency label {
+  position: relative;
+}
+
+.hc-banking-frequency input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.hc-banking-frequency span {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 17px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 9.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hc-banking-frequency input:checked + span {
+  color: #ffffff;
+  border-color: var(--hc-red);
+  background: var(--hc-red);
+  box-shadow: 0 8px 18px rgba(198, 42, 26, .22);
+}
+
+.hc-banking-frequency input:focus-visible + span {
+  outline: 2px solid rgba(198, 42, 26, .3);
+  outline-offset: 2px;
+}
+
+.hc-banking-invoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hc-banking-document {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-height: 62px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  overflow: hidden;
+  color: var(--hc-ink);
+  border: 1px dashed #ddc7a4;
+  border-radius: 12px;
+  background: #fdfaf4;
+  cursor: pointer;
+}
+
+.hc-banking-document.is-selected {
+  border-style: solid;
+  border-color: #c8dfbd;
+  background: var(--hc-green-note);
+}
+
+.hc-banking-document > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.hc-banking-document strong,
+.hc-banking-document small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-banking-document strong {
+  font-size: 10px;
+}
+
+.hc-banking-document small {
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  font-weight: 400;
+}
+
+.hc-banking-document-icon {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  color: #947b58;
+  border-radius: 50%;
+  background: #f2e6d2;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hc-banking-document.is-selected .hc-banking-document-icon {
+  color: #ffffff;
+  background: var(--hc-green);
+}
+
+.hc-banking-document-action {
+  color: var(--hc-red);
+  font-size: 8.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hc-banking-document input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hc-banking-document:focus-within {
+  outline: 2px solid var(--hc-red);
+  outline-offset: 2px;
+}
+
+.hc-banking-payout-note {
+  display: flex;
+  min-height: 62px;
+  margin: 0;
+  align-items: center;
+  padding: 12px 14px;
+  color: var(--hc-muted);
+  border-radius: 10px;
+  background: #f2eadb;
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
 /* ----------------------------------------------------------- work areas -- */
 
 .hc-sr-only {
@@ -2651,6 +2898,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-experience-history { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-references-contact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-insurance-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hc-banking-account-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-work-builder { grid-template-columns: 1fr; }
   .hc-work-panel { border-right: 0; border-bottom: 1px solid #e7dccb; }
   .hc-work-map-shell, .hc-work-map { min-height: 360px; }
@@ -2683,6 +2931,10 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-insurance-form { padding-left: 20px; padding-right: 20px; }
   .hc-insurance-policies,
   .hc-insurance-details { grid-template-columns: 1fr; }
+  .hc-banking-form { padding-left: 20px; padding-right: 20px; }
+  .hc-banking-account-primary,
+  .hc-banking-account-secondary,
+  .hc-banking-invoices { grid-template-columns: 1fr; }
   .hc-work-form { padding-left: 20px; padding-right: 20px; }
 }
 
