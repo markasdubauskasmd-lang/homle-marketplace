@@ -1,4 +1,4 @@
-import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-8";
+import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
