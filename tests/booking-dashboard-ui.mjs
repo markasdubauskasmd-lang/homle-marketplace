@@ -145,6 +145,8 @@ const [
   cleanerSupportTicketsScript,
   cleanerIncidentReportsPage,
   cleanerIncidentReportsScript,
+  cleanerDisputesPage,
+  cleanerDisputesScript,
   notificationsScript
 ] = await Promise.all([
   readFile(new URL("../public/cleaner-schedule.html", import.meta.url), "utf8"),
@@ -174,10 +176,12 @@ const [
   readFile(new URL("../public/cleaner-support-tickets.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-incident-reports.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-incident-reports.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-disputes.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-disputes.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8")
 ]);
 
-const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage, cleanerIncidentReportsPage];
+const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage, cleanerIncidentReportsPage, cleanerDisputesPage];
 const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
 for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(page.includes('class="cleaner-workspace-page') && page.includes("/homle-cleaner.css?") && page.includes('aria-label="Cleaner navigation"'), `Cleaner workspace page ${index + 1} is not using the separate Cleaner shell.`);
@@ -200,7 +204,7 @@ for (const [label, href] of [
 ]) {
   assert(cleanerOnboardingSteps.includes(`label: "${label}"`) && cleanerOnboardingSteps.includes(`href: "${href}"`), `The shared Cleaner Account navigation omitted the clickable ${label} tab.`);
 }
-assert(cleanerOnboardingSteps.includes('label: "Logout", icon: "logout", action: "logout"') && cleanerOnboardingSteps.includes('awaitingDesign: true'), "The Account navigation omits secure Logout or fails to distinguish screenshot-led pages whose content is still pending.");
+assert(cleanerOnboardingSteps.includes('label: "Logout", icon: "logout", action: "logout"') && !cleanerOnboardingSteps.includes("awaitingDesign: true"), "The Account navigation omits secure Logout or still marks a completed screenshot-led page as pending.");
 assert(cleanerSidebar.includes("renderCleanerAccountNav") && cleanerSidebar.includes("accountNav.map") && cleanerSidebar.includes('entry.action === "logout" ? "button" : "a"') && cleanerSidebar.includes("item.dataset.accountSignOut") && cleanerSidebar.includes("item.dataset.notificationLink") && cleanerSidebar.includes("host.replaceChildren") && cleanerSidebar.includes("renderCleanerAccountNav();") && !cleanerSidebar.includes("innerHTML"), "The Account tabs are not centrally, safely or synchronously rendered for account and notification controllers.");
 assert(server.includes('"/cleaner/messages": "cleaner-messages.html"') && cleanerOnboardingSteps.includes('label: "Messages", icon: "chat", href: "/cleaner/messages"'), "The Cleaner Messages tab does not open its dedicated private inbox.");
 assert(notificationsScript.includes('new URLSearchParams(location.search).get("view") === "messages"') && notificationsScript.includes('location.replace("/cleaner/messages")'), "The retired Messages query-string page does not forward safely to the replacement inbox.");
@@ -239,6 +243,13 @@ for (const copiedSample of ["Rosebank House", "18 Kirkstall Lane", "INC-2026-070
   assert(!`${cleanerIncidentReportsPage}\n${cleanerIncidentReportsScript}`.includes(copiedSample), `The Incident reports page copied the screenshot's ${copiedSample} sample instead of using real private case data.`);
 }
 assert(cleanerStyles.includes(".hc-incident-new") && cleanerStyles.includes(".hc-incident-reference") && cleanerStyles.includes(".cleaner-incident-reports-page .hc-side.cleaner-site-header"), "The supplied Incident reports action, reference treatment or cream sidebar is missing.");
+assert(server.includes('"/cleaner/disputes": "cleaner-disputes.html"') && cleanerOnboardingSteps.includes('label: "My Disputes", icon: "shield", href: "/cleaner/disputes"') && !cleanerOnboardingSteps.includes('label: "My Disputes", icon: "shield", href: "/cleaner/disputes", awaitingDesign: true'), "The Cleaner My Disputes tab is not routed to its completed private page.");
+assert(cleanerDisputesPage.includes('class="cleaner-workspace-page cleaner-disputes-page"') && cleanerDisputesPage.includes("If a client raises an issue with a job, it appears here.") && cleanerDisputesPage.includes("data-dispute-list") && cleanerDisputesPage.includes("data-dispute-empty") && cleanerDisputesPage.includes("No disputes raised by clients"), "The supplied My disputes heading, compact case card or honest empty state is missing.");
+assert(cleanerDisputesScript.includes('createCleanerPage("disputes"') && cleanerDisputesScript.includes('requestJson("/api/marketplace/bookings?limit=50")') && cleanerDisputesScript.includes("/dispute") && cleanerDisputesScript.includes('openedByRole === "landlord"') && cleanerDisputesScript.includes("Promise.allSettled") && cleanerDisputesScript.includes("propertyName") && cleanerDisputesScript.includes("counterpartyName") && cleanerDisputesScript.includes("replaceChildren") && cleanerDisputesScript.includes("/bookings/") && !cleanerDisputesScript.includes("innerHTML") && !cleanerDisputesScript.includes("localStorage") && !cleanerDisputesScript.includes("sessionStorage") && !cleanerDisputesScript.includes("fetch(") && !cleanerDisputesScript.includes('method: "POST"'), "The My Disputes page is not role-gated, restricted to real client-raised booking cases, safely rendered or linked to protected case detail.");
+for (const copiedSample of ["Oven not deep cleaned as agreed", "Whitfield Lettings", "18 Kirkstall Lane", "Item missing after clean", "Priya S.", "Flat 4, Elm Court", "13 Jul 2026", "25 Jul 2026"]) {
+  assert(!`${cleanerDisputesPage}\n${cleanerDisputesScript}`.includes(copiedSample), `The My Disputes page copied the screenshot's ${copiedSample} sample instead of using real private case data.`);
+}
+assert(cleanerStyles.includes(".hc-disputes") && cleanerStyles.includes(".hc-dispute-row") && cleanerStyles.includes(".hc-dispute-date") && cleanerStyles.includes(".cleaner-disputes-page .hc-side.cleaner-site-header"), "The supplied My disputes card, compact rows, recorded date or cream sidebar treatment is missing.");
 for (const [index, script] of cleanerWorkspaceScripts.entries()) {
   assert(script.includes('requestJson("/api/marketplace/account")') && script.includes('dashboardWorkspaceAccess(account, "cleaner")') && script.includes('credentials: "same-origin"') && script.includes("new AbortController()") && script.includes("30_000"), `Cleaner workspace script ${index + 1} lacks authenticated role gating or a bounded private request.`);
   assert(script.includes("error.statusCode === 401") && script.includes("error.statusCode === 403") && !script.includes("innerHTML"), `Cleaner workspace script ${index + 1} lacks a safe authentication failure state or uses unsafe HTML rendering.`);
