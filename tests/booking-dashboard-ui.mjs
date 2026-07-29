@@ -143,6 +143,8 @@ const [
   cleanerHelpCentreScript,
   cleanerSupportTicketsPage,
   cleanerSupportTicketsScript,
+  cleanerIncidentReportsPage,
+  cleanerIncidentReportsScript,
   notificationsScript
 ] = await Promise.all([
   readFile(new URL("../public/cleaner-schedule.html", import.meta.url), "utf8"),
@@ -170,10 +172,12 @@ const [
   readFile(new URL("../public/cleaner-help-centre.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-support-tickets.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-support-tickets.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-incident-reports.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-incident-reports.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8")
 ]);
 
-const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage];
+const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage, cleanerIncidentReportsPage];
 const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
 for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(page.includes('class="cleaner-workspace-page') && page.includes("/homle-cleaner.css?") && page.includes('aria-label="Cleaner navigation"'), `Cleaner workspace page ${index + 1} is not using the separate Cleaner shell.`);
@@ -228,6 +232,13 @@ for (const copiedSample of ["Question about the referral bonus timing", "Perfect
   assert(!`${cleanerSupportTicketsPage}\n${cleanerSupportTicketsScript}`.includes(copiedSample), `The Support Tickets page copied the screenshot's ${copiedSample} sample instead of using real private case data.`);
 }
 assert(cleanerStyles.includes(".hc-support-tickets") && cleanerStyles.includes(".hc-support-row") && cleanerStyles.includes(".hc-support-pill") && cleanerStyles.includes(".hc-support-dialog") && cleanerStyles.includes(".cleaner-support-tickets-page .hc-side.cleaner-site-header"), "The supplied Support Tickets card, compact rows, status pills, booking guidance or cream sidebar treatment is missing.");
+assert(server.includes('"/cleaner/report-incident": "cleaner-incident-reports.html"') && cleanerOnboardingSteps.includes('label: "Report an Incident", icon: "shield", href: "/cleaner/report-incident"') && !cleanerOnboardingSteps.includes('label: "Report an Incident", icon: "shield", href: "/cleaner/report-incident", awaitingDesign: true'), "The Cleaner Report an Incident tab is not routed to its completed private page.");
+assert(cleanerIncidentReportsPage.includes('class="cleaner-workspace-page cleaner-incident-reports-page"') && cleanerIncidentReportsPage.includes("Injuries, damage, safeguarding concerns and near misses") && cleanerIncidentReportsPage.includes("data-incident-new") && cleanerIncidentReportsPage.includes("data-incident-list") && cleanerIncidentReportsPage.includes("data-incident-empty") && cleanerIncidentReportsPage.includes("Report from the relevant booking"), "The supplied Incident reports heading, compact report card, action or honest empty state is missing.");
+assert(cleanerIncidentReportsScript.includes('createCleanerPage("incident-reports"') && cleanerIncidentReportsScript.includes('requestJson("/api/marketplace/bookings?limit=50")') && cleanerIncidentReportsScript.includes("/dispute") && cleanerIncidentReportsScript.includes("incidentCategories") && cleanerIncidentReportsScript.includes("Promise.allSettled") && cleanerIncidentReportsScript.includes("replaceChildren") && cleanerIncidentReportsScript.includes("showModal") && cleanerIncidentReportsScript.includes("propertyName") && cleanerIncidentReportsScript.includes("disputeId") && !cleanerIncidentReportsScript.includes("innerHTML") && !cleanerIncidentReportsScript.includes("localStorage") && !cleanerIncidentReportsScript.includes("sessionStorage") && !cleanerIncidentReportsScript.includes("fetch(") && !cleanerIncidentReportsScript.includes('method: "POST"'), "The Incident reports page is not role-gated, real booking-case-backed, safely rendered or honest about incident creation.");
+for (const copiedSample of ["Rosebank House", "18 Kirkstall Lane", "INC-2026-0703", "INC-2026-0714"]) {
+  assert(!`${cleanerIncidentReportsPage}\n${cleanerIncidentReportsScript}`.includes(copiedSample), `The Incident reports page copied the screenshot's ${copiedSample} sample instead of using real private case data.`);
+}
+assert(cleanerStyles.includes(".hc-incident-new") && cleanerStyles.includes(".hc-incident-reference") && cleanerStyles.includes(".cleaner-incident-reports-page .hc-side.cleaner-site-header"), "The supplied Incident reports action, reference treatment or cream sidebar is missing.");
 for (const [index, script] of cleanerWorkspaceScripts.entries()) {
   assert(script.includes('requestJson("/api/marketplace/account")') && script.includes('dashboardWorkspaceAccess(account, "cleaner")') && script.includes('credentials: "same-origin"') && script.includes("new AbortController()") && script.includes("30_000"), `Cleaner workspace script ${index + 1} lacks authenticated role gating or a bounded private request.`);
   assert(script.includes("error.statusCode === 401") && script.includes("error.statusCode === 403") && !script.includes("innerHTML"), `Cleaner workspace script ${index + 1} lacks a safe authentication failure state or uses unsafe HTML rendering.`);

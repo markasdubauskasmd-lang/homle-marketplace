@@ -49,6 +49,28 @@
   padding-top: 36px;
 }
 
+.cleaner-incident-reports-page .hc-side.cleaner-site-header {
+  background: #f8f0e3;
+  border-right-color: #eadfce;
+}
+
+.cleaner-incident-reports-page .hc-main {
+  background: #f8f0e3;
+}
+
+.cleaner-incident-reports-page .hc-main-inner {
+  max-width: 1060px;
+  padding-top: 36px;
+}
+
+.hc-incident-new {
+  min-width: 134px;
+}
+
+.hc-incident-reference {
+  min-width: 74px;
+}
+
 .hc-support-tickets {
   width: min(100%, 840px);
   margin: 0 auto;
