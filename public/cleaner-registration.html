@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-2">
-  <script src="/cleaner-registration.js?v=20260729-2" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-3">
+  <script src="/cleaner-registration.js?v=20260729-3" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -239,6 +239,16 @@
                 <span>Complete registration</span>
                 <strong>Step 9 of 19 &mdash; Insurance</strong>
                 <div class="hc-business-progress-track hc-insurance-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="9"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-banking-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 10 of 19 &mdash; Banking &amp; payments</strong>
+                <div class="hc-business-progress-track hc-banking-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="10"><span></span></div>
               </div>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
             </header>
@@ -709,6 +719,58 @@
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/references">&larr; Back</a>
                   <p data-insurance-save-status role="status" aria-live="polite">Policy details and documents are not stored in this browser or sent anywhere.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-banking-card" data-banking hidden aria-labelledby="cleaner-banking-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-banking-title">Banking &amp; payments</h1>
+                <p>Where your earnings land. Stripe securely collects payout details, and Homle never receives or displays your full bank details.</p>
+              </header>
+
+              <form class="hc-banking-form" data-banking-form>
+                <fieldset class="hc-banking-section">
+                  <legend>Account</legend>
+                  <div class="hc-banking-account hc-banking-account-primary">
+                    <label><span>Account holder name <b aria-hidden="true">*</b></span><input name="accountHolderName" autocomplete="name" readonly data-banking-holder></label>
+                    <label><span>Bank name</span><input name="bankName" value="Managed securely by Stripe" disabled></label>
+                  </div>
+                  <div class="hc-banking-account hc-banking-account-secondary">
+                    <label><span>Sort code <b aria-hidden="true">*</b></span><input name="sortCode" value="Entered with Stripe" disabled></label>
+                    <label><span>Account number <b aria-hidden="true">*</b></span><input name="accountNumber" value="Entered with Stripe" disabled></label>
+                    <label><span>IBAN (optional)</span><input name="iban" value="Entered with Stripe" disabled></label>
+                  </div>
+                  <p class="hc-banking-security-note" data-banking-provider-status role="status">Checking your secure payout setup&hellip;</p>
+                </fieldset>
+
+                <fieldset class="hc-banking-section">
+                  <legend>Payment preference</legend>
+                  <p class="hc-banking-question">How often would you like to be paid?</p>
+                  <div class="hc-banking-frequency" aria-label="Payment preference">
+                    <label><input type="radio" name="paymentFrequency" value="weekly"><span>Weekly</span></label>
+                    <label><input type="radio" name="paymentFrequency" value="fortnightly"><span>Fortnightly</span></label>
+                    <label><input type="radio" name="paymentFrequency" value="monthly"><span>Monthly</span></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-banking-section">
+                  <legend>Invoices</legend>
+                  <div class="hc-banking-invoices">
+                    <label class="hc-banking-document">
+                      <span class="hc-banking-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Invoice template (optional)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-banking-document-action">Choose file</span>
+                      <input type="file" name="invoiceTemplate" accept="application/pdf,image/jpeg,image/png" data-banking-file>
+                    </label>
+                    <p class="hc-banking-payout-note">Stripe controls payout timing. The preference and invoice template on this page are not saved yet.</p>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/insurance">&larr; Back</a>
+                  <p data-banking-save-status role="status" aria-live="polite">No bank details are collected by this page.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
