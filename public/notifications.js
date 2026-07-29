@@ -156,6 +156,11 @@ async function load(initial = true) {
       requestJson(`/api/marketplace/notifications?${query}`)
     ]);
     if (initial) {
+      const workspace = notificationWorkspace(accountResult.account);
+      if (workspace.role === "cleaner") {
+        location.replace("/cleaner/notifications");
+        return;
+      }
       notifications = [];
       showWorkspace(accountResult.account);
     }

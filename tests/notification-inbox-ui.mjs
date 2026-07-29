@@ -25,9 +25,12 @@ assert(notificationWorkspace({ selectedRole: "landlord", roles: ["landlord"] }).
 assert(notificationUnreadBadge(3).visible && notificationUnreadBadge(3).label === "3" && notificationUnreadBadge(100).label === "99+", "Unread counts are not presented compactly.");
 assert(!notificationUnreadBadge(0).visible && !notificationUnreadBadge(-1).visible && !notificationUnreadBadge("not-a-count").visible, "Invalid or empty unread counts create a badge.");
 
-const [page, script, accountMenu, badgeScript, model, styles, landlordStyles, server, cleanerDashboard, cleanerDashboardScript, landlordDashboard, landlordDashboardScript, packageFile] = await Promise.all([
+const [page, script, cleanerPage, cleanerScript, cleanerStyles, accountMenu, badgeScript, model, styles, landlordStyles, server, cleanerDashboard, cleanerDashboardScript, landlordDashboard, landlordDashboardScript, packageFile] = await Promise.all([
   readFile(new URL("../public/notifications.html", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-notifications.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-notifications.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/homle-cleaner.css", import.meta.url), "utf8"),
   readFile(new URL("../public/account-menu.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notification-badge.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notification-inbox-model.js", import.meta.url), "utf8"),
@@ -52,6 +55,11 @@ assert(script.includes("replaceChildren") && script.includes("textContent") && !
 assert(script.includes("inboxCutoff") && script.includes("cutoffCreatedAt"), "Mark-all-read is not protected by a race-safe cutoff.");
 assert(model.includes("No price changes automatically") && model.includes("private message") && model.includes("Private booking case opened") && !model.includes("address"), "Public update copy leaks details or omits the private booking-case state.");
 assert(server.includes('"/notifications": "notifications.html"') && cleanerDashboard.includes('href="/notifications"'), "The private inbox is not reachable from the Cleaner workspace.");
+assert(server.includes('"/cleaner/notifications": "cleaner-notifications.html"') && cleanerPage.includes('href="/cleaner/notifications"') && cleanerPage.includes('aria-current="page"'), "The replacement Cleaner Notifications page is not routed or selected in the Account navigation.");
+assert(cleanerPage.includes("Notifications") && cleanerPage.includes("Recent") && cleanerPage.includes("Channels") && cleanerPage.includes("Push notification settings") && cleanerPage.includes("Mark all as read"), "The supplied Cleaner Notifications layout is incomplete.");
+assert(cleanerScript.includes('createCleanerPage("cleaner-notifications"') && cleanerScript.includes('/api/marketplace/notifications?') && cleanerScript.includes('/api/marketplace/notifications/read-all') && cleanerScript.includes("inboxCutoff") && cleanerScript.includes("cutoffCreatedAt") && cleanerScript.includes("notificationPresentation(item.eventType)"), "The replacement Cleaner Notifications centre is not connected to the private inbox or its race-safe read controls.");
+assert(cleanerScript.includes('"X-CSRF-Token"') && cleanerScript.includes("keepalive: true") && cleanerScript.includes("account.email") && cleanerScript.includes("replaceChildren") && !cleanerScript.includes("innerHTML") && !cleanerScript.includes("localStorage"), "The Cleaner Notifications centre lost secure mutations, real account hydration or safe rendering.");
+assert(cleanerStyles.includes(".hc-notifications-grid") && cleanerStyles.includes(".hc-notification-row.is-unread") && cleanerStyles.includes(".hc-channel-switch") && cleanerStyles.includes(".hc-notification-push-empty"), "The supplied Cleaner Notifications grid, unread state, channel controls or push settings state is not styled.");
 assert(cleanerDashboard.includes("data-notification-link") && cleanerDashboard.includes("data-notification-count") && cleanerDashboard.includes("notification-badge.js"), "Unread updates are not visible from the Cleaner dashboard.");
 for (const [workspace, dashboard] of [["Cleaner", cleanerDashboard], ["Landlord", landlordDashboard]]) {
   for (const hook of ['href="/notifications"', "data-notification-link", "data-notification-count", "notification-badge.js"]) {
@@ -70,6 +78,7 @@ assert(badgeScript.includes("textContent") && !badgeScript.includes("innerHTML")
 assert(styles.includes(".cleaner-workspace-page .directory-nav, .landlord-dashboard-page .directory-nav") && styles.includes(".cleaner-workspace-page .directory-nav a, .landlord-dashboard-page .directory-nav a") && styles.includes(".notifications-page .directory-nav a") && styles.includes(".workspace-role-nav[hidden]"), "Mobile navigation can hide the Updates or workspace return action.");
 assert(packageFile.includes("tests/notification-inbox-ui.mjs"), "Notification inbox verification is not part of the project gate.");
 assert(script.includes('new URLSearchParams(location.search).get("view") === "messages"') && script.includes('location.replace("/cleaner/messages")'), "The old Messages query-string destination does not forward to the dedicated Cleaner inbox.");
+assert(script.includes('workspace.role === "cleaner"') && script.includes('location.replace("/cleaner/notifications")'), "The old generic Updates destination does not forward Cleaner accounts to the replacement Notifications centre.");
 
 
 console.log("Notification inbox UI tests passed: private role return, safe event copy, pagination, read controls, mobile states and booking actions.");

@@ -137,6 +137,8 @@ const [
   cleanerPublicProfileScript,
   cleanerMessagesPage,
   cleanerMessagesScript,
+  cleanerNotificationsPage,
+  cleanerNotificationsScript,
   notificationsScript
 ] = await Promise.all([
   readFile(new URL("../public/cleaner-schedule.html", import.meta.url), "utf8"),
@@ -158,10 +160,12 @@ const [
   readFile(new URL("../public/cleaner-public-profile.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-messages.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-messages.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-notifications.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-notifications.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8")
 ]);
 
-const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage];
+const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage];
 const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
 for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(page.includes('class="cleaner-workspace-page') && page.includes("/homle-cleaner.css?") && page.includes('aria-label="Cleaner navigation"'), `Cleaner workspace page ${index + 1} is not using the separate Cleaner shell.`);
@@ -175,7 +179,7 @@ for (const [index, page] of cleanerWorkspacePages.entries()) {
 for (const [label, href] of [
   ["My Profile", "/cleaner/profile/preview"],
   ["Messages", "/cleaner/messages"],
-  ["Notifications", "/notifications"],
+  ["Notifications", "/cleaner/notifications"],
   ["Help Centre", "/cleaner/help-centre"],
   ["Support Tickets", "/cleaner/support-tickets"],
   ["Report an Incident", "/cleaner/report-incident"],
@@ -194,6 +198,14 @@ for (const copiedSample of ["Homle Onboarding", "Priya S.", "Whitfield Lettings"
   assert(!`${cleanerMessagesPage}\n${cleanerMessagesScript}`.includes(copiedSample), `The Messages page copied the screenshot's ${copiedSample} identity instead of using real booking participants.`);
 }
 assert(cleanerStyles.includes(".hc-message-shell") && cleanerStyles.includes(".hc-message-conversation") && cleanerStyles.includes(".hc-message-bubble.is-mine") && cleanerStyles.includes(".hc-message-quick-replies") && cleanerStyles.includes(".cleaner-messages-page .hc-side.cleaner-site-header"), "The supplied Messages shell, conversation list, chat bubbles, quick replies or cream sidebar treatment is missing.");
+assert(server.includes('"/cleaner/notifications": "cleaner-notifications.html"') && cleanerOnboardingSteps.includes('label: "Notifications", icon: "bell", href: "/cleaner/notifications"'), "The Cleaner Notifications tab does not open its dedicated private centre.");
+assert(cleanerNotificationsPage.includes('class="cleaner-workspace-page cleaner-notifications-page"') && cleanerNotificationsPage.includes("Expiry alerts, job offers and admin messages") && cleanerNotificationsPage.includes("Mark all as read") && cleanerNotificationsPage.includes("Push notification settings") && cleanerNotificationsPage.includes("data-cleaner-notification-list") && cleanerNotificationsPage.includes("data-cleaner-notification-email"), "The supplied Notifications heading, recent feed, channel card or push settings card is missing.");
+assert(cleanerNotificationsScript.includes('createCleanerPage("cleaner-notifications"') && cleanerNotificationsScript.includes("/api/marketplace/notifications?") && cleanerNotificationsScript.includes("/api/marketplace/notifications/read-all") && cleanerNotificationsScript.includes("cutoffCreatedAt") && cleanerNotificationsScript.includes('"X-CSRF-Token": csrf') && cleanerNotificationsScript.includes("notificationPresentation(item.eventType)") && cleanerNotificationsScript.includes("account.email") && cleanerNotificationsScript.includes("replaceChildren") && !cleanerNotificationsScript.includes("innerHTML") && !cleanerNotificationsScript.includes("localStorage"), "The Notifications page is not role-gated, real-feed-backed, race-safe, CSRF-protected or safely rendered.");
+for (const copiedSample of ["Insurance expiring", "Document under review", "Reference received", "Share code verified", "Welcome to Homle", "07700 900412", "sadie.fletcher@email.co.uk"]) {
+  assert(!`${cleanerNotificationsPage}\n${cleanerNotificationsScript}`.includes(copiedSample), `The Notifications page copied the screenshot's ${copiedSample} sample instead of using private account data.`);
+}
+assert(notificationsScript.includes('workspace.role === "cleaner"') && notificationsScript.includes('location.replace("/cleaner/notifications")'), "A Cleaner opening the retired generic Updates route is not forwarded to the replacement Notifications page.");
+assert(cleanerStyles.includes(".hc-notifications-grid") && cleanerStyles.includes(".hc-notification-row.is-unread") && cleanerStyles.includes(".hc-notification-channels") && cleanerStyles.includes(".hc-channel-switch") && cleanerStyles.includes(".hc-notification-push-empty") && cleanerStyles.includes(".cleaner-notifications-page .hc-side.cleaner-site-header"), "The supplied Notifications card grid, unread rows, switches, push empty state or cream sidebar treatment is missing.");
 for (const [index, script] of cleanerWorkspaceScripts.entries()) {
   assert(script.includes('requestJson("/api/marketplace/account")') && script.includes('dashboardWorkspaceAccess(account, "cleaner")') && script.includes('credentials: "same-origin"') && script.includes("new AbortController()") && script.includes("30_000"), `Cleaner workspace script ${index + 1} lacks authenticated role gating or a bounded private request.`);
   assert(script.includes("error.statusCode === 401") && script.includes("error.statusCode === 403") && !script.includes("innerHTML"), `Cleaner workspace script ${index + 1} lacks a safe authentication failure state or uses unsafe HTML rendering.`);
