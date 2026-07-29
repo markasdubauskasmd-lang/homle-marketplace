@@ -40,7 +40,7 @@ for (const file of ["bricolage-grotesque-wght.woff2", "dm-sans-wght.woff2", "OFL
 /* ── The design is actually wired in ────────────────── */
 
 assert(page.includes('<body class="landing">') && page.includes('href="/home.css') && page.includes('src="/home-hero.js'), "The landing page does not load its scoped stylesheet and scroll script.");
-assert(page.includes('href="/styles.css?v=20260728-3"') && page.includes('href="/home.css?v=20260729-1"') && page.includes('src="/home-hero.js?v=20260723-1"'), "The landing page still advertises stale shared, animation or landing-style assets, so browsers can miss the latest motion.");
+assert(page.includes('href="/styles.css?v=20260728-3"') && page.includes('href="/home.css?v=20260729-2"') && page.includes('src="/home-hero.js?v=20260723-1"'), "The landing page still advertises stale shared, animation or landing-style assets, so browsers can miss the latest motion.");
 // Every rule is scoped under body.landing so nothing leaks into the pages that
 // share styles.css. A top-level selector would begin a line with `.` or `#`.
 assert(css.includes("body.landing") && !/\n[.#][a-zA-Z]/.test(css), "A landing CSS rule is not scoped under body.landing and could leak into other pages.");
@@ -51,8 +51,8 @@ assert(page.includes("data-scan-wrap") && page.includes("lp-phone") && page.incl
 // arrow node — so none may appear in the markup.
 assert(!page.includes("↗"), "An arrow glyph is in the markup; home.js textContent updates would erase it. Use a CSS pseudo-element.");
 assert(css.includes(".lp-btn-primary::after") && css.includes(".lp-btn-dark::after"), "The CTA arrows are not drawn as pseudo-elements.");
-assert(css.includes("backdrop-filter: blur(22px) saturate(1.35)") && css.includes("@keyframes lp-glass-header-in") && css.includes("@keyframes lp-glass-header-sheen"), "The landing header lost its animated glass treatment.");
-assert(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?body\.landing \.site-header,[\s\S]*?animation: none;/.test(css), "The animated glass header does not respect reduced-motion preferences.");
+assert(css.includes("backdrop-filter: blur(24px) saturate(1.55)") && css.includes("border-radius: 22px") && css.includes("@keyframes lp-glass-header-in") && css.includes("@keyframes lp-glass-header-sheen"), "The landing header lost its floating glass treatment.");
+assert(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?body\.landing \.site-header \.shell\.nav-wrap,[\s\S]*?animation: none;/.test(css), "The animated glass header does not respect reduced-motion preferences.");
 
 /* ── Account-first links and flows preserved ───────── */
 
