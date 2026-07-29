@@ -70,9 +70,15 @@ export const onboardingNav = [
 ];
 
 export const accountNav = [
-  { label: "Messages", icon: "chat", href: "/notifications", notificationHook: true },
-  { label: "Public profile", icon: "id", href: "/cleaner/profile/preview" },
-  { label: "Dashboard", icon: "dash", href: "/cleaner/dashboard" }
+  { label: "My Profile", icon: "user", href: "/cleaner/profile/preview" },
+  { label: "Messages", icon: "chat", href: "/notifications?view=messages", notificationHook: true },
+  { label: "Notifications", icon: "bell", href: "/notifications", notificationHook: true },
+  { label: "Help Centre", icon: "help", href: "/cleaner/help-centre", awaitingDesign: true },
+  { label: "Support Tickets", icon: "chat", href: "/cleaner/support-tickets", awaitingDesign: true },
+  { label: "Report an Incident", icon: "shield", href: "/cleaner/report-incident", awaitingDesign: true },
+  { label: "My Disputes", icon: "shield", href: "/cleaner/disputes", awaitingDesign: true },
+  { label: "Settings", icon: "gear", href: "/settings" },
+  { label: "Logout", icon: "logout", action: "logout" }
 ];
 
 // Icon paths transcribed from the design's ICONS table.
@@ -96,6 +102,8 @@ export const onboardingIcons = {
   bell: "M6 16v-5a6 6 0 1 1 12 0v5l2 3H4zM10 19a2 2 0 0 0 4 0",
   gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1",
   chat: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
+  help: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9a2.7 2.7 0 1 1 4.1 2.3c-1 .7-1.6 1.1-1.6 2.2M12 17h.01",
+  logout: "M10 4H5v16h5M14 8l4 4-4 4M18 12H9",
   truck: "M2 7h12v9H2zM14 10h4l3 3v3h-7zM6 19a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6zM17 19a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6z",
   pound: "M15 5.5A4 4 0 0 0 9 9v6c0 2-.8 3-2.5 4H17M7 12h6",
   lang: "M4 5h9M8.5 3v2M11 5c-1 4-4 7-7 9M6 8c1.5 3 4 5.5 7 6.5M13 20l4-9 4 9M14.5 17h5",

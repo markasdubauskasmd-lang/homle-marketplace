@@ -212,6 +212,21 @@
 .hc-nav-item svg { flex: none; }
 .hc-nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hc-nav-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hc-red); flex: none; }
+.hc-account-nav-item .notification-nav-count {
+  width: 7px;
+  min-width: 7px;
+  height: 7px;
+  padding: 0;
+  color: transparent;
+  font-size: 0;
+}
+.hc-account-nav-status {
+  display: block;
+  padding: 5px 10px 0;
+  color: var(--hc-red-deep);
+  font-size: 10px;
+  line-height: 1.4;
+}
 
 .hc-nav-cta {
   margin: 12px 2px 6px; display: flex; align-items: center; justify-content: center; gap: 8px;

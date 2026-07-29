@@ -1,4 +1,4 @@
-import { createCleanerPage, element } from "./cleaner-page.js?v=20260729-5";
+import { createCleanerPage, element } from "./cleaner-page.js?v=20260729-6";
 
 function recordedCheck(status) {
   if (status === "verified") return { label: "Result verified", tone: "success" };
