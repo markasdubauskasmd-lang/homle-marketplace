@@ -629,4 +629,26 @@ assert(!server.includes('"/landlord/scan": "room-scan.html"'), "The legacy stand
 assert(/landlordDashboardPage \|\| journeyPage[\s\S]{0,120}\? "camera=\(self\), microphone=\(self\), geolocation=\(\)"/.test(server), "The embedded scanner is rendered on /landlord/book, but that real phone journey still blocks its own camera and microphone in Permissions-Policy.");
 assert(server.includes("activeJobPage || landlordDashboardPage || journeyPage"), "The protected booking journey cannot connect to private object storage for room-photo uploads.");
 
+
+/* ── Nothing leaves the device with a face in it ───────────────────────── */
+
+// Until Phase 8 a captured frame was metadata-stripped by the server and
+// otherwise stored intact, so a person in the room or a payslip on a desk
+// reached the assigned Cleaner under a signed URL.
+assert(/redactPrivateContent\(el\.canvas[^)]*\);[\s\S]{0,600}toDataURL/.test(overlay),
+  "A frame can be serialised before private content is erased.");
+// The single place every uploaded frame, crop source and read frame is
+// produced. Redacting anywhere else means a caller added later has to remember.
+assert(overlay.split("toDataURL(\"image/jpeg\"").length === 2 || /redactPrivateContent/.test(overlay),
+  "Frames are produced in more than one place without redaction.");
+// Gathered from the raw detector output, not the tracker: a person is filtered
+// out by implausibleForRoom and by the tracking threshold, and neither is a
+// reason to publish their face.
+assert(/state\.privateRegions = found[\s\S]{0,200}shouldRedact/.test(overlay),
+  "Private regions are taken from the tracker rather than from raw detections.");
+// Somebody handing a photograph of their home to a stranger is entitled to
+// know what was removed from it.
+assert(overlay.includes("state.lastRedaction?.summary") && overlay.includes("unusableRedactionRatio"),
+  "The scanner neither reports what it blurred nor refuses a frame that is mostly a person.");
+
 console.log("Room scan UI tests passed: embedded overlay with one implementation, real camera and speech, consent before any photograph leaves, camera released on every exit, safe detection overlay, honest duration and condition, no invented measurement and the approved presentation.");

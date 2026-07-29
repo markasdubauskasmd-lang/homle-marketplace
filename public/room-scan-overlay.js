@@ -52,6 +52,7 @@ import { checklistFromTranscript } from "./checklist.js";
 import { clearRoomNotesDraft, readRoomNotesDraft, saveRoomNotesDraft } from "./room-note-draft.js";
 import { validatedGuidedRoomPhotoDimensions, validatedGuidedRoomPhotoFile } from "./room-photo-selection.js";
 import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js";
+import { applyRedaction, redactedAreaRatio, redactionRegions, redactionSummary, shouldRedact, unusableRedactionRatio } from "./room-photo-redaction.js";
 import { storedCsrf } from "./session-csrf.js";
 
 // The room scan as an overlay any page can open in place. It builds and owns
@@ -458,6 +459,7 @@ export function openRoomScan() {
       stream: null, cameraStarting: false, resumeCameraOnVisible: false,
       rooms: [], capturing: false, photoProcessing: false, videoProcessing: false,
       liveCaptureUsed: false, fallbackCaptureUsed: false,
+      privateRegions: [], privateRegionSource: null, lastRedaction: null,
       voiceOn: false, voiceUsed: false, roomTranscripts: new Map(), seconds: 0,
       voiceGeneration: 0,
       // Counters, not a log. Inference runs several times a second, so a line per
@@ -1175,6 +1177,43 @@ export function openRoomScan() {
       return coverSourceRect({ sourceWidth, sourceHeight, frameWidth, frameHeight });
     }
 
+    // Maps the detector's source-space boxes onto the cropped, scaled canvas and
+    // erases them.
+    //
+    // A photograph of a home is being handed to a stranger. The scanner already
+    // asks the Landlord not to photograph people or paperwork, but asking is not
+    // a control, and until this existed a face or a payslip in frame was stored
+    // intact and served to the assigned Cleaner under a signed URL.
+    function redactPrivateContent(canvas, sourceRect, scale) {
+      const regions = state.privateRegions;
+      if (!Array.isArray(regions) || !regions.length) {
+        state.lastRedaction = null;
+        return;
+      }
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      // Source pixels to canvas pixels: subtract the crop origin, then apply the
+      // same scale the frame was drawn at.
+      const onCanvas = regions.map((region) => {
+        const [x, y, width, height] = region.bbox.map(Number);
+        if (![x, y, width, height].every(Number.isFinite)) return null;
+        return {
+          class: region.class,
+          bbox: [(x - sourceRect.sx) * scale, (y - sourceRect.sy) * scale, width * scale, height * scale]
+        };
+      }).filter(Boolean);
+      const mappedRegions = redactionRegions(onCanvas, { width: canvas.width, height: canvas.height });
+      if (!mappedRegions.length) {
+        state.lastRedaction = null;
+        return;
+      }
+      applyRedaction(context, mappedRegions, { document });
+      state.lastRedaction = {
+        summary: redactionSummary(mappedRegions),
+        ratio: redactedAreaRatio(mappedRegions, { width: canvas.width, height: canvas.height })
+      };
+    }
+
     function drawVisibleRegion(source, sourceWidth, sourceHeight) {
       if (!sourceWidth || !sourceHeight) return null;
       const sourceRect = viewfinderSourceRect(sourceWidth, sourceHeight);
@@ -1193,6 +1232,13 @@ export function openRoomScan() {
         sourceRect.sx, sourceRect.sy, sourceRect.sWidth, sourceRect.sHeight,
         0, 0, el.canvas.width, el.canvas.height
       );
+      // Nothing leaves this function unredacted.
+      //
+      // This is the one place every uploaded frame, every crop source and every
+      // frame sent for reading is produced, which is exactly why the erasure
+      // belongs here rather than at each call site: a new caller added later
+      // inherits it instead of having to remember it.
+      redactPrivateContent(el.canvas, sourceRect, scale);
       // 0.90, and deliberately generous. At 0.82 the compressor was smoothing
       // away exactly the speckle and film that distinguish a limescaled tap from
       // a white one. `roomReadingPayload` measures the real serialized size and
@@ -1763,7 +1809,17 @@ export function openRoomScan() {
       if (state.frozen) return confirmSelection();
       const frame = currentFrame();
       if (!frame) return toast("The camera is still warming up — try again in a moment.");
+      // A frame that is mostly erased is no longer a photograph of a room, and
+      // it is also the frame most likely to have contained somebody. Asking for
+      // another is better than storing one whose useful content is gone.
+      if (state.lastRedaction && state.lastRedaction.ratio > unusableRedactionRatio) {
+        return toast("Most of that photo was a person or a screen, so it was not kept. Point the camera at the room itself.");
+      }
       freezeFrame(frame);
+      // Said plainly rather than logged quietly. Somebody handing a photograph
+      // of their home to a stranger is entitled to know what was removed from
+      // it, and to check that against what they remember being in the room.
+      if (state.lastRedaction?.summary) toast(state.lastRedaction.summary);
     }
 
     async function confirmSelection() {
@@ -2770,6 +2826,19 @@ export function openRoomScan() {
           });
           if (box) mapped.push({ ...box, className: item.class, score: item.score });
         }
+        // People, screens and documents are kept in the SOURCE coordinates the
+        // detector returned, not the mapped viewfinder ones. The frame that gets
+        // uploaded is cut from the source, so redacting it needs boxes measured
+        // against the same thing — mapped boxes are for drawing on screen.
+        //
+        // Deliberately gathered from `found` rather than from the tracks: a
+        // person is filtered out of the tracker by implausibleForRoom and by
+        // the tracking threshold, and neither of those is a reason to publish
+        // their face.
+        state.privateRegions = found
+          .filter((item) => shouldRedact(item?.class))
+          .map((item) => ({ class: item.class, bbox: Array.isArray(item?.bbox) ? item.bbox : [] }));
+        state.privateRegionSource = { width: source.width || video.videoWidth, height: source.height || video.videoHeight };
         // Counted rather than logged per frame: at several frames a second, a line
         // per suppression would bury anything else in the console. A running total
         // is enough to tell "the filter is working" from "the filter is eating

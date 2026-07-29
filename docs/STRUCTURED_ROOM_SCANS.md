@@ -406,3 +406,151 @@ retain theirs.
 - **Wall area is a supported subject but nothing derives it**, because it needs
   a ceiling height and a perimeter, and a perimeter needs more than two lengths.
 - **No measurement influences price.** That is Phase 6, and only in shadow.
+
+---
+
+# Phase 6 — pricing
+
+`src/marketplace/scan-pricing.mjs` turns a scan into an explained estimate using
+business rules only. Two constraints shape it, both from the brief:
+
+- **No generative model is the pricing authority.** The vision reader produces
+  observations; money is produced by arithmetic over a stored ruleset.
+- **This does not replace the existing quote.** `booking-workflow.mjs quote()`
+  remains the only thing that prices a real booking. What this adds is a
+  customer-facing estimate and a labour-minutes figure that can be compared
+  against reviewed quotes before anything depends on it.
+
+`isEstimate` is true on every result and no argument clears it.
+
+## Refusing to price is a real answer
+
+An unassessed scan and a level-5 scan both return `priceable: false` with a
+reason. `normalizedPricingRuleset` forces the level-5 multiplier to zero, so no
+operator can put a price on "a person needs to look at this first" by editing a
+rate.
+
+## What the estimate will not assume
+
+A room with no usable measurement contributes **no size adjustment at all**.
+Assuming an average room size would put a number in the price that nothing
+observed. Unanswered questions widen the quoted range, so a scan the customer
+has not finished checking produces a visibly vaguer price rather than a falsely
+precise one. The breakdown lines sum to the total exactly — a breakdown that
+does not add up is worse than none, because it looks checkable and is not.
+
+## Operator-owned rates
+
+Migration `075_scan_pricing_rulesets.sql`, append-only. Publishing writes a new
+version and retires the previous one, so an estimate given last month can still
+be explained by the rules that produced it; an `UPDATE` would silently rewrite
+the past. A partial unique index enforces exactly one live version, every rate
+carries a `CHECK`, and each change records who made it and why in `audit_logs`.
+
+`/admin/scan-pricing` shows the change in plain words before publishing —
+"£28.00 → £30.00" is the sentence that catches a mistyped figure — and refuses a
+heavier level priced below a lighter one, which is almost always transposed
+fields rather than an intended discount.
+
+## Honest limitations
+
+- **Nothing consumes the estimate yet.** It is returned on the scan read and
+  shown nowhere in the booking flow. `shadowComparison()` exists to measure the
+  error against reviewed quotes; that measurement has **not been run**, because
+  it needs real scans and real reviewed totals.
+- **The labour figure is the uncalibrated one** from Phase 3.
+- **Add-ons have no catalogue.** The estimate accepts them; nothing defines them.
+
+# Phase 7 — cleaner checklist
+
+`src/marketplace/cleaner-checklist.mjs`. The rule: **the cleaner should not need
+to interpret raw AI output.** A confidence score and a soiling enum are the right
+shape for pricing and audit and the wrong shape entirely for somebody standing in
+a kitchen with a cloth.
+
+So it translates rather than forwards. `conditionConfidence: 0.31` becomes "check
+this when you arrive". Grease on a heavy hob becomes "Degrease the Hob", high
+priority, and a degreaser on the packing list. "Medium" becomes "needs a
+dedicated product".
+
+**Restrictions and safety warnings are sections, never tasks** — and are listed
+even when they name a room nobody scanned, so "the dog is in the back room"
+cannot be missed because that room was not part of the scan.
+
+A clean object is deliberately not a task: listing everything the scanner saw
+turns a checklist into an inventory and a cleaner stops reading it. An unusable
+measurement is withheld, because a cleaner planning around "3.4m ± 1.2m" is worse
+served than one told nothing.
+
+A level-5 or unassessed scan produces a checklist that says it must not be
+dispatched, but still produces one so an operator can read it first.
+
+The cleaner job page gains **one additive panel**, hidden when there is nothing
+to say, rendered after the existing task list and swallowing its own errors. No
+existing cleaner page, route, workflow or style was changed.
+
+## Honest limitations
+
+- **Voice instructions are not persisted**, so the do-not-touch panel is populated
+  only when a caller supplies them. Storing them against the request is the
+  remaining piece.
+- **Nothing marks a checklist "approved".** It is derived on read from the
+  approved scan; a separate approval state is not modelled.
+
+# Phase 8 — hardening
+
+## Redaction (closes G9)
+
+`public/room-photo-redaction.js` erases people, screens and documents **on the
+device**, using the detector the scanner is already running, so a frame
+containing a face is never uploaded. A server-side redactor would still mean the
+unredacted image crossed the network and sat in a bucket.
+
+It hooks into `drawVisibleRegion` — the single place every uploaded frame, crop
+source and read frame is produced — so a call site added later inherits it
+instead of having to remember it. Regions come from the **raw detector output**,
+not the tracker: a person is filtered out by `implausibleForRoom` and by the
+tracking threshold, and neither is a reason to publish their face.
+
+Erasure is downscale-and-redraw, not `filter = "blur()"`. A canvas filter is
+reversible in principle and unsupported in some mobile canvas implementations,
+which would fail open.
+
+The customer is told what was removed, named rather than counted, and a frame
+that is more than 60% erased is refused — it is no longer a photograph of a
+room, and it is the frame most likely to have contained somebody.
+
+**This is a mitigation, not a guarantee.** COCO-SSD detects a whole person, a
+television, a laptop, a phone and a book. It does **not** detect a face as such,
+a framed photograph on a wall, a letter lying flat on a worktop, or a name on an
+envelope. `book` is included knowing it will sometimes blur an actual book — a
+blurred paperback costs a customer nothing; a legible letter reaching a stranger
+costs them a great deal.
+
+## Telemetry
+
+`src/marketplace/scan-telemetry.mjs` measures the acceptance criteria the audit
+set and could not previously measure. Built so that breaking the "never send raw
+customer images to analytics" rule requires deleting code rather than forgetting
+to add it: the allowed shape is an explicit list of metric names, a fixed
+dimension allowlist, and bounded numbers. Everything else is dropped.
+
+Not recorded: images, object labels, room names, notes, transcripts, or any
+identifier. Timings are bucketed, because an exact duration is a weak identifier
+when joined against anything else. A rate with no denominator is `null`, not
+zero — "no scans completed" and "no scans started" are different facts.
+
+## Honest limitations
+
+- **Telemetry is not yet emitted or collected.** The module, its allowlist and
+  its rate definitions are complete and tested; the call sites in the scanner
+  and the monitoring adapter that drains it are not written. Nothing measures
+  the acceptance criteria in production yet.
+- **No benchmark dataset exists.** §10 of the audit specifies 200 rooms; none
+  have been collected, so no precision, recall, agreement or price-error figure
+  in this project has been measured. Every accuracy claim remains a target.
+- **No retention policy or automatic deletion job.** Customer-initiated scan
+  deletion works; time-based expiry does not exist.
+- **Model rollback is still an environment variable.** Readings are now
+  attributed to a model version, so a regression is traceable; reverting is
+  still a redeploy.
