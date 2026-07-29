@@ -36,6 +36,8 @@ try {
   assert.equal(repositoryResult.migrations.at(-1), "075_scan_pricing_rulesets.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
+  const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
+  const roomMeasurementMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "074_room_scan_measurements.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
   const publicCleanerProfileBehaviour = await readFile(path.join(sourceDatabaseDirectory, "integration", "public-cleaner-profile-behaviour.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
@@ -78,6 +80,14 @@ try {
   // than once in CI.
   assert(deploymentVerifier.includes("bypassing the participant-aware projection") && deploymentVerifier.includes("room_scan_object_corrections"), "Migration-73 verification must prove the runtime role cannot reach structured room scans directly.");
   assert(deploymentVerifier.includes("restricted to the owning Landlord and an Administrator") && deploymentVerifier.includes("position('cleaner_user_id'"), "Migration-73 verification must prove the detailed structured scan cannot become a Cleaner-facing projection.");
+  for (const [name, source] of [["migration 73", structuredScanMigration], ["migration 74", roomMeasurementMigration]]) {
+    const createMarker = source.includes("CREATE OR REPLACE FUNCTION tideway_private.get_room_scan")
+      ? "CREATE OR REPLACE FUNCTION tideway_private.get_room_scan"
+      : "CREATE FUNCTION tideway_private.get_room_scan";
+    const projection = source.slice(source.indexOf(createMarker));
+    assert(projection.includes("request_record.landlord_user_id = actor_id") && projection.includes("has_role('administrator')"), `${name} must keep the detailed room-scan projection owner/Admin-only.`);
+    assert(!projection.includes("cleaner_preview_authorized") && !projection.includes("booking.cleaner_user_id"), `${name} must not reintroduce detailed scanner data into Cleaner access.`);
+  }
   assert(deploymentVerifier.includes("one structured scan, so a retried save can duplicate every room"), "Migration-73 verification must prove a cleaning request cannot carry two structured scans.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 74\)'/, "Deployment verification must detect the room-measurement migration dynamically.");
   // Under the web-only decision nothing a browser produces is exact. A stored

@@ -133,12 +133,8 @@ DECLARE
 BEGIN
   IF actor_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='authentication-required'; END IF;
   SELECT * INTO request_record FROM cleaning_requests request WHERE request.id = target_request_id;
-  IF NOT FOUND OR NOT (request_record.landlord_user_id = actor_id OR tideway_private.has_role('administrator') OR EXISTS (
-    SELECT 1 FROM bookings booking WHERE booking.cleaning_request_id = request_record.id AND booking.cleaner_user_id = actor_id AND (
-      booking.status IN ('confirmed','cleaner-en-route','cleaner-arrived','cleaning-in-progress','awaiting-review','completed')
-      OR (request_record.cleaner_preview_authorized AND booking.status = 'pending-cleaner-acceptance')
-    )
-  )) THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='request-not-found'; END IF;
+  IF NOT FOUND OR NOT (request_record.landlord_user_id = actor_id OR tideway_private.has_role('administrator'))
+  THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='request-not-found'; END IF;
 
   SELECT * INTO session_record FROM room_scan_sessions session WHERE session.cleaning_request_id = request_record.id;
   IF NOT FOUND THEN
