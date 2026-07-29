@@ -262,7 +262,10 @@ assert(conditionAgreement([{ expected: "filthy", observed: "light" }]).pairs ===
   assert(!JSON.stringify(raw.cases).includes("reviewedTotalPence"), "The seed dataset invented a reviewed total.");
   assert(!/data:image\//.test(JSON.stringify(raw)), "The seed dataset contains image data.");
 
-  const cases = await loadBenchmarkCases(new URL(datasetPath).pathname);
+  // readFile accepts file: URLs directly. Converting URL.pathname into a
+  // Windows path prepends the drive twice (C:\C:\...) and makes this test pass
+  // only on Linux CI instead of on the founder's actual development machine.
+  const cases = await loadBenchmarkCases(datasetPath);
   assert(cases.length >= 10, `The seed dataset has only ${cases.length} cases.`);
   const report = runScanBenchmark(cases);
   assert(report.datasetIsSynthetic === true && report.acceptable === false, "The seed dataset reported a pass.");
