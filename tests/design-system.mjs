@@ -86,6 +86,7 @@ assert.deepEqual(
 
 const cleanerWorkspace = new Set([
   "cleaner-dashboard",
+  "cleaner-documents",
   "cleaner-job",
   "cleaner-jobs-map",
   "cleaner-performance",
