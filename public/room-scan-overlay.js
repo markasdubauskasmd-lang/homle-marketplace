@@ -1281,6 +1281,47 @@ export function openRoomScan() {
       });
     }
 
+    // A phone-camera photo and a locally-built video contact sheet never pass
+    // through the live detection loop. They need their own inference before the
+    // shared canvas is drawn; otherwise an earlier live frame's boxes can blur
+    // the wrong pixels while a person in the selected photo remains visible.
+    async function refreshPrivateRegionsForSource(source, width, height) {
+      state.privateRegions = [];
+      state.privateRegionSource = null;
+      state.lastRedaction = null;
+      let detector = state.detector;
+      if (!detector) {
+        try {
+          detector = await loadDetectorOnce();
+          state.detector = detector;
+          state.detectorState = "ready";
+          renderDetectorState();
+        } catch {
+          state.detectorState = "unavailable";
+          state.liveDetectionAvailable = false;
+          renderDetectorState();
+          throw new TypeError("This phone could not run the private-content check. Use the live camera or a voice note instead.");
+        }
+      }
+      const deadline = Date.now() + 6_000;
+      while (detectorBusy && Date.now() < deadline) {
+        await new Promise((resume) => window.setTimeout(resume, 40));
+      }
+      if (detectorBusy) throw new TypeError("The private-content check is still busy. Try this photo again.");
+      detectorBusy = true;
+      try {
+        const found = await detector.detect(source, 12, detectionMinimumScore);
+        state.privateRegions = (Array.isArray(found) ? found : [])
+          .filter((item) => shouldRedact(item?.class))
+          .map((item) => ({ class: item.class, bbox: Array.isArray(item?.bbox) ? item.bbox : [] }));
+        state.privateRegionSource = { width, height };
+      } catch {
+        throw new TypeError("This photo could not be checked for people or private screens. Use the live camera or a voice note instead.");
+      } finally {
+        detectorBusy = false;
+      }
+    }
+
     /* ── Choosing what matters ── */
 
     // Live boxes and selectable boxes are drawn the same way; only whether they
@@ -1451,10 +1492,10 @@ export function openRoomScan() {
       el.selection.hidden = false;
       el.viewfinder.classList.add("picking");
       // Whatever the detector had settled on becomes the starting selection.
-      state.candidates = usableLiveBoxes(drawableTracks(state.tracks).map((track) => ({
+      state.candidates = live ? usableLiveBoxes(drawableTracks(state.tracks).map((track) => ({
         id: `d${track.id}`, x: track.x, y: track.y, width: track.width, height: track.height,
         label: track.label, kind: "detected", score: track.score
-      })));
+      }))) : [];
       state.selectedIds = new Set(preselect ? [preselect] : []);
       layoutFrozen();
       refreshSelection();
@@ -1863,8 +1904,13 @@ export function openRoomScan() {
         // Decoding is async; if the Landlord has since left this room or a stored
         // photo is loading into the canvas, drop it before it can draw over.
         if (state.closed || session !== state.roomSession || state.loadingRoom || state.capturing) return;
+        await refreshPrivateRegionsForSource(image, image.naturalWidth, image.naturalHeight);
+        if (state.closed || session !== state.roomSession || state.loadingRoom || state.capturing) return;
         const frame = drawVisibleRegion(image, image.naturalWidth, image.naturalHeight);
         if (!frame) throw new TypeError("That photo could not be opened.");
+        if (state.lastRedaction && state.lastRedaction.ratio > unusableRedactionRatio) {
+          throw new TypeError("Most of that photo was a person or a private screen. Point the camera at the room itself and try again.");
+        }
         el.blocked.hidden = true;
         el.deck.hidden = false;
         el.deck.inert = false;
@@ -1873,6 +1919,7 @@ export function openRoomScan() {
         // viewfinder, so there are no detected boxes to start from — but it can
         // still be marked up by hand before it is read.
         freezeFrame(frame, { live: false });
+        if (state.lastRedaction?.summary) toast(state.lastRedaction.summary);
       } catch (error) {
         if (session === state.roomSession) blockCamera(error?.message || "That room photo could not be opened. Try another one.");
       } finally {

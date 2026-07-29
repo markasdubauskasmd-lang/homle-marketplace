@@ -490,7 +490,8 @@ assert(overlay.includes("data-camera-deck") && /function blockCamera[\s\S]{0,700
 assert(overlay.includes("data-camera-fallback") && overlay.includes("data-camera-fallback-input") && overlay.includes('capture="environment"') && overlay.includes("decodePhoto") && overlay.includes("captureSelectedPhoto"), "A denied live-camera permission no longer has a native phone-camera fallback.");
 assert(overlay.includes("Live camera blank? Open your phone camera") && overlay.includes("for (const button of el.fallbacks)"), "The native phone-camera fallback is hidden until the live camera fails, leaving a black-but-open stream with no escape.");
 assert(overlay.includes('accept="image/*"') && photoSelection.includes('startsWith("image/")'), "The native rear-camera fallback is restricted to a MIME list that can make phones open only the photo library or reject their own camera format.");
-assert(/function captureSelectedPhoto\(file\)[\s\S]{0,220}state\.photoProcessing[\s\S]{0,180}aria-busy[\s\S]{0,1500}finally[\s\S]{0,180}state\.photoProcessing = false/.test(overlay), "A native photo decode can be started twice, gives no busy state or leaves the camera-resume gate permanently locked.");
+const selectedPhotoBody = overlay.slice(overlay.indexOf("async function captureSelectedPhoto(file)"), overlay.indexOf("function videoContactSheet", overlay.indexOf("async function captureSelectedPhoto(file)")));
+assert(/state\.photoProcessing[\s\S]{0,180}aria-busy/.test(selectedPhotoBody) && /finally[\s\S]{0,180}state\.photoProcessing = false/.test(selectedPhotoBody), "A native photo decode can be started twice, gives no busy state or leaves the camera-resume gate permanently locked.");
 assert(overlay.includes('import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js"') && overlay.includes("data-video-fallback") && overlay.includes('accept="video/*"') && overlay.includes('capture="environment"'), "The main guided scanner cannot open a phone's rear video recorder or reuse the validated private video-frame extractor.");
 assert(overlay.includes("function videoContactSheet(frames)") && /function captureSelectedVideo\(file\)[\s\S]{0,1400}extractRoomVideoFrames\(file, \{ frameCount: maximumRoomVideoFrames \}\)[\s\S]{0,300}videoContactSheet\(frames\)/.test(overlay) && overlay.includes("The raw video and audio stayed on this phone"), "A guided room video is uploaded raw, exposes its audio, or does not combine its beginning, middle and end into one locally extracted review frame.");
 assert(overlay.includes("roomVideoContactSheetLayout({") && overlay.includes("sourceWidth: first.naturalWidth") && overlay.includes("canvasWidth: canvas.width"), "The video contact sheet ignores the tested portrait/landscape layout and can turn every frame into an unreadable thumbnail.");
@@ -578,7 +579,7 @@ assert(/function freezeFrame[\s\S]{0,400}state\.revisiting = false/.test(overlay
 // The phone-camera decode must not draw onto the shared canvas until the
 // Landlord is confirmed still in this room — otherwise an abandoned decode
 // corrupts a later crop.
-assert(overlay.includes("function decodePhoto") && /decodePhoto\(file\)[\s\S]{0,260}session !== state\.roomSession[\s\S]{0,200}drawVisibleRegion/.test(overlay), "A phone-camera photo draws to the shared canvas before confirming the room.");
+assert(overlay.includes("function decodePhoto") && /decodePhoto\(file\)[\s\S]*session !== state\.roomSession[\s\S]*refreshPrivateRegionsForSource\(image[\s\S]*session !== state\.roomSession[\s\S]*drawVisibleRegion/.test(selectedPhotoBody), "A phone-camera photo draws to the shared canvas before confirming the room.");
 assert(overlay.includes("validatedGuidedRoomPhotoFile(file)") && overlay.includes("validatedGuidedRoomPhotoDimensions(image.naturalWidth, image.naturalHeight)"), "The broad native phone-camera picker can pass vector or oversized decoded images into the scanner.");
 
 // A tap during the revisit photo load must not start a fresh capture that the
@@ -637,6 +638,14 @@ assert(server.includes("activeJobPage || landlordDashboardPage || journeyPage"),
 // reached the assigned Cleaner under a signed URL.
 assert(/redactPrivateContent\(el\.canvas[^)]*\);[\s\S]{0,600}toDataURL/.test(overlay),
   "A frame can be serialised before private content is erased.");
+assert(/async function refreshPrivateRegionsForSource[\s\S]*state\.privateRegions = \[\][\s\S]*detector\.detect\(source[\s\S]*shouldRedact/.test(overlay),
+  "A phone photo or video contact sheet can reuse stale live-camera privacy boxes instead of checking its own pixels.");
+assert(/decodePhoto\(file\)[\s\S]{0,650}refreshPrivateRegionsForSource\(image[\s\S]{0,300}drawVisibleRegion\(image/.test(overlay),
+  "The phone-camera fallback draws or serialises a selected photo before its own private-content check.");
+assert(/state\.candidates = live \?[\s\S]{0,350}: \[\]/.test(overlay),
+  "A fallback photo can inherit selectable boxes from an unrelated live camera frame.");
+assert(/refreshPrivateRegionsForSource[\s\S]*private-content check[\s\S]*voice note instead/.test(overlay),
+  "The selected-photo privacy check can fail open when on-device detection is unavailable.");
 // The single place every uploaded frame, crop source and read frame is
 // produced. Redacting anywhere else means a caller added later has to remember.
 assert(overlay.split("toDataURL(\"image/jpeg\"").length === 2 || /redactPrivateContent/.test(overlay),

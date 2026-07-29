@@ -477,14 +477,16 @@ BEGIN
         RAISE EXCEPTION 'The runtime role cannot execute the room-scan function %, so the structured scan is unreachable', selected_source;
       END IF;
     END LOOP;
-    -- The read must apply the same participant rule as the photo projection it
-    -- sits beside. Two access rules meant to agree drift apart precisely when
-    -- nothing checks that they still do.
+    -- The detailed structured observation/pricing read is deliberately narrower
+    -- than the Cleaner photo/checklist projection: only the owning Landlord and
+    -- an Administrator may use it.
     SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.get_room_scan(uuid)');
-    IF position('cleaner_preview_authorized' IN COALESCE(selected_source,''))=0
-      OR position('pending-cleaner-acceptance' IN COALESCE(selected_source,''))=0 THEN
-      RAISE EXCEPTION 'The structured room-scan read does not enforce the Cleaner preview-consent boundary';
+    IF position('request_record.landlord_user_id = actor_id' IN COALESCE(selected_source,''))=0
+      OR position('has_role(''administrator'')' IN COALESCE(selected_source,''))=0
+      OR position('cleaner_preview_authorized' IN COALESCE(selected_source,''))>0
+      OR position('cleaner_user_id' IN COALESCE(selected_source,''))>0 THEN
+      RAISE EXCEPTION 'The structured room-scan read is not restricted to the owning Landlord and an Administrator';
     END IF;
     -- One scan per request. Without this, a retried save writes a second scan
     -- and every object count downstream doubles.

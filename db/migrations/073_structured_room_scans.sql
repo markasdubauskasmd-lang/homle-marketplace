@@ -155,11 +155,9 @@ CREATE POLICY room_scan_object_corrections_owner_or_admin ON room_scan_object_co
 );
 CREATE POLICY room_scan_model_versions_readable ON room_scan_model_versions FOR SELECT USING (true);
 
--- Participant-aware read. Mirrors get_cleaning_request_scan exactly: the owning
--- Landlord and an Administrator always; an invited Cleaner only when the
--- Landlord authorised preview; the assigned Cleaner from confirmation onward.
--- Written as the same expression rather than a similar one, because two access
--- rules that are meant to agree will otherwise drift apart.
+-- Structured observations and derived pricing are a Landlord/Admin review
+-- surface. Cleaner scope continues through get_cleaning_request_scan, whose
+-- narrower checklist/photo projection has its own preview-consent boundary.
 CREATE FUNCTION tideway_private.get_room_scan(target_request_id uuid)
 RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
@@ -172,12 +170,8 @@ DECLARE
 BEGIN
   IF actor_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='authentication-required'; END IF;
   SELECT * INTO request_record FROM cleaning_requests request WHERE request.id = target_request_id;
-  IF NOT FOUND OR NOT (request_record.landlord_user_id = actor_id OR tideway_private.has_role('administrator') OR EXISTS (
-    SELECT 1 FROM bookings booking WHERE booking.cleaning_request_id = request_record.id AND booking.cleaner_user_id = actor_id AND (
-      booking.status IN ('confirmed','cleaner-en-route','cleaner-arrived','cleaning-in-progress','awaiting-review','completed')
-      OR (request_record.cleaner_preview_authorized AND booking.status = 'pending-cleaner-acceptance')
-    )
-  )) THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='request-not-found'; END IF;
+  IF NOT FOUND OR NOT (request_record.landlord_user_id = actor_id OR tideway_private.has_role('administrator'))
+  THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='request-not-found'; END IF;
 
   SELECT * INTO session_record FROM room_scan_sessions session WHERE session.cleaning_request_id = request_record.id;
   IF NOT FOUND THEN

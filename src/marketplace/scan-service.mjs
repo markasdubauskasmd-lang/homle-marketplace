@@ -296,7 +296,9 @@ export function createScanService(repository, options = {}) {
       return scanProjection(await repository.recordScan(actor, { ...scan, model: modelAttribution(vision) }));
     },
     async getScan(actor, cleaningRequestId) {
-      if (!actor?.userId) throw new TypeError("Sign in to view this room scan.");
+      if (!actor?.userId || !actor.roles?.some((role) => role === "landlord" || role === "administrator")) {
+        throw new TypeError("A Landlord or Administrator account is required to view this room scan.");
+      }
       const scan = scanProjection(await repository.getScan(actor, uuid(cleaningRequestId, "cleaning request id")));
       return Object.freeze({ ...scan, estimate: await estimateFor(actor, scan) });
     },

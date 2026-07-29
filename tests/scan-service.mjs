@@ -239,10 +239,10 @@ assert(throwsWith(() => createScanService(null), "complete room-scan repository"
   assert(await rejects(() => service.recordOwnScan({ userId: null }, scan()), "Landlord account is required"), "An unauthenticated caller recorded a room scan.");
   assert(await rejects(() => service.correctOwnObject(cleaner, sessionId, { field: "label", value: "Hob" }), "Landlord account is required"), "A Cleaner corrected a room scan.");
   assert(await rejects(() => service.deleteOwnScan(cleaner, requestId), "Landlord account is required"), "A Cleaner deleted a room scan.");
-  // Reading is participant-aware and decided by the reviewed database function,
-  // so the service must not pre-emptively narrow it to Landlords.
-  assert(await rejects(() => service.getScan({ userId: null }, requestId), "Sign in"), "An unauthenticated caller read a room scan.");
-  await service.getScan(cleaner, requestId);
+  assert(await rejects(() => service.getScan({ userId: null, roles: [] }, requestId), "Landlord or Administrator"), "An unauthenticated caller read a room scan.");
+  assert(await rejects(() => service.getScan(cleaner, requestId), "Landlord or Administrator"), "A Cleaner read the Landlord/Admin structured scan projection.");
+  await service.getScan(landlord, requestId);
+  await service.getScan({ userId: landlord.userId, roles: ["administrator"] }, requestId);
 }
 
 {

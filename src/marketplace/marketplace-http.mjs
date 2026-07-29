@@ -398,11 +398,11 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         }
         const selectedRoomScan = pathname.match(requestRoomScanPath);
         if (selectedRoomScan) {
-          // GET is participant-aware and deliberately not landlord-only: an
-          // assigned Cleaner reads the same projection to build their checklist,
-          // and the reviewed database function decides who that is.
           if (request.method === "GET") {
-            const context = await security.protect(request);
+            // Structured scan observations and pricing are a Landlord/Admin
+            // review surface. Cleaner scope continues through the existing,
+            // separately reviewed request-media/checklist projection.
+            const context = await security.protect(request, { roles: ["landlord", "administrator"] });
             sendJson(response, 200, { ok: true, scan: await scans.getScan(context.actor, selectedRoomScan[1]) });
             return true;
           }

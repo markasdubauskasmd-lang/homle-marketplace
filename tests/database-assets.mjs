@@ -77,7 +77,7 @@ try {
   // has no boundary left, so the check has to run on every deployment rather
   // than once in CI.
   assert(deploymentVerifier.includes("bypassing the participant-aware projection") && deploymentVerifier.includes("room_scan_object_corrections"), "Migration-73 verification must prove the runtime role cannot reach structured room scans directly.");
-  assert(deploymentVerifier.includes("does not enforce the Cleaner preview-consent boundary"), "Migration-73 verification must prove the structured scan read applies the same Cleaner preview rule as the photo projection.");
+  assert(deploymentVerifier.includes("restricted to the owning Landlord and an Administrator") && deploymentVerifier.includes("position('cleaner_user_id'"), "Migration-73 verification must prove the detailed structured scan cannot become a Cleaner-facing projection.");
   assert(deploymentVerifier.includes("one structured scan, so a retried save can duplicate every room"), "Migration-73 verification must prove a cleaning request cannot carry two structured scans.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 74\)'/, "Deployment verification must detect the room-measurement migration dynamically.");
   // Under the web-only decision nothing a browser produces is exact. A stored
