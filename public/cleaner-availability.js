@@ -1,4 +1,4 @@
-import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-4";
+import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-5";
 
 function renderRail(progress) {
   const steps = new Map(progress.steps.map((step) => [step.key, step]));

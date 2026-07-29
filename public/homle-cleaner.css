@@ -2503,6 +2503,179 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   line-height: 1.45;
 }
 
+/* ------------------------------------------------------------- equipment -- */
+
+.hc-equipment-progress-track span {
+  width: 57.895%;
+}
+
+.hc-equipment-card {
+  align-self: start;
+}
+
+.hc-equipment-form {
+  padding: 0 34px 24px;
+}
+
+.hc-equipment-section {
+  min-width: 0;
+  margin: 0;
+  padding: 20px 0 22px;
+  border: 0;
+  border-top: 1px solid #eadfce;
+}
+
+.hc-equipment-section > legend {
+  padding: 0 8px 0 0;
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.hc-equipment-own {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 10px 14px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 11px;
+  background: #fdfaf4;
+  font-size: 9.5px;
+}
+
+.hc-equipment-toggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 9px;
+  color: #28713e;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.hc-equipment-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.hc-equipment-toggle i {
+  position: relative;
+  display: block;
+  width: 39px;
+  height: 23px;
+  border-radius: 999px;
+  background: #ded3bf;
+  cursor: pointer;
+  transition: background-color .16s ease;
+}
+
+.hc-equipment-toggle i::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 17px;
+  height: 17px;
+  content: "";
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(36, 24, 13, .2);
+  transition: transform .16s ease;
+}
+
+.hc-equipment-toggle input:checked + i {
+  background: var(--hc-red);
+}
+
+.hc-equipment-toggle input:checked + i::after {
+  transform: translateX(16px);
+}
+
+.hc-equipment-toggle input:focus-visible + i {
+  outline: 2px solid rgba(198, 42, 26, .32);
+  outline-offset: 2px;
+}
+
+.hc-equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  transition: opacity .16s ease;
+}
+
+.hc-equipment-grid.is-disabled {
+  opacity: .52;
+}
+
+.hc-equipment-grid label {
+  position: relative;
+  min-width: 0;
+}
+
+.hc-equipment-grid input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.hc-equipment-grid span {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  padding: 9px 10px 9px 31px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.hc-equipment-grid span::before {
+  position: absolute;
+  left: 10px;
+  width: 13px;
+  height: 13px;
+  content: "";
+  border: 1px solid #dfd0bb;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.hc-equipment-grid input:checked + span {
+  border-color: #eda99f;
+  background: #fff0ed;
+}
+
+.hc-equipment-grid input:checked + span::before {
+  content: "✓";
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  border-color: var(--hc-red);
+  background: var(--hc-red);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.hc-equipment-grid input:focus-visible + span {
+  outline: 2px solid rgba(198, 42, 26, .3);
+  outline-offset: 2px;
+}
+
+.hc-equipment-grid input:disabled + span {
+  cursor: not-allowed;
+}
+
 /* ---------------------------------------------------------- availability -- */
 
 .hc-availability-progress-track span {
@@ -3218,6 +3391,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-references-contact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-insurance-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-banking-account-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hc-equipment-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-availability-jobs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-work-builder { grid-template-columns: 1fr; }
   .hc-work-panel { border-right: 0; border-bottom: 1px solid #e7dccb; }
@@ -3255,6 +3429,8 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-banking-account-primary,
   .hc-banking-account-secondary,
   .hc-banking-invoices { grid-template-columns: 1fr; }
+  .hc-equipment-form { padding-left: 20px; padding-right: 20px; }
+  .hc-equipment-grid { grid-template-columns: 1fr; }
   .hc-availability-form { padding-left: 20px; padding-right: 20px; }
   .hc-availability-limits,
   .hc-availability-jobs { grid-template-columns: 1fr; }
