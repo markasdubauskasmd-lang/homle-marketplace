@@ -34,6 +34,238 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* Cleaner Support tickets */
+.cleaner-support-tickets-page .hc-side.cleaner-site-header {
+  background: #f8f0e3;
+  border-right-color: #eadfce;
+}
+
+.cleaner-support-tickets-page .hc-main {
+  background: #f8f0e3;
+}
+
+.cleaner-support-tickets-page .hc-main-inner {
+  max-width: 1060px;
+  padding-top: 36px;
+}
+
+.hc-support-tickets {
+  width: min(100%, 840px);
+  margin: 0 auto;
+}
+
+.hc-support-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.hc-support-heading h1 {
+  margin: 0;
+  color: #100c09;
+  font-family: var(--hc-display);
+  font-size: clamp(34px, 4vw, 46px);
+  line-height: .98;
+  letter-spacing: -.045em;
+}
+
+.hc-support-heading p {
+  margin: 8px 0 0;
+  color: #755f4d;
+  font-size: 10px;
+}
+
+.hc-support-new,
+.hc-support-dialog .hc-help-primary {
+  border: 0;
+  border-radius: 999px;
+  background: #de392a;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(207, 52, 40, .23);
+  font: 700 10px/1 var(--hc-sans);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hc-support-new {
+  min-width: 96px;
+  min-height: 34px;
+  padding: 0 18px;
+  cursor: pointer;
+}
+
+.hc-support-card {
+  overflow: hidden;
+  padding: 8px 20px;
+  border: 1px solid rgba(82, 57, 35, .04);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 18px 38px rgba(71, 43, 20, .08);
+}
+
+.hc-support-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto 64px;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 4px;
+  border-bottom: 1px solid #eee5d8;
+  color: inherit;
+  text-decoration: none;
+}
+
+.hc-support-row:last-child {
+  border-bottom: 0;
+}
+
+.hc-support-row:hover strong,
+.hc-support-row:focus-visible strong {
+  color: #cf3025;
+}
+
+.hc-support-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.hc-support-copy strong {
+  color: #17100b;
+  font-size: 10px;
+  line-height: 1.3;
+  transition: color .15s ease;
+}
+
+.hc-support-copy small {
+  overflow: hidden;
+  color: #8a735f;
+  font-size: 8px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-support-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 21px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hc-support-category {
+  background: #f4eee3;
+  color: #654f3e;
+}
+
+.hc-support-status {
+  background: #f7e8bd;
+  color: #7b5a0b;
+}
+
+.hc-support-status.is-resolved,
+.hc-support-status.is-closed {
+  background: #dfeeda;
+  color: #287339;
+}
+
+.hc-support-status.is-reviewing {
+  background: #dfeaf1;
+  color: #315f77;
+}
+
+.hc-support-time {
+  color: #9a826e;
+  font-size: 8px;
+  text-align: right;
+}
+
+.hc-support-empty {
+  padding: 30px 16px;
+  color: #765f4c;
+  text-align: center;
+}
+
+.hc-support-empty strong {
+  display: block;
+  color: #1b130e;
+  font-size: 12px;
+}
+
+.hc-support-empty p,
+.hc-support-load-note {
+  margin: 6px 0 0;
+  font-size: 9px;
+}
+
+.hc-support-load-note {
+  margin: 0 0 10px;
+  color: #9a3b2c;
+}
+
+.hc-support-dialog {
+  width: min(430px, calc(100vw - 32px));
+  padding: 28px;
+  border: 0;
+  border-radius: 20px;
+  color: #1d140f;
+  box-shadow: 0 26px 80px rgba(47, 26, 11, .25);
+}
+
+.hc-support-dialog::backdrop {
+  background: rgba(35, 21, 13, .42);
+}
+
+.hc-support-dialog h2 {
+  margin: 0;
+  font: 700 24px/1.05 var(--hc-display);
+}
+
+.hc-support-dialog p {
+  margin: 12px 0 22px;
+  color: #755f4d;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.hc-support-dialog > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.hc-support-dialog .hc-help-primary,
+.hc-support-dialog .hc-help-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 17px;
+}
+
+@media (max-width: 700px) {
+  .hc-support-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .hc-support-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .hc-support-category,
+  .hc-support-time {
+    display: none;
+  }
+}
+
 /* ------------------------------------------------ Notifications centre -- */
 
 .cleaner-notifications-page .hc-side.cleaner-site-header {
