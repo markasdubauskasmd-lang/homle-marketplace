@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#d63a2a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Homle">
+  <title>Help Centre | Homle</title>
+  <link rel="icon" href="/homle-logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-13">
+  <script src="/cleaner-help-centre.js?v=20260729-1" type="module"></script>
+  <script src="/account-menu.js?v=20260729-1" type="module"></script>
+  <script src="/notification-badge.js?v=20260729-1" type="module"></script>
+</head>
+<body class="cleaner-workspace-page cleaner-help-centre-page">
+  <a class="hc-skip" href="#cleaner-help-centre-main">Skip to Help Centre</a>
+
+  <div class="hc">
+    <aside class="hc-side cleaner-site-header">
+      <div class="hc-brand">
+        <div class="hc-brand-mark" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 4 4.5 10.5V20h15v-9.5z" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path><path d="M10 20v-5h4v5" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path></svg>
+        </div>
+        <div>
+          <div class="hc-brand-name">Homle</div>
+          <div class="hc-brand-role">CLEANER</div>
+        </div>
+      </div>
+
+      <nav class="hc-nav" aria-label="Cleaner navigation">
+        <a class="hc-nav-item" href="/cleaner/dashboard"><span class="hc-nav-label">Dashboard</span><span class="hc-nav-dot" data-cleaner-pending-dot hidden></span></a>
+        <a class="hc-nav-item" href="/cleaner/schedule"><span class="hc-nav-label">My Schedule</span></a>
+        <a class="hc-nav-item" href="/cleaner/jobs-map"><span class="hc-nav-label">Jobs Map</span></a>
+        <a class="hc-nav-item" href="/cleaner/sign-off"><span class="hc-nav-label">Job Sign-off</span></a>
+        <a class="hc-nav-item" href="/cleaner/payouts" data-cleaner-payout-link hidden><span class="hc-nav-label">Earnings</span></a>
+        <a class="hc-nav-item" href="/cleaner/reviews"><span class="hc-nav-label">Reviews</span></a>
+        <a class="hc-nav-item" href="/cleaner/performance"><span class="hc-nav-label">Performance</span></a>
+        <a class="hc-nav-item" href="/cleaner/registration"><span class="hc-nav-label">Complete Registration</span></a>
+
+        <a class="hc-nav-cta" href="/cleaner/registration" data-cleaner-profile-link>Continue setup <span aria-hidden="true">↗</span></a>
+
+        <details class="hc-nav-group" data-onboarding-group open>
+          <summary class="hc-nav-group-summary">
+            <span class="hc-nav-group-label">ONBOARDING</span>
+            <span class="hc-nav-chevron" aria-hidden="true">▾</span>
+          </summary>
+          <div data-onboarding-nav></div>
+        </details>
+
+        <details class="hc-nav-group" data-account-group open>
+          <summary class="hc-nav-group-summary">
+            <span class="hc-nav-group-label">ACCOUNT</span>
+            <span class="hc-nav-chevron" aria-hidden="true">▾</span>
+          </summary>
+          <div data-account-nav>
+            <a class="hc-nav-item" href="/cleaner/profile/preview"><span class="hc-nav-label">My Profile</span></a>
+            <a class="hc-nav-item" href="/cleaner/messages"><span class="hc-nav-label">Messages</span></a>
+            <a class="hc-nav-item" href="/cleaner/notifications"><span class="hc-nav-label">Notifications</span></a>
+            <a class="hc-nav-item is-current" href="/cleaner/help-centre" aria-current="page"><span class="hc-nav-label">Help Centre</span></a>
+          </div>
+          <small class="hc-account-nav-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small>
+        </details>
+      </nav>
+
+      <div class="hc-side-foot">
+        <details class="account-menu hc-account-menu" data-account-menu hidden>
+          <summary aria-label="Open Cleaner account menu">
+            <span class="hc-side-profile">
+              <span class="hc-avatar" data-account-avatar aria-hidden="true">H</span>
+              <span class="hc-side-profile-body">
+                <span class="hc-side-profile-name" data-account-name>Your account</span>
+                <span class="hc-side-profile-sub">View public profile</span>
+              </span>
+              <span class="hc-side-profile-chev" aria-hidden="true">›</span>
+            </span>
+          </summary>
+          <div class="account-menu-panel">
+            <p class="eyebrow">Cleaner account</p>
+            <small data-account-email></small>
+            <a href="/cleaner/registration">Registration status</a>
+            <button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=work">Sign out</button>
+            <small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small>
+          </div>
+        </details>
+      </div>
+    </aside>
+
+    <main class="hc-main" id="cleaner-help-centre-main">
+      <a class="hc-bell" href="/notifications" aria-label="Notifications">
+        <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 1 1 12 0v5l2 3H4zM10 19a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span class="hc-bell-dot" data-notification-count hidden></span>
+      </a>
+
+      <div class="hc-main-inner">
+        <section class="hc-gate" data-help-centre-gate role="status" aria-live="polite">
+          <h1 class="hc-h3" data-help-centre-gate-title>Checking secure Cleaner access…</h1>
+          <p class="hc-card-sub" data-help-centre-gate-copy>Your private Help Centre is opening.</p>
+          <div class="hc-gate-actions">
+            <a class="hc-btn" href="/login?intent=work" data-help-centre-sign-in hidden>Sign in as a Cleaner</a>
+            <button class="hc-btn-outline" type="button" data-help-centre-retry hidden>Try again</button>
+          </div>
+        </section>
+
+        <div data-help-centre hidden>
+          <div class="hc-feedback hc-feedback-error" data-help-centre-offline role="status" aria-live="polite" hidden>
+            <strong>You are offline.</strong> The help articles below remain available.
+          </div>
+
+          <section class="hc-help-centre" aria-labelledby="help-centre-title">
+            <header class="hc-help-heading">
+              <h1 id="help-centre-title">Help Centre</h1>
+              <p>Stuck on a step? Answers below, humans one tap away.</p>
+              <label class="hc-help-search">
+                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"></circle><path d="m15.5 15.5 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+                <span class="hc-sr-only">Search help articles</span>
+                <input type="search" data-help-search autocomplete="off" placeholder="Search help articles… e.g. DBS or getting paid">
+              </label>
+            </header>
+
+            <div class="hc-feedback" data-help-centre-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
+
+            <div class="hc-help-grid">
+              <section class="hc-help-card hc-help-faq" aria-label="Frequently asked questions">
+                <div class="hc-help-faq-list" data-help-faq-list></div>
+                <div class="hc-help-empty" data-help-empty hidden>
+                  <strong>No matching help article.</strong>
+                  <p>Try a shorter search, such as insurance, payment or work areas.</p>
+                </div>
+              </section>
+
+              <aside class="hc-help-card hc-help-contact" aria-labelledby="help-contact-title">
+                <h2 id="help-contact-title">Talk to us</h2>
+                <dl>
+                  <div><dt>Live chat</dt><dd>Not connected in this preview</dd></div>
+                  <div><dt>Phone</dt><dd>Not published</dd></div>
+                  <div><dt>Email</dt><dd>Use your private Homle account</dd></div>
+                </dl>
+                <button class="hc-help-primary" type="button" data-help-support-action="callback">Request a call back</button>
+                <button class="hc-help-secondary" type="button" data-help-support-action="ticket">Raise a support ticket <span aria-hidden="true">↗</span></button>
+                <p class="hc-help-contact-note">Support submission is not connected yet.</p>
+              </aside>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <a class="hc-fab" href="/cleaner/messages" aria-label="Open your private inbox">
+        <svg width="21" height="21" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <span class="hc-fab-dot" data-notification-count hidden></span>
+      </a>
+    </main>
+  </div>
+</body>
+</html>
