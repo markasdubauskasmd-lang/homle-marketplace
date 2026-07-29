@@ -42,57 +42,50 @@ body.landing .site-header {
   position: absolute;
   inset: 0 0 auto 0;
   z-index: 40;
-  background: transparent;
+  isolation: isolate;
+  border-top: 0;
+  border-bottom: 1px solid oklch(1 0 0 / 0.48);
+  background:
+    linear-gradient(180deg, oklch(1 0 0 / 0.28), oklch(1 0 0 / 0.09)),
+    oklch(0.98 0.012 88 / 0.13);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.56),
+    0 10px 30px oklch(0.2 0.03 60 / 0.12);
+  -webkit-backdrop-filter: blur(26px) saturate(1.5);
+  backdrop-filter: blur(26px) saturate(1.5);
+  animation: lp-glass-header-in 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 body.landing .site-header .shell.nav-wrap {
   position: relative;
-  isolation: isolate;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  width: min(calc(100% - 32px), 1240px);
   max-width: 1240px;
-  margin: 12px auto 0;
-  padding: 12px 22px;
-  border: 1px solid oklch(1 0 0 / 0.68);
-  border-radius: 22px;
-  background:
-    linear-gradient(135deg, oklch(1 0 0 / 0.34), oklch(1 0 0 / 0.1)),
-    oklch(0.98 0.012 88 / 0.16);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.72),
-    inset 0 -1px 0 oklch(1 0 0 / 0.22),
-    0 18px 48px oklch(0.2 0.03 60 / 0.16);
-  -webkit-backdrop-filter: blur(24px) saturate(1.55);
-  backdrop-filter: blur(24px) saturate(1.55);
-  animation: lp-glass-header-in 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+  margin: 0 auto;
+  padding: 14px 32px;
 }
-/* A single reflected light pass gives the panel a glass edge without leaving
+/* A single reflected light pass gives the glass a clean edge without leaving
    a distracting animation loop over the navigation. */
-body.landing .site-header .shell.nav-wrap::before {
+body.landing .site-header::after {
   content: "";
   position: absolute;
   z-index: 0;
   inset: 0;
-  border-radius: inherit;
   pointer-events: none;
   background:
     linear-gradient(
       112deg,
-      transparent 12%,
-      oklch(1 0 0 / 0.08) 30%,
-      oklch(1 0 0 / 0.62) 45%,
-      oklch(1 0 0 / 0.12) 58%,
-      transparent 76%
+      transparent 18%,
+      oklch(1 0 0 / 0.05) 34%,
+      oklch(1 0 0 / 0.4) 48%,
+      oklch(1 0 0 / 0.08) 61%,
+      transparent 78%
     );
   background-size: 260% 100%;
   background-position: 115% 0;
   animation: lp-glass-header-sheen 1.15s 0.28s ease-out both;
-}
-body.landing .site-header .shell.nav-wrap > * {
-  position: relative;
-  z-index: 1;
 }
 body.landing .brand {
   display: inline-flex;
@@ -697,17 +690,14 @@ body.landing .footer-bottom { display: flex; justify-content: space-between; gap
 }
 
 @media (max-width: 720px) {
-  body.landing .site-header .shell.nav-wrap {
-    width: calc(100% - 20px);
-    margin-top: 8px;
-    padding: 10px 12px;
-    border-radius: 18px;
+  body.landing .site-header {
     background:
-      linear-gradient(135deg, oklch(1 0 0 / 0.4), oklch(1 0 0 / 0.14)),
-      oklch(0.98 0.012 88 / 0.2);
-    -webkit-backdrop-filter: blur(18px) saturate(1.25);
-    backdrop-filter: blur(18px) saturate(1.25);
+      linear-gradient(180deg, oklch(1 0 0 / 0.34), oklch(1 0 0 / 0.12)),
+      oklch(0.98 0.012 88 / 0.17);
+    -webkit-backdrop-filter: blur(20px) saturate(1.35);
+    backdrop-filter: blur(20px) saturate(1.35);
   }
+  body.landing .site-header .shell.nav-wrap { padding: 11px 16px; }
   body.landing .menu-toggle { display: inline-block; }
   body.landing .main-nav {
     position: absolute;
@@ -771,8 +761,8 @@ body.landing .lp-stage.scan-done .lp-btn-primary {
 /* ── Reduced motion: no idle loops; JS also jumps the scan to its end. ─── */
 
 @media (prefers-reduced-motion: reduce) {
-  body.landing .site-header .shell.nav-wrap,
-  body.landing .site-header .shell.nav-wrap::before,
+  body.landing .site-header,
+  body.landing .site-header::after,
   body.landing .lp-scrollcue .mouse i,
   body.landing .lp-sparkles span,
   body.landing .lp-badge,
