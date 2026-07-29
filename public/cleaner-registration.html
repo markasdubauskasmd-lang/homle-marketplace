@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-4">
-  <script src="/cleaner-registration.js?v=20260729-4" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-5">
+  <script src="/cleaner-registration.js?v=20260729-5" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -249,6 +249,16 @@
                 <span>Complete registration</span>
                 <strong>Step 10 of 19 &mdash; Banking &amp; payments</strong>
                 <div class="hc-business-progress-track hc-banking-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="10"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-equipment-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 11 of 19 &mdash; Equipment</strong>
+                <div class="hc-business-progress-track hc-equipment-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="11"><span></span></div>
               </div>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
             </header>
@@ -781,6 +791,46 @@
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/insurance">&larr; Back</a>
                   <p data-banking-save-status role="status" aria-live="polite">No bank details are collected by this page.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-equipment-card" data-equipment hidden aria-labelledby="cleaner-equipment-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-equipment-title">Equipment</h1>
+                <p>What kit you bring. Jobs are matched to what you have.</p>
+              </header>
+
+              <form class="hc-equipment-form" data-equipment-form>
+                <fieldset class="hc-equipment-section">
+                  <legend>Your kit</legend>
+                  <label class="hc-equipment-own">
+                    <strong>Do you provide your own cleaning equipment?</strong>
+                    <span class="hc-equipment-toggle"><span data-equipment-own-copy>No</span><input type="checkbox" name="ownEquipment" data-equipment-own><i aria-hidden="true"></i></span>
+                  </label>
+                </fieldset>
+
+                <fieldset class="hc-equipment-section">
+                  <legend>Tick what you have</legend>
+                  <div class="hc-equipment-grid" data-equipment-grid>
+                    <label><input type="checkbox" name="kitItem" value="Vacuum" data-equipment-item data-equipment-kind="equipment"><span>Vacuum</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Steam cleaner" data-equipment-item data-equipment-kind="equipment"><span>Steam cleaner</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Mop &amp; bucket" data-equipment-item data-equipment-kind="equipment"><span>Mop &amp; bucket</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Cleaning chemicals" data-equipment-item data-equipment-kind="product"><span>Cleaning chemicals</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Carpet cleaner" data-equipment-item data-equipment-kind="equipment"><span>Carpet cleaner</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Pressure washer" data-equipment-item data-equipment-kind="equipment"><span>Pressure washer</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Ladder" data-equipment-item data-equipment-kind="equipment"><span>Ladder</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Vehicle" data-equipment-item data-equipment-kind="equipment"><span>Vehicle</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Eco-friendly products" data-equipment-item data-equipment-kind="product"><span>Eco-friendly products</span></label>
+                    <label><input type="checkbox" name="kitItem" value="PPE" data-equipment-item data-equipment-kind="equipment"><span>PPE</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Other" data-equipment-item data-equipment-kind="other"><span>Other</span></label>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/banking">&larr; Back</a>
+                  <p data-equipment-save-status role="status" aria-live="polite">Loading your saved equipment and products&hellip;</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>

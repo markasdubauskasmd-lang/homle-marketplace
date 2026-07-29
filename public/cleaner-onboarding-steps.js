@@ -27,7 +27,7 @@ export const onboardingSteps = [
   { key: "insurance", title: "Insurance", icon: "umb", sidebar: true, href: "/cleaner/insurance", derive: null },
   { key: "banking", title: "Banking & payments", icon: "card", sidebar: true, href: "/cleaner/banking",
     derive: (d) => d.payoutState === "ready" },
-  { key: "equipment", title: "Equipment", icon: "box", sidebar: false, href: "/cleaner/registration",
+  { key: "equipment", title: "Equipment", icon: "box", sidebar: true, href: "/cleaner/equipment",
     derive: (d) => (d.profile?.equipmentSupplied?.length || 0) + (d.profile?.productsSupplied?.length || 0) > 0 },
   { key: "transport", title: "Transport", icon: "truck", sidebar: false, href: "", derive: null },
   { key: "availability", title: "Availability", icon: "cal", sidebar: true, href: "/cleaner/availability",
@@ -63,7 +63,7 @@ export const onboardingNav = [
   { label: "Insurance", icon: "umb", step: "insurance", href: "/cleaner/insurance" },
   { label: "Banking", icon: "card", step: "banking", href: "/cleaner/banking" },
   { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/availability" },
-  { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/registration" },
+  { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/equipment" },
   { label: "Documents", icon: "folder", step: "", href: "" },
   { label: "Training", icon: "award", step: "training", href: "" },
   { label: "Contracts", icon: "pen", step: "compliance", href: "" }
