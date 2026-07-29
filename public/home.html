@@ -14,9 +14,9 @@
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/home.css?v=20260729-3">
-  <script src="/home.js?v=20260718-4" type="module"></script>
-  <script src="/account-menu.js?v=20260718-3" type="module"></script>
+  <link rel="stylesheet" href="/home.css?v=20260729-4">
+  <script src="/home.js?v=20260729-1" type="module"></script>
+  <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/home-hero.js?v=20260723-1" type="module"></script>
 </head>
 <body class="landing">
@@ -29,9 +29,20 @@
       </a>
       <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav">Menu</button>
       <nav id="main-nav" class="main-nav" aria-label="Primary navigation">
-        <a href="/login" data-account-entry hidden>Sign in</a>
-        <a class="button button-small button-outline" href="/signup?intent=work" data-cleaner-entry>Work as a cleaner</a>
-        <a class="button button-small" href="/signup?intent=book" data-book-entry>Create Landlord profile</a>
+        <a class="button button-small button-outline header-login" href="/login" data-account-entry hidden>Log in</a>
+        <details class="signup-menu" data-signup-menu>
+          <summary class="button button-small signup-trigger">Sign up</summary>
+          <div class="signup-menu-panel">
+            <a href="/signup?intent=book" data-book-entry data-entry-label-fixed>
+              <span class="signup-choice-icon" aria-hidden="true">⌂</span>
+              <span><strong>Book service</strong><small>For customers, landlords and property managers</small></span>
+            </a>
+            <a href="/signup?intent=work" data-cleaner-entry data-entry-label-fixed>
+              <span class="signup-choice-icon" aria-hidden="true">＋</span>
+              <span><strong>Join as an Associate</strong><small>Create your professional cleaning account</small></span>
+            </a>
+          </div>
+        </details>
       </nav>
       <details class="account-menu public-account-menu" data-account-menu hidden>
         <summary aria-label="Open signed-in Homle account"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary>

@@ -105,7 +105,7 @@ body.landing .brand img {
 body.landing .main-nav {
   display: flex;
   align-items: center;
-  gap: 30px;
+  gap: 10px;
 }
 body.landing .main-nav > a:not(.button) {
   color: var(--lp-ink-2);
@@ -146,6 +146,102 @@ body.landing .main-nav .button.button-outline {
   border-color: oklch(0.2 0.03 60 / 0.4);
 }
 body.landing .main-nav .button.button-outline:hover { border-color: var(--lp-ink-2); }
+body.landing .header-login { min-width: 92px; justify-content: center; }
+body.landing .signup-menu {
+  position: relative;
+}
+body.landing .signup-menu > summary {
+  min-width: 108px;
+  justify-content: center;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+body.landing .signup-menu > summary::-webkit-details-marker { display: none; }
+body.landing .signup-menu > summary::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--lp-mint);
+  box-shadow: 0 0 0 4px oklch(0.78 0.17 150 / 0.3);
+}
+body.landing .signup-menu > summary::after {
+  content: "⌄";
+  margin-left: 2px;
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.22s var(--ease);
+}
+body.landing .signup-menu[open] > summary::after { transform: rotate(180deg); }
+body.landing .signup-menu-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: min(330px, calc(100vw - 32px));
+  padding: 8px;
+  border: 1px solid oklch(1 0 0 / 0.72);
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, oklch(1 0 0 / 0.9), oklch(0.98 0.012 88 / 0.82));
+  box-shadow: 0 22px 58px oklch(0.2 0.03 60 / 0.22);
+  -webkit-backdrop-filter: blur(24px) saturate(1.35);
+  backdrop-filter: blur(24px) saturate(1.35);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top right;
+  transition:
+    opacity 0.2s ease,
+    transform 0.24s var(--ease-spring),
+    visibility 0s linear 0.24s;
+}
+body.landing .signup-menu[open] .signup-menu-panel {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  transition-delay: 0s;
+}
+body.landing .signup-menu-panel a {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 13px;
+  color: var(--lp-ink-2);
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+body.landing .signup-menu-panel a:hover,
+body.landing .signup-menu-panel a:focus-visible {
+  background: oklch(0.93 0.035 30);
+  transform: translateX(2px);
+}
+body.landing .signup-choice-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--lp-coral);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+}
+body.landing .signup-menu-panel strong,
+body.landing .signup-menu-panel small { display: block; }
+body.landing .signup-menu-panel strong {
+  font-family: var(--lp-display);
+  font-size: 15px;
+}
+body.landing .signup-menu-panel small {
+  margin-top: 3px;
+  color: var(--lp-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
 body.landing .header-sign-in { color: var(--lp-ink-2); font-weight: 600; }
 body.landing .menu-toggle {
   display: none;
@@ -715,6 +811,14 @@ body.landing .footer-bottom { display: flex; justify-content: space-between; gap
     box-shadow: 0 18px 44px oklch(0.2 0.03 60 / 0.22);
     display: none;
   }
+  body.landing .main-nav .button { width: 100%; }
+  body.landing .signup-menu { width: 100%; }
+  body.landing .signup-menu-panel {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+    transform-origin: top center;
+  }
   body.landing .main-nav.open { display: flex; }
   body.landing .lp-hero-copy { top: 78px; }
 }
@@ -769,7 +873,9 @@ body.landing .lp-stage.scan-done .lp-btn-primary {
   body.landing .lp-phone-scanline,
   body.landing .lp-btn-primary { animation: none; }
   body.landing .lp-btn,
-  body.landing .lp-card { transition: none; }
+  body.landing .lp-card,
+  body.landing .signup-menu-panel,
+  body.landing .signup-menu > summary::after { transition: none; }
   body.landing.lp-reveals .reveal { opacity: 1; }
   body.landing.lp-reveals .reveal.in { animation: none; }
   body.landing .pct.tick { animation: none; }

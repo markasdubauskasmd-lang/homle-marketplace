@@ -40,7 +40,7 @@ for (const file of ["bricolage-grotesque-wght.woff2", "dm-sans-wght.woff2", "OFL
 /* ── The design is actually wired in ────────────────── */
 
 assert(page.includes('<body class="landing">') && page.includes('href="/home.css') && page.includes('src="/home-hero.js'), "The landing page does not load its scoped stylesheet and scroll script.");
-assert(page.includes('href="/styles.css?v=20260728-3"') && page.includes('href="/home.css?v=20260729-3"') && page.includes('src="/home-hero.js?v=20260723-1"'), "The landing page still advertises stale shared, animation or landing-style assets, so browsers can miss the latest motion.");
+assert(page.includes('href="/styles.css?v=20260728-3"') && page.includes('href="/home.css?v=20260729-4"') && page.includes('src="/home.js?v=20260729-1"') && page.includes('src="/account-menu.js?v=20260729-1"') && page.includes('src="/home-hero.js?v=20260723-1"'), "The landing page still advertises stale shared, account-menu, animation or landing-style assets, so browsers can miss the latest navigation.");
 // Every rule is scoped under body.landing so nothing leaks into the pages that
 // share styles.css. A top-level selector would begin a line with `.` or `#`.
 assert(css.includes("body.landing") && !/\n[.#][a-zA-Z]/.test(css), "A landing CSS rule is not scoped under body.landing and could leak into other pages.");
@@ -57,8 +57,7 @@ assert(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?body\.landing \.site-he
 /* ── Account-first links and flows preserved ───────── */
 
 assert(!page.includes("data-directory-entry") && !page.includes('href="/request"') && !page.includes('href="/join"'), "The retired public directory or intake journeys are still linked from the landing page.");
-assert(page.includes('href="/signup?intent=work" data-cleaner-entry>Work as a cleaner</a>'), "The Cleaner account entry changed target or lost its hook.");
-assert(page.includes('href="/signup?intent=book" data-book-entry>Create Landlord profile</a>'), "The Landlord account entry changed target or lost its hook.");
+assert(page.includes('<strong>Book service</strong>') && page.includes('<strong>Join as an Associate</strong>'), "The Sign up menu lost its two plain-language account choices.");
 assert((page.match(/data-book-entry/g) || []).length >= 4 && (page.match(/data-cleaner-entry/g) || []).length >= 4, "The redesign dropped the role-aware booking or cleaner entry hooks home.js drives.");
 assert(page.includes("data-account-menu hidden") && page.includes("data-account-avatar") && page.includes("data-account-entry hidden") && page.includes("/account-menu.js?"), "The account menu, avatar or sign-in state hooks were lost.");
 assert(page.includes('data-entry-status aria-live="polite"') && page.includes("Landlords and Cleaners now use their separate private dashboards"), "The account-first status line home.js updates was removed.");
@@ -69,10 +68,13 @@ assert(page.includes('data-year') && page.includes("apple-mobile-web-app-capable
 assert(!page.includes('href="#how-it-works"') && !page.includes(">How it works<"), "The removed How it works tab still has a link or a dead anchor.");
 assert(!page.includes("data-guided-kind") && !page.includes("/app.js"), "The landing page pulled in the pilot forms or the heavy intake script.");
 
-// The header carries only the two role-account actions.
+// The header carries exactly Log in and Sign up; role choice happens in one
+// smooth, keyboard-accessible menu rather than three competing top-level links.
 assert(/<nav[\s\S]*?<\/nav>/.test(page), "The primary nav is missing.");
 const nav = page.match(/<nav[\s\S]*?<\/nav>/)[0];
-assert(nav.includes("data-cleaner-entry") && nav.includes("data-book-entry") && !nav.includes("data-directory-entry"), "The header should show only the Cleaner and Landlord account actions.");
+assert(nav.includes(">Log in</a>") && nav.includes(">Sign up</summary>") && nav.includes("data-cleaner-entry") && nav.includes("data-book-entry") && !nav.includes("Work as a cleaner") && !nav.includes("Book a clean"), "The header should expose only Log in and a two-choice Sign up menu.");
+assert(css.includes(".signup-menu[open] .signup-menu-panel") && css.includes("transform: translateY(0) scale(1)") && homeScript.includes('event.key !== "Escape"'), "The Sign up menu is not smoothly animated or keyboard dismissible.");
+assert(homeScript.includes('hasAttribute("data-entry-label-fixed")'), "Role-aware homepage updates can overwrite the Sign up choice labels.");
 
 // The scan animation must run on phones too, not fall back to a static image:
 // the stage is never un-pinned by CSS and the script only skips motion for

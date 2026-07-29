@@ -2,6 +2,7 @@ import { homeEntryMode, homeEntryPresentation } from "./home-entry-model.js";
 
 const menuButton = document.querySelector(".menu-toggle");
 const mainNav = document.querySelector(".main-nav");
+const signupMenu = document.querySelector("[data-signup-menu]");
 let signedInWorkspace = null;
 let currentEntryMode = "concierge";
 
@@ -13,8 +14,21 @@ if (menuButton && mainNav) {
 
   mainNav.addEventListener("click", (event) => {
     if (!event.target.closest("a")) return;
+    if (signupMenu) signupMenu.open = false;
     mainNav.classList.remove("open");
     menuButton.setAttribute("aria-expanded", "false");
+  });
+}
+
+if (signupMenu) {
+  document.addEventListener("click", (event) => {
+    if (!signupMenu.open || signupMenu.contains(event.target)) return;
+    signupMenu.open = false;
+  });
+  signupMenu.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    signupMenu.open = false;
+    signupMenu.querySelector("summary")?.focus();
   });
 }
 
@@ -27,11 +41,11 @@ function applyEntryMode(mode) {
   const presentation = homeEntryPresentation(mode);
   document.querySelectorAll("[data-book-entry]").forEach((link) => {
     link.href = signedInWorkspace?.role === "landlord" ? "/landlord/book" : presentation.bookingPath;
-    link.textContent = signedInWorkspace?.role === "landlord" ? "Book a clean" : presentation.bookingLabel;
+    if (!link.hasAttribute("data-entry-label-fixed")) link.textContent = signedInWorkspace?.role === "landlord" ? "Book a clean" : presentation.bookingLabel;
   });
   document.querySelectorAll("[data-cleaner-entry]").forEach((link) => {
     link.href = signedInWorkspace?.role === "cleaner" ? "/cleaner/dashboard" : presentation.cleanerPath;
-    if (signedInWorkspace?.role === "cleaner") link.textContent = "Open Cleaner dashboard";
+    if (signedInWorkspace?.role === "cleaner" && !link.hasAttribute("data-entry-label-fixed")) link.textContent = "Open Cleaner dashboard";
   });
   document.querySelectorAll("[data-directory-entry]").forEach((link) => { link.href = presentation.directoryPath; });
   document.querySelectorAll("[data-account-entry]").forEach((link) => { link.hidden = Boolean(signedInWorkspace) || !presentation.accountAccess; });

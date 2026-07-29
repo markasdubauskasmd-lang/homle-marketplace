@@ -31,6 +31,7 @@ assert((page.match(/data-book-entry/g) || []).length >= 4, "Homepage lost its ac
 assert(page.includes('href="/signup?intent=book" data-book-entry') && page.includes('href="/signup?intent=work" data-cleaner-entry'), "Homepage still points at retired pages.");
 assert(!page.includes('href="/request"') && !page.includes('href="/join"') && !page.includes('href="/cleaners"'), "Homepage exposes a retired route.");
 assert(page.includes('/account-menu.js?') && script.includes('window.addEventListener("homle:account-ready"'), "Homepage session recovery or account menu was removed.");
+assert(page.includes("data-signup-menu") && page.includes("<strong>Book service</strong>") && page.includes("<strong>Join as an Associate</strong>") && script.includes("signupMenu.open = false"), "The two-button header or its safely dismissible role-selection menu is missing.");
 assert(script.includes('signedInWorkspace?.role === "landlord" ? "/landlord/book"') && script.includes('signedInWorkspace?.role === "cleaner" ? "/cleaner/dashboard"'), "Signed-in roles do not open their current workspaces.");
 assert(accountPage.includes('href="/landlord/dashboard"') && accountPage.includes('href="/cleaner/dashboard"'), "Account completion still links to retired public journeys.");
 assert(server.includes('"/landlord/dashboard": "landlord-dashboard.html"') && server.includes('"/cleaner/dashboard": "cleaner-dashboard.html"'), "Current role dashboards are not served.");
