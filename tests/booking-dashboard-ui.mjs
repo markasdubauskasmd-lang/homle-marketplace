@@ -147,6 +147,8 @@ const [
   cleanerIncidentReportsScript,
   cleanerDisputesPage,
   cleanerDisputesScript,
+  cleanerSettingsPage,
+  cleanerSettingsScript,
   notificationsScript
 ] = await Promise.all([
   readFile(new URL("../public/cleaner-schedule.html", import.meta.url), "utf8"),
@@ -178,10 +180,12 @@ const [
   readFile(new URL("../public/cleaner-incident-reports.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-disputes.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-disputes.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-settings.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-settings.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8")
 ]);
 
-const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage, cleanerIncidentReportsPage, cleanerDisputesPage];
+const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage, cleanerIncidentReportsPage, cleanerDisputesPage, cleanerSettingsPage];
 const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
 for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(page.includes('class="cleaner-workspace-page') && page.includes("/homle-cleaner.css?") && page.includes('aria-label="Cleaner navigation"'), `Cleaner workspace page ${index + 1} is not using the separate Cleaner shell.`);
@@ -200,7 +204,7 @@ for (const [label, href] of [
   ["Support Tickets", "/cleaner/support-tickets"],
   ["Report an Incident", "/cleaner/report-incident"],
   ["My Disputes", "/cleaner/disputes"],
-  ["Settings", "/settings"]
+  ["Settings", "/cleaner/settings"]
 ]) {
   assert(cleanerOnboardingSteps.includes(`label: "${label}"`) && cleanerOnboardingSteps.includes(`href: "${href}"`), `The shared Cleaner Account navigation omitted the clickable ${label} tab.`);
 }
@@ -250,6 +254,13 @@ for (const copiedSample of ["Oven not deep cleaned as agreed", "Whitfield Lettin
   assert(!`${cleanerDisputesPage}\n${cleanerDisputesScript}`.includes(copiedSample), `The My Disputes page copied the screenshot's ${copiedSample} sample instead of using real private case data.`);
 }
 assert(cleanerStyles.includes(".hc-disputes") && cleanerStyles.includes(".hc-dispute-row") && cleanerStyles.includes(".hc-dispute-date") && cleanerStyles.includes(".cleaner-disputes-page .hc-side.cleaner-site-header"), "The supplied My disputes card, compact rows, recorded date or cream sidebar treatment is missing.");
+assert(server.includes('"/cleaner/settings": "cleaner-settings.html"') && cleanerOnboardingSteps.includes('label: "Settings", icon: "gear", href: "/cleaner/settings"'), "The Cleaner Settings tab does not open its dedicated private account page.");
+assert(cleanerSettingsPage.includes('class="cleaner-workspace-page cleaner-settings-page"') && cleanerSettingsPage.includes("Account, security and accessibility.") && cleanerSettingsPage.includes("Preferences &amp; accessibility") && cleanerSettingsPage.includes("Danger zone") && cleanerSettingsPage.includes("data-settings-logout-all") && cleanerSettingsPage.includes("data-settings-deactivate"), "The supplied Settings heading, four account cards or protected security actions are missing.");
+assert(cleanerSettingsScript.includes('createCleanerPage("cleaner-settings"') && cleanerSettingsScript.includes('requestJson("/api/marketplace/auth/provider-links")') && cleanerSettingsScript.includes('requestJson("/api/marketplace/privacy-requests")') && cleanerSettingsScript.includes('mutationJson("/api/marketplace/auth/session"') && cleanerSettingsScript.includes('mutationJson("/api/marketplace/auth/logout-all"') && cleanerSettingsScript.includes('"X-CSRF-Token": csrf') && cleanerSettingsScript.includes("crypto.randomUUID()") && cleanerSettingsScript.includes("sessionStorage") && !cleanerSettingsScript.includes("localStorage") && !cleanerSettingsScript.includes("innerHTML"), "Cleaner Settings is not role-gated, account-backed, CSRF-protected, idempotent or safely rendered.");
+for (const copiedSample of ["sadie.fletcher@email.co.uk", "07700 900412", "After 30 minutes idle"]) {
+  assert(!`${cleanerSettingsPage}\n${cleanerSettingsScript}`.includes(copiedSample), `Cleaner Settings copied the screenshot's ${copiedSample} sample instead of using supported account state.`);
+}
+assert(cleanerStyles.includes(".hc-settings-card") && cleanerStyles.includes(".hc-settings-account-row") && cleanerStyles.includes(".hc-settings-switch") && cleanerStyles.includes(".hc-settings-danger") && cleanerStyles.includes(".cleaner-settings-page .hc-side.cleaner-site-header"), "The supplied Settings cards, account rows, switches, danger zone or cream sidebar treatment is missing.");
 for (const [index, script] of cleanerWorkspaceScripts.entries()) {
   assert(script.includes('requestJson("/api/marketplace/account")') && script.includes('dashboardWorkspaceAccess(account, "cleaner")') && script.includes('credentials: "same-origin"') && script.includes("new AbortController()") && script.includes("30_000"), `Cleaner workspace script ${index + 1} lacks authenticated role gating or a bounded private request.`);
   assert(script.includes("error.statusCode === 401") && script.includes("error.statusCode === 403") && !script.includes("innerHTML"), `Cleaner workspace script ${index + 1} lacks a safe authentication failure state or uses unsafe HTML rendering.`);

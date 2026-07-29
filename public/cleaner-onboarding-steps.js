@@ -77,7 +77,7 @@ export const accountNav = [
   { label: "Support Tickets", icon: "chat", href: "/cleaner/support-tickets" },
   { label: "Report an Incident", icon: "shield", href: "/cleaner/report-incident" },
   { label: "My Disputes", icon: "shield", href: "/cleaner/disputes" },
-  { label: "Settings", icon: "gear", href: "/settings" },
+  { label: "Settings", icon: "gear", href: "/cleaner/settings" },
   { label: "Logout", icon: "logout", action: "logout" }
 ];
 
