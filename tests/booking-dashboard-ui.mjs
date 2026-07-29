@@ -139,6 +139,8 @@ const [
   cleanerMessagesScript,
   cleanerNotificationsPage,
   cleanerNotificationsScript,
+  cleanerHelpCentrePage,
+  cleanerHelpCentreScript,
   notificationsScript
 ] = await Promise.all([
   readFile(new URL("../public/cleaner-schedule.html", import.meta.url), "utf8"),
@@ -162,10 +164,12 @@ const [
   readFile(new URL("../public/cleaner-messages.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-notifications.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-notifications.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-help-centre.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-help-centre.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8")
 ]);
 
-const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage];
+const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage];
 const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
 for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(page.includes('class="cleaner-workspace-page') && page.includes("/homle-cleaner.css?") && page.includes('aria-label="Cleaner navigation"'), `Cleaner workspace page ${index + 1} is not using the separate Cleaner shell.`);
@@ -206,6 +210,13 @@ for (const copiedSample of ["Insurance expiring", "Document under review", "Refe
 }
 assert(notificationsScript.includes('workspace.role === "cleaner"') && notificationsScript.includes('location.replace("/cleaner/notifications")'), "A Cleaner opening the retired generic Updates route is not forwarded to the replacement Notifications page.");
 assert(cleanerStyles.includes(".hc-notifications-grid") && cleanerStyles.includes(".hc-notification-row.is-unread") && cleanerStyles.includes(".hc-notification-channels") && cleanerStyles.includes(".hc-channel-switch") && cleanerStyles.includes(".hc-notification-push-empty") && cleanerStyles.includes(".cleaner-notifications-page .hc-side.cleaner-site-header"), "The supplied Notifications card grid, unread rows, switches, push empty state or cream sidebar treatment is missing.");
+assert(server.includes('"/cleaner/help-centre": "cleaner-help-centre.html"') && cleanerOnboardingSteps.includes('label: "Help Centre", icon: "help", href: "/cleaner/help-centre"') && !cleanerOnboardingSteps.includes('label: "Help Centre", icon: "help", href: "/cleaner/help-centre", awaitingDesign: true'), "The Cleaner Help Centre tab is not routed to its completed private page.");
+assert(cleanerHelpCentrePage.includes('class="cleaner-workspace-page cleaner-help-centre-page"') && cleanerHelpCentrePage.includes("Stuck on a step? Answers below, humans one tap away.") && cleanerHelpCentrePage.includes("data-help-search") && cleanerHelpCentrePage.includes("data-help-faq-list") && cleanerHelpCentrePage.includes("Talk to us") && cleanerHelpCentrePage.includes("Request a call back") && cleanerHelpCentrePage.includes("Raise a support ticket"), "The supplied Help Centre heading, search, FAQ card or contact card is missing.");
+assert(cleanerHelpCentreScript.includes('createCleanerPage("help-centre"') && cleanerHelpCentreScript.includes("helpArticles") && (cleanerHelpCentreScript.match(/question:/g) || []).length === 10 && cleanerHelpCentreScript.includes('search.addEventListener("input"') && cleanerHelpCentreScript.includes("replaceChildren") && cleanerHelpCentreScript.includes("Nothing was submitted") && !cleanerHelpCentreScript.includes("innerHTML") && !cleanerHelpCentreScript.includes("localStorage") && !cleanerHelpCentreScript.includes("sessionStorage") && !cleanerHelpCentreScript.includes("fetch("), "The Help Centre is not role-gated, fully searchable, safely rendered or honest about unsupported submissions.");
+for (const copiedSample of ["0113 496 0500", "cleaners@homle.uk", "8am – 8pm daily", "Sadie Fletcher"]) {
+  assert(!`${cleanerHelpCentrePage}\n${cleanerHelpCentreScript}`.includes(copiedSample), `The Help Centre copied the screenshot's ${copiedSample} sample instead of showing truthful support availability.`);
+}
+assert(cleanerStyles.includes(".hc-help-grid") && cleanerStyles.includes(".hc-help-article") && cleanerStyles.includes(".hc-help-contact") && cleanerStyles.includes(".hc-help-search") && cleanerStyles.includes(".cleaner-help-centre-page .hc-side.cleaner-site-header"), "The supplied Help Centre card grid, FAQ rows, contact card, search or cream sidebar treatment is missing.");
 for (const [index, script] of cleanerWorkspaceScripts.entries()) {
   assert(script.includes('requestJson("/api/marketplace/account")') && script.includes('dashboardWorkspaceAccess(account, "cleaner")') && script.includes('credentials: "same-origin"') && script.includes("new AbortController()") && script.includes("30_000"), `Cleaner workspace script ${index + 1} lacks authenticated role gating or a bounded private request.`);
   assert(script.includes("error.statusCode === 401") && script.includes("error.statusCode === 403") && !script.includes("innerHTML"), `Cleaner workspace script ${index + 1} lacks a safe authentication failure state or uses unsafe HTML rendering.`);
