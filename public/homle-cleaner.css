@@ -656,6 +656,90 @@
   }
 }
 
+.cleaner-disputes-page .hc-side.cleaner-site-header {
+  border-right-color: #eadfce;
+  background: #f8f0e3;
+}
+
+.cleaner-disputes-page .hc-main {
+  background: #f8f0e3;
+}
+
+.cleaner-disputes-page .hc-main-inner {
+  max-width: 1060px;
+  padding-top: 36px;
+}
+
+.hc-disputes {
+  width: min(100%, 610px);
+  margin: 0 auto;
+}
+
+.hc-dispute-heading {
+  margin: 0 0 18px;
+  padding-right: 48px;
+}
+
+.hc-dispute-heading h1 {
+  margin: 0;
+  font-family: var(--hc-font-display);
+  font-size: clamp(34px, 4vw, 46px);
+  line-height: .98;
+  letter-spacing: -.045em;
+}
+
+.hc-dispute-heading p {
+  max-width: 475px;
+  margin: 8px 0 0;
+  color: var(--hc-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.hc-dispute-card {
+  overflow: hidden;
+}
+
+.hc-dispute-row {
+  grid-template-columns: minmax(0, 1fr) auto 72px;
+}
+
+.hc-dispute-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-dispute-date {
+  min-width: 72px;
+}
+
+.hc-dispute-empty {
+  padding: 28px 20px;
+}
+
+@media (max-width: 700px) {
+  .cleaner-disputes-page .hc-main-inner {
+    padding-top: 24px;
+  }
+
+  .hc-dispute-heading {
+    padding-right: 42px;
+  }
+
+  .hc-dispute-heading h1 {
+    font-size: 34px;
+  }
+
+  .hc-dispute-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .hc-dispute-date {
+    display: none;
+  }
+}
+
 @font-face {
   font-family: "Archivo";
   src: url("/vendor/fonts/archivo-wght-latin-ext.woff2") format("woff2");
