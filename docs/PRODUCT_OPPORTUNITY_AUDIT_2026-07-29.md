@@ -40,6 +40,25 @@ role-specific account-ready action remain unchanged.
 Expected benefit: one fewer decision point, no cross-role distraction, and a clearer
 path from **Book service** to Landlord account creation.
 
+## Account management defect fixed
+
+The protected account-settings backend remained active after its public page and
+canonical `/settings` route were removed. Google, Apple and Facebook provider
+connection and step-up callbacks still redirected authenticated users to that missing
+route, so a successful security action could end on a 404. The same removal made the
+already-protected data-export and account-deletion request intake unreachable.
+
+The reviewed settings interface and route are restored, and the Landlord account menu
+now links to it as **Sign-in and privacy**. Provider controls remain hidden until
+authenticated capability discovery succeeds; connection/removal stays protected by
+exact-provider step-up, last-method safeguards, CSRF and allowlisted provider
+navigation. Privacy actions remain request intake only and cannot automatically
+delete data, cancel a booking, move money or bypass retention review.
+
+Expected benefit: provider connection callbacks have a valid destination, Landlords
+can manage account access without leaving the product, and UK privacy-rights intake
+is once again reachable without exposing provider subjects or private identifiers.
+
 ## Prioritised opportunities
 
 ### P0 — prove one genuine two-account booking rehearsal
@@ -156,4 +175,3 @@ than visual guesswork.
 4. Complete the founder-approved Stripe test-mode cycle.
 5. Build the privacy-minimal supply/demand report only after the rehearsal exposes the
    real operating-area data required.
-
