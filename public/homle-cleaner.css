@@ -941,6 +941,158 @@ a.hc-tile:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-decorati
 }
 .hc-academy-documents a:hover { color: var(--hc-red); border-color: var(--hc-red); text-decoration: none; }
 
+/* Contracts & agreements */
+.cleaner-contracts-page .hc-side.cleaner-site-header {
+  color: var(--hc-ink);
+  border-top: 0;
+  border-bottom: 0;
+  background: var(--hc-ground);
+  box-shadow: none;
+}
+.cleaner-contracts-page .hc-main-inner { max-width: 1020px; }
+.hc-contracts { width: min(100%, 840px); margin: 0 auto; }
+.hc-contracts-heading { margin: 0 0 22px; padding-right: 72px; }
+.hc-contracts-heading h1 {
+  margin: 0 0 8px;
+  color: var(--hc-ink);
+  font-family: var(--hc-font-display);
+  font-size: clamp(31px, 3vw, 38px);
+  font-weight: 900;
+  letter-spacing: -.04em;
+  line-height: 1;
+}
+.hc-contracts-heading p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--hc-ink-3);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.hc-contracts-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 248px;
+  gap: 13px;
+  align-items: start;
+}
+.hc-contract-list-card,
+.hc-contract-sign-card {
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(180, 150, 110, .14);
+}
+.hc-contract-list-card { padding: 8px 20px 12px; }
+.hc-contract-list-card ul { list-style: none; margin: 0; padding: 0; }
+.hc-contract-row {
+  display: grid;
+  min-height: 41px;
+  grid-template-columns: 20px minmax(0, 1fr) 65px 104px;
+  gap: 8px;
+  align-items: center;
+  color: var(--hc-ink);
+  border-bottom: 1px solid var(--hc-rule);
+}
+.hc-contract-state {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 750;
+}
+.hc-contract-state.is-available { color: #3f8a46; background: #dfeeda; }
+.hc-contract-state.is-pending { color: #9b7c38; background: #f3ead8; }
+.hc-contract-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--hc-ink);
+  font-size: 9.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+a.hc-contract-title:hover { color: var(--hc-red); text-decoration: none; }
+a.hc-contract-title:focus-visible { outline: 2px solid rgba(198, 42, 26, .32); outline-offset: 2px; }
+.hc-contract-date { color: var(--hc-muted-3); font-size: 8px; text-align: right; }
+.hc-contract-status {
+  justify-self: end;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 7.5px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+.hc-contract-status.is-available { color: #287239; background: #dfeeda; }
+.hc-contract-status.is-pending { color: #916711; background: #f6e8bb; }
+.hc-contract-list-card > p {
+  margin: 11px 2px 0;
+  color: var(--hc-muted-3);
+  font-size: 8px;
+  line-height: 1.45;
+}
+.hc-contract-sign-card {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+}
+.hc-contract-sign-card h2 {
+  margin: 0;
+  color: var(--hc-ink);
+  font-family: var(--hc-font-display);
+  font-size: 15px;
+  font-weight: 800;
+}
+.hc-contract-sign-card > p {
+  margin: -4px 0 2px;
+  color: var(--hc-ink-3);
+  font-size: 8.5px;
+  line-height: 1.5;
+}
+.hc-contract-sign-card input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font: inherit;
+  font-size: 9px;
+}
+.hc-contract-sign-card input:focus { outline: 2px solid rgba(198, 42, 26, .26); border-color: var(--hc-red); }
+.hc-contract-sign-card output {
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 0 12px;
+  color: #c8b393;
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font-family: Georgia, serif;
+  font-size: 18px;
+  font-style: italic;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hc-contract-sign-card > button {
+  min-height: 38px;
+  color: #ffffff;
+  border: 0;
+  border-radius: 999px;
+  background: var(--hc-red);
+  box-shadow: 0 9px 19px rgba(198, 42, 26, .22);
+  font: inherit;
+  font-size: 9px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.hc-contract-sign-card > button:hover { background: var(--hc-red-hover); }
+.hc-contract-sign-card > button:focus-visible { outline: 2px solid rgba(198, 42, 26, .34); outline-offset: 3px; }
+.hc-contract-sign-card > small { color: var(--hc-muted-3); font-size: 7.5px; line-height: 1.45; }
+
 .hc-account-menu { position: relative; }
 .hc-account-menu .account-menu-panel {
   position: absolute; bottom: calc(100% + 8px); left: 0; right: 0;
@@ -3758,6 +3910,11 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-academy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-academy-feature { grid-template-columns: 1fr; }
   .hc-academy-stats { justify-self: start; }
+  .hc-contracts-layout { grid-template-columns: 1fr; }
+  .hc-contract-sign-card { grid-template-columns: 1fr 1fr; }
+  .hc-contract-sign-card h2,
+  .hc-contract-sign-card > p,
+  .hc-contract-sign-card > small { grid-column: 1 / -1; }
 }
 
 @media (max-width: 600px) {
@@ -3819,6 +3976,24 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-academy-stats div { min-width: 0; }
   .hc-academy-grid { grid-template-columns: 1fr; }
   .hc-academy-documents { align-items: flex-start; flex-direction: column; }
+  .hc-contracts-heading { padding-right: 48px; }
+  .hc-contract-list-card { padding-left: 15px; padding-right: 15px; }
+  .hc-contract-row {
+    min-height: 50px;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "state title status"
+      "state date status";
+    gap: 3px 7px;
+  }
+  .hc-contract-state { grid-area: state; }
+  .hc-contract-title { grid-area: title; }
+  .hc-contract-date { grid-area: date; text-align: left; }
+  .hc-contract-status { grid-area: status; }
+  .hc-contract-sign-card { grid-template-columns: 1fr; }
+  .hc-contract-sign-card h2,
+  .hc-contract-sign-card > p,
+  .hc-contract-sign-card > small { grid-column: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

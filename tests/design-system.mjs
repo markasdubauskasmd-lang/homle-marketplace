@@ -85,6 +85,7 @@ assert.deepEqual(
 /* ── Every page that shares the app's look loads the system ── */
 
 const cleanerWorkspace = new Set([
+  "cleaner-contracts",
   "cleaner-dashboard",
   "cleaner-documents",
   "cleaner-job",

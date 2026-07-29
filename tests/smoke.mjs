@@ -333,6 +333,7 @@ try {
   const cleanerEquipmentPage = await fetch(`${base}/cleaner/equipment`);
   const cleanerDocumentsPage = await fetch(`${base}/cleaner/documents`);
   const cleanerTrainingPage = await fetch(`${base}/cleaner/training`);
+  const cleanerContractsPage = await fetch(`${base}/cleaner/contracts`);
   const cleanerAvailabilityPage = await fetch(`${base}/cleaner/availability`);
   const cleanerPayoutPage = await fetch(`${base}/cleaner/payouts`);
   const landlordDashboardPage = await fetch(`${base}/landlord/dashboard`);
@@ -350,14 +351,15 @@ try {
   const cleanerEquipmentText = await cleanerEquipmentPage.text();
   const cleanerDocumentsText = await cleanerDocumentsPage.text();
   const cleanerTrainingText = await cleanerTrainingPage.text();
+  const cleanerContractsText = await cleanerContractsPage.text();
   const cleanerAvailabilityText = await cleanerAvailabilityPage.text();
   const cleanerPayoutText = await cleanerPayoutPage.text();
   const landlordDashboardText = await landlordDashboardPage.text();
   const adminCasesText = await adminCasesPage.text();
   const adminPaymentsText = await adminPaymentsPage.text();
   assert(cleanerDirectoryPage.status === 404 && cleanerEditorPage.status === 404, "The retired Cleaner directory or profile editor is still served.");
-  assert([cleanerPersonalDetailsPage, cleanerBusinessDetailsPage, cleanerIdentityVerificationPage, cleanerBackgroundChecksPage, cleanerWorkAreasPage, cleanerExperiencePage, cleanerReferencesPage, cleanerInsurancePage, cleanerBankingPage, cleanerEquipmentPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerAvailabilityPage, cleanerPayoutPage, landlordDashboardPage, adminCasesPage, adminPaymentsPage].every((response) => response.ok), "A current dashboard, Cleaner onboarding page or Administrator page is unavailable.");
-  assert([cleanerPersonalDetailsPage, cleanerBusinessDetailsPage, cleanerIdentityVerificationPage, cleanerBackgroundChecksPage, cleanerWorkAreasPage, cleanerExperiencePage, cleanerReferencesPage, cleanerInsurancePage, cleanerBankingPage, cleanerEquipmentPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerAvailabilityPage, cleanerPayoutPage, adminCasesPage, adminPaymentsPage].every((response) => response.headers.get("cache-control") === "no-store"), "A private onboarding, payout or Administrator page became cacheable.");
+  assert([cleanerPersonalDetailsPage, cleanerBusinessDetailsPage, cleanerIdentityVerificationPage, cleanerBackgroundChecksPage, cleanerWorkAreasPage, cleanerExperiencePage, cleanerReferencesPage, cleanerInsurancePage, cleanerBankingPage, cleanerEquipmentPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerAvailabilityPage, cleanerPayoutPage, landlordDashboardPage, adminCasesPage, adminPaymentsPage].every((response) => response.ok), "A current dashboard, Cleaner onboarding page or Administrator page is unavailable.");
+  assert([cleanerPersonalDetailsPage, cleanerBusinessDetailsPage, cleanerIdentityVerificationPage, cleanerBackgroundChecksPage, cleanerWorkAreasPage, cleanerExperiencePage, cleanerReferencesPage, cleanerInsurancePage, cleanerBankingPage, cleanerEquipmentPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerAvailabilityPage, cleanerPayoutPage, adminCasesPage, adminPaymentsPage].every((response) => response.headers.get("cache-control") === "no-store"), "A private onboarding, payout or Administrator page became cacheable.");
   assert(cleanerPersonalDetailsText.includes("Personal details") && cleanerPersonalDetailsText.includes("data-personal-form") && cleanerPersonalDetailsText.includes("Emergency contact"), "The Cleaner personal-details page lost its form.");
   assert(cleanerBusinessDetailsText.includes("Business details") && cleanerBusinessDetailsText.includes("data-business-form") && cleanerBusinessDetailsText.includes("Solo cleaner"), "The Cleaner business-details page lost its form.");
   assert(cleanerIdentityVerificationText.includes("Identity verification") && cleanerIdentityVerificationText.includes("data-identity-form") && cleanerIdentityVerificationText.includes("Passport photo page"), "The Cleaner identity-verification page lost its form.");
@@ -370,6 +372,7 @@ try {
   assert(cleanerEquipmentText.includes("Equipment") && cleanerEquipmentText.includes("data-equipment-form") && cleanerEquipmentText.includes("Do you provide your own cleaning equipment?") && cleanerEquipmentText.includes("Tick what you have"), "The Cleaner equipment page lost its own-kit checklist design.");
   assert(cleanerDocumentsText.includes("Document centre") && cleanerDocumentsText.includes("data-documents-list") && cleanerDocumentsText.includes("Secure upload is not connected on this preview") && !cleanerDocumentsText.includes("Sadie Fletcher"), "The Cleaner Document centre lost its private, honest document-list design.");
   assert(cleanerTrainingText.includes("Homle Academy") && cleanerTrainingText.includes("data-training-modules") && cleanerTrainingText.includes("34 learning modules") && cleanerTrainingText.includes("nothing is started or recorded on this preview") && !cleanerTrainingText.includes("Sadie Fletcher"), "The Cleaner Academy lost its private, honest 34-module catalogue design.");
+  assert(cleanerContractsText.includes("Contracts &amp; agreements") && cleanerContractsText.includes("data-contract-list") && cleanerContractsText.includes("Sign outstanding") && cleanerContractsText.includes("Signing is not connected") && !cleanerContractsText.includes("Sadie") && !cleanerContractsText.includes("86.157.44.102"), "The Cleaner Contracts page lost its private, honest agreements design.");
   assert(cleanerAvailabilityText.includes("Availability") && cleanerAvailabilityText.includes("data-availability-form") && cleanerAvailabilityText.includes("hc-availability-table") && cleanerAvailabilityText.includes("Preferred jobs"), "The Cleaner availability page lost its weekly planner design.");
   assert(cleanerPayoutText.includes("Get paid without sharing bank details with Homle") && cleanerPayoutText.includes("connect.stripe.com"), "The Cleaner payout handoff is unavailable.");
   assert(landlordDashboardText.includes("Checking secure Landlord access") && landlordDashboardText.includes("data-landlord-workspace hidden") && landlordDashboardText.includes("Save private draft") && landlordDashboardText.includes("Thank you. Your cleaning request is ready for matching.") && landlordDashboardText.includes("No payment was taken here."), "The private Landlord dashboard lost its fail-closed request flow.");

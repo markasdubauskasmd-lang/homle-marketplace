@@ -1,5 +1,5 @@
 import { bookingSummaryBuckets, bookingSummaryStatusLabels, formatBookingMoney, formatBookingWindow } from "./booking-summary-model.js?v=20260723-3";
-import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260728-1";
+import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260729-5";
 
 // A job can be signed off once it is under way. The sign-off screen itself is the shared
 // active-job page, which already owns the checklist, photo capture and finish gate.
