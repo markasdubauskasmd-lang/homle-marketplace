@@ -1315,6 +1315,13 @@ a.hc-contract-title:focus-visible { outline: 2px solid rgba(198, 42, 26, .32); o
 
 /* -------------------------------------------------------- public profile -- */
 
+.cleaner-public-profile-page .hc-side.cleaner-site-header {
+  color: var(--hc-ink);
+  border-top: 0;
+  border-bottom: 0;
+  background: var(--hc-ground);
+  box-shadow: none;
+}
 .cleaner-public-profile-page .hc-main-inner { max-width: 1120px; padding-top: 36px; }
 .hc-profile-preview-head { align-items: center; margin-bottom: 20px; }
 .hc-profile-preview-head .hc-page-title { margin-top: 0; }
