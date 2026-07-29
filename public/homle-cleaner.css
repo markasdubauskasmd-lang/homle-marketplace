@@ -2073,6 +2073,189 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   line-height: 1.45;
 }
 
+/* ------------------------------------------------------------- insurance -- */
+
+.hc-insurance-progress-track span {
+  width: 47.368%;
+}
+
+.hc-insurance-card {
+  align-self: start;
+}
+
+.hc-insurance-status {
+  margin: 28px 34px 14px;
+  padding: 11px 14px;
+  color: #765a14;
+  border-radius: 10px;
+  background: #fbf2da;
+  font-size: 9.5px;
+  line-height: 1.4;
+}
+
+.hc-insurance-form {
+  padding: 0 34px 24px;
+}
+
+.hc-insurance-section {
+  min-width: 0;
+  margin: 0;
+  padding: 20px 0 22px;
+  border: 0;
+  border-top: 1px solid #eadfce;
+}
+
+.hc-insurance-section > legend {
+  padding: 0 8px 0 0;
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.hc-insurance-policies {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hc-insurance-document {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  min-height: 62px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  overflow: hidden;
+  color: var(--hc-ink);
+  border: 1px dashed #ddc7a4;
+  border-radius: 12px;
+  background: #fdfaf4;
+  cursor: pointer;
+}
+
+.hc-insurance-document.is-selected {
+  border-style: solid;
+  border-color: #c8dfbd;
+  background: var(--hc-green-note);
+}
+
+.hc-insurance-document > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.hc-insurance-document strong {
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-insurance-document small {
+  overflow: hidden;
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-insurance-document-icon {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  color: #947b58;
+  border-radius: 50%;
+  background: #f2e6d2;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hc-insurance-document.is-selected .hc-insurance-document-icon {
+  color: #ffffff;
+  background: var(--hc-green);
+}
+
+.hc-insurance-document-action {
+  color: var(--hc-red);
+  font-size: 8.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hc-insurance-document input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hc-insurance-document:focus-within {
+  outline: 2px solid var(--hc-red);
+  outline-offset: 2px;
+}
+
+.hc-insurance-cover-note {
+  display: flex;
+  min-height: 62px;
+  margin: 0;
+  align-items: center;
+  padding: 12px 14px;
+  color: var(--hc-muted);
+  border-radius: 10px;
+  background: #f2eadb;
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+.hc-insurance-cover-note strong {
+  margin-right: 4px;
+  color: var(--hc-ink);
+}
+
+.hc-insurance-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hc-insurance-details label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: var(--hc-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.hc-insurance-details b {
+  color: var(--hc-red);
+}
+
+.hc-insurance-details input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 13px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font: inherit;
+}
+
+.hc-insurance-details input:focus {
+  border-color: var(--hc-red);
+  outline: 2px solid rgba(198, 42, 26, .14);
+  outline-offset: 1px;
+}
+
 /* ----------------------------------------------------------- work areas -- */
 
 .hc-sr-only {
@@ -2467,6 +2650,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-experience-specialisms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-experience-history { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-references-contact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hc-insurance-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-work-builder { grid-template-columns: 1fr; }
   .hc-work-panel { border-right: 0; border-bottom: 1px solid #e7dccb; }
   .hc-work-map-shell, .hc-work-map { min-height: 360px; }
@@ -2495,6 +2679,10 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-references-primary-grid,
   .hc-references-contact-grid,
   .hc-references-letters { grid-template-columns: 1fr; }
+  .hc-insurance-status { margin-left: 20px; margin-right: 20px; }
+  .hc-insurance-form { padding-left: 20px; padding-right: 20px; }
+  .hc-insurance-policies,
+  .hc-insurance-details { grid-template-columns: 1fr; }
   .hc-work-form { padding-left: 20px; padding-right: 20px; }
 }
 

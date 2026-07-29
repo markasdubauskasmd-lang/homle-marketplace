@@ -1,4 +1,4 @@
-import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-1";
+import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-2";
 import { storedCsrf } from "./session-csrf.js";
 
 const outwardPostcodePattern = /^[A-Z]{1,2}[0-9][A-Z0-9]?$/;

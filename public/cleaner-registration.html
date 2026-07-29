@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-1">
-  <script src="/cleaner-registration.js?v=20260729-1" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-2">
+  <script src="/cleaner-registration.js?v=20260729-2" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -184,10 +184,10 @@
         </div>
         <!--
           One card per step from the design's own STEPS/TITLES tables. Steps Homle can
-          record link to the screen that edits them; the rest are marked as not open yet
-          rather than linking nowhere. Collecting right to work, tax, insurance, references
-          and the signed declarations needs document capture and a vetting provider, neither
-          of which exists in this codebase.
+          record link to the screen that edits them. Design-matched reference and insurance
+          screens remain explicitly outstanding until their secure storage and verification
+          services exist; unsupported steps are marked as not open yet rather than linking
+          nowhere.
         -->
         <div class="hc-reg-list" data-reg-steps></div>
         </div>
@@ -229,6 +229,16 @@
                 <span>Complete registration</span>
                 <strong>Step 8 of 19 &mdash; References</strong>
                 <div class="hc-business-progress-track hc-references-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="8"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-insurance-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 9 of 19 &mdash; Insurance</strong>
+                <div class="hc-business-progress-track hc-insurance-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="9"><span></span></div>
               </div>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
             </header>
@@ -649,6 +659,56 @@
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/experience">&larr; Back</a>
                   <p data-references-save-status role="status" aria-live="polite">Referee contact details are not stored in this browser or sent anywhere.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-insurance-card" data-insurance hidden aria-labelledby="cleaner-insurance-title">
+              <p class="hc-insurance-status" role="status">No verified policy is stored yet. Secure insurance storage and expiry reminders are being connected.</p>
+              <header class="hc-personal-head">
+                <h1 id="cleaner-insurance-title">Insurance</h1>
+                <p>Public liability cover is required before your first job.</p>
+              </header>
+
+              <form class="hc-insurance-form" data-insurance-form>
+                <fieldset class="hc-insurance-section">
+                  <legend>Policies</legend>
+                  <div class="hc-insurance-policies">
+                    <label class="hc-insurance-document">
+                      <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Public liability policy</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-insurance-document-action">Choose file</span>
+                      <input type="file" name="publicLiabilityPolicy" accept="application/pdf,image/jpeg,image/png" data-insurance-file>
+                    </label>
+                    <label class="hc-insurance-document">
+                      <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Professional indemnity (optional)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-insurance-document-action">Choose file</span>
+                      <input type="file" name="professionalIndemnityPolicy" accept="application/pdf,image/jpeg,image/png" data-insurance-file>
+                    </label>
+                    <label class="hc-insurance-document">
+                      <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Employers&rsquo; liability (if you employ staff)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-insurance-document-action">Choose file</span>
+                      <input type="file" name="employersLiabilityPolicy" accept="application/pdf,image/jpeg,image/png" data-insurance-file>
+                    </label>
+                    <p class="hc-insurance-cover-note"><strong>Need cover?</strong> Homle does not currently connect to or endorse an insurance provider. Arrange appropriate cover independently before accepting work.</p>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-insurance-section">
+                  <legend>Policy details</legend>
+                  <div class="hc-insurance-details">
+                    <label><span>Policy number <b aria-hidden="true">*</b></span><input name="policyNumber" autocomplete="off" spellcheck="false" maxlength="80" required></label>
+                    <label><span>Provider <b aria-hidden="true">*</b></span><input name="policyProvider" autocomplete="organization" maxlength="120" required></label>
+                    <label><span>Expiry date <b aria-hidden="true">*</b></span><input name="policyExpiry" type="date" autocomplete="off" required></label>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/references">&larr; Back</a>
+                  <p data-insurance-save-status role="status" aria-live="polite">Policy details and documents are not stored in this browser or sent anywhere.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>

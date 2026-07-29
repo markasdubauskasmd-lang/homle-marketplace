@@ -7,7 +7,7 @@ function renderRail(progress) {
   const steps = new Map(progress.steps.map((step) => [step.key, step]));
   document.querySelectorAll("[data-personal-step-key]").forEach((node) => {
     const key = node.dataset.personalStepKey;
-    node.classList.toggle("is-current", key === "references");
+    node.classList.toggle("is-current", key === "insurance");
     node.classList.toggle("is-complete", steps.get(key)?.done === true);
   });
 }
@@ -17,8 +17,8 @@ function selectedFileCopy(file) {
   return `${file.name} · ${megabytes} MB · selected for this page only`;
 }
 
-export async function setupReferences({ account, showFeedback, requestJson }) {
-  document.title = "References | Homle";
+export async function setupInsurance({ account, showFeedback, requestJson }) {
+  document.title = "Insurance | Homle";
   const overview = document.querySelector("[data-registration-overview]");
   const layout = document.querySelector("[data-personal-details]");
   const cards = [
@@ -27,24 +27,26 @@ export async function setupReferences({ account, showFeedback, requestJson }) {
     document.querySelector("[data-identity-verification]"),
     document.querySelector("[data-background-checks]"),
     document.querySelector("[data-experience]"),
+    document.querySelector("[data-references]"),
     document.querySelector("[data-work-areas]")
   ];
-  const referencesCard = document.querySelector("[data-references]");
+  const insuranceCard = document.querySelector("[data-insurance]");
   const topbars = [
     document.querySelector("[data-business-topbar]"),
     document.querySelector("[data-identity-topbar]"),
     document.querySelector("[data-background-topbar]"),
     document.querySelector("[data-experience-topbar]"),
+    document.querySelector("[data-references-topbar]"),
     document.querySelector("[data-work-topbar]")
   ];
-  const referencesTopbar = document.querySelector("[data-references-topbar]");
-  const form = document.querySelector("[data-references-form]");
+  const insuranceTopbar = document.querySelector("[data-insurance-topbar]");
+  const form = document.querySelector("[data-insurance-form]");
   if (overview) overview.hidden = true;
   if (layout) layout.hidden = false;
   for (const card of cards) if (card) card.hidden = true;
-  if (referencesCard) referencesCard.hidden = false;
+  if (insuranceCard) insuranceCard.hidden = false;
   for (const topbar of topbars) if (topbar) topbar.hidden = true;
-  if (referencesTopbar) referencesTopbar.hidden = false;
+  if (insuranceTopbar) insuranceTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
   const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
@@ -59,43 +61,45 @@ export async function setupReferences({ account, showFeedback, requestJson }) {
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
 
-  document.querySelectorAll("[data-reference-email]").forEach((button) => {
-    button.addEventListener("click", () => {
-      showFeedback("Reference email delivery is not connected yet. Nothing was sent and no referee details were stored.", "error");
+  document.querySelectorAll("[data-insurance-file]").forEach((fileInput) => {
+    fileInput.addEventListener("change", () => {
+      if (!(fileInput instanceof HTMLInputElement)) return;
+      const file = fileInput.files?.[0];
+      const row = fileInput.closest(".hc-insurance-document");
+      const copy = row?.querySelector("small");
+      const action = row?.querySelector(".hc-insurance-document-action");
+      if (!file) {
+        row?.classList.remove("is-selected");
+        return;
+      }
+      if (!allowedDocumentTypes.has(file.type) || file.size > maximumDocumentBytes) {
+        fileInput.value = "";
+        row?.classList.remove("is-selected");
+        showFeedback("Choose a PDF, JPEG or PNG insurance document no larger than 20MB.", "error");
+        return;
+      }
+      row?.classList.add("is-selected");
+      if (copy) copy.textContent = selectedFileCopy(file);
+      if (action) action.textContent = "Replace";
+      showFeedback("Insurance document selected for this page only. It has not been uploaded or stored.");
     });
   });
 
-  const fileInput = document.querySelector("[data-references-file]");
-  fileInput?.addEventListener("change", () => {
-    if (!(fileInput instanceof HTMLInputElement)) return;
-    const file = fileInput.files?.[0];
-    const row = fileInput.closest(".hc-references-document");
-    const copy = row?.querySelector("small");
-    const action = row?.querySelector(".hc-references-document-action");
-    if (!file) {
-      row?.classList.remove("is-selected");
-      return;
-    }
-    if (!allowedDocumentTypes.has(file.type) || file.size > maximumDocumentBytes) {
-      fileInput.value = "";
-      row?.classList.remove("is-selected");
-      showFeedback("Choose a PDF, JPEG or PNG reference letter no larger than 20MB.", "error");
-      return;
-    }
-    row?.classList.add("is-selected");
-    if (copy) copy.textContent = selectedFileCopy(file);
-    if (action) action.textContent = "Replace";
-    showFeedback("Reference letter selected for this page only. It has not been uploaded or stored.");
-  });
-
   form.addEventListener("input", () => {
-    const status = document.querySelector("[data-references-save-status]");
-    if (status) status.textContent = "Referee contact details remain only in this open page and are not stored.";
+    const status = document.querySelector("[data-insurance-save-status]");
+    if (status) status.textContent = "Policy details remain only in this open page and are not stored.";
   });
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     if (!form.reportValidity()) return;
-    showFeedback("Secure reference storage, email requests and confirmation are not connected yet. Nothing was uploaded, emailed or saved.", "error");
+    const expiryInput = form.elements.namedItem("policyExpiry");
+    const today = new Date().toISOString().slice(0, 10);
+    if (expiryInput instanceof HTMLInputElement && expiryInput.value < today) {
+      showFeedback("Enter a policy expiry date that has not passed. Nothing was uploaded or saved.", "error");
+      expiryInput.focus();
+      return;
+    }
+    showFeedback("Secure insurance storage and verification are not connected yet. Nothing was uploaded or saved.", "error");
   });
 }
