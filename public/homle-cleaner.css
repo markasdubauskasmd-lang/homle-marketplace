@@ -1322,6 +1322,11 @@ a.hc-contract-title:focus-visible { outline: 2px solid rgba(198, 42, 26, .32); o
   background: var(--hc-ground);
   box-shadow: none;
 }
+.cleaner-public-profile-page .hc-side .hc-nav-item { color: var(--hc-ink-3); }
+.cleaner-public-profile-page .hc-side .hc-nav-item:hover { color: var(--hc-ink-3); }
+.cleaner-public-profile-page .hc-side .hc-nav-item[aria-current="page"] { color: var(--hc-red-deep); }
+.cleaner-public-profile-page .hc-side .hc-nav-cta,
+.cleaner-public-profile-page .hc-side .hc-nav-cta:hover { color: #ffffff; }
 .cleaner-public-profile-page .hc-main-inner { max-width: 1120px; padding-top: 36px; }
 .hc-profile-preview-head { align-items: center; margin-bottom: 20px; }
 .hc-profile-preview-head .hc-page-title { margin-top: 0; }
