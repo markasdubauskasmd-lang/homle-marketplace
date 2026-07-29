@@ -9,7 +9,7 @@
  * while future screenshot-led pages can be connected at one stable URL apiece.
  */
 
-import { accountNav, onboardingIcons, onboardingNav } from "./cleaner-onboarding-steps.js?v=20260729-9";
+import { accountNav, onboardingIcons, onboardingNav } from "./cleaner-onboarding-steps.js?v=20260729-10";
 
 function icon(name) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");

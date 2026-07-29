@@ -91,6 +91,7 @@ const cleanerWorkspace = new Set([
   "cleaner-job",
   "cleaner-jobs-map",
   "cleaner-messages",
+  "cleaner-notifications",
   "cleaner-performance",
   "cleaner-public-profile",
   "cleaner-registration",

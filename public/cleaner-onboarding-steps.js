@@ -72,7 +72,7 @@ export const onboardingNav = [
 export const accountNav = [
   { label: "My Profile", icon: "user", href: "/cleaner/profile/preview" },
   { label: "Messages", icon: "chat", href: "/cleaner/messages", notificationHook: true },
-  { label: "Notifications", icon: "bell", href: "/notifications", notificationHook: true },
+  { label: "Notifications", icon: "bell", href: "/cleaner/notifications", notificationHook: true },
   { label: "Help Centre", icon: "help", href: "/cleaner/help-centre", awaitingDesign: true },
   { label: "Support Tickets", icon: "chat", href: "/cleaner/support-tickets", awaitingDesign: true },
   { label: "Report an Incident", icon: "shield", href: "/cleaner/report-incident", awaitingDesign: true },
