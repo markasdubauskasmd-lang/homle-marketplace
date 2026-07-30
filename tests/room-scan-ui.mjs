@@ -796,6 +796,16 @@ assert(/function stopCamera\(\)[\s\S]{0,600}state\.timers\.capabilityProbes = \[
 assert(/\.scan-detector-state\{[^}]*top:calc\(max\(22px,env\(safe-area-inset-top\)\) \+ 96px\)/.test(styles), "The framing guidance is no longer anchored under the step pill at the top of the viewfinder.");
 assert(!/\.scan-detector-state\{[^}]*bottom:/.test(styles), "The framing guidance moved back to the bottom of the viewfinder, under the customer's thumbs.");
 
+// The glow and the item list are two different systems — the on-device
+// detector highlights instantly, the paid reader names and grades a moment
+// later — and "0 items found" over a screen full of glowing boxes read as a
+// broken scanner (the fifth field report). While the named list is empty the
+// header describes the glow: how many things are spotted, and "reading" only
+// while a read is genuinely in flight. The line moves with the glow.
+assert(/el\.found\.hidden = items\.length === 0 && !currentRoomBusy && spotted === 0;/.test(overlay), "A screen full of glowing boxes can still say nothing was found.");
+assert(overlay.includes('`spotted · ${currentRoomBusy ? "reading…" : "hold steady to read"}`'), "The spotted header claims to be reading while no read is in flight, or is gone.");
+assert(/state\.tracks\.length !== state\.lastSpottedCount[\s\S]{0,160}if \(inventoryFor\(\)\.length === 0\) renderInventory\(\);/.test(overlay), "The spotted count does not follow the glow it describes — or re-renders the inventory on every detection frame.");
+
 // The detector's megabytes travel from the journey page's idle time, before
 // the scanner opens — and a failed warm-up clears the memo so the overlay's
 // own (final) attempt starts fresh instead of inheriting a network hiccup.
