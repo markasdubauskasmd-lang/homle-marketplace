@@ -86,7 +86,12 @@ BEGIN
     SELECT 1 FROM audit_logs
     WHERE action='property-archived'
       AND resource_id IN ('21000000-0000-4000-8000-000000000001','21000000-0000-4000-8000-000000000004')
-      AND (metadata ? 'address' OR metadata ? 'name' OR jsonb_object_length(metadata)<>1 OR NOT metadata ? 'archivedAt')
+      AND (
+        metadata ? 'address'
+        OR metadata ? 'name'
+        OR (SELECT count(*) FROM jsonb_object_keys(audit_logs.metadata))<>1
+        OR NOT metadata ? 'archivedAt'
+      )
   ) THEN RAISE EXCEPTION 'Property archive audit evidence exposed private property data'; END IF;
   IF NOT has_function_privilege('tideway_app','tideway_private.archive_my_property(uuid)','EXECUTE')
      OR EXISTS (
