@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  assistMinimumStreak, nextAutoZoom, nextManualZoom, shouldEnableTorch, torchLumaThreshold, torchSupported, zoomCeiling, zoomLabel, zoomRange
+  assistMinimumStreak, emptyViewMinimumStreak, nextAutoZoom, nextManualZoom, shouldEnableTorch, torchLumaThreshold, torchSupported, zoomCeiling, zoomLabel, zoomRange
 } from "../public/camera-assist.js";
 
 // The automatic capture assists. What is pinned here is the set of rules that
@@ -52,6 +52,16 @@ assert.equal(nextAutoZoom({ range: { min: 1, max: 2, step: 0.1 }, zoom: 2, dista
 // Declining is final for the room, and no range means no decision.
 assert.equal(nextAutoZoom({ range, zoom: 1, distanceStreak: 9, declined: true }), null, "A declined zoom re-engaged automatically.");
 assert.equal(nextAutoZoom({ range: null, zoom: 1, distanceStreak: 9 }), null, "A camera without zoom was asked to zoom.");
+
+// The second trigger — the fourth field report: a ready detector persistently
+// finding NOTHING in a good frame is the other face of "too far", and must
+// drive the same bounded nudge. Weaker evidence than a found-but-small object
+// (an empty wall up close is also empty), so it must persist longer.
+assert.ok(emptyViewMinimumStreak > assistMinimumStreak, "Empty-view evidence is weaker than a found-but-small object and must persist longer before zooming.");
+assert.equal(nextAutoZoom({ range, zoom: 1, emptyStreak: emptyViewMinimumStreak - 1 }), null, "A briefly empty view zoomed the camera — panning across a doorway would trigger it.");
+assert.equal(nextAutoZoom({ range, zoom: 1, emptyStreak: emptyViewMinimumStreak }), 1.5, "A detector that persistently finds nothing did not get the zoom nudge — the fourth field report exactly.");
+assert.equal(nextAutoZoom({ range, zoom: 1, emptyStreak: 99, declined: true }), null, "A declined zoom re-engaged from the empty-view trigger.");
+assert.equal(nextAutoZoom({ range, zoom: 3, emptyStreak: 99 }), null, "The empty-view trigger zoomed past the ceiling.");
 // Values are quantised to the hardware's own step.
 {
   const coarse = nextAutoZoom({ range: { min: 1, max: 8, step: 0.5 }, zoom: 1, distanceStreak: 2 });

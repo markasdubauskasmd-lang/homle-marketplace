@@ -524,7 +524,7 @@ export function openRoomScan() {
       // record the customer's "no", which is final for the room.
       cameraTrack: null, cameraCapabilities: null,
       torchOn: false, torchDeclined: false, darkStreak: 0,
-      zoom: 0, zoomDeclined: false, distanceStreak: 0, zoomAnnounced: false,
+      zoom: 0, zoomDeclined: false, distanceStreak: 0, emptyStreak: 0, zoomAnnounced: false,
       framingKind: "",
       // Counters, not a log. Inference runs several times a second, so a line per
       // event would drown the console; a running total answers the question that
@@ -1084,6 +1084,7 @@ export function openRoomScan() {
       state.zoomAnnounced = false;
       state.darkStreak = 0;
       state.distanceStreak = 0;
+      state.emptyStreak = 0;
       state.framingKind = "";
       {
         const range = zoomRange(state.cameraCapabilities);
@@ -1204,6 +1205,7 @@ export function openRoomScan() {
         state.zoom = 0;
         state.darkStreak = 0;
         state.distanceStreak = 0;
+        state.emptyStreak = 0;
         refreshCameraCapabilities();
         scheduleCapabilityProbes();
         el.camera.srcObject = stream;
@@ -1354,14 +1356,16 @@ export function openRoomScan() {
         range: zoomRange(state.cameraCapabilities),
         zoom: state.zoom,
         declined: state.zoomDeclined,
-        distanceStreak: state.distanceStreak
+        distanceStreak: state.distanceStreak,
+        emptyStreak: state.emptyStreak
       });
       if (target !== null && !state.frozen) {
         if (await applyTrackConstraint({ zoom: target })) {
           state.zoom = target;
-          // The streak restarts so the next step needs the advice to persist
+          // The streaks restart so the next step needs the problem to persist
           // again — one nudge per confirmed problem, not a runaway crawl.
           state.distanceStreak = 0;
+          state.emptyStreak = 0;
           renderCameraAssist();
           scanEvents.record("scan.assist.zoom");
           if (!state.zoomAnnounced) {
@@ -2583,7 +2587,7 @@ export function openRoomScan() {
         // brightness the torch decision actually uses.
         ["assist", [
           `torch ${!torchSupported(state.cameraCapabilities) ? "n/a" : state.torchOn ? "on" : `ready d${state.darkStreak}`}`,
-          `zoom ${zoomRange(state.cameraCapabilities) ? `${state.zoom || 0}× f${state.distanceStreak}` : "n/a"}`,
+          `zoom ${zoomRange(state.cameraCapabilities) ? `${state.zoom || 0}× f${state.distanceStreak} e${state.emptyStreak}` : "n/a"}`,
           `luma ${Math.round(state.lastQuality?.luma ?? -1)}`
         ].join(" · ")]
       ];
@@ -3248,6 +3252,14 @@ export function openRoomScan() {
       // actually lands.
       state.darkStreak = quality.luma < torchLumaThreshold ? state.darkStreak + 1 : 0;
       state.distanceStreak = !advice && state.framingKind === "distance" ? state.distanceStreak + 1 : 0;
+      // The zoom's second trigger — the fourth field report's exact words: "it
+      // doesn't zoom in when the scanner can't identify an object". A ready
+      // detector that keeps finding NOTHING in a good frame is the other face
+      // of "too far": from across the room nothing projects large enough to
+      // recognise, so the persistently empty result is itself the distance
+      // signal. Counted only while no quality problem outranks it — zooming
+      // into darkness or motion blur reveals nothing.
+      state.emptyStreak = !advice && state.detectorState === "ready" && state.tracks.length === 0 ? state.emptyStreak + 1 : 0;
       void maybeAssistCamera();
       const key = advice ? advice.kind : "";
       if (key === state.qualityKind) return true;

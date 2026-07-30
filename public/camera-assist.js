@@ -55,6 +55,14 @@ export const torchLumaThreshold = 70;
 export const zoomStepFactor = 1.5;
 export const zoomCeiling = 3;
 
+// The zoom's second trigger. A ready detector that keeps finding NOTHING in a
+// bright, steady frame is the other face of "too far": from across a room,
+// nothing projects large enough to recognise — so a persistently empty result
+// is itself the distance signal, and the third field trial's exact complaint.
+// Weaker evidence than a found-but-small object (an empty wall up close is
+// also empty), so it must persist longer before the nudge.
+export const emptyViewMinimumStreak = 3;
+
 export function shouldEnableTorch({ supported = false, torchOn = false, declined = false, darkStreak = 0 } = {}) {
   if (!supported || torchOn || declined) return false;
   return darkStreak >= assistMinimumStreak;
@@ -63,13 +71,16 @@ export function shouldEnableTorch({ supported = false, torchOn = false, declined
 /**
  * The next zoom to apply, or null for "leave it alone".
  *
- * Null on: no zoom support, insufficient streak, customer declined, or already
- * at the allowed ceiling. The result is clamped and quantised to the camera's
- * own step so `applyConstraints` is never asked for a value the hardware
- * rejects outright.
+ * Two independent triggers: an object found but persistently small
+ * (`distanceStreak`), or a ready detector persistently finding nothing at all
+ * in an otherwise good frame (`emptyStreak`). Null on: no zoom support,
+ * neither streak sufficient, customer declined, or already at the allowed
+ * ceiling. The result is clamped and quantised to the camera's own step so
+ * `applyConstraints` is never asked for a value the hardware rejects outright.
  */
-export function nextAutoZoom({ range = null, zoom = 0, declined = false, distanceStreak = 0 } = {}) {
-  if (!range || declined || distanceStreak < assistMinimumStreak) return null;
+export function nextAutoZoom({ range = null, zoom = 0, declined = false, distanceStreak = 0, emptyStreak = 0 } = {}) {
+  if (!range || declined) return null;
+  if (distanceStreak < assistMinimumStreak && emptyStreak < emptyViewMinimumStreak) return null;
   const current = Number.isFinite(zoom) && zoom >= range.min ? zoom : range.min;
   const limit = Math.min(range.max, range.min * zoomCeiling);
   if (current >= limit - range.step / 2) return null;

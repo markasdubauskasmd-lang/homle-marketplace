@@ -756,7 +756,7 @@ assert(/synth\.cancel\(\);[\s\S]{0,400}synth\.speak\(utterance\)/.test(overlay),
 // The torch streak counts RAW measured luma, not the "too dark" advice kind:
 // auto-exposure brightens a dark bedroom past the advice threshold, which is
 // exactly why the first field trial's torch never fired.
-assert(/state\.darkStreak = quality\.luma < torchLumaThreshold[\s\S]{0,400}void maybeAssistCamera\(\);[\s\S]{0,140}if \(key === state\.qualityKind\) return true;/.test(overlay), "Assist streaks are counted after the unchanged-advice early return, or the torch is keyed to the post-auto-exposure-blind advice kind again.");
+assert(/state\.darkStreak = quality\.luma < torchLumaThreshold[\s\S]{0,900}void maybeAssistCamera\(\);[\s\S]{0,140}if \(key === state\.qualityKind\) return true;/.test(overlay), "Assist streaks are counted after the unchanged-advice early return, or the torch is keyed to the post-auto-exposure-blind advice kind again.");
 assert(/async function maybeAssistCamera\(\)[\s\S]{0,120}state\.closed \|\| state\.frozen \|\| !state\.cameraTrack\) return;/.test(overlay), "The assist can fire while the frame is frozen or the camera is gone.");
 assert(/if \(shouldEnableTorch\(\{/.test(overlay) && /nextAutoZoom\(\{/.test(overlay), "The overlay makes its own assist decisions instead of using the tested rules.");
 // Manual off is final for the room, on both assists.
@@ -780,6 +780,13 @@ assert(/function refreshCameraCapabilities\(\)[\s\S]{0,260}track\.getCapabilitie
 assert(/refreshCameraCapabilities\(\);\s*\n\s*scheduleCapabilityProbes\(\);/.test(overlay), "Opening the camera reads capabilities only once — the Pixel race that kept both assists dormant.");
 assert(/state\.timers\.capabilityProbes = \[600, 2000\]\.map/.test(overlay), "The delayed capability probes are gone or drifted from the settle window field evidence chose.");
 assert(/async function maybeAssistCamera\(\)[\s\S]{0,500}if \(!torchSupported\(state\.cameraCapabilities\) && !zoomRange\(state\.cameraCapabilities\)\) refreshCameraCapabilities\(\);/.test(overlay), "A camera whose capabilities arrive after the probe window never gets re-asked.");
+// The zoom's second trigger — the fourth field report: a ready detector that
+// persistently finds NOTHING in a good frame is the other face of "too far".
+// Counted only while no quality problem outranks it (zooming into darkness or
+// motion blur reveals nothing), fed to the decision, and reset per room.
+assert(/state\.emptyStreak = !advice && state\.detectorState === "ready" && state\.tracks\.length === 0 \? state\.emptyStreak \+ 1 : 0;/.test(overlay), "The empty-view streak is gone or counts while a quality problem outranks it.");
+assert(/nextAutoZoom\(\{[\s\S]{0,220}emptyStreak: state\.emptyStreak/.test(overlay), "The empty-view streak never reaches the zoom decision, so a scanner that finds nothing still never zooms — the fourth field report.");
+assert(/function prepareLiveRoom\(\)[\s\S]{0,1200}state\.emptyStreak = 0;/.test(overlay), "The empty-view streak leaks across rooms.");
 assert(/function stopCamera\(\)[\s\S]{0,600}state\.timers\.capabilityProbes = \[\];/.test(overlay), "Stopping the camera leaves capability probes armed against a dead track.");
 
 // The framing guidance ("move slowly", "too dark") lives at the TOP of the
