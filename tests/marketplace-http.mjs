@@ -101,6 +101,7 @@ const propertyService = {
   async saveLandlordProfile(actor, input) { calls.push({ kind: "landlord-save", actor, input }); return { organisationName: input.organisationName || null, biography: input.biography || "" }; },
   async createProperty(actor, input) { calls.push({ kind: "property-create", actor, input }); return { propertyId: "44444444-4444-4444-8444-444444444444", name: input.name }; },
   async updateOwnProperty(actor, input) { calls.push({ kind: "property-update", actor, input }); return { propertyId: input.id, name: input.name }; },
+  async archiveOwnProperty(actor, propertyId) { calls.push({ kind: "property-archive", actor, propertyId }); return { propertyId, archivedAt: "2026-07-30T21:30:00.000Z" }; },
   async listOwnProperties(actor) { calls.push({ kind: "property-list", actor }); return []; },
   async getBookingProperty(actor, bookingId) { calls.push({ kind: "booking-property", actor, bookingId }); if (actor.userId === "33333333-3333-4333-8333-333333333333") throw new AccountHttpError(403, "forbidden", "Booking property access is forbidden."); return { propertyId: "44444444-4444-4444-8444-444444444444", accessInstructions: "Protected" }; }
 };
@@ -461,6 +462,11 @@ assert(created.response.statusCode === 201 && calls.at(-1).actor.userId === sess
 const propertyId = "44444444-4444-4444-8444-444444444444";
 const updated = await dispatch(router, "PUT", `/api/marketplace/properties/${propertyId}`, { headers: authHeaders, body: { id: "99999999-9999-4999-8999-999999999999", name: "Updated" } });
 assert(updated.response.statusCode === 200 && calls.at(-1).input.id === propertyId, "Property update trusted a body property ID instead of the protected route resource.");
+const missingArchiveCsrf = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/archive`, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: {} });
+const cleanerArchive = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/archive`, { headers: cleanerAuthHeaders, body: {} });
+const unsupportedArchiveMethod = await dispatch(router, "DELETE", `/api/marketplace/properties/${propertyId}/archive`, { headers: authHeaders });
+const archived = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/archive`, { headers: authHeaders, body: {} });
+assert(missingArchiveCsrf.response.statusCode === 403 && cleanerArchive.response.statusCode === 403 && unsupportedArchiveMethod.response.statusCode === 405 && unsupportedArchiveMethod.response.headers.Allow === "POST" && archived.response.statusCode === 200 && archived.body.archivedProperty.propertyId === propertyId && calls.at(-1).kind === "property-archive" && calls.at(-1).actor.userId === sessions.landlord.user_id && calls.at(-1).propertyId === propertyId, "Property archiving lost CSRF protection, Landlord role isolation, method safety or route-resource binding.");
 const requestCreated = await dispatch(router, "POST", "/api/marketplace/cleaning-requests", { headers: authHeaders, body: { propertyId, landlordUserId: "33333333-3333-4333-8333-333333333333" } });
 const requestList = await dispatch(router, "GET", "/api/marketplace/cleaning-requests", { headers: { cookie: authHeaders.cookie } });
 assert(requestCreated.response.statusCode === 201 && requestCreated.body.cleaningRequest.status === "draft" && calls.at(-2).kind === "request-create" && calls.at(-2).actor.userId === sessions.landlord.user_id && requestList.response.statusCode === 200 && calls.at(-1).kind === "request-list", "Account cleaning-request routes did not bind private-draft creation/listing to the authenticated Landlord.");

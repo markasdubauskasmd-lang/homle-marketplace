@@ -264,6 +264,11 @@ body.landlord-dashboard-page .button.button-outline {
   border: 1.5px solid oklch(0.4 0.02 60 / 0.25);
   box-shadow: none;
 }
+body.landlord-dashboard-page .landlord-property-actions { gap: 10px; flex-wrap: wrap; }
+body.landlord-dashboard-page .landlord-property-archive {
+  color: var(--ld-coral);
+  border-color: color-mix(in oklch, var(--ld-coral) 42%, transparent);
+}
 body.landlord-dashboard-page .text-button { color: var(--ld-coral); font-weight: 600; }
 body.landlord-dashboard-page .landlord-record-form input,
 body.landlord-dashboard-page .landlord-record-form select,

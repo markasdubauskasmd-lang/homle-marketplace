@@ -406,12 +406,17 @@
       "order": 81,
       "file": "081_administrator_coverage_report.sql",
       "sha256": "a40a4a8c8898b48e754e901571911bd415a29ec84101cf858ceef21fde71885c"
+    },
+    {
+      "order": 82,
+      "file": "082_owner_property_archiving.sql",
+      "sha256": "6d5676a2d617feea0e0d953007120e62ead015c14b4c926a50b12704cdf18723"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "9bf255f0bed4bba7fef0376b191baf91be6330a6f6effefd8490345e5548b331"
+      "sha256": "2ed25cf4d2b2d9b12cff82b329e6a52bd426bb0806b85d8d3ad1856757c8dbbe"
     },
     {
       "file": "worker-role-grants.sql",

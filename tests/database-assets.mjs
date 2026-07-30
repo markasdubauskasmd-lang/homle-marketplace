@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 81);
-  assert.equal(repositoryResult.migrations.at(-1), "081_administrator_coverage_report.sql");
+  assert.equal(repositoryResult.migrations.length, 82);
+  assert.equal(repositoryResult.migrations.at(-1), "082_owner_property_archiving.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
@@ -100,6 +100,8 @@ try {
   assert(deploymentVerifier.includes("get_administrator_coverage_report(integer,boolean)")
     && deploymentVerifier.includes("Administrator coverage report is missing, overprivileged or does not use the eligibility matcher"),
   "Deployment verification must prove the privacy-minimal coverage report, shared matcher and restricted runtime execution boundary.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 82\)'/, "Deployment verification must detect owner property archiving dynamically.");
+  assert(deploymentVerifier.includes("archive_my_property(uuid)") && deploymentVerifier.includes("Owner property archiving lost its active-work guard or audit evidence"), "Deployment verification must prove property archiving keeps active work and history protected.");
   // Under the web-only decision nothing a browser produces is exact. A stored
   // measurement with no band would read as exact for ever after.
   assert(deploymentVerifier.includes("room_scan_measurements_estimate_has_band"), "Migration-74 verification must prove an estimated measurement cannot be stored looking exact.");
@@ -147,8 +149,9 @@ try {
   assert(deploymentVerifier.includes("'appFunctionChecks', 48")
     && deploymentVerifier.includes("+ CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END")
     && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END")
+    && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.archive_my_property(uuid)') IS NULL THEN 0 ELSE 1 END")
     && deploymentVerifier.includes("'rlsTableCount', 39 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 1 END"),
-  "deployment report must distinguish the verified pre-upgrade schema from migration-80 support and migration-81 coverage schemas");
+  "deployment report must distinguish the verified pre-upgrade schema from migration-80 support, migration-81 coverage and migration-82 property archive schemas");
   assert.equal(advertisedWorkerChecks, [...workerBlock.matchAll(/'tideway_private\./g)].length + 1, "deployment report must count core worker functions plus the migration-aware automatic-dispatch function");
 
   await freshFixture();

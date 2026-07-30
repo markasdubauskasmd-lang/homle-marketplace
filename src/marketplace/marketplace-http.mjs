@@ -45,6 +45,7 @@ const bookingEventsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern}
 const requestEventsPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/events$`);
 const notificationReadPath = new RegExp(`^/api/marketplace/notifications/(${uuidPattern})/read$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
+const propertyArchivePath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})/archive$`);
 const cleanerProfilePath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})$`);
 const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
 const cleanerAvailabilityPath = new RegExp(`^/api/marketplace/cleaner/availability/(${uuidPattern})$`);
@@ -544,6 +545,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true });
           const notification = await notifications.markNotificationRead(context.actor, selectedNotificationRead[1]);
           sendJson(response, 200, { ok: true, notification });
+          return true;
+        }
+        const selectedPropertyArchive = pathname.match(propertyArchivePath);
+        if (selectedPropertyArchive) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const archivedProperty = await properties.archiveOwnProperty(context.actor, selectedPropertyArchive[1]);
+          sendJson(response, 200, { ok: true, archivedProperty });
           return true;
         }
         const selectedProperty = pathname.match(propertyPath);
