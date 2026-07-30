@@ -257,14 +257,29 @@
   }
 
   // Collapse / expand the whole builder, matching the design's reveal toggle.
+  function setBuilderExpanded(next) {
+    if (!toggle) return;
+    toggle.setAttribute("aria-expanded", String(next));
+    panel.classList.toggle("pac-collapsed", !next);
+    toggle.textContent = next ? "Hide ↑" : "Reveal builder ↓";
+  }
   if (toggle) {
     toggle.addEventListener("click", function () {
-      const expanded = toggle.getAttribute("aria-expanded") !== "false";
-      const next = !expanded;
-      toggle.setAttribute("aria-expanded", String(next));
-      panel.classList.toggle("pac-collapsed", !next);
-      toggle.textContent = next ? "Hide ↑" : "Reveal builder ↓";
+      setBuilderExpanded(toggle.getAttribute("aria-expanded") === "false");
     });
+    // Collapsed, the card is a regular banner and the WHOLE banner expands it —
+    // a tap target the size of the card instead of one small button. Expanded,
+    // only the button collapses, so a click on the heading text while working
+    // in the form never yanks the builder away. The button stays the
+    // accessible control (aria-expanded, keyboard); this is pointer sugar.
+    const head = panel.querySelector(".pac-card-head");
+    if (head) {
+      head.addEventListener("click", function (event) {
+        if (!panel.classList.contains("pac-collapsed")) return;
+        if (toggle.contains(event.target)) return;
+        setBuilderExpanded(true);
+      });
+    }
   }
 
   // ── Design step inputs (progressive enhancement over the native fields) ──

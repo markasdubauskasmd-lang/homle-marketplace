@@ -136,6 +136,18 @@ assert(!/(Jane|Sarah|Maria|John|five-star|fully insured|background checked|DBS c
 }
 
 assert(page.includes("Secure landlord access") && page.includes("+ New request") && !page.includes("landlord-prepare-card") && page.includes("data-request-builder-mount") && page.includes("Not sent for matching · private draft") && page.includes('class="landlord-workspace-panel pac-collapsed"') && page.includes('aria-expanded="false"') && page.includes("Reveal builder ↓"), "The Landlord dashboard still has the duplicate teaser or the real clean builder is not mounted in its approved collapsed position.");
+
+// Collapsed, the builder is a regular banner. Hiding only `.pac-layout` left
+// the form's own bordered shell (`.landlord-record-form` styles itself)
+// floating under the subtitle as an empty box — the field screenshot exactly.
+// The whole body hides, the padding tightens to banner height, and the banner
+// itself expands on click while the reveal button stays the accessible control.
+{
+  const wizard = await readFile(new URL("../public/landlord-prepare-wizard.js", import.meta.url), "utf8");
+  assert(designStyles.includes(".pac-collapsed .pac-body { display: none; }"), "The collapsed builder still shows the form's empty shell as a stray box under the banner.");
+  assert(/\.pac-collapsed \.pac-card-head \{[^}]*cursor: pointer/.test(designStyles), "The collapsed banner does not present itself as clickable.");
+  assert(wizard.includes("function setBuilderExpanded(next)") && wizard.includes('if (!panel.classList.contains("pac-collapsed")) return;') && wizard.includes("if (toggle.contains(event.target)) return;"), "The banner head cannot expand the builder, or a click on the heading while working collapses it / double-fires through the button.");
+}
 assert(page.includes("workspace-brand-copy") && page.includes("landlord-sidebar-cta") && page.includes("scan-hero-beam") && page.includes("scan-hero-tags"), "The approved sidebar or scanning-phone presentation is missing from the real dashboard markup.");
 assert(designStyles.includes("grid-template-columns: minmax(0, 1fr) 180px") && designStyles.includes("landlordPhoneScan") && designStyles.includes("@media (max-width: 700px)") && designStyles.includes("overflow-x: auto"), "The reference dashboard styling lost its desktop scan composition or mobile adaptation.");
 assert(designStyles.includes("grid-template-areas: none") && designStyles.includes(".landlord-dashboard-identity > .role-dashboard-welcome { grid-area: auto; }") && designStyles.includes("color: var(--ld-ink)") && designStyles.includes("background: none") && designStyles.includes(".landlord-dashboard-identity .role-dashboard-welcome > p:last-child { color: #755548; }"), "Older shared dashboard grid or colour rules can still displace or wash out the approved Landlord welcome header.");

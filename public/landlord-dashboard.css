@@ -846,6 +846,18 @@ body.landlord-dashboard-page.pac-collapsed-host .pac-layout { display: none; }
 body.landlord-dashboard-page .pac-card.pac-collapsed .pac-layout { display: none; }
 body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-layout { display: none; }
 
+/* Collapsed, the card reads as a regular banner: eyebrow, heading, pill and
+   the reveal button, nothing else. Hiding only `.pac-layout` left the form's
+   own shell — `.landlord-record-form` carries its own border and background —
+   floating under the subtitle as an empty box. The whole body goes instead,
+   the padding tightens to banner height, and the header doubles as the
+   expander so the banner behaves like every other disclosure. */
+body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-body { display: none; }
+body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-card { padding: 16px clamp(18px, 2.6vw, 26px); }
+body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-card-head { margin-bottom: 0; align-items: center; cursor: pointer; }
+body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-card-head h2 { font-size: clamp(19px, 2.1vw, 22px); }
+body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-sub { margin-top: 3px; font-size: 13.5px; }
+
 /* Two-column layout (main + summary) only once JS enables the wizard. */
 body.landlord-dashboard-page .pac-layout { margin-top: 18px; }
 body.landlord-dashboard-page.pac-wizard-host .pac-layout,
