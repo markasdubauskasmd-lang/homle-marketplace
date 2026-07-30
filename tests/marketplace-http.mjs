@@ -102,7 +102,9 @@ const propertyService = {
   async createProperty(actor, input) { calls.push({ kind: "property-create", actor, input }); return { propertyId: "44444444-4444-4444-8444-444444444444", name: input.name }; },
   async updateOwnProperty(actor, input) { calls.push({ kind: "property-update", actor, input }); return { propertyId: input.id, name: input.name }; },
   async archiveOwnProperty(actor, propertyId) { calls.push({ kind: "property-archive", actor, propertyId }); return { propertyId, archivedAt: "2026-07-30T21:30:00.000Z" }; },
+  async restoreOwnProperty(actor, propertyId) { calls.push({ kind: "property-restore", actor, propertyId }); return { propertyId, restoredAt: "2026-07-30T22:00:00.000Z" }; },
   async listOwnProperties(actor) { calls.push({ kind: "property-list", actor }); return []; },
+  async listArchivedOwnProperties(actor) { calls.push({ kind: "property-archived-list", actor }); return [{ propertyId: "44444444-4444-4444-8444-444444444444", name: "Archived flat", archivedAt: "2026-07-30T21:30:00.000Z" }]; },
   async getBookingProperty(actor, bookingId) { calls.push({ kind: "booking-property", actor, bookingId }); if (actor.userId === "33333333-3333-4333-8333-333333333333") throw new AccountHttpError(403, "forbidden", "Booking property access is forbidden."); return { propertyId: "44444444-4444-4444-8444-444444444444", accessInstructions: "Protected" }; }
 };
 const cleaningRequestService = {
@@ -446,6 +448,10 @@ assert(missingCsrf.response.statusCode === 403 && missingCsrf.body.code === "csr
 
 const ownerList = await dispatch(router, "GET", "/api/marketplace/properties", { headers: { cookie: authHeaders.cookie } });
 assert(ownerList.response.statusCode === 200 && calls.at(-1).kind === "property-list" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Property listing did not use the authenticated landlord identity.");
+const archivedOwnerList = await dispatch(router, "GET", "/api/marketplace/properties/archived", { headers: { cookie: authHeaders.cookie } });
+const cleanerArchivedList = await dispatch(router, "GET", "/api/marketplace/properties/archived", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const unsupportedArchivedListMethod = await dispatch(router, "POST", "/api/marketplace/properties/archived", { headers: authHeaders, body: {} });
+assert(archivedOwnerList.response.statusCode === 200 && archivedOwnerList.body.properties[0].archivedAt === "2026-07-30T21:30:00.000Z" && calls.at(-1).kind === "property-archived-list" && calls.at(-1).actor.userId === sessions.landlord.user_id && cleanerArchivedList.response.statusCode === 403 && unsupportedArchivedListMethod.response.statusCode === 405 && unsupportedArchivedListMethod.response.headers.Allow === "GET", "Archived property listing lost owner isolation, Landlord role protection or method safety.");
 const notificationList = await dispatch(router, "GET", "/api/marketplace/notifications?limit=15", { headers: { cookie: authHeaders.cookie } });
 const notificationId = "77777777-7777-4777-8777-777777777777";
 const notificationRead = await dispatch(router, "POST", `/api/marketplace/notifications/${notificationId}/read`, { headers: authHeaders, body: {} });
@@ -467,6 +473,11 @@ const cleanerArchive = await dispatch(router, "POST", `/api/marketplace/properti
 const unsupportedArchiveMethod = await dispatch(router, "DELETE", `/api/marketplace/properties/${propertyId}/archive`, { headers: authHeaders });
 const archived = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/archive`, { headers: authHeaders, body: {} });
 assert(missingArchiveCsrf.response.statusCode === 403 && cleanerArchive.response.statusCode === 403 && unsupportedArchiveMethod.response.statusCode === 405 && unsupportedArchiveMethod.response.headers.Allow === "POST" && archived.response.statusCode === 200 && archived.body.archivedProperty.propertyId === propertyId && calls.at(-1).kind === "property-archive" && calls.at(-1).actor.userId === sessions.landlord.user_id && calls.at(-1).propertyId === propertyId, "Property archiving lost CSRF protection, Landlord role isolation, method safety or route-resource binding.");
+const missingRestoreCsrf = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/restore`, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: {} });
+const cleanerRestore = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/restore`, { headers: cleanerAuthHeaders, body: {} });
+const unsupportedRestoreMethod = await dispatch(router, "DELETE", `/api/marketplace/properties/${propertyId}/restore`, { headers: authHeaders });
+const restored = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/restore`, { headers: authHeaders, body: {} });
+assert(missingRestoreCsrf.response.statusCode === 403 && cleanerRestore.response.statusCode === 403 && unsupportedRestoreMethod.response.statusCode === 405 && unsupportedRestoreMethod.response.headers.Allow === "POST" && restored.response.statusCode === 200 && restored.body.restoredProperty.propertyId === propertyId && calls.at(-1).kind === "property-restore" && calls.at(-1).actor.userId === sessions.landlord.user_id && calls.at(-1).propertyId === propertyId, "Property restoration lost CSRF protection, Landlord role isolation, method safety or route-resource binding.");
 const requestCreated = await dispatch(router, "POST", "/api/marketplace/cleaning-requests", { headers: authHeaders, body: { propertyId, landlordUserId: "33333333-3333-4333-8333-333333333333" } });
 const requestList = await dispatch(router, "GET", "/api/marketplace/cleaning-requests", { headers: { cookie: authHeaders.cookie } });
 assert(requestCreated.response.statusCode === 201 && requestCreated.body.cleaningRequest.status === "draft" && calls.at(-2).kind === "request-create" && calls.at(-2).actor.userId === sessions.landlord.user_id && requestList.response.statusCode === 200 && calls.at(-1).kind === "request-list", "Account cleaning-request routes did not bind private-draft creation/listing to the authenticated Landlord.");

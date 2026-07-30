@@ -106,4 +106,78 @@ BEGIN
   END IF;
 END $$;
 
+SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000002',true);
+SELECT set_config('app.user_roles','cleaner',true);
+DO $$
+BEGIN
+  PERFORM tideway_private.restore_my_property('21000000-0000-4000-8000-000000000001');
+  RAISE EXCEPTION 'A Cleaner restored a Landlord property';
+EXCEPTION WHEN insufficient_privilege THEN
+  IF SQLERRM<>'landlord-required' THEN RAISE; END IF;
+END $$;
+
+SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000003',true);
+SELECT set_config('app.user_roles','landlord',true);
+DO $$
+BEGIN
+  PERFORM tideway_private.restore_my_property('21000000-0000-4000-8000-000000000001');
+  RAISE EXCEPTION 'An unrelated Landlord restored another account property';
+EXCEPTION WHEN no_data_found THEN
+  IF SQLERRM<>'property-not-found' THEN RAISE; END IF;
+END $$;
+
+SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000001',true);
+SELECT set_config('app.user_roles','landlord',true);
+DO $$
+BEGIN
+  PERFORM tideway_private.restore_my_property('21000000-0000-4000-8000-000000000002');
+  RAISE EXCEPTION 'An active property was reported as restored';
+EXCEPTION WHEN no_data_found THEN
+  IF SQLERRM<>'property-not-found' THEN RAISE; END IF;
+END $$;
+
+SELECT tideway_private.restore_my_property('21000000-0000-4000-8000-000000000001');
+SELECT tideway_private.restore_my_property('21000000-0000-4000-8000-000000000004');
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM properties
+    WHERE id IN ('21000000-0000-4000-8000-000000000001','21000000-0000-4000-8000-000000000004')
+      AND archived_at IS NOT NULL
+  ) THEN RAISE EXCEPTION 'Restored properties remained archived'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM bookings
+    WHERE id='41000000-0000-4000-8000-000000000002' AND status='completed'
+  ) THEN RAISE EXCEPTION 'Restoring erased completed booking history'; END IF;
+  IF (
+    SELECT count(*) FROM audit_logs
+    WHERE action='property-restored'
+      AND resource_id IN ('21000000-0000-4000-8000-000000000001','21000000-0000-4000-8000-000000000004')
+      AND actor_user_id='10000000-0000-4000-8000-000000000001'
+  )<>2 THEN RAISE EXCEPTION 'Property restoration audit evidence is missing or duplicated'; END IF;
+  IF EXISTS (
+    SELECT 1 FROM audit_logs
+    WHERE action='property-restored'
+      AND resource_id IN ('21000000-0000-4000-8000-000000000001','21000000-0000-4000-8000-000000000004')
+      AND (
+        metadata ? 'address'
+        OR metadata ? 'name'
+        OR (SELECT count(*) FROM jsonb_object_keys(audit_logs.metadata))<>1
+        OR NOT metadata ? 'restoredAt'
+      )
+  ) THEN RAISE EXCEPTION 'Property restoration audit evidence exposed private property data'; END IF;
+  IF NOT has_function_privilege('tideway_app','tideway_private.restore_my_property(uuid)','EXECUTE')
+     OR EXISTS (
+       SELECT 1
+       FROM pg_proc procedure,
+            LATERAL aclexplode(COALESCE(procedure.proacl,acldefault('f',procedure.proowner))) privilege
+       WHERE procedure.oid=to_regprocedure('tideway_private.restore_my_property(uuid)')
+         AND privilege.grantee=0
+         AND privilege.privilege_type='EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'Property restoration execution privilege is missing or public';
+  END IF;
+END $$;
+
 ROLLBACK;

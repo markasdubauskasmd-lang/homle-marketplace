@@ -38,6 +38,10 @@ const soleProperty = document.querySelector("[data-sole-property]");
 const solePropertyName = document.querySelector("[data-sole-property-name]");
 const propertyFeedback = document.querySelector("[data-property-feedback]");
 const propertyStatus = document.querySelector("[data-property-status]");
+const archivedPropertySection = document.querySelector("[data-archived-properties]");
+const archivedPropertyList = document.querySelector("[data-archived-property-list]");
+const archivedPropertyCount = document.querySelector("[data-archived-property-count]");
+const archivedPropertyStatus = document.querySelector("[data-archived-property-status]");
 const propertyFormTitle = document.querySelector("[data-property-form-title]");
 const requestFeedback = document.querySelector("[data-request-feedback]");
 const requestRecoveryStatus = document.querySelector("[data-request-recovery-status]");
@@ -88,6 +92,7 @@ const selectedCleanerEvidence = document.querySelector("[data-landlord-selected-
 const selectedCleanerStatus = document.querySelector("[data-landlord-selected-cleaner-status]");
 const selectedCleanerClear = document.querySelector("[data-landlord-selected-cleaner-clear]");
 let properties = [];
+let archivedProperties = [];
 let requests = [];
 let bookings = [];
 let favouriteCleaners = [];
@@ -110,6 +115,7 @@ let withdrawingRequestId = "";
 let withdrawalPending = false;
 let archivingPropertyId = "";
 let propertyArchivePending = false;
+let restoringPropertyId = "";
 let loading = false;
 let mediaReady = false;
 let pricingReady = false;
@@ -599,6 +605,68 @@ function renderProperties() {
   document.querySelector("[data-property-count]").textContent = String(properties.length);
 }
 
+function renderArchivedProperties() {
+  archivedPropertyList.replaceChildren();
+  archivedPropertyCount.textContent = String(archivedProperties.length);
+  archivedPropertySection.hidden = archivedProperties.length === 0;
+  for (const property of archivedProperties) {
+    const card = element("article", "landlord-property-card");
+    const heading = element("div", "landlord-property-card-heading");
+    const title = element("div");
+    title.append(
+      element("span", "landlord-private-pill", "Archived"),
+      element("h3", "", property.name || "Saved property"),
+      element("p", "", exactAddress(property))
+    );
+    heading.append(title, element("strong", "", String(property.propertyType || "Property").replace(/-/g, " ")));
+    const facts = element("dl", "landlord-property-facts");
+    facts.append(
+      propertyFact("Archived", property.archivedAt ? formatBookingMoment(property.archivedAt) : "Date unavailable"),
+      propertyFact("Saved tasks", Array.isArray(property.savedChecklist) ? property.savedChecklist.length : 0)
+    );
+    const actions = element("div", "landlord-property-actions");
+    const restore = element("button", "button button-outline", restoringPropertyId === property.propertyId ? "Restoring…" : "Restore property");
+    restore.type = "button";
+    restore.disabled = Boolean(restoringPropertyId);
+    restore.setAttribute("aria-label", `Restore ${property.name || "saved property"} for new cleaning requests`);
+    restore.addEventListener("click", () => restoreProperty(property));
+    actions.append(restore);
+    card.append(heading, facts, actions);
+    archivedPropertyList.append(card);
+  }
+}
+
+async function restoreProperty(property) {
+  if (!property?.propertyId || restoringPropertyId) return;
+  archivedPropertyStatus.hidden = true;
+  const csrf = await recoverCsrf(archivedPropertyStatus, "restoring this property");
+  if (!csrf) return;
+  restoringPropertyId = property.propertyId;
+  renderArchivedProperties();
+  try {
+    const result = await requestJson(`/api/marketplace/properties/${encodeURIComponent(property.propertyId)}/restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: "{}"
+    });
+    if (result.restoredProperty?.propertyId !== property.propertyId) throw new Error("Homle could not verify which property was restored.");
+    archivedProperties = archivedProperties.filter((item) => item.propertyId !== property.propertyId);
+    const { archivedAt: _archivedAt, ...activeProperty } = property;
+    properties.push(activeProperty);
+    properties.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    restoringPropertyId = "";
+    renderProperties();
+    renderArchivedProperties();
+    showFeedback(propertyStatus, `${property.name || "Property"} restored and available for new cleaning requests.`, "success");
+    propertyStatus.focus({ preventScroll: true });
+  } catch (error) {
+    restoringPropertyId = "";
+    renderArchivedProperties();
+    showFeedback(archivedPropertyStatus, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot restore this property. Sign in again." : error.message);
+    archivedPropertyStatus.focus({ preventScroll: true });
+  }
+}
+
 function openPropertyArchive(property) {
   if (!property?.propertyId || propertyArchivePending) return;
   if (editingPropertyId === property.propertyId && propertyDirty && !window.confirm("Discard the unsaved property changes and continue to the archive confirmation?")) return;
@@ -632,9 +700,11 @@ async function archiveProperty(event) {
     });
     if (result.archivedProperty?.propertyId !== archivingPropertyId) throw new Error("Homle could not verify which property was archived.");
     properties = properties.filter((item) => item.propertyId !== archivingPropertyId);
+    archivedProperties.unshift({ ...property, archivedAt: result.archivedProperty.archivedAt });
     archivingPropertyId = "";
     propertyArchiveDialog.close();
     renderProperties();
+    renderArchivedProperties();
     showFeedback(propertyStatus, `${property.name || "Property"} archived. Completed and cancelled booking history is unchanged.`, "success");
     propertyStatus.focus({ preventScroll: true });
   } catch (error) {
@@ -1662,18 +1732,20 @@ async function loadWorkspace() {
     workspace.setAttribute("aria-busy", "true");
     loadStatus.hidden = true;
 
-    const [profileResult, propertyResult, requestResult, bookingResult, healthResult] = await Promise.allSettled([
+    const [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, healthResult] = await Promise.allSettled([
       requestJson("/api/marketplace/landlord/profile"),
       requestJson("/api/marketplace/properties"),
+      requestJson("/api/marketplace/properties/archived"),
       requestJson("/api/marketplace/cleaning-requests"),
       requestJson("/api/marketplace/bookings?limit=50"),
       requestJson("/api/health")
     ]);
-    const results = [profileResult, propertyResult, requestResult, bookingResult, healthResult];
+    const results = [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, healthResult];
     const failures = results.filter((result) => result.status === "rejected");
     const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
     if (authorizationFailure) throw authorizationFailure.reason;
     if (propertyResult.status === "fulfilled") properties = Array.isArray(propertyResult.value.properties) ? propertyResult.value.properties : [];
+    if (archivedPropertyResult.status === "fulfilled") archivedProperties = Array.isArray(archivedPropertyResult.value.properties) ? archivedPropertyResult.value.properties : [];
     if (requestResult.status === "fulfilled") requests = Array.isArray(requestResult.value.cleaningRequests) ? requestResult.value.cleaningRequests : [];
     if (bookingResult.status === "fulfilled") bookings = Array.isArray(bookingResult.value.bookings) ? bookingResult.value.bookings : [];
     landlordProfile = profileResult.status === "fulfilled" ? (profileResult.value.profile || { organisationName: null, biography: "" }) : { organisationName: null, biography: "" };
@@ -1693,6 +1765,7 @@ async function loadWorkspace() {
       capabilityCopy.textContent = capabilities.notice.copy;
     }
     renderProperties();
+    renderArchivedProperties();
     restoreWorkingRequest();
     renderRequests();
     renderBookings();

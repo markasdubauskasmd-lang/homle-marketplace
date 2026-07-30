@@ -57,7 +57,7 @@ const safelyNamed = normalizedProperty({ ...input, name: "" }, encryptionSecret)
 assert(safelyNamed.name === "Flat in London" && !safelyNamed.name.includes(input.addressLine1), "An omitted property label was not replaced with a privacy-safe type-and-locality name.");
 assert(throws(() => normalizedProperty({ ...input, bathrooms: 1.25 }, encryptionSecret), "supported range") && throws(() => normalizedProperty({ ...input, postcode: "London" }, encryptionSecret), "valid UK postcode") && throws(() => normalizedProperty({ ...input, longitude: null }, encryptionSecret), "supplied together") && throws(() => normalizedProperty({ ...input, savedChecklist: Array.from({ length: 101 }, () => input.savedChecklist[0]) }, encryptionSecret), "too many"), "Invalid property numbers, location or checklist data were accepted.");
 
-function propertyRow(property, status = "confirmed") {
+function propertyRow(property, status = "confirmed", archivedAt = null) {
   return {
     id: property.id,
     name: property.name,
@@ -76,6 +76,7 @@ function propertyRow(property, status = "confirmed") {
     special_notes: property.specialNotes,
     latitude: property.latitude,
     longitude: property.longitude,
+    archived_at: archivedAt,
     landlord_user_id: landlordId,
     booking_landlord_user_id: landlordId,
     booking_cleaner_user_id: cleanerId,
@@ -92,7 +93,9 @@ const fakeRepository = {
   async createProperty(actor, property) { repositoryCalls.push({ kind: "create", actor, property }); storedProperty = property; return propertyRow(property); },
   async updateOwnProperty(actor, property) { repositoryCalls.push({ kind: "update", actor, property }); storedProperty = property; return propertyRow(property); },
   async listOwnProperties(actor) { repositoryCalls.push({ kind: "list", actor }); return [propertyRow(storedProperty)]; },
+  async listArchivedOwnProperties(actor) { repositoryCalls.push({ kind: "archived-list", actor }); return [propertyRow(storedProperty, "confirmed", "2026-07-30T21:30:00.000Z")]; },
   async archiveOwnProperty(actor, selectedPropertyId) { repositoryCalls.push({ kind: "archive", actor, selectedPropertyId }); return { propertyId: selectedPropertyId, archivedAt: "2026-07-30T21:30:00.000Z" }; },
+  async restoreOwnProperty(actor, selectedPropertyId) { repositoryCalls.push({ kind: "restore", actor, selectedPropertyId }); return { propertyId: selectedPropertyId, restoredAt: "2026-07-30T22:00:00.000Z" }; },
   async getBookingProperty(actor, selectedBookingId) { repositoryCalls.push({ kind: "booking", actor, selectedBookingId }); return propertyRow(storedProperty, bookingStatus); }
 };
 const service = createPropertyService(fakeRepository, { dataEncryptionSecret: encryptionSecret });
@@ -111,9 +114,13 @@ const updated = await service.updateOwnProperty(landlord, { ...input, id: proper
 const updateCall = repositoryCalls.find((call) => call.kind === "update");
 assert(updated.propertyId === propertyId && updated.accessInstructions === updatedInstructions && Buffer.isBuffer(updateCall.property.accessInstructionsCiphertext) && !updateCall.property.accessInstructionsCiphertext.includes(Buffer.from(updatedInstructions)), "An owner property edit did not preserve identity, encrypt the replacement access instructions or return the protected owner projection.");
 assert((await service.listOwnProperties(landlord))[0].accessInstructions === updatedInstructions, "A landlord could not retrieve their updated protected property details.");
+const archivedProperties = await service.listArchivedOwnProperties(landlord);
+assert(archivedProperties[0].propertyId === propertyId && archivedProperties[0].archivedAt === "2026-07-30T21:30:00.000Z" && archivedProperties[0].accessInstructions === updatedInstructions, "A Landlord could not read their own archived property with a verified archive timestamp.");
 const archived = await service.archiveOwnProperty(landlord, propertyId);
 assert(archived.propertyId === propertyId && archived.archivedAt === "2026-07-30T21:30:00.000Z" && repositoryCalls.find((call) => call.kind === "archive")?.actor === landlord, "A Landlord archive was not owner-bound or returned an unverifiable timestamp.");
-assert(throws(() => createPropertyService(fakeRepository, { dataEncryptionSecret: "too-short" }), "at least 32") && await rejects(() => service.getLandlordProfile(cleaner), "Landlord account") && await rejects(() => service.createProperty(cleaner, input), "Landlord account") && await rejects(() => service.updateOwnProperty(cleaner, { ...input, id: propertyId }), "Landlord account") && await rejects(() => service.archiveOwnProperty(cleaner, propertyId), "Landlord account"), "Property service accepted a weak encryption key or a cleaner property read/write/archive.");
+const restored = await service.restoreOwnProperty(landlord, propertyId);
+assert(restored.propertyId === propertyId && restored.restoredAt === "2026-07-30T22:00:00.000Z" && repositoryCalls.find((call) => call.kind === "restore")?.actor === landlord, "A Landlord restoration was not owner-bound or returned an unverifiable timestamp.");
+assert(throws(() => createPropertyService(fakeRepository, { dataEncryptionSecret: "too-short" }), "at least 32") && await rejects(() => service.getLandlordProfile(cleaner), "Landlord account") && await rejects(() => service.createProperty(cleaner, input), "Landlord account") && await rejects(() => service.updateOwnProperty(cleaner, { ...input, id: propertyId }), "Landlord account") && await rejects(() => service.listArchivedOwnProperties(cleaner), "Landlord account") && await rejects(() => service.archiveOwnProperty(cleaner, propertyId), "Landlord account") && await rejects(() => service.restoreOwnProperty(cleaner, propertyId), "Landlord account"), "Property service accepted a weak encryption key or a cleaner property read/write/archive/restore.");
 
 // Geocoding integration: a configured geocoder fills coordinates from the
 // postcode only when the Landlord did not supply them, and never blocks a save.
@@ -125,7 +132,9 @@ const geoRepository = {
   async createProperty(actor, property) { geoStored = property; return propertyRow(property); },
   async updateOwnProperty(actor, property) { geoStored = property; return propertyRow(property); },
   async listOwnProperties() { return [propertyRow(geoStored)]; },
+  async listArchivedOwnProperties() { return [propertyRow(geoStored, "confirmed", "2026-07-30T21:30:00.000Z")]; },
   async archiveOwnProperty(actor, selectedPropertyId) { return { propertyId: selectedPropertyId, archivedAt: "2026-07-30T21:30:00.000Z" }; },
+  async restoreOwnProperty(actor, selectedPropertyId) { return { propertyId: selectedPropertyId, restoredAt: "2026-07-30T22:00:00.000Z" }; },
   async getBookingProperty() { return propertyRow(geoStored); }
 };
 function geocodingService(geocoder) {
@@ -167,6 +176,7 @@ const database = {
     return operation({ async query(text, values) {
       databaseCalls.push({ actor, text, values });
       if (text.includes("archive_my_property")) return { rows: [{ archive: { propertyId, archivedAt: "2026-07-30T21:30:00.000Z" } }] };
+      if (text.includes("restore_my_property")) return { rows: [{ restoration: { propertyId, restoredAt: "2026-07-30T22:00:00.000Z" } }] };
       if (text.startsWith("INSERT INTO properties") || text.startsWith("UPDATE properties")) return { rows: [propertyRow(canonical)] };
       if (text.includes("FROM bookings b")) return { rows: [propertyRow(canonical)] };
       return { rows: [] };
@@ -178,15 +188,19 @@ await repository.getLandlordProfile(landlord);
 await repository.createProperty(landlord, canonical);
 await repository.updateOwnProperty(landlord, canonical);
 await repository.listOwnProperties(landlord);
+await repository.listArchivedOwnProperties(landlord);
 await repository.archiveOwnProperty(landlord, propertyId);
+await repository.restoreOwnProperty(landlord, propertyId);
 await repository.getBookingProperty(cleaner, bookingId);
 const profileReadCall = databaseCalls.find((call) => call.text.includes("FROM landlord_profiles"));
 const createCall = databaseCalls.find((call) => call.text.startsWith("INSERT INTO properties"));
 const updatePropertyCall = databaseCalls.find((call) => call.text.startsWith("UPDATE properties"));
-const listCall = databaseCalls.find((call) => call.text.startsWith("SELECT * FROM properties"));
+const listCall = databaseCalls.find((call) => call.text.startsWith("SELECT * FROM properties") && call.text.includes("archived_at IS NULL"));
+const archivedListCall = databaseCalls.find((call) => call.text.startsWith("SELECT * FROM properties") && call.text.includes("archived_at IS NOT NULL"));
 const archiveCall = databaseCalls.find((call) => call.text.includes("archive_my_property"));
+const restoreCall = databaseCalls.find((call) => call.text.includes("restore_my_property"));
 const bookingCall = databaseCalls.find((call) => call.text.includes("FROM bookings b"));
-assert(profileReadCall.values[0] === landlordId && createCall.values[1] === landlordId && updatePropertyCall.text.includes("WHERE id=$1::uuid AND landlord_user_id=$2::uuid") && updatePropertyCall.values[1] === landlordId && updatePropertyCall.text.includes("address_line_1 IS NOT DISTINCT FROM $4::text") && updatePropertyCall.text.includes("COALESCE($17::numeric,latitude)") && updatePropertyCall.text.includes("ELSE $17::numeric") && listCall.text.includes("landlord_user_id=$1::uuid") && archiveCall.values[0] === propertyId && bookingCall.text.includes("b.landlord_user_id=$2::uuid OR b.cleaner_user_id=$2::uuid") && databaseCalls.every((call) => !call.text.includes(accessInstructions)), "Property repository did not bind profile/property ownership, preserve unchanged-address coordinates, clear stale changed-address coordinates, call the protected archive function or protect booking participation in parameterized queries.");
+assert(profileReadCall.values[0] === landlordId && createCall.values[1] === landlordId && updatePropertyCall.text.includes("WHERE id=$1::uuid AND landlord_user_id=$2::uuid") && updatePropertyCall.values[1] === landlordId && updatePropertyCall.text.includes("address_line_1 IS NOT DISTINCT FROM $4::text") && updatePropertyCall.text.includes("COALESCE($17::numeric,latitude)") && updatePropertyCall.text.includes("ELSE $17::numeric") && listCall.text.includes("landlord_user_id=$1::uuid") && archivedListCall.text.includes("landlord_user_id=$1::uuid") && archiveCall.values[0] === propertyId && restoreCall.values[0] === propertyId && bookingCall.text.includes("b.landlord_user_id=$2::uuid OR b.cleaner_user_id=$2::uuid") && databaseCalls.every((call) => !call.text.includes(accessInstructions)), "Property repository did not bind profile/property ownership, preserve unchanged-address coordinates, clear stale changed-address coordinates, isolate archived rows, call the protected archive/restore functions or protect booking participation in parameterized queries.");
 
 for (const [databaseMessage, expectedCode] of [["property-has-active-request", "property-has-active-request"], ["property-has-active-booking", "property-has-active-booking"], ["property-not-found", "property-not-found"]]) {
   const failingRepository = createPropertyRepository({
@@ -197,6 +211,17 @@ for (const [databaseMessage, expectedCode] of [["property-has-active-request", "
   let mapped;
   try { await failingRepository.archiveOwnProperty(landlord, propertyId); } catch (error) { mapped = error; }
   assert(mapped?.code === expectedCode && [404, 409].includes(mapped?.statusCode), `Property archive error ${databaseMessage} was not mapped to a safe HTTP conflict/not-found response.`);
+}
+
+for (const [databaseMessage, expectedCode] of [["landlord-required", "landlord-required"], ["invalid-property-id", "invalid-property-id"], ["property-not-found", "property-not-found"]]) {
+  const failingRepository = createPropertyRepository({
+    withUserTransaction(actor, operation) {
+      return operation({ query() { throw new Error(databaseMessage); } });
+    }
+  });
+  let mapped;
+  try { await failingRepository.restoreOwnProperty(landlord, propertyId); } catch (error) { mapped = error; }
+  assert(mapped?.code === expectedCode && [403, 404, 422].includes(mapped?.statusCode), `Property restore error ${databaseMessage} was not mapped to a safe role/validation/not-found response.`);
 }
 
 const rls = await readFile(new URL("../db/migrations/002_marketplace_row_level_security.sql", import.meta.url), "utf8");

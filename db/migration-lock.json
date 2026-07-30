@@ -411,12 +411,17 @@
       "order": 82,
       "file": "082_owner_property_archiving.sql",
       "sha256": "6d5676a2d617feea0e0d953007120e62ead015c14b4c926a50b12704cdf18723"
+    },
+    {
+      "order": 83,
+      "file": "083_owner_property_restoration.sql",
+      "sha256": "b85503045c2c56d2f555cf82407b002022f6ade21aa3c9f4772346fdfde3f351"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "2ed25cf4d2b2d9b12cff82b329e6a52bd426bb0806b85d8d3ad1856757c8dbbe"
+      "sha256": "d03b16178924e9203afd74bd6819a96711dce511924565f64a4af9262173f608"
     },
     {
       "file": "worker-role-grants.sql",
