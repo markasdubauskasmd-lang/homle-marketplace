@@ -125,6 +125,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const supportRequests = dependencies?.supportRequestService;
   const administratorBookings = dependencies?.administratorBookingService;
   const administratorVerification = dependencies?.administratorVerificationService;
+  const administratorCoverage = dependencies?.administratorCoverageService;
   const privacyRequests = dependencies?.privacyRequestService;
   const payments = dependencies?.paymentService || null;
   const cleanerPayouts = dependencies?.cleanerPayoutService || null;
@@ -147,6 +148,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!disputes || !["open", "getForBooking", "listForAdministrator", "review"].every((method) => typeof disputes[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-case service.");
   if (!supportRequests || !["create", "listOwn", "listForAdministrator", "review"].every((method) => typeof supportRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the Landlord support-request service.");
   if (!administratorBookings || typeof administratorBookings.list !== "function") throw new TypeError("Marketplace HTTP routes require the Administrator booking operations service.");
+  if (!administratorCoverage || typeof administratorCoverage.get !== "function") throw new TypeError("Marketplace HTTP routes require the Administrator coverage-report service.");
   if (!privacyRequests || !["list", "request"].every((method) => typeof privacyRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account privacy-request service.");
   if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration", "listForAdministrator", "capture", "cancel", "refund", "transfer"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
   if (cleanerPayouts && !["getStatus", "refreshStatus", "beginOnboarding"].every((method) => typeof cleanerPayouts[method] === "function")) throw new TypeError("Marketplace Cleaner payout routes require the complete payout service.");
@@ -195,6 +197,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { roles: ["administrator"] });
           const page = await administratorBookings.list(context.actor, { view: url.searchParams.get("view"), limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
           sendJson(response, 200, { ok: true, ...page });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/coverage") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const report = await administratorCoverage.get(context.actor, { windowDays: url.searchParams.get("windowDays") });
+          sendJson(response, 200, { ok: true, ...report });
           return true;
         }
         if (pathname === "/api/marketplace/admin/cleaner-verifications") {

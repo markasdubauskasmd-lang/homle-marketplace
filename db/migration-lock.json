@@ -401,12 +401,17 @@
       "order": 80,
       "file": "080_landlord_support_requests.sql",
       "sha256": "0251c771d29190bb8b5aa97a31fbf2bf7628179cc00de4c8e77b29d652a34fde"
+    },
+    {
+      "order": 81,
+      "file": "081_administrator_coverage_report.sql",
+      "sha256": "a40a4a8c8898b48e754e901571911bd415a29ec84101cf858ceef21fde71885c"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "80900c476c29f67ac8f517144389cf1d4f765dc20be81bd13c99ff6278559fa1"
+      "sha256": "9bf255f0bed4bba7fef0376b191baf91be6330a6f6effefd8490345e5548b331"
     },
     {
       "file": "worker-role-grants.sql",
