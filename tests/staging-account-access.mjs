@@ -28,13 +28,14 @@ assert.throws(() => createStagingAccountAccess({ STAGING_ACCOUNTS_ONLY: "true", 
 
 const blockedCalls = [];
 const credentialRepository = Object.fromEntries([
-  "registerPasswordAccount", "consumeEmailVerification", "issueEmailVerification", "findPasswordAccount", "recordPasswordAttempt", "issuePasswordReset", "consumePasswordReset"
+  "registerPasswordAccount", "registerCleanerPasswordAccount", "consumeEmailVerification", "issueEmailVerification", "findPasswordAccount", "recordPasswordAttempt", "issuePasswordReset", "consumePasswordReset"
 ].map((method) => [method, async () => { blockedCalls.push(method); throw new Error("blocked repository call"); }]));
 const credentials = createCredentialService(credentialRepository, {
   tokenSecret: "staging-account-access-test-token-secret-123456789",
   accountAccess: restricted
 });
 assert.deepEqual(await credentials.register({ email: "unapproved@invalid.example", displayName: "Unknown Visitor", password: "A valid password for a blocked account" }), { accepted: true, emailDelivery: null });
+assert.deepEqual(await credentials.register({ accountType: "cleaner", username: "blocked-cleaner", email: "unapproved@invalid.example", password: "A valid Cleaner password" }), { accepted: true, emailDelivery: null });
 assert.deepEqual(await credentials.requestEmailVerification("unapproved@invalid.example"), { accepted: true, emailDelivery: null });
 assert.deepEqual(await credentials.requestPasswordReset("unapproved@invalid.example"), { accepted: true, emailDelivery: null });
 assert.deepEqual(await credentials.signIn("unapproved@invalid.example", "Any password"), { authenticated: false, reason: "invalid-credentials" });

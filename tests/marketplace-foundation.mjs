@@ -185,7 +185,7 @@ nodeAssert.equal(postgresTransportSecurity("postgresql://tideway_app:private@dpg
 const repositoryCalls = [];
 const repositoryDatabase = {
   async withAuthenticationTransaction(operation) {
-    return operation({ async query(text, values) { repositoryCalls.push({ kind: "authentication", text, values }); return { rows: [{ user_id: "account-id", ...(text.includes("begin_pending_social_identity") ? { state: "pending" } : {}) }] }; } });
+    return operation({ async query(text, values) { repositoryCalls.push({ kind: "authentication", text, values }); return { rows: [{ user_id: "account-id", ...(text.includes("register_cleaner_password_account") ? { registration_status: "created" } : {}), ...(text.includes("begin_pending_social_identity") ? { state: "pending" } : {}) }] }; } });
   },
   async withAccountTransaction(actor, operation) {
     return operation({ async query(text, values) { repositoryCalls.push({ kind: "user", actor, text, values }); return { rows: [{ id: "session-id" }], rowCount: 1 }; } });
@@ -194,6 +194,7 @@ const repositoryDatabase = {
 const authenticationRepository = createAuthenticationRepository(repositoryDatabase);
 assert(normalizedEmail(" Landlord@Example.COM ") === "landlord@example.com", "Authentication email canonicalization was inconsistent.");
 await authenticationRepository.registerPasswordAccount({ email: "landlord@example.com", displayName: "Landlord", passwordHash, verificationHash: sessionMaterial.tokenHash, verificationExpiresAt: "2026-07-16T12:00:00.000Z" });
+await authenticationRepository.registerCleanerPasswordAccount({ email: "cleaner@example.com", username: "sparkle-cleaner", passwordHash, verificationHash: sessionMaterial.tokenHash, verificationExpiresAt: "2026-07-16T12:00:00.000Z" });
 await authenticationRepository.consumeEmailVerification(sessionMaterial.tokenHash);
 await authenticationRepository.recordPasswordAttempt("77777777-7777-4777-8777-777777777777", false);
 await authenticationRepository.issuePasswordReset("landlord@example.com", sessionMaterial.tokenHash, "2026-07-15T13:00:00.000Z");
@@ -211,8 +212,8 @@ const repositoryActor = { userId: "44444444-4444-4444-8444-444444444444", roles:
 await authenticationRepository.createSession(repositoryActor, sessionMaterial);
 await authenticationRepository.revokeSession(repositoryActor, "55555555-5555-4555-8555-555555555555");
 await authenticationRepository.revokeAllSessions(repositoryActor);
-const authenticationFunctionCalls = ["register_password_account", "consume_email_verification", "record_password_attempt", "issue_password_reset", "consume_password_reset", "resolve_social_identity", "lookup_existing_social_identity", "begin_pending_social_identity", "consume_pending_social_identity"];
-assert(repositoryCalls.length === 17 && repositoryCalls.slice(0, 9).every((call) => call.kind === "authentication") && authenticationFunctionCalls.every((name, index) => repositoryCalls[index].text.includes(name)) && repositoryCalls[9].kind === "user" && repositoryCalls[9].text.includes("complete_role_onboarding") && repositoryCalls[10].kind === "user" && repositoryCalls[10].text.includes("activate_my_workspace") && repositoryCalls.slice(11, 14).every((call) => call.kind === "authentication") && repositoryCalls.slice(14).every((call) => call.kind === "user") && repositoryCalls[5].values[0] === "google" && repositoryCalls[11].values[0] === "landlord@example.com" && repositoryCalls.every((call) => call.text.includes("$1")), "Authentication repository bypassed its pre-authenticated/authenticated boundaries or used non-parameterized calls.");
+const authenticationFunctionCalls = ["register_password_account", "register_cleaner_password_account", "consume_email_verification", "record_password_attempt", "issue_password_reset", "consume_password_reset", "resolve_social_identity", "lookup_existing_social_identity", "begin_pending_social_identity", "consume_pending_social_identity"];
+assert(repositoryCalls.length === 18 && repositoryCalls.slice(0, 10).every((call) => call.kind === "authentication") && authenticationFunctionCalls.every((name, index) => repositoryCalls[index].text.includes(name)) && repositoryCalls[10].kind === "user" && repositoryCalls[10].text.includes("complete_role_onboarding") && repositoryCalls[11].kind === "user" && repositoryCalls[11].text.includes("activate_my_workspace") && repositoryCalls.slice(12, 15).every((call) => call.kind === "authentication") && repositoryCalls.slice(15).every((call) => call.kind === "user") && repositoryCalls[6].values[0] === "google" && repositoryCalls[12].values[0] === "landlord@example.com" && repositoryCalls.every((call) => call.text.includes("$1")), "Authentication repository bypassed its pre-authenticated/authenticated boundaries or used non-parameterized calls.");
 
 const customEnumRoleDatabase = {
   async withAuthenticationTransaction(operation) {

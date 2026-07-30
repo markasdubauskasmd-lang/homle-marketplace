@@ -34,6 +34,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.disconnect_my_social_identity(authenti
 GRANT EXECUTE ON FUNCTION tideway_private.complete_role_onboarding(user_role) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.activate_my_workspace(user_role) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.register_password_account(citext, text, text, bytea, timestamptz) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.register_cleaner_password_account(citext, text, text, bytea, timestamptz) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.consume_email_verification(bytea) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.issue_email_verification(citext, bytea, timestamptz) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.record_password_attempt(uuid, boolean) TO tideway_app;

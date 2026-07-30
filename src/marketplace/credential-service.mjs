@@ -1,5 +1,5 @@
 import { hashPassword, hashPurposeToken, newOpaqueToken, verifyPassword } from "./session.mjs";
-import { normalizedEmail } from "./auth-repository.mjs";
+import { normalizedCleanerUsername, normalizedEmail } from "./auth-repository.mjs";
 
 function displayName(value) {
   const normalized = typeof value === "string" ? value.trim() : "";
@@ -26,7 +26,7 @@ function publicAccount(account) {
 }
 
 export function createCredentialService(repository, options) {
-  const requiredMethods = ["registerPasswordAccount", "consumeEmailVerification", "issueEmailVerification", "findPasswordAccount", "recordPasswordAttempt", "issuePasswordReset", "consumePasswordReset"];
+  const requiredMethods = ["registerPasswordAccount", "registerCleanerPasswordAccount", "consumeEmailVerification", "issueEmailVerification", "findPasswordAccount", "recordPasswordAttempt", "issuePasswordReset", "consumePasswordReset"];
   if (!repository || requiredMethods.some((method) => typeof repository[method] !== "function")) throw new TypeError("A complete credential repository is required.");
   const tokenSecret = options?.tokenSecret;
   const clock = options?.clock || (() => new Date());
@@ -41,16 +41,21 @@ export function createCredentialService(repository, options) {
   return {
     async register(input) {
       const email = normalizedEmail(input?.email);
-      const name = displayName(input?.displayName);
+      const cleanerAccount = input?.accountType === "cleaner";
+      const username = cleanerAccount ? normalizedCleanerUsername(input?.username) : "";
+      const name = cleanerAccount ? username : displayName(input?.displayName);
       if (!accountAccess.allows(email)) return { accepted: true, emailDelivery: null };
       const passwordHash = await hashPassword(input?.password);
       const token = newOpaqueToken();
       const verificationHash = hashPurposeToken(token, "email-verification", tokenSecret);
       const verificationExpiresAt = expiry(clock, verificationTtlSeconds, 600, 172_800, "Email verification");
-      const created = await repository.registerPasswordAccount({ email, displayName: name, passwordHash, verificationHash, verificationExpiresAt });
+      const registrationStatus = cleanerAccount
+        ? await repository.registerCleanerPasswordAccount({ email, username, passwordHash, verificationHash, verificationExpiresAt })
+        : await repository.registerPasswordAccount({ email, displayName: name, passwordHash, verificationHash, verificationExpiresAt }) ? "created" : "email-unavailable";
       return {
         accepted: true,
-        emailDelivery: created ? { kind: "email-verification", recipient: email, token, expiresAt: verificationExpiresAt } : null
+        ...(registrationStatus === "username-unavailable" ? { usernameAvailable: false } : {}),
+        emailDelivery: registrationStatus === "created" ? { kind: "email-verification", recipient: email, token, expiresAt: verificationExpiresAt } : null
       };
     },
 

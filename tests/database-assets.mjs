@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 72);
-  assert.equal(repositoryResult.migrations.at(-1), "072_account_notification_realtime_events.sql");
+  assert.equal(repositoryResult.migrations.length, 73);
+  assert.equal(repositoryResult.migrations.at(-1), "073_cleaner_password_registration.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
@@ -72,6 +72,8 @@ try {
   assert(t71Payment(deploymentVerifier) && t71Directory(deploymentVerifier), "Migration-71 verification must prove the Administrator payment page and the unauthenticated Cleaner directory both have an index that their query shape can actually use.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 72\)'/, "Deployment verification must detect account notification real-time signals dynamically.");
   assert(deploymentVerifier.includes("The account notification real-time trigger is missing or unsafe") && deploymentVerifier.includes("account_notification_realtime_after_insert"), "Migration-72 verification must prove the notification trigger is commit-bound, internal-only and safe.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 73\)'/, "Deployment verification must detect Cleaner password registration dynamically.");
+  assert(deploymentVerifier.includes("Cleaner usernames are missing their Cleaner-only storage") && deploymentVerifier.includes("register_cleaner_password_account(citext,text,text,bytea,timestamp with time zone)") && deploymentVerifier.includes("atomically create its role, onboarding owner, credential and verification record"), "Migration-73 verification must prove Cleaner username uniqueness, restricted execution and atomic authentication/profile ownership.");
   assert(deploymentVerifier.includes("A fully manual fresh install has no private migration ledger") && deploymentVerifier.includes("activate_my_workspace(user_role)") && deploymentVerifier.includes("recommend_cleaners_for_request_v2(uuid,integer)") && deploymentVerifier.includes("position('avatar_url' IN pg_get_function_result(procedure.oid))") && deploymentVerifier.includes("get_public_cleaner_profile(uuid)') IS NOT NULL"), "A ledger-free fresh install can still be mistaken for the historical migration-45 baseline instead of detecting its actual schema level.");
   const migration48VerificationStart = deploymentVerifier.indexOf("IF latest_migration_installed THEN");
   assert(migration48VerificationStart >= 0 && deploymentVerifier.indexOf("conname='bookings_distinct_participants'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its new constraint check until after that locked migration is installed.");

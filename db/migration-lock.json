@@ -361,12 +361,17 @@
       "order": 72,
       "file": "072_account_notification_realtime_events.sql",
       "sha256": "83f6b15726a8a9f1940a66644f6d1ae51ecabb3a6d3610aa735ced10968547bf"
+    },
+    {
+      "order": 73,
+      "file": "073_cleaner_password_registration.sql",
+      "sha256": "0d665b43588f1529329675ad11cc6c006c7d77f966d8ea1478449217d5134f77"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "3e0b561573083a83fa8302b23e65f1953a3b83cb49fe63e6c5a4814f8e8604e2"
+      "sha256": "d47851d26622a5df0b3abbd5616d3f445094f616e91a5d257fb32046d63cd10c"
     },
     {
       "file": "worker-role-grants.sql",

@@ -480,7 +480,17 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           await limit(request, "signup");
           const body = await readJsonObject(request);
           const intent = accountIntent(body.intent);
-          const result = await credentials.register({ email: body.email, displayName: body.displayName, password: body.password });
+          const result = await credentials.register({
+            email: body.email,
+            displayName: body.displayName || body.username,
+            password: body.password,
+            ...(intent === "work" ? { accountType: "cleaner", username: body.username } : {})
+          });
+          if (result.usernameAvailable === false) {
+            await publicTiming(startedAt);
+            sendJson(response, 409, { ok: false, code: "username-unavailable", error: "That username is already in use. Choose another username." });
+            return true;
+          }
           await privateDelivery(result.emailDelivery, intent);
           await publicTiming(startedAt);
           sendJson(response, 202, genericAccepted);

@@ -11,6 +11,15 @@ function normalizedEmail(email) {
   return value;
 }
 
+function normalizedCleanerUsername(username) {
+  if (typeof username !== "string") throw new TypeError("A Cleaner username is required.");
+  const value = username.trim().toLowerCase();
+  if (!/^[a-z][a-z0-9_-]{2,31}$/.test(value)) {
+    throw new TypeError("Username must be 3 to 32 characters, start with a letter, and use only letters, numbers, hyphens or underscores.");
+  }
+  return value;
+}
+
 function tokenHash(value, label) {
   if (!Buffer.isBuffer(value) || value.length !== 32) throw new TypeError(`${label} must be a 32-byte token hash.`);
   return value;
@@ -67,6 +76,24 @@ export function createAuthenticationRepository(database) {
           [email, displayName, account.passwordHash, verificationHash, account.verificationExpiresAt]
         );
         return result.rows[0]?.created === true;
+      });
+    },
+
+    async registerCleanerPasswordAccount(account) {
+      if (!account || typeof account.passwordHash !== "string") throw new TypeError("Cleaner password account material is required.");
+      const email = normalizedEmail(account.email);
+      const username = normalizedCleanerUsername(account.username);
+      const verificationHash = tokenHash(account.verificationHash, "Verification token hash");
+      return database.withAuthenticationTransaction(async (client) => {
+        const result = await client.query(
+          "SELECT tideway_private.register_cleaner_password_account($1::citext, $2::text, $3::text, $4::bytea, $5::timestamptz) AS registration_status",
+          [email, username, account.passwordHash, verificationHash, account.verificationExpiresAt]
+        );
+        const status = result.rows[0]?.registration_status;
+        if (!new Set(["created", "username-unavailable", "email-unavailable"]).has(status)) {
+          throw new TypeError("Cleaner registration returned an invalid database status.");
+        }
+        return status;
       });
     },
 
@@ -283,4 +310,4 @@ export function createAuthenticationRepository(database) {
   };
 }
 
-export { normalizedEmail };
+export { normalizedCleanerUsername, normalizedEmail };

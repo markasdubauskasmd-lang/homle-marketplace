@@ -30,6 +30,7 @@ DECLARE
   bookings_cleaning_request_index_installed boolean := false;
   payment_and_directory_indexes_installed boolean := false;
   account_notification_realtime_installed boolean := false;
+  cleaner_password_registration_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -223,6 +224,8 @@ BEGIN
       INTO payment_and_directory_indexes_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 72)'
       INTO account_notification_realtime_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 73)'
+      INTO cleaner_password_registration_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -246,6 +249,7 @@ BEGIN
     minimum_contribution_migration_installed := to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL;
     public_cleaner_lookup_migration_installed := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)') IS NOT NULL;
     account_notification_realtime_installed := to_regprocedure('tideway_private.emit_account_notification_realtime_event()') IS NOT NULL;
+    cleaner_password_registration_installed := to_regprocedure('tideway_private.register_cleaner_password_account(citext,text,text,bytea,timestamp with time zone)') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
@@ -426,6 +430,45 @@ BEGIN
       OR position('NEW.recipient_user_id' IN COALESCE(selected_source,''))=0
       OR position('NEW.id' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'The account notification real-time trigger leaks payload data or does not emit the privacy-minimal account wake-up';
+    END IF;
+  END IF;
+  IF cleaner_password_registration_installed THEN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_attribute attribute
+      WHERE attribute.attrelid='public.cleaner_profiles'::regclass
+        AND attribute.attname='username'
+        AND attribute.atttypid='citext'::regtype
+        AND NOT attribute.attisdropped
+    ) OR to_regclass('public.cleaner_profiles_username_unique') IS NULL
+      OR NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint constraint_record
+        WHERE constraint_record.conrelid='public.cleaner_profiles'::regclass
+          AND constraint_record.conname='cleaner_profiles_username_format'
+          AND constraint_record.contype='c'
+      ) THEN
+      RAISE EXCEPTION 'Cleaner usernames are missing their Cleaner-only storage, format constraint or unique index';
+    END IF;
+    selected_function := to_regprocedure('tideway_private.register_cleaner_password_account(citext,text,text,bytea,timestamp with time zone)');
+    IF selected_function IS NULL
+      OR NOT EXISTS (
+        SELECT 1 FROM pg_proc procedure
+        WHERE procedure.oid=selected_function
+          AND procedure.prosecdef
+          AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+      )
+      OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('public', selected_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'Cleaner password registration is missing or bypasses the restricted runtime boundary';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF position('INSERT INTO user_roles' IN COALESCE(selected_source,''))=0
+      OR position('INSERT INTO cleaner_profiles' IN COALESCE(selected_source,''))=0
+      OR position('INSERT INTO password_credentials' IN COALESCE(selected_source,''))=0
+      OR position('INSERT INTO email_verification_tokens' IN COALESCE(selected_source,''))=0
+      OR position('pg_advisory_xact_lock' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Cleaner password registration does not atomically create its role, onboarding owner, credential and verification record';
     END IF;
   END IF;
   IF bookings_cleaning_request_index_installed THEN

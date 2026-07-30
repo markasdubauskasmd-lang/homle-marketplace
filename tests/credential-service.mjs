@@ -30,6 +30,26 @@ const repository = {
     verificationTokens.set(input.verificationHash.toString("hex"), { account, expiresAt: input.verificationExpiresAt, used: false });
     return true;
   },
+  async registerCleanerPasswordAccount(input) {
+    if ([...accounts.values()].some((account) => account.username === input.username)) return "username-unavailable";
+    if (accounts.has(input.email)) return "email-unavailable";
+    const account = {
+      user_id: `password-account-${++accountNumber}`,
+      email: input.email,
+      email_verified_at: null,
+      display_name: input.username,
+      username: input.username,
+      selected_role: "cleaner",
+      roles: ["cleaner"],
+      password_hash: input.passwordHash,
+      failed_attempts: 0,
+      locked_until: null,
+      sessions: 0
+    };
+    accounts.set(input.email, account);
+    verificationTokens.set(input.verificationHash.toString("hex"), { account, expiresAt: input.verificationExpiresAt, used: false });
+    return "created";
+  },
   async consumeEmailVerification(hash) {
     const record = verificationTokens.get(hash.toString("hex"));
     if (!record || record.used || new Date(record.expiresAt) <= now) return null;
@@ -116,15 +136,25 @@ const reset = await service.resetPassword(resetRequest.emailDelivery.token, "A s
 const repeatedReset = await service.resetPassword(resetRequest.emailDelivery.token, "A different replacement password!");
 assert(reset.changed && reset.sessionsRevoked === 2 && !repeatedReset.changed && storedAccount.sessions === 0 && await verifyPassword("A safer replacement password!", storedAccount.password_hash), "Password reset was not single-use, did not revoke sessions or failed to replace the credential.");
 
+const cleanerRegistration = await service.register({ accountType: "cleaner", username: " Sparkle_Cleaner ", email: "cleaner@example.com", password: "A secure Cleaner password!" });
+const cleanerAccount = accounts.get("cleaner@example.com");
+assert(cleanerRegistration.accepted && cleanerRegistration.emailDelivery?.recipient === "cleaner@example.com" && cleanerAccount.username === "sparkle_cleaner" && cleanerAccount.selected_role === "cleaner" && cleanerAccount.roles.join(",") === "cleaner", "Cleaner signup did not atomically reserve its canonical username and Cleaner-owned onboarding profile.");
+assert(await verifyPassword("A secure Cleaner password!", cleanerAccount.password_hash), "Cleaner signup did not store a scrypt password hash.");
+const unavailableCleanerUsername = await service.register({ accountType: "cleaner", username: "SPARKLE_CLEANER", email: "other-cleaner@example.com", password: "Another secure Cleaner password!" });
+assert(unavailableCleanerUsername.accepted && unavailableCleanerUsername.usernameAvailable === false && unavailableCleanerUsername.emailDelivery === null && !accounts.has("other-cleaner@example.com"), "Cleaner signup did not reject an already reserved username without creating a partial account.");
+
 const migrationSql = await readFile(new URL("../db/migrations/005_email_password_lifecycle.sql", import.meta.url), "utf8");
+const cleanerRegistrationSql = await readFile(new URL("../db/migrations/073_cleaner_password_registration.sql", import.meta.url), "utf8");
 const resendMigrationSql = await readFile(new URL("../db/migrations/007_email_verification_resend.sql", import.meta.url), "utf8");
 const runtimeGrantsSql = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 assert(migrationSql.includes("register_password_account") && migrationSql.includes("consume_email_verification") && migrationSql.includes("record_password_attempt") && migrationSql.includes("issue_password_reset") && migrationSql.includes("consume_password_reset"), "Email/password migration omitted a required lifecycle function.");
 assert(migrationSql.includes("failed_attempts >= 5") && migrationSql.includes("interval '15 minutes'") && migrationSql.includes("UPDATE sessions SET revoked_at") && (migrationSql.match(/REVOKE ALL ON FUNCTION/g) || []).length === 5, "Credential lifecycle lacks persistent lockout, reset session revocation or restricted execution.");
 assert(resendMigrationSql.includes("issue_email_verification") && resendMigrationSql.includes("email_verified_at IS NULL") && resendMigrationSql.includes("SET used_at = COALESCE") && resendMigrationSql.includes("pg_advisory_xact_lock") && resendMigrationSql.includes("REVOKE ALL ON FUNCTION"), "Email verification resend is not generic, single-live-token, concurrency-safe and restricted.");
+assert(cleanerRegistrationSql.includes("ADD COLUMN username citext") && cleanerRegistrationSql.includes("cleaner_profiles_username_unique") && cleanerRegistrationSql.includes("register_cleaner_password_account") && cleanerRegistrationSql.includes("INSERT INTO user_roles") && cleanerRegistrationSql.includes("INSERT INTO cleaner_profiles") && cleanerRegistrationSql.includes("REVOKE ALL ON FUNCTION"), "Cleaner registration migration did not create a unique Cleaner-owned username and role/profile transaction.");
 for (const signature of ["register_password_account(citext, text, text, bytea, timestamptz)", "consume_email_verification(bytea)", "record_password_attempt(uuid, boolean)", "issue_password_reset(citext, bytea, timestamptz)", "consume_password_reset(bytea, text)"]) {
   assert(runtimeGrantsSql.includes(signature), `The restricted runtime role lacks ${signature}.`);
 }
 assert(runtimeGrantsSql.includes("issue_email_verification(citext, bytea, timestamptz)"), "The restricted runtime role cannot issue a replacement verification token.");
+assert(runtimeGrantsSql.includes("register_cleaner_password_account(citext, text, text, bytea, timestamptz)"), "The restricted runtime role cannot create a Cleaner password account.");
 
-console.log("Credential service tests passed: scrypt signup, generic duplicate handling, single-use verification, verified login, persistent lockout, non-enumerating reset request, single-use reset and session revocation.");
+console.log("Credential service tests passed: scrypt signup, atomic Cleaner username/profile registration, generic duplicate handling, single-use verification, verified login, persistent lockout, non-enumerating reset request, single-use reset and session revocation.");

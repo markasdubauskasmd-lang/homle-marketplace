@@ -110,7 +110,8 @@ function activateForm(providers) {
   activeProviders = Object.freeze({ ...providers });
   const activeName = selectedMode.form === "reset" && !privateToken ? "reset-request" : selectedMode.form === "verify" && !privateToken ? "verification-request" : selectedMode.form;
   const socialPage = selectedMode.form === "login" || selectedMode.form === "signup";
-  const socialReady = socialPage && socialLinks.some((link) => providers[link.dataset.socialProvider] === true);
+  const cleanerPasswordSignup = cleanerIntent && selectedMode.form === "signup" && providers.emailPassword === true;
+  const socialReady = socialPage && !cleanerPasswordSignup && socialLinks.some((link) => providers[link.dataset.socialProvider] === true);
   const emailReady = providers.emailPassword === true;
   const providerFirst = socialReady && emailReady && socialPage;
   for (const link of socialLinks) link.hidden = !socialPage || providers[link.dataset.socialProvider] !== true;
@@ -151,8 +152,10 @@ function activateForm(providers) {
     title.textContent = "Confirm your booking workspace";
     lead.textContent = "Continue as a Landlord or Property Manager to add the property, scan rooms and request the clean.";
   } else if (cleanerIntent && selectedMode.form === "signup") {
-    title.textContent = "Create your Cleaner profile";
-    lead.textContent = `Continue with ${availableMethods}. Homle creates your account automatically, then opens the Cleaner workspace setup.`;
+    title.textContent = emailReady ? "Create your Cleaner account" : "Create your Cleaner profile";
+    lead.textContent = emailReady
+      ? "Choose a username, add your email and create a secure password. Your Cleaner profile will be ready for onboarding after email verification."
+      : `Continue with ${availableMethods}. Homle creates your account automatically, then opens the Cleaner workspace setup.`;
   } else if (cleanerIntent && selectedMode.form === "login") {
     title.textContent = "Sign in to work as a Cleaner";
     lead.textContent = "Use your existing secure account and continue to the Cleaner workspace.";
@@ -162,6 +165,10 @@ function activateForm(providers) {
   }
   if (bookingIntent) setAccountSide("landlord");
   else if (cleanerIntent) setAccountSide("cleaner");
+  const signupLegend = document.querySelector("[data-signup-legend]");
+  const signupSubmit = document.querySelector("[data-signup-submit]");
+  if (signupLegend) signupLegend.textContent = cleanerIntent ? "Create your Cleaner account" : "Create your account";
+  if (signupSubmit) signupSubmit.textContent = cleanerIntent ? "Create Cleaner account" : "Create account";
   if ((selectedMode.form === "verify" || selectedMode.form === "facebook-verify") && !privateToken) showFeedback("This verification link is incomplete or has already been removed.", "error");
 }
 
@@ -375,7 +382,9 @@ async function submitAccountForm(event) {
       form.querySelector("fieldset").disabled = true;
     } else if (kind === "signup") {
       await post("/api/marketplace/auth/signup", { ...body, ...(accountIntent ? { intent: accountIntent } : {}) });
-      showFeedback("If the address can be registered, a private verification link is on its way.", "success");
+      showFeedback(cleanerIntent
+        ? "Your Cleaner username has been reserved. Check your email to verify the account and continue onboarding."
+        : "If the address can be registered, a private verification link is on its way.", "success");
       form.reset();
     } else if (kind === "verify") {
       if (!privateToken) throw new Error("This verification link is incomplete or expired.");
