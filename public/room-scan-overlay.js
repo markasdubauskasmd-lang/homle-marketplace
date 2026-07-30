@@ -96,6 +96,9 @@ const markup = `
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
     </button>
     <div class="scan-room-lbl"><span class="rec-dot" aria-hidden="true"></span><span data-room-label>Kitchen</span></div>
+    <button class="scan-speech" type="button" data-speech-toggle aria-pressed="false" aria-label="Speak the scanning guidance aloud">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path class="scan-speech-waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.4 5.6a9 9 0 0 1 0 12.8"/></svg>
+    </button>
     <button class="scan-count" type="button" data-rooms-open><span data-shot-count>0</span> rooms</button>
   </div>
   <p class="scan-progress" data-live-progress role="status" aria-live="polite">
@@ -454,7 +457,7 @@ export function openRoomScan() {
       still: $("[data-still]"), roomLabel: $("[data-room-label]"), shotCount: $("[data-shot-count]"), hint: $("[data-hint]"),
       liveProgress: $("[data-live-progress]"), liveProgressStep: $("[data-live-progress-step]"), liveProgressCopy: $("[data-live-progress-copy]"),
       liveProgressMeter: $("[data-live-progress-meter]"),
-      mic: $("[data-mic]"), shutter: $("[data-shutter]"),
+      mic: $("[data-mic]"), shutter: $("[data-shutter]"), speechToggle: $("[data-speech-toggle]"),
       scanDebug: $("[data-scan-debug]"),
       found: $("[data-found]"), foundList: $("[data-found-list]"), foundCount: $("[data-found-count]"),
       foundNoun: $("[data-found-noun]"), foundBusy: $("[data-found-busy]"),
@@ -491,6 +494,8 @@ export function openRoomScan() {
       startedAt: Date.now(), roomStartedAt: Date.now(),
       voiceOn: false, voiceUsed: false, roomTranscripts: new Map(), seconds: 0,
       voiceGeneration: 0, voiceSessionStartNote: "",
+      // Spoken guidance: a per-device choice, read from storage at open.
+      speakGuidance: false, lastSpokenKey: "",
       // Counters, not a log. Inference runs several times a second, so a line per
       // event would drown the console; a running total answers the question that
       // actually gets asked when a scan looks wrong — is the room filter working,
@@ -907,6 +912,10 @@ export function openRoomScan() {
         el.liveProgressMeter.setAttribute("aria-valuetext", `${progress.count} of ${progress.total} distinct room views`);
         el.liveProgressStep.textContent = `${progress.count} of ${progress.total} views`;
         el.liveProgressCopy.textContent = busy ? "Checking this view…" : progress.copy;
+        // Coverage milestones aloud — "Turn to another side" is exactly the
+        // instruction that is annoying to read with a raised phone. Keyed per
+        // count so each milestone speaks once.
+        if (!busy) announceGuidance(progress.copy, `coverage-${progress.count}-${progress.copy}`);
       } else {
         el.liveProgressMeter.hidden = true;
         el.liveProgressStep.textContent = "2 of 3";
@@ -1923,6 +1932,7 @@ export function openRoomScan() {
         const remaining = roomPresets.filter((preset) => !findRoom(state.rooms, preset));
         const upcoming = remaining.length ? ` Next: ${remaining[0].toLowerCase()}?` : "";
         toast(`${room.name} saved — ${items}${replacing ? " updated" : ""}.${upcoming}`);
+        announceGuidance(`${room.name} saved.${upcoming}`, `saved-${Date.now()}`);
       }
       // The room is already in the roster. Let the browser paint the saved hub
       // and confirmation before any snapshot or crop work begins; condition
@@ -2696,6 +2706,56 @@ export function openRoomScan() {
       }).filter(Boolean);
     }
 
+    /* ── Spoken guidance ── */
+
+    // The guidance the scanner already computes, said aloud — for walking a room
+    // with the phone held up, where reading a caption means stopping. Entirely
+    // on-device (speechSynthesis never touches the network for its default
+    // voices), off by default, and remembered per device.
+    //
+    // The one hard rule: NEVER while a voice note is recording. The phone would
+    // transcribe its own guidance into the customer's note.
+    const spokenGuidancePreferenceKey = "homle_scan_spoken_guidance";
+    function readSpokenGuidancePreference() {
+      try { return window.localStorage.getItem(spokenGuidancePreferenceKey) === "on"; } catch { return false; }
+    }
+    function renderSpeechToggle() {
+      if (!el.speechToggle) return;
+      el.speechToggle.setAttribute("aria-pressed", String(state.speakGuidance));
+      el.speechToggle.classList.toggle("on", state.speakGuidance);
+      el.speechToggle.setAttribute("aria-label", state.speakGuidance
+        ? "Stop speaking the scanning guidance"
+        : "Speak the scanning guidance aloud");
+    }
+    function stopSpeaking() {
+      try { window.speechSynthesis?.cancel(); } catch {}
+    }
+    function announceGuidance(text, key = text) {
+      if (!state.speakGuidance || state.closed || state.voiceOn) return;
+      const line = String(text || "").trim();
+      if (!line || key === state.lastSpokenKey) return;
+      const synth = window.speechSynthesis;
+      if (!synth || typeof SpeechSynthesisUtterance !== "function") return;
+      state.lastSpokenKey = key;
+      try {
+        // One thing at a time: stale guidance queued behind current guidance
+        // would narrate the past.
+        synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(line);
+        utterance.lang = preferredSpeechLanguage(document.documentElement.lang, navigator.languages || navigator.language);
+        utterance.rate = 1.05;
+        synth.speak(utterance);
+      } catch {}
+    }
+    function toggleSpokenGuidance() {
+      state.speakGuidance = !state.speakGuidance;
+      try { window.localStorage.setItem(spokenGuidancePreferenceKey, state.speakGuidance ? "on" : "off"); } catch {}
+      renderSpeechToggle();
+      if (!state.speakGuidance) { stopSpeaking(); return; }
+      state.lastSpokenKey = "";
+      announceGuidance("Spoken guidance is on.", `toggle-${Date.now()}`);
+    }
+
     /* ── Live detection ── */
 
     // Detection runs before the consent question is asked, and that is
@@ -2781,6 +2841,9 @@ export function openRoomScan() {
         el.detectorState.hidden = false;
         el.detectorState.dataset.kind = "guide";
         el.detectorState.textContent = guidance;
+        // The same words, aloud, when the customer has asked for that. Keyed by
+        // the message so continuous re-renders never repeat it.
+        announceGuidance(guidance);
         return;
       }
       if (state.detectorState === "unavailable") {
@@ -3075,6 +3138,7 @@ export function openRoomScan() {
       state.resumeCameraOnVisible ||= Boolean(state.stream) && !state.frozen;
       stopDetection();
       stopCamera();
+      stopSpeaking();
       if (state.voiceOn) stopVoice({ silent: true });
     }
 
@@ -3113,6 +3177,9 @@ export function openRoomScan() {
     }
 
     function startVoice() {
+      // Silence any guidance mid-sentence BEFORE the microphone opens. The
+      // phone must never transcribe its own voice into the customer's note.
+      stopSpeaking();
       const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!Recognition) {
         openNoteEditor({ focus: true });
@@ -3438,6 +3505,7 @@ export function openRoomScan() {
       state.closed = true;
       state.generation += 1;
       stopVoice({ silent: true });
+      stopSpeaking();
       stopCamera();
       // The loop stops here. The detector itself is a page-level singleton and
       // is deliberately left loaded rather than rebuilt on every open — see
@@ -3547,6 +3615,7 @@ export function openRoomScan() {
     el.retake.addEventListener("click", () => (state.revisiting ? prepareLiveRoom() : unfreeze()));
     el.readRoom.addEventListener("click", confirmSelection);
     el.mic.addEventListener("click", () => (state.voiceOn ? stopVoice() : startVoice()));
+    el.speechToggle.addEventListener("click", toggleSpokenGuidance);
     // The explicit in-panel controls. Stop is the same action as tapping the
     // recording mic — two visible ways to do the one thing that must never be
     // hard to find.
@@ -3622,6 +3691,8 @@ export function openRoomScan() {
 
     // Open on the hub so the first thing asked is which room — and warm the
     // camera and detector behind it so entering that room is instant.
+    state.speakGuidance = readSpokenGuidancePreference();
+    renderSpeechToggle();
     restoreRoomNotes();
     renderHub();
     showScreen("hub");

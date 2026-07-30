@@ -264,7 +264,18 @@ assert(overlay.includes('data-discard hidden role="alertdialog"') && overlay.inc
 assert(/function requestClose\(\)[\s\S]{0,180}hasScanProgress\(\)[\s\S]{0,80}showDiscard\(\)[\s\S]{0,80}close\(null\)/.test(overlay) && /for \(const button of \$\$\("\[data-close\]"\)\) button\.addEventListener\("click", requestClose\)/.test(overlay), "A close button can still destroy confirmed rooms or notes without the discard safeguard.");
 assert(/function setScanBackgroundInert\(inert, except = el\.discard\)[\s\S]{0,320}child\.inert = inert/.test(overlay) && /function openDiscardDecision\([\s\S]{0,700}setScanBackgroundInert\(true\)[\s\S]{0,120}discardKeep\.focus/.test(overlay), "The discard decision leaves covered camera controls interactive or does not move focus to its safe action.");
 assert(overlay.includes('window.addEventListener("beforeunload", onBeforeUnload)') && overlay.includes('window.removeEventListener("beforeunload", onBeforeUnload)') && /function onBeforeUnload\(event\)[\s\S]{0,220}!hasScanProgress\(\)[\s\S]{0,320}event\.returnValue = ""/.test(overlay), "Browser navigation can silently erase an in-progress room scan or leaves a permanent leave-page warning after teardown.");
-assert(!overlay.includes("localStorage") && !overlay.includes("JSON.stringify(state.rooms"), "The discard safeguard persists private room photos or the scan roster in browser storage.");
+// Sharpened from a blanket localStorage ban when the spoken-guidance preference
+// arrived: what is actually guarded is that nothing PRIVATE reaches browser
+// storage. An on/off setting under its named key is allowed; a photo, a room
+// roster or anything built from scan state is not.
+{
+  const storageWrites = [...overlay.matchAll(/localStorage\.setItem\(([^)]*)\)/g)].map((match) => match[1]);
+  assert(storageWrites.every((args) => args.includes("spokenGuidancePreferenceKey")), `A localStorage write beyond the named guidance preference appeared: ${storageWrites.join(" | ")}`);
+  const storageReads = [...overlay.matchAll(/localStorage\.getItem\(([^)]*)\)/g)].map((match) => match[1]);
+  assert(storageReads.every((args) => args.includes("spokenGuidancePreferenceKey")), "A localStorage read beyond the named guidance preference appeared.");
+  assert(!/localStorage\.setItem\([^)]*(rooms|photo|transcript|frozenFrame|image|dataUrl)/i.test(overlay), "Scan content reached localStorage.");
+  assert(!overlay.includes("JSON.stringify(state.rooms"), "The discard safeguard persists private room photos or the scan roster in browser storage.");
+}
 // Scoped to the function body. The window kept breaking as finishScan grew, and
 // widening a number teaches nothing; what is guarded is that the photos handed on
 // are the current rooms' own images.
@@ -710,3 +721,18 @@ assert(/function flashViewfinder\(\)[\s\S]{0,240}classList\.add\("pop"\)/.test(o
 assert(/async function capture\(\)[\s\S]{0,1200}flashViewfinder\(\);\s*\n\s*el\.shutter\.disabled = true/.test(overlay), "The shutter press is not acknowledged before the asynchronous encode.");
 assert(/async function capture\(\)[\s\S]{0,1600}const frame = await pending;[\s\S]{0,300}if \(state\.closed \|\| state\.frozen \|\| state\.screen !== "live"\) return;/.test(overlay), "A capture encoded after the Landlord moved on can still freeze the wrong view.");
 assert(/await pending\.catch\(\(\) => ""\)/.test(overlay), "A failed tap-to-freeze encode rejects unhandled instead of degrading to the warming-up message.");
+
+/* ── Spoken guidance never talks into the microphone ── */
+
+// The one hard rule: guidance must never be transcribed into the customer's
+// own note. The speak function refuses while recording, and starting a
+// recording silences anything mid-sentence BEFORE the microphone opens.
+assert(/function announceGuidance\(text, key = text\)[\s\S]{0,120}state\.voiceOn\) return;/.test(overlay), "Spoken guidance can talk while a voice note is recording, transcribing itself into the customer's note.");
+assert(/function startVoice\(\)[\s\S]{0,220}stopSpeaking\(\);/.test(overlay), "Starting a recording does not silence guidance already mid-sentence.");
+// Off by default, per-device, and torn down with everything else.
+assert(overlay.includes("data-speech-toggle") && /function toggleSpokenGuidance\(\)[\s\S]{0,320}localStorage\.setItem\(spokenGuidancePreferenceKey/.test(overlay), "The spoken-guidance choice is not a visible, remembered toggle.");
+assert(/function readSpokenGuidancePreference\(\)[\s\S]{0,160}=== "on"/.test(overlay), "Spoken guidance is not off by default — an unset preference must stay silent.");
+assert(/function close\(result\)[\s\S]{0,400}stopSpeaking\(\)/.test(overlay) && /function pauseForBackground\(\)[\s\S]{0,300}stopSpeaking\(\)/.test(overlay), "Closing or backgrounding the scanner can leave it talking.");
+// One thing at a time — stale guidance queued behind current guidance narrates
+// the past.
+assert(/synth\.cancel\(\);[\s\S]{0,400}synth\.speak\(utterance\)/.test(overlay), "Queued utterances can stack up and narrate stale guidance.");

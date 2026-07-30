@@ -3172,6 +3172,11 @@ dialog::backdrop { background: rgba(11,9,10,.74) !important; }
 
 .scan-top{position:relative;z-index:10;padding:max(22px,env(safe-area-inset-top)) 24px 22px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(180deg,rgba(0,0,0,.82),transparent)}
 .scan-close{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);color:#fff;cursor:pointer;display:grid;place-items:center;transition:background .3s,transform .3s;backdrop-filter:blur(10px);text-decoration:none;flex-shrink:0}
+/* Spoken guidance. Off by default; the waves fill in while it is on. */
+.scan-speech{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.55);cursor:pointer;display:grid;place-items:center;backdrop-filter:blur(10px);flex-shrink:0;margin-left:auto}
+.scan-speech .scan-speech-waves{opacity:.25}
+.scan-speech.on{color:#fff;border-color:rgba(255,255,255,.4)}
+.scan-speech.on .scan-speech-waves{opacity:1}
 .scan-close:hover,.scan-close:focus-visible{background:rgba(255,255,255,.18);transform:rotate(90deg)}
 .scan-room-lbl{display:flex;align-items:center;gap:9px;padding:9px 17px;border-radius:100px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.13);backdrop-filter:blur(14px);font-size:13px;font-weight:600;letter-spacing:-.01em;min-width:0}
 .scan-room-lbl span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
