@@ -56,7 +56,7 @@ import { clearRoomNotesDraft, readRoomNotesDraft, saveRoomNotesDraft } from "./r
 import { validatedGuidedRoomPhotoDimensions, validatedGuidedRoomPhotoFile } from "./room-photo-selection.js";
 import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js";
 import { applyRedaction, redactedAreaRatio, redactionRegions, redactionSummary, shouldRedact, unusableRedactionRatio } from "./room-photo-redaction.js";
-import { nextAutoZoom, shouldEnableTorch, torchSupported, zoomLabel, zoomRange } from "./camera-assist.js";
+import { nextAutoZoom, nextManualZoom, shouldEnableTorch, torchLumaThreshold, torchSupported, zoomLabel, zoomRange } from "./camera-assist.js";
 import { createScanEventReporter, elapsedSince } from "./scan-events.js";
 import { storedCsrf } from "./session-csrf.js";
 
@@ -1275,10 +1275,15 @@ export function openRoomScan() {
         el.torch.setAttribute("aria-label", state.torchOn ? "Turn the torch off" : "Turn the torch on");
       }
       if (el.zoomReset) {
-        const label = zoomLabel(state.zoom);
-        el.zoomReset.hidden = !state.stream || !label;
-        el.zoomReset.textContent = label;
-        el.zoomReset.setAttribute("aria-label", "Reset the camera zoom");
+        // A control in its own right, not just an undo for the automation. The
+        // second field trial showed the automatic trigger needs the detector to
+        // have found something small, and a far dim wall gives it nothing —
+        // while the customer can see perfectly well that everything is too far
+        // away. Visible whenever the camera can zoom; each tap steps the cycle.
+        const range = zoomRange(state.cameraCapabilities);
+        el.zoomReset.hidden = !state.stream || !range;
+        el.zoomReset.textContent = zoomLabel(state.zoom || range?.min || 0);
+        el.zoomReset.setAttribute("aria-label", "Change the camera zoom");
       }
     }
 
@@ -1343,12 +1348,15 @@ export function openRoomScan() {
       renderCameraAssist();
     }
 
-    async function resetZoom() {
+    async function cycleZoom() {
       const range = zoomRange(state.cameraCapabilities);
       if (!range || !state.cameraTrack) return;
-      await applyTrackConstraint({ zoom: range.min });
-      state.zoom = range.min;
-      // Resetting is declining: the customer prefers the wide view.
+      const target = nextManualZoom(range, state.zoom);
+      if (target === null) return;
+      await applyTrackConstraint({ zoom: target });
+      state.zoom = target;
+      // A manual tap takes over: the automation stays out of the way for the
+      // rest of the room, whatever the customer stepped to.
       state.zoomDeclined = true;
       renderCameraAssist();
     }
@@ -2529,7 +2537,15 @@ export function openRoomScan() {
         ["errors", `${state.diagnostics.detectorErrors} read · ${state.diagnostics.keyframeEncodeErrors} encode`],
         ["last read", state.diagnostics.lastReadMs ? `${state.diagnostics.lastReadMs}ms` : "—"],
         ["last failure", state.diagnostics.lastReadFailure || "—"],
-        ["quality", state.qualityKind || "ok"]
+        ["quality", state.qualityKind || "ok"],
+        // Why an assist did or did not fire — the question the second field
+        // trial could only answer with "it didn't". Luma is the measured
+        // brightness the torch decision actually uses.
+        ["assist", [
+          `torch ${!torchSupported(state.cameraCapabilities) ? "n/a" : state.torchOn ? "on" : `ready d${state.darkStreak}`}`,
+          `zoom ${zoomRange(state.cameraCapabilities) ? `${state.zoom || 0}× f${state.distanceStreak}` : "n/a"}`,
+          `luma ${Math.round(state.lastQuality?.luma ?? -1)}`
+        ].join(" · ")]
       ];
       el.scanDebug.replaceChildren(...lines.flatMap(([term, value]) => {
         const dt = document.createElement("dt");
@@ -3183,7 +3199,14 @@ export function openRoomScan() {
       // advice text is unchanged, which is exactly when a problem is persisting.
       // "Too far" only counts while no quality problem outranks it, mirroring
       // which advice the customer is actually being shown.
-      state.darkStreak = advice?.kind === "dark" ? state.darkStreak + 1 : 0;
+      //
+      // The torch counts raw measured brightness, NOT the "too dark" advice.
+      // The first field trial proved those are different questions: the phone's
+      // auto-exposure brightens a dark bedroom into the 50–90 luma range, so
+      // the advice threshold (42) almost never fires on a live camera and the
+      // torch never came on. The assist threshold sits where AE-brightened murk
+      // actually lands.
+      state.darkStreak = quality.luma < torchLumaThreshold ? state.darkStreak + 1 : 0;
       state.distanceStreak = !advice && state.framingKind === "distance" ? state.distanceStreak + 1 : 0;
       void maybeAssistCamera();
       const key = advice ? advice.kind : "";
@@ -3352,21 +3375,30 @@ export function openRoomScan() {
         el.hint.textContent = "Voice listening is unavailable here. Type the room note instead.";
         return toast("Type the room note, then tap Done.");
       }
-      const recognition = new Recognition();
       const generation = state.voiceGeneration + 1;
       state.voiceGeneration = generation;
+      // The note as it stood when listening started. Everything this session
+      // recognises is joined onto it, so the handler below can run any number of
+      // times for the same audio and produce the same note. Shared across the
+      // browser's own session restarts below.
+      let sessionBase = roomTranscript();
+      let sessionFinal = "";
+      let lastInterim = "";
+
+      // A NEW recogniser instance for every engine-initiated restart, never
+      // `recognition.start()` on the old one. The spec says a restarted session
+      // begins `event.results` afresh; the second field trial made trusting
+      // that optional — an instance that retains or replays results after
+      // restart re-adds everything onto the rebased note. A fresh instance
+      // cannot, on any engine.
+      const beginRecognitionSession = () => {
+      const recognition = new Recognition();
       recognition.lang = preferredSpeechLanguage(
         document.documentElement.lang,
         navigator.languages || navigator.language
       );
       recognition.continuous = true;
       recognition.interimResults = true;
-      // The note as it stood when listening started. Everything this session
-      // recognises is joined onto it, so the handler below can run any number of
-      // times for the same audio and produce the same note.
-      let sessionBase = roomTranscript();
-      let sessionFinal = "";
-      let lastInterim = "";
 
       recognition.onresult = (event) => {
         if (state.recognition !== recognition || generation !== state.voiceGeneration) return;
@@ -3402,6 +3434,12 @@ export function openRoomScan() {
       recognition.onend = () => {
         if (state.recognition !== recognition || generation !== state.voiceGeneration) return;
         if (!state.voiceOn) return;
+        // Detached BEFORE the rebase. A straggler event from this ended
+        // instance arriving between the rebase and the new session would pass
+        // the identity check and re-commit its whole result list onto the
+        // already-rebased note — the exact duplication this restart design
+        // exists to prevent.
+        state.recognition = null;
         // BOTH, not one or the other. A single event routinely carries a final
         // "tidy up" alongside an interim "the cupboards"; `sessionFinal || lastInterim`
         // kept only the final and dropped the rest of the sentence.
@@ -3409,7 +3447,8 @@ export function openRoomScan() {
         sessionFinal = "";
         lastInterim = "";
         setRoomTranscript(sessionBase);
-        try { recognition.start(); } catch { stopVoice(); }
+        // A fresh instance, not a restart of this one — see beginRecognitionSession.
+        try { beginRecognitionSession(); } catch { stopVoice(); }
       };
 
       // A trailing phrase that never reached `isFinal` is still what the Landlord
@@ -3433,13 +3472,17 @@ export function openRoomScan() {
           : event?.error === "audio-capture" ? "no-device" : "";
         stopVoice({ failed: true, reason });
       };
-      try { recognition.start(); } catch {
+      recognition.start();
+      state.recognition = recognition;
+      return recognition;
+      };
+
+      try { beginRecognitionSession(); } catch {
         openNoteEditor({ focus: true });
         el.hint.textContent = "Listening could not start. Type the room note or try the microphone again.";
         return toast("Listening could not start. Your typed note still works.");
       }
 
-      state.recognition = recognition;
       state.voiceOn = true;
       state.voiceUsed = true;
       state.seconds = 0;
@@ -3780,7 +3823,7 @@ export function openRoomScan() {
     el.speechToggle.addEventListener("click", toggleSpokenGuidance);
     // The assists' off switches. Turning either off is final for the room.
     el.torch.addEventListener("click", () => { void toggleTorch(); });
-    el.zoomReset.addEventListener("click", () => { void resetZoom(); });
+    el.zoomReset.addEventListener("click", () => { void cycleZoom(); });
     // The explicit in-panel controls. Stop is the same action as tapping the
     // recording mic — two visible ways to do the one thing that must never be
     // hard to find.

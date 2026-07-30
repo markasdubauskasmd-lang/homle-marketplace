@@ -114,6 +114,30 @@ assert.ok(liveInterim === "" || typeof liveInterim === "string", "The live inter
   assert.equal(segments.interim, "clean the hob and the oven", "Independent interim segments were superseded away.");
 }
 
+// THE SECOND FIELD CORRUPTION (Pixel): the same cumulative revisions, but
+// arriving as FINAL entries — "Please", "please clean", "please clean the",
+// all final in one list. Concatenating finals multiplied them exactly as the
+// interim case had. Supersession now applies to both, at a stated cost: a
+// customer who restates a sentence verbatim from its first word inside one
+// session keeps only the restatement. Editable transcript, no multiplied
+// garbage.
+{
+  const cumulativeFinals = handleResults("", resultList([
+    { isFinal: true, text: "Please" },
+    { isFinal: true, text: "please clean" },
+    { isFinal: true, text: "please clean the" },
+    { isFinal: true, text: "please clean the room" }
+  ]));
+  assert.equal(cumulativeFinals.note, "please clean the room",
+    `Cumulative FINAL snapshots were concatenated instead of superseded: ${JSON.stringify(cumulativeFinals.note)}`);
+  // Spec-shaped finals — genuinely successive segments — still concatenate.
+  const segmentedFinals = handleResults("", resultList([
+    { isFinal: true, text: "tidy up the" },
+    { isFinal: true, text: " cupboards" }
+  ]));
+  assert.equal(segmentedFinals.note, "tidy up the cupboards", "Genuine successive final segments were superseded away.");
+}
+
 assert.equal(joinSpokenText("a note", ""), "a note", "An empty result mutated the note.");
 assert.equal(joinSpokenText("", ""), "", "Empty input did not produce an empty note.");
 
