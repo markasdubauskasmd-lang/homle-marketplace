@@ -19,6 +19,7 @@ const scripts = Object.freeze({
   cleanerVerificationQueuePagination: "cleaner-verification-queue-pagination.sql",
   matchingSelfExclusion: "matching-self-exclusion.sql",
   paidMatchingPayoutReadiness: "paid-matching-payout-readiness.sql",
+  administratorCoverage: "administrator-coverage-behaviour.sql",
   automaticDispatchSetup: "automatic-dispatch-rehearsal-setup.sql",
   automaticDispatchClaimA: "automatic-dispatch-claim-a.sql",
   automaticDispatchClaimB: "automatic-dispatch-claim-b.sql",
@@ -227,6 +228,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Administrator Cleaner verification queue pagination", file: scripts.cleanerVerificationQueuePagination, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Matching self-exclusion behaviour test", file: scripts.matchingSelfExclusion, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Paid matching payout-readiness test", file: scripts.paidMatchingPayoutReadiness, environment: appEnvironment, command, execute });
+    runPsqlSync({ label: "Administrator coverage privacy and eligibility test", file: scripts.administratorCoverage, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Automatic-dispatch rehearsal setup", file: scripts.automaticDispatchSetup, environment: ownerEnvironment, command, execute });
     const dispatchClaims = await executeConcurrent([
       { file: scripts.automaticDispatchClaimA, environment: workerEnvironment },
@@ -295,7 +297,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, landlordSupport: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, administratorCoverage: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, landlordSupport: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {

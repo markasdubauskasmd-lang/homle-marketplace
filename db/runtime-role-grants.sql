@@ -127,6 +127,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.create_landlord_support_request(uuid,u
 GRANT EXECUTE ON FUNCTION tideway_private.list_my_landlord_support_requests(integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_administrator_support_requests(text,text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.review_landlord_support_request(uuid,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_administrator_coverage_report(integer,boolean) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.request_my_privacy_action(uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_privacy_requests() TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.request_facebook_data_deletion(uuid,text,bytea,bytea) TO tideway_app;

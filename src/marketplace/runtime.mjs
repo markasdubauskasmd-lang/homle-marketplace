@@ -65,6 +65,8 @@ import { createAdministratorBookingRepository } from "./administrator-booking-re
 import { createAdministratorBookingService } from "./administrator-booking-service.mjs";
 import { createAdministratorVerificationRepository } from "./administrator-verification-repository.mjs";
 import { createAdministratorVerificationService } from "./administrator-verification-service.mjs";
+import { createAdministratorCoverageRepository } from "./administrator-coverage-repository.mjs";
+import { createAdministratorCoverageService } from "./administrator-coverage-service.mjs";
 import { createFavouriteCleanerRepository } from "./favourite-cleaner-repository.mjs";
 import { createFavouriteCleanerService } from "./favourite-cleaner-service.mjs";
 
@@ -202,9 +204,11 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const administratorBookingService = createAdministratorBookingService(administratorBookingRepository);
   const administratorVerificationRepository = createAdministratorVerificationRepository(database);
   const administratorVerificationService = createAdministratorVerificationService(administratorVerificationRepository);
+  const administratorCoverageRepository = createAdministratorCoverageRepository(database, { requirePayoutReady: paymentService !== null });
+  const administratorCoverageService = createAdministratorCoverageService(administratorCoverageRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
   const authenticationRouter = options.emailDelivery || googleOidcProvider || appleSignInProvider
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, appleSignInProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: true })
@@ -281,6 +285,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     administratorBookingRepository,
     administratorBookingService,
     administratorVerificationService,
+    administratorCoverageRepository,
+    administratorCoverageService,
     privacyRequestRepository,
     privacyRequestService,
     authenticationRouter,

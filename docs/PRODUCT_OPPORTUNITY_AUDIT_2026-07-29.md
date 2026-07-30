@@ -164,16 +164,25 @@ Technical requirements:
 
 Benefit: verifies money movement without risking real funds.
 
-### P1 — launch-area supply and demand control
+### P1 — launch-area supply and demand control — implemented
 
 Problem: a marketplace can collect demand in an area where no suitable Cleaner has
 declared coverage, creating manual support work and slow first response.
 
-Recommendation: add an Administrator-only, privacy-minimal coverage report showing
-request counts, eligible Cleaner counts, unmatched age and service gaps by outward
-postcode or approved operating area. Do not expose exact addresses or Cleaner homes.
+Implemented: `/admin/coverage` provides an Administrator-only, privacy-minimal
+operational report for 7, 30 or 90 days. It groups demand by outward postcode and
+reuses the production eligibility matcher per future unmatched request instead of
+inventing a weaker counting rule. It shows zero-match and at-risk demand, unmatched
+age, service gaps and a coarse active-listed-supply total. The database and API return
+no identities, exact postcodes, addresses, coordinates, notes or photos.
 
-Benefit: tells the founder where to recruit supply and where not to promise coverage.
+Limit: this is a current operational snapshot, not a forecast or a coverage promise.
+Eligible counts are capped at 50 per request; active listed supply is not attributed
+to an area. The report never contacts or recruits Cleaners and changes no request,
+booking, price, payment or Cleaner Dashboard behavior.
+
+Benefit: tells the founder where supply is missing and where not to promise coverage,
+using the same eligibility boundary that actually governs matching.
 
 ### P1 — explicit service-recovery workflow
 

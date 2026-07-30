@@ -248,12 +248,25 @@ const administratorVerificationService = {
   async list(actor, input) { calls.push({ kind: "administrator-verification-list", actor, input }); return { cleaners: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; },
   async set(actor, cleanerId, input) { calls.push({ kind: "administrator-verification-set", actor, cleanerId, input }); return { cleanerId, identityCheckStatus: input.identityCheckStatus || "pending", backgroundCheckStatus: input.backgroundCheckStatus || "not-checked" }; }
 };
+const administratorCoverageService = {
+  async get(actor, input) {
+    calls.push({ kind: "administrator-coverage-get", actor, input });
+    return {
+      windowDays: Number(input.windowDays) || 30,
+      generatedAt: "2026-07-30T20:00:00.000Z",
+      matchingMode: "marketplace",
+      privacyScope: "Outward-postcode aggregates only.",
+      summary: { submittedRequestCount: 0, openUnmatchedRequestCount: 0, expiredUnmatchedRequestCount: 0, zeroMatchRequestCount: 0, atRiskRequestCount: 0, areaCount: 0, gapAreaCount: 0, activeListedCleanerCount: 0, oldestUnmatchedHours: 0 },
+      areas: []
+    };
+  }
+};
 const scanGroundTruthService = {
   async getQueue(actor, limit) { calls.push({ kind: "truth-queue", actor, limit }); return []; },
   async recordVerdict(actor, objectId, input) { calls.push({ kind: "truth-record", actor, objectId, input }); return { groundTruthId: "t", objectId, ...input }; },
   async getReport(actor) { calls.push({ kind: "truth-report", actor }); return { labelledTotal: 0 }; }
 };
-const dependencies = { security, scanGroundTruthService, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const dependencies = { security, scanGroundTruthService, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -325,6 +338,8 @@ assert(await noPaymentRouter.handle(request("GET", bookingPaymentUrl), absentBoo
 const adminPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments?status=actionable&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
 const adminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings?view=attention&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
 const landlordAdminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings", { headers: { cookie: authHeaders.cookie } });
+const adminCoverage = await dispatch(router, "GET", "/api/marketplace/admin/coverage?windowDays=90", { headers: { cookie: administratorAuthHeaders.cookie } });
+const landlordAdminCoverage = await dispatch(router, "GET", "/api/marketplace/admin/coverage", { headers: { cookie: authHeaders.cookie } });
 const adminMatchingReadiness = await dispatch(router, "GET", "/api/marketplace/admin/cleaning-requests/66666666-6666-4666-8666-666666666666/matching-readiness", { headers: { cookie: administratorAuthHeaders.cookie } });
 const landlordAdminMatchingReadiness = await dispatch(router, "GET", "/api/marketplace/admin/cleaning-requests/66666666-6666-4666-8666-666666666666/matching-readiness", { headers: { cookie: authHeaders.cookie } });
 const relatedPaymentQueue = await dispatch(router, "GET", `/api/marketplace/admin/payments?bookingId=${paymentBookingId}`, { headers: { cookie: administratorAuthHeaders.cookie } });
@@ -335,6 +350,7 @@ const capturedPayment = await dispatch(router, "POST", "/api/marketplace/admin/p
 const refundedPayment = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/refund", { headers: administratorAuthHeaders, body: { idempotencyKey: "admin_refund_retry_key_1234567890123", amountPence: 1500, destinationAccountId: "acct_browser_attack" } });
 assert(adminPaymentQueue.response.statusCode === 200 && adminPaymentQueue.body.testMode === true && calls.find((call) => call.kind === "payment-admin-list")?.input.status === "actionable" && landlordPaymentQueue.response.statusCode === 403 && missingAdminPaymentCsrf.response.statusCode === 403, "Administrator payment queue lost role isolation, exact filters, test-mode proof or CSRF protection.");
 assert(adminBookingQueue.response.statusCode === 200 && landlordAdminBookingQueue.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-booking-list")?.input.view === "attention", "Administrator booking operations lost role isolation or its exact view filter.");
+assert(adminCoverage.response.statusCode === 200 && adminCoverage.body.windowDays === 90 && landlordAdminCoverage.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-coverage-get")?.actor.roles.includes("administrator"), "Administrator coverage lost its role isolation or exact reporting window.");
 
 // Administrator cleaner-verification queue and status setting are administrator-only and CSRF-protected.
 const adminVerificationQueue = await dispatch(router, "GET", "/api/marketplace/admin/cleaner-verifications?view=awaiting&limit=25", { headers: { cookie: administratorAuthHeaders.cookie } });
@@ -579,7 +595,7 @@ const baseEnvironment = {
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtimeAbuseControl = { rateLimiter: { async consume() { return { allowed: true }; } }, clientKey: () => "test-client" };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.geocodingReady === false && runtime.matchingReady === false && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.disputeService && runtime.disputeRepository && runtime.supportRequestService && runtime.supportRequestRepository && runtime.privacyRequestService && runtime.privacyRequestRepository && runtime.cleanerPayoutRepository && runtime.cleanerPayoutService === null && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews, disputes, Landlord support, privacy requests, payout repository and HTTP layers or safely keep incomplete provider delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.geocodingReady === false && runtime.matchingReady === false && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.disputeService && runtime.disputeRepository && runtime.supportRequestService && runtime.supportRequestRepository && runtime.administratorCoverageService && runtime.administratorCoverageRepository && runtime.privacyRequestService && runtime.privacyRequestRepository && runtime.cleanerPayoutRepository && runtime.cleanerPayoutService === null && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews, disputes, Landlord support, aggregate coverage, privacy requests, payout repository and HTTP layers or safely keep incomplete provider delivery detached.");
 let unconfiguredEmailRejected = false;
 assert(runtime.requestMediaService && runtime.requestMediaRepository, "Marketplace runtime did not compose private cleaning-request room media.");
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl, emailDelivery: { send() {} } }); } catch (error) { unconfiguredEmailRejected = error.message.includes("requires one configured HTTPS or SMTP email provider and EMAIL_FROM"); }
