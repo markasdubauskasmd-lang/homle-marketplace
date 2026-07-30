@@ -46,6 +46,7 @@ const requestEventsPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uui
 const notificationReadPath = new RegExp(`^/api/marketplace/notifications/(${uuidPattern})/read$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
 const propertyArchivePath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})/archive$`);
+const propertyRestorePath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})/restore$`);
 const cleanerProfilePath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})$`);
 const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
 const cleanerAvailabilityPath = new RegExp(`^/api/marketplace/cleaner/availability/(${uuidPattern})$`);
@@ -132,7 +133,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const cleanerPayouts = dependencies?.cleanerPayoutService || null;
   const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
-  if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
+  if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.listArchivedOwnProperties !== "function" || typeof properties.archiveOwnProperty !== "function" || typeof properties.restoreOwnProperty !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "getPublicProfile", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof cleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaner profile service.");
   if (!favouriteCleaners || !["listOwn", "setOwn"].every((method) => typeof favouriteCleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the favourite-Cleaner service.");
   if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
@@ -407,6 +408,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           }
           return methodNotAllowed(response, ["GET", "POST"]), true;
         }
+        if (pathname === "/api/marketplace/properties/archived") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["landlord"] });
+          const records = await properties.listArchivedOwnProperties(context.actor);
+          sendJson(response, 200, { ok: true, properties: records });
+          return true;
+        }
         if (pathname === "/api/marketplace/cleaning-requests") {
           if (request.method === "GET") {
             const context = await security.protect(request, { roles: ["landlord"] });
@@ -553,6 +561,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
           const archivedProperty = await properties.archiveOwnProperty(context.actor, selectedPropertyArchive[1]);
           sendJson(response, 200, { ok: true, archivedProperty });
+          return true;
+        }
+        const selectedPropertyRestore = pathname.match(propertyRestorePath);
+        if (selectedPropertyRestore) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const restoredProperty = await properties.restoreOwnProperty(context.actor, selectedPropertyRestore[1]);
+          sendJson(response, 200, { ok: true, restoredProperty });
           return true;
         }
         const selectedProperty = pathname.match(propertyPath);

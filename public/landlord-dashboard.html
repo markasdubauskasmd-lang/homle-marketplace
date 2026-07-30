@@ -138,6 +138,12 @@
         <div class="landlord-empty-card" data-property-empty><strong>No account properties yet.</strong><p>Add a property to prepare a private request draft. Nothing is published to Cleaner search.</p></div>
         <div class="landlord-property-grid" data-property-list hidden></div>
         <div class="landlord-form-feedback" data-property-status role="status" aria-live="polite" tabindex="-1" hidden></div>
+        <details class="landlord-archived-properties" data-archived-properties hidden>
+          <summary>Archived properties <span data-archived-property-count>0</span></summary>
+          <p>Archived locations stay out of new cleaning requests. Restore one only when you want to use it again.</p>
+          <div class="landlord-property-grid" data-archived-property-list></div>
+          <div class="landlord-form-feedback" data-archived-property-status role="status" aria-live="polite" tabindex="-1" hidden></div>
+        </details>
 
         <form class="landlord-record-form" data-property-form hidden novalidate>
           <fieldset data-property-controls>

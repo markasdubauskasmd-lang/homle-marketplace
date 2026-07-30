@@ -31,6 +31,25 @@ requires changing its design, pages, routes, workflows, styling or backend behav
 
 ## Issue fixed during this audit
 
+### Archived-property recovery
+
+The owner-safe property archive flow retained completed work but was irreversible in
+the product. A mistaken archive therefore removed the property from future requests
+and required manual database support to recover it.
+
+The Landlord dashboard now keeps archived locations in a collapsed owner-only list
+and restores one through a protected, audited database operation. The restored
+property returns to active request selection while its historical work remains
+intact. The recovery route remains Landlord-only, owner-bound, CSRF-protected and
+archived-only.
+
+Expected benefit: fewer founder support interventions, faster correction of an
+ordinary Landlord mistake, and less risk that someone recreates the same property and
+fragments its history.
+
+The Cleaner Dashboard, matching, pricing, payments and shared presentation assets
+were not changed.
+
 Unsigned account entry offered both **Open Landlord dashboard** and **Open Cleaner
 dashboard** beneath every login/sign-up intent. These links only reopened protected
 gates, added decisions and mixed the two roles on the page intended to separate them.

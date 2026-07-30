@@ -269,6 +269,37 @@ body.landlord-dashboard-page .landlord-property-archive {
   color: var(--ld-coral);
   border-color: color-mix(in oklch, var(--ld-coral) 42%, transparent);
 }
+body.landlord-dashboard-page .landlord-archived-properties {
+  margin-top: 22px;
+  padding: 16px;
+  border: 1px solid var(--ld-line);
+  border-radius: 18px;
+  background: color-mix(in oklch, #fff 88%, var(--ld-canvas));
+}
+body.landlord-dashboard-page .landlord-archived-properties > summary {
+  cursor: pointer;
+  color: var(--ld-ink-2);
+  font-weight: 750;
+}
+body.landlord-dashboard-page .landlord-archived-properties > summary span {
+  display: inline-grid;
+  min-width: 1.6rem;
+  min-height: 1.6rem;
+  margin-left: 7px;
+  place-items: center;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ld-coral);
+  font-size: .76rem;
+}
+body.landlord-dashboard-page .landlord-archived-properties > p {
+  margin: 10px 0 16px;
+  color: var(--ld-muted);
+  font-size: .88rem;
+}
+body.landlord-dashboard-page .landlord-archived-properties .landlord-property-card {
+  box-shadow: none;
+}
 body.landlord-dashboard-page .text-button { color: var(--ld-coral); font-weight: 600; }
 body.landlord-dashboard-page .landlord-record-form input,
 body.landlord-dashboard-page .landlord-record-form select,
