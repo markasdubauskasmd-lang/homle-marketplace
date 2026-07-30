@@ -190,6 +190,23 @@ assert(Number.isInteger(complexityModelVersion), "The complexity model has no ve
   assert(result.assessed === true && result.level >= 1, "A low-confidence scan withheld its level entirely.");
 }
 
+// "clean" is the one verdict whose error only ever understates the level — an
+// uncertain clean contributes NO load — so it is held to the higher vocabulary
+// threshold when deciding whether the assessment is settled.
+{
+  const unsure = assess([room("Kitchen", [
+    object({ objectId: "a", label: "Sink", condition: "clean", confidenceCondition: 0.6 })
+  ])]);
+  assert(unsure.provisional === true, "A middling-confidence 'clean' produced a settled assessment — the exact verdict that hid a visibly dirty sink.");
+  const question = unsure.questions.find((entry) => entry.code === "condition-unclear");
+  assert(question && question.objectIds.includes("a"), "The unsure clean was not asked about.");
+  const sure = assess([room("Kitchen", [
+    object({ objectId: "a", label: "Sink", condition: "clean", confidenceCondition: 0.85 }),
+    object({ objectId: "b", label: "Hob", condition: "medium", soiling: ["grease"], confidenceCondition: 0.8 })
+  ])]);
+  assert(sure.provisional === false, "A clearly evidenced clean still made the assessment provisional, which would question every clean surface in a well-kept home.");
+}
+
 // A confident scan is not made provisional for no reason.
 {
   const result = assess([room("Bedroom", [

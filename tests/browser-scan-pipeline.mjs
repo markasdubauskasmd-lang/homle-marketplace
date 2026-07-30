@@ -186,7 +186,9 @@ try {
   const selectors = await browser.evaluate(`
     const needed = ["[data-review]", "[data-review-level-label]", "[data-review-explanation]",
       "[data-review-price]", "[data-review-breakdown]", "[data-review-question-list]",
-      "[data-review-room-list]", "[data-review-refusal-reason]", "[data-review-provisional]"];
+      "[data-review-room-list]", "[data-review-refusal-reason]", "[data-review-provisional]",
+      "[data-measure]", "[data-measure-photo]", "[data-measure-lines]", "[data-measure-refs]",
+      "[data-measure-subjects]", "[data-measure-keep]", "[data-measure-close]"];
     return needed.filter((selector) => !document.querySelector(selector));
   `);
   assert(selectors.length === 0, `The review renderer targets elements the page does not contain: ${selectors.join(", ")}`);

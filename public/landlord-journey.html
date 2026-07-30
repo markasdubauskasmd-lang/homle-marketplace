@@ -159,6 +159,37 @@
         </div>
       </div>
 
+      <!-- Measuring from a room photo. Two taps across something whose size is
+           known, two taps across the thing being measured; the arithmetic and
+           its honesty rules live on the server, and only the two line lengths
+           travel — the photo itself never leaves this page. -->
+      <div class="scan-measure" data-measure hidden role="dialog" aria-modal="true" aria-labelledby="homle-measure-title">
+        <div class="scan-measure-in">
+          <p class="scan-measure-eyebrow" data-measure-room>Kitchen</p>
+          <h3 id="homle-measure-title">Measure from the photo</h3>
+          <p class="scan-measure-instruction" data-measure-instruction role="status"></p>
+          <p class="scan-measure-problem" data-measure-problem role="alert" hidden></p>
+          <div class="scan-measure-stage" data-measure-stage>
+            <img data-measure-photo alt="Your room photo. Tap each end of the object or wall being measured.">
+            <svg data-measure-lines aria-hidden="true"></svg>
+          </div>
+          <div class="scan-measure-choices" data-measure-refs role="group" aria-label="Choose a known-size object in the photo"></div>
+          <div class="scan-measure-choices" data-measure-subjects role="group" aria-label="Choose what to measure" hidden></div>
+          <div class="scan-measure-confirm" data-measure-confirm hidden>
+            <p data-measure-confirm-text></p>
+            <div class="scan-measure-confirm-actions">
+              <button class="btn btn-p" type="button" data-measure-keep>Keep this estimate</button>
+              <button class="btn" type="button" data-measure-type>Type the real size</button>
+              <button class="btn" type="button" data-measure-retry>Start again</button>
+            </div>
+          </div>
+          <div class="scan-measure-actions">
+            <button class="btn" type="button" data-measure-undo>Undo tap</button>
+            <button class="btn" type="button" data-measure-close>Done measuring</button>
+          </div>
+        </div>
+      </div>
+
       <div class="field">
         <label for="tasks">Room checklist</label>
         <textarea class="inp" id="tasks" name="tasks" data-tasks rows="9" placeholder="Kitchen: degrease the worktops&#10;Bathroom: remove limescale from the shower screen"></textarea>

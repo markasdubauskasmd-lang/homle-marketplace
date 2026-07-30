@@ -391,12 +391,17 @@
       "order": 78,
       "file": "078_scan_retention_voice_and_addons.sql",
       "sha256": "c7e3c767b4918ac102f2d624663d740717028662797cd5e1369eb297dc87138d"
+    },
+    {
+      "order": 79,
+      "file": "079_scan_ground_truth.sql",
+      "sha256": "615b281290cde496ba35fbd7562e31e18ed7c8d54c371457f66dd4bf4d6e1bf1"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "8d1e02e7c64aa6aa17b850976761d7488dfdb82619b16f431d04a96dbea53538"
+      "sha256": "843f834d73e2bcc816d325198c16fe51d307b19e8ccec1b617414fe2c8a4c4e8"
     },
     {
       "file": "worker-role-grants.sql",

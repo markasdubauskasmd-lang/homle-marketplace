@@ -264,7 +264,18 @@ assert(overlay.includes('data-discard hidden role="alertdialog"') && overlay.inc
 assert(/function requestClose\(\)[\s\S]{0,180}hasScanProgress\(\)[\s\S]{0,80}showDiscard\(\)[\s\S]{0,80}close\(null\)/.test(overlay) && /for \(const button of \$\$\("\[data-close\]"\)\) button\.addEventListener\("click", requestClose\)/.test(overlay), "A close button can still destroy confirmed rooms or notes without the discard safeguard.");
 assert(/function setScanBackgroundInert\(inert, except = el\.discard\)[\s\S]{0,320}child\.inert = inert/.test(overlay) && /function openDiscardDecision\([\s\S]{0,700}setScanBackgroundInert\(true\)[\s\S]{0,120}discardKeep\.focus/.test(overlay), "The discard decision leaves covered camera controls interactive or does not move focus to its safe action.");
 assert(overlay.includes('window.addEventListener("beforeunload", onBeforeUnload)') && overlay.includes('window.removeEventListener("beforeunload", onBeforeUnload)') && /function onBeforeUnload\(event\)[\s\S]{0,220}!hasScanProgress\(\)[\s\S]{0,320}event\.returnValue = ""/.test(overlay), "Browser navigation can silently erase an in-progress room scan or leaves a permanent leave-page warning after teardown.");
-assert(!overlay.includes("localStorage") && !overlay.includes("JSON.stringify(state.rooms"), "The discard safeguard persists private room photos or the scan roster in browser storage.");
+// Sharpened from a blanket localStorage ban when the spoken-guidance preference
+// arrived: what is actually guarded is that nothing PRIVATE reaches browser
+// storage. An on/off setting under its named key is allowed; a photo, a room
+// roster or anything built from scan state is not.
+{
+  const storageWrites = [...overlay.matchAll(/localStorage\.setItem\(([^)]*)\)/g)].map((match) => match[1]);
+  assert(storageWrites.every((args) => args.includes("spokenGuidancePreferenceKey")), `A localStorage write beyond the named guidance preference appeared: ${storageWrites.join(" | ")}`);
+  const storageReads = [...overlay.matchAll(/localStorage\.getItem\(([^)]*)\)/g)].map((match) => match[1]);
+  assert(storageReads.every((args) => args.includes("spokenGuidancePreferenceKey")), "A localStorage read beyond the named guidance preference appeared.");
+  assert(!/localStorage\.setItem\([^)]*(rooms|photo|transcript|frozenFrame|image|dataUrl)/i.test(overlay), "Scan content reached localStorage.");
+  assert(!overlay.includes("JSON.stringify(state.rooms"), "The discard safeguard persists private room photos or the scan roster in browser storage.");
+}
 // Scoped to the function body. The window kept breaking as finishScan grew, and
 // widening a number teaches nothing; what is guarded is that the photos handed on
 // are the current rooms' own images.
@@ -661,3 +672,67 @@ assert(overlay.includes("state.lastRedaction?.summary") && overlay.includes("unu
   "The scanner neither reports what it blurred nor refuses a frame that is mostly a person.");
 
 console.log("Room scan UI tests passed: embedded overlay with one implementation, real camera and speech, consent before any photograph leaves, camera released on every exit, safe detection overlay, honest duration and condition, no invented measurement and the approved presentation.");
+
+/* ── The microphone can always be stopped, cancelled and reviewed ── */
+
+// While recording, the panel header holds a visible Stop (and Cancel); while
+// reviewing, Done and Delete. The old stylesheet rule hid the panel's only
+// button during recording, leaving stop to an unlabelled toggle — the exact
+// field complaint this section pins against return.
+assert(overlay.includes("data-voice-stop") && overlay.includes("data-voice-cancel") && overlay.includes("data-voice-delete"), "The voice panel lost its explicit Stop, Cancel or Delete control.");
+assert(!/\.voice\.recording \.voice-done\s*\{\s*display:\s*none/.test(styles), "The stylesheet once again hides the note panel's confirm button during recording, leaving no visible way to stop.");
+assert(/el\.voiceStop\.hidden = !recording;\s*\n\s*el\.voiceCancel\.hidden = !recording;\s*\n\s*el\.noteDone\.hidden = recording;/.test(overlay), "Recording and review no longer swap the Stop/Cancel and Done/Delete button pairs, so one state shows the other's controls.");
+assert(/micLabel\.textContent = recording \? "Stop"/.test(overlay) && /aria-label", recording \? "Stop recording"/.test(overlay), "The mic button does not become a labelled Stop control while recording.");
+assert(/el\.voiceStop\.addEventListener\("click", \(\) => stopVoice\(\)\)/.test(overlay), "The visible Stop button is not wired to stop the recording.");
+// Cancel restores the note to exactly what it was when the mic was tapped —
+// discarding the recording, never the note it was being appended to.
+assert(/state\.voiceSessionStartNote = sessionBase/.test(overlay) && /function cancelVoice\(\)[\s\S]{0,420}stopVoice\(\{ silent: true \}\);[\s\S]{0,120}setRoomTranscript\(restore\)/.test(overlay), "Cancelling a recording no longer restores the pre-recording note.");
+assert(/function deleteVoiceNote\(\)[\s\S]{0,320}setRoomTranscript\(""\)/.test(overlay), "There is no way to delete a room note from the review panel.");
+// Failure causes are named, because "try again" is wrong advice for a blocked
+// permission and for a phone with no microphone.
+assert(/event\?\.error === "not-allowed" \|\| event\?\.error === "service-not-allowed"/.test(overlay) && overlay.includes("Microphone access is blocked"), "A denied microphone permission is reported as a generic failure, sending people tapping the mic forever.");
+assert(overlay.includes('event?.error === "audio-capture"') && overlay.includes("No microphone was found"), "A missing microphone is reported as a generic failure.");
+assert(overlay.includes("Nothing was heard"), "An empty recording ends silently instead of saying nothing was heard.");
+// The timer restarts visibly with each recording.
+assert(/el\.voiceTime\.textContent = "0:00"/.test(overlay), "A new recording shows the previous recording's elapsed time until the first tick.");
+
+/* ── One capture mode: the deck offers no video button ── */
+
+// The scanner already reads the room continuously while the Landlord walks; a
+// separate video mode was a second way to do what the default does, and a
+// media-mode decision no customer should be handed. The video path itself must
+// survive on the camera-blocked recovery card, where it is genuinely needed.
+{
+  const deckMarkup = overlay.slice(overlay.indexOf('class="deck-row"'), overlay.indexOf("deck-camera-alt"));
+  assert(!deckMarkup.includes("data-video-fallback"), "The video-mode button is back in the main camera deck.");
+  assert(deckMarkup.includes("data-note-open"), "The deck lost its typed-note entry when the video button left.");
+  assert(deckMarkup.includes("Finish room"), "The shutter carries no visible label saying it finishes the room.");
+  const blockedMarkup = overlay.slice(overlay.indexOf("vf-blocked"), overlay.indexOf('class="scan-top"'));
+  assert(blockedMarkup.includes("data-video-fallback"), "The camera-blocked recovery card lost its video fallback — a phone with a blank live camera now has no walkthrough capture at all.");
+}
+
+/* ── The press is acknowledged before the encode ── */
+
+// The 1600px JPEG now encodes off the main thread; the flash and the locked
+// shutter are what make that wait read as a response instead of a dead button,
+// and the post-await guards are what stop a stale encode landing on a view the
+// Landlord has already left or frozen.
+assert(/function flashViewfinder\(\)[\s\S]{0,240}classList\.add\("pop"\)/.test(overlay), "Nothing triggers the capture flash the stylesheet has always defined.");
+assert(/async function capture\(\)[\s\S]{0,1200}flashViewfinder\(\);\s*\n\s*el\.shutter\.disabled = true/.test(overlay), "The shutter press is not acknowledged before the asynchronous encode.");
+assert(/async function capture\(\)[\s\S]{0,1600}const frame = await pending;[\s\S]{0,300}if \(state\.closed \|\| state\.frozen \|\| state\.screen !== "live"\) return;/.test(overlay), "A capture encoded after the Landlord moved on can still freeze the wrong view.");
+assert(/await pending\.catch\(\(\) => ""\)/.test(overlay), "A failed tap-to-freeze encode rejects unhandled instead of degrading to the warming-up message.");
+
+/* ── Spoken guidance never talks into the microphone ── */
+
+// The one hard rule: guidance must never be transcribed into the customer's
+// own note. The speak function refuses while recording, and starting a
+// recording silences anything mid-sentence BEFORE the microphone opens.
+assert(/function announceGuidance\(text, key = text\)[\s\S]{0,120}state\.voiceOn\) return;/.test(overlay), "Spoken guidance can talk while a voice note is recording, transcribing itself into the customer's note.");
+assert(/function startVoice\(\)[\s\S]{0,220}stopSpeaking\(\);/.test(overlay), "Starting a recording does not silence guidance already mid-sentence.");
+// Off by default, per-device, and torn down with everything else.
+assert(overlay.includes("data-speech-toggle") && /function toggleSpokenGuidance\(\)[\s\S]{0,320}localStorage\.setItem\(spokenGuidancePreferenceKey/.test(overlay), "The spoken-guidance choice is not a visible, remembered toggle.");
+assert(/function readSpokenGuidancePreference\(\)[\s\S]{0,160}=== "on"/.test(overlay), "Spoken guidance is not off by default — an unset preference must stay silent.");
+assert(/function close\(result\)[\s\S]{0,400}stopSpeaking\(\)/.test(overlay) && /function pauseForBackground\(\)[\s\S]{0,300}stopSpeaking\(\)/.test(overlay), "Closing or backgrounding the scanner can leave it talking.");
+// One thing at a time — stale guidance queued behind current guidance narrates
+// the past.
+assert(/synth\.cancel\(\);[\s\S]{0,400}synth\.speak\(utterance\)/.test(overlay), "Queued utterances can stack up and narrate stale guidance.");

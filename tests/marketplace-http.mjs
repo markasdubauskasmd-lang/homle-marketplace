@@ -230,7 +230,12 @@ const administratorVerificationService = {
   async list(actor, input) { calls.push({ kind: "administrator-verification-list", actor, input }); return { cleaners: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; },
   async set(actor, cleanerId, input) { calls.push({ kind: "administrator-verification-set", actor, cleanerId, input }); return { cleanerId, identityCheckStatus: input.identityCheckStatus || "pending", backgroundCheckStatus: input.backgroundCheckStatus || "not-checked" }; }
 };
-const dependencies = { security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const scanGroundTruthService = {
+  async getQueue(actor, limit) { calls.push({ kind: "truth-queue", actor, limit }); return []; },
+  async recordVerdict(actor, objectId, input) { calls.push({ kind: "truth-record", actor, objectId, input }); return { groundTruthId: "t", objectId, ...input }; },
+  async getReport(actor) { calls.push({ kind: "truth-report", actor }); return { labelledTotal: 0 }; }
+};
+const dependencies = { security, scanGroundTruthService, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -603,5 +608,53 @@ assert(facebookRuntime.facebookLoginReady === true && facebookRuntime.facebookLo
 let missingRuntime = false;
 try { createMarketplaceRuntime(pool, { env: {} }); } catch (error) { missingRuntime = error.message.includes("DATABASE_URL") && error.message.includes("SESSION_SECRET") && error.message.includes("DATA_ENCRYPTION_KEY"); }
 assert(missingRuntime, "Marketplace runtime did not fail closed without its database/session/encryption configuration.");
+
+/* ── Measuring from a photo: pure arithmetic, nothing stored, no image ── */
+
+// The endpoint receives two pixel spans and answers with the server-owned
+// tolerance maths. 85.6mm over 200px is 0.428mm/px; a 4000px span is 1712mm,
+// and the band is the 12% same-plane floor because the arithmetic came out
+// tighter than the physics allows.
+{
+  const measured = await dispatch(router, "POST", "/api/marketplace/landlord/photo-measurement", {
+    headers: authHeaders,
+    body: { reference: "bank-card", referenceAxis: "width", referencePixels: 200, subject: "room-length", spanPixels: 4000 }
+  });
+  assert(measured.response.statusCode === 200, measured.response.body);
+  const measurement = measured.body.measurement;
+  assert(measurement.valueMm === 1712, `The measurement arithmetic changed: ${measurement.valueMm}mm`);
+  assert(measurement.toleranceMm === 205, `The same-plane tolerance floor was lost: ±${measurement.toleranceMm}mm`);
+  assert(measurement.method === "reference-calibrated", "The method label was lost.");
+  assert(measurement.label.includes("±") && measurement.label.toLowerCase().includes("bank card"),
+    `The label no longer states the band and the reference: ${measurement.label}`);
+
+  // Refusals are customer-worded, because they are shown verbatim.
+  const tiny = await dispatch(router, "POST", "/api/marketplace/landlord/photo-measurement", {
+    headers: authHeaders,
+    body: { reference: "bank-card", referencePixels: 8, subject: "room-length", spanPixels: 4000 }
+  });
+  assert(tiny.response.statusCode === 400, `A too-small reference did not refuse: ${tiny.response.statusCode}`);
+  assert(/too small in the picture/i.test(tiny.body.error), `The refusal lost its customer wording: ${tiny.body.error}`);
+
+  // Landlord-only, like every other scan surface.
+  const asCleaner = await dispatch(router, "POST", "/api/marketplace/landlord/photo-measurement", {
+    headers: cleanerAuthHeaders,
+    body: { reference: "bank-card", referencePixels: 200, subject: "room-length", spanPixels: 4000 }
+  });
+  assert(asCleaner.response.statusCode === 403, `A Cleaner measured a customer photo: ${asCleaner.response.statusCode}`);
+}
+
+/* ── Ground truth review is Administrator-only ─────────────────────────── */
+
+{
+  const truthUrl = "/api/marketplace/admin/scan-ground-truth";
+  const asLandlord = await dispatch(router, "GET", truthUrl, { headers: { cookie: authHeaders.cookie } });
+  assert(asLandlord.response.statusCode === 403, `A Landlord read the accuracy review surface: ${asLandlord.response.statusCode}`);
+  const record = await dispatch(router, "PUT", `${truthUrl}/objects/3c000000-0000-4000-8000-000000000042`, {
+    headers: authHeaders,
+    body: { condition: "medium", soiling: ["food-debris"], labelCorrect: true }
+  });
+  assert(record.response.statusCode === 403, `A Landlord recorded ground truth: ${record.response.statusCode}`);
+}
 
 console.log("Marketplace HTTP tests passed: isolated routing, public search, session/role/origin/CSRF protection, owner-bound property mutations, bounded JSON, safe errors and fail-closed runtime composition.");

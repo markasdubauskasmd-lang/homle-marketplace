@@ -655,6 +655,29 @@ accuracy later proves to be the binding constraint on pricing honestly, that is
 the signal to revisit it — and the data model in §6 is deliberately
 tier-agnostic so a native path could be added later without reshaping storage.
 
+**Decided 30 July 2026: no instance or semantic segmentation in the web tier.**
+
+The brief lists segmentation among the recognition techniques to combine.
+Assessed and declined for the web tier, for reasons worth recording so the gap
+reads as a decision rather than an omission:
+
+- What segmentation buys over boxes is pixel-accurate extent — which matters
+  when it feeds surface-area estimation or occlusion reasoning against depth
+  data. The web tier has no depth to anchor either; a pixel-perfect mask
+  projected onto an unknown geometry prices nothing better than a box does.
+- The costs are concrete: a vendored browser segmentation model is several
+  times COCO-SSD-Lite's weight on phones that already run detection, quality
+  sampling, redaction and JPEG encoding on a battery; and its masks would
+  still carry the same "which pixels are limescale" question straight to the
+  vision reader, which answers it from the photograph either way.
+- The condition verdicts — the product's actual output — come from the vision
+  reader and are bounded by image quality and prompt honesty, not by box-vs-
+  mask geometry. The accuracy work that matters is the ground-truth pipeline
+  measuring that reader, not sharper outlines around the same uncertainty.
+
+The signal to revisit is the same as Tier A's: a native path with real depth,
+where masks and geometry together could produce measured cleanable areas.
+
 The original framing of the decision is kept below, because the trade-off it
 records is what a future revisit would need.
 

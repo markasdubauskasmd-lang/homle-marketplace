@@ -40,6 +40,18 @@ export const objectOrigins = Object.freeze(["detector", "vision", "manual"]);
 // respect is the same one the product acts on.
 export const conditionReviewThreshold = 0.5;
 
+// "clean" carries a higher bar than the soiled grades, because the two errors
+// are not symmetric. A wrong "medium" is shown to the customer, who looks at
+// their own worktop and removes it in a tap. A wrong "clean" HIDES work —
+// nobody reviews a row that says there is nothing to do — and the job is
+// quietly under-scoped, which is precisely how a visibly dirty sink was once
+// presented as "Sink CLEAN". Between these thresholds a clean verdict is asked
+// about rather than asserted.
+//
+// Mirrored in public/room-scan-model.js (the client cannot import this file);
+// the two copies must change together.
+export const cleanConditionReviewThreshold = 0.7;
+
 export function isSoilingKind(value) {
   return soilingKinds.includes(String(value || "").toLowerCase().trim());
 }

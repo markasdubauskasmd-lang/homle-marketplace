@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { uuid } from "./validation.mjs";
 import {
-  conditionReviewThreshold, isItemCondition, isRoomCondition, isSoilingKind, objectOrigins
+  cleanConditionReviewThreshold, conditionReviewThreshold, isItemCondition, isRoomCondition, isSoilingKind, objectOrigins
 } from "./room-condition-vocabulary.mjs";
 import { assessCleaningComplexity } from "./cleaning-complexity.mjs";
-import { measurementLabel, normalizedMeasurements } from "./room-measurement.mjs";
+import { derivedArea, measurementLabel, normalizedMeasurements, userConfirmedMeasurement } from "./room-measurement.mjs";
 import { defaultPricingRuleset, estimateScanPrice, normalizedPricingRuleset } from "./scan-pricing.mjs";
 import { instructionKinds } from "./speech-summary.mjs";
 
@@ -178,7 +178,11 @@ function objectProjection(record) {
     // correct is useful; the same grade presented as a finding is what changes
     // what someone is charged on evidence nobody checked. A grade the customer
     // has already confirmed needs no second look.
-    needsConfirmation: !confirmed && (!conditionValue || confidenceCondition < conditionReviewThreshold)
+    // "clean" is held to the higher threshold because a wrong clean hides work
+    // rather than inviting review — see the vocabulary for why the two errors
+    // are not symmetric.
+    needsConfirmation: !confirmed && (!conditionValue
+      || confidenceCondition < (conditionValue === "clean" ? cleanConditionReviewThreshold : conditionReviewThreshold))
   });
 }
 
@@ -403,13 +407,37 @@ export function createScanService(repository, options = {}) {
     },
     async recordOwnMeasurements(actor, roomScanId, input = {}) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to save room measurements.");
+      // A typed figure arriving without a band gets the standard user-confirmed
+      // one rather than zero. People estimate too, and a stored zero tolerance
+      // would make "about four metres" read like a laser measurement for ever.
+      const supplied = (Array.isArray(input.measurements) ? input.measurements : []).map((entry) => (
+        entry?.method === "user-confirmed" && !(Number(entry?.toleranceMm) >= 0)
+          ? userConfirmedMeasurement(entry)
+          : entry
+      ));
       // Normalised before it reaches the database, which then applies the same
       // rules again. Both layers refuse a bare number on purpose: a measurement
       // whose provenance is unknown sits in the same column as the others and
       // looks exactly like them.
-      const measurements = normalizedMeasurements(input.measurements);
+      const measurements = normalizedMeasurements(supplied);
       if (!measurements.length) throw new TypeError("A measurement needs a supported subject, a method and a tolerance.");
-      const stored = await repository.recordMeasurements(actor, uuid(roomScanId, "room scan id"), measurements);
+      // A length and a width imply the floor area, so it is derived here — once,
+      // by the module that owns the compounding-tolerance arithmetic — rather
+      // than asked of the customer or, worse, computed loosely by a client. The
+      // derived figure is only stored while it is honest: `derivedArea` widens
+      // the band to the sum of its parts and refuses when that is unusable.
+      const length = measurements.find((entry) => entry.subject === "room-length");
+      const width = measurements.find((entry) => entry.subject === "room-width");
+      const withArea = length && width && !measurements.some((entry) => entry.subject === "floor-area")
+        ? (() => {
+          const area = derivedArea({ length, width });
+          return area.usable ? [...measurements, {
+            subject: area.subject, method: area.method, valueMm: area.valueMm,
+            toleranceMm: area.toleranceMm, confidence: area.confidence, reference: ""
+          }] : measurements;
+        })()
+        : measurements;
+      const stored = await repository.recordMeasurements(actor, uuid(roomScanId, "room scan id"), normalizedMeasurements(withArea));
       return Object.freeze({ measurements: Object.freeze((Array.isArray(stored) ? stored : []).map(measurementProjection)) });
     },
     async deleteOwnScan(actor, cleaningRequestId) {

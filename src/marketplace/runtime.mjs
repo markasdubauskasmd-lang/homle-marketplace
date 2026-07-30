@@ -17,6 +17,7 @@ import { createCleaningRequestService } from "./cleaning-request-service.mjs";
 import { createScanRepository } from "./scan-repository.mjs";
 import { createScanService } from "./scan-service.mjs";
 import { createScanPricingRepository, createScanPricingService } from "./scan-pricing-repository.mjs";
+import { createScanGroundTruthRepository, createScanGroundTruthService } from "./scan-ground-truth.mjs";
 import { createScanTelemetry } from "./scan-telemetry.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config.mjs";
 import { createCredentialService } from "./credential-service.mjs";
@@ -157,6 +158,10 @@ export function createMarketplaceRuntime(pool, options = {}) {
   // falls back to the shipped defaults, so an unconfigured deployment prices
   // identically to a configured one rather than not pricing at all.
   const scanService = createScanService(createScanRepository(database), { vision: roomVision, pricing: scanPricingService, telemetry: scanTelemetry });
+  // Reviewer verdicts about stored scans, and the aggregate accuracy report
+  // built from them — the collection point that turns real traffic into the
+  // measured false-clean rate every phase has honestly reported as unknown.
+  const scanGroundTruthService = createScanGroundTruthService(createScanGroundTruthRepository(database));
   const bookingRepository = createBookingRepository(database);
   const bookingPricingPolicy = options.bookingPricingPolicy || bookingPricingPolicyFromEnvironment(env);
   const paymentRepository = createPaymentRepository(database);
@@ -195,7 +200,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const administratorVerificationService = createAdministratorVerificationService(administratorVerificationRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
   const authenticationRouter = options.emailDelivery || googleOidcProvider || appleSignInProvider
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, appleSignInProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: true })

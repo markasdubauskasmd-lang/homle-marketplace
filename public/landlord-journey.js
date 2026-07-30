@@ -25,6 +25,7 @@ import {
 } from "./landlord-journey-model.js?v=journey7";
 import { openRoomScan } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
+import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
 import { requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
 import { isUkPostcode } from "./contact-validation.js";
 
@@ -109,6 +110,10 @@ const state = {
   scanCorrections: [],
   scanReview: null,
   scanInstructions: [],
+  // Measurements taken from the room photos at review time. Held in memory like
+  // the photos they were measured from, and stored against the saved scan at
+  // confirm — the same deferred-persist pattern as corrections and instructions.
+  scanMeasurements: [],
   draft: {
     postcode: "",
     outward: "",
@@ -233,6 +238,7 @@ function adoptScan() {
   state.scanPhotos = [];
   state.scanRooms = [];
   state.scanCorrections = [];
+  state.scanMeasurements = [];
   state.scanReview = null;
   state.draft.durationMinutes = suggestedDurationMinutes(tasks);
   state.step = "results";
@@ -368,6 +374,7 @@ el.scanLink.addEventListener("click", async () => {
     state.scanRooms = Array.isArray(result.rooms) ? result.rooms : [];
     state.scanDeviceClass = typeof result.deviceClass === "string" ? result.deviceClass : "unknown";
     state.scanCorrections = [];
+    state.scanMeasurements = [];
     state.scanReview = null;
     refreshScanReview();
     state.draft.durationMinutes = suggestedDurationMinutes(state.draft.tasks);
@@ -774,6 +781,10 @@ function objectControls(roomName, object) {
   head.append(textNode("b", "", object.displayLabel), textNode("span", "scan-review-state", object.state));
   row.append(head);
   if (object.detail) row.append(textNode("p", "scan-review-detail", object.detail));
+  // The action the finding leads to — "Descale the tap" — so the review answers
+  // "what will be done about it", not only "what was seen". Comes from the
+  // deterministic mapping in scan-review-render, never from the model.
+  if (object.recommendation) row.append(textNode("p", "scan-review-action", object.recommendation));
 
   const actions = textNode("div", "scan-review-object-actions");
 
@@ -821,10 +832,262 @@ function renderReviewRooms(review) {
     const block = textNode("section", "scan-review-room");
     block.append(textNode("h4", "scan-review-room-name", room.roomName));
     for (const measurement of room.measurements) block.append(textNode("p", "hint", measurement));
+    // Measurements taken in this session, not yet stored. Each states its band —
+    // the label came from the server's own arithmetic — and can be discarded.
+    for (const entry of pendingMeasurements(room.roomName)) {
+      const row = textNode("p", "hint scan-measure-pending", entry.label);
+      const discard = textNode("button", "scan-review-remove", "Remove");
+      discard.type = "button";
+      discard.addEventListener("click", () => {
+        state.scanMeasurements = state.scanMeasurements.filter((kept) => kept !== entry);
+        renderReview();
+      });
+      row.append(" ", discard);
+      block.append(row);
+    }
+    // Only offered while this tab still holds the room's photo — measuring
+    // needs the pixels, and they are deliberately never persisted.
+    if (photoForRoom(room.roomName)) {
+      const measureButton = textNode("button", "scan-review-edit scan-measure-open", "Measure from the photo");
+      measureButton.type = "button";
+      measureButton.addEventListener("click", () => openMeasure(room.roomName));
+      block.append(measureButton);
+    }
     if (!room.objects.length) block.append(textNode("p", "hint", "Nothing was picked out in this room."));
     for (const object of room.objects) block.append(objectControls(room.roomName, object));
     return block;
   }));
+}
+
+/* ── Measuring from the room photo ──────────────────────────────────────── */
+
+// Two taps across a known-size object, two taps across the thing being
+// measured. The geometry validation is room-measure-model.js and the tolerance
+// arithmetic is the server's — this code only collects taps and shows answers,
+// so it can never quietly compute a different number than the one stored.
+
+const measureUi = {
+  host: $("[data-measure]"), room: $("[data-measure-room]"), instruction: $("[data-measure-instruction]"),
+  problem: $("[data-measure-problem]"), stage: $("[data-measure-stage]"), photo: $("[data-measure-photo]"),
+  lines: $("[data-measure-lines]"), refs: $("[data-measure-refs]"), subjects: $("[data-measure-subjects]"),
+  confirm: $("[data-measure-confirm]"), confirmText: $("[data-measure-confirm-text]"),
+  keep: $("[data-measure-keep]"), typeReal: $("[data-measure-type]"), retry: $("[data-measure-retry]"),
+  undo: $("[data-measure-undo]"), close: $("[data-measure-close]")
+};
+let measureState = null;
+let measurePreviousFocus = null;
+
+const roomKeyOf = (name) => String(name || "").trim().toLowerCase();
+
+function photoForRoom(roomName) {
+  const key = roomKeyOf(roomName);
+  return state.scanPhotos.find((photo) => roomKeyOf(photo.roomName) === key)?.dataUrl || "";
+}
+
+function pendingMeasurements(roomName) {
+  const key = roomKeyOf(roomName);
+  return state.scanMeasurements.filter((entry) => roomKeyOf(entry.roomName) === key);
+}
+
+function openMeasure(roomName) {
+  if (!measureUi.host) return;
+  const photo = photoForRoom(roomName);
+  if (!photo) return;
+  measureState = { roomName, reference: "", referenceTaps: [], subject: "", subjectTaps: [], result: null };
+  measurePreviousFocus = document.activeElement;
+  measureUi.room.textContent = roomName;
+  measureUi.photo.src = photo;
+  measureUi.host.hidden = false;
+  renderMeasure();
+  measureUi.close.focus({ preventScroll: true });
+}
+
+function closeMeasure() {
+  if (!measureUi.host || measureUi.host.hidden) return;
+  measureUi.host.hidden = true;
+  measureUi.photo.removeAttribute("src");
+  measureState = null;
+  renderReview();
+  if (measurePreviousFocus instanceof HTMLElement) measurePreviousFocus.focus({ preventScroll: true });
+}
+
+function measureLine(taps) {
+  return taps.length === 2 ? { from: taps[0], to: taps[1] } : null;
+}
+
+function currentMeasureStep() {
+  return measurementStep({
+    reference: measureState.reference,
+    referenceLine: measureLine(measureState.referenceTaps),
+    subject: measureState.subject,
+    subjectLine: measureLine(measureState.subjectTaps)
+  });
+}
+
+function measureChip(label, hint, pressed, onPick) {
+  const chip = textNode("button", `scan-measure-chip${pressed ? " picked" : ""}`, label);
+  chip.type = "button";
+  if (hint) chip.title = hint;
+  chip.setAttribute("aria-pressed", String(pressed));
+  chip.addEventListener("click", onPick);
+  return chip;
+}
+
+function renderMeasure() {
+  if (!measureState) return;
+  const step = currentMeasureStep();
+  // A too-short or wrong-way-round line is cleared so the next taps start the
+  // line afresh — leaving one stale tap behind would pair it with the next.
+  if (step.problem) {
+    if (step.stage === "reference-line") measureState.referenceTaps = [];
+    if (step.stage === "subject-line") measureState.subjectTaps = [];
+  }
+  measureUi.problem.textContent = step.problem || "";
+  measureUi.problem.hidden = !step.problem;
+  measureUi.instruction.textContent = step.instruction || "";
+  measureUi.refs.hidden = !(step.stage === "reference" || step.stage === "reference-line");
+  measureUi.subjects.hidden = !(step.stage === "subject" || step.stage === "subject-line");
+  measureUi.confirm.hidden = step.stage !== "ready" || !measureState.result;
+  measureUi.undo.hidden = !(measureState.referenceTaps.length || measureState.subjectTaps.length);
+  measureUi.refs.replaceChildren(...offeredReferences.map((entry) => measureChip(
+    entry.label, entry.hint, measureState.reference === entry.reference,
+    () => { measureState.reference = entry.reference; measureState.referenceTaps = []; renderMeasure(); }
+  )));
+  measureUi.subjects.replaceChildren(...measurableSubjects.map((entry) => measureChip(
+    entry.label, "", measureState.subject === entry.subject,
+    () => { measureState.subject = entry.subject; measureState.subjectTaps = []; measureState.result = null; renderMeasure(); }
+  )));
+  drawMeasureLines();
+  if (step.stage === "ready" && !measureState.result) void computeMeasurement(step);
+}
+
+function drawMeasureLines() {
+  const image = measureUi.photo;
+  const svg = measureUi.lines;
+  if (!image.naturalWidth) { svg.replaceChildren(); return; }
+  svg.setAttribute("viewBox", `0 0 ${image.naturalWidth} ${image.naturalHeight}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  const marks = [];
+  const strokeWidth = Math.max(2, Math.round(image.naturalWidth / 320));
+  const draw = (taps, colour) => {
+    for (const tap of taps) {
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("cx", tap.x); dot.setAttribute("cy", tap.y);
+      dot.setAttribute("r", strokeWidth * 3); dot.setAttribute("fill", colour);
+      marks.push(dot);
+    }
+    if (taps.length === 2) {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", taps[0].x); line.setAttribute("y1", taps[0].y);
+      line.setAttribute("x2", taps[1].x); line.setAttribute("y2", taps[1].y);
+      line.setAttribute("stroke", colour); line.setAttribute("stroke-width", strokeWidth);
+      marks.push(line);
+    }
+  };
+  draw(measureState.referenceTaps, "#2ED47A");
+  draw(measureState.subjectTaps, "#F0A830");
+  svg.replaceChildren(...marks);
+}
+
+function onMeasureTap(event) {
+  if (!measureState) return;
+  const image = measureUi.photo;
+  const rect = image.getBoundingClientRect();
+  if (!rect.width || !rect.height || !image.naturalWidth) return;
+  // Taps are stored in the photo's own pixel space, so the spans sent to the
+  // server are independent of how large the photo is displayed.
+  const x = ((event.clientX - rect.left) / rect.width) * image.naturalWidth;
+  const y = ((event.clientY - rect.top) / rect.height) * image.naturalHeight;
+  if (x < 0 || y < 0 || x > image.naturalWidth || y > image.naturalHeight) return;
+  const step = currentMeasureStep();
+  if (step.stage === "reference-line" && measureState.referenceTaps.length < 2) measureState.referenceTaps.push({ x, y });
+  else if (step.stage === "subject-line" && measureState.subjectTaps.length < 2) measureState.subjectTaps.push({ x, y });
+  else return;
+  renderMeasure();
+}
+
+function undoMeasureTap() {
+  if (!measureState) return;
+  measureState.result = null;
+  if (measureState.subjectTaps.length) measureState.subjectTaps.pop();
+  else if (measureState.referenceTaps.length) measureState.referenceTaps.pop();
+  renderMeasure();
+}
+
+async function computeMeasurement(step) {
+  measureUi.instruction.textContent = "Working it out…";
+  try {
+    const result = await requestJson("/api/marketplace/landlord/photo-measurement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": await recoverCsrf() },
+      body: JSON.stringify({
+        reference: step.reference, referenceAxis: step.referenceAxis,
+        referencePixels: step.referencePixels, subject: step.subject, spanPixels: step.spanPixels
+      })
+    });
+    if (!measureState) return;
+    measureState.result = result.measurement;
+    measureUi.confirmText.textContent = measurementConfirmation({ ...result.measurement, usable: result.measurement.usable !== false });
+    measureUi.keep.hidden = result.measurement.usable === false;
+    renderMeasure();
+  } catch (error) {
+    if (!measureState) return;
+    // The server's refusals are customer-worded ("too small in the picture…").
+    measureState.subjectTaps = [];
+    measureUi.problem.textContent = String(error?.message || "That could not be measured. Try again.");
+    measureUi.problem.hidden = false;
+  }
+}
+
+function keepMeasurement(entry) {
+  const key = roomKeyOf(measureState.roomName);
+  state.scanMeasurements = [
+    ...state.scanMeasurements.filter((kept) => !(roomKeyOf(kept.roomName) === key && kept.subject === entry.subject)),
+    { roomName: measureState.roomName, ...entry }
+  ];
+  toast(`${measureState.roomName}: measurement kept. It stays an estimate until you confirm.`);
+  // Back to "what else shall we measure" with the same reference line, which is
+  // still valid for this photo.
+  measureState.subject = "";
+  measureState.subjectTaps = [];
+  measureState.result = null;
+  renderMeasure();
+}
+
+const measureSubjectWords = Object.freeze({ "room-length": "Length", "room-width": "Width", "ceiling-height": "Ceiling height" });
+
+function typeMeasurement() {
+  if (!measureState?.subject) return;
+  const answer = window.prompt("What is the real size, in metres? For example 3.4");
+  if (answer === null) return;
+  const metres = Number(String(answer).replace(",", "."));
+  if (!Number.isFinite(metres) || metres <= 0 || metres > 100) return toast("Enter the size in metres, for example 3.4");
+  const valueMm = Math.round(metres * 1000);
+  keepMeasurement({
+    subject: measureState.subject, method: "user-confirmed", valueMm,
+    // The band is settled server-side for typed figures; the label here only
+    // has to be honest about whose figure it is.
+    label: `${measureSubjectWords[measureState.subject] || measureState.subject} ${(valueMm / 1000).toFixed(2)}m — your own figure`
+  });
+}
+
+if (measureUi.host) {
+  measureUi.stage.addEventListener("click", onMeasureTap);
+  measureUi.keep.addEventListener("click", () => { if (measureState?.result) keepMeasurement(measureState.result); });
+  measureUi.typeReal.addEventListener("click", typeMeasurement);
+  measureUi.retry.addEventListener("click", () => {
+    if (!measureState) return;
+    measureState.referenceTaps = [];
+    measureState.subjectTaps = [];
+    measureState.subject = "";
+    measureState.result = null;
+    renderMeasure();
+  });
+  measureUi.undo.addEventListener("click", undoMeasureTap);
+  measureUi.close.addEventListener("click", closeMeasure);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !measureUi.host.hidden) closeMeasure();
+  });
 }
 
 function renderReview() {
@@ -946,6 +1209,34 @@ async function saveVoiceInstructions(csrf, requestId) {
   }
 }
 
+// Stores the measurements taken at review time against the rooms the server
+// actually created. Matched by room name like the corrections replay above, and
+// individually non-fatal for the same reason: a lost measurement is a wider
+// price band, never a lost booking.
+async function saveScanMeasurements(csrf, requestId, savedScan) {
+  if (!state.scanMeasurements.length || !savedScan?.rooms) return;
+  const scanIdFor = new Map(savedScan.rooms.map((room) => [roomKeyOf(room.roomName), room.roomScanId]));
+  const byRoom = new Map();
+  for (const entry of state.scanMeasurements) {
+    const roomScanId = scanIdFor.get(roomKeyOf(entry.roomName));
+    if (!roomScanId) continue;
+    if (!byRoom.has(roomScanId)) byRoom.set(roomScanId, []);
+    byRoom.get(roomScanId).push({
+      subject: entry.subject, method: entry.method, valueMm: entry.valueMm,
+      toleranceMm: entry.toleranceMm, confidence: entry.confidence, reference: entry.reference || ""
+    });
+  }
+  for (const [roomScanId, measurements] of byRoom) {
+    try {
+      await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/room-scan/rooms/${encodeURIComponent(roomScanId)}/measurements`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({ measurements })
+      });
+    } catch { /* one lost measurement set, not a lost booking */ }
+  }
+}
+
 async function saveStructuredScan(csrf, requestId) {
   const rooms = state.scanRooms
     .filter((room) => room && String(room.name || "").trim())
@@ -975,6 +1266,7 @@ async function saveStructuredScan(csrf, requestId) {
     // product with the answer.
     await replayScanCorrections(csrf, requestId, saved?.scan);
     await saveVoiceInstructions(csrf, requestId);
+    await saveScanMeasurements(csrf, requestId, saved?.scan);
     return true;
   } catch (error) {
     console.warn("[room-scan] the structured reading could not be saved", {
@@ -1207,6 +1499,7 @@ async function confirmJourney() {
     state.scanPhotos = [];
     state.scanRooms = [];
     state.scanCorrections = [];
+    state.scanMeasurements = [];
     state.scanReview = null;
     el.doneTitle.textContent = invitation.invited ? "Your Cleaner has been invited." : submitted ? "Your request is ready for matching." : "Your private draft is saved.";
     el.doneBody.textContent = invitation.reason || (submitted

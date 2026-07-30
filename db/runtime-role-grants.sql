@@ -70,6 +70,9 @@ GRANT EXECUTE ON FUNCTION tideway_private.list_scan_pricing_addons() TO tideway_
 GRANT EXECUTE ON FUNCTION tideway_private.upsert_scan_pricing_addon(text,text,integer,integer,boolean) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.set_scan_retention_policy(integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_scan_retention_policy() TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_scan_ground_truth(uuid,text,jsonb,boolean,text,boolean) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_scan_ground_truth_queue(integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.scan_ground_truth_report() TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_request_photo_object(uuid,uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.submit_cleaning_request(uuid,boolean,boolean) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.withdraw_cleaning_request(uuid,text) TO tideway_app;
@@ -186,6 +189,9 @@ REVOKE SELECT, INSERT, UPDATE, DELETE ON scan_estimate_observations FROM tideway
 -- quoted from and how long their scan is kept.
 REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaning_request_voice_instructions FROM tideway_app;
 REVOKE INSERT, UPDATE, DELETE ON scan_pricing_addons, scan_retention_policy FROM tideway_app;
+-- Reviewer verdicts about the inside of homes: function-only, like the scans
+-- they describe. The report function returns counts, never rows.
+REVOKE SELECT, INSERT, UPDATE, DELETE ON room_scan_ground_truth FROM tideway_app;
 REVOKE INSERT, UPDATE, DELETE ON room_scan_model_versions FROM tideway_app;
 
 COMMIT;

@@ -156,24 +156,34 @@ assert(throwsWith(() => normalizedRoomScan(scan({ capturedAt: "the other day" })
         { objectId: "1", label: "Hob", quantity: 1, condition: "heavy", soiling: ["grease"], confidenceLabel: 0.9, confidenceCondition: 0.8, conditionConfirmed: false, origin: "vision" },
         { objectId: "2", label: "Window", quantity: 2, condition: "", soiling: [], confidenceLabel: 0.8, confidenceCondition: 0, conditionConfirmed: false, origin: "detector" },
         { objectId: "3", label: "Tap", quantity: 1, condition: "light", soiling: [], confidenceLabel: 0.8, confidenceCondition: 0.2, conditionConfirmed: false, origin: "vision" },
-        { objectId: "4", label: "Sink", quantity: 1, condition: "medium", soiling: [], confidenceLabel: 0.8, confidenceCondition: 0.1, conditionConfirmed: true, origin: "manual" }
+        { objectId: "4", label: "Sink", quantity: 1, condition: "medium", soiling: [], confidenceLabel: 0.8, confidenceCondition: 0.1, conditionConfirmed: true, origin: "manual" },
+        // The asymmetric pair: "clean" at a confidence that would settle a
+        // soiled grade, and "clean" with clear evidence. A wrong clean hides
+        // work — nobody reviews a row that says there is nothing to do — so it
+        // carries the higher vocabulary threshold.
+        { objectId: "5", label: "Worktop", quantity: 1, condition: "clean", soiling: [], confidenceLabel: 0.9, confidenceCondition: 0.6, conditionConfirmed: false, origin: "vision" },
+        { objectId: "6", label: "Fridge", quantity: 1, condition: "clean", soiling: [], confidenceLabel: 0.9, confidenceCondition: 0.85, conditionConfirmed: false, origin: "vision" }
       ]
     }]
   });
 
   assert(projected.roomCount === 1, "The projection lost a room.");
   // Quantity, not row count: "3 × Chair" is three things to clean.
-  assert(projected.objectCount === 5, "The projection counted rows rather than objects.");
+  assert(projected.objectCount === 7, "The projection counted rows rather than objects.");
   assert(projected.session.model.modelId === "claude-haiku-4-5", "The projection dropped model attribution.");
 
-  const [hob, window, tap, sink] = projected.rooms[0].objects;
+  const [hob, window, tap, sink, worktop, fridge] = projected.rooms[0].objects;
   assert(hob.needsConfirmation === false, "A confidently graded object was flagged for confirmation.");
   assert(window.needsConfirmation === true, "An ungraded object was presented as a finding.");
   assert(tap.needsConfirmation === true, "A grade below the review threshold was presented as a finding.");
   // The customer has already looked at this one and said so; asking again is
   // noise, not honesty.
   assert(sink.needsConfirmation === false, "An object the customer confirmed was flagged for confirmation anyway.");
-  assert(projected.rooms[0].unresolvedCount === 2 && projected.unresolvedCount === 2,
+  // A middling-confidence "clean" is the one verdict a customer never rechecks
+  // unprompted — it must arrive as a question, not a finding.
+  assert(worktop.needsConfirmation === true, "A middling-confidence 'clean' was presented as settled — the exact verdict that hid a visibly dirty sink.");
+  assert(fridge.needsConfirmation === false, "A clearly evidenced clean was flagged, which would question every clean surface in a well-kept home.");
+  assert(projected.rooms[0].unresolvedCount === 3 && projected.unresolvedCount === 3,
     "The projection did not report how much of the scan is still asking a question.");
 }
 
@@ -305,6 +315,53 @@ assert(throwsWith(() => createScanService(null), "complete room-scan repository"
     "An empty measurement set was accepted.");
   assert(await rejects(() => service.recordOwnMeasurements(cleaner, "3c000000-0000-4000-8000-000000000001", { measurements: [] }), "Landlord account is required"),
     "A Cleaner recorded room measurements.");
+}
+
+// A typed figure without a band gets the standard user-confirmed one, not zero:
+// "about four metres" must never be stored looking like a laser reading.
+{
+  const capture = {};
+  const service = createScanService(repositoryStub(capture), {});
+  await service.recordOwnMeasurements(landlord, "3c000000-0000-4000-8000-000000000001", {
+    measurements: [{ subject: "room-length", method: "user-confirmed", valueMm: 4000 }]
+  });
+  const [typed] = capture.measurements.measurements;
+  assert(typed.toleranceMm === 200, `A typed figure with no band stored ±${typed.toleranceMm}mm instead of the standard 5%.`);
+}
+
+// A length and a width imply the floor area, derived once by the module that
+// owns the compounding-tolerance arithmetic — never asked of the customer and
+// never computed loosely by a client.
+{
+  const capture = {};
+  const service = createScanService(repositoryStub(capture), {});
+  const stored = await service.recordOwnMeasurements(landlord, "3c000000-0000-4000-8000-000000000001", {
+    measurements: [
+      { subject: "room-length", method: "user-confirmed", valueMm: 4000, toleranceMm: 200 },
+      { subject: "room-width", method: "user-confirmed", valueMm: 3000, toleranceMm: 150 }
+    ]
+  });
+  const area = capture.measurements.measurements.find((entry) => entry.subject === "floor-area");
+  assert(area, "Length and width did not derive the floor area.");
+  assert(area.method === "derived" && area.valueMm === 12_000_000, `The derived area was wrong: ${JSON.stringify(area)}`);
+  // Tolerances compound: two ±5% figures give a ±10% area, and the band must
+  // survive into storage rather than being rounded away.
+  assert(area.toleranceMm === 1_200_000, `The derived area lost its compounded band: ±${area.toleranceMm}`);
+  assert(stored.measurements.some((entry) => entry.subject === "floor-area" && entry.label.includes("m²")),
+    "The derived area was not projected with its square-metre label.");
+  // A floor area the customer supplied themselves is never overwritten by
+  // arithmetic.
+  const explicit = {};
+  const explicitService = createScanService(repositoryStub(explicit), {});
+  await explicitService.recordOwnMeasurements(landlord, "3c000000-0000-4000-8000-000000000001", {
+    measurements: [
+      { subject: "room-length", method: "user-confirmed", valueMm: 4000, toleranceMm: 200 },
+      { subject: "room-width", method: "user-confirmed", valueMm: 3000, toleranceMm: 150 },
+      { subject: "floor-area", method: "user-confirmed", valueMm: 11_000_000, toleranceMm: 500_000 }
+    ]
+  });
+  const kept = explicit.measurements.measurements.find((entry) => entry.subject === "floor-area");
+  assert(kept.valueMm === 11_000_000 && kept.method === "user-confirmed", "A customer-supplied floor area was replaced by the derived one.");
 }
 
 // A room with no measurements projects as an empty list, not as a room with

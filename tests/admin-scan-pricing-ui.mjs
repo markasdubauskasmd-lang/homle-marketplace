@@ -122,3 +122,28 @@ assert(script.includes("pricingChangeSummary"), "The pricing page publishes with
 assert(!/innerHTML\s*=/.test(script), "The pricing page assigns innerHTML.");
 
 console.log("Administrator scan-pricing UI checks passed.");
+
+/* ── The accuracy review surface on the operations page ── */
+
+const [operationsPage, operationsScript] = await Promise.all([
+  readFile(new URL("../public/admin-scan-operations.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/admin-scan-operations.js", import.meta.url), "utf8")
+]);
+
+// The queue, the report, and a verdict form per object.
+assert(operationsPage.includes("data-admin-truth-queue") && operationsPage.includes("data-admin-truth-report"),
+  "The operations page lost its accuracy-review section.");
+assert(operationsScript.includes("/api/marketplace/admin/scan-ground-truth"),
+  "The review section does not talk to the ground-truth endpoints.");
+// Consent is an attestation the reviewer makes deliberately — never pre-ticked.
+assert(/consentInput\.type = "checkbox";\s*\n\s*consent\.append/.test(operationsScript) && !/consentInput\.checked = true/.test(operationsScript),
+  "The training-consent attestation is pre-ticked, manufacturing consent by default.");
+// An empty report is the honest zero, and a small sample says so.
+assert(operationsScript.includes("That is different from it being good") && operationsScript.includes("anecdote, not accuracy"),
+  "The report presents an unmeasured or under-sampled accuracy as a clean bill of health.");
+// The false-clean rate — the dirty-sink number — is named on its own.
+assert(operationsScript.includes("falseCleanRate"), "The false-clean rate is not reported.");
+// Everything rendered with textContent; model output must never become markup.
+assert(!/innerHTML\s*=/.test(operationsScript), "The operations page assigns innerHTML.");
+
+console.log("Administrator scan-operations accuracy-review checks passed.");

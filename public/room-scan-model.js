@@ -1087,7 +1087,16 @@ export const keyframeDefaults = Object.freeze({
   minIntervalMs: 1200,
   // The bound on what one room can cost. Reached only by genuinely covering a
   // room from several angles; most rooms settle in two or three.
-  maxPerRoom: 4
+  maxPerRoom: 4,
+  // The detail floor for SPENDING a read, above the 4.5 at which the guidance
+  // pass starts telling the Landlord the frame is soft. The nag threshold and
+  // the spend threshold are different decisions: a frame at detail 5 is worth
+  // correcting, not worth paying to grade — fine soiling texture (residue film,
+  // limescale speckle) is the first thing marginal sharpness destroys, and a
+  // model shown a soft sink says "clean" because the evidence is gone. Refusing
+  // costs nothing: no budget or signature is consumed, so the same view is read
+  // the moment it sharpens.
+  minimumDetail: 5.5
 });
 
 // Progress is evidence-based: one step means one distinct, settled,
@@ -1196,10 +1205,15 @@ export function signatureDistance(first, second) {
 export function shouldCaptureKeyframe({
   signature, previousSignature, lastReadSignature,
   now = 0, lastCaptureAt = 0, capturedCount = 0, busy = false,
-  qualityKind = "", online = true
+  qualityKind = "", online = true, detail = null
 } = {}, options = {}) {
-  const { sceneChangeThreshold, stillnessThreshold, minIntervalMs, maxPerRoom } = { ...keyframeDefaults, ...options };
+  const { sceneChangeThreshold, stillnessThreshold, minIntervalMs, maxPerRoom, minimumDetail } = { ...keyframeDefaults, ...options };
   if (busy || !Array.isArray(signature)) return false;
+  // The measured sharpness of the frame about to be spent. Only a KNOWN-soft
+  // frame is refused — `null` (no quality sample in this host) keeps today's
+  // behaviour, because refusing to read anything on a device whose quality pass
+  // fails would silently disable the walking scan there.
+  if (Number.isFinite(detail) && detail < minimumDetail) return false;
   // `navigator.onLine === false` is a strong signal that no request can leave
   // the phone. Do not reserve a frame, signature or paid-read slot while that is
   // true. The same settled view becomes eligible as soon as connectivity returns.
@@ -1699,15 +1713,31 @@ export function objectFramingAdvice(tracks, { maximumTinyAreaRatio = 0.015, mini
   return Object.freeze({ kind: "distance", message: "Move closer for better condition detail." });
 }
 
+// Mirrors the server vocabulary (room-condition-vocabulary.mjs) — public/ cannot
+// import from src/, so the two copies must be changed together.
+//
+// "clean" carries a deliberately higher bar than the soiled grades. The two
+// errors are not symmetric: a "medium" shown to the customer gets looked at and
+// can be removed in a tap, but a wrong "clean" HIDES work — nobody reviews a row
+// that says there is nothing to do, and the job is quietly under-scoped. This is
+// exactly how a visibly dirty sink shipped as "Sink CLEAN": graded clean at
+// middling confidence from a walking frame, and displayed as settled.
+export const conditionReviewThreshold = 0.5;
+export const cleanConditionReviewThreshold = 0.7;
+
 // A recognised object without a cleaning grade is not a finished result. Keep
 // this separate from label confidence: a high-confidence "Tap" can still have no
 // usable evidence about limescale.
-function conditionNeedsReview(item) {
+export function conditionNeedsReview(item) {
   const condition = String(item?.condition || "").toLowerCase().trim();
   if (!["clean", "light", "medium", "heavy"].includes(condition)) return true;
   if (item?.conditionConfirmed === true) return false;
   const confidence = conditionEvidenceConfidence(item);
-  return confidence !== null && confidence >= 0 && confidence < 0.5;
+  // A grade carrying no confidence at all is not settled evidence. Treating it
+  // as settled (the old `confidence !== null &&` guard) let an unscored machine
+  // verdict skip review entirely.
+  if (confidence === null) return true;
+  return confidence < (condition === "clean" ? cleanConditionReviewThreshold : conditionReviewThreshold);
 }
 
 export function conditionReviewAdvice(items) {
@@ -1717,6 +1747,48 @@ export function conditionReviewAdvice(items) {
     ? "Condition unclear — move closer or tap the item to confirm."
     : `${unresolved.length} item conditions unclear — move closer or tap an item to confirm.`;
   return Object.freeze({ kind: "condition", count: unresolved.length, message });
+}
+
+/* ── The recommended cleaning action ─────────────────────────────────────── */
+
+// DETERMINISTIC, deliberately. The model reports what it saw — the soiling and
+// the grade — and this table turns that into the action. Asking the model to
+// also write the recommendation would make generative output the authority on
+// what a customer is told will be done, which is the line the pricing work drew
+// and this feature keeps: the model observes, owned rules decide.
+//
+// Ordered by which kind should pick the verb when several are present: the ones
+// needing a specific treatment outrank the ones a general clean covers anyway.
+const soilingActions = Object.freeze([
+  ["mould", (label) => `Treat the mould on the ${label}`],
+  ["limescale", (label) => `Descale the ${label}`],
+  ["grease", (label) => `Degrease the ${label}`],
+  ["soap-scum", (label) => `Remove the soap scum from the ${label}`],
+  ["food-debris", (label) => `Clear and wash the ${label}`],
+  ["stain", (label) => `Spot-clean the ${label}`],
+  ["pet-hair", (label) => `Remove the pet hair from the ${label}`],
+  ["clutter", (label) => `Tidy and wipe the ${label}`],
+  ["dust", (label) => `Dust and wipe the ${label}`]
+]);
+
+export function recommendedAction(item) {
+  const label = String(item?.label || "").trim().toLowerCase();
+  const condition = String(item?.condition || "").toLowerCase().trim();
+  if (!label) return "";
+  // No grade, or clean: nothing to recommend. An action invented for an
+  // unassessed item would be a task the photograph never justified — and an
+  // uncertain item is asked about, not scheduled.
+  if (!condition || condition === "clean") return "";
+  const kinds = new Set((Array.isArray(item?.soiling) ? item.soiling : []).map((kind) => String(kind || "").toLowerCase().trim()));
+  // Damage is the one kind that is not a cleaning action at all.
+  if (kinds.size === 1 && kinds.has("damage")) return `Check the damage to the ${label} — not cleanable, note it for the report`;
+  const action = soilingActions.find(([kind]) => kinds.has(kind));
+  const base = action ? action[1](label)
+    : condition === "heavy" ? `Deep-clean the ${label}`
+    : condition === "medium" ? `Give the ${label} a thorough clean`
+    : `Wipe down the ${label}`;
+  // Heavy build-up changes how the named action is done, whatever the kind.
+  return condition === "heavy" && action ? `${base} — heavy build-up, allow soaking time` : base;
 }
 
 /* ── Camera movement versus a room that moves by itself ─────────────────── */
