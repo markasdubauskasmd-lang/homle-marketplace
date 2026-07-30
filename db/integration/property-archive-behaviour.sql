@@ -19,10 +19,11 @@ INSERT INTO cleaning_requests (
 
 INSERT INTO bookings (
   id,landlord_user_id,cleaner_user_id,property_id,status,scheduled_start_at,
-  scheduled_end_at,customer_price_pence,cleaner_pay_pence,confirmed_at
+  scheduled_end_at,customer_price_pence,cleaner_pay_pence,invited_at,
+  cleaner_response_deadline,scope_fingerprint,terms_fingerprint,scope_snapshot,confirmed_at
 ) VALUES
-  ('41000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','21000000-0000-4000-8000-000000000003','confirmed',now()+interval '8 days',now()+interval '8 days 2 hours',10000,7000,now()),
-  ('41000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','21000000-0000-4000-8000-000000000004','completed',now()-interval '8 days',now()-interval '8 days'+interval '2 hours',10000,7000,now()-interval '9 days');
+  ('41000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','21000000-0000-4000-8000-000000000003','confirmed',now()+interval '8 days',now()+interval '8 days 2 hours',10000,7000,now(),now()+interval '1 day',repeat('e',64),repeat('f',64),'{}'::jsonb,now()),
+  ('41000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','21000000-0000-4000-8000-000000000004','completed',now()-interval '8 days',now()-interval '8 days'+interval '2 hours',10000,7000,now()-interval '10 days',now()-interval '9 days',repeat('1',64),repeat('2',64),'{}'::jsonb,now()-interval '9 days');
 
 SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000002',true);
 SELECT set_config('app.user_roles','cleaner',true);
