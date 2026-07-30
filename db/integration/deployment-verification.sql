@@ -32,6 +32,7 @@ DECLARE
   account_notification_realtime_installed boolean := false;
   structured_room_scans_installed boolean := false;
   room_measurements_installed boolean := false;
+  landlord_support_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables constant text[] := ARRAY[
@@ -39,15 +40,15 @@ DECLARE
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
     'cleaning_requests','cleaning_request_tasks','cleaning_request_photos','cleaning_request_photo_uploads','cleaning_request_status_history','bookings','booking_status_history',
     'cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events','job_photos','job_photo_uploads',
-    'cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','favourite_cleaners','disputes','privacy_requests','audit_logs',
+    'cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','favourite_cleaners','disputes','privacy_requests','support_requests','audit_logs',
     'booking_payments','payment_commands','payment_status_history'
   ];
   protected_write_tables constant text[] := ARRAY[
     'authentication_identities','bookings','booking_status_history','cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events',
-    'cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','disputes','privacy_requests','audit_logs',
+    'cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','disputes','privacy_requests','support_requests','audit_logs',
     'booking_payments','payment_commands','payment_status_history'
   ];
-  protected_read_tables constant text[] := ARRAY['authentication_identities','cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','disputes','privacy_requests','booking_payments','payment_commands','payment_status_history'];
+  protected_read_tables constant text[] := ARRAY['authentication_identities','cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','disputes','privacy_requests','support_requests','booking_payments','payment_commands','payment_status_history'];
   app_functions constant text[] := ARRAY[
     'tideway_private.lookup_session(bytea)',
     'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
@@ -86,6 +87,10 @@ DECLARE
     'tideway_private.get_booking_dispute(uuid)',
     'tideway_private.list_admin_booking_disputes(text,integer,integer)',
     'tideway_private.review_booking_dispute(uuid,text,text,text)',
+    'tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)',
+    'tideway_private.list_my_landlord_support_requests(integer,integer)',
+    'tideway_private.list_administrator_support_requests(text,text,integer,integer)',
+    'tideway_private.review_landlord_support_request(uuid,text,text)',
     'tideway_private.request_my_privacy_action(uuid,text)',
     'tideway_private.get_my_privacy_requests()',
     'tideway_private.request_facebook_data_deletion(uuid,text,bytea,bytea)',
@@ -229,6 +234,8 @@ BEGIN
       INTO structured_room_scans_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 74)'
       INTO room_measurements_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 80)'
+      INTO landlord_support_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -254,6 +261,7 @@ BEGIN
     account_notification_realtime_installed := to_regprocedure('tideway_private.emit_account_notification_realtime_event()') IS NOT NULL;
     structured_room_scans_installed := to_regclass('public.room_scan_sessions') IS NOT NULL;
     room_measurements_installed := to_regclass('public.room_scan_measurements') IS NOT NULL;
+    landlord_support_installed := to_regprocedure('tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
@@ -942,7 +950,7 @@ SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 40,
-  'appFunctionChecks', 48,
+  'appFunctionChecks', 52,
   'workerFunctionChecks', 14
 ) AS tideway_deployment_verification;
 

@@ -13,7 +13,7 @@ const requiredFiles = [
   "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-claim-a.sql", "automatic-dispatch-claim-b.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-invite-b.sql", "automatic-dispatch-first-invite-core.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql",
   "accept-booking-a.sql", "accept-booking-b.sql", "marketplace-post-concurrency.sql",
   "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql",
-  "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql",
+  "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "landlord-support-behaviour.sql",
   "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
 ];
 const sources = new Map();
@@ -128,6 +128,10 @@ assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Runtime role can
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Unrelated account opened a booking dispute/);
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Administrator dispute queue lost its safe case projection/);
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Post-completion dispute erased the recorded visit completion evidence/);
+assert.match(sources.get("landlord-support-behaviour.sql"), /A Cleaner opened a Landlord support request/);
+assert.match(sources.get("landlord-support-behaviour.sql"), /An unrelated Landlord read another account support request/);
+assert.match(sources.get("landlord-support-behaviour.sql"), /Administrator support queue lost its minimum-data projection/);
+assert.match(sources.get("landlord-support-behaviour.sql"), /A Landlord stored a property access code in support/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Journey started without a payment authorization/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Stale payment authorization unlocked the journey transition/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Current payment authorization did not unlock journey start/);
@@ -192,10 +196,10 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, landlordSupport: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "public-cleaner-profile-behaviour.sql", "cleaner-verification-queue-pagination.sql",
-  "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "structured-room-scan-behaviour.sql", "scan-pricing-ruleset-behaviour.sql", "scan-estimate-shadow-behaviour.sql", "scan-retention-voice-addon-behaviour.sql", "scan-ground-truth-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
+  "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "structured-room-scan-behaviour.sql", "scan-pricing-ruleset-behaviour.sql", "scan-estimate-shadow-behaviour.sql", "scan-retention-voice-addon-behaviour.sql", "scan-ground-truth-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "landlord-support-behaviour.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);
 for (const call of calls) {

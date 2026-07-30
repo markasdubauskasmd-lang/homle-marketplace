@@ -56,6 +56,8 @@ import { createReviewRepository } from "./review-repository.mjs";
 import { createReviewService } from "./review-service.mjs";
 import { createDisputeRepository } from "./dispute-repository.mjs";
 import { createDisputeService } from "./dispute-service.mjs";
+import { createSupportRequestRepository } from "./support-request-repository.mjs";
+import { createSupportRequestService } from "./support-request-service.mjs";
 import { createPrivacyRequestRepository } from "./privacy-request-repository.mjs";
 import { createPrivacyRequestService } from "./privacy-request-service.mjs";
 import { createStagingAccountAccess } from "./staging-account-access.mjs";
@@ -194,13 +196,15 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const reviewService = createReviewService(reviewRepository);
   const disputeRepository = createDisputeRepository(database);
   const disputeService = createDisputeService(disputeRepository);
+  const supportRequestRepository = createSupportRequestRepository(database);
+  const supportRequestService = createSupportRequestService(supportRequestRepository);
   const administratorBookingRepository = createAdministratorBookingRepository(database);
   const administratorBookingService = createAdministratorBookingService(administratorBookingRepository);
   const administratorVerificationRepository = createAdministratorVerificationRepository(database);
   const administratorVerificationService = createAdministratorVerificationService(administratorVerificationRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
   const authenticationRouter = options.emailDelivery || googleOidcProvider || appleSignInProvider
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, appleSignInProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: true })
@@ -272,6 +276,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     reviewService,
     disputeRepository,
     disputeService,
+    supportRequestRepository,
+    supportRequestService,
     administratorBookingRepository,
     administratorBookingService,
     administratorVerificationService,

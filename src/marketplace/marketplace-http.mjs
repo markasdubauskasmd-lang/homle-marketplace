@@ -59,6 +59,7 @@ const adminCleanerVerificationPath = new RegExp(`^/api/marketplace/admin/cleaner
 const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
 const bookingDisputePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/dispute$`);
 const adminDisputePath = new RegExp(`^/api/marketplace/admin/disputes/(${uuidPattern})$`);
+const adminSupportRequestPath = new RegExp(`^/api/marketplace/admin/support-requests/(${uuidPattern})$`);
 const apiPrefix = "/api/marketplace/";
 
 function queryFilters(url) {
@@ -121,6 +122,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const notifications = dependencies?.notificationService;
   const reviews = dependencies?.reviewService;
   const disputes = dependencies?.disputeService;
+  const supportRequests = dependencies?.supportRequestService;
   const administratorBookings = dependencies?.administratorBookingService;
   const administratorVerification = dependencies?.administratorVerificationService;
   const privacyRequests = dependencies?.privacyRequestService;
@@ -143,6 +145,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
   if (!disputes || !["open", "getForBooking", "listForAdministrator", "review"].every((method) => typeof disputes[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-case service.");
+  if (!supportRequests || !["create", "listOwn", "listForAdministrator", "review"].every((method) => typeof supportRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the Landlord support-request service.");
   if (!administratorBookings || typeof administratorBookings.list !== "function") throw new TypeError("Marketplace HTTP routes require the Administrator booking operations service.");
   if (!privacyRequests || !["list", "request"].every((method) => typeof privacyRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account privacy-request service.");
   if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration", "listForAdministrator", "capture", "cancel", "refund", "transfer"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
@@ -278,6 +281,36 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             ? await privacyRequests.request(context.actor, await readJsonObject(request))
             : await privacyRequests.list(context.actor);
           sendJson(response, mutation && result.created === true ? 201 : 200, { ok: true, ...(mutation ? { privacyRequest: result } : { privacyRequests: result }) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/landlord/support-requests") {
+          if (request.method !== "GET" && request.method !== "POST") return methodNotAllowed(response, ["GET", "POST"]), true;
+          const mutation = request.method === "POST";
+          const context = await security.protect(request, { mutation, roles: ["landlord"] });
+          const result = mutation
+            ? await supportRequests.create(context.actor, await readJsonObject(request))
+            : await supportRequests.listOwn(context.actor, { limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
+          sendJson(response, mutation ? 201 : 200, { ok: true, ...(mutation ? { supportRequest: result } : result) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/support-requests") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const result = await supportRequests.listForAdministrator(context.actor, {
+            status: url.searchParams.get("status"),
+            category: url.searchParams.get("category"),
+            limit: url.searchParams.get("limit"),
+            offset: url.searchParams.get("offset")
+          });
+          sendJson(response, 200, { ok: true, ...result });
+          return true;
+        }
+        const selectedAdminSupportRequest = pathname.match(adminSupportRequestPath);
+        if (selectedAdminSupportRequest) {
+          if (request.method !== "PATCH") return methodNotAllowed(response, ["PATCH"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const supportRequest = await supportRequests.review(context.actor, selectedAdminSupportRequest[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, supportRequest });
           return true;
         }
         if (pathname === "/api/marketplace/bookings") {

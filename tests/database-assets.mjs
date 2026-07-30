@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 79);
-  assert.equal(repositoryResult.migrations.at(-1), "079_scan_ground_truth.sql");
+  assert.equal(repositoryResult.migrations.length, 80);
+  assert.equal(repositoryResult.migrations.at(-1), "080_landlord_support_requests.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
@@ -90,6 +90,8 @@ try {
   }
   assert(deploymentVerifier.includes("one structured scan, so a retried save can duplicate every room"), "Migration-73 verification must prove a cleaning request cannot carry two structured scans.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 74\)'/, "Deployment verification must detect the room-measurement migration dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 80\)'/, "Deployment verification must detect private Landlord support dynamically.");
+  assert(deploymentVerifier.includes("create_landlord_support_request(uuid,uuid,text,text,text)") && deploymentVerifier.includes("review_landlord_support_request(uuid,text,text)") && deploymentVerifier.includes("'support_requests'"), "Deployment verification must prove the private support table and role-isolated functions are installed.");
   // Under the web-only decision nothing a browser produces is exact. A stored
   // measurement with no band would read as exact for ever after.
   assert(deploymentVerifier.includes("room_scan_measurements_estimate_has_band"), "Migration-74 verification must prove an estimated measurement cannot be stored looking exact.");

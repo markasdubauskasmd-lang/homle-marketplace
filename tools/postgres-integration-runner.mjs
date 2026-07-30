@@ -46,6 +46,7 @@ const scripts = Object.freeze({
   participantLifecycle: "participant-lifecycle-rehearsal.sql",
   disputeSetup: "marketplace-dispute-setup.sql",
   disputeBehaviour: "marketplace-dispute-behaviour.sql",
+  landlordSupport: "landlord-support-behaviour.sql",
   paymentGate: "marketplace-payment-gate.sql",
   paymentOrdering: "marketplace-payment-ordering.sql",
   verify: "marketplace-integration-verify.sql",
@@ -289,11 +290,12 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     if (!Array.isArray(realtimeProof.accountSignals) || realtimeProof.accountSignals.length < 1 || realtimeProof.accountSignals.some((signal) => !uuidPattern.test(signal?.accountId || "") || !uuidPattern.test(signal?.notificationId || ""))) throw new Error("The participant lifecycle did not produce a privacy-minimal committed account notification signal.");
     runPsqlSync({ label: "Dispute fixture setup", file: scripts.disputeSetup, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Dispute workflow test", file: scripts.disputeBehaviour, environment: appEnvironment, command, execute });
+    runPsqlSync({ label: "Landlord support privacy test", file: scripts.landlordSupport, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Payment reconciliation ordering test", file: scripts.paymentOrdering, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, landlordSupport: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {
