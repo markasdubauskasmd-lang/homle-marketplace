@@ -35,21 +35,21 @@ DECLARE
   landlord_support_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
-  rls_tables constant text[] := ARRAY[
+  rls_tables text[] := ARRAY[
     'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
     'cleaning_requests','cleaning_request_tasks','cleaning_request_photos','cleaning_request_photo_uploads','cleaning_request_status_history','bookings','booking_status_history',
     'cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events','job_photos','job_photo_uploads',
-    'cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','favourite_cleaners','disputes','privacy_requests','support_requests','audit_logs',
+    'cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','favourite_cleaners','disputes','privacy_requests','audit_logs',
     'booking_payments','payment_commands','payment_status_history'
   ];
-  protected_write_tables constant text[] := ARRAY[
+  protected_write_tables text[] := ARRAY[
     'authentication_identities','bookings','booking_status_history','cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events',
-    'cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','disputes','privacy_requests','support_requests','audit_logs',
+    'cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','disputes','privacy_requests','audit_logs',
     'booking_payments','payment_commands','payment_status_history'
   ];
-  protected_read_tables constant text[] := ARRAY['authentication_identities','cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','disputes','privacy_requests','support_requests','booking_payments','payment_commands','payment_status_history'];
-  app_functions constant text[] := ARRAY[
+  protected_read_tables text[] := ARRAY['authentication_identities','cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','disputes','privacy_requests','booking_payments','payment_commands','payment_status_history'];
+  app_functions text[] := ARRAY[
     'tideway_private.lookup_session(bytea)',
     'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
     'tideway_private.search_cleaner_directory(text,text,timestamp with time zone,timestamp with time zone,numeric,integer,boolean,numeric,numeric,numeric,integer,integer)',
@@ -87,10 +87,6 @@ DECLARE
     'tideway_private.get_booking_dispute(uuid)',
     'tideway_private.list_admin_booking_disputes(text,integer,integer)',
     'tideway_private.review_booking_dispute(uuid,text,text,text)',
-    'tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)',
-    'tideway_private.list_my_landlord_support_requests(integer,integer)',
-    'tideway_private.list_administrator_support_requests(text,text,integer,integer)',
-    'tideway_private.review_landlord_support_request(uuid,text,text)',
     'tideway_private.request_my_privacy_action(uuid,text)',
     'tideway_private.get_my_privacy_requests()',
     'tideway_private.request_facebook_data_deletion(uuid,text,bytea,bytea)',
@@ -306,6 +302,23 @@ BEGIN
     bookings_cleaning_request_index_installed := to_regclass('public.bookings_cleaning_request_idx') IS NOT NULL;
     payment_and_directory_indexes_installed := to_regclass('public.payment_commands_latest_by_kind_idx') IS NOT NULL
       AND to_regclass('public.cleaner_profiles_public_directory_idx') IS NOT NULL;
+  END IF;
+
+  -- This verifier runs both before and after pending migrations. Requiring
+  -- migration-80 objects before the bootstrapper can apply migration 080
+  -- deadlocks the upgrade. Once the ledger (or a ledger-free object probe)
+  -- proves the feature is installed, every table, privilege and function
+  -- boundary below becomes mandatory.
+  IF landlord_support_installed THEN
+    rls_tables := rls_tables || ARRAY['support_requests'];
+    protected_write_tables := protected_write_tables || ARRAY['support_requests'];
+    protected_read_tables := protected_read_tables || ARRAY['support_requests'];
+    app_functions := app_functions || ARRAY[
+      'tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)',
+      'tideway_private.list_my_landlord_support_requests(integer,integer)',
+      'tideway_private.list_administrator_support_requests(text,text,integer,integer)',
+      'tideway_private.review_landlord_support_request(uuid,text,text)'
+    ];
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -949,8 +962,8 @@ $verification$;
 SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
-  'rlsTableCount', 40,
-  'appFunctionChecks', 52,
+  'rlsTableCount', 39 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 1 END,
+  'appFunctionChecks', 48 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END,
   'workerFunctionChecks', 14
 ) AS tideway_deployment_verification;
 

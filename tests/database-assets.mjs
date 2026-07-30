@@ -92,6 +92,10 @@ try {
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 74\)'/, "Deployment verification must detect the room-measurement migration dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 80\)'/, "Deployment verification must detect private Landlord support dynamically.");
   assert(deploymentVerifier.includes("create_landlord_support_request(uuid,uuid,text,text,text)") && deploymentVerifier.includes("review_landlord_support_request(uuid,text,text)") && deploymentVerifier.includes("'support_requests'"), "Deployment verification must prove the private support table and role-isolated functions are installed.");
+  assert(deploymentVerifier.includes("IF landlord_support_installed THEN")
+    && deploymentVerifier.includes("rls_tables := rls_tables || ARRAY['support_requests']")
+    && deploymentVerifier.includes("app_functions := app_functions || ARRAY["),
+  "Pre-upgrade verification must not require migration-80 objects until migration 080 is installed.");
   // Under the web-only decision nothing a browser produces is exact. A stored
   // measurement with no band would read as exact for ever after.
   assert(deploymentVerifier.includes("room_scan_measurements_estimate_has_band"), "Migration-74 verification must prove an estimated measurement cannot be stored looking exact.");
@@ -131,12 +135,14 @@ try {
   assert.match(onboardingRepair, /ON CONFLICT ON CONSTRAINT cleaner_profiles_pkey DO NOTHING/, "Cleaner onboarding must name its conflict constraint explicitly.");
   assert.match(onboardingRepair, /ON CONFLICT ON CONSTRAINT landlord_profiles_pkey DO NOTHING/, "Landlord onboarding must name its conflict constraint explicitly.");
   assert.doesNotMatch(deploymentVerifier, /to_regclass\('tideway_private\.schema_migrations'\) IS NOT NULL\s+AND EXISTS/, "Pre-upgrade verification statically referenced a ledger that may not exist yet.");
-  const appBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("app_functions constant"), deploymentVerifier.indexOf("worker_functions constant"));
+  const appBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("app_functions text[]"), deploymentVerifier.indexOf("worker_functions constant"));
   const workerBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("worker_functions constant"), deploymentVerifier.indexOf("BEGIN", deploymentVerifier.indexOf("worker_functions constant")));
-  const advertisedAppChecks = Number(deploymentVerifier.match(/'appFunctionChecks',\s*(\d+)/)?.[1]);
   const advertisedWorkerChecks = Number(deploymentVerifier.match(/'workerFunctionChecks',\s*(\d+)/)?.[1]);
   assert.doesNotMatch(workerBlock, /get_automatic_dispatch_candidates\(uuid,uuid,integer,boolean\)/, "Pre-upgrade verification required migration 68's paid-dispatch function before the locked migration could be applied.");
-  assert.equal(advertisedAppChecks, [...appBlock.matchAll(/'tideway_private\./g)].length + 3, "deployment report must count core functions plus the migration-aware invitation, migration-48 workspace and paid direct-invitation checks");
+  assert.equal(48, [...appBlock.matchAll(/'tideway_private\./g)].length + 3, "deployment report must count core functions plus the migration-aware invitation, migration-48 workspace and paid direct-invitation checks");
+  assert(deploymentVerifier.includes("'appFunctionChecks', 48 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END")
+    && deploymentVerifier.includes("'rlsTableCount', 39 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 1 END"),
+  "deployment report must distinguish the verified pre-upgrade schema from the verified migration-80 schema");
   assert.equal(advertisedWorkerChecks, [...workerBlock.matchAll(/'tideway_private\./g)].length + 1, "deployment report must count core worker functions plus the migration-aware automatic-dispatch function");
 
   await freshFixture();
