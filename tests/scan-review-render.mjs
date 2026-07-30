@@ -54,6 +54,20 @@ assert(money(2800) === "£28.00" && money(0) === "£0.00" && money("x") === "", 
   assert(many.displayLabel === "4 × chair" && many.quantity === 4, "A grouped quantity was lost.");
 }
 
+/* ── The recommendation is owned, and only follows a settled finding ───── */
+
+// "Descale the tap" answers "what will be done about it". It comes from the
+// deterministic mapping — never from model output — and never accompanies a
+// verdict the review is still asking the customer to confirm.
+{
+  const limescaled = objectSummary(object("tap", "medium", { soiling: ["limescale"], evidence: "white deposits at the base" }));
+  assert(limescaled.recommendation === "Descale the tap", `The finding produced "${limescaled.recommendation}" instead of the action a cleaner would take.`);
+  const unsure = objectSummary(object("tap", "medium", { soiling: ["limescale"], needsConfirmation: true }));
+  assert(unsure.recommendation === "", "An unconfirmed finding carried a recommendation, scheduling work the scan is not sure exists.");
+  const clean = objectSummary(object("fridge", "clean"));
+  assert(clean.recommendation === "", "A clean object carried a cleaning recommendation.");
+}
+
 // Only what a person can sensibly answer about their own home is editable.
 {
   const editable = objectSummary(object("hob", "light")).editable;

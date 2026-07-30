@@ -6,6 +6,8 @@
 // check what the scan got wrong, and every decision here is about not
 // overstating what we know.
 
+import { recommendedAction } from "./room-scan-model.js";
+
 const conditionWords = Object.freeze({
   clean: "looks clean", light: "light", medium: "needs proper attention", heavy: "heavily soiled"
 });
@@ -75,6 +77,11 @@ export function objectSummary(object) {
     // Named soiling, then the evidence. "Limescale — white deposits around the
     // tap base" is checkable against the actual tap; "medium" is not.
     detail: [kinds.join(", "), String(object?.evidence || "").trim()].filter(Boolean).join(" — "),
+    // The action that follows from the finding — "Descale the tap" — from the
+    // owned deterministic mapping, never from generative output. Empty for
+    // clean, unassessed and needs-confirmation objects: a recommendation for
+    // work the scan is not sure exists would schedule a guess.
+    recommendation: object?.needsConfirmation === true ? "" : recommendedAction(object),
     needsConfirmation: object?.needsConfirmation === true,
     // Only what a person can sensibly answer about their own home. Confidence,
     // origin and identity keys are not offered for editing.

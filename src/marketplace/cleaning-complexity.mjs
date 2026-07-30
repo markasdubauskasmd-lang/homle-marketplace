@@ -1,4 +1,4 @@
-import { conditionReviewThreshold, soilingKinds } from "./room-condition-vocabulary.mjs";
+import { cleanConditionReviewThreshold, conditionReviewThreshold, soilingKinds } from "./room-condition-vocabulary.mjs";
 
 // Cleaning complexity, derived from what the scan actually recorded.
 //
@@ -138,9 +138,12 @@ function objectLoad(object) {
     // A grade nobody has checked and the model was unsure about is exactly what
     // must not silently become a level. It still contributes its load — hiding
     // it would understate the job — but it is counted as unresolved so the
-    // assessment reports how much of itself rests on it.
+    // assessment reports how much of itself rests on it. "clean" is held to the
+    // higher vocabulary threshold: an uncertain clean contributes NO load, so
+    // it is the one verdict whose error only ever understates the level.
     unresolved: object?.conditionConfirmed !== true
-      && (!condition || number(object?.confidenceCondition) < conditionReviewThreshold)
+      && (!condition
+        || number(object?.confidenceCondition) < (condition === "clean" ? cleanConditionReviewThreshold : conditionReviewThreshold))
   };
 }
 

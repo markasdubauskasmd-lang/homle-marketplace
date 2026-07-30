@@ -156,24 +156,34 @@ assert(throwsWith(() => normalizedRoomScan(scan({ capturedAt: "the other day" })
         { objectId: "1", label: "Hob", quantity: 1, condition: "heavy", soiling: ["grease"], confidenceLabel: 0.9, confidenceCondition: 0.8, conditionConfirmed: false, origin: "vision" },
         { objectId: "2", label: "Window", quantity: 2, condition: "", soiling: [], confidenceLabel: 0.8, confidenceCondition: 0, conditionConfirmed: false, origin: "detector" },
         { objectId: "3", label: "Tap", quantity: 1, condition: "light", soiling: [], confidenceLabel: 0.8, confidenceCondition: 0.2, conditionConfirmed: false, origin: "vision" },
-        { objectId: "4", label: "Sink", quantity: 1, condition: "medium", soiling: [], confidenceLabel: 0.8, confidenceCondition: 0.1, conditionConfirmed: true, origin: "manual" }
+        { objectId: "4", label: "Sink", quantity: 1, condition: "medium", soiling: [], confidenceLabel: 0.8, confidenceCondition: 0.1, conditionConfirmed: true, origin: "manual" },
+        // The asymmetric pair: "clean" at a confidence that would settle a
+        // soiled grade, and "clean" with clear evidence. A wrong clean hides
+        // work — nobody reviews a row that says there is nothing to do — so it
+        // carries the higher vocabulary threshold.
+        { objectId: "5", label: "Worktop", quantity: 1, condition: "clean", soiling: [], confidenceLabel: 0.9, confidenceCondition: 0.6, conditionConfirmed: false, origin: "vision" },
+        { objectId: "6", label: "Fridge", quantity: 1, condition: "clean", soiling: [], confidenceLabel: 0.9, confidenceCondition: 0.85, conditionConfirmed: false, origin: "vision" }
       ]
     }]
   });
 
   assert(projected.roomCount === 1, "The projection lost a room.");
   // Quantity, not row count: "3 × Chair" is three things to clean.
-  assert(projected.objectCount === 5, "The projection counted rows rather than objects.");
+  assert(projected.objectCount === 7, "The projection counted rows rather than objects.");
   assert(projected.session.model.modelId === "claude-haiku-4-5", "The projection dropped model attribution.");
 
-  const [hob, window, tap, sink] = projected.rooms[0].objects;
+  const [hob, window, tap, sink, worktop, fridge] = projected.rooms[0].objects;
   assert(hob.needsConfirmation === false, "A confidently graded object was flagged for confirmation.");
   assert(window.needsConfirmation === true, "An ungraded object was presented as a finding.");
   assert(tap.needsConfirmation === true, "A grade below the review threshold was presented as a finding.");
   // The customer has already looked at this one and said so; asking again is
   // noise, not honesty.
   assert(sink.needsConfirmation === false, "An object the customer confirmed was flagged for confirmation anyway.");
-  assert(projected.rooms[0].unresolvedCount === 2 && projected.unresolvedCount === 2,
+  // A middling-confidence "clean" is the one verdict a customer never rechecks
+  // unprompted — it must arrive as a question, not a finding.
+  assert(worktop.needsConfirmation === true, "A middling-confidence 'clean' was presented as settled — the exact verdict that hid a visibly dirty sink.");
+  assert(fridge.needsConfirmation === false, "A clearly evidenced clean was flagged, which would question every clean surface in a well-kept home.");
+  assert(projected.rooms[0].unresolvedCount === 3 && projected.unresolvedCount === 3,
     "The projection did not report how much of the scan is still asking a question.");
 }
 

@@ -774,6 +774,10 @@ function objectControls(roomName, object) {
   head.append(textNode("b", "", object.displayLabel), textNode("span", "scan-review-state", object.state));
   row.append(head);
   if (object.detail) row.append(textNode("p", "scan-review-detail", object.detail));
+  // The action the finding leads to — "Descale the tap" — so the review answers
+  // "what will be done about it", not only "what was seen". Comes from the
+  // deterministic mapping in scan-review-render, never from the model.
+  if (object.recommendation) row.append(textNode("p", "scan-review-action", object.recommendation));
 
   const actions = textNode("div", "scan-review-object-actions");
 

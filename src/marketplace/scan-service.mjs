@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { uuid } from "./validation.mjs";
 import {
-  conditionReviewThreshold, isItemCondition, isRoomCondition, isSoilingKind, objectOrigins
+  cleanConditionReviewThreshold, conditionReviewThreshold, isItemCondition, isRoomCondition, isSoilingKind, objectOrigins
 } from "./room-condition-vocabulary.mjs";
 import { assessCleaningComplexity } from "./cleaning-complexity.mjs";
 import { measurementLabel, normalizedMeasurements } from "./room-measurement.mjs";
@@ -178,7 +178,11 @@ function objectProjection(record) {
     // correct is useful; the same grade presented as a finding is what changes
     // what someone is charged on evidence nobody checked. A grade the customer
     // has already confirmed needs no second look.
-    needsConfirmation: !confirmed && (!conditionValue || confidenceCondition < conditionReviewThreshold)
+    // "clean" is held to the higher threshold because a wrong clean hides work
+    // rather than inviting review — see the vocabulary for why the two errors
+    // are not symmetric.
+    needsConfirmation: !confirmed && (!conditionValue
+      || confidenceCondition < (conditionValue === "clean" ? cleanConditionReviewThreshold : conditionReviewThreshold))
   });
 }
 
