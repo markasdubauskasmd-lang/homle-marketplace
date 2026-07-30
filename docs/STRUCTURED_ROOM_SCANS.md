@@ -803,3 +803,109 @@ Chrome profile. A missing browser is reported with every checked location
 instead of claiming that the scanner passed. This closes the earlier Windows
 verification gap where the machine already had Chrome but the test silently
 looked only for the Linux Playwright path and skipped the real pipeline.
+
+# Phase 9 — the field report: a dirty sink graded CLEAN, no way to stop the mic
+
+A real scan of a real kitchen produced "Sink CLEAN" over a sink stacked with
+washing-up, offered a video mode nobody needed, gave the microphone no visible
+stop control, and felt slow on the shutter. Each was traced to a root cause
+before anything was changed.
+
+## Root causes found
+
+1. **"clean" was the cheapest possible verdict.** The prompt demanded evidence
+   for every grade *except* clean, applied the same 0.5 confidence bar to clean
+   as to the grades customers actually review, and said nothing about the
+   commonest real case — a fixture covered by the thing that makes it dirty.
+   And the errors are not symmetric: a wrong "medium" is reviewed and removed in
+   a tap; a wrong "clean" says there is nothing to look at, so nobody ever
+   checks it and the job is silently under-scoped.
+2. **Walking frames destroyed the evidence before the model saw it.** The
+   confirmation frame had already been raised to 1600px/0.90 because condition
+   is fine texture; the walking keyframes — whose grades fill the live list and
+   survive into the saved room — were still 1024px/0.72.
+3. **Marginally soft frames were billed.** The quality gate refused a paid read
+   only once the "hold still" nag fired (detail < 4.5); a frame at detail 5 —
+   soft enough to dissolve residue film, sharp enough to escape the nag — was
+   still spent.
+4. **A grade with no confidence score at all counted as settled**
+   (`confidence !== null && confidence < 0.5` — the null case fell through).
+5. **The stylesheet hid the only stop control.** `.voice.recording
+   .voice-done{display:none}` removed the note panel's single button during
+   recording, leaving stop to an unlabelled toggle across the screen.
+6. **The last synchronous JPEG encode sat on the shutter.** `drawVisibleRegion`
+   ended in `toDataURL` at 1600px — measured at 44–57ms of main-thread block on
+   desktop Chromium, several times that on a phone — on exactly the press the
+   Landlord is watching for a response. The capture flash the stylesheet defined
+   was never triggered by anything.
+7. **The video deck button was a second way to do what the walking scan already
+   does**, and a media-mode decision handed to a customer.
+
+## What changed
+
+- Asymmetric review thresholds, everywhere the grade is consumed: "clean" needs
+  conditionConfidence ≥ 0.7 (`cleanConditionReviewThreshold`, mirrored in the
+  client model) to be presented as settled; soiled grades keep 0.5; a null
+  confidence now asks instead of asserting. Applied in the vocabulary, the scan
+  projection, the complexity assessment, the live inventory row ("clean? check"
+  instead of CLEAN), and the finish-scan warning.
+- The prompts require evidence for clean ("clear empty basin, no marks"), state
+  the 0.7 rule, and spell out the covered-fixture case: a sink stacked with used
+  crockery is food-debris and clutter, never clean. `readingSchemaVersion` → 2,
+  because a v1 "clean" and a v2 "clean" are different claims.
+- Walking keyframes: 1024px/0.72 → 1280px/0.80, and paid reads now require
+  measured detail ≥ 5.5 (`keyframeDefaults.minimumDetail`), above the 4.5 nag
+  threshold. Refusal spends nothing — the same view is read when it sharpens.
+- Every settled finding carries a recommended action — "Descale the tap",
+  "Degrease the extractor hood — heavy build-up, allow soaking time" — from a
+  deterministic owned mapping (`recommendedAction`), never from model output,
+  and never for a verdict still awaiting confirmation.
+- The microphone: Stop and Cancel in the panel header while recording, Done and
+  Delete while reviewing; the mic button itself is labelled Stop while live;
+  Cancel restores the note to exactly its pre-recording text; a blocked
+  permission, a missing microphone and an empty recording each get their own
+  message; the timer visibly restarts per recording.
+- The deck video button is gone; the video path survives only on the
+  camera-blocked recovery card, where a phone with a blank live camera genuinely
+  needs it. The vacated slot holds the typed-note entry; the shutter now says
+  "Finish room".
+- The capture path encodes through the asynchronous Blob path, the flash fires
+  on the press, the shutter locks during the encode, and post-await guards drop
+  a stale encode if the view was left or frozen meanwhile.
+
+## Measured
+
+`tests/browser-scan-controls.mjs` (Chromium, 1600×900 noise frame — the JPEG
+worst case): the old synchronous path blocked the main thread **44–57ms** per
+capture; the new path holds it **~0.3ms**, a queued task runs after **~0.4ms**,
+and the encode completes in the background in ~45–50ms. Shutter press to frozen
+frame: **61–136ms**, with the flash on the press itself. Phone CPUs are
+typically 3–6× slower, so the removed stall was of the order of 150–350ms per
+press on the devices this scanner is for.
+
+The same suite drives the real overlay: recording shows Stop/Cancel and hides
+the review controls, speech reaches the editable transcript, Cancel restores the
+pre-recording note, a permission error names the blocked microphone, Delete
+clears the note, the deck has no video button and the recovery card still has
+one, capture flashes immediately and freezes to the confirm step, and closing
+the scanner mid-recording stops the recognition session and resolves null.
+
+## Honest limitations
+
+- **The grading fixes are prompt- and threshold-level; they are not verified
+  against real dirty sinks.** The benchmark dataset is still the 11 synthetic
+  fixtures. The asymmetric threshold guarantees an unsure clean is *asked
+  about* rather than asserted — that is a UX guarantee, not a model-accuracy
+  one. The 200-room consented dataset remains the only way to measure the
+  actual false-clean rate.
+- **The wave animation is a recording indicator, not a level meter.** Web
+  Speech exposes no audio levels, and opening a second microphone capture just
+  to animate bars would double the permission surface for decoration.
+- **`minimumDetail = 5.5` is a reasoned floor, not a calibrated one.** It only
+  narrows the 4.5–5.5 band (frames below 4.5 were already refused), so its
+  worst case is a slower first read in a low-texture room, but the number
+  should be revisited once telemetry reports real detail distributions.
+- **Still not a device trial.** Desktop Chromium with a synthetic camera and a
+  stubbed speech service. A physical iPhone and Android handset over HTTPS
+  remains required before activation, and is the only place real motion blur,
+  thermal throttling and the native speech service can be tested.
