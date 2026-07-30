@@ -10,11 +10,11 @@ INSERT INTO properties (id,landlord_user_id,name,address_line_1,locality,postcod
 
 INSERT INTO cleaning_requests (
   id,landlord_user_id,property_id,status,requested_start_at,requested_end_at,
-  cleaning_type,required_services,budget_pence
+  cleaning_type,required_services,budget_pence,scope_fingerprint
 ) VALUES (
   '31000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001',
   '21000000-0000-4000-8000-000000000002','draft',now()+interval '7 days',
-  now()+interval '7 days 2 hours','standard',ARRAY['standard-clean'],10000
+  now()+interval '7 days 2 hours','standard',ARRAY['standard-clean'],10000,repeat('d',64)
 );
 
 INSERT INTO bookings (
