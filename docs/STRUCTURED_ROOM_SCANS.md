@@ -909,3 +909,72 @@ the scanner mid-recording stops the recognition session and resolves null.
   stubbed speech service. A physical iPhone and Android handset over HTTPS
   remains required before activation, and is the only place real motion blur,
   thermal throttling and the native speech service can be tested.
+
+# Phase 10 — closing the buildable gaps
+
+The brief-versus-built audit left seven open items. Three can only be closed by
+real phones and real bookings (the device trial, the consented dataset, shadow
+comparisons accumulating). This phase closed the four that could be built or
+decided from here.
+
+## Measuring from the photo (was: model with no screen)
+
+The review step now offers "Measure from the photo" on any room whose photo is
+still in the tab: two taps across a known-size object, two taps across the
+wall, and the server's own tolerance arithmetic answers with its band stated
+before anything is kept. Only the two pixel spans travel — the photo never
+leaves the page, and the new `photo-measurement` endpoint is compute-only.
+Kept measurements persist against the saved scan at confirm, matched to the
+server's room ids exactly like object corrections and equally non-fatal. On
+the way in, typed figures get the standard 5% user-confirmed band rather than
+reading as laser measurements, and length × width derives the floor area
+server-side with the compounded band — never overwriting a customer's own
+figure.
+
+## Spoken guidance (was: captions only)
+
+The guidance the scanner already computes is now spoken on request through the
+on-device synthesiser: a speaker toggle in the scan header, off by default,
+remembered per device. The one hard rule is pinned by test: it never speaks
+while a voice note records, and starting a recording silences it mid-sentence
+before the microphone opens — otherwise the phone would transcribe its own
+instructions into the customer's note.
+
+## Ground truth (was: accuracy unmeasurable even with traffic)
+
+Migration 079 adds `room_scan_ground_truth`: an internal reviewer records what
+each object's condition actually was, from the scan-operations page.
+Administrator-only at every layer; verdicts overwrite on re-review and are
+audited; labels cascade away with the scan they describe, so retention purges
+and customer deletion take the derived data too; training consent is an
+explicit attestation defaulting to no. The report is counts and confusion
+pairs only — request ids never leave the database — and the agreement
+statistic is the benchmark's own Cohen's kappa, so synthetic and real
+measurements share one scale. The false-clean rate (the dirty-sink number) is
+reported on its own, and anything under 50 reviews is labelled anecdote.
+
+Verified against a real PostgreSQL 16: all 79 migrations, both grant files,
+and the full integration suite including the new behaviour script — role
+denial, queue privacy, overwrite-not-duplicate, false-clean counting, report
+identifier hygiene, and the label dying with its scan.
+
+## Segmentation (was: unbuilt with no recorded reason)
+
+Now a documented decision in the audit's §11: no browser segmentation, because
+without depth a pixel-perfect mask prices nothing better than a box, and the
+verdicts customers pay for are bounded by the vision reader's image quality —
+not box-versus-mask geometry. Revisit alongside any native tier.
+
+## Honest limitations
+
+- The measurement flow's assumption is stated in its bands, not solved: the
+  reference and the measured span are taken to lie in the same plane, and the
+  12% floor exists because a phone photograph cannot check that.
+- The reviewer grades from their authorised view of the booking's photos; the
+  review queue itself deliberately shows no media, so it links the request
+  rather than the image. If reviewing at scale needs in-queue thumbnails, that
+  is a separate, security-reviewed media surface.
+- The ground-truth pipeline makes accuracy measurable, not measured: the
+  figures stay empty until real scans are reviewed.
+- Spoken guidance uses the device's installed voices; on a phone with none the
+  toggle simply has no audible effect.

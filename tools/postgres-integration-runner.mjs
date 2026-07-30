@@ -37,6 +37,7 @@ const scripts = Object.freeze({
   scanPricingRuleset: "scan-pricing-ruleset-behaviour.sql",
   scanEstimateShadow: "scan-estimate-shadow-behaviour.sql",
   scanRetentionVoiceAddon: "scan-retention-voice-addon-behaviour.sql",
+  scanGroundTruth: "scan-ground-truth-behaviour.sql",
   rls: "marketplace-rls-behaviour.sql",
   acceptA: "accept-booking-a.sql",
   acceptB: "accept-booking-b.sql",
@@ -258,6 +259,9 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     // the runtime role is deliberately forbidden to read.
     runPsqlSync({ label: "Scan estimate shadow behaviour test", file: scripts.scanEstimateShadow, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Scan retention, voice and add-on behaviour test", file: scripts.scanRetentionVoiceAddon, environment: ownerEnvironment, command, execute });
+    // Owner-run for the same reason as the scan tests above: it asserts on the
+    // stored label rows the runtime role is deliberately forbidden to read.
+    runPsqlSync({ label: "Scan ground-truth behaviour test", file: scripts.scanGroundTruth, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "RLS behaviour test", file: scripts.rls, environment: appEnvironment, command, execute });
 
     const concurrentResults = await executeConcurrent([
@@ -289,7 +293,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {

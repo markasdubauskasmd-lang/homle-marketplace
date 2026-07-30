@@ -55,6 +55,17 @@
         </details>
       </section>
 
+      <section class="booking-dashboard-card" data-admin-truth>
+        <h2>Is the scanner grading accurately?</h2>
+        <p class="hint">Reviewed truth against model output, in aggregate — the same agreement statistic the synthetic benchmark reports, now measurable on real scans. Counts only; no photo, note or address appears here.</p>
+        <p data-admin-truth-report>Loading…</p>
+        <h3>Awaiting review</h3>
+        <p class="hint">Grade what each object's condition actually was, from your own authorised view of the booking. Tick consent only when the customer has explicitly agreed their scan may train the model — evaluation needs no consent, training always does.</p>
+        <p class="form-error" role="alert" data-admin-truth-error hidden></p>
+        <p role="status" data-admin-truth-status></p>
+        <ul class="admin-truth-queue" data-admin-truth-queue></ul>
+      </section>
+
       <form class="booking-dashboard-card" data-admin-scan-retention-form novalidate>
         <h2>How long scans are kept</h2>
         <p class="hint">A structured scan describes the inside of somebody's home. A scan a Cleaner worked from is the evidence in any dispute about what was agreed, so it cannot be deleted sooner than one nobody ever used.</p>

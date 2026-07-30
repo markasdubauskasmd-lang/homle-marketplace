@@ -230,7 +230,12 @@ const administratorVerificationService = {
   async list(actor, input) { calls.push({ kind: "administrator-verification-list", actor, input }); return { cleaners: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; },
   async set(actor, cleanerId, input) { calls.push({ kind: "administrator-verification-set", actor, cleanerId, input }); return { cleanerId, identityCheckStatus: input.identityCheckStatus || "pending", backgroundCheckStatus: input.backgroundCheckStatus || "not-checked" }; }
 };
-const dependencies = { security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const scanGroundTruthService = {
+  async getQueue(actor, limit) { calls.push({ kind: "truth-queue", actor, limit }); return []; },
+  async recordVerdict(actor, objectId, input) { calls.push({ kind: "truth-record", actor, objectId, input }); return { groundTruthId: "t", objectId, ...input }; },
+  async getReport(actor) { calls.push({ kind: "truth-report", actor }); return { labelledTotal: 0 }; }
+};
+const dependencies = { security, scanGroundTruthService, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -637,6 +642,19 @@ assert(missingRuntime, "Marketplace runtime did not fail closed without its data
     body: { reference: "bank-card", referencePixels: 200, subject: "room-length", spanPixels: 4000 }
   });
   assert(asCleaner.response.statusCode === 403, `A Cleaner measured a customer photo: ${asCleaner.response.statusCode}`);
+}
+
+/* ── Ground truth review is Administrator-only ─────────────────────────── */
+
+{
+  const truthUrl = "/api/marketplace/admin/scan-ground-truth";
+  const asLandlord = await dispatch(router, "GET", truthUrl, { headers: { cookie: authHeaders.cookie } });
+  assert(asLandlord.response.statusCode === 403, `A Landlord read the accuracy review surface: ${asLandlord.response.statusCode}`);
+  const record = await dispatch(router, "PUT", `${truthUrl}/objects/3c000000-0000-4000-8000-000000000042`, {
+    headers: authHeaders,
+    body: { condition: "medium", soiling: ["food-debris"], labelCorrect: true }
+  });
+  assert(record.response.statusCode === 403, `A Landlord recorded ground truth: ${record.response.statusCode}`);
 }
 
 console.log("Marketplace HTTP tests passed: isolated routing, public search, session/role/origin/CSRF protection, owner-bound property mutations, bounded JSON, safe errors and fail-closed runtime composition.");

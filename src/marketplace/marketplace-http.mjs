@@ -19,6 +19,7 @@ const requestScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidP
 const requestRoomScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan$`);
 const requestRoomScanObjectPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan/objects/(${uuidPattern})$`);
 const requestRoomScanMeasurementPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan/rooms/(${uuidPattern})/measurements$`);
+const scanGroundTruthObjectPath = new RegExp(`^/api/marketplace/admin/scan-ground-truth/objects/(${uuidPattern})$`);
 const requestVoiceInstructionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/voice-instructions$`);
 const requestPhotoIntentPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/intents$`);
 const requestPhotoCompletionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/complete$`);
@@ -95,6 +96,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const cleaningRequests = dependencies?.cleaningRequestService;
   const scans = dependencies?.scanService;
   const scanPricing = dependencies?.scanPricingService;
+  const scanGroundTruth = dependencies?.scanGroundTruthService || null;
   const scanTelemetry = dependencies?.scanTelemetry || null;
   // Guarded at every call site. Telemetry observes the scanner; it is never a
   // reason a request fails.
@@ -796,6 +798,35 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { roles: ["administrator"] });
           const report = await scanPricing.shadowReport(context.actor, url.searchParams.get("rulesetId"), url.searchParams.get("modelVersion"));
           sendJson(response, 200, { ok: true, report });
+          return true;
+        }
+        // The scanner's accuracy, measured against reviewed truth. The queue is
+        // what an internal reviewer still has to grade; the report is aggregate
+        // agreement — counts and kappa, never rows about a particular home.
+        if (pathname === "/api/marketplace/admin/scan-ground-truth") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          if (!scanGroundTruth) {
+            sendJson(response, 503, { ok: false, error: "Scan accuracy review is not configured." });
+            return true;
+          }
+          sendJson(response, 200, {
+            ok: true,
+            queue: await scanGroundTruth.getQueue(context.actor, url.searchParams.get("limit")),
+            report: await scanGroundTruth.getReport(context.actor)
+          });
+          return true;
+        }
+        const selectedGroundTruthObject = pathname.match(scanGroundTruthObjectPath);
+        if (selectedGroundTruthObject) {
+          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          if (!scanGroundTruth) {
+            sendJson(response, 503, { ok: false, error: "Scan accuracy review is not configured." });
+            return true;
+          }
+          const truth = await scanGroundTruth.recordVerdict(context.actor, selectedGroundTruthObject[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, truth });
           return true;
         }
         if (pathname === "/api/marketplace/admin/pricing/scan-ruleset") {

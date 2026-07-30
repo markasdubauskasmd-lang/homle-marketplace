@@ -3956,3 +3956,12 @@ textarea.inp{resize:vertical;line-height:1.6;font-size:15px}
 .scan-debug{position:absolute;top:70px;right:10px;z-index:30;margin:0;padding:8px 10px;display:grid;grid-template-columns:auto auto;gap:2px 10px;border-radius:10px;background:rgba(8,8,10,.82);font:10.5px/1.5 ui-monospace,monospace;color:rgba(255,255,255,.85);pointer-events:none;max-width:46vw}
 .scan-debug dt{opacity:.55;text-transform:uppercase;letter-spacing:.06em;font-size:9px;align-self:center}
 .scan-debug dd{margin:0;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Administrator scan accuracy review. */
+.admin-truth-queue{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.admin-truth-row{border:1px solid var(--line,#E4DED6);border-radius:12px;padding:12px}
+.admin-truth-row>p{margin:0 0 6px}
+.admin-truth-form{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px}
+.admin-truth-form select{min-height:40px;border-radius:10px;border:1.5px solid var(--line,#E4DED6);padding:0 10px;font:inherit}
+.admin-truth-form details{flex-basis:100%}
+.admin-truth-kind{display:inline-flex;align-items:center;gap:4px;margin:4px 10px 0 0;font-size:13.5px}
