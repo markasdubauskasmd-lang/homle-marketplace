@@ -241,4 +241,26 @@ assert(/could not be, so your cleaner will work from the checklist alone/.test(s
 assert(script.includes("/voice-instructions"), "Classified spoken instructions are never persisted.");
 assert(/saveVoiceInstructions\(csrf, requestId\)/.test(script), "Spoken instructions are not saved with the scan.");
 
+/* ── Measuring from the photo: taps travel, pixels do not ─────────────── */
+
+// The measure dialog sends two pixel spans to the server-owned arithmetic and
+// stores the answer at confirm. The photo itself must never be in that request:
+// the whole design is that measuring costs no upload.
+assert(script.includes('"/api/marketplace/landlord/photo-measurement"'), "The measure flow no longer asks the server-owned arithmetic for its numbers.");
+assert(/photo-measurement[\s\S]{0,700}referencePixels: step\.referencePixels[\s\S]{0,120}spanPixels: step\.spanPixels/.test(script), "The measure request no longer sends the two pixel spans.");
+assert(!/photo-measurement[\s\S]{0,900}dataUrl/.test(script), "The room photo is sent with a measurement request — measuring is supposed to cost no upload.");
+// Taps are stored in the photo's own pixel space, so display size cannot skew
+// the spans.
+assert(/image\.naturalWidth;[\s\S]{0,200}image\.naturalHeight;/.test(script) || /\* image\.naturalWidth/.test(script), "Measure taps are no longer scaled into the photo's own pixel space.");
+// Measurements persist only after the scan exists, matched to the server's own
+// room ids, and a failed set must never fail the booking.
+assert(/await saveVoiceInstructions\(csrf, requestId\);\s*\n\s*await saveScanMeasurements\(csrf, requestId, saved\?\.scan\)/.test(script), "Measurements are not persisted against the saved scan at confirm.");
+assert(/function saveScanMeasurements[\s\S]{0,1400}catch \{ \/\* one lost measurement set, not a lost booking \*\/ \}/.test(script), "A failed measurement save can fail the booking.");
+// Abandoning or completing the journey clears the held measurements with the
+// photos they came from.
+assert((script.match(/state\.scanMeasurements = \[\];/g) || []).length >= 3, "A journey reset leaves measured values behind for the next scan.");
+// The dialog exists in the page the renderer targets.
+assert(page.includes("data-measure-photo") && page.includes("data-measure-refs") && page.includes("data-measure-keep"),
+  "The measure dialog's elements are missing from the journey page.");
+
 console.log("Customer scan-review checks passed.");

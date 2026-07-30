@@ -1,4 +1,5 @@
 import { scanRates } from "./scan-telemetry.mjs";
+import { measureFromReference, measurementLabel, referenceScale } from "./room-measurement.mjs";
 import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 
@@ -828,6 +829,40 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           await limitPublicRead(request, "marketplace-landlord:scan-preview");
           const body = await readJsonObject(request, maximumRoomScanBodyBytes);
           sendJson(response, 200, { ok: true, scan: await scans.previewScan(context.actor, body) });
+          return true;
+        }
+        // Turns two tapped pixel spans into a measurement with its band. Compute
+        // only — nothing is stored and no image travels; the photo stays on the
+        // phone and only the two line lengths arrive. The maths lives in
+        // room-measurement.mjs, whose single ownership is the reason this
+        // endpoint exists at all: the client must never re-implement the
+        // tolerance arithmetic to show a preview of it.
+        //
+        // Shares the scan-preview allowance on purpose: same feature family,
+        // same cost class (pure arithmetic), and a scan produces a handful of
+        // these against preview's generous budget.
+        if (pathname === "/api/marketplace/landlord/photo-measurement") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          await security.protect(request, { mutation: true, roles: ["landlord"] });
+          await limitPublicRead(request, "marketplace-landlord:scan-preview");
+          const body = await readJsonObject(request);
+          try {
+            const scale = referenceScale({
+              reference: body?.reference,
+              referencePixels: Number(body?.referencePixels),
+              referenceAxis: body?.referenceAxis === "height" ? "height" : "width"
+            });
+            const measurement = measureFromReference({
+              subject: body?.subject,
+              scale,
+              spanPixels: Number(body?.spanPixels)
+            });
+            sendJson(response, 200, { ok: true, measurement: { ...measurement, label: measurementLabel(measurement) } });
+          } catch (error) {
+            // These messages are already written for the customer ("The bank
+            // card is too small in the picture…"), so they are the response.
+            sendJson(response, 400, { ok: false, error: String(error?.message || "That could not be measured.") });
+          }
           return true;
         }
         if (pathname === "/api/marketplace/landlord/favourite-cleaners") {

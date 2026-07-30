@@ -604,4 +604,39 @@ let missingRuntime = false;
 try { createMarketplaceRuntime(pool, { env: {} }); } catch (error) { missingRuntime = error.message.includes("DATABASE_URL") && error.message.includes("SESSION_SECRET") && error.message.includes("DATA_ENCRYPTION_KEY"); }
 assert(missingRuntime, "Marketplace runtime did not fail closed without its database/session/encryption configuration.");
 
+/* ── Measuring from a photo: pure arithmetic, nothing stored, no image ── */
+
+// The endpoint receives two pixel spans and answers with the server-owned
+// tolerance maths. 85.6mm over 200px is 0.428mm/px; a 4000px span is 1712mm,
+// and the band is the 12% same-plane floor because the arithmetic came out
+// tighter than the physics allows.
+{
+  const measured = await dispatch(router, "POST", "/api/marketplace/landlord/photo-measurement", {
+    headers: authHeaders,
+    body: { reference: "bank-card", referenceAxis: "width", referencePixels: 200, subject: "room-length", spanPixels: 4000 }
+  });
+  assert(measured.response.statusCode === 200, measured.response.body);
+  const measurement = measured.body.measurement;
+  assert(measurement.valueMm === 1712, `The measurement arithmetic changed: ${measurement.valueMm}mm`);
+  assert(measurement.toleranceMm === 205, `The same-plane tolerance floor was lost: ±${measurement.toleranceMm}mm`);
+  assert(measurement.method === "reference-calibrated", "The method label was lost.");
+  assert(measurement.label.includes("±") && measurement.label.toLowerCase().includes("bank card"),
+    `The label no longer states the band and the reference: ${measurement.label}`);
+
+  // Refusals are customer-worded, because they are shown verbatim.
+  const tiny = await dispatch(router, "POST", "/api/marketplace/landlord/photo-measurement", {
+    headers: authHeaders,
+    body: { reference: "bank-card", referencePixels: 8, subject: "room-length", spanPixels: 4000 }
+  });
+  assert(tiny.response.statusCode === 400, `A too-small reference did not refuse: ${tiny.response.statusCode}`);
+  assert(/too small in the picture/i.test(tiny.body.error), `The refusal lost its customer wording: ${tiny.body.error}`);
+
+  // Landlord-only, like every other scan surface.
+  const asCleaner = await dispatch(router, "POST", "/api/marketplace/landlord/photo-measurement", {
+    headers: cleanerAuthHeaders,
+    body: { reference: "bank-card", referencePixels: 200, subject: "room-length", spanPixels: 4000 }
+  });
+  assert(asCleaner.response.statusCode === 403, `A Cleaner measured a customer photo: ${asCleaner.response.statusCode}`);
+}
+
 console.log("Marketplace HTTP tests passed: isolated routing, public search, session/role/origin/CSRF protection, owner-bound property mutations, bounded JSON, safe errors and fail-closed runtime composition.");

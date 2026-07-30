@@ -317,6 +317,53 @@ assert(throwsWith(() => createScanService(null), "complete room-scan repository"
     "A Cleaner recorded room measurements.");
 }
 
+// A typed figure without a band gets the standard user-confirmed one, not zero:
+// "about four metres" must never be stored looking like a laser reading.
+{
+  const capture = {};
+  const service = createScanService(repositoryStub(capture), {});
+  await service.recordOwnMeasurements(landlord, "3c000000-0000-4000-8000-000000000001", {
+    measurements: [{ subject: "room-length", method: "user-confirmed", valueMm: 4000 }]
+  });
+  const [typed] = capture.measurements.measurements;
+  assert(typed.toleranceMm === 200, `A typed figure with no band stored ±${typed.toleranceMm}mm instead of the standard 5%.`);
+}
+
+// A length and a width imply the floor area, derived once by the module that
+// owns the compounding-tolerance arithmetic — never asked of the customer and
+// never computed loosely by a client.
+{
+  const capture = {};
+  const service = createScanService(repositoryStub(capture), {});
+  const stored = await service.recordOwnMeasurements(landlord, "3c000000-0000-4000-8000-000000000001", {
+    measurements: [
+      { subject: "room-length", method: "user-confirmed", valueMm: 4000, toleranceMm: 200 },
+      { subject: "room-width", method: "user-confirmed", valueMm: 3000, toleranceMm: 150 }
+    ]
+  });
+  const area = capture.measurements.measurements.find((entry) => entry.subject === "floor-area");
+  assert(area, "Length and width did not derive the floor area.");
+  assert(area.method === "derived" && area.valueMm === 12_000_000, `The derived area was wrong: ${JSON.stringify(area)}`);
+  // Tolerances compound: two ±5% figures give a ±10% area, and the band must
+  // survive into storage rather than being rounded away.
+  assert(area.toleranceMm === 1_200_000, `The derived area lost its compounded band: ±${area.toleranceMm}`);
+  assert(stored.measurements.some((entry) => entry.subject === "floor-area" && entry.label.includes("m²")),
+    "The derived area was not projected with its square-metre label.");
+  // A floor area the customer supplied themselves is never overwritten by
+  // arithmetic.
+  const explicit = {};
+  const explicitService = createScanService(repositoryStub(explicit), {});
+  await explicitService.recordOwnMeasurements(landlord, "3c000000-0000-4000-8000-000000000001", {
+    measurements: [
+      { subject: "room-length", method: "user-confirmed", valueMm: 4000, toleranceMm: 200 },
+      { subject: "room-width", method: "user-confirmed", valueMm: 3000, toleranceMm: 150 },
+      { subject: "floor-area", method: "user-confirmed", valueMm: 11_000_000, toleranceMm: 500_000 }
+    ]
+  });
+  const kept = explicit.measurements.measurements.find((entry) => entry.subject === "floor-area");
+  assert(kept.valueMm === 11_000_000 && kept.method === "user-confirmed", "A customer-supplied floor area was replaced by the derived one.");
+}
+
 // A room with no measurements projects as an empty list, not as a room with
 // unknown dimensions dressed up as zeroes.
 {
