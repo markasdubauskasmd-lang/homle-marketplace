@@ -771,3 +771,26 @@ assert(/function stopCamera\(\)[\s\S]{0,700}state\.torchOn = false;[\s\S]{0,120}
 assert(overlay.includes("data-torch") && overlay.includes("data-zoom-reset") && /el\.torch\.hidden = !state\.stream \|\| !torchSupported\(state\.cameraCapabilities\)/.test(overlay), "The assist controls show on cameras that cannot honour them.");
 // Counted, never photographed: the assists report bare counters only.
 assert(/scanEvents\.record\("scan\.assist\.torch"\)/.test(overlay) && /scanEvents\.record\("scan\.assist\.zoom"\)/.test(overlay), "The assists fire without being counted, so nobody learns how often rooms are too dark or too far.");
+// Chrome on Android populates getCapabilities() asynchronously after
+// getUserMedia resolves, so a single read at open sees no torch and no zoom on
+// exactly the phones the assists exist for — the third field trial's Pixel.
+// The read must repeat: at open, on delayed probes while the pipeline settles,
+// and on every quality sample while the camera still claims it can do nothing.
+assert(/function refreshCameraCapabilities\(\)[\s\S]{0,260}track\.getCapabilities\?\.\(\)[\s\S]{0,340}renderCameraAssist\(\)/.test(overlay), "The capability read cannot repeat, so late-arriving torch and zoom support never arms the assists.");
+assert(/refreshCameraCapabilities\(\);\s*\n\s*scheduleCapabilityProbes\(\);/.test(overlay), "Opening the camera reads capabilities only once — the Pixel race that kept both assists dormant.");
+assert(/state\.timers\.capabilityProbes = \[600, 2000\]\.map/.test(overlay), "The delayed capability probes are gone or drifted from the settle window field evidence chose.");
+assert(/async function maybeAssistCamera\(\)[\s\S]{0,500}if \(!torchSupported\(state\.cameraCapabilities\) && !zoomRange\(state\.cameraCapabilities\)\) refreshCameraCapabilities\(\);/.test(overlay), "A camera whose capabilities arrive after the probe window never gets re-asked.");
+assert(/function stopCamera\(\)[\s\S]{0,600}state\.timers\.capabilityProbes = \[\];/.test(overlay), "Stopping the camera leaves capability probes armed against a dead track.");
+
+// The framing guidance ("move slowly", "too dark") lives at the TOP of the
+// viewfinder, under the step pill. The third field trial proved the bottom
+// position sits exactly where thumbs and the shutter live, so the one line
+// telling the customer what to change went unread.
+assert(/\.scan-detector-state\{[^}]*top:calc\(max\(22px,env\(safe-area-inset-top\)\) \+ 96px\)/.test(styles), "The framing guidance is no longer anchored under the step pill at the top of the viewfinder.");
+assert(!/\.scan-detector-state\{[^}]*bottom:/.test(styles), "The framing guidance moved back to the bottom of the viewfinder, under the customer's thumbs.");
+
+// The detector's megabytes travel from the journey page's idle time, before
+// the scanner opens — and a failed warm-up clears the memo so the overlay's
+// own (final) attempt starts fresh instead of inheriting a network hiccup.
+assert(/export function warmRoomScanDetector\(\)[\s\S]{0,220}if \(detectorLoad === attempt\) detectorLoad = null/.test(overlay), "The pre-warm hook is gone, or a failed background warm-up now burns the overlay's single detector attempt.");
+assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmScanner/.test(journey) && /setTimeout\(warmScanner/.test(journey), "The journey page no longer warms the detector from idle time, so the scanner is back to loading its model after opening.");
