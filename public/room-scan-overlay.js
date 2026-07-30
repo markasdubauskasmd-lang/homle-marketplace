@@ -25,6 +25,8 @@ import {
   inventoryKey,
   resolveRoomCondition,
   conditionTag,
+  conditionNeedsReview,
+  recommendedAction,
   correctInventoryItem,
   detectionMinimumScore,
   joinSpokenText,
@@ -106,6 +108,15 @@ const markup = `
     <div class="voice-head">
       <span class="rec-dot" aria-hidden="true"></span><span data-voice-status>Room note</span>
       <span class="voice-time" data-voice-time>0:00</span>
+      <!-- Two distinct states, two distinct button sets. While recording: Stop
+           (the one action that must never be hunted for) and Cancel (discard
+           what this recording added). Reviewing: Done (confirm) and Delete.
+           The old single "Done" was hidden by the stylesheet during recording,
+           which left stopping to an unlabelled toggle at the other end of the
+           screen — the exact complaint from the field. -->
+      <button class="voice-stop" type="button" data-voice-stop hidden>Stop</button>
+      <button class="voice-cancel" type="button" data-voice-cancel hidden>Cancel</button>
+      <button class="voice-delete" type="button" data-voice-delete hidden>Delete note</button>
       <button class="voice-done" type="button" data-note-done>Done</button>
     </div>
     <div class="wave" data-wave aria-hidden="true"></div>
@@ -133,18 +144,26 @@ const markup = `
         <button class="button" type="button" data-read-room>Confirm room</button>
       </div>
     </div>
+    <!-- No video button here, deliberately. The scanner already reads the room
+         continuously while the Landlord walks — a separate video mode was a
+         second way to do what the default already does, and choosing between
+         media modes is not a decision a customer should be handed. The video
+         path itself survives, reachable from the camera-blocked recovery card,
+         because a phone whose live camera is blank genuinely needs it. -->
     <div class="deck-row">
-      <button class="deck-btn" type="button" data-mic aria-pressed="false">
+      <button class="deck-btn" type="button" data-mic aria-pressed="false" aria-label="Record a voice note">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg>
         <span class="deck-btn-lbl">Voice note</span>
       </button>
-      <button class="shutter" type="button" data-shutter aria-label="Capture this room"><i aria-hidden="true"></i></button>
-      <button class="deck-btn" type="button" data-video-fallback aria-label="Record a short room video">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>
-        <span class="deck-btn-lbl">Video</span>
+      <button class="shutter" type="button" data-shutter aria-label="Finish this room — save it to the scan">
+        <i aria-hidden="true"></i>
+        <span class="deck-btn-lbl">Finish room</span>
+      </button>
+      <button class="deck-btn" type="button" data-note-open aria-label="Type or review this room’s note">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        <span class="deck-btn-lbl" data-note-open-label>Type note</span>
       </button>
     </div>
-    <button class="deck-note-alt" type="button" data-note-open>Type or review this room’s note</button>
     <button class="deck-camera-alt" type="button" data-camera-fallback>Live camera blank? Open your phone camera</button>
   </div>
 
@@ -446,6 +465,8 @@ export function openRoomScan() {
       hubProgress: $("[data-hub-progress]"), hubProgressStep: $("[data-hub-progress-step]"), hubProgressCopy: $("[data-hub-progress-copy]"),
       voice: $("[data-voice-panel]"), voiceTime: $("[data-voice-time]"), wave: $("[data-wave]"),
       voiceStatus: $("[data-voice-status]"), note: $("[data-room-note]"), noteDone: $("[data-note-done]"), noteOpen: $$("[data-note-open]"),
+      voiceStop: $("[data-voice-stop]"), voiceCancel: $("[data-voice-cancel]"), voiceDelete: $("[data-voice-delete]"),
+      noteOpenLabels: $$("[data-note-open-label]"),
       deck: $("[data-camera-deck]"),
       consent: $("[data-consent]"), consentAllow: $("[data-consent-allow]"), consentDecline: $("[data-consent-decline]"),
       itemEditor: $("[data-item-editor]"), itemEditorForm: $("[data-item-editor-form]"),
@@ -469,7 +490,7 @@ export function openRoomScan() {
       privateRegions: [], privateRegionSource: null, lastRedaction: null,
       startedAt: Date.now(), roomStartedAt: Date.now(),
       voiceOn: false, voiceUsed: false, roomTranscripts: new Map(), seconds: 0,
-      voiceGeneration: 0,
+      voiceGeneration: 0, voiceSessionStartNote: "",
       // Counters, not a log. Inference runs several times a second, so a line per
       // event would drown the console; a running total answers the question that
       // actually gets asked when a scan looks wrong — is the room filter working,
@@ -534,8 +555,10 @@ export function openRoomScan() {
       // resolution, and the viewfinder box is measured once rather than on every
       // pass. Both are recreated on demand, so an orientation change is safe.
       detectCanvas: null, viewRect: null,
-      // Framing guidance, sampled off the detector's own frame.
-      lastQualityAt: 0, qualityKind: "", qualityMessage: "", framingMessage: "", qualityCanvas: null, motionDistances: [],
+      // Framing guidance, sampled off the detector's own frame. `lastQuality`
+      // holds the latest raw stats so the keyframe spend can gate on measured
+      // sharpness rather than only on whether a nag threshold was crossed.
+      lastQualityAt: 0, qualityKind: "", qualityMessage: "", framingMessage: "", qualityCanvas: null, lastQuality: null, motionDistances: [],
       notesForgotten: false,
       // Detection boxes, reused between passes and keyed by tracker id.
       boxNodes: new Map(),
@@ -784,12 +807,23 @@ export function openRoomScan() {
       return note;
     }
 
+    // The one owner of every note-related control's state, so recording, review
+    // and idle can never disagree about which buttons are showing. While
+    // recording, the mic button IS the stop button and says so.
     function renderRoomNoteControls(note = roomTranscript()) {
       const hasNote = Boolean(String(note || "").trim());
-      el.mic.classList.toggle("ready", hasNote && !state.voiceOn);
+      const recording = state.voiceOn;
+      el.mic.classList.toggle("ready", hasNote && !recording);
       const micLabel = el.mic.querySelector(".deck-btn-lbl");
-      if (micLabel) micLabel.textContent = hasNote ? "Add voice" : "Voice note";
-      for (const button of el.noteOpen) button.textContent = hasNote ? "Review this room’s note" : "Type a room note";
+      if (micLabel) micLabel.textContent = recording ? "Stop" : hasNote ? "Add voice" : "Voice note";
+      el.mic.setAttribute("aria-label", recording ? "Stop recording" : "Record a voice note");
+      for (const label of el.noteOpenLabels) label.textContent = hasNote ? "Edit note" : "Type note";
+      // Stop and Cancel exist only while listening; Done and Delete only while
+      // reviewing. Both pairs live in the panel header, where the timer is.
+      el.voiceStop.hidden = !recording;
+      el.voiceCancel.hidden = !recording;
+      el.noteDone.hidden = recording;
+      el.voiceDelete.hidden = recording || !hasNote;
     }
 
     function renderVoiceTranscript(interim = "") {
@@ -801,6 +835,9 @@ export function openRoomScan() {
       renderVoiceTranscript();
       el.voice.hidden = false;
       el.voice.classList.add("on");
+      // Opened for typing or review rather than by a recording ending: say so,
+      // rather than leaving whatever status the last recording wrote.
+      if (!state.voiceOn) el.voiceStatus.textContent = roomTranscript().trim() ? "Check the note" : "Room note";
       // Nothing is being aimed at while the note panel covers the viewfinder, and
       // on a phone the keyboard is about to take the screen. Inference here would
       // only cost battery and compete with typing.
@@ -1012,6 +1049,7 @@ export function openRoomScan() {
       state.qualityMessage = "";
       state.framingMessage = "";
       state.lastQualityAt = 0;
+      state.lastQuality = null;
       unfreeze();
       el.hint.innerHTML = "Just walk around the room — items save themselves";
       if (!state.stream) startCamera();
@@ -1261,13 +1299,32 @@ export function openRoomScan() {
       // a white one. `roomReadingPayload` measures the real serialized size and
       // drops crops before it drops this frame, so the budget is spent where the
       // grading happens.
-      return el.canvas.toDataURL("image/jpeg", 0.90);
+      //
+      // Encoded through the Blob path, not `toDataURL`. This was the last
+      // synchronous JPEG compression on the camera path: a 1600px encode ran on
+      // the main thread on every shutter press and every tap-to-freeze, which is
+      // exactly when the Landlord is watching for a response. The pixels are
+      // already drawn — and `toBlob` snapshots the canvas synchronously on call
+      // — so a later draw cannot change what this frame contains.
+      return encodeCanvasJpeg(el.canvas, 0.90);
     }
 
+    // Resolves to the encoded visible frame, or null while the camera is warming
+    // up. The draw happens synchronously on call, so the pixels are the moment
+    // of the press even though the JPEG arrives a beat later.
     function currentFrame() {
       const video = el.camera;
       if (!video.videoWidth || !video.videoHeight || Number(video.readyState) < 2) return null;
       return drawVisibleRegion(video, video.videoWidth, video.videoHeight);
+    }
+
+    // The white blink the stylesheet has always defined for the capture moment.
+    // Feedback lands on the press itself, so the asynchronous encode that
+    // follows never reads as a dead button.
+    function flashViewfinder() {
+      el.flash.classList.remove("pop");
+      void el.flash.offsetWidth;
+      el.flash.classList.add("pop");
     }
 
     // Only decodes — it does not touch the shared canvas. The caller draws to the
@@ -1532,6 +1589,7 @@ export function openRoomScan() {
       state.qualityMessage = "";
       state.framingMessage = "";
       state.lastQualityAt = 0;
+      state.lastQuality = null;
       renderDetectorState();
       state.frozenFrame = "";
       state.candidates = [];
@@ -1566,19 +1624,26 @@ export function openRoomScan() {
       return { x, y };
     }
 
-    function onViewfinderTap(event) {
+    async function onViewfinderTap(event) {
       if (state.closed || state.capturing || state.loadingRoom || !el.blocked.hidden) return;
       const point = tapPoint(event);
       if (!point) return;
       if (!state.frozen) {
         // Tapping the live feed freezes it, and lands on whatever was tapped.
-        const frame = currentFrame();
-        if (!frame) return toast("The camera is still warming up — try again in a moment.");
+        // The pixels and the hit test both belong to the moment of the tap: the
+        // draw and the track lookup are synchronous, only the JPEG is awaited.
+        const pending = currentFrame();
+        if (!pending) return toast("The camera is still warming up — try again in a moment.");
         const live = usableLiveBoxes(drawableTracks(state.tracks).map((track) => ({
           id: `d${track.id}`, x: track.x, y: track.y, width: track.width, height: track.height,
           label: track.label, kind: "detected", score: track.score
         })));
         const hit = boxAtPoint(live, point.x, point.y);
+        flashViewfinder();
+        const frame = await pending.catch(() => "");
+        // A shutter press or a second tap may have frozen the view first.
+        if (state.closed || state.frozen || state.screen !== "live") return;
+        if (!frame) return toast("The camera is still warming up — try again in a moment.");
         freezeFrame(frame, { preselect: hit ? hit.id : "" });
         return;
       }
@@ -1874,20 +1939,38 @@ export function openRoomScan() {
     async function capture() {
       if (state.screen !== "live" || state.capturing || state.loadingRoom) return;
       if (state.frozen) return confirmSelection();
-      const frame = currentFrame();
-      if (!frame) return toast("The camera is still warming up — try again in a moment.");
+      const pending = currentFrame();
+      if (!pending) return toast("The camera is still warming up — try again in a moment.");
       // A frame that is mostly erased is no longer a photograph of a room, and
       // it is also the frame most likely to have contained somebody. Asking for
-      // another is better than storing one whose useful content is gone.
+      // another is better than storing one whose useful content is gone. The
+      // redaction verdict is set during the synchronous draw, so it is already
+      // decided here even though the JPEG is still encoding.
       if (state.lastRedaction && state.lastRedaction.ratio > unusableRedactionRatio) {
         scanEvents.record("scan.redaction.frame_rejected");
         return toast("Most of that photo was a person or a screen, so it was not kept. Point the camera at the room itself.");
       }
-      freezeFrame(frame);
-      // Said plainly rather than logged quietly. Somebody handing a photograph
-      // of their home to a stranger is entitled to know what was removed from
-      // it, and to check that against what they remember being in the room.
-      if (state.lastRedaction?.summary) toast(state.lastRedaction.summary);
+      // Acknowledged on the press: the flash fires and the shutter locks while
+      // the encode finishes off the main thread, so the press never reads as
+      // ignored and a double press cannot start a second encode.
+      flashViewfinder();
+      el.shutter.disabled = true;
+      try {
+        const frame = await pending;
+        // The overlay may have moved on while the JPEG encoded — closed, left
+        // for the hub, or frozen by a tap that landed first.
+        if (state.closed || state.frozen || state.screen !== "live") return;
+        if (!frame) return toast("The camera is still warming up — try again in a moment.");
+        freezeFrame(frame);
+        // Said plainly rather than logged quietly. Somebody handing a photograph
+        // of their home to a stranger is entitled to know what was removed from
+        // it, and to check that against what they remember being in the room.
+        if (state.lastRedaction?.summary) toast(state.lastRedaction.summary);
+      } catch {
+        if (!state.closed) toast("That capture could not be prepared — try again.");
+      } finally {
+        if (!state.closed) el.shutter.disabled = !el.blocked.hidden;
+      }
     }
 
     async function confirmSelection() {
@@ -1931,9 +2014,14 @@ export function openRoomScan() {
         // Decoding is async; if the Landlord has since left this room or a stored
         // photo is loading into the canvas, drop it before it can draw over.
         if (state.closed || session !== state.roomSession || state.loadingRoom || state.capturing) return;
+        // Both sides of this merge matter: the fallback photo gets its own
+        // person/screen detection before anything is drawn (a live frame's
+        // regions would redact the wrong pixels), and the JPEG then encodes
+        // through the asynchronous Blob path like every other capture.
         await refreshPrivateRegionsForSource(image, image.naturalWidth, image.naturalHeight);
         if (state.closed || session !== state.roomSession || state.loadingRoom || state.capturing) return;
-        const frame = drawVisibleRegion(image, image.naturalWidth, image.naturalHeight);
+        const frame = await drawVisibleRegion(image, image.naturalWidth, image.naturalHeight);
+        if (state.closed || session !== state.roomSession) return;
         if (!frame) throw new TypeError("That photo could not be opened.");
         if (state.lastRedaction && state.lastRedaction.ratio > unusableRedactionRatio) {
           throw new TypeError("Most of that photo was a person or a private screen. Point the camera at the room itself and try again.");
@@ -2107,6 +2195,11 @@ export function openRoomScan() {
         // consume one of the room's four reads. The view stays eligible after
         // the Landlord corrects it because no budget state changes here.
         qualityKind: state.qualityKind,
+        // The measured sharpness of the frame about to be paid for. The spend
+        // threshold sits above the "soft" nag threshold — see keyframeDefaults —
+        // because marginally soft frames are precisely where dirt evidence
+        // dissolves and a model reports "clean" over a soiled surface.
+        detail: Number.isFinite(state.lastQuality?.detail) ? state.lastQuality.detail : null,
         // A known-offline frame is kept local. Crucially, the decision happens
         // before the budget and signature below are advanced, so reconnection
         // can read the same settled view instead of leaving the room exhausted.
@@ -2138,7 +2231,16 @@ export function openRoomScan() {
         // Landlord never saw.
         const sourceRect = viewfinderSourceRect(width, height);
         if (!sourceRect) throw new TypeError("The visible camera frame is not ready.");
-        const scale = Math.min(1, 1024 / Math.max(sourceRect.sWidth, sourceRect.sHeight));
+        // 1280 / 0.80, up from 1024 / 0.72. The walking read is not just naming
+        // objects any more: its condition grades are what the live list shows
+        // and what survives into the saved room, and condition is decided by
+        // fine texture — residue film, limescale speckle, the sheen of grease.
+        // That is exactly what 1024px and heavy compression destroy first, which
+        // is how a visibly dirty sink could be graded "clean": the evidence was
+        // gone before the model ever saw the frame. Same reasoning, same fix, as
+        // the confirmation frame's earlier 1280→1600/0.90 bump; the walking tier
+        // stays below it because there are up to four of these per room.
+        const scale = Math.min(1, 1280 / Math.max(sourceRect.sWidth, sourceRect.sHeight));
         canvas.width = Math.max(1, Math.round(sourceRect.sWidth * scale));
         canvas.height = Math.max(1, Math.round(sourceRect.sHeight * scale));
         canvas.getContext("2d").drawImage(
@@ -2147,9 +2249,8 @@ export function openRoomScan() {
           0, 0, canvas.width, canvas.height
         );
         // `toDataURL` compressed the JPEG synchronously here, pausing the live
-        // camera up to four times per room. The Blob path yields immediately and
-        // keeps the exact same 1024px / 0.72 evidence supplied to the reader.
-        image = await encodeCanvasJpeg(canvas, 0.72);
+        // camera up to four times per room. The Blob path yields immediately.
+        image = await encodeCanvasJpeg(canvas, 0.80);
       } catch {
         state.diagnostics.keyframeEncodeErrors += 1;
         state.keyframeActiveRooms.delete(roomKey);
@@ -2311,23 +2412,31 @@ export function openRoomScan() {
         // The condition sits on the row because it is the answer being paid for.
         // A row that says only "Worktop" tells a customer nothing they did not
         // already know about their own kitchen.
-        if (item.condition) {
-          const grade = document.createElement("em");
-          grade.className = "found-grade";
+        //
+        // `conditionNeedsReview` decides the display, not the bare grade. A
+        // "clean" the model was not sure of used to render exactly like a
+        // certain one — "Sink CLEAN" over a sink full of washing-up — and a
+        // wrong clean is the one verdict a customer never thinks to check. An
+        // uncertain grade of any kind is shown as a question, and the advice
+        // line above the deck already says how to answer it.
+        const grade = document.createElement("em");
+        grade.className = "found-grade";
+        if (conditionNeedsReview(item)) {
+          grade.dataset.grade = "uncertain";
+          grade.textContent = item.condition ? `${item.condition}? check` : "condition unclear";
+        } else {
           grade.dataset.grade = item.condition;
           grade.textContent = item.condition === "clean" ? "clean" : item.condition;
-          name.append(" ", grade);
-        } else {
-          const grade = document.createElement("em");
-          grade.className = "found-grade";
-          grade.dataset.grade = "uncertain";
-          grade.textContent = "condition unclear";
-          name.append(" ", grade);
         }
+        name.append(" ", grade);
         // Marked when the reader said it was unsure, so an uncertain answer never
         // looks as settled as a confident one.
         if (Number.isFinite(item.score) && item.score > 0 && item.score < 0.5) name.dataset.unsure = "true";
-        if (item.note) name.title = item.note;
+        // The evidence, then the action that follows from it. Deterministic —
+        // the model observed, the owned mapping recommends.
+        const action = recommendedAction(item);
+        const rowDetail = [item.note, action].filter(Boolean).join(" · ");
+        if (rowDetail) name.title = rowDetail;
         name.dataset.inventoryRename = item.key;
         name.setAttribute("aria-label", `Edit ${inventoryDisplayLabel(item)} name and cleaning level`);
 
@@ -2820,6 +2929,10 @@ export function openRoomScan() {
       const { width, height } = canvas;
       const quality = frameQualityStats(pixels, width, height);
       if (!quality) return false;
+      // Kept for the keyframe spend decision: advice only speaks when a
+      // threshold is crossed, but the raw detail number is what separates a
+      // frame worth paying to grade from one merely not worth nagging about.
+      state.lastQuality = quality;
       // Piggy-backed on the pixel read that was already happening for the quality
       // hint. Walking a room needs to know whether the view has changed, and a
       // second readback purely to answer that would cost a GPU sync every frame.
@@ -3084,7 +3197,12 @@ export function openRoomScan() {
         // first time a Landlord paused to open a cupboard; `onend` restarts instead.
         if (event?.error === "no-speech" || event?.error === "aborted") return;
         recognition.commitPending();
-        stopVoice({ failed: true });
+        // The cause travels with the stop, because "try again" is wrong advice
+        // for a permission that is blocked and for a phone with no microphone.
+        const reason = event?.error === "not-allowed" || event?.error === "service-not-allowed"
+          ? "blocked"
+          : event?.error === "audio-capture" ? "no-device" : "";
+        stopVoice({ failed: true, reason });
       };
       try { recognition.start(); } catch {
         openNoteEditor({ focus: true });
@@ -3096,13 +3214,18 @@ export function openRoomScan() {
       state.voiceOn = true;
       state.voiceUsed = true;
       state.seconds = 0;
+      // What the note said before this recording began, so Cancel can put it
+      // back exactly — discarding the recording, not the note it was added to.
+      state.voiceSessionStartNote = sessionBase;
       el.voice.hidden = false;
       el.voice.classList.add("on", "recording");
-      el.voiceStatus.textContent = "Voice note · recording";
+      el.voiceStatus.textContent = "Recording…";
+      el.voiceTime.textContent = "0:00";
       el.mic.classList.remove("ready");
       el.mic.classList.add("rec");
       el.mic.setAttribute("aria-pressed", "true");
-      el.hint.innerHTML = "<b>Listening…</b> just talk normally";
+      renderRoomNoteControls();
+      el.hint.innerHTML = "<b>Listening…</b> just talk normally. Tap Stop when you're done.";
 
       const bars = $$("[data-wave] b");
       state.timers.wave = setInterval(() => {
@@ -3121,7 +3244,7 @@ export function openRoomScan() {
       }, 1000);
     }
 
-    function stopVoice({ silent = false, failed = false } = {}) {
+    function stopVoice({ silent = false, failed = false, reason = "" } = {}) {
       state.voiceOn = false;
       state.voiceGeneration += 1;
       clearInterval(state.timers.wave);
@@ -3141,7 +3264,11 @@ export function openRoomScan() {
       el.mic.classList.remove("rec");
       el.mic.setAttribute("aria-pressed", "false");
       el.voice.classList.remove("recording");
-      el.voiceStatus.textContent = failed ? "Room note · listening stopped" : "Room note · review";
+      const heardNothing = !failed && !roomTranscript().trim();
+      el.voiceStatus.textContent = failed
+        ? "Listening stopped"
+        : heardNothing ? "Nothing was heard" : "Check the note";
+      renderRoomNoteControls();
       // Reset the transform, not the height: the bars are full height and scaled.
       // Leaving an inline `height` here would shrink the bar the scale applies to,
       // so every later recording drew a flatter and flatter wave.
@@ -3151,12 +3278,44 @@ export function openRoomScan() {
         el.voice.hidden = true;
         return;
       }
-      if (failed) el.hint.textContent = "Listening stopped. Your notes so far are kept.";
-      else if (roomTranscript()) {
+      if (failed) {
+        // The cause decides the advice. "Listening stopped" over a blocked
+        // permission sent people tapping the mic again forever; naming the
+        // problem names the fix.
+        const message = reason === "blocked"
+          ? "Microphone access is blocked. Allow it in your browser settings, or type the note."
+          : reason === "no-device"
+            ? "No microphone was found on this device. Type the note instead."
+            : "Listening stopped. Your notes so far are kept.";
+        el.hint.textContent = message;
+        if (reason) toast(message);
+      } else if (heardNothing) {
+        el.hint.textContent = "Nothing was heard. Type the note, or tap the mic to try again.";
+      } else {
         el.hint.innerHTML = "<b>Check the room note</b> — correct anything before confirming";
         toast("Check what Homle heard, then tap Done");
       }
       openNoteEditor();
+    }
+
+    // Discards what THIS recording added and puts the note back exactly as it
+    // stood when the mic was tapped. Cancelling a recording must not delete the
+    // note it was being appended to.
+    function cancelVoice() {
+      if (!state.voiceOn) return;
+      const restore = state.voiceSessionStartNote || "";
+      stopVoice({ silent: true });
+      setRoomTranscript(restore);
+      renderVoiceTranscript();
+      toast(restore.trim() ? "Recording discarded — your earlier note is unchanged." : "Recording discarded.");
+    }
+
+    function deleteVoiceNote() {
+      if (state.voiceOn) stopVoice({ silent: true });
+      el.note.value = "";
+      setRoomTranscript("");
+      closeNoteEditor();
+      toast("Room note deleted.");
     }
 
     /* ── Finishing the scan ── */
@@ -3388,6 +3547,12 @@ export function openRoomScan() {
     el.retake.addEventListener("click", () => (state.revisiting ? prepareLiveRoom() : unfreeze()));
     el.readRoom.addEventListener("click", confirmSelection);
     el.mic.addEventListener("click", () => (state.voiceOn ? stopVoice() : startVoice()));
+    // The explicit in-panel controls. Stop is the same action as tapping the
+    // recording mic — two visible ways to do the one thing that must never be
+    // hard to find.
+    el.voiceStop.addEventListener("click", () => stopVoice());
+    el.voiceCancel.addEventListener("click", cancelVoice);
+    el.voiceDelete.addEventListener("click", deleteVoiceNote);
     for (const button of el.noteOpen) button.addEventListener("click", () => openNoteEditor({ focus: true }));
     el.noteDone.addEventListener("click", closeNoteEditor);
     el.note.addEventListener("focus", () => { if (state.voiceOn) stopVoice(); });

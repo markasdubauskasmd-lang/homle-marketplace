@@ -661,3 +661,52 @@ assert(overlay.includes("state.lastRedaction?.summary") && overlay.includes("unu
   "The scanner neither reports what it blurred nor refuses a frame that is mostly a person.");
 
 console.log("Room scan UI tests passed: embedded overlay with one implementation, real camera and speech, consent before any photograph leaves, camera released on every exit, safe detection overlay, honest duration and condition, no invented measurement and the approved presentation.");
+
+/* ── The microphone can always be stopped, cancelled and reviewed ── */
+
+// While recording, the panel header holds a visible Stop (and Cancel); while
+// reviewing, Done and Delete. The old stylesheet rule hid the panel's only
+// button during recording, leaving stop to an unlabelled toggle — the exact
+// field complaint this section pins against return.
+assert(overlay.includes("data-voice-stop") && overlay.includes("data-voice-cancel") && overlay.includes("data-voice-delete"), "The voice panel lost its explicit Stop, Cancel or Delete control.");
+assert(!/\.voice\.recording \.voice-done\s*\{\s*display:\s*none/.test(styles), "The stylesheet once again hides the note panel's confirm button during recording, leaving no visible way to stop.");
+assert(/el\.voiceStop\.hidden = !recording;\s*\n\s*el\.voiceCancel\.hidden = !recording;\s*\n\s*el\.noteDone\.hidden = recording;/.test(overlay), "Recording and review no longer swap the Stop/Cancel and Done/Delete button pairs, so one state shows the other's controls.");
+assert(/micLabel\.textContent = recording \? "Stop"/.test(overlay) && /aria-label", recording \? "Stop recording"/.test(overlay), "The mic button does not become a labelled Stop control while recording.");
+assert(/el\.voiceStop\.addEventListener\("click", \(\) => stopVoice\(\)\)/.test(overlay), "The visible Stop button is not wired to stop the recording.");
+// Cancel restores the note to exactly what it was when the mic was tapped —
+// discarding the recording, never the note it was being appended to.
+assert(/state\.voiceSessionStartNote = sessionBase/.test(overlay) && /function cancelVoice\(\)[\s\S]{0,420}stopVoice\(\{ silent: true \}\);[\s\S]{0,120}setRoomTranscript\(restore\)/.test(overlay), "Cancelling a recording no longer restores the pre-recording note.");
+assert(/function deleteVoiceNote\(\)[\s\S]{0,320}setRoomTranscript\(""\)/.test(overlay), "There is no way to delete a room note from the review panel.");
+// Failure causes are named, because "try again" is wrong advice for a blocked
+// permission and for a phone with no microphone.
+assert(/event\?\.error === "not-allowed" \|\| event\?\.error === "service-not-allowed"/.test(overlay) && overlay.includes("Microphone access is blocked"), "A denied microphone permission is reported as a generic failure, sending people tapping the mic forever.");
+assert(overlay.includes('event?.error === "audio-capture"') && overlay.includes("No microphone was found"), "A missing microphone is reported as a generic failure.");
+assert(overlay.includes("Nothing was heard"), "An empty recording ends silently instead of saying nothing was heard.");
+// The timer restarts visibly with each recording.
+assert(/el\.voiceTime\.textContent = "0:00"/.test(overlay), "A new recording shows the previous recording's elapsed time until the first tick.");
+
+/* ── One capture mode: the deck offers no video button ── */
+
+// The scanner already reads the room continuously while the Landlord walks; a
+// separate video mode was a second way to do what the default does, and a
+// media-mode decision no customer should be handed. The video path itself must
+// survive on the camera-blocked recovery card, where it is genuinely needed.
+{
+  const deckMarkup = overlay.slice(overlay.indexOf('class="deck-row"'), overlay.indexOf("deck-camera-alt"));
+  assert(!deckMarkup.includes("data-video-fallback"), "The video-mode button is back in the main camera deck.");
+  assert(deckMarkup.includes("data-note-open"), "The deck lost its typed-note entry when the video button left.");
+  assert(deckMarkup.includes("Finish room"), "The shutter carries no visible label saying it finishes the room.");
+  const blockedMarkup = overlay.slice(overlay.indexOf("vf-blocked"), overlay.indexOf('class="scan-top"'));
+  assert(blockedMarkup.includes("data-video-fallback"), "The camera-blocked recovery card lost its video fallback — a phone with a blank live camera now has no walkthrough capture at all.");
+}
+
+/* ── The press is acknowledged before the encode ── */
+
+// The 1600px JPEG now encodes off the main thread; the flash and the locked
+// shutter are what make that wait read as a response instead of a dead button,
+// and the post-await guards are what stop a stale encode landing on a view the
+// Landlord has already left or frozen.
+assert(/function flashViewfinder\(\)[\s\S]{0,240}classList\.add\("pop"\)/.test(overlay), "Nothing triggers the capture flash the stylesheet has always defined.");
+assert(/async function capture\(\)[\s\S]{0,1200}flashViewfinder\(\);\s*\n\s*el\.shutter\.disabled = true/.test(overlay), "The shutter press is not acknowledged before the asynchronous encode.");
+assert(/async function capture\(\)[\s\S]{0,1600}const frame = await pending;[\s\S]{0,300}if \(state\.closed \|\| state\.frozen \|\| state\.screen !== "live"\) return;/.test(overlay), "A capture encoded after the Landlord moved on can still freeze the wrong view.");
+assert(/await pending\.catch\(\(\) => ""\)/.test(overlay), "A failed tap-to-freeze encode rejects unhandled instead of degrading to the warming-up message.");

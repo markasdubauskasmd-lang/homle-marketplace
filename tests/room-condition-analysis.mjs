@@ -101,7 +101,11 @@ assert.match(source, /If you cannot name the evidence, you are guessing/, "The p
 // evidence was being destroyed before the model ever saw it, and no prompt could
 // recover it.
 assert.match(overlay, /1600 \/ Math\.max\(sourceRect\.sWidth, sourceRect\.sHeight\)/, "The visible frame that condition is graded from was reduced again. Fine texture is the evidence, and it does not survive aggressive downscaling.");
-assert.match(overlay, /toDataURL\("image\/jpeg", 0\.9/, "The confirmation frame's JPEG quality was lowered again, which smooths away exactly the speckle and film that distinguish a limescaled tap from a white one.");
+assert.match(overlay, /encodeCanvasJpeg\(el\.canvas, 0\.90\)/, "The confirmation frame's JPEG quality was lowered again, which smooths away exactly the speckle and film that distinguish a limescaled tap from a white one.");
+// The 1600px confirmation encode was the last synchronous `toDataURL` on the
+// camera path — a main-thread stall on the exact frame the shutter press lands
+// on. The Blob path snapshots the same pixels without blocking the preview.
+assert.doesNotMatch(overlay, /return el\.canvas\.toDataURL\(/, "The confirmation frame returned to synchronous JPEG encoding, freezing the viewfinder on every shutter press.");
 assert.match(overlay, /async function cropFor\(box, source\)[\s\S]*?encodeCanvasJpeg\(canvas, 0\.9\)/, "Item crops were compressed harder. A crop is a close-up of the one item being judged and is the last place to save bytes.");
 assert.doesNotMatch(overlay, /async function cropFor\(box, source\)[\s\S]*?canvas\.toDataURL\(/, "Item crops returned to synchronous JPEG encoding and can freeze the phone while condition evidence is prepared.");
 
