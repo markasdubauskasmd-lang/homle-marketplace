@@ -1107,3 +1107,23 @@ per room. The `?scanDebug=1` assist row now shows the empty streak (`e…`)
 alongside the distance streak. Known trade, stated: pointing at a genuinely
 bare wall for a few seconds will zoom into it; the toast, the zoom chip and
 the per-room reset make that a two-tap recovery.
+
+## Phase 11 addendum — the fifth report (glow vs "0 items found")
+
+"Sometimes the scanner says it found zero items but it clearly has the glow
+around it." Both halves were telling the truth about different systems: the
+glow is the free, instant, on-device detector; the item list is the paid room
+reader, which names and grades a settled view seconds later. Showing the
+second system's zero over the first system's boxes read as a broken scanner.
+
+The header now describes whichever system is actually speaking. While the
+named list is empty it counts the glow — "3 spotted · reading…" during an
+in-flight read, "3 spotted · hold steady to read" before one (holding steady
+is what starts the read, so the message is the instruction), updating live as
+boxes appear. Once named rows exist they own the header as before.
+
+On "quicker": the reader's own latency is the provider's vision call and
+cannot be waved away, and the read deliberately waits for a settled, sharp,
+well-lit frame because paying to grade a motion-blurred one produces confident
+nonsense. What changed is that the first second now shows the true state
+instead of a false zero — the honest version of faster.

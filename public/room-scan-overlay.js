@@ -141,7 +141,7 @@ const markup = `
     <!-- What the room has found so far. Fills itself as the Landlord walks, so the
          evidence that the scan is working is on screen rather than implied. -->
     <div class="found" data-found hidden>
-      <p class="found-head"><span data-found-count>0</span> <span data-found-noun>items</span> found <span class="found-busy" data-found-busy hidden aria-hidden="true"></span></p>
+      <p class="found-head"><span data-found-count>0</span> <span data-found-noun>items found</span> <span class="found-busy" data-found-busy hidden aria-hidden="true"></span></p>
       <ul class="found-list" data-found-list aria-live="polite"></ul>
     </div>
     <p class="deck-hint" data-hint role="status">Just walk around the room — items save themselves</p>
@@ -600,7 +600,7 @@ export function openRoomScan() {
       // Kept separate from `generation`: pausing detection must never discard a
       // room reading that is still in flight.
       detectionGeneration: 0,
-      tracks: [], nextTrackId: 1, liveDetectionAvailable: true,
+      tracks: [], nextTrackId: 1, lastSpottedCount: 0, liveDetectionAvailable: true,
       roomReadController: null, frameCallbackKind: ""
     };
 
@@ -2607,7 +2607,14 @@ export function openRoomScan() {
       const list = el.foundList;
       if (!list) return;
       const currentRoomBusy = state.keyframeActiveRooms.has(transcriptKey());
-      el.found.hidden = items.length === 0 && !currentRoomBusy;
+      // The glow and the list are two different systems: the on-device
+      // detector highlights instantly and free, the room reader names and
+      // grades a moment later. "0 items found" over a screen full of glowing
+      // boxes read as a broken scanner — the fifth field report. While the
+      // reader is behind the glow, the header says what is actually
+      // happening: how many things are spotted and that reading is under way.
+      const spotted = !state.frozen && state.screen === "live" ? state.tracks.length : 0;
+      el.found.hidden = items.length === 0 && !currentRoomBusy && spotted === 0;
       el.foundBusy.hidden = !currentRoomBusy;
       // Says how many need attention, not how many exist. "16 items found" over a
       // list whose visible rows all read CLEAN told a customer nothing and looked
@@ -2616,10 +2623,19 @@ export function openRoomScan() {
       const needsWork = items
         .filter((item) => item.condition && item.condition !== "clean")
         .reduce((total, item) => total + itemQuantity(item), 0);
-      el.foundCount.textContent = String(needsWork || totalItems);
-      el.foundNoun.textContent = needsWork
-        ? `to clean${totalItems > needsWork ? ` · ${totalItems - needsWork} clean` : ""}`
-        : totalItems === 1 ? "item" : "items";
+      if (items.length === 0) {
+        el.foundCount.textContent = spotted ? String(spotted) : "";
+        // "Reading" only while a read is genuinely in flight; before that the
+        // truthful message is the one that starts it — holding steady.
+        el.foundNoun.textContent = spotted
+          ? `spotted · ${currentRoomBusy ? "reading…" : "hold steady to read"}`
+          : "Reading the room…";
+      } else {
+        el.foundCount.textContent = String(needsWork || totalItems);
+        el.foundNoun.textContent = needsWork
+          ? `to clean${totalItems > needsWork ? ` · ${totalItems - needsWork} clean` : ""}`
+          : totalItems === 1 ? "item found" : "items found";
+      }
 
       const rows = items.map((item) => {
         const row = document.createElement("li");
@@ -3335,6 +3351,14 @@ export function openRoomScan() {
         state.tracks = tracked.tracks;
         state.nextTrackId = tracked.nextId;
         paintBoxes(liveBoxes());
+        // The "spotted" header line describes the glow, so it moves with the
+        // glow — but only while the named list is still empty. Once real named
+        // rows exist they own the header, and re-rendering the whole inventory
+        // several times a second for a box count would be viewfinder work.
+        if (state.tracks.length !== state.lastSpottedCount) {
+          state.lastSpottedCount = state.tracks.length;
+          if (inventoryFor().length === 0) renderInventory();
+        }
         // Update the guidance only when its meaning changes. Detection can run
         // several times a second; rewriting the live-region DOM on every frame
         // would trade a helpful hint for viewfinder work and repeated screen-
