@@ -207,6 +207,31 @@ export async function launchBrowser({ headless = true } = {}) {
   return {
     consoleMessages,
     pageErrors,
+    async setViewport({ width, height, deviceScaleFactor = 1, mobile = true } = {}) {
+      const validatedWidth = Number(width);
+      const validatedHeight = Number(height);
+      const validatedScale = Number(deviceScaleFactor);
+      if (!Number.isInteger(validatedWidth) || validatedWidth < 240 || validatedWidth > 4_000) {
+        throw new TypeError("Browser viewport width must be an integer between 240 and 4000.");
+      }
+      if (!Number.isInteger(validatedHeight) || validatedHeight < 320 || validatedHeight > 4_000) {
+        throw new TypeError("Browser viewport height must be an integer between 320 and 4000.");
+      }
+      if (!Number.isFinite(validatedScale) || validatedScale < 1 || validatedScale > 4) {
+        throw new TypeError("Browser device scale factor must be between 1 and 4.");
+      }
+      // Device emulation is test-only. It makes responsive CSS and layout use
+      // the same viewport a phone receives without pretending this desktop
+      // Chromium run proves physical touch, camera or browser behaviour.
+      await send("Emulation.setDeviceMetricsOverride", {
+        width: validatedWidth,
+        height: validatedHeight,
+        deviceScaleFactor: validatedScale,
+        mobile: Boolean(mobile),
+        screenWidth: validatedWidth,
+        screenHeight: validatedHeight
+      }, sessionId);
+    },
     async goto(url) {
       await send("Page.navigate", { url }, sessionId);
       // Polls for readiness rather than racing a lifecycle event, because a
