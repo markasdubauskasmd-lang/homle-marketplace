@@ -396,12 +396,17 @@
       "order": 79,
       "file": "079_scan_ground_truth.sql",
       "sha256": "615b281290cde496ba35fbd7562e31e18ed7c8d54c371457f66dd4bf4d6e1bf1"
+    },
+    {
+      "order": 80,
+      "file": "080_landlord_support_requests.sql",
+      "sha256": "0251c771d29190bb8b5aa97a31fbf2bf7628179cc00de4c8e77b29d652a34fde"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "843f834d73e2bcc816d325198c16fe51d307b19e8ccec1b617414fe2c8a4c4e8"
+      "sha256": "80900c476c29f67ac8f517144389cf1d4f765dc20be81bd13c99ff6278559fa1"
     },
     {
       "file": "worker-role-grants.sql",

@@ -123,6 +123,10 @@ GRANT EXECUTE ON FUNCTION tideway_private.open_booking_dispute(uuid,uuid,uuid,te
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_dispute(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_admin_booking_disputes(text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.review_booking_dispute(uuid,text,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.create_landlord_support_request(uuid,uuid,text,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_my_landlord_support_requests(integer,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_administrator_support_requests(text,text,integer,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.review_landlord_support_request(uuid,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.request_my_privacy_action(uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_privacy_requests() TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.request_facebook_data_deletion(uuid,text,bytea,bytea) TO tideway_app;
@@ -148,6 +152,7 @@ REVOKE INSERT, UPDATE, DELETE ON users FROM tideway_app;
 -- Booking transitions are only writable through the audited, actor-aware functions above.
 REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, task_updates, job_pauses, unexpected_task_decisions, booking_progress_events, job_photos, job_photo_uploads, cleaner_locations, conversations, messages, notifications, audit_logs FROM tideway_app;
 REVOKE INSERT, UPDATE, DELETE ON disputes FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON support_requests FROM tideway_app;
 -- Object keys and upload verification records are reachable only through the narrow SECURITY DEFINER projections.
 REVOKE SELECT ON job_photos, job_photo_uploads FROM tideway_app;
 REVOKE SELECT ON conversations, messages FROM tideway_app;
