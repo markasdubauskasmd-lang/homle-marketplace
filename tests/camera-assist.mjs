@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  assistMinimumStreak, nextAutoZoom, shouldEnableTorch, torchSupported, zoomCeiling, zoomLabel, zoomRange
+  assistMinimumStreak, nextAutoZoom, nextManualZoom, shouldEnableTorch, torchLumaThreshold, torchSupported, zoomCeiling, zoomLabel, zoomRange
 } from "../public/camera-assist.js";
 
 // The automatic capture assists. What is pinned here is the set of rules that
@@ -58,10 +58,33 @@ assert.equal(nextAutoZoom({ range: null, zoom: 1, distanceStreak: 9 }), null, "A
   assert.equal((coarse - 1) % 0.5, 0, `The zoom target ignored the hardware step: ${coarse}`);
 }
 
-/* ── The reset chip's label ────────────────────────────────────────────── */
+/* ── The zoom chip: a label and a manual control ───────────────────────── */
 
-assert.equal(zoomLabel(2.25), "2.3× — tap to reset");
-assert.equal(zoomLabel(1), "", "An unzoomed camera showed a reset chip.");
+assert.equal(zoomLabel(2.25), "2.3×");
+assert.equal(zoomLabel(1), "1×", "The chip hides at 1×, but it is now a manual control and must always name its state.");
 assert.equal(zoomLabel(undefined), "");
+
+// Manual stepping exists because the automatic trigger needs the detector to
+// have found something small, and a far dim wall gives it nothing — while the
+// customer can see perfectly well that everything is too far away.
+{
+  const range = { min: 1, max: 8, step: 0.1 };
+  assert.equal(nextManualZoom(range, 1), 1.5, "The first manual step is wrong.");
+  assert.equal(nextManualZoom(range, 1.5), 2, "The second manual step is wrong.");
+  assert.equal(nextManualZoom(range, 2), 3, "The third manual step is wrong.");
+  assert.equal(nextManualZoom(range, 3), 1, "The cycle does not wrap back to wide.");
+  // A camera whose maximum is inside the cycle still wraps cleanly.
+  const short = { min: 1, max: 1.8, step: 0.1 };
+  assert.equal(nextManualZoom(short, 1), 1.5, "A short-range camera lost its usable step.");
+  assert.equal(nextManualZoom(short, 1.5), 1.8, "A short-range camera did not step to its own maximum.");
+  assert.equal(nextManualZoom(short, 1.8), 1, "A short-range camera does not wrap back to wide.");
+  assert.equal(nextManualZoom(null, 1), null, "A camera without zoom was offered the manual cycle.");
+}
+
+// The torch threshold sits above the nag threshold on purpose: auto-exposure
+// brightens a dark bedroom into the 50–90 range, so a threshold tuned for raw
+// darkness never fires on a live camera — the first field trial's exact report.
+assert.ok(torchLumaThreshold > 42 && torchLumaThreshold <= 90,
+  `The torch threshold (${torchLumaThreshold}) drifted out of the post-auto-exposure band that field evidence put it in.`);
 
 console.log("Camera-assist checks passed: defensive capability reading, torch only after persistent darkness and never automatically off, declines final, zoom nudges quantised and ceilinged, and honest labels.");

@@ -351,6 +351,16 @@ export const detectionMinimumScore = 0.62;
 // segment does not. Superseding on that test fixes the Samsung corruption while
 // leaving genuine multi-segment interims intact. The latest snapshot wins even
 // when shorter — it is the engine's current belief.
+// One entry either extends the accumulated text, or truncates it (the engine
+// revising downward), or is genuinely new. The first two are the same utterance
+// re-reported and supersede; only the third appends.
+function accumulateSnapshot(accumulated, transcript) {
+  const previous = accumulated.trim().toLowerCase();
+  const current = transcript.trim().toLowerCase();
+  if (previous && current && (current.startsWith(previous) || previous.startsWith(current))) return transcript;
+  return accumulated + transcript;
+}
+
 export function recognitionTranscripts(results) {
   let finalText = "";
   let interim = "";
@@ -359,14 +369,16 @@ export function recognitionTranscripts(results) {
     const result = results[index];
     if (!result?.[0]) continue;
     const transcript = String(result[0].transcript ?? "");
-    if (result.isFinal) { finalText += transcript; continue; }
-    const previous = interim.trim().toLowerCase();
-    const current = transcript.trim().toLowerCase();
-    if (previous && current && (current.startsWith(previous) || previous.startsWith(current))) {
-      interim = transcript;
-    } else {
-      interim += transcript;
-    }
+    // FINALS get the same supersession as interims. The second field trial
+    // (Pixel) showed cumulative revisions arriving as *final* entries —
+    // "Please", "please clean", "please clean the" all final in one list —
+    // which plain concatenation multiplied just like the interim case. The
+    // accepted cost, stated plainly: a customer who genuinely restates a
+    // sentence from its first word inside one recognition session loses the
+    // first copy. The transcript stays on screen and editable; the multiplied
+    // garbage did not.
+    if (result.isFinal) { finalText = accumulateSnapshot(finalText, transcript); continue; }
+    interim = accumulateSnapshot(interim, transcript);
   }
   return Object.freeze({ finalText, interim });
 }

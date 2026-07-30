@@ -1023,3 +1023,39 @@ Also from the same screenshots: the step indicator ("3 OF 3") sat beside
   is the observed behaviour of one engine. A speech service that revises an
   interim into an unrelated sentence would append rather than supersede —
   harmless duplication, not loss, and the transcript remains editable.
+
+## Phase 11 addendum — the second round (Pixel)
+
+A retest on a Google Pixel showed the transcript corruption surviving the first
+fix and neither assist firing. Three causes, each now addressed:
+
+1. **The corruption also arrives through FINAL results.** The Pixel's engine
+   reported cumulative revisions — "Please", "please clean", "please clean
+   the" — as *final* entries in one list, which plain concatenation multiplied
+   exactly as the interim case had. Supersession now applies to finals too,
+   with the cost stated in the code and pinned by test: a customer who
+   restates a sentence verbatim from its first word inside one session keeps
+   only the restatement. Belt-and-braces, every engine-initiated restart now
+   builds a **fresh recogniser instance** — an engine that retains or replays
+   results across `start()` cannot re-add them to the rebased note — and the
+   ended instance is detached before the rebase so its stragglers land nowhere.
+2. **The torch trigger was calibrated blind to auto-exposure.** It reused the
+   "too dark" advice threshold (luma < 42), but a phone brightens a dark
+   bedroom into the 50–90 range, so the trigger almost never fired on a live
+   camera. The torch now counts raw measured luma against its own threshold
+   (70 — a first field calibration, to be revisited against the
+   scan.assist.torch counter).
+3. **The automatic zoom needs the detector to have found something small**, and
+   a far dim wall gives it nothing to reason from. The zoom chip is therefore
+   a manual control in its own right: visible whenever the camera can zoom,
+   stepping 1× → 1.5× → 2× → 3× → back to wide, with automation staying out of
+   the way once the customer takes over.
+
+`?scanDebug=1` now shows an `assist` row — torch support/state, dark-streak,
+zoom range and streak, and the measured luma — so the next field screenshot
+answers "why didn't it fire" by itself.
+
+Still true and worth repeating: a mobile tab kept open across deploys keeps
+running the JavaScript it loaded first. Every file is served revalidate-always,
+so closing and reopening the page picks up fixes — but nothing can update a
+page that is never reloaded.

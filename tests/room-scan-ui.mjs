@@ -753,12 +753,15 @@ assert(/synth\.cancel\(\);[\s\S]{0,400}synth\.speak\(utterance\)/.test(overlay),
 // overlay: streaks counted on every quality sample (including unchanged-advice
 // ones — the early return must come after), declines recorded on the manual
 // controls and reset per room, and everything cleared when the camera stops.
-assert(/state\.darkStreak = advice\?\.kind === "dark"[\s\S]{0,240}void maybeAssistCamera\(\);[\s\S]{0,140}if \(key === state\.qualityKind\) return true;/.test(overlay), "Assist streaks are counted after the unchanged-advice early return, so a persisting problem never accumulates one.");
+// The torch streak counts RAW measured luma, not the "too dark" advice kind:
+// auto-exposure brightens a dark bedroom past the advice threshold, which is
+// exactly why the first field trial's torch never fired.
+assert(/state\.darkStreak = quality\.luma < torchLumaThreshold[\s\S]{0,400}void maybeAssistCamera\(\);[\s\S]{0,140}if \(key === state\.qualityKind\) return true;/.test(overlay), "Assist streaks are counted after the unchanged-advice early return, or the torch is keyed to the post-auto-exposure-blind advice kind again.");
 assert(/async function maybeAssistCamera\(\)[\s\S]{0,120}state\.closed \|\| state\.frozen \|\| !state\.cameraTrack\) return;/.test(overlay), "The assist can fire while the frame is frozen or the camera is gone.");
 assert(/if \(shouldEnableTorch\(\{/.test(overlay) && /nextAutoZoom\(\{/.test(overlay), "The overlay makes its own assist decisions instead of using the tested rules.");
 // Manual off is final for the room, on both assists.
 assert(/async function toggleTorch\(\)[\s\S]{0,420}state\.torchOn = false;[\s\S]{0,160}state\.torchDeclined = true;/.test(overlay), "Turning the torch off does not decline it, so it re-lights a second later.");
-assert(/async function resetZoom\(\)[\s\S]{0,420}state\.zoomDeclined = true;/.test(overlay), "Resetting the zoom does not decline it, so it re-zooms a second later.");
+assert(/async function cycleZoom\(\)[\s\S]{0,520}state\.zoomDeclined = true;/.test(overlay), "A manual zoom step does not take over from the automation, so it re-zooms a second later.");
 // A new room is a new conversation: declines and streaks reset, zoom returns
 // to wide.
 assert(/function prepareLiveRoom\(\)[\s\S]{0,900}state\.torchDeclined = false;[\s\S]{0,80}state\.zoomDeclined = false;/.test(overlay), "A decline in one room silences the assists in every later room.");
