@@ -38,6 +38,11 @@ const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`
 const cleanerProfilePath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})$`);
 const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
 const cleanerAvailabilityPath = new RegExp(`^/api/marketplace/cleaner/availability/(${uuidPattern})$`);
+const cleanerDataPath = /^\/api\/marketplace\/cleaner\/data\/([a-z][a-z0-9-]{1,63})$/;
+const cleanerDocumentCompletionPath = new RegExp(`^/api/marketplace/cleaner/documents/(${uuidPattern})/complete$`);
+const cleanerDocumentAccessPath = new RegExp(`^/api/marketplace/cleaner/documents/(${uuidPattern})/access$`);
+const cleanerTrainingPath = /^\/api\/marketplace\/cleaner\/training\/([a-z][a-z0-9-]{1,79})$/;
+const cleanerAgreementSignPath = /^\/api\/marketplace\/cleaner\/agreements\/([a-z][a-z0-9-]{1,79})\/sign$/;
 const favouriteCleanerPath = new RegExp(`^/api/marketplace/landlord/favourite-cleaners/(${uuidPattern})$`);
 const bookingCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/completion$`);
 const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews$`);
@@ -82,6 +87,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const security = dependencies?.security;
   const properties = dependencies?.propertyService;
   const cleaners = dependencies?.cleanerProfileService;
+  const cleanerDashboard = dependencies?.cleanerDashboardService;
   const favouriteCleaners = dependencies?.favouriteCleanerService;
   const cleaningRequests = dependencies?.cleaningRequestService;
   const bookings = dependencies?.bookingWorkflowService;
@@ -107,6 +113,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "getPublicProfile", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof cleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaner profile service.");
+  if (!cleanerDashboard || !["getSection", "saveSection", "listDocuments", "createDocumentIntent", "completeDocument", "getDocumentAccess", "listTraining", "saveTraining", "listAgreements", "signAgreement"].every((method) => typeof cleanerDashboard[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner dashboard service.");
   if (!favouriteCleaners || !["listOwn", "setOwn"].every((method) => typeof favouriteCleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the favourite-Cleaner service.");
   if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.previewInvitation !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
@@ -296,6 +303,74 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation, roles: ["cleaner"] });
           const profile = mutation ? await cleaners.saveOwnProfile(context.actor, await readJsonObject(request)) : await cleaners.getOwnProfile(context.actor);
           sendJson(response, 200, { ok: true, profile });
+          return true;
+        }
+        const selectedCleanerData = pathname.match(cleanerDataPath);
+        if (selectedCleanerData) {
+          if (request.method !== "GET" && request.method !== "PUT") return methodNotAllowed(response, ["GET", "PUT"]), true;
+          const mutation = request.method === "PUT";
+          const context = await security.protect(request, { mutation, roles: ["cleaner"] });
+          const section = mutation
+            ? await cleanerDashboard.saveSection(context.actor, selectedCleanerData[1], await readJsonObject(request))
+            : await cleanerDashboard.getSection(context.actor, selectedCleanerData[1]);
+          sendJson(response, 200, { ok: true, section });
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/documents") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, documents: await cleanerDashboard.listDocuments(context.actor) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/documents/intents") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          const upload = await cleanerDashboard.createDocumentIntent(context.actor, await readJsonObject(request));
+          sendJson(response, 201, { ok: true, upload });
+          return true;
+        }
+        const selectedCleanerDocumentCompletion = pathname.match(cleanerDocumentCompletionPath);
+        if (selectedCleanerDocumentCompletion) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          const document = await cleanerDashboard.completeDocument(context.actor, selectedCleanerDocumentCompletion[1]);
+          sendJson(response, 200, { ok: true, document });
+          return true;
+        }
+        const selectedCleanerDocumentAccess = pathname.match(cleanerDocumentAccessPath);
+        if (selectedCleanerDocumentAccess) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["cleaner"] });
+          const access = await cleanerDashboard.getDocumentAccess(context.actor, selectedCleanerDocumentAccess[1]);
+          sendJson(response, 200, { ok: true, access });
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/training") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, progress: await cleanerDashboard.listTraining(context.actor) });
+          return true;
+        }
+        const selectedCleanerTraining = pathname.match(cleanerTrainingPath);
+        if (selectedCleanerTraining) {
+          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          const progressRecord = await cleanerDashboard.saveTraining(context.actor, selectedCleanerTraining[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, progress: progressRecord });
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/agreements") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, agreements: await cleanerDashboard.listAgreements(context.actor) });
+          return true;
+        }
+        const selectedCleanerAgreementSign = pathname.match(cleanerAgreementSignPath);
+        if (selectedCleanerAgreementSign) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          const agreement = await cleanerDashboard.signAgreement(context.actor, selectedCleanerAgreementSign[1], await readJsonObject(request));
+          sendJson(response, 201, { ok: true, agreement });
           return true;
         }
         if (pathname === "/api/marketplace/cleaner/availability") {

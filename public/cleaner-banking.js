@@ -1,4 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { hydrateCleanerForm, loadCleanerSection, saveCleanerSection, uploadCleanerDocument } from "./cleaner-dashboard-data.js?v=20260730-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -60,10 +61,11 @@ export async function setupBanking({ account, showFeedback, requestJson }) {
   const holder = form.querySelector("[data-banking-holder]");
   if (holder instanceof HTMLInputElement) holder.value = account?.displayName || "";
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, sectionResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    loadCleanerSection(requestJson, "banking")
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
@@ -72,6 +74,7 @@ export async function setupBanking({ account, showFeedback, requestJson }) {
   const payout = payoutResult.status === "fulfilled" ? payoutResult.value.payout : null;
   const payoutState = payout?.ready ? "ready" : payoutResult.status === "fulfilled" ? "not-started" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
+  if (sectionResult.status === "fulfilled") hydrateCleanerForm(form, sectionResult.value);
 
   const providerStatus = form.querySelector("[data-banking-provider-status]");
   if (providerStatus) {
@@ -84,7 +87,7 @@ export async function setupBanking({ account, showFeedback, requestJson }) {
   form.querySelectorAll('input[name="paymentFrequency"]').forEach((input) => {
     input.addEventListener("change", () => {
       const status = form.querySelector("[data-banking-save-status]");
-      if (status) status.textContent = "Payment preference selected for this page only. Stripe controls the actual payout schedule.";
+      if (status) status.textContent = "Payment preference has not been saved yet. Stripe controls the actual payout schedule.";
     });
   });
 
@@ -106,15 +109,24 @@ export async function setupBanking({ account, showFeedback, requestJson }) {
       return;
     }
     row?.classList.add("is-selected");
-    if (copy) copy.textContent = selectedFileCopy(file);
+    if (copy) copy.textContent = selectedFileCopy(file).replace("selected for this page only", "ready to upload");
     if (action) action.textContent = "Replace";
     const status = form.querySelector("[data-banking-save-status]");
-    if (status) status.textContent = "Invoice template selected for this page only. It has not been uploaded or stored.";
+    if (status) status.textContent = "Invoice template selected. Continue to upload and save it.";
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    showFeedback("Opening secure Stripe payout setup. Homle will not receive your full bank details.");
-    location.assign(payout?.ready ? "/cleaner/payouts" : "/cleaner/payouts?resume=1");
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit instanceof HTMLButtonElement) submit.disabled = true;
+    try {
+      await saveCleanerSection(requestJson, "banking", form, "complete");
+      if (fileInput instanceof HTMLInputElement && fileInput.files?.[0]) await uploadCleanerDocument(requestJson, fileInput.files[0], "invoice-template");
+      showFeedback("Payout preference saved. Opening Stripe; Homle never receives your full bank details.", "success");
+      location.assign(payout?.ready ? "/cleaner/payouts" : "/cleaner/payouts?resume=1");
+    } catch (error) {
+      showFeedback(error.message || "Payout preferences could not be saved.", "error");
+      if (submit instanceof HTMLButtonElement) submit.disabled = false;
+    }
   });
 }

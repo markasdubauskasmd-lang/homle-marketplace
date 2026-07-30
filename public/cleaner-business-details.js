@@ -1,38 +1,12 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { storedCsrf } from "./session-csrf.js";
 
-const draftKey = "homle-cleaner-business-details-draft-v1";
-const draftLifetimeMs = 8 * 60 * 60 * 1000;
 const guidance = {
   solo: "Joining solo — no company paperwork needed. You can switch to a business account later without re-onboarding.",
   business: "Choose this if you already trade as a cleaning business. Business records can be added during full onboarding.",
   limited: "Choose this if you operate through a registered limited company. Company details will be required before approval.",
   partnership: "Choose this if you operate with one or more business partners. Partnership details will be required before approval."
 };
-
-function safeSessionStorage() {
-  try {
-    const probe = `${draftKey}-probe`;
-    sessionStorage.setItem(probe, "1");
-    sessionStorage.removeItem(probe);
-    return sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
-function savedBusinessType(storage) {
-  if (!storage) return "solo";
-  try {
-    const parsed = JSON.parse(storage.getItem(draftKey) || "{}");
-    if (!parsed || Date.now() - Number(parsed.savedAt || 0) > draftLifetimeMs || !guidance[parsed.businessType]) {
-      storage.removeItem(draftKey);
-      return "solo";
-    }
-    return parsed.businessType;
-  } catch {
-    return "solo";
-  }
-}
 
 function renderRail(progress) {
   const steps = new Map(progress.steps.map((step) => [step.key, step]));
@@ -48,7 +22,7 @@ function setGuidance(businessType) {
   if (note) note.textContent = guidance[businessType] || guidance.solo;
 }
 
-export async function setupBusinessDetails({ account, requestJson }) {
+export async function setupBusinessDetails({ account, requestJson, showFeedback }) {
   document.title = "Business details | Homle";
   const overview = document.querySelector("[data-registration-overview]");
   const layout = document.querySelector("[data-personal-details]");
@@ -63,45 +37,51 @@ export async function setupBusinessDetails({ account, requestJson }) {
   if (topbar) topbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, detailsResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    requestJson("/api/marketplace/cleaner/data/business-details")
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
-  const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
-    ? availabilityResult.value.availability.length
-    : 0;
+  const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability.length : 0;
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
-  const progress = onboardingProgress({ account, profile, payoutState, availabilityCount });
-  renderRail(progress);
+  renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
 
-  const storage = safeSessionStorage();
-  const savedType = savedBusinessType(storage);
+  const savedType = detailsResult.status === "fulfilled" && guidance[detailsResult.value.section?.payload?.businessType]
+    ? detailsResult.value.section.payload.businessType
+    : "solo";
   const savedControl = form.elements.namedItem("businessType");
   if (savedControl instanceof RadioNodeList) savedControl.value = savedType;
   setGuidance(savedType);
 
-  function saveChoice() {
+  async function saveChoice(completionStatus = "draft") {
     const businessType = String(new FormData(form).get("businessType") || "solo");
     const status = document.querySelector("[data-business-save-status]");
     setGuidance(businessType);
-    if (!storage) {
-      if (status) status.textContent = "This browser blocked tab-only draft storage.";
-      return;
-    }
+    const csrf = storedCsrf();
+    if (!csrf) throw new Error("Your secure editing token is missing. Sign in again before saving.");
     try {
-      storage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), businessType }));
-      if (status) status.textContent = "Progress is saved for this browser tab as you choose.";
-    } catch {
-      if (status) status.textContent = "This browser could not save the tab-only draft.";
+      await requestJson("/api/marketplace/cleaner/data/business-details", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({ payload: { businessType }, completionStatus })
+      });
+      if (status) status.textContent = "Progress is saved securely to your Cleaner account.";
+    } catch (error) {
+      if (status) status.textContent = "Progress could not be saved. Check your connection.";
+      throw error;
     }
   }
 
-  form.addEventListener("change", saveChoice);
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("change", () => saveChoice().catch(() => {}));
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    saveChoice();
-    location.assign("/cleaner/registration");
+    try {
+      await saveChoice("complete");
+      location.assign("/cleaner/registration");
+    } catch (error) {
+      showFeedback(error.message || "Business details could not be saved.", "error");
+    }
   });
 }

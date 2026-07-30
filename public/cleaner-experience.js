@@ -1,5 +1,6 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
 import { storedCsrf } from "./session-csrf.js";
+import { hydrateCleanerForm, loadCleanerSection, saveCleanerSection, uploadCleanerDocument } from "./cleaner-dashboard-data.js?v=20260730-1";
 
 const experienceOptions = [
   { label: "Domestic", serviceCode: "regular-domestic" },
@@ -117,10 +118,11 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
   if (experienceTopbar) experienceTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, sectionResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    loadCleanerSection(requestJson, "experience")
   ]);
   profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
@@ -133,6 +135,14 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
     return;
   }
   hydrateExperience(form, profile);
+  if (sectionResult.status === "fulfilled") hydrateCleanerForm(form, sectionResult.value);
+
+  for (const input of form.querySelectorAll("[data-experience-file]")) {
+    input.addEventListener("change", () => {
+      if (!(input instanceof HTMLInputElement) || !input.files?.[0]) return;
+      showFeedback(`${input.files[0].name} is ready to upload when you save.`);
+    });
+  }
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -155,8 +165,13 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
         body: JSON.stringify(profileUpdate(profile, form))
       });
       profile = result.profile;
+      await saveCleanerSection(requestJson, "experience", form, "complete");
+      const documentTypes = { cv: "cv", cleaningCertificates: "training-certificate", coshhCertificate: "training-certificate", healthSafetyCertificate: "training-certificate" };
+      for (const input of form.querySelectorAll("[data-experience-file]")) {
+        if (input instanceof HTMLInputElement && input.files?.[0]) await uploadCleanerDocument(requestJson, input.files[0], documentTypes[input.name] || "other");
+      }
       hydrateExperience(form, profile);
-      showFeedback("Cleaning experience and connected specialisms saved.", "success");
+      showFeedback("Cleaning experience, employment history and selected documents saved.", "success");
       location.assign("/cleaner/registration");
     } catch (error) {
       showFeedback(error.message || "Cleaning experience could not be saved.", "error");

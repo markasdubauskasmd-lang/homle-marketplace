@@ -35,13 +35,19 @@ export function money(pence) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format((Number(pence) || 0) / 100);
 }
 
-export async function requestJson(path) {
+export async function requestJson(path, init = {}) {
   if (browserOffline()) throw Object.assign(new Error("You are offline."), { code: "browser-offline" });
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 30_000);
   let response;
   try {
-    response = await fetch(path, { headers: { accept: "application/json" }, credentials: "same-origin", cache: "no-store", signal: controller.signal });
+    response = await fetch(path, {
+      ...init,
+      headers: { accept: "application/json", ...(init.headers || {}) },
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: controller.signal
+    });
   } finally {
     window.clearTimeout(timer);
   }

@@ -1,4 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { hydrateCleanerForm, loadCleanerSection, saveCleanerSection, uploadCleanerDocument } from "./cleaner-dashboard-data.js?v=20260730-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -49,10 +50,11 @@ export async function setupInsurance({ account, showFeedback, requestJson }) {
   if (insuranceTopbar) insuranceTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, sectionResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    loadCleanerSection(requestJson, "insurance")
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
@@ -60,6 +62,7 @@ export async function setupInsurance({ account, showFeedback, requestJson }) {
     : 0;
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
+  if (sectionResult.status === "fulfilled") hydrateCleanerForm(form, sectionResult.value);
 
   document.querySelectorAll("[data-insurance-file]").forEach((fileInput) => {
     fileInput.addEventListener("change", () => {
@@ -81,25 +84,39 @@ export async function setupInsurance({ account, showFeedback, requestJson }) {
       row?.classList.add("is-selected");
       if (copy) copy.textContent = selectedFileCopy(file);
       if (action) action.textContent = "Replace";
-      showFeedback("Insurance document selected for this page only. It has not been uploaded or stored.");
+      showFeedback("Insurance document selected. Save & continue to upload it securely.");
     });
   });
 
   form.addEventListener("input", () => {
     const status = document.querySelector("[data-insurance-save-status]");
-    if (status) status.textContent = "Policy details remain only in this open page and are not stored.";
+    if (status) status.textContent = "Changes have not been saved yet.";
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!form.reportValidity()) return;
     const expiryInput = form.elements.namedItem("policyExpiry");
     const today = new Date().toISOString().slice(0, 10);
     if (expiryInput instanceof HTMLInputElement && expiryInput.value < today) {
-      showFeedback("Enter a policy expiry date that has not passed. Nothing was uploaded or saved.", "error");
+      showFeedback("Enter a policy expiry date that has not passed.", "error");
       expiryInput.focus();
       return;
     }
-    showFeedback("Secure insurance storage and verification are not connected yet. Nothing was uploaded or saved.", "error");
+    const documentTypes = { publicLiabilityPolicy: "public-liability", professionalIndemnityPolicy: "professional-indemnity", employersLiabilityPolicy: "employers-liability" };
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit instanceof HTMLButtonElement) submit.disabled = true;
+    try {
+      await saveCleanerSection(requestJson, "insurance", form, "submitted");
+      for (const input of form.querySelectorAll("[data-insurance-file]")) {
+        if (input instanceof HTMLInputElement && input.files?.[0]) await uploadCleanerDocument(requestJson, input.files[0], documentTypes[input.name] || "other");
+      }
+      showFeedback("Insurance details and selected policies were saved securely for review.", "success");
+      location.assign("/cleaner/registration");
+    } catch (error) {
+      showFeedback(error.message || "Insurance details could not be saved.", "error");
+    } finally {
+      if (submit instanceof HTMLButtonElement) submit.disabled = false;
+    }
   });
 }

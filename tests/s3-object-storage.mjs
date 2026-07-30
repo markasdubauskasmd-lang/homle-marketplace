@@ -8,6 +8,7 @@ const quarantineKey = `quarantine/job-photos/${bookingId}/${photoId}`;
 const finalKey = `job-photos/${bookingId}/${photoId}.jpg`;
 const requestQuarantineKey = `quarantine/request-photos/${bookingId}/${photoId}`;
 const requestFinalKey = `request-photos/${bookingId}/${photoId}.jpg`;
+const cleanerDocumentKey = `cleaner-documents/${bookingId}/${photoId}`;
 const checksum = "a".repeat(64);
 const sourceBytes = Buffer.from("synthetic-image-input");
 const outputBytes = Buffer.from("synthetic-sanitized-jpeg");
@@ -94,6 +95,9 @@ assert.equal(signed[1].command.input.ResponseCacheControl, "private, no-store, m
 const requestUpload = await storage.createUploadUrl({ storageKey: requestQuarantineKey, mimeType: "image/png", byteSize: sourceBytes.length, checksumSha256: checksum, expiresAt: "2026-07-16T12:10:00.000Z" });
 const requestRead = await storage.createReadUrl({ storageKey: requestFinalKey, expiresAt: "2026-07-16T12:05:00.000Z" });
 assert(requestUpload.uploadUrl === undefined && requestUpload.url.endsWith("/3") && requestRead.url.endsWith("/4") && signed[2].command.input.Key === requestQuarantineKey && signed[3].command.input.Key === requestFinalKey, "Private request-photo prefixes were not signed through the same bounded object-storage contract.");
+const documentUpload = await storage.createPrivateUploadUrl({ storageKey: cleanerDocumentKey, mimeType: "application/pdf", byteSize: 128, checksumSha256: checksum, expiresAt: "2026-07-16T12:10:00.000Z" });
+const documentRead = await storage.createPrivateReadUrl({ storageKey: cleanerDocumentKey, mimeType: "application/pdf", expiresAt: "2026-07-16T12:05:00.000Z" });
+assert(documentUpload.url.endsWith("/5") && documentRead.url.endsWith("/6") && documentUpload.requiredHeaders["X-Amz-Server-Side-Encryption"] === "AES256" && signed[4].command.input.Key === cleanerDocumentKey && signed[5].command.input.ResponseContentType === "application/pdf", "Cleaner documents were not constrained to their private encrypted object-storage prefix.");
 await storage.deleteObject({ storageKey: quarantineKey });
 assert(commands.at(-1) instanceof DeleteObjectCommand);
 storage.close();

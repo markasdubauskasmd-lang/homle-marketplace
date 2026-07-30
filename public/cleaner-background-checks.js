@@ -1,4 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { hydrateCleanerForm, loadCleanerSection, saveCleanerSection, uploadCleanerDocument } from "./cleaner-dashboard-data.js?v=20260730-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -41,7 +42,7 @@ function renderBackgroundStatus(profile) {
     return;
   }
   banner.classList.add("is-pending");
-  banner.textContent = "Status: Not started — secure DBS submission is not connected on this preview.";
+  banner.textContent = "Status: Not started — upload a DBS certificate below to submit it for review.";
   const noDbs = document.querySelector('input[name="dbsLevel"][value="none"]');
   if (status === "not-checked" && noDbs instanceof HTMLInputElement) noDbs.checked = true;
 }
@@ -74,10 +75,11 @@ export async function setupBackgroundChecks({ account, showFeedback, requestJson
   if (backgroundTopbar) backgroundTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, sectionResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    loadCleanerSection(requestJson, "background-checks")
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
@@ -86,6 +88,7 @@ export async function setupBackgroundChecks({ account, showFeedback, requestJson
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
   renderBackgroundStatus(profile);
+  if (sectionResult.status === "fulfilled") hydrateCleanerForm(form, sectionResult.value);
 
   const fileInput = document.querySelector("[data-background-file]");
   fileInput?.addEventListener("change", () => {
@@ -107,16 +110,28 @@ export async function setupBackgroundChecks({ account, showFeedback, requestJson
     row?.classList.add("is-selected");
     if (copy) copy.textContent = selectedFileCopy(file);
     if (action) action.textContent = "Replace";
-    showFeedback("Certificate selected for this page only. It has not been uploaded or stored.");
+    showFeedback("Certificate selected. Save & continue to upload it securely.");
   });
 
   form.addEventListener("input", () => {
     const status = document.querySelector("[data-background-save-status]");
-    if (status) status.textContent = "Sensitive DBS details remain only in this open page and are not stored.";
+    if (status) status.textContent = "Changes have not been saved yet.";
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    showFeedback("Secure DBS storage and verification are not connected yet. Nothing was uploaded, authorised or saved.", "error");
+    if (!form.reportValidity()) return;
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit instanceof HTMLButtonElement) submit.disabled = true;
+    try {
+      await saveCleanerSection(requestJson, "background-checks", form, "submitted");
+      if (fileInput instanceof HTMLInputElement && fileInput.files?.[0]) await uploadCleanerDocument(requestJson, fileInput.files[0], "dbs-certificate");
+      showFeedback("DBS details, consent and selected certificate were saved securely for review.", "success");
+      location.assign("/cleaner/registration");
+    } catch (error) {
+      showFeedback(error.message || "DBS details could not be saved.", "error");
+    } finally {
+      if (submit instanceof HTMLButtonElement) submit.disabled = false;
+    }
   });
 }

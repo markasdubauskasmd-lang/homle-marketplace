@@ -1,8 +1,6 @@
 import { createCleanerPage } from "./cleaner-page.js?v=20260729-11";
 import { createRequestJson } from "./request-json.js";
 
-const draftKey = "homle-cleaner-personal-details-draft-v1";
-const draftLifetimeMs = 8 * 60 * 60 * 1000;
 const activePrivacyStatuses = new Set(["requested", "verifying", "processing"]);
 const mutationJson = createRequestJson({
   failureMessage: "Your account settings could not be updated.",
@@ -51,16 +49,6 @@ async function recoverCsrf() {
   if (!result.csrfToken) throw new Error("Your secure session could not be refreshed. Sign in again.");
   saveCsrf(result.csrfToken);
   return result.csrfToken;
-}
-
-function tabDraftMobile() {
-  try {
-    const parsed = JSON.parse(sessionStorage.getItem(draftKey) || "{}");
-    if (!parsed || typeof parsed !== "object" || Date.now() - Number(parsed.savedAt || 0) > draftLifetimeMs) return "";
-    return String(parsed.fields?.mobileNumber || "").trim().slice(0, 40);
-  } catch {
-    return "";
-  }
 }
 
 function activeDeletion(records) {
@@ -154,9 +142,12 @@ function bindSecurityActions(privacyRecords) {
 createCleanerPage("cleaner-settings", async ({ account, requestJson }) => {
   text("[data-settings-email]", account.email || "No signed-in email available");
 
-  const mobile = tabDraftMobile();
+  const personalResult = await Promise.allSettled([requestJson("/api/marketplace/cleaner/data/personal-details")]);
+  const mobile = personalResult[0].status === "fulfilled"
+    ? String(personalResult[0].value.section?.payload?.mobileNumber || "").trim().slice(0, 40)
+    : "";
   text("[data-settings-mobile]", mobile || "Not added");
-  text("[data-settings-mobile-state]", mobile ? "Tab draft" : "Not verified");
+  text("[data-settings-mobile-state]", mobile ? "Saved" : "Not verified");
 
   const [providerResult, privacyResult] = await Promise.allSettled([
     requestJson("/api/marketplace/auth/provider-links"),

@@ -4,8 +4,9 @@ const checksumPattern = /^[a-f0-9]{64}$/;
 const bucketPattern = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
 const regionPattern = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const uuidSource = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
-const storageKeyPattern = new RegExp(`^(?:quarantine/(?:job-photos|request-photos)/${uuidSource}/${uuidSource}|(?:job-photos|request-photos)/${uuidSource}/${uuidSource}\\.jpg)$`);
+const storageKeyPattern = new RegExp(`^(?:quarantine/(?:job-photos|request-photos)/${uuidSource}/${uuidSource}|(?:job-photos|request-photos)/${uuidSource}/${uuidSource}\\.jpg|cleaner-documents/${uuidSource}/${uuidSource})$`);
 const mimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]);
+const privateDocumentMimeTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
 function bounded(value, maximum, label) {
   const selected = typeof value === "string" ? value.trim() : "";
@@ -46,6 +47,12 @@ function finalImageKey(value) {
 function mimeType(value) {
   const selected = bounded(value, 40, "Object MIME type").toLowerCase();
   if (!mimeTypes.has(selected)) throw new TypeError("Object MIME type is unsupported.");
+  return selected;
+}
+
+function privateDocumentMimeType(value) {
+  const selected = bounded(value, 40, "Object MIME type").toLowerCase();
+  if (!privateDocumentMimeTypes.has(selected)) throw new TypeError("Private document MIME type is unsupported.");
   return selected;
 }
 
@@ -169,6 +176,34 @@ export async function createS3ObjectStorage(env = process.env, options = {}) {
       });
       return Object.freeze({ url, requiredHeaders });
     },
+    async createPrivateUploadUrl(input) {
+      const key = storageKey(input?.storageKey, "cleaner-documents/");
+      const type = privateDocumentMimeType(input?.mimeType);
+      const size = byteSize(input?.byteSize, 20_000_000);
+      const sha256 = checksum(input?.checksumSha256);
+      const expiresIn = expirySeconds(input?.expiresAt, 600, now);
+      const checksumBase64 = base64Checksum(sha256);
+      const requiredHeaders = Object.freeze({
+        "Content-Type": type,
+        "X-Amz-Checksum-Sha256": checksumBase64,
+        "X-Amz-Meta-Tideway-Sha256": sha256,
+        "X-Amz-Server-Side-Encryption": "AES256"
+      });
+      const command = new sdk.PutObjectCommand({
+        Bucket: selected.bucket,
+        Key: key,
+        ContentType: type,
+        ContentLength: size,
+        ChecksumSHA256: checksumBase64,
+        Metadata: { "tideway-sha256": sha256 },
+        ServerSideEncryption: "AES256"
+      });
+      const url = await sign(command, expiresIn, {
+        signableHeaders: new Set(["content-type"]),
+        unhoistableHeaders: new Set(["x-amz-checksum-sha256", "x-amz-meta-tideway-sha256", "x-amz-server-side-encryption"])
+      });
+      return Object.freeze({ url, requiredHeaders });
+    },
     async headObject(input) {
       const key = storageKey(input?.storageKey);
       const result = await send(new sdk.HeadObjectCommand({ Bucket: selected.bucket, Key: key, ChecksumMode: "ENABLED" }));
@@ -203,6 +238,18 @@ export async function createS3ObjectStorage(env = process.env, options = {}) {
       const key = finalImageKey(input?.storageKey);
       const expiresIn = expirySeconds(input?.expiresAt, 300, now);
       const command = new sdk.GetObjectCommand({ Bucket: selected.bucket, Key: key, ResponseContentType: "image/jpeg", ResponseCacheControl: "private, no-store, max-age=0" });
+      return Object.freeze({ url: await sign(command, expiresIn) });
+    },
+    async createPrivateReadUrl(input) {
+      const key = storageKey(input?.storageKey, "cleaner-documents/");
+      const type = privateDocumentMimeType(input?.mimeType);
+      const expiresIn = expirySeconds(input?.expiresAt, 300, now);
+      const command = new sdk.GetObjectCommand({
+        Bucket: selected.bucket,
+        Key: key,
+        ResponseContentType: type,
+        ResponseCacheControl: "private, no-store, max-age=0"
+      });
       return Object.freeze({ url: await sign(command, expiresIn) });
     },
     async deleteObject(input) {

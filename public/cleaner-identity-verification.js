@@ -1,4 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { hydrateCleanerForm, loadCleanerSection, saveCleanerSection, uploadCleanerDocument } from "./cleaner-dashboard-data.js?v=20260730-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -31,7 +32,7 @@ function renderVerificationStatus(profile) {
     return;
   }
   banner.classList.add("is-pending");
-  banner.textContent = "Status: Not started — secure document submission is not connected on this preview.";
+  banner.textContent = "Status: Not started — upload your documents below to submit them for review.";
 }
 
 function selectedFileCopy(file) {
@@ -58,10 +59,11 @@ export async function setupIdentityVerification({ account, showFeedback, request
   if (identityTopbar) identityTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, sectionResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    loadCleanerSection(requestJson, "identity-verification")
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
@@ -70,6 +72,7 @@ export async function setupIdentityVerification({ account, showFeedback, request
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
   renderVerificationStatus(profile);
+  if (sectionResult.status === "fulfilled") hydrateCleanerForm(form, sectionResult.value);
 
   document.querySelectorAll("[data-identity-file]").forEach((input) => {
     input.addEventListener("change", () => {
@@ -91,19 +94,34 @@ export async function setupIdentityVerification({ account, showFeedback, request
       row?.classList.add("is-selected");
       if (copy) copy.textContent = selectedFileCopy(file);
       if (action) action.textContent = "Replace";
-      showFeedback("Document selected for this page only. It has not been uploaded or stored.");
+      showFeedback("Document selected. Save & continue to upload it securely.");
     });
   });
 
   form.addEventListener("input", (event) => {
     if (event.target instanceof HTMLInputElement && event.target.type !== "file") {
       const status = document.querySelector("[data-identity-save-status]");
-      if (status) status.textContent = "Sensitive document numbers remain only in this open page and are not stored.";
+      if (status) status.textContent = "Changes have not been saved yet.";
     }
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    showFeedback("Secure identity-document storage is not connected yet. Nothing was uploaded or saved.", "error");
+    if (!form.reportValidity()) return;
+    const documentTypes = { passportPhoto: "passport", licenceFront: "driving-licence", licenceBack: "driving-licence", birthCertificate: "birth-certificate", residencePermit: "residence-permit" };
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit instanceof HTMLButtonElement) submit.disabled = true;
+    try {
+      await saveCleanerSection(requestJson, "identity-verification", form, "submitted");
+      for (const input of form.querySelectorAll("[data-identity-file]")) {
+        if (input instanceof HTMLInputElement && input.files?.[0]) await uploadCleanerDocument(requestJson, input.files[0], documentTypes[input.name] || "other");
+      }
+      showFeedback("Identity details and selected documents were saved securely for review.", "success");
+      location.assign("/cleaner/registration");
+    } catch (error) {
+      showFeedback(error.message || "Identity details could not be saved.", "error");
+    } finally {
+      if (submit instanceof HTMLButtonElement) submit.disabled = false;
+    }
   });
 }

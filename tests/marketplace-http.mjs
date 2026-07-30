@@ -86,6 +86,18 @@ const cleanerProfileService = {
   async createOwnAvailability(actor, input) { calls.push({ kind: "availability-create", actor, input }); return { availabilityId: "44444444-4444-4444-8444-444444444444", ...input, status: "available" }; },
   async withdrawOwnAvailability(actor, availabilityId) { calls.push({ kind: "availability-withdraw", actor, availabilityId }); return { availabilityId, startAt: "2026-07-20T09:00:00.000Z", endAt: "2026-07-20T17:00:00.000Z", status: "withdrawn" }; }
 };
+const cleanerDashboardService = {
+  async getSection(actor, sectionCode) { calls.push({ kind: "cleaner-data-get", actor, sectionCode }); return { sectionCode, payload: {}, completionStatus: "draft", updatedAt: null }; },
+  async saveSection(actor, sectionCode, input) { calls.push({ kind: "cleaner-data-save", actor, sectionCode, input }); return { sectionCode, payload: input.payload, completionStatus: input.completionStatus, updatedAt: "2026-07-16T12:00:00.000Z" }; },
+  async listDocuments(actor) { calls.push({ kind: "cleaner-document-list", actor }); return []; },
+  async createDocumentIntent(actor, input) { calls.push({ kind: "cleaner-document-intent", actor, input }); return { documentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", uploadUrl: "https://storage.example/private-write", method: "PUT", requiredHeaders: {} }; },
+  async completeDocument(actor, documentId) { calls.push({ kind: "cleaner-document-complete", actor, documentId }); return { documentId, status: "pending-review" }; },
+  async getDocumentAccess(actor, documentId) { calls.push({ kind: "cleaner-document-access", actor, documentId }); return { documentId, url: "https://storage.example/private-read" }; },
+  async listTraining(actor) { calls.push({ kind: "cleaner-training-list", actor }); return []; },
+  async saveTraining(actor, moduleCode, input) { calls.push({ kind: "cleaner-training-save", actor, moduleCode, input }); return { moduleCode, status: "in-progress", completedLessons: 0, totalLessons: input.totalLessons }; },
+  async listAgreements(actor) { calls.push({ kind: "cleaner-agreement-list", actor }); return []; },
+  async signAgreement(actor, agreementCode, input) { calls.push({ kind: "cleaner-agreement-sign", actor, agreementCode, input }); return { agreementCode, policyVersion: input.policyVersion, signedName: input.signedName, signedAt: "2026-07-16T12:00:00.000Z" }; }
+};
 const favouriteCleanerService = {
   async listOwn(actor) {
     calls.push({ kind: "favourite-cleaner-list", actor });
@@ -230,7 +242,7 @@ const administratorVerificationService = {
   async list(actor, input) { calls.push({ kind: "administrator-verification-list", actor, input }); return { cleaners: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; },
   async set(actor, cleanerId, input) { calls.push({ kind: "administrator-verification-set", actor, cleanerId, input }); return { cleanerId, identityCheckStatus: input.identityCheckStatus || "pending", backgroundCheckStatus: input.backgroundCheckStatus || "not-checked" }; }
 };
-const dependencies = { security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const dependencies = { security, cleanerProfileService, cleanerDashboardService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,

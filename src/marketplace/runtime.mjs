@@ -4,6 +4,8 @@ import { createAuthenticationRepository } from "./auth-repository.mjs";
 import { createAuthenticationHttpRouter } from "./authentication-http.mjs";
 import { createCleanerProfileService } from "./cleaner-profile.mjs";
 import { createCleanerProfileRepository } from "./cleaner-repository.mjs";
+import { createCleanerDashboardRepository } from "./cleaner-dashboard-repository.mjs";
+import { createCleanerDashboardService } from "./cleaner-dashboard-service.mjs";
 import { createBookingRepository } from "./booking-repository.mjs";
 import { bookingPricingPolicyFromEnvironment, createBookingWorkflowService } from "./booking-workflow.mjs";
 import { createPaymentRepository } from "./payment-repository.mjs";
@@ -134,6 +136,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const roomVision = options.roomVision || roomVisionFromEnvironment(env);
   const cleanerProfileRepository = createCleanerProfileRepository(database);
   const cleanerProfileService = createCleanerProfileService(cleanerProfileRepository, { geocoder });
+  const cleanerDashboardRepository = createCleanerDashboardRepository(database);
+  const cleanerDashboardService = createCleanerDashboardService(cleanerDashboardRepository, { objectStorage: options.objectStorage });
   const favouriteCleanerRepository = createFavouriteCleanerRepository(database);
   const favouriteCleanerService = createFavouriteCleanerService(favouriteCleanerRepository);
   const propertyRepository = createPropertyRepository(database);
@@ -178,7 +182,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const administratorVerificationService = createAdministratorVerificationService(administratorVerificationRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, cleanerDashboardService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
   const authenticationRouter = options.emailDelivery || googleOidcProvider || appleSignInProvider
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, appleSignInProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: true })
@@ -207,6 +211,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     security,
     cleanerProfileRepository,
     cleanerProfileService,
+    cleanerDashboardRepository,
+    cleanerDashboardService,
     favouriteCleanerRepository,
     favouriteCleanerService,
     propertyRepository,

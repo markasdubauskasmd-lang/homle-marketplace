@@ -1,4 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { hydrateCleanerForm, loadCleanerSection, saveCleanerSection } from "./cleaner-dashboard-data.js?v=20260730-1";
 
 function renderRail(progress) {
   const steps = new Map(progress.steps.map((step) => [step.key, step]));
@@ -10,9 +11,9 @@ function renderRail(progress) {
 }
 
 function availabilityStatus(count) {
-  if (count === null) return "Confirmed availability is temporarily unavailable. Weekly planner choices are not saved.";
+  if (count === null) return "Confirmed availability is temporarily unavailable. Your recurring preferences can still be saved.";
   const windows = `${count} confirmed future ${count === 1 ? "window remains" : "windows remain"}`;
-  return `${windows} unchanged. Weekly planner choices are not saved.`;
+  return `${windows} unchanged. The weekly planner stores separate recurring preferences.`;
 }
 
 export async function setupAvailability({ account, showFeedback, requestJson }) {
@@ -51,10 +52,11 @@ export async function setupAvailability({ account, showFeedback, requestJson }) 
   if (availabilityTopbar) availabilityTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, sectionResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    loadCleanerSection(requestJson, "availability")
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
@@ -63,6 +65,7 @@ export async function setupAvailability({ account, showFeedback, requestJson }) 
   const payout = payoutResult.status === "fulfilled" ? payoutResult.value.payout : null;
   const payoutState = payout?.ready ? "ready" : payoutResult.status === "fulfilled" ? "not-started" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount: availabilityCount || 0 }));
+  if (sectionResult.status === "fulfilled") hydrateCleanerForm(form, sectionResult.value);
 
   const status = form.querySelector("[data-availability-save-status]");
   if (status) status.textContent = availabilityStatus(availabilityCount);
@@ -78,11 +81,21 @@ export async function setupAvailability({ account, showFeedback, requestJson }) 
   hours?.addEventListener("input", updateHours);
 
   form.addEventListener("change", () => {
-    if (status) status.textContent = "Availability choices remain on this open page and are not saved.";
+    if (status) status.textContent = "Recurring availability changes have not been saved yet.";
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    showFeedback("Recurring availability, limits, holiday mode and job preferences are not connected yet. Your existing confirmed windows were not changed.", "error");
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit instanceof HTMLButtonElement) submit.disabled = true;
+    try {
+      await saveCleanerSection(requestJson, "availability", form, "complete");
+      showFeedback("Recurring availability, limits and job preferences were saved. Confirmed dated windows were not changed.", "success");
+      location.assign("/cleaner/registration");
+    } catch (error) {
+      showFeedback(error.message || "Availability preferences could not be saved.", "error");
+    } finally {
+      if (submit instanceof HTMLButtonElement) submit.disabled = false;
+    }
   });
 }

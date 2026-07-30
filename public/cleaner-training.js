@@ -1,4 +1,5 @@
-import { createCleanerPage, element } from "./cleaner-page.js?v=20260729-6";
+import { createCleanerPage, element } from "./cleaner-page.js?v=20260730-1";
+import { storedCsrf } from "./session-csrf.js";
 
 const trainingModules = [
   { category: "Required", lessons: 6, minutes: 45, title: "COSHH — safe use of chemicals", description: "Labels, dilution, storage and what to do after a spill. Required before commercial contracts." },
@@ -39,7 +40,13 @@ const trainingModules = [
 
 if (trainingModules.length !== 34) throw new Error("The Academy catalogue must contain all 34 modules shown in the supplied design.");
 
-function renderModule(module, showFeedback) {
+function moduleCode(title) {
+  return title.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+}
+
+function renderModule(module, progressByCode, requestJson, showFeedback) {
+  const code = moduleCode(module.title);
+  let progress = progressByCode.get(code);
   const card = element("article", "hc-academy-card");
   card.dataset.trainingCategory = module.category.toLowerCase();
 
@@ -52,27 +59,46 @@ function renderModule(module, showFeedback) {
   const title = element("h2", "", module.title);
   const description = element("p", "", module.description);
   const actions = element("div", "hc-academy-card-actions");
-  const start = element("button", "", "Start course ↗");
+  const start = element("button", "", progress?.status === "completed" ? "Review course ↗" : progress?.status === "in-progress" ? "Continue ↗" : "Start course ↗");
   start.type = "button";
-  start.addEventListener("click", () => {
-    showFeedback(`“${module.title}” is not available yet. Nothing was started, completed or recorded.`, "error");
-    document.querySelector("[data-training-feedback]")?.focus();
+  start.addEventListener("click", async () => {
+    const csrf = storedCsrf();
+    if (!csrf) return showFeedback("Your secure editing token is missing. Sign in again before starting training.", "error");
+    start.disabled = true;
+    try {
+      const result = await requestJson(`/api/marketplace/cleaner/training/${code}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({ status: progress?.status === "completed" ? "completed" : "in-progress", completedLessons: progress?.completedLessons || 0, totalLessons: module.lessons })
+      });
+      progress = result.progress;
+      progressByCode.set(code, progress);
+      start.textContent = result.progress.status === "completed" ? "Review course ↗" : "Continue ↗";
+      showFeedback(`“${module.title}” progress is saved to your Cleaner account.`, "success");
+    } catch (error) {
+      showFeedback(error.message || "Training progress could not be saved.", "error");
+    } finally {
+      start.disabled = false;
+      document.querySelector("[data-training-feedback]")?.focus();
+    }
   });
   actions.append(start, element("small", "", "Course preview"));
   card.append(metadata, title, description, actions);
   return card;
 }
 
-createCleanerPage("training", async ({ showFeedback }) => {
+createCleanerPage("training", async ({ requestJson, showFeedback }) => {
   const grid = document.querySelector("[data-training-modules]");
   const resultStatus = document.querySelector("[data-training-result-status]");
   const filterButtons = [...document.querySelectorAll("[data-training-filter]")];
+  const progressResult = await requestJson("/api/marketplace/cleaner/training");
+  const progressByCode = new Map((progressResult.progress || []).map((record) => [record.moduleCode, record]));
 
   function showModules(filter = "all") {
     const visible = filter === "all"
       ? trainingModules
       : trainingModules.filter((module) => module.category.toLowerCase() === filter);
-    grid?.replaceChildren(...visible.map((module) => renderModule(module, showFeedback)));
+    grid?.replaceChildren(...visible.map((module) => renderModule(module, progressByCode, requestJson, showFeedback)));
     if (resultStatus) resultStatus.textContent = `${visible.length} ${filter === "all" ? "learning" : filter} modules shown.`;
   }
 
@@ -89,8 +115,7 @@ createCleanerPage("training", async ({ showFeedback }) => {
   });
 
   document.querySelector("[data-training-start]")?.addEventListener("click", () => {
-    showFeedback("COSHH course delivery and progress tracking are not connected yet. Nothing was started or recorded.", "error");
-    document.querySelector("[data-training-feedback]")?.focus();
+    grid?.querySelector("button")?.click();
   });
 
   showModules();

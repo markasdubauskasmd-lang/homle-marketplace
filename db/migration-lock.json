@@ -366,6 +366,11 @@
       "order": 73,
       "file": "073_cleaner_password_registration.sql",
       "sha256": "0d665b43588f1529329675ad11cc6c006c7d77f966d8ea1478449217d5134f77"
+    },
+    {
+      "order": 74,
+      "file": "074_cleaner_dashboard_records.sql",
+      "sha256": "4e25c670cdad8d7e08ab410a26296a652d9f742700dceca4570b258b34f674da"
     }
   ],
   "grantFiles": [

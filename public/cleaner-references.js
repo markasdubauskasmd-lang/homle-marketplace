@@ -1,4 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { hydrateCleanerForm, loadCleanerSection, saveCleanerSection, uploadCleanerDocument } from "./cleaner-dashboard-data.js?v=20260730-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -47,10 +48,11 @@ export async function setupReferences({ account, showFeedback, requestJson }) {
   if (referencesTopbar) referencesTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, sectionResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    loadCleanerSection(requestJson, "references")
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
@@ -58,6 +60,7 @@ export async function setupReferences({ account, showFeedback, requestJson }) {
     : 0;
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
+  if (sectionResult.status === "fulfilled") hydrateCleanerForm(form, sectionResult.value);
 
   document.querySelectorAll("[data-reference-email]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -85,17 +88,28 @@ export async function setupReferences({ account, showFeedback, requestJson }) {
     row?.classList.add("is-selected");
     if (copy) copy.textContent = selectedFileCopy(file);
     if (action) action.textContent = "Replace";
-    showFeedback("Reference letter selected for this page only. It has not been uploaded or stored.");
+    showFeedback("Reference letter selected. Save & continue to upload it securely.");
   });
 
   form.addEventListener("input", () => {
     const status = document.querySelector("[data-references-save-status]");
-    if (status) status.textContent = "Referee contact details remain only in this open page and are not stored.";
+    if (status) status.textContent = "Changes have not been saved yet.";
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!form.reportValidity()) return;
-    showFeedback("Secure reference storage, email requests and confirmation are not connected yet. Nothing was uploaded, emailed or saved.", "error");
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit instanceof HTMLButtonElement) submit.disabled = true;
+    try {
+      await saveCleanerSection(requestJson, "references", form, "submitted");
+      if (fileInput instanceof HTMLInputElement && fileInput.files?.[0]) await uploadCleanerDocument(requestJson, fileInput.files[0], "reference-letter");
+      showFeedback("Reference details and selected letter were saved securely. No email was sent.", "success");
+      location.assign("/cleaner/registration");
+    } catch (error) {
+      showFeedback(error.message || "Reference details could not be saved.", "error");
+    } finally {
+      if (submit instanceof HTMLButtonElement) submit.disabled = false;
+    }
   });
 }

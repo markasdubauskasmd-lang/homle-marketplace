@@ -13,7 +13,7 @@
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
-  <script src="/cleaner-documents.js?v=20260729-3" type="module"></script>
+  <script src="/cleaner-documents.js?v=20260730-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -147,18 +147,19 @@
           <section class="hc-documents" aria-labelledby="documents-title">
             <header class="hc-documents-heading">
               <h1 id="documents-title">Document centre</h1>
-              <p>Everything in one place. Secure document storage, OCR and expiry reminders are being connected.</p>
+              <p>Everything in one place. Private files are encrypted in object storage and linked only to your Cleaner account.</p>
             </header>
 
             <button class="hc-documents-drop" type="button" data-documents-upload aria-describedby="documents-upload-note">
               <span class="hc-documents-upload-mark" aria-hidden="true">↑</span>
               <strong>Drag &amp; drop a document, or browse</strong>
-              <small id="documents-upload-note">PDF · JPEG · PNG · HEIC · DOCX — up to 20MB. Secure upload is not connected on this preview.</small>
+              <small id="documents-upload-note">PDF · JPEG · PNG — up to 20MB. Files are private and queued for review.</small>
             </button>
+            <input type="file" accept="application/pdf,image/jpeg,image/png" data-documents-file hidden>
 
             <section class="hc-documents-card" aria-label="Document status">
               <ul class="hc-documents-list" data-documents-list></ul>
-              <p class="hc-documents-footnote">Verification pills reflect Homle’s recorded checks. Document files, OCR details and expiry dates are not stored by this page.</p>
+              <p class="hc-documents-footnote">Verification pills reflect Homle’s recorded checks. Only you and authorised Homle reviewers can access uploaded files.</p>
             </section>
           </section>
 

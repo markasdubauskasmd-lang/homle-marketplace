@@ -1,43 +1,11 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-
-const draftKey = "homle-cleaner-personal-details-draft-v1";
-const draftLifetimeMs = 8 * 60 * 60 * 1000;
-
-function safeSessionStorage() {
-  try {
-    const probe = `${draftKey}-probe`;
-    sessionStorage.setItem(probe, "1");
-    sessionStorage.removeItem(probe);
-    return sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
-function savedDraft(storage) {
-  if (!storage) return {};
-  try {
-    const parsed = JSON.parse(storage.getItem(draftKey) || "{}");
-    if (!parsed || typeof parsed !== "object" || Date.now() - Number(parsed.savedAt || 0) > draftLifetimeMs) {
-      storage.removeItem(draftKey);
-      return {};
-    }
-    return parsed.fields && typeof parsed.fields === "object" ? parsed.fields : {};
-  } catch {
-    return {};
-  }
-}
+import { storedCsrf } from "./session-csrf.js";
 
 function nameParts(displayName) {
   const parts = String(displayName || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { firstName: "", middleName: "", lastName: "", preferredName: "" };
   if (parts.length === 1) return { firstName: parts[0], middleName: "", lastName: "", preferredName: parts[0] };
-  return {
-    firstName: parts[0],
-    middleName: parts.slice(1, -1).join(" "),
-    lastName: parts.at(-1),
-    preferredName: parts[0]
-  };
+  return { firstName: parts[0], middleName: parts.slice(1, -1).join(" "), lastName: parts.at(-1), preferredName: parts[0] };
 }
 
 function formFields(form) {
@@ -79,26 +47,19 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   if (personal) personal.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, detailsResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    requestJson("/api/marketplace/cleaner/data/personal-details")
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
-  const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
-    ? availabilityResult.value.availability.length
-    : 0;
+  const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability.length : 0;
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   const progress = onboardingProgress({ account, profile, payoutState, availabilityCount });
-  const storage = safeSessionStorage();
-  const draft = savedDraft(storage);
-  const defaults = {
-    ...nameParts(account.displayName),
-    email: account.email || "",
-    postcode: profile?.serviceAreas?.[0]?.outwardPostcode || "",
-    country: "United Kingdom"
-  };
-  Object.entries({ ...defaults, ...draft, email: account.email || "" }).forEach(([name, value]) => putValue(form, name, value));
+  const saved = detailsResult.status === "fulfilled" && detailsResult.value.section?.payload ? detailsResult.value.section.payload : {};
+  const defaults = { ...nameParts(account.displayName), email: account.email || "", postcode: profile?.serviceAreas?.[0]?.outwardPostcode || "", country: "United Kingdom" };
+  Object.entries({ ...defaults, ...saved, email: account.email || "" }).forEach(([name, value]) => putValue(form, name, value));
 
   const connectedPhoto = Boolean(profile?.profilePhotoUrl || account.avatarUrl);
   const photoTitle = document.querySelector("[data-personal-photo-title]");
@@ -109,44 +70,53 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   if (photoAction) photoAction.textContent = connectedPhoto ? "Connected" : "Not connected";
 
   let saveTimer = 0;
-  function saveDraft() {
+  let saveSequence = 0;
+  async function saveDetails(completionStatus = "draft") {
     window.clearTimeout(saveTimer);
     const status = document.querySelector("[data-personal-save-status]");
-    if (!storage) {
-      if (status) status.textContent = "This browser blocked tab-only draft storage.";
-      return;
-    }
+    const csrf = storedCsrf();
+    if (!csrf) throw new Error("Your secure editing token is missing. Sign in again before saving.");
+    const sequence = ++saveSequence;
     try {
-      storage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), fields: formFields(form) }));
-      if (status) status.textContent = "Progress is saved for this browser tab as you type.";
-    } catch {
-      if (status) status.textContent = "This browser could not save the tab-only draft.";
+      await requestJson("/api/marketplace/cleaner/data/personal-details", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({ payload: formFields(form), completionStatus })
+      });
+      if (status && sequence === saveSequence) status.textContent = "Progress is saved securely to your Cleaner account.";
+      renderRail(progress, form);
+    } catch (error) {
+      if (status && sequence === saveSequence) status.textContent = "Progress could not be saved. Check your connection.";
+      throw error;
     }
-    renderRail(progress, form);
   }
 
   form.addEventListener("input", () => {
     const status = document.querySelector("[data-personal-save-status]");
-    if (status) status.textContent = "Saving in this browser tab…";
+    if (status) status.textContent = "Saving securely…";
     window.clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(saveDraft, 250);
+    saveTimer = window.setTimeout(() => saveDetails().catch(() => {}), 500);
   });
   form.addEventListener("change", () => {
     updateUnderFiveCopy(form);
-    saveDraft();
+    saveDetails().catch(() => {});
   });
   document.querySelector("[data-address-lookup]")?.addEventListener("click", () => {
     form.elements.postcode?.focus();
     showFeedback("Address lookup is not connected yet. Enter the verified address manually; nothing was sent.");
   });
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!form.reportValidity()) {
       showFeedback("Complete the required Personal details before continuing.", "error");
       return;
     }
-    saveDraft();
-    location.assign("/cleaner/registration");
+    try {
+      await saveDetails("complete");
+      location.assign("/cleaner/registration");
+    } catch (error) {
+      showFeedback(error.message || "Personal details could not be saved.", "error");
+    }
   });
 
   updateUnderFiveCopy(form);
