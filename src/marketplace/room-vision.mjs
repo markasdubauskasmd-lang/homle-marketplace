@@ -326,6 +326,55 @@ function selectionReading(payload, allowedIds) {
   return Object.freeze({ condition, items: Object.freeze(items), tasks: Object.freeze(tasks) });
 }
 
+/* ── Room-type inspection focus ─────────────────────────────────────────── */
+
+// What a cleaner is actually judged on, per room type. Without this the reader
+// grades whatever happens to be prominent in frame; a bathroom's verdict then
+// rests on the towels rather than the grout, and the fixtures a job is priced
+// on go unexamined because nothing asked about them.
+//
+// This steers ATTENTION, never conclusions. Every entry ends up governed by the
+// same rule the prompt already states — report what THIS photograph shows, and
+// 'unknown' when it shows nothing — so a checked-but-clean shower screen stays
+// clean and a checked-but-invisible waterline stays unknown. Presuming dirt
+// here would re-create the bias the clean-evidence rules exist to prevent.
+//
+// Matching is deliberately keyword-based on the customer's own room name:
+// "En-suite bathroom", "Downstairs loo" and "Bathroom 2" should all get the
+// bathroom list, and a name matching nothing gets no list rather than a guess.
+const inspectionFocusLists = Object.freeze([
+  {
+    match: /bath|shower|toilet|loo|en-?suite|wc|washroom|cloakroom/i,
+    focus: "the tile grout and silicone sealant lines, the bottom edge and corners of any shower screen or curtain, around the tap bases and plughole, the toilet waterline and behind the seat hinges, and the extractor grille"
+  },
+  {
+    match: /kitchen|kitchenette|utility|scullery|pantry/i,
+    focus: "the hob and the wall or splashback behind it, the extractor hood underside and its grille, the worktop along its back edge and around the sink, inside rim and plughole of the sink, the oven door glass, and the cupboard fronts around their handles"
+  },
+  {
+    match: /bedroom|bed room|nursery|dorm/i,
+    focus: "the skirting boards and the floor along them, under and around the bed where visible, the window sill and its corners, mirror and wardrobe fronts, and the tops of headboards and bedside tables"
+  },
+  {
+    match: /living|lounge|sitting|family room|reception|snug|dining/i,
+    focus: "the skirting boards, the sofa seats and arms and beneath its front edge, the window sills, the television screen and stand for dust, table surfaces for rings and marks, and the floor in traffic paths and corners"
+  },
+  {
+    match: /hall|landing|stair|entrance|porch|corridor/i,
+    focus: "the floor in the traffic path, the skirting boards, the stair treads and their corners, the handrail and banister spindles, and around the door handles and light switches"
+  }
+]);
+
+// Exported for tests and for anything that later wants to show the customer
+// what their room type gets checked for.
+export function inspectionFocus(roomName) {
+  const name = String(roomName || "").trim();
+  if (!name) return "";
+  const entry = inspectionFocusLists.find((candidate) => candidate.match.test(name));
+  if (!entry) return "";
+  return `In this type of room, deliberately look at ${entry.focus}. These are the places a cleaning job is judged on. Grade each only from what this photograph actually shows — a checked place that looks clean is 'clean', and one the photograph cannot show is 'unknown', exactly as for everything else.`;
+}
+
 // Not every model accepts an effort hint — Haiku rejects the parameter with a
 // 400. Sending it regardless would fail every call on the cheapest tier, and
 // the caller would only see a silent fallback with no reason.
@@ -379,6 +428,9 @@ export function createAnthropicRoomVision(options = {}) {
       const selectedModel = modelFor(purpose);
       const context = [
         `This photograph is of the ${boundedText(roomName, 60) || "room"}.`,
+        // The per-room-type inspection list, so the grade rests on the places a
+        // cleaner is judged on rather than whatever is prominent in frame.
+        inspectionFocus(roomName),
         boundedText(transcript, 1200) ? `The customer said, while walking through: "${boundedText(transcript, 1200)}"` : ""
       ].filter(Boolean).join(" ");
 
@@ -418,6 +470,12 @@ export function createAnthropicRoomVision(options = {}) {
         .join("\n");
       const context = [
         `This photograph is of the ${boundedText(roomName, 60) || "room"}.`,
+        // Same inspection steering as the whole-room read: the confirmation is
+        // the read that sets the price, so it is the last place the reader
+        // should be grading only what happens to be prominent. Null when there
+        // is no list, so the filter below drops it while keeping the deliberate
+        // blank separator line.
+        inspectionFocus(roomName) || null,
         boundedText(transcript, 1200) ? `The customer said, while walking through: "${boundedText(transcript, 1200)}"` : "",
         "",
         "The customer picked out these items:",

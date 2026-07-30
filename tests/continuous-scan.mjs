@@ -636,7 +636,10 @@ assert.match(
 );
 assert.match(
   overlay,
-  /const framingMessage = objectFramingAdvice\(state\.tracks\)\?\.message \|\| ""[\s\S]{0,220}framingMessage !== state\.framingMessage[\s\S]{0,180}renderDetectorState\(\)/,
+  // The advice object is now kept (its kind feeds the zoom assist's streak);
+  // the guarded properties are unchanged: framing derives from the stable
+  // tracks, and the guidance DOM is only rewritten when its meaning changes.
+  /const framingAdvice = objectFramingAdvice\(state\.tracks\);[\s\S]{0,400}framingMessage !== state\.framingMessage[\s\S]{0,180}renderDetectorState\(\)/,
   "Small-object framing is not derived from stable live tracks, or rewrites the guidance DOM on every inference frame."
 );
 assert.match(

@@ -117,7 +117,7 @@
     "test:http": "node tests/marketplace-http.mjs",
     "test:attachment": "node tests/marketplace-attachment.mjs",
     "test:scan-review": "node tests/scan-review-workspace.mjs",
-    "test:scanner-followup": "node tests/scan-benchmark.mjs && node tests/room-measure-model.mjs && node tests/scan-events.mjs && node tests/scan-review-render.mjs && node tests/browser-scan-pipeline.mjs && node tests/browser-scan-controls.mjs",
+    "test:scanner-followup": "node tests/camera-assist.mjs && node tests/scan-benchmark.mjs && node tests/room-measure-model.mjs && node tests/scan-events.mjs && node tests/scan-review-render.mjs && node tests/browser-scan-pipeline.mjs && node tests/browser-scan-controls.mjs",
     "test:profile-starter": "node tests/cleaner-profile-starter.mjs",
     "test:tracking-test": "node tests/tracking-test.mjs",
     "check:tracking-test": "node --check tracking-test-store.mjs && node --check public/tracking-test.js && node --check tests/tracking-test.mjs",

@@ -55,6 +55,7 @@ import { clearRoomNotesDraft, readRoomNotesDraft, saveRoomNotesDraft } from "./r
 import { validatedGuidedRoomPhotoDimensions, validatedGuidedRoomPhotoFile } from "./room-photo-selection.js";
 import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js";
 import { applyRedaction, redactedAreaRatio, redactionRegions, redactionSummary, shouldRedact, unusableRedactionRatio } from "./room-photo-redaction.js";
+import { nextAutoZoom, shouldEnableTorch, torchSupported, zoomLabel, zoomRange } from "./camera-assist.js";
 import { createScanEventReporter, elapsedSince } from "./scan-events.js";
 import { storedCsrf } from "./session-csrf.js";
 
@@ -96,6 +97,13 @@ const markup = `
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
     </button>
     <div class="scan-room-lbl"><span class="rec-dot" aria-hidden="true"></span><span data-room-label>Kitchen</span></div>
+    <!-- Hidden until the camera reports it can actually do these. The torch
+         comes ON by itself when the room stays dark and the zoom steps in by
+         itself when everything stays far away — these are the off switches. -->
+    <button class="scan-assist scan-torch" type="button" data-torch aria-pressed="false" aria-label="Torch" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2h8l-1 7h-6z"/><path d="M10 9h4v11a2 2 0 0 1-4 0z"/></svg>
+    </button>
+    <button class="scan-assist scan-zoom" type="button" data-zoom-reset hidden></button>
     <button class="scan-speech" type="button" data-speech-toggle aria-pressed="false" aria-label="Speak the scanning guidance aloud">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path class="scan-speech-waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.4 5.6a9 9 0 0 1 0 12.8"/></svg>
     </button>
@@ -458,6 +466,7 @@ export function openRoomScan() {
       liveProgress: $("[data-live-progress]"), liveProgressStep: $("[data-live-progress-step]"), liveProgressCopy: $("[data-live-progress-copy]"),
       liveProgressMeter: $("[data-live-progress-meter]"),
       mic: $("[data-mic]"), shutter: $("[data-shutter]"), speechToggle: $("[data-speech-toggle]"),
+      torch: $("[data-torch]"), zoomReset: $("[data-zoom-reset]"),
       scanDebug: $("[data-scan-debug]"),
       found: $("[data-found]"), foundList: $("[data-found-list]"), foundCount: $("[data-found-count]"),
       foundNoun: $("[data-found-noun]"), foundBusy: $("[data-found-busy]"),
@@ -496,6 +505,13 @@ export function openRoomScan() {
       voiceGeneration: 0, voiceSessionStartNote: "",
       // Spoken guidance: a per-device choice, read from storage at open.
       speakGuidance: false, lastSpokenKey: "",
+      // The automatic capture assists. Streaks count consecutive quality
+      // samples (~a second apart) showing the same problem; declined flags
+      // record the customer's "no", which is final for the room.
+      cameraTrack: null, cameraCapabilities: null,
+      torchOn: false, torchDeclined: false, darkStreak: 0,
+      zoom: 0, zoomDeclined: false, distanceStreak: 0, zoomAnnounced: false,
+      framingKind: "",
       // Counters, not a log. Inference runs several times a second, so a line per
       // event would drown the console; a running total answers the question that
       // actually gets asked when a scan looks wrong — is the room filter working,
@@ -1046,6 +1062,23 @@ export function openRoomScan() {
       state.revisiting = false;
       state.loadingRoom = false;
       state.tracks = [];
+      // A new room is a new conversation with the assists: declined-in-the-
+      // kitchen must not silence the torch in a genuinely dark bathroom, and a
+      // zoom set up for the last room's far wall starts this one over-cropped.
+      state.torchDeclined = false;
+      state.zoomDeclined = false;
+      state.zoomAnnounced = false;
+      state.darkStreak = 0;
+      state.distanceStreak = 0;
+      state.framingKind = "";
+      {
+        const range = zoomRange(state.cameraCapabilities);
+        if (range && state.zoom > range.min && state.cameraTrack) {
+          void applyTrackConstraint({ zoom: range.min }).then((applied) => {
+            if (applied) { state.zoom = range.min; renderCameraAssist(); }
+          });
+        }
+      }
       // Advice about the last room's lighting must not carry into this one.
       state.qualityKind = "";
       // The motion memory goes with it. Walking through a doorway IS fast motion,
@@ -1149,6 +1182,18 @@ export function openRoomScan() {
           return;
         }
         state.stream = stream;
+        // What this camera can actually do, for the automatic assists. Both
+        // calls are optional in the spec, so everything is guarded and an
+        // absent capability simply leaves the assist dormant.
+        const track = stream.getVideoTracks()[0] || null;
+        state.cameraTrack = track;
+        try { state.cameraCapabilities = track?.getCapabilities?.() || null; } catch { state.cameraCapabilities = null; }
+        const range = zoomRange(state.cameraCapabilities);
+        try { state.zoom = Number(track?.getSettings?.()?.zoom) || (range ? range.min : 0); } catch { state.zoom = range ? range.min : 0; }
+        state.torchOn = false;
+        state.darkStreak = 0;
+        state.distanceStreak = 0;
+        renderCameraAssist();
         el.camera.srcObject = stream;
         el.blocked.hidden = true;
         el.deck.hidden = false;
@@ -1196,6 +1241,115 @@ export function openRoomScan() {
       state.stream = null;
       try { el.camera.pause(); } catch {}
       el.camera.srcObject = null;
+      // Stopping the track extinguishes the torch physically; the state and the
+      // controls must agree with that.
+      state.cameraTrack = null;
+      state.cameraCapabilities = null;
+      state.torchOn = false;
+      state.zoom = 0;
+      renderCameraAssist();
+    }
+
+    /* ── Automatic capture assists: torch and zoom ── */
+
+    // "Too dark" and "too far" are the two physical causes of bad condition
+    // grades, and advice alone fixes neither. Where the camera supports it
+    // (Android Chrome; iPhone Safari supports neither and everything below
+    // stays dormant), the fix is applied automatically after the problem has
+    // persisted, with a visible control to undo it. The decision rules live in
+    // camera-assist.js; this is only the wiring.
+
+    async function applyTrackConstraint(constraint) {
+      const track = state.cameraTrack;
+      if (!track?.applyConstraints) return false;
+      try { await track.applyConstraints({ advanced: [constraint] }); return true; }
+      catch { return false; }
+    }
+
+    function renderCameraAssist() {
+      if (el.torch) {
+        el.torch.hidden = !state.stream || !torchSupported(state.cameraCapabilities);
+        el.torch.classList.toggle("on", state.torchOn);
+        el.torch.setAttribute("aria-pressed", String(state.torchOn));
+        el.torch.setAttribute("aria-label", state.torchOn ? "Turn the torch off" : "Turn the torch on");
+      }
+      if (el.zoomReset) {
+        const label = zoomLabel(state.zoom);
+        el.zoomReset.hidden = !state.stream || !label;
+        el.zoomReset.textContent = label;
+        el.zoomReset.setAttribute("aria-label", "Reset the camera zoom");
+      }
+    }
+
+    async function maybeAssistCamera() {
+      if (state.closed || state.frozen || !state.cameraTrack) return;
+      if (shouldEnableTorch({
+        supported: torchSupported(state.cameraCapabilities),
+        torchOn: state.torchOn,
+        declined: state.torchDeclined,
+        darkStreak: state.darkStreak
+      })) {
+        if (await applyTrackConstraint({ torch: true })) {
+          state.torchOn = true;
+          state.darkStreak = 0;
+          renderCameraAssist();
+          // A count, never a frame. "The torch had to come on" is the signal
+          // that rooms are being scanned in the dark.
+          scanEvents.record("scan.assist.torch");
+          toast("Torch on — the room was too dark to read. Tap the torch button to turn it off.");
+          announceGuidance("Torch on.", `torch-${Date.now()}`);
+        } else {
+          // A camera that advertises torch and refuses it must not be asked
+          // again every second.
+          state.torchDeclined = true;
+        }
+      }
+      const target = nextAutoZoom({
+        range: zoomRange(state.cameraCapabilities),
+        zoom: state.zoom,
+        declined: state.zoomDeclined,
+        distanceStreak: state.distanceStreak
+      });
+      if (target !== null && !state.frozen) {
+        if (await applyTrackConstraint({ zoom: target })) {
+          state.zoom = target;
+          // The streak restarts so the next step needs the advice to persist
+          // again — one nudge per confirmed problem, not a runaway crawl.
+          state.distanceStreak = 0;
+          renderCameraAssist();
+          scanEvents.record("scan.assist.zoom");
+          if (!state.zoomAnnounced) {
+            state.zoomAnnounced = true;
+            toast("Zoomed in — everything looked far away. Tap the zoom chip to reset.");
+          }
+        } else {
+          state.zoomDeclined = true;
+        }
+      }
+    }
+
+    async function toggleTorch() {
+      if (!state.cameraTrack) return;
+      if (state.torchOn) {
+        await applyTrackConstraint({ torch: false });
+        state.torchOn = false;
+        // The customer's "no" is final for this room: no automatic re-light.
+        state.torchDeclined = true;
+      } else if (await applyTrackConstraint({ torch: true })) {
+        state.torchOn = true;
+        state.torchDeclined = false;
+      }
+      renderCameraAssist();
+    }
+
+    async function resetZoom() {
+      const range = zoomRange(state.cameraCapabilities);
+      if (!range || !state.cameraTrack) return;
+      await applyTrackConstraint({ zoom: range.min });
+      state.zoom = range.min;
+      // Resetting is declining: the customer prefers the wide view.
+      state.zoomDeclined = true;
+      renderCameraAssist();
     }
 
     function scheduleCameraResume() {
@@ -3024,6 +3178,13 @@ export function openRoomScan() {
       // slowly the phone moves, so that is the thing worth saying first.
       const advice = frameQualityAdvice(quality)
         || movementAdvice(state.motionDistances, { spreads: state.motionSpreads });
+      // The assist streaks, counted on every sample — including ones where the
+      // advice text is unchanged, which is exactly when a problem is persisting.
+      // "Too far" only counts while no quality problem outranks it, mirroring
+      // which advice the customer is actually being shown.
+      state.darkStreak = advice?.kind === "dark" ? state.darkStreak + 1 : 0;
+      state.distanceStreak = !advice && state.framingKind === "distance" ? state.distanceStreak + 1 : 0;
+      void maybeAssistCamera();
       const key = advice ? advice.kind : "";
       if (key === state.qualityKind) return true;
       state.qualityKind = key;
@@ -3102,7 +3263,11 @@ export function openRoomScan() {
         // several times a second; rewriting the live-region DOM on every frame
         // would trade a helpful hint for viewfinder work and repeated screen-
         // reader announcements.
-        const framingMessage = objectFramingAdvice(state.tracks)?.message || "";
+        const framingAdvice = objectFramingAdvice(state.tracks);
+        // The kind feeds the zoom assist's streak, which is sampled on the
+        // slower quality cadence rather than here.
+        state.framingKind = framingAdvice?.kind || "";
+        const framingMessage = framingAdvice?.message || "";
         if (framingMessage !== state.framingMessage) {
           state.framingMessage = framingMessage;
           renderDetectorState();
@@ -3616,6 +3781,9 @@ export function openRoomScan() {
     el.readRoom.addEventListener("click", confirmSelection);
     el.mic.addEventListener("click", () => (state.voiceOn ? stopVoice() : startVoice()));
     el.speechToggle.addEventListener("click", toggleSpokenGuidance);
+    // The assists' off switches. Turning either off is final for the room.
+    el.torch.addEventListener("click", () => { void toggleTorch(); });
+    el.zoomReset.addEventListener("click", () => { void resetZoom(); });
     // The explicit in-panel controls. Stop is the same action as tapping the
     // recording mic — two visible ways to do the one thing that must never be
     // hard to find.
