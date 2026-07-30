@@ -30,6 +30,7 @@ import {
   correctInventoryItem,
   detectionMinimumScore,
   joinSpokenText,
+  recognitionTranscripts,
   preferredSpeechLanguage,
   roomReadingPayload,
   mergeItemReadings,
@@ -110,7 +111,7 @@ const markup = `
     <button class="scan-count" type="button" data-rooms-open><span data-shot-count>0</span> rooms</button>
   </div>
   <p class="scan-progress" data-live-progress role="status" aria-live="polite">
-    <b data-live-progress-step>1 of 3</b>
+    <b data-live-progress-step>Step 1 of 3</b>
     <span data-live-progress-copy>Choose a room</span>
     <span class="scan-progress-meter" data-live-progress-meter role="progressbar" aria-label="Room coverage" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0" hidden><i aria-hidden="true"></i></span>
   </p>
@@ -187,7 +188,7 @@ const markup = `
         <h2 data-hub-title>Which room first?</h2>
         <p class="hub-sub" data-hub-sub>Pick a room and point your camera at it.</p>
       </div>
-      <p class="hub-progress" data-hub-progress role="status" aria-live="polite"><b data-hub-progress-step>1 of 3</b><span data-hub-progress-copy>Choose a room to begin</span></p>
+      <p class="hub-progress" data-hub-progress role="status" aria-live="polite"><b data-hub-progress-step>Step 1 of 3</b><span data-hub-progress-copy>Choose a room to begin</span></p>
       <ul class="hub-rooms" data-hub-rooms></ul>
       <div class="hub-add">
         <p class="hub-add-lbl" data-hub-add-lbl>Scan a room</p>
@@ -903,7 +904,7 @@ export function openRoomScan() {
       const hub = state.screen === "hub";
       el.liveProgress.hidden = hub;
       if (hub) {
-        el.hubProgressStep.textContent = saved ? "3 of 3" : "1 of 3";
+        el.hubProgressStep.textContent = saved ? "Step 3 of 3" : "Step 1 of 3";
         el.hubProgressCopy.textContent = saved
           ? `${saved} ${saved === 1 ? "room" : "rooms"} ready — finish or add another`
           : "Choose a room to begin";
@@ -915,7 +916,7 @@ export function openRoomScan() {
         el.liveProgressCopy.textContent = `Reading ${state.currentRoom}`;
       } else if (state.frozen) {
         el.liveProgressMeter.hidden = true;
-        el.liveProgressStep.textContent = "3 of 3";
+        el.liveProgressStep.textContent = "Step 3 of 3";
         el.liveProgressCopy.textContent = `${selectionCount()} selected — check and confirm`;
       } else if (state.readingAllowed && state.visionAvailable) {
         const budget = keyframeBudget(state.currentRoom);
@@ -934,7 +935,7 @@ export function openRoomScan() {
         if (!busy) announceGuidance(progress.copy, `coverage-${progress.count}-${progress.copy}`);
       } else {
         el.liveProgressMeter.hidden = true;
-        el.liveProgressStep.textContent = "2 of 3";
+        el.liveProgressStep.textContent = "Step 2 of 3";
         el.liveProgressCopy.textContent = `Capture ${state.currentRoom}`;
       }
     }
@@ -3380,18 +3381,14 @@ export function openRoomScan() {
         // "tidy up the cupboards" got back "tidy tidy up tidy up the tidy up the
         // cupboards tidy up the cupboards". Recomputing from the list instead
         // makes a repeated event a no-op, which is what it should always have been.
-        let finalText = "";
-        let interim = "";
-        // Indexed, NOT `for...of`. `SpeechRecognitionResultList` is a WebIDL
-        // interface with an indexed getter and a length and no `iterable<>`
-        // declaration, so it has no `Symbol.iterator` and `for...of` throws on it.
-        // That would have broken every result event rather than only the repeats.
-        for (let index = 0; index < event.results.length; index += 1) {
-          const result = event.results[index];
-          if (!result?.[0]) continue;
-          if (result.isFinal) finalText += result[0].transcript;
-          else interim += result[0].transcript;
-        }
+        // The rebuild itself lives in the model — recognitionTranscripts — where
+        // it is tested against both engine behaviours seen in the field: the
+        // spec-shaped one, and the Android service that reports every interim
+        // revision as a new cumulative entry, which corrupted a real customer's
+        // note into "pleasepleaseplease ensure…" when concatenated here.
+        const rebuilt = recognitionTranscripts(event.results);
+        const finalText = rebuilt.finalText;
+        const interim = rebuilt.interim;
         sessionFinal = finalText;
         lastInterim = interim;
         setRoomTranscript(joinSpokenText(sessionBase, sessionFinal));

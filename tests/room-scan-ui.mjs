@@ -140,6 +140,15 @@ assert(overallCondition([{ condition: "" }]) === "" && conditionLabel("") === "N
 
 const lines = scanChecklistLines([{ name: "Kitchen", tasks: ["Degrease the worktops", "Degrease the worktops", "Mop the floor"] }, { name: "", tasks: ["Dust the shelves"] }]);
 assert(lines.includes("Kitchen: Degrease the worktops") && lines.includes("Kitchen: Mop the floor") && lines.includes("Dust the shelves") && lines.length === 3, "The scan checklist lost a task, its room, or was not de-duplicated.");
+// Locally derived tasks already carry their room prefix. Re-prefixing them
+// shipped "Bedroom: Bedroom: …" to a real checklist on a real phone.
+{
+  const prefixed = scanChecklistLines([{ name: "Bedroom", tasks: ["Bedroom: Make the bed", "Wipe the sills", "bedroom: dust the shelves"] }]);
+  assert(prefixed.includes("Bedroom: Make the bed") && prefixed.includes("Bedroom: Wipe the sills"),
+    `An already-prefixed task was double-prefixed or an unprefixed one missed its room: ${JSON.stringify(prefixed)}`);
+  assert(prefixed.includes("bedroom: dust the shelves"), "Prefix detection is case-sensitive, so a lowercase room prefix gets doubled.");
+  assert(!prefixed.some((line) => /Bedroom: Bedroom:/i.test(line)), `The double room prefix is back: ${JSON.stringify(prefixed)}`);
+}
 
 const summary = scanSummary([{ name: "Kitchen", tasks: ["Degrease the worktops"], detections: [{ label: "Worktop" }], condition: "heavy" }]);
 assert(summary.roomCount === 1 && summary.fixtureCount === 1 && summary.conditionLabel === "Heavy", `The scan summary is wrong: ${JSON.stringify(summary)}`);

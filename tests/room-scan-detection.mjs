@@ -254,6 +254,13 @@ assert(second.tracks[0].id === 1 && second.tracks[0].seenFrames === 2, "A moving
 assert(second.tracks[0].x > 10 && second.tracks[0].x < 14, `The box was not smoothed between frames: ${second.tracks[0].x}`);
 assert(drawableTracks(second.tracks).length === 1, "A box confirmed by a second frame was still not drawn.");
 
+// A track covering nearly the whole viewfinder is not drawn: a real scan showed
+// a "Bed" glow over ~85% of the screen, hiding the room and swallowing every
+// empty-space tap that should have added a hand-marked item. An honestly large
+// object stays; only the everything-box goes.
+assert(drawableTracks([{ seenFrames: 3, width: 95, height: 95 }]).length === 0, "A near-full-frame track is still drawn over the whole room.");
+assert(drawableTracks([{ seenFrames: 3, width: 80, height: 60 }]).length === 1, "A genuinely large object was dropped along with the everything-box.");
+
 // Stepping closer changes the detector's box scale. The new tight box can sit
 // fully inside the old wide box while their IoU is far below the motion
 // threshold. It is still unambiguously the same-class object and must keep

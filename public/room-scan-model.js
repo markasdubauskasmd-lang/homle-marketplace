@@ -331,6 +331,46 @@ export const detectionMinimumScore = 0.62;
 // The repeated-text bug this whole change exists to fix is not solved here anyway.
 // It is solved by the handler recomputing the session from `event.results` instead
 // of appending a delta to it, which makes a replayed event a no-op at source.
+// Rebuilds the session transcript from one `onresult` event's cumulative list.
+//
+// This is THE function that decides what a spoken note says, extracted from the
+// overlay after a field trial produced "pleasepleaseplease ensureplease ensure
+// that…" in a real customer note. Two engine behaviours have now been seen:
+//
+//   * Spec-shaped (desktop Chrome): earlier entries finalise, ONE trailing
+//     interim entry is updated in place. Concatenating non-final entries is
+//     correct because there is at most one — or several genuinely independent
+//     segments.
+//   * Cumulative snapshots (the Android speech service behind Chrome on
+//     Samsung): every interim revision arrives as a NEW non-final entry —
+//     "please", "please ensure", "please ensure that" — all present in the
+//     same list. Concatenating those multiplies every word the customer says.
+//
+// A snapshot is recognisable because consecutive interim entries extend (or,
+// when the engine revises downward, truncate) one another; an independent
+// segment does not. Superseding on that test fixes the Samsung corruption while
+// leaving genuine multi-segment interims intact. The latest snapshot wins even
+// when shorter — it is the engine's current belief.
+export function recognitionTranscripts(results) {
+  let finalText = "";
+  let interim = "";
+  const length = Number(results?.length) || 0;
+  for (let index = 0; index < length; index += 1) {
+    const result = results[index];
+    if (!result?.[0]) continue;
+    const transcript = String(result[0].transcript ?? "");
+    if (result.isFinal) { finalText += transcript; continue; }
+    const previous = interim.trim().toLowerCase();
+    const current = transcript.trim().toLowerCase();
+    if (previous && current && (current.startsWith(previous) || previous.startsWith(current))) {
+      interim = transcript;
+    } else {
+      interim += transcript;
+    }
+  }
+  return Object.freeze({ finalText, interim });
+}
+
 export function joinSpokenText(existing, spoken) {
   const before = String(existing || "").replace(/\s+/g, " ").trim();
   const after = String(spoken || "").replace(/\s+/g, " ").trim();
@@ -726,8 +766,18 @@ export function trackDetections(previousTracks, rawDetections, {
 // Only tracks that have survived a second frame are drawn. A single-frame
 // detection is usually noise, and drawing it is what produces the flicker that
 // makes an otherwise good detector look unreliable.
+// A live track covering nearly the whole viewfinder is dropped from drawing. A
+// field trial produced a "Bed" box over ~85% of the screen: as a glow it hides
+// the room behind it, and as a tap target it swallows every empty-space tap
+// that should have added a hand-marked item. Saved detections deliberately do
+// NOT pass through here — a stored full-frame "Floor" from the reader is real
+// evidence and survives revisits untouched.
+const maximumDrawableAreaRatio = 0.85;
+
 export function drawableTracks(tracks) {
-  return (Array.isArray(tracks) ? tracks : []).filter((track) => track && track.seenFrames >= 2);
+  return (Array.isArray(tracks) ? tracks : []).filter((track) => track
+    && track.seenFrames >= 2
+    && ((Number(track.width) || 0) * (Number(track.height) || 0)) / 10_000 <= maximumDrawableAreaRatio);
 }
 
 // Inference is throttled to what the phone can actually sustain. A cheap device
@@ -892,7 +942,11 @@ export function scanChecklistLines(rooms) {
     for (const task of Array.isArray(room?.tasks) ? room.tasks : []) {
       const text = String(task || "").replace(/\s+/g, " ").trim().slice(0, 300);
       if (text.length < 3) continue;
-      const line = roomName ? `${roomName}: ${text}` : text;
+      // Locally derived tasks already carry their room prefix; adding it again
+      // shipped "Bedroom: Bedroom: …" to a real checklist. The room name is
+      // prepended only when the task does not already start with it.
+      const alreadyPrefixed = roomName && text.toLowerCase().startsWith(`${roomName.toLowerCase()}:`);
+      const line = roomName && !alreadyPrefixed ? `${roomName}: ${text}` : text;
       const key = line.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
       if (!key || seen.has(key)) continue;
       seen.add(key);
