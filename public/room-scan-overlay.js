@@ -339,6 +339,19 @@ function loadDetectorOnce() {
   return detectorLoad;
 }
 
+// The journey page calls this from idle time while the customer is still
+// reading the room list, so the detector's several megabytes travel before the
+// scanner opens instead of after — the difference between a scanner that
+// starts finding things immediately and the "getting the object finder ready"
+// wait the third field trial reported. Opportunistic on purpose: a failed
+// warm-up clears the memo so the overlay's own attempt — whose failure IS
+// final — starts fresh rather than inheriting a background network hiccup.
+export function warmRoomScanDetector() {
+  const attempt = loadDetectorOnce();
+  attempt.catch(() => { if (detectorLoad === attempt) detectorLoad = null; });
+  return attempt;
+}
+
 // Some mobile browsers resolve getUserMedia() before the video element has
 // received a usable frame. Treating the stream object alone as success leaves a
 // blank viewfinder whose shutter can only say "warming up" forever. Exporting
@@ -556,7 +569,7 @@ export function openRoomScan() {
       // Items the Landlord deleted. Without this a read already in flight, or the
       // next one, merges the same label straight back and the removal looks broken.
       dismissed: new Map(),
-      timers: { wave: null, clock: null, cameraResume: null, noteRecovery: null }, recognition: null,
+      timers: { wave: null, clock: null, cameraResume: null, noteRecovery: null, capabilityProbes: [] }, recognition: null,
       visionAvailable: true, readingAllowed: false, consentAsked: false,
       generation: 0, closed: false,
       // Which screen is showing, and which room is being worked on. The hub is
@@ -1186,15 +1199,13 @@ export function openRoomScan() {
         // What this camera can actually do, for the automatic assists. Both
         // calls are optional in the spec, so everything is guarded and an
         // absent capability simply leaves the assist dormant.
-        const track = stream.getVideoTracks()[0] || null;
-        state.cameraTrack = track;
-        try { state.cameraCapabilities = track?.getCapabilities?.() || null; } catch { state.cameraCapabilities = null; }
-        const range = zoomRange(state.cameraCapabilities);
-        try { state.zoom = Number(track?.getSettings?.()?.zoom) || (range ? range.min : 0); } catch { state.zoom = range ? range.min : 0; }
+        state.cameraTrack = stream.getVideoTracks()[0] || null;
         state.torchOn = false;
+        state.zoom = 0;
         state.darkStreak = 0;
         state.distanceStreak = 0;
-        renderCameraAssist();
+        refreshCameraCapabilities();
+        scheduleCapabilityProbes();
         el.camera.srcObject = stream;
         el.blocked.hidden = true;
         el.deck.hidden = false;
@@ -1244,6 +1255,8 @@ export function openRoomScan() {
       el.camera.srcObject = null;
       // Stopping the track extinguishes the torch physically; the state and the
       // controls must agree with that.
+      for (const timer of state.timers.capabilityProbes) window.clearTimeout(timer);
+      state.timers.capabilityProbes = [];
       state.cameraTrack = null;
       state.cameraCapabilities = null;
       state.torchOn = false;
@@ -1265,6 +1278,30 @@ export function openRoomScan() {
       if (!track?.applyConstraints) return false;
       try { await track.applyConstraints({ advanced: [constraint] }); return true; }
       catch { return false; }
+    }
+
+    // Chrome on Android fills `getCapabilities()` in asynchronously after
+    // getUserMedia resolves, and the spec offers no event for "it is complete
+    // now". A single read at open therefore sees no torch and no zoom on
+    // exactly the phones the assists exist for — the third field trial's
+    // Pixel, both assists permanently dormant. So the read repeats: at open,
+    // twice more while the camera pipeline settles, and again on every
+    // quality sample for as long as the camera still claims it can do
+    // nothing (see `maybeAssistCamera`).
+    function refreshCameraCapabilities() {
+      const track = state.cameraTrack;
+      if (!track) return;
+      try { state.cameraCapabilities = track.getCapabilities?.() || null; } catch { state.cameraCapabilities = null; }
+      const range = zoomRange(state.cameraCapabilities);
+      if (range && !(Number.isFinite(state.zoom) && state.zoom >= range.min)) {
+        try { state.zoom = Number(track.getSettings?.()?.zoom) || range.min; } catch { state.zoom = range.min; }
+      }
+      renderCameraAssist();
+    }
+
+    function scheduleCapabilityProbes() {
+      for (const timer of state.timers.capabilityProbes) window.clearTimeout(timer);
+      state.timers.capabilityProbes = [600, 2000].map((delay) => window.setTimeout(refreshCameraCapabilities, delay));
     }
 
     function renderCameraAssist() {
@@ -1289,6 +1326,9 @@ export function openRoomScan() {
 
     async function maybeAssistCamera() {
       if (state.closed || state.frozen || !state.cameraTrack) return;
+      // Capabilities that arrive late must still arm the assists, so the camera
+      // is re-asked on every quality sample until it admits to something.
+      if (!torchSupported(state.cameraCapabilities) && !zoomRange(state.cameraCapabilities)) refreshCameraCapabilities();
       if (shouldEnableTorch({
         supported: torchSupported(state.cameraCapabilities),
         torchOn: state.torchOn,

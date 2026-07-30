@@ -1059,3 +1059,35 @@ Still true and worth repeating: a mobile tab kept open across deploys keeps
 running the JavaScript it loaded first. Every file is served revalidate-always,
 so closing and reopening the page picks up fixes — but nothing can update a
 page that is never reloaded.
+
+## Phase 11 addendum — the third round (Pixel again)
+
+The retest reported the assists *still* dormant, the guidance line unread, and
+a slow start. Three changes:
+
+1. **The capability read raced Chrome.** `getCapabilities()` was read once,
+   synchronously, the moment `getUserMedia` resolved — and Chrome on Android
+   fills those capabilities in asynchronously, with no event to say when. On
+   the Pixel the single read saw neither torch nor zoom, and both assists
+   stayed dormant for the whole scan, exactly as reported. The read now
+   repeats: at camera open, on delayed probes at 600 ms and 2 s while the
+   pipeline settles, and on every quality sample for as long as the camera
+   still claims it can do nothing. Capabilities that arrive late now arm the
+   assists late instead of never.
+2. **The guidance line moved to the top of the viewfinder**, under the step
+   pill. At the bottom it sat exactly where thumbs and the shutter live, so
+   "move slowly" and "too dark" went unread — the trial's own words.
+3. **The detector now warms from the journey page's idle time.** Its several
+   megabytes previously started downloading only when the overlay opened,
+   which is the "getting the object finder ready" wait every trial sat
+   through. The journey page calls the new `warmRoomScanDetector()` hook via
+   `requestIdleCallback` (with a timeout fallback), so the booking journey
+   never queues behind the fetch and the scanner usually opens with the model
+   already local. A failed background warm-up clears the memo rather than
+   burning the overlay's single (final) load attempt on a network hiccup.
+
+Honest limits, as ever: on a camera whose capabilities never materialise —
+iPhone Safari reports neither torch nor zoom by design — the repeated read
+changes nothing and the assists stay correctly hidden; and the idle warm-up
+spends the detector's megabytes for some visitors who never open the scanner,
+a trade accepted for the ones who do.

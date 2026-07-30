@@ -23,7 +23,7 @@ import {
   checkoutMode,
   checkoutCopy
 } from "./landlord-journey-model.js?v=journey7";
-import { openRoomScan } from "./room-scan-overlay.js";
+import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
 import { requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
@@ -1626,3 +1626,14 @@ if (await openAuthenticatedJourney()) {
   show(state.step);
   if (cameFromScan) toast("Your scan is here. Check the checklist before continuing.");
 }
+
+// The scanner's object detector weighs several megabytes, and until now the
+// download only began once the scan overlay opened — the "getting the object
+// finder ready" wait every field trial has sat through. Warm it from idle time
+// instead, once the journey itself has finished rendering, so opening the
+// scanner finds the model already local. Idle callback first so the booking
+// journey never queues behind the fetch; the timeout fallback covers browsers
+// without requestIdleCallback.
+const warmScanner = () => { warmRoomScanDetector(); };
+if (typeof requestIdleCallback === "function") requestIdleCallback(warmScanner, { timeout: 4000 });
+else setTimeout(warmScanner, 2500);
