@@ -140,6 +140,15 @@ assert(overallCondition([{ condition: "" }]) === "" && conditionLabel("") === "N
 
 const lines = scanChecklistLines([{ name: "Kitchen", tasks: ["Degrease the worktops", "Degrease the worktops", "Mop the floor"] }, { name: "", tasks: ["Dust the shelves"] }]);
 assert(lines.includes("Kitchen: Degrease the worktops") && lines.includes("Kitchen: Mop the floor") && lines.includes("Dust the shelves") && lines.length === 3, "The scan checklist lost a task, its room, or was not de-duplicated.");
+// Locally derived tasks already carry their room prefix. Re-prefixing them
+// shipped "Bedroom: Bedroom: …" to a real checklist on a real phone.
+{
+  const prefixed = scanChecklistLines([{ name: "Bedroom", tasks: ["Bedroom: Make the bed", "Wipe the sills", "bedroom: dust the shelves"] }]);
+  assert(prefixed.includes("Bedroom: Make the bed") && prefixed.includes("Bedroom: Wipe the sills"),
+    `An already-prefixed task was double-prefixed or an unprefixed one missed its room: ${JSON.stringify(prefixed)}`);
+  assert(prefixed.includes("bedroom: dust the shelves"), "Prefix detection is case-sensitive, so a lowercase room prefix gets doubled.");
+  assert(!prefixed.some((line) => /Bedroom: Bedroom:/i.test(line)), `The double room prefix is back: ${JSON.stringify(prefixed)}`);
+}
 
 const summary = scanSummary([{ name: "Kitchen", tasks: ["Degrease the worktops"], detections: [{ label: "Worktop" }], condition: "heavy" }]);
 assert(summary.roomCount === 1 && summary.fixtureCount === 1 && summary.conditionLabel === "Heavy", `The scan summary is wrong: ${JSON.stringify(summary)}`);
@@ -736,3 +745,26 @@ assert(/function close\(result\)[\s\S]{0,400}stopSpeaking\(\)/.test(overlay) && 
 // One thing at a time — stale guidance queued behind current guidance narrates
 // the past.
 assert(/synth\.cancel\(\);[\s\S]{0,400}synth\.speak\(utterance\)/.test(overlay), "Queued utterances can stack up and narrate stale guidance.");
+
+/* ── The capture assists come on by themselves, and off only by hand ── */
+
+// Torch and zoom decisions live in camera-assist.js where their rules are
+// tested; what is pinned here is the wiring that keeps them safe in the
+// overlay: streaks counted on every quality sample (including unchanged-advice
+// ones — the early return must come after), declines recorded on the manual
+// controls and reset per room, and everything cleared when the camera stops.
+assert(/state\.darkStreak = advice\?\.kind === "dark"[\s\S]{0,240}void maybeAssistCamera\(\);[\s\S]{0,140}if \(key === state\.qualityKind\) return true;/.test(overlay), "Assist streaks are counted after the unchanged-advice early return, so a persisting problem never accumulates one.");
+assert(/async function maybeAssistCamera\(\)[\s\S]{0,120}state\.closed \|\| state\.frozen \|\| !state\.cameraTrack\) return;/.test(overlay), "The assist can fire while the frame is frozen or the camera is gone.");
+assert(/if \(shouldEnableTorch\(\{/.test(overlay) && /nextAutoZoom\(\{/.test(overlay), "The overlay makes its own assist decisions instead of using the tested rules.");
+// Manual off is final for the room, on both assists.
+assert(/async function toggleTorch\(\)[\s\S]{0,420}state\.torchOn = false;[\s\S]{0,160}state\.torchDeclined = true;/.test(overlay), "Turning the torch off does not decline it, so it re-lights a second later.");
+assert(/async function resetZoom\(\)[\s\S]{0,420}state\.zoomDeclined = true;/.test(overlay), "Resetting the zoom does not decline it, so it re-zooms a second later.");
+// A new room is a new conversation: declines and streaks reset, zoom returns
+// to wide.
+assert(/function prepareLiveRoom\(\)[\s\S]{0,900}state\.torchDeclined = false;[\s\S]{0,80}state\.zoomDeclined = false;/.test(overlay), "A decline in one room silences the assists in every later room.");
+// Stopping the camera physically extinguishes the torch; the state must agree.
+assert(/function stopCamera\(\)[\s\S]{0,700}state\.torchOn = false;[\s\S]{0,120}renderCameraAssist\(\)/.test(overlay), "A stopped camera leaves the torch control claiming to be on.");
+// The controls exist and are hidden until the camera proves support.
+assert(overlay.includes("data-torch") && overlay.includes("data-zoom-reset") && /el\.torch\.hidden = !state\.stream \|\| !torchSupported\(state\.cameraCapabilities\)/.test(overlay), "The assist controls show on cameras that cannot honour them.");
+// Counted, never photographed: the assists report bare counters only.
+assert(/scanEvents\.record\("scan\.assist\.torch"\)/.test(overlay) && /scanEvents\.record\("scan\.assist\.zoom"\)/.test(overlay), "The assists fire without being counted, so nobody learns how often rooms are too dark or too far.");

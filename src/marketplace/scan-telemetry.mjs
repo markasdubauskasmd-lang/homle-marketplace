@@ -40,6 +40,12 @@ export const scanMetrics = Object.freeze([
   // Device and reliability
   "scan.camera.denied",
   "scan.camera.unavailable",
+  // The automatic capture assists. Counting them answers "how often is a room
+  // too dark or too far for the phone" — which is what decides whether the
+  // capture guidance needs more work — without recording anything about the
+  // room itself.
+  "scan.assist.torch",
+  "scan.assist.zoom",
   "scan.detector.unavailable",
   "scan.upload.failed",
   "scan.crash",

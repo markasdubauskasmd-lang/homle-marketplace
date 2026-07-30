@@ -147,6 +147,20 @@ try {
   await browser.evaluate(`document.querySelector("[data-consent-decline]").click(); return true;`);
   await waitFor('document.querySelector("[data-camera]").videoWidth > 0', "The synthetic camera never produced a frame.");
 
+  /* ── Capture assists degrade to invisible on cameras without them ──────── */
+
+  // The synthetic camera reports neither torch nor zoom — like every iPhone —
+  // so the controls must not exist for the user, and nothing may have thrown
+  // while the assists probed the capabilities.
+  const assists = await browser.evaluate(`
+    return {
+      torchHidden: document.querySelector("[data-torch]").hidden,
+      zoomHidden: document.querySelector("[data-zoom-reset]").hidden
+    };
+  `);
+  assert(assists.torchHidden, "The torch control is visible on a camera that cannot honour it.");
+  assert(assists.zoomHidden, "The zoom chip is visible on a camera that cannot zoom.");
+
   /* ── Recording: Stop and Cancel visible, Done hidden, mic says Stop ────── */
 
   await browser.evaluate(`document.querySelector("[data-mic]").click(); return true;`);

@@ -1,4 +1,4 @@
-import { createAnthropicRoomVision, roomVisionFromEnvironment } from "../src/marketplace/room-vision.mjs";
+import { createAnthropicRoomVision, inspectionFocus, roomVisionFromEnvironment } from "../src/marketplace/room-vision.mjs";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 async function rejects(run, fragment) {
@@ -178,6 +178,47 @@ for (const [label, reply] of [
 }
 
 assert(await rejects(async () => createAnthropicRoomVision({ apiKey: "k", client: stub(jsonReply({ condition: "light", items: [], tasks: [] })) }).readSelectedItems({ image: pixel, items: [] }), "At least one selected item"), "A selection request with nothing selected was sent to the provider.");
+
+/* ── Room-type inspection lists steer attention, never conclusions ────── */
+
+// A bathroom's grade should rest on the grout and the waterline, not on
+// whatever happened to be prominent in frame — but the list must only direct
+// WHERE to look. Presuming dirt would re-create the bias the clean-evidence
+// rules exist to prevent.
+{
+  const bathroom = inspectionFocus("En-suite bathroom");
+  assert(/grout/.test(bathroom) && /waterline/.test(bathroom) && /sealant/.test(bathroom),
+    "The bathroom list no longer names the places a bathroom job is judged on.");
+  const kitchen = inspectionFocus("Kitchen");
+  assert(/hob/.test(kitchen) && /extractor/.test(kitchen) && /splashback/.test(kitchen),
+    "The kitchen list no longer names the places a kitchen job is judged on.");
+  assert(/only from what this photograph actually shows/.test(bathroom) && /'unknown'/.test(bathroom),
+    "The inspection list stopped restating the evidence rule, so it now presumes dirt instead of directing attention.");
+  // The customer's own words for the room still match, and an unknown room gets
+  // no list rather than a guessed one.
+  assert(inspectionFocus("Downstairs loo").includes("grout"), "A colloquial bathroom name missed the bathroom list.");
+  assert(inspectionFocus("Garage") === "" && inspectionFocus("") === "", "A room matching no type was given someone else's checklist.");
+  // Never dirt words: the list may name places, not conditions.
+  for (const name of ["Bathroom", "Kitchen", "Bedroom", "Living room", "Hallway"]) {
+    assert(!/dirty|filthy|grim|soiled|limescale|mould|grease/i.test(inspectionFocus(name)),
+      `The ${name} list presumes soiling instead of directing attention.`);
+  }
+}
+
+// And the list actually reaches the request, on both reads — a steering list
+// that never leaves the module steers nothing.
+{
+  const capture = {};
+  const vision = createAnthropicRoomVision({ apiKey: "k", client: stub(jsonReply({ condition: "light", detections: [], tasks: [] }), capture) });
+  await vision.readRoom({ image: pixel, roomName: "Bathroom" });
+  const sent = capture.request.messages[0].content.find((block) => block.type === "text").text;
+  assert(/grout/.test(sent), "The whole-room read did not receive the inspection list.");
+  const selectedCapture = {};
+  const selectedVision = createAnthropicRoomVision({ apiKey: "k", client: stub(jsonReply({ condition: "light", items: [], tasks: [] }), selectedCapture) });
+  await selectedVision.readSelectedItems({ image: pixel, roomName: "Kitchen", items: [{ id: "a", label: "Hob" }] });
+  const selectedSent = selectedCapture.request.messages[0].content.find((block) => block.type === "text").text;
+  assert(/extractor/.test(selectedSent), "The confirmation read — the one that sets the price — did not receive the inspection list.");
+}
 
 // The prompt must forbid the one thing a photograph cannot support.
 const { default: source } = await import("node:fs").then((fs) => ({ default: fs.readFileSync(new URL("../src/marketplace/room-vision.mjs", import.meta.url), "utf8") }));

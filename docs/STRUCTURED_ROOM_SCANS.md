@@ -978,3 +978,48 @@ not box-versus-mask geometry. Revisit alongside any native tier.
   figures stay empty until real scans are reviewed.
 - Spoken guidance uses the device's installed voices; on a phone with none the
   toggle simply has no audible effect.
+
+# Phase 11 — the first real device trial, and what it caught
+
+A Samsung phone on Android Chrome ran the deployed scanner against a real
+bedroom — the trial every phase has named as the outstanding gap. Most of the
+feature held: per-item conditions with "condition unclear" flags, the walking
+inventory, the reworked mic controls, the spoken-guidance toggle and the
+finish-scan warning all behaved as built. Four defects were photographed, and
+each is now fixed at its root with a regression test reproducing the field
+evidence:
+
+1. **Voice notes corrupted into "pleasepleaseplease ensureplease ensure
+   that…".** The Android speech service reports every interim revision as a
+   NEW non-final entry — all present in one event's result list — where the
+   spec-shaped engines update one entry in place. Concatenating them multiplied
+   every word. The rebuild now lives in the model as
+   `recognitionTranscripts()`: consecutive interim entries that extend or
+   truncate one another supersede, independent segments still append, and the
+   test suite tests the exported function rather than the copy of it that had
+   drifted from the shipped handler.
+2. **Checklist lines read "Bedroom: Bedroom: …".** Locally derived tasks
+   already carry their room prefix and `scanChecklistLines` prefixed them
+   again. It now prepends the room only when the task does not already start
+   with it, case-insensitively.
+3. **Three instruction layers stacked on the frozen screen.** The walking
+   chrome (found list + walk-around hint) stayed visible under the selection
+   hints. Both now hide while a frame is frozen or a saved room is reopened.
+4. **A "Bed" glow covered ~85% of the screen**, hiding the room and swallowing
+   the empty-space taps that add hand-marked items. Live tracks covering more
+   than 85% of the viewfinder are no longer drawn; saved detections
+   deliberately bypass that filter, so a stored full-frame "Floor" from the
+   reader survives revisits.
+
+Also from the same screenshots: the step indicator ("3 OF 3") sat beside
+"1 room ready" and read as a room count — it now says "Step 3 of 3".
+
+## Honest limitations
+
+- One phone, one room, one browser. The trial validated Android Chrome; iPhone
+  Safari remains untested on a physical device, and its no-torch/no-zoom/
+  no-SpeechRecognition degradation paths are verified only in emulation.
+- The interim-supersession heuristic (extend-or-truncate ⇒ same utterance)
+  is the observed behaviour of one engine. A speech service that revises an
+  interim into an unrelated sentence would append rather than supersede —
+  harmless duplication, not loss, and the transcript remains editable.
