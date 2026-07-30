@@ -22,10 +22,12 @@ requires changing its design, pages, routes, workflows, styling or backend behav
 - Server-sent events provide participant updates without constant browser polling.
 - Stripe test-mode-only source boundaries exist, but the public payment gate remains
   off and live keys are rejected.
-- The live `/api/health` response on 29 July 2026 reported marketplace, authentication,
-  media, realtime, geocoding, matching, automatic dispatch, speech summary and room
-  vision ready. Transactional email and payments reported not ready.
-- The live release was `ed0adf4f` before the account-entry improvement in this audit.
+- The live `/api/health` response rechecked on 30 July 2026 reported marketplace,
+  authentication, media, realtime, geocoding, matching, speech summary and room
+  vision ready. Transactional email, payments and automatic dispatch reported not
+  ready, and public intake remained closed.
+- The live release was `4cbf3210` with 80 locked migrations when this evidence
+  was rechecked after the private support journey deployed.
 
 ## Issue fixed during this audit
 
@@ -58,6 +60,41 @@ delete data, cancel a booking, move money or bypass retention review.
 Expected benefit: provider connection callbacks have a valid destination, Landlords
 can manage account access without leaving the product, and UK privacy-rights intake
 is once again reachable without exposing provider subjects or private identifiers.
+
+## Private Landlord support journey added
+
+The Landlord account previously had no single recoverable path for account, property,
+room-scan or pre-booking problems. Booking disputes were too late and too specific,
+while publishing an email address would have created an unaudited parallel queue.
+
+`/landlord/help` now accepts a bounded category, subject and description after an
+explicit sensitive-data check. The same page shows the Landlord only their own request
+status and final in-app response. `/admin/support` provides the separate
+Administrator-only triage queue. Database functions enforce role isolation, active
+request limits, idempotent retries and an audit trail; the queue cannot change a
+booking, payment, account or external system. Migration 080 and the real PostgreSQL
+RLS rehearsal are live.
+
+Expected benefit: Landlords have one private next step before a booking exists, while
+the founder receives a controlled queue without access codes, payment data, room
+photographs or unnecessary identity fields.
+
+## Unsupported public trust claim fixed
+
+The live homepage said **Vetted professionals** even though the service remains a
+restricted private pilot and no public Cleaner supply or coverage is confirmed. That
+headline turned an implemented verification capability into a claim about current
+supply, contradicting the product's evidence-only launch rules.
+
+The homepage now says **Fit checked before matching** and explains the actual
+server-backed boundary: coverage, availability and price are confirmed before a
+Cleaner is invited. No verification workflow, matching rule, Cleaner page or Cleaner
+Dashboard behavior changed. A landing-page regression rejects common unsupported
+public screening and insurance claims.
+
+Expected benefit: prospective customers receive an accurate explanation of how
+matching works without being promised supply or vetting evidence Homle does not yet
+have.
 
 ## Non-Cleaner route and asset defect fixed
 

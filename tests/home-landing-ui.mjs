@@ -57,6 +57,8 @@ assert(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?body\.landing \.site-he
 /* ── Account-first links and flows preserved ───────── */
 
 assert(!page.includes("data-directory-entry") && !page.includes('href="/request"') && !page.includes('href="/join"'), "The retired public directory or intake journeys are still linked from the landing page.");
+assert(!/vetted professionals|verified cleaners|background[- ]checked cleaners|insured cleaners/i.test(page), "The private-pilot homepage makes an unsupported public Cleaner trust claim.");
+assert(page.includes("Fit checked before matching") && page.includes("Homle confirms coverage, availability and price before any Cleaner is invited."), "The homepage no longer explains the real pre-invitation fit checks.");
 assert(page.includes('<strong>Book service</strong>') && page.includes('<strong>Join as an Associate</strong>'), "The Sign up menu lost its two plain-language account choices.");
 assert((page.match(/data-book-entry/g) || []).length >= 4 && (page.match(/data-cleaner-entry/g) || []).length >= 4, "The redesign dropped the role-aware booking or cleaner entry hooks home.js drives.");
 assert(page.includes("data-account-menu hidden") && page.includes("data-account-avatar") && page.includes("data-account-entry hidden") && page.includes("/account-menu.js?"), "The account menu, avatar or sign-in state hooks were lost.");
