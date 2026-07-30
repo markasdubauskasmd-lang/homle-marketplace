@@ -1091,3 +1091,19 @@ iPhone Safari reports neither torch nor zoom by design — the repeated read
 changes nothing and the assists stay correctly hidden; and the idle warm-up
 spends the detector's megabytes for some visitors who never open the scanner,
 a trade accepted for the ones who do.
+
+## Phase 11 addendum — the fourth report (empty-view zoom)
+
+"It still doesn't zoom in automatically when the scanner can't identify an
+object." That was a design gap, not a regression: the automatic zoom's only
+trigger was an object *found but persistently small*, so a detector that found
+nothing at all — which is exactly what a too-far view produces — never zoomed.
+The zoom now has a second trigger: a ready detector that keeps finding nothing
+in a bright, steady frame. It demands a longer streak than the found-but-small
+trigger (an empty wall up close is also empty), counts only while no quality
+problem outranks it (zooming into darkness or motion blur reveals nothing),
+drives the same bounded 1.5×-step nudge with the same 3× ceiling, and resets
+per room. The `?scanDebug=1` assist row now shows the empty streak (`e…`)
+alongside the distance streak. Known trade, stated: pointing at a genuinely
+bare wall for a few seconds will zoom into it; the toast, the zoom chip and
+the per-room reset make that a two-tap recovery.
