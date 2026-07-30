@@ -34,6 +34,7 @@ DECLARE
   room_measurements_installed boolean := false;
   landlord_support_installed boolean := false;
   administrator_coverage_installed boolean := false;
+  property_archiving_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables text[] := ARRAY[
@@ -235,6 +236,8 @@ BEGIN
       INTO landlord_support_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 81)'
       INTO administrator_coverage_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 82)'
+      INTO property_archiving_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -262,6 +265,7 @@ BEGIN
     room_measurements_installed := to_regclass('public.room_scan_measurements') IS NOT NULL;
     landlord_support_installed := to_regprocedure('tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)') IS NOT NULL;
     administrator_coverage_installed := to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NOT NULL;
+    property_archiving_installed := to_regprocedure('tideway_private.archive_my_property(uuid)') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
@@ -341,6 +345,17 @@ BEGIN
         AND position('cleanerId' IN procedure.prosrc)=0
     ) THEN
       RAISE EXCEPTION 'Administrator coverage report is missing, overprivileged or does not use the eligibility matcher';
+    END IF;
+  END IF;
+  IF property_archiving_installed THEN
+    app_functions := app_functions || ARRAY['tideway_private.archive_my_property(uuid)'];
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.archive_my_property(uuid)');
+    IF position('property-has-active-request' IN COALESCE(selected_source,''))=0
+       OR position('property-has-active-booking' IN COALESCE(selected_source,''))=0
+       OR position('property-archived' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Owner property archiving lost its active-work guard or audit evidence';
     END IF;
   END IF;
 
@@ -988,7 +1003,8 @@ SELECT json_build_object(
   'rlsTableCount', 39 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 1 END,
   'appFunctionChecks', 48
     + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END
-    + CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END,
+    + CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END
+    + CASE WHEN to_regprocedure('tideway_private.archive_my_property(uuid)') IS NULL THEN 0 ELSE 1 END,
   'workerFunctionChecks', 14
 ) AS tideway_deployment_verification;
 

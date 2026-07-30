@@ -55,6 +55,12 @@ const requestWithdrawForm = document.querySelector("[data-request-withdraw-form]
 const requestWithdrawFeedback = document.querySelector("[data-request-withdraw-feedback]");
 const requestWithdrawCancel = document.querySelector("[data-request-withdraw-cancel]");
 const requestWithdrawConfirm = document.querySelector("[data-request-withdraw-confirm]");
+const propertyArchiveDialog = document.querySelector("[data-property-archive-dialog]");
+const propertyArchiveForm = document.querySelector("[data-property-archive-form]");
+const propertyArchiveName = document.querySelector("[data-property-archive-name]");
+const propertyArchiveFeedback = document.querySelector("[data-property-archive-feedback]");
+const propertyArchiveCancel = document.querySelector("[data-property-archive-cancel]");
+const propertyArchiveConfirm = document.querySelector("[data-property-archive-confirm]");
 const propertySave = document.querySelector("[data-save-property]");
 const requestSave = document.querySelector("[data-save-request]");
 const speechButton = document.querySelector("[data-speech-toggle]");
@@ -102,6 +108,8 @@ let landlordProfileDirty = false;
 let editingPropertyId = "";
 let withdrawingRequestId = "";
 let withdrawalPending = false;
+let archivingPropertyId = "";
+let propertyArchivePending = false;
 let loading = false;
 let mediaReady = false;
 let pricingReady = false;
@@ -563,7 +571,11 @@ function renderProperties() {
     edit.type = "button";
     edit.setAttribute("aria-label", `${property.accessInstructions ? "Edit access and details for" : "Add access details for"} ${property.name || "saved property"}`);
     edit.addEventListener("click", () => openPropertyEditor(property));
-    actions.append(edit);
+    const archive = element("button", "button button-outline landlord-property-archive", "Archive property");
+    archive.type = "button";
+    archive.setAttribute("aria-label", `Archive ${property.name || "saved property"}`);
+    archive.addEventListener("click", () => openPropertyArchive(property));
+    actions.append(edit, archive);
     card.append(heading, facts, details, actions);
     propertyList.append(card);
     const option = element("option", "", property.name || "Saved property");
@@ -585,6 +597,54 @@ function renderProperties() {
     ? "Your room scan can be saved to the selected private property."
     : "Start speaking now. Add a property before saving the request; your unfinished walkthrough stays in this tab.";
   document.querySelector("[data-property-count]").textContent = String(properties.length);
+}
+
+function openPropertyArchive(property) {
+  if (!property?.propertyId || propertyArchivePending) return;
+  if (editingPropertyId === property.propertyId && propertyDirty && !window.confirm("Discard the unsaved property changes and continue to the archive confirmation?")) return;
+  if (editingPropertyId === property.propertyId) {
+    propertyForm.hidden = true;
+    propertyForm.reset();
+    editingPropertyId = "";
+    propertyDirty = false;
+  }
+  archivingPropertyId = property.propertyId;
+  propertyArchiveName.textContent = property.name || "this property";
+  propertyArchiveFeedback.hidden = true;
+  propertyArchiveDialog.showModal();
+}
+
+async function archiveProperty(event) {
+  event.preventDefault();
+  if (!archivingPropertyId || propertyArchivePending) return;
+  const property = properties.find((item) => item.propertyId === archivingPropertyId);
+  if (!property) return propertyArchiveDialog.close();
+  const csrf = await recoverCsrf(propertyArchiveFeedback, "archiving this property");
+  if (!csrf) return;
+  propertyArchivePending = true;
+  propertyArchiveCancel.disabled = true;
+  setPending(propertyArchiveConfirm, true, "Archiving…");
+  try {
+    const result = await requestJson(`/api/marketplace/properties/${encodeURIComponent(archivingPropertyId)}/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: "{}"
+    });
+    if (result.archivedProperty?.propertyId !== archivingPropertyId) throw new Error("Homle could not verify which property was archived.");
+    properties = properties.filter((item) => item.propertyId !== archivingPropertyId);
+    archivingPropertyId = "";
+    propertyArchiveDialog.close();
+    renderProperties();
+    showFeedback(propertyStatus, `${property.name || "Property"} archived. Completed and cancelled booking history is unchanged.`, "success");
+    propertyStatus.focus({ preventScroll: true });
+  } catch (error) {
+    showFeedback(propertyArchiveFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot archive this property. Sign in again." : error.message);
+    propertyArchiveFeedback.focus({ preventScroll: true });
+  } finally {
+    propertyArchivePending = false;
+    propertyArchiveCancel.disabled = false;
+    setPending(propertyArchiveConfirm, false, "Archive property");
+  }
 }
 
 function applySuggestedCleaningType() {
@@ -2040,6 +2100,14 @@ requestWithdrawDialog.addEventListener("close", () => {
   withdrawingRequestId = "";
   requestWithdrawForm.reset();
   requestWithdrawFeedback.hidden = true;
+});
+propertyArchiveForm.addEventListener("submit", archiveProperty);
+propertyArchiveCancel.addEventListener("click", () => { if (!propertyArchivePending) propertyArchiveDialog.close(); });
+propertyArchiveDialog.addEventListener("cancel", (event) => { if (propertyArchivePending) event.preventDefault(); });
+propertyArchiveDialog.addEventListener("close", () => {
+  if (propertyArchivePending) return;
+  archivingPropertyId = "";
+  propertyArchiveFeedback.hidden = true;
 });
 landlordSectionToggles.forEach((button) => button.addEventListener("click", () => toggleLandlordSection(button)));
 retry.addEventListener("click", loadWorkspace);
