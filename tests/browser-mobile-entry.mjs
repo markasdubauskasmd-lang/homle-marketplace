@@ -116,7 +116,7 @@ try {
     };
   `);
   assert(closing.joinHref === "/signup?intent=book", `The closing call to action does not sign anyone up: ${closing.joinHref}.`);
-  assert(closing.joinText === "Sign up in 30 seconds", `The closing label was overwritten: "${closing.joinText}".`);
+  assert(closing.joinText === "Create your Homle account", `The closing label was overwritten: "${closing.joinText}".`);
   assert(closing.cleanerHref === "/signup?intent=work", `Cleaners cannot sign up from the landing page: ${closing.cleanerHref}.`);
 
   assert(browser.pageErrors.length === 0,

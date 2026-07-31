@@ -87,6 +87,23 @@ assert(script.includes("if (moving) this.raf = requestAnimationFrame(this.frame)
 
 assert(!page.includes("data-directory-entry") && !page.includes('href="/request"') && !page.includes('href="/join"') && !page.includes('href="/cleaners"'), "The retired public directory or intake journeys are still linked from the landing page.");
 assert(!/vetted professionals|verified cleaners|background[- ]checked cleaners|insured cleaners/i.test(page), "The private-pilot homepage makes an unsupported public Cleaner trust claim.");
+// Marketing imagery must never be presented as live marketplace supply. These
+// were stock-photo personas in the design handoff, with invented ratings and
+// job totals. The cards now explain product capabilities instead.
+for (const unsupportedClaim of [
+  "Marta", "Andrei", "Grace", "Iulia", "Trusted people.", "LONDON PILOT",
+  "no account required", "no account needed", "Book as a guest", "Sign up in 30 seconds",
+  "412 CLEANS", "288 CLEANS", "96 CLEANS", "173 CLEANS", "4.97", "4.91", "5.00", "4.95",
+  "£42"
+]) {
+  assert(!page.includes(unsupportedClaim), `The landing page reintroduced the unsupported claim: ${unsupportedClaim}.`);
+}
+for (const truthfulPromise of [
+  "Review the scope.", "No camera or room photos required", "Sign in to book",
+  "The work stays clear.", "Verified account", "COVERAGE CONFIRMED BEFORE MATCHING"
+]) {
+  assert(page.includes(truthfulPromise), `The landing page lost the grounded promise: ${truthfulPromise}.`);
+}
 assert((page.match(/data-book-entry/g) || []).length >= 2 && (page.match(/data-cleaner-entry/g) || []).length >= 1, "The redesign dropped the role-aware booking or cleaner entry hooks home.js drives.");
 assert(page.includes("data-account-menu hidden") && page.includes("data-account-avatar") && page.includes("data-account-entry hidden") && page.includes("/account-menu.js?"), "The account menu, avatar or sign-in state hooks were lost.");
 assert(page.includes("data-year") && page.includes("apple-mobile-web-app-capable"), "The footer year hook or the installable-app metadata was dropped.");

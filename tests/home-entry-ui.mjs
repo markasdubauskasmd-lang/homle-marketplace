@@ -28,7 +28,7 @@ const [page, script, accountPage, server, packageFile] = await Promise.all([
 ]);
 
 // The cinematic design carries fewer, larger calls to action than the page it
-// replaced: the header Sign up and the closing "Sign up in 30 seconds", plus the
+// replaced: the header Sign up and the closing account-creation CTA, plus the
 // Cleaner entry in the footer. Both roles must still be reachable from the page.
 assert((page.match(/data-book-entry/g) || []).length >= 2, "Homepage lost its account-first Landlord entry points.");
 assert(page.includes('href="/signup?intent=book" data-book-entry') && page.includes('href="/signup?intent=work" data-cleaner-entry'), "Homepage still points at retired pages.");

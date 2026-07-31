@@ -59,7 +59,6 @@ const probe = `
       phoneView: document.querySelector('[data-phone-view]').getAttribute('src'),
       beat: document.querySelector('[data-beat-title]').textContent,
       items: Number(document.querySelector('[data-beat-items]').textContent),
-      price: Number(document.querySelector('[data-price]').textContent),
       views: document.querySelector('[data-views]').textContent,
       launchOn: document.querySelector('[data-launch]').classList.contains('is-on'),
       joinOn: document.querySelector('[data-join]').classList.contains('is-on'),
@@ -125,7 +124,6 @@ try {
   assert(scanLate.items > scanEarly.items, `Items analysed does not climb: ${scanEarly.items} -> ${scanLate.items}.`);
   assert(scanLate.telsOn > scanEarly.telsOn, `Telemetry chips do not reveal in order: ${scanEarly.telsOn} -> ${scanLate.telsOn}.`);
   assert(scanEarly.beat !== scanLate.beat, "The beat caption never changes across the scan.");
-  assert(scanLate.price >= scanEarly.price, `The estimate moves backwards: ${scanEarly.price} -> ${scanLate.price}.`);
 
   /* ── Act 3: the manual booking card ───────────────── */
 

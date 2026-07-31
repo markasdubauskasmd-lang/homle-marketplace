@@ -39,7 +39,7 @@ const BEATS = [
   { ang: 5, room: { s: 1.16, x: -7, y: -3 }, ph: { x: 3.5,  y: -1.4, yaw: -5, roll: -0.7, s: 1.04 },
     box: [52, 14, 40, 52], title: "Windows & lighting",    label: "Glass & frames",             items: 40, name: "Lounge" },
   { ang: 1, room: { s: 1.05, x: 0,  y: 0  }, ph: { x: 0,    y: 0,    yaw: 0,  roll: 0,    s: 1 },
-    box: null,             title: "Scan complete",         label: "Room understood · £42",      items: 42, name: "Lounge" }
+    box: null,             title: "Scan complete",         label: "Room understood · review scope", items: 42, name: "Lounge" }
 ];
 
 /* The phone shows the very angle being scanned. Beat angle -> file number. */
@@ -78,8 +78,6 @@ class Cinematic {
     this.scanline = one("[data-scanline]");
     this.views = one("[data-views]");
     this.status = one("[data-scanstatus]");
-    this.price2 = one("[data-price2]");
-    this.priceEl = one("[data-price]");
     this.heroFrame = one("[data-hero-frame]");
     this.beatTitle = one("[data-beat-title]");
     this.beatLabel = one("[data-beat-label]");
@@ -233,7 +231,6 @@ class Cinematic {
 
     this.text(this.mnum, String(Math.max(1, Math.min(6, Math.ceil(manualP / 0.16) || 1))));
     this.text(this.mhours, String(Math.max(1, Math.min(3, Math.round(manualP * 3))) || 1));
-    this.text(this.priceEl, String(Math.max(6, Math.round(42 * Math.min(1, scanP / 0.84)))));
     const area = Math.max(2.4, Math.min(16.8, 16.8 * (scanP / 0.62))).toFixed(1);
     for (const el of this.areaEls || []) this.text(el, area);
 
@@ -363,8 +360,7 @@ class Cinematic {
     }
 
     this.text(this.views, String(Math.min(4, Math.floor(t / 0.22))));
-    this.text(this.status, t > 0.9 ? "Room understood" : (t > 0.62 ? "Pricing the clean…" : "Checking this view…"));
-    this.text(this.price2, String(Math.max(6, Math.round(42 * Math.min(1, t / 0.84)))));
+    this.text(this.status, t > 0.9 ? "Room understood" : (t > 0.62 ? "Preparing the scope…" : "Checking this view…"));
   }
 
   /* Reveal anything past its data-at mark. The movement itself is in the CSS. */
