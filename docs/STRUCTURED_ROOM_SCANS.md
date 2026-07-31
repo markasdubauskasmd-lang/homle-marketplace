@@ -1127,3 +1127,24 @@ cannot be waved away, and the read deliberately waits for a settled, sharp,
 well-lit frame because paying to grade a motion-blurred one produces confident
 nonsense. What changed is that the first second now shows the true state
 instead of a false zero — the honest version of faster.
+
+## Phase 11 addendum — the sixth report (constant "moving too fast", sweep line)
+
+Two changes, one calming and one showing:
+
+1. **The motion nag needed three fast samples, not two.** At two (~1.8s), a
+   turn to the next wall plus its settling frame fired "slow down" on nearly
+   every wall change — "constantly says I am moving too fast", and a customer
+   taught to creep through rooms is a slower scan for no benefit. The streak
+   is now three samples (~2.7s of genuinely continuous sweeping). The paid
+   reads never relied on this nag for protection: capture separately demands
+   consecutive-sample stillness and measured sharpness, both untouched, so
+   the calmer hint spends nothing and risks nothing.
+2. **A sweep line inside each glow while a read is in flight** — the report's
+   own suggestion. A thin bright line sweeps up and down inside every
+   highlighted object while a walking read is genuinely running. Two rules
+   keep it honest and cheap: the class that enables it comes from real read
+   state (an animation claiming analysis that is not happening would be the
+   "0 items found" contradiction in reverse), and it animates transform only,
+   because it plays over a live camera feed on a phone already running
+   inference. Reduced-motion preferences remove it entirely.

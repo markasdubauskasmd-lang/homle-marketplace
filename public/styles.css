@@ -3861,6 +3861,21 @@ textarea.inp{resize:vertical;line-height:1.6;font-size:15px}
 .det-box.show{opacity:1;transform:scale(1);animation:scanGlowBreathe 2.4s ease-in-out infinite}
 @keyframes scanGlowBreathe{0%,100%{opacity:.90}50%{opacity:1}}
 
+/* The reader at work, made visible where the customer is already looking:
+   while a walking read is genuinely in flight, a thin bright line sweeps up
+   and down inside each glow — the sixth field report's own suggestion. It is
+   gated on the `.is-reading` class the overlay sets from real read state, so
+   the animation never claims analysis that is not happening. Transform-only,
+   like everything else over the live camera; the corner-tick ::before is
+   content:none in this design, so the slot is free. */
+[data-detection-layer].is-reading .det-box.show::before{
+  content:"";left:10%;right:10%;top:0;width:auto;height:12%;border:0;
+  border-radius:99px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);
+  animation:scanSweepLine 1.5s ease-in-out infinite alternate;
+}
+@keyframes scanSweepLine{from{transform:translateY(0)}to{transform:translateY(733%)}}
+
 /* Saved. Green, brighter, and it stops breathing — a settled state reads as
    "done" where a pulsing one reads as "still working". */
 .det-box.picked{
@@ -3902,6 +3917,7 @@ textarea.inp{resize:vertical;line-height:1.6;font-size:15px}
 
 @media (prefers-reduced-motion:reduce){
   .det-box.show,.found-busy,.found-item{animation:none}
+  [data-detection-layer].is-reading .det-box.show::before{content:none;animation:none}
 }
 
 /* ── Condition on the found-item rows ──────────────────────────────────────

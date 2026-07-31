@@ -2616,6 +2616,10 @@ export function openRoomScan() {
       const spotted = !state.frozen && state.screen === "live" ? state.tracks.length : 0;
       el.found.hidden = items.length === 0 && !currentRoomBusy && spotted === 0;
       el.foundBusy.hidden = !currentRoomBusy;
+      // The sweep line inside each glow runs only while a read is genuinely in
+      // flight — an animation that claims analysis which is not happening
+      // would be the "0 items found" contradiction in the other direction.
+      if (el.detections) el.detections.classList.toggle("is-reading", currentRoomBusy && !state.frozen);
       // Says how many need attention, not how many exist. "16 items found" over a
       // list whose visible rows all read CLEAN told a customer nothing and looked
       // like padding; what they want to know is how much work this room is.
@@ -3234,7 +3238,7 @@ export function openRoomScan() {
       state.signature = frameSignature(pixels, width, height);
 
       // A short memory of how fast the view is changing, for the movement hint.
-      // Two samples is ~1.8s of sustained motion — a deliberate sweep, not the
+      // Three samples is ~2.7s of sustained motion — a deliberate sweep, not the
       // single turn to a new wall that walking a room is supposed to involve.
       //
       // Only when both signatures are real. `signatureDistance(null, …)` is

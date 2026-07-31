@@ -598,18 +598,36 @@ for (const grade of ["heavy", "medium", "light", "clean"]) {
   assert.ok(styles.includes(`.det-box[data-grade="${grade}"]`), `No glow state exists for a ${grade} object, so its verdict is invisible on the object itself.`);
 }
 
+/* ── The sweep line: visible reading, never claimed reading ── */
+
+// A thin line sweeps inside each glow while a walking read is in flight — the
+// sixth field report's own suggestion. Two rules keep it honest and cheap: the
+// class comes only from real read state (an animation claiming analysis that
+// is not happening is the "0 items found" contradiction in reverse), and the
+// animation is transform-only because it plays over a live camera feed.
+assert.ok(styles.includes("[data-detection-layer].is-reading .det-box.show::before"), "The reading sweep line has no presentation.");
+assert.match(styles, /@keyframes scanSweepLine\{from\{transform:translateY\(0\)\}to\{transform:translateY\([^)]+\)\}\}/, "The sweep animates something other than transform, repainting a live camera feed every frame.");
+assert.ok(/prefers-reduced-motion[\s\S]{0,400}\.is-reading \.det-box\.show::before\{content:none;animation:none\}/.test(styles), "The sweep ignores reduced-motion.");
+assert.match(overlay, /el\.detections\.classList\.toggle\("is-reading", currentRoomBusy && !state\.frozen\)/, "The sweep is not gated on genuine in-flight reading, so it would claim analysis that is not happening.");
+
 /* ── "Slow down" is said when it helps, and only then ── */
 
 // Sustained sweeping is the one problem the quality pass cannot see: a swept
 // frame can be bright and, at an instant, sharp. But the tracker loses its
 // locks and the keyframe picker (rightly) refuses to spend a read, so a whole
 // room can be walked with nothing found and no explanation.
-assert.ok(movementAdvice([0.2, 0.2]), "Two consecutive fast samples — a deliberate sweep — produced no guidance.");
-assert.equal(movementAdvice([0.01, 0.2]), null, "A single fast sample triggered the hint. That is just the customer turning to the next wall, which the scan exists to encourage.");
-assert.equal(movementAdvice([0.2, 0.01]), null, "The hint persists after the phone has settled.");
+//
+// THREE consecutive fast samples, since the sixth field report. At two, a turn
+// to the next wall plus its settling frame fired the hint on nearly every wall
+// change — "constantly says I am moving too fast". The paid reads never relied
+// on this nag: capture separately demands stillness and measured sharpness.
+assert.ok(movementAdvice([0.2, 0.2, 0.2]), "A genuinely sustained sweep produced no guidance.");
+assert.equal(movementAdvice([0.2, 0.2]), null, "Two fast samples fired the hint — a turn plus its settling frame nagged on nearly every wall change, the sixth field report exactly.");
+assert.equal(movementAdvice([0.01, 0.2, 0.2]), null, "An interrupted streak triggered the hint.");
+assert.equal(movementAdvice([0.2, 0.2, 0.01]), null, "The hint persists after the phone has settled.");
 assert.equal(movementAdvice([]), null, "No samples produced advice.");
 assert.equal(movementAdvice([0.2]), null, "One sample is not a streak.");
-assert.equal(movementAdvice([NaN, 0.5, 0.5]) === null, false, "Garbage samples poisoned real ones.");
+assert.equal(movementAdvice([NaN, 0.5, 0.5, 0.5]) === null, false, "Garbage samples poisoned real ones.");
 
 // Once the free on-device tracker has held an object steadily, its geometry can
 // tell the customer that every visible item is too small for reliable condition
@@ -729,10 +747,12 @@ assert.ok(fanDistance >= keyframeDefaults.sceneChangeThreshold, `The fan fixture
 assert.ok(fanSpread < movementSpreadThreshold, `The fan flicker reads as widespread (${fanSpread.toFixed(2)}), so spread cannot discriminate it.`);
 assert.ok(panSpread >= movementSpreadThreshold, `A genuine pan reads as localized (${panSpread.toFixed(2)}), so spread would silence real movement guidance.`);
 
-// The hint: fans no, pan yes.
-assert.equal(movementAdvice([fanDistance, fanDistance], { spreads: [fanSpread, fanSpread] }), null, "A customer standing still in front of colour-cycling fans is still told to slow down.");
-assert.ok(movementAdvice([panDistance, panDistance], { spreads: [panSpread, panSpread] }), "A genuine sustained pan no longer earns the hint at all — the fix over-corrected.");
-assert.equal(movementAdvice([panDistance, panDistance], { spreads: [panSpread, null] }), null, "A sample with no comparable signatures was treated as proven camera motion.");
+// The hint: fans no, pan yes. (Three samples each — the post-sixth-report
+// streak — so what is being tested is the spread discrimination, not the
+// streak length.)
+assert.equal(movementAdvice([fanDistance, fanDistance, fanDistance], { spreads: [fanSpread, fanSpread, fanSpread] }), null, "A customer standing still in front of colour-cycling fans is still told to slow down.");
+assert.ok(movementAdvice([panDistance, panDistance, panDistance], { spreads: [panSpread, panSpread, panSpread] }), "A genuine sustained pan no longer earns the hint at all — the fix over-corrected.");
+assert.equal(movementAdvice([panDistance, panDistance, panDistance], { spreads: [panSpread, panSpread, null] }), null, "A sample with no comparable signatures was treated as proven camera motion.");
 
 // Stillness stays strict — spread may only ever REFUSE a spend, never authorise
 // one. Review proved why with a case this fixture now pins: a door edge crossing
