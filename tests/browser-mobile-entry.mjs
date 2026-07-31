@@ -7,9 +7,10 @@ import {
 
 // A real responsive-browser proof for the public account entry.
 //
-// Source assertions can confirm that Menu and Sign up exist. They cannot prove
-// that responsive CSS leaves either control visible, that the role choices fit
-// inside a phone viewport, or that Escape returns focus after the menu closes.
+// Source assertions can confirm that Log in and Sign up exist. They cannot prove
+// that responsive CSS leaves either control visible and tappable, that the
+// cinematic landing design does not overflow a phone sideways once its acts
+// start moving, or that its clip and photography actually load.
 //
 // This is desktop Chromium using a 390 x 844 emulated viewport. It is not a
 // physical-phone or touch trial and does not claim to be one.
@@ -32,114 +33,92 @@ try {
   await browser.setViewport({ width: 390, height: 844 });
   await browser.goto(`${server.origin}/home.html`);
 
-  const initial = await browser.evaluate(`
-    const toggle = document.querySelector(".menu-toggle");
-    const nav = document.querySelector("#main-nav");
-    const toggleRect = toggle.getBoundingClientRect();
+  // home.js unhides Log in once it has decided the entry mode. It does that
+  // synchronously on import, before its /api/health call resolves.
+  const entry = await browser.evaluate(`
+    const login = document.querySelector("[data-account-entry]");
+    const signup = document.querySelector("[data-book-entry]");
+    const rect = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, width: r.width, height: r.height }; };
     return {
       width: window.innerWidth,
       documentWidth: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
-      toggleDisplay: getComputedStyle(toggle).display,
-      toggleWidth: toggleRect.width,
-      toggleHeight: toggleRect.height,
-      expanded: toggle.getAttribute("aria-expanded"),
-      navDisplay: getComputedStyle(nav).display
+      login: { hidden: login.hidden, href: login.getAttribute("href"), display: getComputedStyle(login).display, ...rect(login) },
+      signup: { href: signup.getAttribute("href"), text: signup.textContent.trim(), display: getComputedStyle(signup).display, ...rect(signup) }
     };
   `);
-  assert(initial.width === 390, `The responsive proof did not receive the requested viewport: ${initial.width}.`);
-  assert(initial.scrollWidth === initial.documentWidth, "The landing page overflows horizontally before the mobile menu opens.");
-  assert(initial.toggleDisplay !== "none" && initial.toggleWidth >= 44 && initial.toggleHeight >= 44,
-    `The mobile Menu control is hidden or smaller than 44px: ${JSON.stringify(initial)}.`);
-  assert(initial.expanded === "false" && initial.navDisplay === "none",
-    "The collapsed mobile navigation does not start in its closed state.");
-
-  const menuOpen = await browser.evaluate(`
-    document.querySelector(".menu-toggle").click();
-    const toggle = document.querySelector(".menu-toggle");
-    const nav = document.querySelector("#main-nav");
-    const summary = document.querySelector("[data-signup-menu] summary");
-    const navRect = nav.getBoundingClientRect();
-    const summaryRect = summary.getBoundingClientRect();
-    return {
-      expanded: toggle.getAttribute("aria-expanded"),
-      navDisplay: getComputedStyle(nav).display,
-      navRect: { left: navRect.left, right: navRect.right, width: navRect.width, height: navRect.height },
-      summaryRect: { left: summaryRect.left, right: summaryRect.right, width: summaryRect.width, height: summaryRect.height },
-      viewportWidth: window.innerWidth,
-      documentWidth: document.documentElement.clientWidth,
-      scrollWidth: document.documentElement.scrollWidth
-    };
-  `);
-  assert(menuOpen.expanded === "true" && menuOpen.navDisplay !== "none",
-    "The mobile Menu control does not reveal the account navigation.");
-  assert(menuOpen.navRect.left >= 0 && menuOpen.navRect.right <= menuOpen.documentWidth,
-    `The mobile account navigation is clipped by the viewport: ${JSON.stringify(menuOpen.navRect)}.`);
-  assert(menuOpen.summaryRect.height >= 44 && menuOpen.summaryRect.left >= 0
-    && menuOpen.summaryRect.right <= menuOpen.documentWidth,
-  `The Sign up control is clipped or smaller than 44px: ${JSON.stringify(menuOpen.summaryRect)}.`);
-  assert(menuOpen.scrollWidth === menuOpen.documentWidth,
-    "Opening the mobile account navigation creates horizontal page overflow.");
-
-  const choices = await browser.evaluate(`
-    const details = document.querySelector("[data-signup-menu]");
-    const summary = details.querySelector("summary");
-    summary.click();
-    const links = [...details.querySelectorAll("a")].map((link) => {
-      const rect = link.getBoundingClientRect();
-      return {
-        href: link.getAttribute("href"),
-        text: link.textContent.replace(/\\s+/g, " ").trim(),
-        left: rect.left,
-        right: rect.right,
-        width: rect.width,
-        height: rect.height
-      };
-    });
-    return {
-      open: details.open,
-      summaryTabIndex: summary.tabIndex,
-      links,
-      documentWidth: document.documentElement.clientWidth,
-      scrollWidth: document.documentElement.scrollWidth
-    };
-  `);
-  assert(choices.open === true && choices.summaryTabIndex === 0,
-    "The Sign up disclosure is not open and keyboard-focusable.");
-  assert(choices.links.length === 2
-    && choices.links[0].href === "/signup?intent=book"
-    && choices.links[1].href === "/signup?intent=work",
-  `The Sign up disclosure does not expose the exact two role choices: ${JSON.stringify(choices.links)}.`);
-  for (const choice of choices.links) {
-    assert(choice.height >= 44 && choice.left >= 0 && choice.right <= choices.documentWidth,
-      `A Sign up role choice is clipped or smaller than 44px: ${JSON.stringify(choice)}.`);
+  assert(entry.width === 390, `The responsive proof did not receive the requested viewport: ${entry.width}.`);
+  assert(entry.scrollWidth === entry.documentWidth, "The landing page overflows horizontally at 390px.");
+  assert(entry.login.hidden === false && entry.login.display !== "none" && entry.login.href === "/login",
+    `The mobile Log in control is hidden or misrouted: ${JSON.stringify(entry.login)}.`);
+  assert(entry.signup.display !== "none" && entry.signup.href === "/signup?intent=book",
+    `The mobile Sign up control is hidden or misrouted: ${JSON.stringify(entry.signup)}.`);
+  // The header pair is the only account entry above the fold, so both have to be
+  // comfortably tappable and fully inside the viewport.
+  for (const [name, control] of [["Log in", entry.login], ["Sign up", entry.signup]]) {
+    assert(control.height >= 44 && control.left >= 0 && control.right <= entry.documentWidth,
+      `The ${name} control is clipped or too small to tap: ${JSON.stringify(control)}.`);
   }
-  assert(choices.scrollWidth === choices.documentWidth,
-    "Opening the Sign up role choices creates horizontal page overflow.");
+  // home.js must not have eaten the label: the Sign up entry is label-fixed.
+  assert(entry.signup.text === "Sign up", `The Sign up label was overwritten: "${entry.signup.text}".`);
 
-  const dismissed = await browser.evaluate(`
-    const details = document.querySelector("[data-signup-menu]");
-    const summary = details.querySelector("summary");
-    summary.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  // Walk the whole page the way a visitor would. Every act pins and unpins, and
+  // none of them may push the document sideways while it moves — the design is
+  // built from vw-sized transforms, which is exactly how that happens.
+  const scrolled = await browser.evaluate(`
+    const height = document.documentElement.scrollHeight;
+    const documentWidth = document.documentElement.clientWidth;
+    let worstScrollWidth = 0;
+    for (let i = 0; i <= 24; i++) {
+      window.scrollTo(0, Math.round((height - window.innerHeight) * (i / 24)));
+      worstScrollWidth = Math.max(worstScrollWidth, document.documentElement.scrollWidth);
+    }
+    window.scrollTo(0, 0);
+    return { documentWidth, worstScrollWidth, height };
+  `);
+  assert(scrolled.worstScrollWidth === scrolled.documentWidth,
+    `Scrolling the landing page creates horizontal overflow: ${scrolled.worstScrollWidth} vs ${scrolled.documentWidth}.`);
+  assert(scrolled.height > 844 * 8, `The scroll-driven design collapsed to ${scrolled.height}px, so its acts cannot play.`);
+
+  // The media the design is built on has to actually arrive. A wrong MIME type
+  // or a missing file is invisible in source review and fatal on the page.
+  const media = await browser.evaluate(`
+    const images = [...document.images];
+    const video = document.querySelector("[data-detail-video]");
+    return new Promise((resolve) => {
+      const done = () => resolve({
+        total: images.length,
+        broken: images.filter((img) => img.complete && img.naturalWidth === 0).map((img) => img.getAttribute("src")),
+        pending: images.filter((img) => !img.complete).length,
+        videoSrc: video ? video.getAttribute("src") : null,
+        videoError: video && video.error ? video.error.code : null,
+        videoReady: video ? video.readyState : null
+      });
+      if (video) video.addEventListener("loadedmetadata", done, { once: true });
+      setTimeout(done, 4000);
+    });
+  `);
+  assert(media.total >= 10, `The landing page lost its photography: only ${media.total} images.`);
+  assert(media.broken.length === 0, `Landing images failed to load: ${media.broken.join(", ")}.`);
+  assert(media.videoSrc === "/landing/cleaning.mp4", `The detail act lost its clip: ${media.videoSrc}.`);
+  assert(media.videoError === null, `The landing clip failed to decode, error code ${media.videoError}.`);
+  assert(media.videoReady >= 1, "The landing clip never reported metadata, so it will never play.");
+
+  // Reaching the closing act must leave a real sign-up link, not an anchor that
+  // scrolls back into the page the way the design prototype did.
+  const closing = await browser.evaluate(`
+    const join = document.querySelector("[data-stage='join'] a[data-book-entry]");
+    const cleaner = document.querySelector("[data-cleaner-entry]");
     return {
-      open: details.open,
-      focusReturned: document.activeElement === summary
+      joinHref: join ? join.getAttribute("href") : null,
+      joinText: join ? join.textContent.trim() : null,
+      cleanerHref: cleaner ? cleaner.getAttribute("href") : null
     };
   `);
-  assert(dismissed.open === false && dismissed.focusReturned === true,
-    "Escape does not close the Sign up disclosure and return focus to its trigger.");
+  assert(closing.joinHref === "/signup?intent=book", `The closing call to action does not sign anyone up: ${closing.joinHref}.`);
+  assert(closing.joinText === "Sign up in 30 seconds", `The closing label was overwritten: "${closing.joinText}".`);
+  assert(closing.cleanerHref === "/signup?intent=work", `Cleaners cannot sign up from the landing page: ${closing.cleanerHref}.`);
 
-  const menuClosed = await browser.evaluate(`
-    const toggle = document.querySelector(".menu-toggle");
-    const nav = document.querySelector("#main-nav");
-    toggle.click();
-    return {
-      expanded: toggle.getAttribute("aria-expanded"),
-      navDisplay: getComputedStyle(nav).display
-    };
-  `);
-  assert(menuClosed.expanded === "false" && menuClosed.navDisplay === "none",
-    "The mobile Menu control cannot close the account navigation again.");
   assert(browser.pageErrors.length === 0,
     `The mobile account entry threw in Chromium: ${browser.pageErrors.join(" | ")}`);
 } catch (error) {
@@ -150,4 +129,4 @@ try {
 }
 
 if (failure) throw failure;
-console.log("Browser mobile-entry checks passed: 390px Menu and Sign up interactions, two role choices, 44px targets, no overflow and keyboard dismissal.");
+console.log("Browser mobile-entry checks passed: 390px Log in and Sign up, no overflow across all six acts, photography and clip load, real sign-up routes.");

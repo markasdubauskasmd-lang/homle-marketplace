@@ -234,6 +234,14 @@ const mimeTypes = {
   ".ico": "image/x-icon",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  // Landing page photography and the clip in its "Down to the detail" act.
+  // Without these they fall through to application/octet-stream, which a
+  // <video> will not play at all — the poster stays up and nothing happens.
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".mp4": "video/mp4",
+  ".png": "image/png",
+  ".webp": "image/webp",
   ".svg": "image/svg+xml; charset=utf-8",
   ".webmanifest": "application/manifest+json; charset=utf-8",
   // Vendored web fonts. Without this they fall through to application/octet-stream,

@@ -75,6 +75,9 @@ const mimeTypes = Object.freeze({
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
   ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8",
   ".png": "image/png", ".jpg": "image/jpeg", ".webmanifest": "application/manifest+json",
+  // The landing page's closing act is a clip. Served as octet-stream a <video>
+  // refuses it outright, so a browser proof of that page needs the real type.
+  ".mp4": "video/mp4",
   ".woff2": "font/woff2", ".svg": "image/svg+xml"
 });
 

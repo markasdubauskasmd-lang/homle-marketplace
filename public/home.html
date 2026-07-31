@@ -1,191 +1,434 @@
 <!doctype html>
-<html lang="en-GB">
+<html lang="en-GB" class="ci-html">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Book a clean, scan each room and turn spoken notes into a clear checklist for a local cleaning professional with Homle.">
-  <meta name="theme-color" content="#d7182a" />
+  <meta name="description" content="Scan your rooms with your phone and Homle measures the space, reads the mess and prices the clean before anyone is booked. Or book manually in six short steps.">
+  <meta name="theme-color" content="#0a0a0a">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Homle">
-  <title>Homle — come home to calm</title>
+  <title>Homle — cleaning, understood instantly</title>
   <link rel="icon" href="/homle-logo.png" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
-  <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/home.css?v=20260729-4">
+  <link rel="preload" as="image" href="/landing/open-plan-living.jpg">
+  <link rel="stylesheet" href="/landing.css?v=20260731-1">
+  <script src="/landing.js?v=20260731-1" type="module"></script>
   <script src="/home.js?v=20260729-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
-  <script src="/home-hero.js?v=20260723-1" type="module"></script>
 </head>
-<body class="landing">
-  <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <div class="shell nav-wrap">
-      <a class="brand" href="/" aria-label="Homle home">
-        <img src="/homle-logo.png" alt="" width="40" height="40">
-        <span>Homle</span>
+<body class="ci-body">
+  <a class="ci-skip" href="#ci-scan">Skip to content</a>
+
+  <div class="ci-root" data-ci-root>
+
+    <nav class="ci-nav">
+      <a class="ci-brand" href="/" aria-label="Homle home">
+        <img class="ci-brand-mark" src="/homle-logo.png" alt="" width="36" height="36">
+        <span class="ci-brand-name">Homle</span>
       </a>
-      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav">Menu</button>
-      <nav id="main-nav" class="main-nav" aria-label="Primary navigation">
-        <a class="button button-small button-outline header-login" href="/login" data-account-entry hidden>Log in</a>
-        <details class="signup-menu" data-signup-menu>
-          <summary class="button button-small signup-trigger">Sign up</summary>
-          <div class="signup-menu-panel">
-            <a href="/signup?intent=book" data-book-entry data-entry-label-fixed>
-              <span class="signup-choice-icon" aria-hidden="true">⌂</span>
-              <span><strong>Book service</strong><small>For customers, landlords and property managers</small></span>
-            </a>
-            <a href="/signup?intent=work" data-cleaner-entry data-entry-label-fixed>
-              <span class="signup-choice-icon" aria-hidden="true">＋</span>
-              <span><strong>Join as an Associate</strong><small>Create your professional cleaning account</small></span>
-            </a>
-          </div>
-        </details>
-      </nav>
-      <details class="account-menu public-account-menu" data-account-menu hidden>
-        <summary aria-label="Open signed-in Homle account"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary>
-        <div class="account-menu-panel">
-          <p class="eyebrow">Signed in · <span data-account-role>Account</span></p>
-          <strong data-account-name>Your account</strong>
-          <small data-account-email></small>
-          <a href="/onboarding" data-account-dashboard>Open dashboard</a>
-          <button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/">Sign out</button>
-          <small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small>
+      <div class="ci-nav-right">
+        <div class="ci-nav-links">
+          <a href="#ci-scan">Scanner</a>
+          <a href="#ci-manual">Book manually</a>
         </div>
-      </details>
-    </div>
-  </header>
+        <div class="ci-nav-actions">
+          <a class="ci-login" href="/login" data-account-entry hidden>Log in</a>
+          <a class="ci-signup" href="/signup?intent=book" data-book-entry data-entry-label-fixed>Sign up</a>
+          <!-- Swapped in by account-menu.js once a session is known. -->
+          <details class="account-menu public-account-menu ci-account" data-account-menu hidden>
+            <summary aria-label="Open signed-in Homle account"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary>
+            <div class="account-menu-panel">
+              <p class="eyebrow">Signed in · <span data-account-role>Account</span></p>
+              <strong data-account-name>Your account</strong>
+              <small data-account-email></small>
+              <a href="/onboarding" data-account-dashboard>Open dashboard</a>
+              <button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/">Sign out</button>
+              <small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small>
+            </div>
+          </details>
+        </div>
+      </div>
+    </nav>
 
-  <main id="main">
-    <!-- Scan stage: pinned while the page scrolls, wiped clean by a beam. -->
-    <div class="lp-scan-wrap" data-scan-wrap>
-      <div class="lp-stage" data-stage>
-        <div class="lp-bright" data-bright></div>
-        <div class="lp-scrim"></div>
+    <!-- Act 1: the room wipes from messy to spotless as the frame grows to full bleed. -->
+    <section class="ci-open" data-stage="open">
+      <div class="ci-open-pin">
 
-        <div class="lp-scene" aria-hidden="true">
-          <div class="lp-window"><i></i><i></i><i></i><i></i></div>
+        <div class="ci-hero-stage">
+          <div class="ci-hero-frame" data-hero-frame>
+            <img class="ci-hero-img" src="/landing/open-plan-living.jpg" alt="An open-plan living room, spotless" decoding="async">
 
-          <div class="lp-frame" data-frame>
-            <div class="lp-frame-inner">
-              <div class="lp-frame-mountain"></div>
-              <div class="lp-frame-sun"></div>
+            <div class="ci-hero-dirty">
+              <img class="ci-hero-img" src="/landing/open-plan-living-dirty.jpg" alt="The same living room before cleaning" decoding="async">
+              <div class="ci-hero-grime"></div>
+            </div>
+
+            <div class="ci-wipe-glow" aria-hidden="true"></div>
+            <div class="ci-wipe-edge" aria-hidden="true"></div>
+            <div class="ci-hero-veil" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div class="ci-hero-copy">
+          <p class="ci-eyebrow">Homle · room intelligence</p>
+          <h1 class="ci-hero-title">
+            <span class="ci-hero-l1">Cleaning,</span>
+            <span class="ci-hero-l2">understood</span>
+            <span class="ci-hero-l3">instantly.</span>
+          </h1>
+          <p class="ci-hero-sub">Scan your rooms. Tell us what matters. Get your price.</p>
+          <div class="ci-hero-cta">
+            <span class="ci-launch" data-launch data-at=".07">
+              <span class="ci-launch-tail" aria-hidden="true"></span>
+              <a class="ci-btn-primary" href="/landlord/book">Scan Your Home</a>
+            </span>
+          </div>
+        </div>
+
+        <div class="ci-scrollcue" aria-hidden="true">
+          <span class="ci-meter">
+            <span>Messy</span>
+            <span class="ci-meter-track"><i></i></span>
+            <span class="ci-meter-end">Spotless</span>
+          </span>
+          <span>Scroll</span>
+          <span class="ci-cue-line"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Act 2: a walk around one room. The phone, the room plate and the read-out
+         all move together, driven by the beat table in landing.js. -->
+    <section class="ci-scan" id="ci-scan" data-stage="scan">
+      <div class="ci-scan-pin">
+        <div class="ci-room" data-room aria-hidden="true">
+          <img data-angle="1" src="/landing/angle-5.png" alt="">
+          <img data-angle="2" src="/landing/angle-1.png" alt="" loading="lazy">
+          <img data-angle="3" src="/landing/angle-4.png" alt="" loading="lazy">
+          <img data-angle="4" src="/landing/angle-2.png" alt="" loading="lazy">
+          <img data-angle="5" src="/landing/angle-3.png" alt="" loading="lazy">
+        </div>
+        <div class="ci-room-veil" aria-hidden="true"></div>
+        <div class="ci-room-light" data-room-light aria-hidden="true"></div>
+        <div class="ci-room-grid" data-room-grid aria-hidden="true"></div>
+
+        <div class="ci-beat-box" data-beat-box aria-hidden="true"></div>
+
+        <div class="ci-phone-stage" aria-hidden="true">
+          <div class="ci-phone" data-phone>
+            <div class="ci-phone-screen">
+              <img class="ci-phone-view" data-phone-view src="/landing/dark-kitchen.jpg" alt="" loading="lazy">
+              <div class="ci-phone-veil"></div>
+              <span class="ci-reticle ci-reticle-tl"></span>
+              <span class="ci-reticle ci-reticle-tr"></span>
+              <span class="ci-reticle ci-reticle-bl"></span>
+              <span class="ci-reticle ci-reticle-br"></span>
+
+              <div class="ci-scanline" data-scanline></div>
+
+              <div class="ci-hud-top">
+                <span class="ci-hud-pill">&#10005;</span>
+                <span class="ci-hud-room"><i></i>Kitc&hellip;</span>
+                <span class="ci-hud-pill ci-hud-torch"><i></i></span>
+                <span class="ci-hud-zoom">1.5&times;</span>
+                <span class="ci-hud-levels"><i></i><i></i><i></i></span>
+                <span class="ci-hud-count"><b>0</b><span>rooms</span></span>
+              </div>
+
+              <div class="ci-hud-status">
+                <span class="ci-hud-views"><span data-views>0</span> OF 4 VIEWS</span>
+                <span class="ci-hud-msg" data-scanstatus>Checking this view&hellip;</span>
+                <span class="ci-hud-bar"><i></i></span>
+              </div>
+
+              <div class="ci-tel ci-tel-frame" data-tel data-at=".22"></div>
+              <div class="ci-tel ci-tel-spotted" data-tel data-at=".3">
+                <span>2 SPOTTED &middot; READING&hellip;</span>
+                <i></i>
+              </div>
+              <div class="ci-tel ci-chip ci-chip-acc ci-chip-floor" data-tel data-at=".1">FLOOR <span data-area>16.8</span> m&sup2;</div>
+              <div class="ci-tel ci-chip ci-chip-kitchen" data-tel data-at=".18">KITCHEN detected</div>
+              <div class="ci-tel ci-chip ci-chip-acc ci-chip-sink" data-tel data-at=".42">SINK residue</div>
+              <div class="ci-tel ci-chip ci-chip-worktop" data-tel data-at=".58">WORKTOP 3.4 m&sup2;</div>
+              <div class="ci-tel ci-tel-price" data-tel data-at=".82">
+                <span>ESTIMATED</span>
+                <b>&pound;<span data-price2>42</span></b>
+              </div>
+
+              <p class="ci-phone-hint">Just walk around the room — items save themselves</p>
+
+              <div class="ci-beat-label" data-beat-label>Point at the room to begin</div>
+
+              <div class="ci-shutter-row">
+                <span class="ci-shutter-side ci-shutter-mic">
+                  <span><i></i></span>
+                  <span class="ci-shutter-cap">VOICE</span>
+                </span>
+                <span class="ci-shutter"><i></i></span>
+                <span class="ci-shutter-side">
+                  <span>&#9998;</span>
+                  <span class="ci-shutter-cap">NOTE</span>
+                </span>
+              </div>
+
+              <div class="ci-tel ci-tel-done" data-tel data-at=".92">ROOM CAPTURED &middot; MEASURED &middot; PRICED</div>
+              <div class="ci-phone-foot">
+                <span>Live</span>
+                <span>Camera</span>
+              </div>
+            </div>
+            <div class="ci-phone-notch"></div>
+          </div>
+        </div>
+
+        <div class="ci-scan-copy">
+          <p class="ci-eyebrow-acc">The scanner</p>
+          <h2 class="ci-h2">Point.<br>Scan.<br><span class="ci-ital">Priced.</span></h2>
+          <p class="ci-lede">Walk each room with your phone and speak naturally. Homle measures the space, reads the mess and prices the work before anyone is booked.</p>
+          <p class="ci-beat-title" data-beat-title aria-hidden="true">Reading the room&hellip;</p>
+        </div>
+
+        <div class="ci-readout" aria-hidden="true">
+          <div class="ci-tel ci-card" data-tel data-at=".18">
+            <p class="ci-card-k">Room</p>
+            <p class="ci-card-v"><span data-beat-room>Lounge</span> &middot; <span data-area2>16.8</span> m&sup2;</p>
+          </div>
+          <div class="ci-tel ci-card" data-tel data-at=".2">
+            <p class="ci-card-k">Items analysed</p>
+            <p class="ci-card-v"><span data-beat-items>0</span> items</p>
+          </div>
+          <div class="ci-tel ci-card" data-tel data-at=".4">
+            <p class="ci-card-k">Cleaning level</p>
+            <p class="ci-card-v">Medium</p>
+          </div>
+          <div class="ci-tel ci-card" data-tel data-at=".58">
+            <p class="ci-card-k">Estimated time</p>
+            <p class="ci-card-v">1 h 40 min</p>
+          </div>
+          <div class="ci-tel ci-card-price" data-tel data-at=".76">
+            <p class="ci-card-k">Estimated price</p>
+            <p class="ci-card-v">&pound;<span data-price>42</span></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Act 3: the same booking without a camera. The card is a static mock of the
+         real six-step builder at /landlord/book. -->
+    <section class="ci-manual" id="ci-manual" data-stage="manual">
+      <div class="ci-manual-pin">
+        <img class="ci-manual-bg" src="/landing/sage-living.jpg" alt="" loading="lazy">
+        <div class="ci-manual-veil"></div>
+
+        <div class="ci-manual-grid">
+          <div>
+            <p class="ci-eyebrow-acc">No camera needed</p>
+            <h2 class="ci-manual-h2">Or just book it <span class="ci-ital">manually.</span></h2>
+            <p class="ci-manual-lede">Don't want to scan? Fill the details in yourself — property, type of clean, hours, date. Six short steps, no account required, and you approve one exact price before anything is booked.</p>
+            <div class="ci-mstep ci-ticks" data-mstep data-at=".08">
+              <p class="ci-tick"><span></span>No app, no photos, no signup</p>
+              <p class="ci-tick"><span></span>Nothing is charged until you approve a Cleaner</p>
+            </div>
+            <div class="ci-manual-cta">
+              <a class="ci-btn-lg" href="/landlord/book">Book as a guest</a>
+              <a class="ci-btn-ghost" href="/login">Sign in instead</a>
             </div>
           </div>
 
-          <div class="lp-rug"></div>
+          <div class="ci-mwrap" data-mwrap aria-hidden="true">
+            <div class="ci-mcard" data-mcard>
+              <div class="ci-mcard-grid">
 
-          <div class="lp-sofa">
-            <i class="base"></i><i class="back"></i><i class="arm-l"></i><i class="arm-r"></i>
-            <i class="seat-l"></i><i class="seat-r"></i>
-            <i class="lp-cushion a" data-cushion="a"></i><i class="lp-cushion b" data-cushion="b"></i>
-          </div>
+                <div class="ci-mcol">
+                  <div class="ci-mdots">
+                    <i data-mdot data-at="0"></i>
+                    <i data-mdot data-at=".2"></i>
+                    <i data-mdot data-at=".36"></i>
+                    <i data-mdot data-at=".52"></i>
+                    <i data-mdot data-at=".68"></i>
+                    <i data-mdot data-at=".82"></i>
+                  </div>
+                  <div class="ci-mhead">
+                    <p class="ci-mstep-k">Step <span data-mnum>1</span> of 6</p>
+                    <p class="ci-mstep-t">Choose your cleaning session</p>
+                  </div>
+                  <div class="ci-mfield">
+                    <span class="ci-mfield-k">Property</span>
+                    <span class="ci-mselect">Choose a property<i>&#9660;</i></span>
+                  </div>
+                  <div class="ci-moptions">
+                    <div class="ci-mstep ci-mopt" data-mstep data-at=".1">
+                      <span class="ci-mopt-icon">&#129508;</span>
+                      <span class="ci-mopt-text">
+                        <span class="ci-mopt-name">Regular domestic</span>
+                        <span class="ci-mopt-note">Everyday tidy and reset</span>
+                      </span>
+                      <span class="ci-mopt-tag">Popular</span>
+                    </div>
+                    <div class="ci-mstep ci-mopt" data-mstep data-at=".2">
+                      <span class="ci-mopt-icon">&#128273;</span>
+                      <span class="ci-mopt-text">
+                        <span class="ci-mopt-name">Rental turnover</span>
+                        <span class="ci-mopt-note">Guest or tenant turnaround</span>
+                      </span>
+                    </div>
+                    <div class="ci-mstep ci-mopt" data-mstep data-at=".3">
+                      <span class="ci-mopt-icon">&#128230;</span>
+                      <span class="ci-mopt-text">
+                        <span class="ci-mopt-name">End of tenancy</span>
+                        <span class="ci-mopt-note">Move-out deep clean</span>
+                      </span>
+                    </div>
+                    <div class="ci-mstep ci-mopt" data-mstep data-at=".4">
+                      <span class="ci-mopt-icon">&#127970;</span>
+                      <span class="ci-mopt-text">
+                        <span class="ci-mopt-name">Workplace</span>
+                        <span class="ci-mopt-note">Offices and workplaces</span>
+                      </span>
+                    </div>
+                    <div class="ci-mstep ci-mopt" data-mstep data-at=".5">
+                      <span class="ci-mopt-icon">&#128682;</span>
+                      <span class="ci-mopt-text">
+                        <span class="ci-mopt-name">Communal areas</span>
+                        <span class="ci-mopt-note">Shared halls and stairs</span>
+                      </span>
+                    </div>
+                    <div class="ci-mstep ci-mopt" data-mstep data-at=".6">
+                      <span class="ci-mopt-icon">&#10024;</span>
+                      <span class="ci-mopt-text">
+                        <span class="ci-mopt-name">Deep clean</span>
+                        <span class="ci-mopt-note">Top-to-bottom reset</span>
+                      </span>
+                    </div>
+                  </div>
+                  <p class="ci-mstep ci-mnote" data-mstep data-at=".7">An unfinished walkthrough stays only in this browser tab for up to 30 minutes. Approval and photos are never restored.</p>
+                  <div class="ci-mnav">
+                    <span class="ci-mback">Back</span>
+                    <span class="ci-mnext">Next</span>
+                  </div>
+                </div>
 
-          <div class="lp-table"><i class="top"></i><i class="leg-l"></i><i class="leg-r"></i></div>
-
-          <div class="lp-lamp" data-lamp><i class="base"></i><i class="pole"></i><i class="shade"></i></div>
-
-          <div class="lp-plant" data-plant><i class="pot"></i><i class="stem"></i><i class="leaf-1"></i><i class="leaf-2"></i><i class="leaf-3"></i></div>
-
-          <div class="lp-clutter" data-clutter="blanket"><i class="blanket"></i></div>
-          <div class="lp-clutter" data-clutter="pillow1"><i class="pillow1"></i></div>
-          <div class="lp-clutter" data-clutter="pillow2"><i class="pillow2"></i></div>
-          <div class="lp-clutter" data-clutter="mags"><div class="lp-mags"><i class="m1"></i><i class="m2"></i><i class="m3"></i></div></div>
-          <div class="lp-clutter" data-clutter="paper"><i class="paper"></i></div>
-          <div class="lp-clutter" data-clutter="mug"><div class="lp-mug"><i class="cup"></i><i class="handle"></i></div></div>
-          <div class="lp-clutter" data-clutter="box"><div class="lp-box"><i></i></div></div>
-          <div class="lp-clutter" data-clutter="glass"><i class="glass"></i></div>
-          <div class="lp-clutter" data-clutter="sock"><i class="sock"></i></div>
-          <div class="lp-clutter" data-clutter="remote"><div class="lp-remote"><i class="btn"></i><i class="bar"></i></div></div>
-
-          <div class="lp-scanned" data-scanned></div>
-          <div class="lp-beam" data-beam></div>
-
-          <div class="lp-sparkles" data-sparkles>
-            <span class="s1">✨</span><span class="s2">✨</span><span class="s3">✨</span><span class="s4">✨</span>
-          </div>
-
-          <div class="lp-badge" data-badge>
-            <span class="chk">✓</span>
-            <span><strong>Spotless</strong><small>room reset</small></span>
-          </div>
-
-          <div class="lp-phone">
-            <div class="lp-phone-screen">
-              <div class="lp-phone-glow"></div>
-              <span class="lp-phone-reticle tl"></span><span class="lp-phone-reticle tr"></span>
-              <span class="lp-phone-reticle bl"></span><span class="lp-phone-reticle br"></span>
-              <div class="lp-phone-scanline"></div>
-              <div class="lp-phone-read"><div class="pct" data-pct>0%</div><div class="status" data-status>Point &amp; scan</div></div>
+                <aside class="ci-mstep ci-basket" data-mstep data-at=".16">
+                  <p class="ci-basket-t">My basket</p>
+                  <div class="ci-basket-row">
+                    <span class="ci-basket-icon">&#129531;</span>
+                    <span class="ci-basket-name">Cleaning</span>
+                  </div>
+                  <p class="ci-basket-hours"><span></span>For <span data-mhours>2</span> hours</p>
+                  <span class="ci-basket-rule"></span>
+                  <p class="ci-basket-note">Your exact price appears when you approve a Cleaner. No payment is taken now.</p>
+                </aside>
+              </div>
             </div>
-            <div class="lp-phone-notch"></div>
           </div>
         </div>
-
-        <div class="lp-hero-copy">
-          <p class="lp-eyebrow">Your home, reset</p>
-          <h1 class="lp-h1">Life happens.<br><span class="lp-mark">We clean it<svg class="lp-underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><path d="M2 14 Q 80 2 150 10 T 298 8" fill="none" stroke="oklch(0.78 0.17 150)" stroke-width="5" stroke-linecap="round"></path></svg></span></h1>
-          <p class="lp-lead">Point your phone, scan the room and speak naturally. Homle turns your walkthrough into a concise checklist a cleaner can follow.</p>
-          <div class="lp-progress" aria-hidden="true">
-            <div class="lp-progress-row"><span data-status>Point &amp; scan</span><span data-pct>0%</span></div>
-            <div class="lp-progress-track"><div class="lp-progress-fill" data-barfill></div></div>
-          </div>
-          <a class="lp-btn lp-btn-primary" href="/signup?intent=book" data-book-entry>Create Landlord profile</a>
-          <a class="lp-hero-secondary" href="/signup?intent=work" data-cleaner-entry>Work as a cleaner</a>
-          <p class="pilot-note" data-entry-status aria-live="polite">Landlords and Cleaners now use their separate private dashboards.</p>
-        </div>
-
-        <div class="lp-scrollcue" data-scrollcue aria-hidden="true">
-          <span class="lbl">Scroll to scan</span>
-          <span class="mouse"><i></i></span>
-        </div>
       </div>
-      <div class="lp-spacer"></div>
-    </div>
-
-    <!-- Come home to calm -->
-    <section class="lp-calm">
-      <div class="lp-calm-lockup reveal"><img src="/homle-logo.png" alt="" width="58" height="58"><span>Homle</span></div>
-      <h2 class="lp-h2 reveal">Come home<br>to <span class="lp-mark">calm.<svg class="lp-underline" viewBox="0 0 300 20" preserveAspectRatio="none" aria-hidden="true"><path d="M2 14 Q 80 2 150 10 T 298 8" fill="none" stroke="oklch(0.78 0.17 150)" stroke-width="5" stroke-linecap="round"></path></svg></span></h2>
-      <p class="reveal">Beautifully simple cleaning, shaped around your life. Clear scope, thoughtful details, zero stress.</p>
-      <a class="lp-btn lp-btn-dark reveal" href="/signup?intent=book" data-book-entry>Book a clean</a>
-      <span class="fineprint reveal">Coverage, cleaner availability and price are confirmed before any booking.</span>
     </section>
 
-    <!-- Small details -->
-    <section class="lp-details">
-      <h3 class="lp-h3 reveal">Small details.<br><span class="lp-coral-text">Big difference.</span></h3>
-      <p class="lead reveal">The things you'd never think to ask for — clear before a single cleaner is matched.</p>
-      <div class="lp-cards">
-        <div class="lp-card reveal">
-          <div class="chip mint">✓</div>
-          <h4>Fit checked before matching</h4>
-          <p>Homle confirms coverage, availability and price before any Cleaner is invited.</p>
-        </div>
-        <div class="lp-card reveal">
-          <div class="chip sky">✦</div>
-          <h4>Every room scoped</h4>
-          <p>Scan and speak, and Homle turns your walkthrough into a concise, room-by-room checklist you approve first.</p>
-        </div>
-        <div class="lp-card reveal">
-          <div class="chip citrus">✧</div>
-          <h4>Zero stress</h4>
-          <p>No surprise booking, no repeated typing, one clear next step from request through to completion.</p>
+    <!-- Act 4: the clip. Plays only while this act is on screen. -->
+    <section class="ci-detail" data-stage="detail">
+      <div class="ci-detail-pin">
+        <video class="ci-detail-video" data-detail-video src="/landing/cleaning.mp4" poster="/landing/dark-kitchen.jpg" muted playsinline loop preload="metadata" aria-label="A cleaner working through a room"></video>
+        <div class="ci-detail-veil"></div>
+
+        <div class="ci-detail-copy">
+          <p class="ci-eyebrow-acc">Detection</p>
+          <h2 class="ci-detail-h2">Down to the <span class="ci-ital">detail.</span></h2>
         </div>
       </div>
-      <p class="lp-details-cleaner reveal">A cleaning professional? <a href="/signup?intent=work" data-cleaner-entry>Work as a cleaner</a> and choose the jobs that suit you.</p>
     </section>
-  </main>
 
-  <footer class="site-footer">
-    <div class="shell footer-grid">
-      <div class="reveal"><a class="brand footer-brand" href="/"><img src="/homle-logo.png" alt="" width="36" height="36"><span>Homle</span></a><p>Cleaning work, matched and managed clearly.</p></div>
-      <div class="reveal"><strong>Start</strong><a href="/signup?intent=book" data-book-entry>Create Landlord profile</a><a href="/signup?intent=work" data-cleaner-entry>Work as a cleaner</a><a href="/login" data-account-entry hidden>Sign in</a></div>
-      <div class="reveal"><strong>Information</strong><a href="/privacy">Privacy</a><a href="/terms">Pilot terms</a></div>
-    </div>
-    <div class="shell footer-bottom"><span>© <span data-year></span> Homle. Private pilot preparation.</span><span>No booking is confirmed until Homle confirms it directly.</span></div>
-  </footer>
+    <!-- Act 5: the people. -->
+    <section class="ci-people" id="ci-people" data-stage="people">
+      <div class="ci-people-pin">
+        <img class="ci-people-bg" src="/landing/people-backdrop.jpg" alt="" loading="lazy">
+
+        <figure class="ci-person ci-person-1">
+          <img src="/landing/person-marta.jpg" alt="" loading="lazy">
+          <figcaption>
+            <div class="ci-person-row">
+              <span class="ci-person-name">Marta</span>
+              <span class="ci-person-score">4.97</span>
+            </div>
+            <p class="ci-person-meta">412 CLEANS &middot; DEEP &amp; OVEN</p>
+          </figcaption>
+        </figure>
+        <figure class="ci-person ci-person-2">
+          <img src="/landing/person-andrei.jpg" alt="" loading="lazy">
+          <figcaption>
+            <div class="ci-person-row">
+              <span class="ci-person-name">Andrei</span>
+              <span class="ci-person-score">4.91</span>
+            </div>
+            <p class="ci-person-meta">288 CLEANS &middot; TURNOVERS</p>
+          </figcaption>
+        </figure>
+        <figure class="ci-person ci-person-3">
+          <img src="/landing/person-grace.jpg" alt="" loading="lazy">
+          <figcaption>
+            <div class="ci-person-row">
+              <span class="ci-person-name">Grace</span>
+              <span class="ci-person-score">5.00</span>
+            </div>
+            <p class="ci-person-meta">96 CLEANS &middot; END OF TENANCY</p>
+          </figcaption>
+        </figure>
+        <figure class="ci-person ci-person-4">
+          <img src="/landing/person-iulia.jpg" alt="" loading="lazy">
+          <figcaption>
+            <div class="ci-person-row">
+              <span class="ci-person-name">Iulia</span>
+              <span class="ci-person-score">4.95</span>
+            </div>
+            <p class="ci-person-meta">173 CLEANS &middot; COMMERCIAL</p>
+          </figcaption>
+        </figure>
+
+        <div class="ci-people-copy">
+          <h2 class="ci-people-h2">Trusted people.<br><span class="ci-ital">Exceptional standards.</span></h2>
+        </div>
+      </div>
+    </section>
+
+    <!-- Act 6: the ask. -->
+    <section class="ci-join" id="ci-join" data-stage="join">
+      <div class="ci-join-pin">
+        <div class="ci-join-glow" aria-hidden="true"></div>
+
+        <div class="ci-join-inner">
+          <p class="ci-join-eyebrow">Two taps · no account needed</p>
+
+          <h2 class="ci-join-h2">
+            <span class="ci-join-l1">Quick</span>
+            <span class="ci-join-l2">sign up.</span>
+          </h2>
+
+          <span class="ci-join-rule" aria-hidden="true"></span>
+
+          <span class="ci-join-btn" data-join data-at=".3">
+            <span class="ci-join-tail" aria-hidden="true"></span>
+            <a class="ci-btn-join" href="/signup?intent=book" data-book-entry data-entry-label-fixed>Sign up in 30 seconds</a>
+          </span>
+
+          <p class="ci-join-foot">Already with us? <a href="/login">Log in</a></p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="ci-footer">
+      <span class="ci-footer-mark">HOMLE</span>
+      <p class="ci-footer-note">&copy; <span data-year></span> HOMLE &middot; ROOM INTELLIGENCE FOR CLEANING &middot; LONDON PILOT</p>
+      <div class="ci-footer-links">
+        <a href="#ci-scan">Scanner</a>
+        <a href="#ci-manual">Book manually</a>
+        <a href="/signup?intent=work" data-cleaner-entry data-entry-label-fixed>Work as a cleaner</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+      </div>
+    </footer>
+
+  </div>
 </body>
 </html>
