@@ -154,6 +154,26 @@ assert(page.includes("Secure landlord access") && page.includes("+ New request")
   assert(/\.pac-collapsed \.pac-head-tags \{\s*display: flex/.test(designStyles) && /\.pac-head-tags \{ display: none; \}/.test(designStyles), "The distinguishing chips are missing from the collapsed banner, or clutter the open builder.");
   // The manual route is the alternative to the scan, and must not out-shout it.
   assert(/\.landlord-sidebar-cta \{[^}]*min-height: 38px/.test(designStyles) && /\.landlord-sidebar-cta \{[^}]*font-size: 13\.5px/.test(designStyles), "The manual-request button is back to full primary-button size, competing with the scan banner it is an alternative to.");
+
+  // Collapsed, the panel is a hero of the same standing as the scan banner. A
+  // white strip beneath a full-bleed red banner reads as a footnote to it
+  // rather than as the second of two choices.
+  const scanHeroMinHeight = Number(designStyles.match(/\.scan-hero \{[^}]*min-height: (\d+)px/)[1]);
+  const manualHeroMinHeight = Number(designStyles.match(/\.pac-collapsed \.pac-card \{[^}]*min-height: (\d+)px/)[1]);
+  assert(manualHeroMinHeight >= scanHeroMinHeight, `The manual hero (${manualHeroMinHeight}px) is smaller than the scan hero (${scanHeroMinHeight}px), so the two routes no longer read as equals.`);
+  assert(page.includes('class="pac-head-art"') && page.includes('class="pac-art-doc"') && page.includes("Drafting"), "The manual hero lost the artwork that answers the scan hero's phone.");
+  // Its motion must cost nothing to lay out — this banner sits above a
+  // workspace that is already fetching — and must respect reduced motion.
+  for (const [name, body] of designStyles.matchAll(/@keyframes (pacDraft\w+) \{([\s\S]*?)\n\}/g)) {
+    const properties = [...body.matchAll(/([a-z-]+):/g)].map((match) => match[1]);
+    assert(properties.every((property) => property === "transform" || property === "opacity"),
+      `The ${name} animation moves ${properties.filter((p) => p !== "transform" && p !== "opacity").join(", ")}, which lays the banner out again on every frame.`);
+  }
+  assert(/prefers-reduced-motion[\s\S]{0,400}\.pac-head-art::before \{ animation: none/.test(designStyles), "The manual hero's moving light ignores reduced-motion.");
+  // The draft is always drawn. An earlier version typed the lines in and
+  // cleared them, so roughly a second in every cycle showed an empty document
+  // — indistinguishable, to whoever arrived at that moment, from a broken one.
+  assert(!/\.pac-art-doc i \{[^}]*animation:/.test(designStyles), "The draft lines animate themselves away again, so the hero periodically shows an empty document.");
   assert(/\.pac-collapsed \.pac-card-head \{[^}]*cursor: pointer/.test(designStyles), "The collapsed banner does not present itself as clickable.");
   assert(wizard.includes("function setBuilderExpanded(next)") && wizard.includes('if (!panel.classList.contains("pac-collapsed")) return;') && wizard.includes("if (toggle.contains(event.target)) return;"), "The banner head cannot expand the builder, or a click on the heading while working collapses it / double-fires through the button.");
 }
