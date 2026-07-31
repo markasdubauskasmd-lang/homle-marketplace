@@ -2,7 +2,7 @@
  * Homle design tokens — one owner for typography, palette, radius and shadow.
  *
  * THE LANDING PAGE IS THE SOURCE OF TRUTH. Every value below is lifted from
- * home.css, which is the page the product is designed around; this file just
+ * landing.css, which is the page the product is designed around; this file just
  * moves those decisions somewhere the rest of the app can reach them.
  *
  * The audit that produced it:
@@ -22,7 +22,7 @@
  * newer design owned by someone else, and quietly re-skinning it would be
  * taking a decision that is not mine to take.
  *
- * The fonts are declared here and only here. home.css and landlord-dashboard.css
+ * The fonts are declared here and only here. landlord-dashboard.css
  * used to carry their own byte-identical @font-face pairs, so the same two files
  * were declared three times over.
  */
@@ -51,7 +51,7 @@
   --homle-body: "DM Sans", system-ui, -apple-system, sans-serif;
 
   /* ── Palette ───────────────────────────────────────────────────────────
-     oklch, copied from home.css. Kept in oklch rather than converted to hex
+     oklch, copied from the retired home.css. Kept in oklch rather than converted to hex
      because that is what the landing page renders and a conversion would
      shift the colours slightly — "close enough" is exactly the drift this
      file exists to end. Every browser the app supports parses it. */
@@ -69,7 +69,7 @@
      text and fills, where 3:1 is the bar; a button with white 15px on it is a
      different job and needs its own value rather than a hopeful reuse. */
   --homle-coral-action: oklch(0.58 0.19 25);
-  /* The landing's eyebrow/kicker colour, copied from `.lp-eyebrow` in home.css.
+  /* The landing's eyebrow/kicker colour, from `.lp-eyebrow` in the retired home.css.
      It is deliberately NOT the coral above: a full-chroma coral set at 13px
      uppercase measures 4.41:1 on cream, which fails normal-text contrast. The
      landing already solved this by dropping chroma and lightness instead of

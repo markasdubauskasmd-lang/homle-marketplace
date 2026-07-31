@@ -13,9 +13,15 @@ const visibleOldBrand = /(?<![A-Za-z0-9_-])Tideway(?![A-Za-z0-9_-])/;
 // routine cache bump failed a brand test. What this guarantees is unchanged and
 // is the thing that actually matters: every public page loads the SAME current
 // version, so none of them serves a stale stylesheet.
-const landingMarkup = await readFile(new URL("home.html", publicRoot), "utf8");
-const sharedStyleVersion = /\/styles\.css\?v=([\w-]+)/.exec(landingMarkup);
-if (!sharedStyleVersion) throw new Error("home.html no longer loads a versioned styles.css, so no page can be checked against it.");
+// The landing page is deliberately outside the shared sheet: it is a
+// self-contained dark cinematic design with its own scoped landing.css, and
+// loading styles.css on top of it would fight its typography and surface. The
+// version is therefore anchored on account.html, the first page every visitor
+// reaches after it, and home.html is exempted from the shared-sheet rule alone.
+const standaloneDesignPages = new Set(["home.html"]);
+const anchorMarkup = await readFile(new URL("account.html", publicRoot), "utf8");
+const sharedStyleVersion = /\/styles\.css\?v=([\w-]+)/.exec(anchorMarkup);
+if (!sharedStyleVersion) throw new Error("account.html no longer loads a versioned styles.css, so no page can be checked against it.");
 const sharedStyleAsset = `/styles.css?v=${sharedStyleVersion[1]}`;
 
 for (const name of publicFiles) {
@@ -24,6 +30,10 @@ for (const name of publicFiles) {
   if (name.endsWith(".html")) {
     assert(!source.includes('/favicon.svg'), `Public page ${name} still references the removed fallback favicon instead of the approved Homle logo.`);
     assert(source.includes('<link rel="icon" href="/homle-logo.png" type="image/png">'), `Public page ${name} omitted the exact approved Homle tab icon.`);
+    if (standaloneDesignPages.has(name)) {
+      assert(!source.includes("/styles.css"), `Public page ${name} is a standalone design and must not load the shared sheet.`);
+      continue;
+    }
     assert(source.includes(sharedStyleAsset), `Public page ${name} does not load the current shared design and animation asset.`);
   }
 }

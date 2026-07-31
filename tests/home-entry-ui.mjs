@@ -27,11 +27,19 @@ const [page, script, accountPage, server, packageFile] = await Promise.all([
   readFile(new URL("../package.json", import.meta.url), "utf8")
 ]);
 
-assert((page.match(/data-book-entry/g) || []).length >= 4, "Homepage lost its account-first Landlord entry points.");
+// The cinematic design carries fewer, larger calls to action than the page it
+// replaced: the header Sign up and the closing account-creation CTA, plus the
+// Cleaner entry in the footer. Both roles must still be reachable from the page.
+assert((page.match(/data-book-entry/g) || []).length >= 2, "Homepage lost its account-first Landlord entry points.");
 assert(page.includes('href="/signup?intent=book" data-book-entry') && page.includes('href="/signup?intent=work" data-cleaner-entry'), "Homepage still points at retired pages.");
 assert(!page.includes('href="/request"') && !page.includes('href="/join"') && !page.includes('href="/cleaners"'), "Homepage exposes a retired route.");
 assert(page.includes('/account-menu.js?') && script.includes('window.addEventListener("homle:account-ready"'), "Homepage session recovery or account menu was removed.");
-assert(page.includes("data-signup-menu") && page.includes("<strong>Book service</strong>") && page.includes("<strong>Join as an Associate</strong>") && script.includes("signupMenu.open = false"), "The two-button header or its safely dismissible role-selection menu is missing.");
+// Role choice is now two plainly-labelled links rather than one dropdown: the
+// header signs a customer up, the footer sends a cleaner to the work intent.
+// home.js keeps its dropdown handling for the pages that still use one.
+assert(page.includes('data-book-entry data-entry-label-fixed') && page.includes('data-cleaner-entry data-entry-label-fixed'), "The homepage lost a fixed-label role entry, so home.js can overwrite the CTA wording.");
+assert(/>Work as a cleaner</.test(page), "The homepage no longer offers cleaners a way to sign up.");
+assert(script.includes("signupMenu.open = false"), "home.js lost its dismissible role-selection menu handling.");
 assert(script.includes('signedInWorkspace?.role === "landlord" ? "/landlord/book"') && script.includes('signedInWorkspace?.role === "cleaner" ? "/cleaner/dashboard"'), "Signed-in roles do not open their current workspaces.");
 assert(!accountPage.includes('href="/landlord/dashboard"') && !accountPage.includes('href="/cleaner/dashboard"'), "Unsigned account entry still exposes cross-role dashboard shortcuts.");
 assert(server.includes('"/landlord/dashboard": "landlord-dashboard.html"') && server.includes('"/cleaner/dashboard": "cleaner-dashboard.html"'), "Current role dashboards are not served.");
