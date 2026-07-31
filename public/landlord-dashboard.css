@@ -424,15 +424,23 @@ body.landlord-dashboard-page .landlord-dashboard-nav a[aria-current="page"] {
   background: #f9d9d4;
   color: #b92f36;
 }
+/* The secondary way in, and sized like one. At the shared 48px button height
+   with full-width padding it wrapped onto two lines and read as the main
+   action, competing with the scan banner it is an alternative to. Same coral
+   pill, same shadow, noticeably smaller. */
 body.landlord-dashboard-page .landlord-sidebar-cta {
   justify-content: center;
+  gap: 7px;
   width: 100%;
-  min-height: 48px;
+  min-height: 38px;
   margin-top: 6px;
+  padding: 8px 14px;
+  font-size: 13.5px;
   background: var(--ld-coral);
   color: #fff;
-  box-shadow: 0 14px 28px rgba(233, 69, 73, .25);
+  box-shadow: 0 10px 20px rgba(233, 69, 73, .22);
 }
+body.landlord-dashboard-page .landlord-sidebar-cta svg { flex-shrink: 0; }
 body.landlord-dashboard-page .landlord-notification-link {
   position: relative;
   display: flex;
@@ -824,7 +832,7 @@ body.landlord-dashboard-page .landlord-booking-live [data-landlord-booking-live]
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
- * "Prepare a clean" stepped wizard (Landlord Dashboard design).
+ * "Manual request" stepped wizard (Landlord Dashboard design).
  *
  * The requests panel is presented as the design's single white card with a
  * step-dot header, one visible step at a time, Back/Next and a live draft
@@ -858,6 +866,47 @@ body.landlord-dashboard-page .pac-card-head {
 }
 body.landlord-dashboard-page .pac-card-head h2 { font-weight: 800; font-size: clamp(23px, 2.6vw, 28px); margin: 2px 0 0; }
 body.landlord-dashboard-page .pac-sub { margin: 8px 0 0; color: var(--ld-muted); font-size: 15px; max-width: 46ch; }
+
+/* Telling the two entrances apart at a glance. The scan banner is red,
+   camera-led and animated; this one is white and still, and carries a pen
+   badge and three icon chips naming the manual steps. Icons rather than more
+   prose because the choice is made in a glance, not a read. */
+body.landlord-dashboard-page .pac-head-main { display: flex; align-items: flex-start; gap: 14px; min-width: 0; }
+body.landlord-dashboard-page .pac-head-text { min-width: 0; }
+body.landlord-dashboard-page .pac-head-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  margin-top: 2px;
+  border-radius: 13px;
+  border: 1px solid var(--ld-line);
+  background: oklch(0.96 0.012 60);
+  color: var(--ld-ink);
+}
+body.landlord-dashboard-page .pac-head-tags { display: none; }
+/* Only while collapsed — this is the banner where the choosing happens. Once
+   the builder is open the form itself says all of this. */
+body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-head-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+body.landlord-dashboard-page .pac-head-tags > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--ld-line);
+  background: oklch(0.975 0.008 60);
+  color: var(--ld-ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+body.landlord-dashboard-page .pac-head-tags svg { flex-shrink: 0; opacity: .62; }
 body.landlord-dashboard-page .pac-head-aside { display: flex; align-items: center; gap: 12px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
 body.landlord-dashboard-page .pac-head-aside .landlord-private-pill {
   background: oklch(0.92 0.05 150);
