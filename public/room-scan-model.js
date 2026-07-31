@@ -1734,10 +1734,16 @@ export function resolveRoomCondition(confirmed, observed) {
 // customer walks a whole room wondering why nothing is being found. Telling
 // them to slow down fixes all three at once, which is why it earns a prompt.
 //
-// Two consecutive fast samples, not one. The sample gap is ~900ms, so a single
-// spike is just the customer turning to the next wall — exactly the motion the
-// scan is FOR — and nagging on every turn would teach them to ignore the hint.
-export function movementAdvice(distances, { fastThreshold = 0.09, streak = 2, spreads = null, spreadThreshold = movementSpreadThreshold } = {}) {
+// Three consecutive fast samples, not one or two. The sample gap is ~900ms, so
+// a single spike is just the customer turning to the next wall — exactly the
+// motion the scan is FOR — and at two, a turn plus its settling frame still
+// fired the hint on nearly every wall change: the sixth field report's
+// "constantly says I am moving too fast". Three samples is ~2.7s of genuinely
+// continuous sweeping, which is the only motion worth interrupting. The paid
+// reads never depended on this nag for protection — capture separately
+// requires consecutive-sample stillness and measured sharpness — so a calmer
+// hint spends nothing.
+export function movementAdvice(distances, { fastThreshold = 0.09, streak = 3, spreads = null, spreadThreshold = movementSpreadThreshold } = {}) {
   const recent = (Array.isArray(distances) ? distances : [])
     .filter((value) => Number.isFinite(value));
   if (recent.length < streak) return null;
