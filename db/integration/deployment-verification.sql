@@ -36,6 +36,7 @@ DECLARE
   administrator_coverage_installed boolean := false;
   property_archiving_installed boolean := false;
   property_restoration_installed boolean := false;
+  cleaner_onboarding_records_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables text[] := ARRAY[
@@ -239,6 +240,10 @@ BEGIN
       INTO administrator_coverage_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 82)'
       INTO property_archiving_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 83)'
+      INTO property_restoration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 84)'
+      INTO cleaner_onboarding_records_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -268,6 +273,7 @@ BEGIN
     administrator_coverage_installed := to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NOT NULL;
     property_archiving_installed := to_regprocedure('tideway_private.archive_my_property(uuid)') IS NOT NULL;
     property_restoration_installed := to_regprocedure('tideway_private.restore_my_property(uuid)') IS NOT NULL;
+    cleaner_onboarding_records_installed := to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
@@ -368,6 +374,33 @@ BEGIN
     IF position('archived_at IS NOT NULL' IN COALESCE(selected_source,''))=0
        OR position('property-restored' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Owner property restoration lost its archived-owner guard or audit evidence';
+    END IF;
+  END IF;
+  IF cleaner_onboarding_records_installed THEN
+    rls_tables := rls_tables || ARRAY['cleaner_onboarding_sections','cleaner_onboarding_documents'];
+    protected_write_tables := protected_write_tables || ARRAY['cleaner_onboarding_sections','cleaner_onboarding_documents'];
+    protected_read_tables := protected_read_tables || ARRAY['cleaner_onboarding_sections','cleaner_onboarding_documents'];
+    app_functions := app_functions || ARRAY[
+      'tideway_private.get_my_cleaner_onboarding_sections()',
+      'tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)'
+    ];
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_attribute
+      WHERE attrelid='public.cleaner_onboarding_sections'::regclass
+        AND attname='payload_ciphertext' AND atttypid='bytea'::regtype AND NOT attisdropped
+    ) OR EXISTS (
+      SELECT 1 FROM pg_attribute
+      WHERE attrelid='public.cleaner_onboarding_sections'::regclass
+        AND attname IN ('payload','data') AND atttypid='jsonb'::regtype AND NOT attisdropped
+    ) THEN
+      RAISE EXCEPTION 'Cleaner onboarding payloads are missing encrypted byte storage or expose plaintext JSON';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)');
+    IF position('has_role(''cleaner'')' IN COALESCE(selected_source,''))=0
+       OR position('cleaner-onboarding-section-saved' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Cleaner onboarding persistence lost its Cleaner-only or audit boundary';
     END IF;
   END IF;
 
@@ -1012,12 +1045,14 @@ $verification$;
 SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
-  'rlsTableCount', 39 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 1 END,
+  'rlsTableCount', 39 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 1 END
+    + CASE WHEN to_regclass('public.cleaner_onboarding_sections') IS NULL THEN 0 ELSE 2 END,
   'appFunctionChecks', 48
     + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END
     + CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.archive_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
-    + CASE WHEN to_regprocedure('tideway_private.restore_my_property(uuid)') IS NULL THEN 0 ELSE 1 END,
+    + CASE WHEN to_regprocedure('tideway_private.restore_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
+    + CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NULL THEN 0 ELSE 2 END,
   'workerFunctionChecks', 14
 ) AS tideway_deployment_verification;
 

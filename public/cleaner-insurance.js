@@ -1,4 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { loadOnboardingForm, onboardingFileMetadata, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -60,6 +61,7 @@ export async function setupInsurance({ account, showFeedback, requestJson }) {
     : 0;
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
+  await loadOnboardingForm(requestJson, "insurance", form).catch(() => null);
 
   document.querySelectorAll("[data-insurance-file]").forEach((fileInput) => {
     fileInput.addEventListener("change", () => {
@@ -90,7 +92,7 @@ export async function setupInsurance({ account, showFeedback, requestJson }) {
     if (status) status.textContent = "Policy details remain only in this open page and are not stored.";
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!form.reportValidity()) return;
     const expiryInput = form.elements.namedItem("policyExpiry");
@@ -100,6 +102,11 @@ export async function setupInsurance({ account, showFeedback, requestJson }) {
       expiryInput.focus();
       return;
     }
-    showFeedback("Secure insurance storage and verification are not connected yet. Nothing was uploaded or saved.", "error");
+    try {
+      await saveOnboardingForm(requestJson, "insurance", form, { extra: { documentSelections: onboardingFileMetadata(form) } });
+      showFeedback("Insurance details saved securely. Homle will mark the policy verified only after the document check is complete.");
+    } catch (error) {
+      showFeedback(error.message || "Homle could not save your insurance details.", "error");
+    }
   });
 }

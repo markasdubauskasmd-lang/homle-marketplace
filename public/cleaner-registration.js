@@ -74,10 +74,11 @@ createCleanerPage("reg", async (context) => {
     await setupAvailability(context);
     return;
   }
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, onboardingResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    requestJson("/api/marketplace/cleaner/onboarding")
   ]);
   const profile = profileResult.status === "fulfilled" && profileResult.value.profile ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability.length : 0;
@@ -87,7 +88,8 @@ createCleanerPage("reg", async (context) => {
     account: { displayName: document.querySelector("[data-account-name]")?.textContent, email: true },
     profile,
     payoutState,
-    availabilityCount
+    availabilityCount,
+    onboardingSections: onboardingResult.status === "fulfilled" && Array.isArray(onboardingResult.value.sections) ? onboardingResult.value.sections : []
   });
 
   setText("[data-reg-percent]", `${progress.percent}%`);

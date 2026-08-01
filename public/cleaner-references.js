@@ -1,4 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { loadOnboardingForm, onboardingFileMetadata, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -58,6 +59,7 @@ export async function setupReferences({ account, showFeedback, requestJson }) {
     : 0;
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
+  await loadOnboardingForm(requestJson, "references", form).catch(() => null);
 
   document.querySelectorAll("[data-reference-email]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -93,9 +95,14 @@ export async function setupReferences({ account, showFeedback, requestJson }) {
     if (status) status.textContent = "Referee contact details remain only in this open page and are not stored.";
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!form.reportValidity()) return;
-    showFeedback("Secure reference storage, email requests and confirmation are not connected yet. Nothing was uploaded, emailed or saved.", "error");
+    try {
+      await saveOnboardingForm(requestJson, "references", form, { extra: { documentSelections: onboardingFileMetadata(form) } });
+      showFeedback("Reference details saved securely. Reference emails will be sent only when the delivery service is connected.");
+    } catch (error) {
+      showFeedback(error.message || "Homle could not save your reference details.", "error");
+    }
   });
 }

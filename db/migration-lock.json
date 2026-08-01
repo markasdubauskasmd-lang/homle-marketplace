@@ -416,12 +416,17 @@
       "order": 83,
       "file": "083_owner_property_restoration.sql",
       "sha256": "b85503045c2c56d2f555cf82407b002022f6ade21aa3c9f4772346fdfde3f351"
+    },
+    {
+      "order": 84,
+      "file": "084_cleaner_onboarding_records.sql",
+      "sha256": "a0aa07cf825b4ca73536b4c4dcde401364c2721031e3165ff61e2c1f36911e8a"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "d03b16178924e9203afd74bd6819a96711dce511924565f64a4af9262173f608"
+      "sha256": "87f8ae8f597879f01ba7ecad66d2353c7b72cc2221fd71de4a3f9983b829e5e5"
     },
     {
       "file": "worker-role-grants.sql",

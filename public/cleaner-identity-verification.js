@@ -1,4 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { loadOnboardingForm, onboardingFileMetadata, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -70,6 +71,7 @@ export async function setupIdentityVerification({ account, showFeedback, request
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
   renderVerificationStatus(profile);
+  await loadOnboardingForm(requestJson, "identity", form).catch(() => null);
 
   document.querySelectorAll("[data-identity-file]").forEach((input) => {
     input.addEventListener("change", () => {
@@ -102,8 +104,14 @@ export async function setupIdentityVerification({ account, showFeedback, request
     }
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    showFeedback("Secure identity-document storage is not connected yet. Nothing was uploaded or saved.", "error");
+    if (!form.reportValidity()) return;
+    try {
+      await saveOnboardingForm(requestJson, "identity", form, { extra: { documentSelections: onboardingFileMetadata(form) } });
+      showFeedback("Identity details saved securely. Homle will mark verification complete only after an approved check records the result.");
+    } catch (error) {
+      showFeedback(error.message || "Homle could not save your identity details.", "error");
+    }
   });
 }

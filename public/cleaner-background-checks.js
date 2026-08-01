@@ -1,4 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { loadOnboardingForm, onboardingFileMetadata, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -86,6 +87,7 @@ export async function setupBackgroundChecks({ account, showFeedback, requestJson
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
   renderBackgroundStatus(profile);
+  await loadOnboardingForm(requestJson, "dbs", form).catch(() => null);
 
   const fileInput = document.querySelector("[data-background-file]");
   fileInput?.addEventListener("change", () => {
@@ -115,8 +117,14 @@ export async function setupBackgroundChecks({ account, showFeedback, requestJson
     if (status) status.textContent = "Sensitive DBS details remain only in this open page and are not stored.";
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    showFeedback("Secure DBS storage and verification are not connected yet. Nothing was uploaded, authorised or saved.", "error");
+    if (!form.reportValidity()) return;
+    try {
+      await saveOnboardingForm(requestJson, "dbs", form, { extra: { documentSelections: onboardingFileMetadata(form) } });
+      showFeedback("Background-check details and consent saved securely. Verification status changes only after Homle records the approved result.");
+    } catch (error) {
+      showFeedback(error.message || "Homle could not save your background-check details.", "error");
+    }
   });
 }

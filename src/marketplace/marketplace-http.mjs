@@ -50,6 +50,7 @@ const propertyRestorePath = new RegExp(`^/api/marketplace/properties/(${uuidPatt
 const cleanerProfilePath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})$`);
 const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
 const cleanerAvailabilityPath = new RegExp(`^/api/marketplace/cleaner/availability/(${uuidPattern})$`);
+const cleanerOnboardingSectionPath = /^\/api\/marketplace\/cleaner\/onboarding\/([a-z-]+)$/;
 const favouriteCleanerPath = new RegExp(`^/api/marketplace/landlord/favourite-cleaners/(${uuidPattern})$`);
 const bookingCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/completion$`);
 const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews$`);
@@ -95,6 +96,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const security = dependencies?.security;
   const properties = dependencies?.propertyService;
   const cleaners = dependencies?.cleanerProfileService;
+  const cleanerOnboarding = dependencies?.cleanerOnboardingService;
   const favouriteCleaners = dependencies?.favouriteCleanerService;
   const cleaningRequests = dependencies?.cleaningRequestService;
   const scans = dependencies?.scanService;
@@ -135,6 +137,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.listArchivedOwnProperties !== "function" || typeof properties.archiveOwnProperty !== "function" || typeof properties.restoreOwnProperty !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "getPublicProfile", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof cleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaner profile service.");
+  if (!cleanerOnboarding || !["listOwnSections", "getOwnSection", "saveOwnSection"].every((method) => typeof cleanerOnboarding[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner onboarding service.");
   if (!favouriteCleaners || !["listOwn", "setOwn"].every((method) => typeof favouriteCleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the favourite-Cleaner service.");
   if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.previewInvitation !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
@@ -363,6 +366,23 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation, roles: ["cleaner"] });
           const profile = mutation ? await cleaners.saveOwnProfile(context.actor, await readJsonObject(request)) : await cleaners.getOwnProfile(context.actor);
           sendJson(response, 200, { ok: true, profile });
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/onboarding") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, sections: await cleanerOnboarding.listOwnSections(context.actor) });
+          return true;
+        }
+        const selectedCleanerOnboardingSection = pathname.match(cleanerOnboardingSectionPath);
+        if (selectedCleanerOnboardingSection) {
+          if (request.method !== "GET" && request.method !== "PUT") return methodNotAllowed(response, ["GET", "PUT"]), true;
+          const mutation = request.method === "PUT";
+          const context = await security.protect(request, { mutation, roles: ["cleaner"] });
+          const section = mutation
+            ? await cleanerOnboarding.saveOwnSection(context.actor, selectedCleanerOnboardingSection[1], await readJsonObject(request))
+            : await cleanerOnboarding.getOwnSection(context.actor, selectedCleanerOnboardingSection[1]);
+          sendJson(response, 200, { ok: true, section });
           return true;
         }
         if (pathname === "/api/marketplace/cleaner/availability") {

@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 83);
-  assert.equal(repositoryResult.migrations.at(-1), "083_owner_property_restoration.sql");
+  assert.equal(repositoryResult.migrations.length, 84);
+  assert.equal(repositoryResult.migrations.at(-1), "084_cleaner_onboarding_records.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
@@ -103,6 +103,8 @@ try {
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 82\)'/, "Deployment verification must detect owner property archiving dynamically.");
   assert(deploymentVerifier.includes("archive_my_property(uuid)") && deploymentVerifier.includes("Owner property archiving lost its active-work guard or audit evidence"), "Deployment verification must prove property archiving keeps active work and history protected.");
   assert(deploymentVerifier.includes("restore_my_property(uuid)") && deploymentVerifier.includes("Owner property restoration lost its archived-owner guard or audit evidence"), "Deployment verification must prove property restoration remains owner-bound, archived-only and audited.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 84\)'/, "Deployment verification must detect encrypted Cleaner onboarding records dynamically.");
+  assert(deploymentVerifier.includes("Cleaner onboarding payloads are missing encrypted byte storage or expose plaintext JSON") && deploymentVerifier.includes("Cleaner onboarding persistence lost its Cleaner-only or audit boundary"), "Deployment verification must prove Cleaner onboarding records are encrypted, owner-bound and audited.");
   // Under the web-only decision nothing a browser produces is exact. A stored
   // measurement with no band would read as exact for ever after.
   assert(deploymentVerifier.includes("room_scan_measurements_estimate_has_band"), "Migration-74 verification must prove an estimated measurement cannot be stored looking exact.");
@@ -152,8 +154,9 @@ try {
     && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END")
     && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.archive_my_property(uuid)') IS NULL THEN 0 ELSE 1 END")
     && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.restore_my_property(uuid)') IS NULL THEN 0 ELSE 1 END")
-    && deploymentVerifier.includes("'rlsTableCount', 39 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 1 END"),
-  "deployment report must distinguish the verified pre-upgrade schema from migration-80 support, migration-81 coverage, migration-82 property archive and migration-83 property restoration schemas");
+    && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NULL THEN 0 ELSE 2 END")
+    && deploymentVerifier.includes("+ CASE WHEN to_regclass('public.cleaner_onboarding_sections') IS NULL THEN 0 ELSE 2 END"),
+  "deployment report must distinguish the verified pre-upgrade schema from migration-80 support through migration-84 Cleaner onboarding records");
   assert.equal(advertisedWorkerChecks, [...workerBlock.matchAll(/'tideway_private\./g)].length + 1, "deployment report must count core worker functions plus the migration-aware automatic-dispatch function");
 
   await freshFixture();
