@@ -232,6 +232,11 @@ const cleanerPayoutService = {
   async refreshStatus(actor) { calls.push({ kind: "payout-refresh", actor }); return { status: "action-required", ready: false, detailsSubmitted: true, payoutsEnabled: false, remainingRequirements: 1, updatedAt: "2026-07-16T17:00:00.000Z" }; },
   async beginOnboarding(actor) { calls.push({ kind: "payout-onboarding", actor }); return { status: "action-required", ready: false, detailsSubmitted: false, payoutsEnabled: false, remainingRequirements: 3, updatedAt: null, onboardingUrl: "https://connect.stripe.com/setup/c/test", expiresAt: "2026-07-16T17:05:00.000Z" }; }
 };
+const cleanerOnboardingService = {
+  async listOwnSections(actor) { calls.push({ kind: "onboarding-list", actor }); return []; },
+  async getOwnSection(actor, section) { calls.push({ kind: "onboarding-get", actor, section }); return null; },
+  async saveOwnSection(actor, section, input) { calls.push({ kind: "onboarding-save", actor, section, input }); return { section, status: input.status || "draft", data: input.data || {}, schemaVersion: 1, completedAt: null, updatedAt: "2026-08-01T10:00:00.000Z" }; }
+};
 let unexpectedError;
 let rateLimitedScope = "";
 let limiterFailure = null;
@@ -269,7 +274,7 @@ const scanGroundTruthService = {
   async recordVerdict(actor, objectId, input) { calls.push({ kind: "truth-record", actor, objectId, input }); return { groundTruthId: "t", objectId, ...input }; },
   async getReport(actor) { calls.push({ kind: "truth-report", actor }); return { labelledTotal: 0 }; }
 };
-const dependencies = { security, scanGroundTruthService, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const dependencies = { security, scanGroundTruthService, cleanerProfileService, cleanerOnboardingService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -441,6 +446,12 @@ const availabilityCreated = await dispatch(router, "POST", "/api/marketplace/cle
 const availabilityWithdrawn = await dispatch(router, "DELETE", "/api/marketplace/cleaner/availability/44444444-4444-4444-8444-444444444444", { headers: cleanerAuthHeaders });
 const landlordAvailability = await dispatch(router, "GET", "/api/marketplace/cleaner/availability", { headers: { cookie: authHeaders.cookie } });
 assert(availabilityList.response.statusCode === 200 && availabilityList.body.availability.length === 1 && missingAvailabilityCsrf.response.statusCode === 403 && availabilityCreated.response.statusCode === 201 && availabilityWithdrawn.response.statusCode === 200 && availabilityWithdrawn.body.availability.status === "withdrawn" && landlordAvailability.response.statusCode === 403 && calls.slice(-3).map((call) => call.kind).join(",") === "availability-list,availability-create,availability-withdraw", "Cleaner availability routes lost account ownership, role isolation, CSRF protection or exact-window lifecycle.");
+const onboardingList = await dispatch(router, "GET", "/api/marketplace/cleaner/onboarding", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const onboardingSection = await dispatch(router, "GET", "/api/marketplace/cleaner/onboarding/personal", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const missingOnboardingCsrf = await dispatch(router, "PUT", "/api/marketplace/cleaner/onboarding/personal", { headers: { cookie: cleanerAuthHeaders.cookie, origin: cleanerAuthHeaders.origin, "content-type": cleanerAuthHeaders["content-type"] }, body: { status: "draft", data: { firstName: "Ras" } } });
+const onboardingSaved = await dispatch(router, "PUT", "/api/marketplace/cleaner/onboarding/personal", { headers: cleanerAuthHeaders, body: { status: "submitted", data: { firstName: "Ras" } } });
+const landlordOnboarding = await dispatch(router, "GET", "/api/marketplace/cleaner/onboarding", { headers: { cookie: authHeaders.cookie } });
+assert(onboardingList.response.statusCode === 200 && Array.isArray(onboardingList.body.sections) && onboardingSection.response.statusCode === 200 && onboardingSection.body.section === null && missingOnboardingCsrf.response.statusCode === 403 && onboardingSaved.response.statusCode === 200 && onboardingSaved.body.section.data.firstName === "Ras" && landlordOnboarding.response.statusCode === 403 && calls.slice(-3).map((call) => call.kind).join(",") === "onboarding-list,onboarding-get,onboarding-save", "Cleaner onboarding routes lost owner role isolation, CSRF protection or exact saved data.");
 const wrongOrigin = await dispatch(router, "POST", "/api/marketplace/properties", { headers: { ...authHeaders, origin: "https://attacker.example" }, body: { name: "Attempt" } });
 assert(wrongOrigin.response.statusCode === 403 && wrongOrigin.body.code === "origin-rejected", "Property mutation accepted a cross-origin request.");
 const missingCsrf = await dispatch(router, "POST", "/api/marketplace/properties", { headers: { ...authHeaders, "x-csrf-token": "" }, body: { name: "Attempt" } });

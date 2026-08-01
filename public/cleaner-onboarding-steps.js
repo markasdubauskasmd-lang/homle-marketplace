@@ -111,11 +111,19 @@ export const onboardingIcons = {
 };
 
 export function onboardingProgress(data) {
+  const source = data && typeof data === "object" ? data : {};
+  const persisted = new Map((Array.isArray(source.onboardingSections) ? source.onboardingSections : [])
+    .filter((section) => section && typeof section.section === "string")
+    .map((section) => [section.section, section]));
   const steps = onboardingSteps.map((step) => ({
     ...step,
-    // A step Homle cannot record is reported as outstanding, never as done.
-    done: typeof step.derive === "function" ? step.derive(data) === true : false,
-    tracked: typeof step.derive === "function"
+    // Identity and DBS completion remains verification-authority only. Other
+    // sections can complete from either their established model or a submitted
+    // encrypted onboarding record.
+    done: typeof step.derive === "function" && step.derive(source) === true
+      ? true
+      : !["identity", "dbs"].includes(step.key) && ["submitted", "verified"].includes(persisted.get(step.key)?.status),
+    tracked: true
   }));
   const done = steps.filter((step) => step.done).length;
   return {

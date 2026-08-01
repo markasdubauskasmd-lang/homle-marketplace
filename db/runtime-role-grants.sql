@@ -130,6 +130,8 @@ GRANT EXECUTE ON FUNCTION tideway_private.review_landlord_support_request(uuid,t
 GRANT EXECUTE ON FUNCTION tideway_private.get_administrator_coverage_report(integer,boolean) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.archive_my_property(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.restore_my_property(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_my_cleaner_onboarding_sections() TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.request_my_privacy_action(uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_privacy_requests() TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.request_facebook_data_deletion(uuid,text,bytea,bytea) TO tideway_app;
@@ -171,6 +173,7 @@ REVOKE ALL ON TABLE tideway_private.request_rate_limits FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.pending_social_identities FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON authentication_identities FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.cleaner_payout_accounts, tideway_private.cleaner_payout_onboarding, tideway_private.payment_provider_events FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaner_onboarding_sections, cleaner_onboarding_documents FROM tideway_app;
 -- Sessions may be created/revoked through actor-bound application transactions, but only the restricted worker may physically purge expired rows.
 REVOKE DELETE ON sessions FROM tideway_app;
 -- Submitted requests may be created directly under owner RLS, but dispatch consent and lifecycle changes are function-only.

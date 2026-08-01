@@ -35,13 +35,13 @@ export function money(pence) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format((Number(pence) || 0) / 100);
 }
 
-export async function requestJson(path) {
+export async function requestJson(path, options = {}) {
   if (browserOffline()) throw Object.assign(new Error("You are offline."), { code: "browser-offline" });
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 30_000);
   let response;
   try {
-    response = await fetch(path, { headers: { accept: "application/json" }, credentials: "same-origin", cache: "no-store", signal: controller.signal });
+    response = await fetch(path, { ...options, headers: { accept: "application/json", ...(options.headers || {}) }, credentials: "same-origin", cache: "no-store", signal: controller.signal });
   } finally {
     window.clearTimeout(timer);
   }
@@ -101,15 +101,17 @@ export function createCleanerPage(key, render) {
       // One profile read so the shared sidebar shows the same completion marks here as on
       // the dashboard. Failure is not fatal: the nav still renders, without marks.
       try {
-        const [profileResult, availabilityResult] = await Promise.allSettled([
+        const [profileResult, availabilityResult, onboardingResult] = await Promise.allSettled([
           requestJson("/api/marketplace/cleaner/profile"),
-          requestJson("/api/marketplace/cleaner/availability")
+          requestJson("/api/marketplace/cleaner/availability"),
+          requestJson("/api/marketplace/cleaner/onboarding")
         ]);
         renderCleanerNav(onboardingProgress({
           account,
           profile: profileResult.status === "fulfilled" ? profileResult.value.profile : null,
           payoutState: "unavailable",
-          availabilityCount: availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability.length : 0
+          availabilityCount: availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability.length : 0,
+          onboardingSections: onboardingResult.status === "fulfilled" && Array.isArray(onboardingResult.value.sections) ? onboardingResult.value.sections : []
         }));
       } catch { renderCleanerNav(null); }
       await render({ account, showFeedback, requestJson });
