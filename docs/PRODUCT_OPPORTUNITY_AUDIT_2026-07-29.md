@@ -227,14 +227,19 @@ Benefit: truthful arrival tracking without collecting unnecessary location histo
 
 ### P2 — privacy-minimal marketplace funnel analytics
 
-Problem: operational metrics do not yet prove where users abandon account creation,
-property setup, scanning, quote approval or booking confirmation.
+Implemented: `/admin/funnel` derives counts from authoritative account, property,
+structured-scan, request, booking, payment and review records. It uses separate
+account/request/payment cohorts, excludes the newest 24 hours and shows 7, 30 or 90
+day windows. No tracking event, browser identifier or private record is added.
 
-Recommendation: record coarse, server-confirmed funnel transitions and failure codes;
-never store room notes, addresses, photos, message text or OAuth tokens in analytics.
+Privacy boundary: the Administrator-only database projection returns counts and
+timestamps only—never identities, IDs, addresses, postcodes, rooms, photos, provider
+references, prices or payment amounts. The runtime has execute permission on that
+projection but no direct structured-scan or payment-table read.
 
-Benefit: directs engineering and marketing effort at measured conversion loss rather
-than visual guesswork.
+Benefit: directs product and marketing work at measured conversion loss rather than
+visual guesswork. Remaining limitation: this is operational cohort evidence, not
+causal attribution, and small cohorts must not be over-interpreted.
 
 ## Features deliberately not recommended yet
 
