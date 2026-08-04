@@ -133,7 +133,7 @@ try {
   `);
   assert(media.total >= 10, `The landing page lost its photography: only ${media.total} images.`);
   assert(media.broken.length === 0, `Landing images failed to load: ${media.broken.join(", ")}.`);
-  assert(media.videoSrc === "/landing/cleaning.mp4", `The detail act lost its clip: ${media.videoSrc}.`);
+  assert(media.videoSrc === "/landing/cleaning-720-e8b1a7ce.mp4", `The detail act lost its reviewed content-addressed clip: ${media.videoSrc}.`);
   assert(/\/landing\/dark-kitchen-(?:480|960)-[0-9a-f]{8}\.webp$/.test(media.supportingSources.phone), `The mobile scanner-phone image used an oversized JPEG fallback: ${media.supportingSources.phone}.`);
   assert(/\/landing\/sage-living-(?:480|960)-[0-9a-f]{8}\.webp$/.test(media.supportingSources.manual), `The mobile manual-booking background used an oversized JPEG fallback: ${media.supportingSources.manual}.`);
   assert(/\/landing\/people-backdrop-(?:480|960)-[0-9a-f]{8}\.webp$/.test(media.supportingSources.people), `The mobile handoff background used an oversized JPEG fallback: ${media.supportingSources.people}.`);

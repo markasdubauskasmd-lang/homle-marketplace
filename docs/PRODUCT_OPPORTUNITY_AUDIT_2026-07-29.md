@@ -234,9 +234,28 @@ and immutable-cache checks protect the reviewed files.
 Benefit: visitors who read beyond the scanner explanation spend materially less
 mobile data and wait less for the booking, evidence and handoff sections without a
 visual redesign or any change to accounts, the real scanner, booking logic or the
-Cleaner Dashboard. The unchanged 2.5 MB detail clip is now the largest remaining
-public-media opportunity and should be evaluated separately with a visually reviewed
-multi-codec fallback before any replacement.
+Cleaner Dashboard.
+
+## Landing detail-video transfer — implemented 5 August 2026
+
+Problem: the landing page's muted 10-second detail clip still transferred 2,501,348
+bytes. Its H.264 stream used a fixed 1.86 Mb/s bitrate and the file also carried a
+128 kb/s stereo track that visitors could never hear because the product experience
+deliberately keeps the clip muted.
+
+Implemented: a visually reviewed H.264 replacement removes the unused audio, uses a
+quality-targeted encode and places its metadata before the media payload for fast
+start. It is 926,233 bytes, a 63.0% reduction, while measuring 0.9867 SSIM and
+43.34 dB PSNR against the previous file. Side-by-side frames at one, five and nine
+seconds preserve faces, room detail, motion composition and on-screen copy. Its URL
+contains the first eight SHA-256 characters and receives immutable caching; the old
+stable URL is retired. Browser proofs at 390 px and 1280 px require the exact source,
+successful metadata decode and the same on-screen-only play/pause lifecycle. Tests
+also pin exact bytes, SHA-256, fast-start box order and the absence of an audio track.
+
+Benefit: the final large landing-media transfer is reduced by almost two thirds with
+no new codec compatibility risk, visual redesign or change to accounts, the scanner,
+booking logic or the Cleaner Dashboard.
 
 ## Prioritised opportunities
 

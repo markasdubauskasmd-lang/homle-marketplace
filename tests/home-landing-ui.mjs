@@ -55,7 +55,7 @@ assert(script.includes("this.stages.length >= 5") && script.includes('one("[data
 // Every asset the page names must exist, at a real size. A missing file here is
 // invisible in review and obvious on the live site.
 const media = [
-  "cleaning.mp4", "open-plan-living.jpg", "open-plan-living-dirty.jpg", "dark-kitchen.jpg",
+  "cleaning-720-e8b1a7ce.mp4", "open-plan-living.jpg", "open-plan-living-dirty.jpg", "dark-kitchen.jpg",
   "sage-living.jpg", "people-backdrop.jpg", "person-marta.jpg", "person-andrei.jpg",
   "person-grace.jpg", "person-iulia.jpg",
   "angle-1.png", "angle-2.png", "angle-3.png", "angle-4.png", "angle-5.png"
@@ -158,6 +158,22 @@ assert(reviewedWideTransfer <= originalSupportingTransfer * 0.41, "The complete 
 assert(supportingFallbacks.every((file) => page.includes(`src="/landing/${file}"`)), "The responsive supporting photographs removed an approved JPEG fallback.");
 assert(page.includes('poster="/landing/dark-kitchen-1600-f930f4ce.webp"'), "The full-resolution JPEG is still used as the video poster.");
 assert(page.includes('sizes="(max-width: 720px) 1px, (max-width: 1080px) 180px, 240px"'), "Hidden mobile capability cards can still request desktop-size portraits.");
+
+// The clip is always muted, so its old 128 kb/s audio stream downloaded bytes
+// without giving a visitor anything. This reviewed H.264 encode removes that
+// stream, keeps the broadly compatible codec and puts `moov` before `mdat` so
+// metadata is available at the start of the response. The content hash makes
+// the year-long cache safe; pin its exact bytes and measured transfer saving.
+const optimizedClipFile = "cleaning-720-e8b1a7ce.mp4";
+const optimizedClipBytes = await readFile(new URL(`../public/landing/${optimizedClipFile}`, import.meta.url));
+assert(optimizedClipBytes.length === 926_233, `The reviewed landing clip changed size: ${optimizedClipBytes.length}.`);
+assert(createHash("sha256").update(optimizedClipBytes).digest("hex") === "e8b1a7ce4e654b3f1fe18e94aceb954594fed0e7dbf640a73eb400535bfcb6e3", "The reviewed landing clip bytes changed without a new content-addressed filename.");
+const optimizedClipBoxes = optimizedClipBytes.toString("latin1");
+assert(optimizedClipBoxes.indexOf("moov") > 0 && optimizedClipBoxes.indexOf("moov") < optimizedClipBoxes.indexOf("mdat"), "The optimized clip lost its fast-start metadata order.");
+assert(!optimizedClipBoxes.includes("soun"), "The muted landing clip regained an unused audio track.");
+assert(optimizedClipBytes.length <= 2_501_348 * 0.38, "The optimized clip no longer saves at least 62% versus the retired payload.");
+assert(page.includes(`src="/landing/${optimizedClipFile}"`) && !page.includes('src="/landing/cleaning.mp4"'), "The homepage can still request the retired 2.5 MB clip.");
+assert(server.includes(`"/landing/${optimizedClipFile}"`), "The optimized clip is missing from the immutable cache allow-list.");
 
 // Without these the clip is served as application/octet-stream, and a <video>
 // will not play that at all: the poster stays up and nothing ever happens.
