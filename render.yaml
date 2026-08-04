@@ -42,14 +42,17 @@ services:
         generateValue: true
       - key: DATA_ENCRYPTION_KEY
         generateValue: true
+      # These provider choices are owned by the existing Render service. A
+      # Blueprint sync must not replace a tested staging configuration with a
+      # source default; new services must set them explicitly in the dashboard.
       - key: MAP_PROVIDER
-        value: "none"
+        sync: false
       - key: GEOCODING_PROVIDER
-        value: "none"
+        sync: false
       - key: ADDRESS_LOOKUP_PROVIDER
-        value: "none"
+        sync: false
       - key: ETA_PROVIDER
-        value: "straight-line"
+        sync: false
       - key: ADMIN_REQUIRE_KEY
         value: "true"
       - key: ADMIN_KEY
@@ -68,8 +71,10 @@ services:
         value: "false"
       - key: AUTHENTICATION_ENABLED
         value: "true"
+      # Restricted staging activation is an operator-owned runtime decision.
+      # Public launch attestations below remain source-controlled and false.
       - key: MARKETPLACE_ENABLED
-        value: "false"
+        sync: false
       - key: PUBLIC_MARKETPLACE_APPROVED
         value: "false"
       - key: LEGAL_BUSINESS_READY
