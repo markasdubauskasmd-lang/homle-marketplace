@@ -217,6 +217,7 @@ for (const call of calls) {
 }
 assert.equal(calls.find((call) => call.file === "deployment-verification.sql").options.env.PGPASSWORD, ownerPassword);
 assert.equal(calls.find((call) => call.file === "marketplace-rls-behaviour.sql").options.env.PGPASSWORD, appPassword);
+assert.equal(calls.find((call) => call.file === "administrator-funnel-behaviour.sql").options.env.PGPASSWORD, ownerPassword);
 assert.equal(calls.find((call) => call.file === "automatic-dispatch-requeue.sql").options.env.PGPASSWORD, workerPassword);
 assert.ok(calls.every((call) => !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_OWNER_URL") && !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_APP_URL") && !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_WORKER_URL") && !Object.hasOwn(call.options.env, "SMTP_URL")));
 assert.equal(concurrentBatches.length, 2);

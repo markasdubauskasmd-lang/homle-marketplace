@@ -2,6 +2,11 @@
 
 BEGIN;
 
+-- This integration file runs as the migration owner only so it can age the
+-- disposable fixtures below. Every product-facing assertion explicitly adopts
+-- the restricted runtime role; do not grant the runtime direct fixture access.
+SET LOCAL ROLE tideway_app;
+
 SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000001',true);
 SELECT set_config('app.user_roles','landlord',true);
 DO $landlord_denied$
@@ -28,6 +33,8 @@ BEGIN
 END
 $cleaner_denied$;
 
+RESET ROLE;
+
 -- Mature the existing synthetic Landlord and request fixtures. The transaction
 -- rolls back, so later integration scripts retain their original timestamps.
 UPDATE user_roles
@@ -49,6 +56,8 @@ VALUES(
   '10000000-0000-4000-8000-000000000001',
   'guided-web',now()-interval '2 days',now()-interval '2 days'
 );
+
+SET LOCAL ROLE tideway_app;
 
 SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000004',true);
 SELECT set_config('app.user_roles','administrator',true);
