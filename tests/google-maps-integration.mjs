@@ -17,6 +17,12 @@ assert(loader.includes("https://maps.googleapis.com/maps/api/js") && !loader.inc
 assert(!registration.includes("data-address-query") && !registration.includes("data-address-lookup") && !personalScript.includes("address-lookup/resolve") && registration.includes('name="postcode"') && registration.includes('name="street"'), "Cleaner onboarding still exposes the removed address lookup or lost manual address entry.");
 assert(server.includes('googleMapPage = requestPath === "/cleaner/jobs-map"') && server.includes("'strict-dynamic'") && server.includes("replaceAll(\"__CSP_NONCE__\", cspNonce)") && server.includes('requestPath === "/tracking-test" || googleMapPage'), "The map page lacks a nonce-protected Google CSP or page-scoped geolocation permission.");
 assert(privacy.includes("Google Maps Platform") && privacy.includes("Google Privacy Policy") && terms.includes("Google Maps/Google Earth Additional Terms of Service"), "Google Maps data processing or required user terms are not disclosed.");
-for (const required of ["MAP_PROVIDER", "GOOGLE_MAPS_BROWSER_API_KEY", "GOOGLE_MAPS_SERVER_API_KEY", "GEOCODING_PROVIDER", "ADDRESS_LOOKUP_PROVIDER", "ETA_PROVIDER"]) assert(renderBlueprint.includes(`key: ${required}`), `Render blueprint omitted ${required}.`);
+for (const required of [
+  ['MAP_PROVIDER', 'none'],
+  ['GEOCODING_PROVIDER', 'none'],
+  ['ADDRESS_LOOKUP_PROVIDER', 'none'],
+  ['ETA_PROVIDER', 'straight-line']
+]) assert(renderBlueprint.includes(`key: ${required[0]}\n        value: "${required[1]}"`), `Render blueprint did not keep ${required[0]} inactive.`);
+for (const privateKey of ["GOOGLE_MAPS_BROWSER_API_KEY", "GOOGLE_MAPS_SERVER_API_KEY"]) assert(!renderBlueprint.includes(`key: ${privateKey}`), `Render blueprint still requests unused ${privateKey}.`);
 
-console.log("Google Maps integration tests passed: key separation, jobs map, GPS consent, manual onboarding address entry, CSP and legal disclosures.");
+console.log("Dormant Google Maps integration tests passed: optional code remains isolated while Render disables every Google provider and key requirement.");

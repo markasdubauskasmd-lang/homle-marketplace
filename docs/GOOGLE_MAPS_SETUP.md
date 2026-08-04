@@ -1,4 +1,6 @@
-# Google Maps setup for Homle
+# Optional Google Maps setup for Homle
+
+> **Current deployment status:** Google Maps is inactive. Homle uses manual Cleaner address entry and local straight-line journey estimates, and Render does not request Google Maps API keys. The steps below are retained only if the owner decides to activate Google Maps in the future.
 
 Homle uses Google Maps Platform for four separate functions:
 
@@ -45,7 +47,7 @@ Copy it to Render as `GOOGLE_MAPS_SERVER_API_KEY`.
 
 ## 4. Set the Render environment
 
-The Render Blueprint already selects these values:
+Only if Google Maps is approved again, change the Render environment to these values:
 
 ```text
 MAP_PROVIDER=google-maps
