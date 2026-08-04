@@ -93,10 +93,20 @@ class Cinematic {
     this.detailVideo = one("[data-detail-video]");
 
     if (this.detailVideo) {
+      this.detailVideoSource = this.detailVideo.dataset.videoSrc || "";
       this.detailVideo.muted = true;
       this.detailVideo.playbackRate = 0.85;
     }
     return this.stages.length >= 5 && Boolean(this.phone) && Boolean(this.mcard);
+  }
+
+  /* Keep the below-the-fold clip off the initial network path. Its poster is
+     already visible, so loading the MP4 before this act approaches only spends
+     data and decoding time on visitors who may never reach it. */
+  activateDetailVideo() {
+    if (!this.detailVideo || this.detailVideo.getAttribute("src") || !this.detailVideoSource) return;
+    this.detailVideo.setAttribute("src", this.detailVideoSource);
+    this.detailVideo.load();
   }
 
   setup() {
@@ -201,6 +211,7 @@ class Cinematic {
     if (this.detailVideo) {
       const near = reads.some((o) => o.kind === "detail" && o.near);
       if (near && this.detailVideo.paused) {
+        this.activateDetailVideo();
         const played = this.detailVideo.play();
         if (played && played.catch) played.catch(() => {});
       } else if (!near && !this.detailVideo.paused) {

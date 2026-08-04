@@ -172,7 +172,8 @@ const optimizedClipBoxes = optimizedClipBytes.toString("latin1");
 assert(optimizedClipBoxes.indexOf("moov") > 0 && optimizedClipBoxes.indexOf("moov") < optimizedClipBoxes.indexOf("mdat"), "The optimized clip lost its fast-start metadata order.");
 assert(!optimizedClipBoxes.includes("soun"), "The muted landing clip regained an unused audio track.");
 assert(optimizedClipBytes.length <= 2_501_348 * 0.38, "The optimized clip no longer saves at least 62% versus the retired payload.");
-assert(page.includes(`src="/landing/${optimizedClipFile}"`) && !page.includes('src="/landing/cleaning.mp4"'), "The homepage can still request the retired 2.5 MB clip.");
+assert(page.includes(`data-video-src="/landing/${optimizedClipFile}"`) && page.includes('preload="none"') && !new RegExp(`<video[^>]*\\ssrc="/landing/${optimizedClipFile}"`).test(page) && !page.includes('src="/landing/cleaning.mp4"'), "The homepage can request a landing clip before its below-the-fold act approaches, or still references the retired 2.5 MB clip.");
+assert(script.includes('this.detailVideo.setAttribute("src", this.detailVideoSource)') && script.includes("this.activateDetailVideo();"), "The deferred landing clip never activates when its act approaches.");
 assert(server.includes(`"/landing/${optimizedClipFile}"`), "The optimized clip is missing from the immutable cache allow-list.");
 
 // Without these the clip is served as application/octet-stream, and a <video>

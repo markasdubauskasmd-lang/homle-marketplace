@@ -52,7 +52,11 @@ try {
       signup: { text: signup.textContent.trim(), display: getComputedStyle(signup).display, ...rect(signup) },
       bookAccount: { href: bookAccount.getAttribute("href"), text: bookAccount.querySelector("strong").textContent.trim(), ...rect(bookAccount) },
       cleanerAccount: { href: cleanerAccount.getAttribute("href"), text: cleanerAccount.querySelector("strong").textContent.trim(), ...rect(cleanerAccount) },
-      heroSources: heroImages.map((image) => image.currentSrc)
+      heroSources: heroImages.map((image) => image.currentSrc),
+      detailVideo: (() => {
+        const video = document.querySelector("[data-detail-video]");
+        return { src: video.getAttribute("src"), deferredSrc: video.dataset.videoSrc, readyState: video.readyState };
+      })()
     };
   `);
   assert(entry.width === 390, `The responsive proof did not receive the requested viewport: ${entry.width}.`);
@@ -73,6 +77,8 @@ try {
     `The mobile Cleaner role is missing, misrouted or too small: ${JSON.stringify(entry.cleanerAccount)}.`);
   assert(entry.heroSources.length === 2 && entry.heroSources.every((source) => source.endsWith(".webp") && source.includes("-480-")),
     `The 390px landing view downloaded a fallback or oversized hero instead of its 480px WebP pair: ${JSON.stringify(entry.heroSources)}.`);
+  assert(entry.detailVideo.src === null && entry.detailVideo.deferredSrc === "/landing/cleaning-720-e8b1a7ce.mp4" && entry.detailVideo.readyState === 0,
+    `The below-the-fold detail clip joined the initial mobile load: ${JSON.stringify(entry.detailVideo)}.`);
 
   // Walk the whole page the way a visitor would. Every act pins and unpins, and
   // none of them may push the document sideways while it moves — the design is
@@ -123,6 +129,7 @@ try {
           portraits: [...document.querySelectorAll(".ci-person img")].map((img) => img.currentSrc)
         },
         videoSrc: video ? video.getAttribute("src") : null,
+        videoDeferredSrc: video ? video.dataset.videoSrc : null,
         videoPoster: video ? video.getAttribute("poster") : null,
         videoError: video && video.error ? video.error.code : null,
         videoReady: video ? video.readyState : null
@@ -134,6 +141,7 @@ try {
   assert(media.total >= 10, `The landing page lost its photography: only ${media.total} images.`);
   assert(media.broken.length === 0, `Landing images failed to load: ${media.broken.join(", ")}.`);
   assert(media.videoSrc === "/landing/cleaning-720-e8b1a7ce.mp4", `The detail act lost its reviewed content-addressed clip: ${media.videoSrc}.`);
+  assert(media.videoDeferredSrc === media.videoSrc, `The activated detail clip no longer matches its reviewed deferred source: ${media.videoDeferredSrc}.`);
   assert(/\/landing\/dark-kitchen-(?:480|960)-[0-9a-f]{8}\.webp$/.test(media.supportingSources.phone), `The mobile scanner-phone image used an oversized JPEG fallback: ${media.supportingSources.phone}.`);
   assert(/\/landing\/sage-living-(?:480|960)-[0-9a-f]{8}\.webp$/.test(media.supportingSources.manual), `The mobile manual-booking background used an oversized JPEG fallback: ${media.supportingSources.manual}.`);
   assert(/\/landing\/people-backdrop-(?:480|960)-[0-9a-f]{8}\.webp$/.test(media.supportingSources.people), `The mobile handoff background used an oversized JPEG fallback: ${media.supportingSources.people}.`);
