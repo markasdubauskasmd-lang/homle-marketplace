@@ -286,7 +286,8 @@ const immutableStaticAssets = new Set([
   "/landing/person-grace-320-8ff237c2.webp",
   "/landing/person-grace-640-1dd1df0e.webp",
   "/landing/person-iulia-320-101559af.webp",
-  "/landing/person-iulia-640-9c0a329d.webp"
+  "/landing/person-iulia-640-9c0a329d.webp",
+  "/landing/cleaning-720-e8b1a7ce.mp4"
 ]);
 
 function setSecurityHeaders(response, requestPath = "", cspNonce = "") {
