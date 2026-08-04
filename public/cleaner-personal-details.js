@@ -5,7 +5,49 @@ import { storedCsrf } from "./session-csrf.js";
 const draftKey = "homle-cleaner-personal-details-draft-v1";
 const draftLifetimeMs = 8 * 60 * 60 * 1000;
 const maximumProfilePhotoBytes = 5 * 1024 * 1024;
+const maximumPreparedPhotoDimension = 1280;
+const photoUploadTimeoutMs = 30_000;
 const acceptedProfilePhotoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+function loadPhotoImage(objectUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.addEventListener("load", () => resolve(image), { once: true });
+    image.addEventListener("error", () => reject(new Error("Choose a valid JPG, PNG or WebP photo.")), { once: true });
+    image.src = objectUrl;
+  });
+}
+
+function canvasJpeg(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Homle could not prepare this photo. Try a different image."));
+    }, "image/jpeg", 0.82);
+  });
+}
+
+async function prepareProfilePhoto(file) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadPhotoImage(objectUrl);
+    const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
+    if (!longestSide) throw new Error("Choose a valid JPG, PNG or WebP photo.");
+    const scale = Math.min(1, maximumPreparedPhotoDimension / longestSide);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Homle could not prepare this photo. Try a different image.");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return await canvasJpeg(canvas);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 function safeSessionStorage() {
   try {
@@ -159,14 +201,21 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
     }
     showPhoto(file);
     photoButton.disabled = true;
-    photoButton.textContent = "Uploading…";
-    if (photoStatus) photoStatus.textContent = "Preparing and securely saving your photo…";
+    photoButton.textContent = "Preparing…";
+    if (photoStatus) photoStatus.textContent = "Making your photo quicker to upload…";
+    const controller = new AbortController();
+    let uploadTimeout = 0;
     try {
+      const preparedPhoto = await prepareProfilePhoto(file);
+      photoButton.textContent = "Uploading…";
+      if (photoStatus) photoStatus.textContent = "Securely saving your photo…";
+      uploadTimeout = window.setTimeout(() => controller.abort(), photoUploadTimeoutMs);
       const response = await fetch("/api/marketplace/cleaner/profile-photo", {
         method: "PUT",
         credentials: "same-origin",
-        headers: { Accept: "application/json", "Content-Type": file.type, "X-CSRF-Token": csrf },
-        body: file
+        headers: { Accept: "application/json", "Content-Type": preparedPhoto.type, "X-CSRF-Token": csrf },
+        body: preparedPhoto,
+        signal: controller.signal
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Homle could not upload your photo.");
@@ -176,8 +225,9 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
       showFeedback("Profile photo uploaded securely.");
     } catch (error) {
       if (photoStatus) photoStatus.textContent = "The photo was not saved. Try again.";
-      showFeedback(error.message || "Homle could not upload your photo.", "error");
+      showFeedback(error.name === "AbortError" ? "The upload took too long. Check your connection and try again." : error.message || "Homle could not upload your photo.", "error");
     } finally {
+      window.clearTimeout(uploadTimeout);
       photoButton.disabled = false;
       photoButton.textContent = "Change photo";
       photoInput.value = "";

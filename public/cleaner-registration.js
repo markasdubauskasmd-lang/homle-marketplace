@@ -1,6 +1,6 @@
 import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-9";
 import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260729-6";
-import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260804-1";
+import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260804-2";
 import { setupBusinessDetails } from "./cleaner-business-details.js?v=20260728-1";
 import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=20260728-1";
 import { setupBackgroundChecks } from "./cleaner-background-checks.js?v=20260728-1";
