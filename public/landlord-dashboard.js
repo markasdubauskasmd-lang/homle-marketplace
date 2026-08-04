@@ -8,6 +8,7 @@ import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260730-1";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260723-3";
+import { activeBookingChangeRequestFor, supportRequestPage, supportStatusLabels } from "./landlord-help-model.js?v=20260804-1";
 import { storedCsrf } from "./session-csrf.js";
 
 const state = document.querySelector("[data-landlord-state]");
@@ -95,6 +96,7 @@ let properties = [];
 let archivedProperties = [];
 let requests = [];
 let bookings = [];
+let supportRequests = [];
 let favouriteCleaners = [];
 let landlordProfile = null;
 let recognition = null;
@@ -1478,6 +1480,7 @@ function renderBookingCard(booking) {
     facts.append(wrapper);
   }
   const actions = element("div", "booking-summary-actions");
+  const activeChangeRequest = activeBookingChangeRequestFor(supportRequests, booking.bookingId);
   if (booking.paymentStepAvailable) {
     const payment = element("a", "button", "Authorize booking total");
     payment.href = "/landlord/dashboard";
@@ -1489,11 +1492,18 @@ function renderBookingCard(booking) {
     actions.append(link);
   }
   if (booking.status === "confirmed" && Date.parse(booking.scheduledStartAt) > Date.now()) {
-    const change = element("a", "button button-outline", "Request a change");
-    change.href = `/landlord/help?bookingId=${encodeURIComponent(booking.bookingId)}`;
+    const change = element("a", "button button-outline", activeChangeRequest ? "View change request" : "Request a change");
+    change.href = `/landlord/help?bookingId=${encodeURIComponent(booking.bookingId)}${activeChangeRequest ? "#support-history" : ""}`;
     actions.append(change);
   }
   card.append(heading, facts, element("p", "booking-money-boundary", bookingSummaryMoneyBoundary(booking, "landlord")));
+  if (activeChangeRequest) {
+    const action = activeChangeRequest.bookingChangeKind === "cancel" ? "Cancellation requested" : "Reschedule requested";
+    const proposed = activeChangeRequest.bookingChangeKind === "reschedule" && activeChangeRequest.proposedStartAt
+      ? ` Preferred time: ${formatBookingMoment(activeChangeRequest.proposedStartAt)}.`
+      : "";
+    card.append(element("p", "landlord-request-boundary", `${action} · ${supportStatusLabels[activeChangeRequest.status]}.${proposed} This booking, Cleaner commitment and payment remain unchanged until Homle confirms the outcome.`));
+  }
   if (booking.status === "pending-cleaner-acceptance") {
     const deadline = bookingInvitationDeadlineState(booking);
     const boundary = element("p", "landlord-waiting-deadline");
@@ -1737,15 +1747,16 @@ async function loadWorkspace() {
     workspace.setAttribute("aria-busy", "true");
     loadStatus.hidden = true;
 
-    const [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, healthResult] = await Promise.allSettled([
+    const [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult] = await Promise.allSettled([
       requestJson("/api/marketplace/landlord/profile"),
       requestJson("/api/marketplace/properties"),
       requestJson("/api/marketplace/properties/archived"),
       requestJson("/api/marketplace/cleaning-requests"),
       requestJson("/api/marketplace/bookings?limit=50"),
+      requestJson("/api/marketplace/landlord/support-requests?limit=25&offset=0"),
       requestJson("/api/health")
     ]);
-    const results = [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, healthResult];
+    const results = [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult];
     const failures = results.filter((result) => result.status === "rejected");
     const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
     if (authorizationFailure) throw authorizationFailure.reason;
@@ -1753,6 +1764,7 @@ async function loadWorkspace() {
     if (archivedPropertyResult.status === "fulfilled") archivedProperties = Array.isArray(archivedPropertyResult.value.properties) ? archivedPropertyResult.value.properties : [];
     if (requestResult.status === "fulfilled") requests = Array.isArray(requestResult.value.cleaningRequests) ? requestResult.value.cleaningRequests : [];
     if (bookingResult.status === "fulfilled") bookings = Array.isArray(bookingResult.value.bookings) ? bookingResult.value.bookings : [];
+    supportRequests = supportResult.status === "fulfilled" ? [...supportRequestPage(supportResult.value).supportRequests] : [];
     landlordProfile = profileResult.status === "fulfilled" ? (profileResult.value.profile || { organisationName: null, biography: "" }) : { organisationName: null, biography: "" };
     landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";
     landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
