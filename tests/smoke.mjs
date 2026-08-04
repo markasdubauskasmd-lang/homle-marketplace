@@ -473,7 +473,7 @@ try {
   const contactValidationAsset = await fetch(`${base}/contact-validation.js?v=smoke-test`);
   const contactValidationAssetText = await contactValidationAsset.text();
   assert(contactValidationAsset.ok && contactValidationAssetText.includes("isUkPostcode") && contactValidationAssetText.includes("isPhone") && contactValidationAssetText.includes("isEmail"), "The shared browser/server contact validation rules were not publicly available to the guided forms.");
-  const [compactLogo128, compactLogo192, originalLogo, cleanHero960, dirtyHero960, originalHero, scanAngleWebp, scanAnglePng] = await Promise.all([
+  const [compactLogo128, compactLogo192, originalLogo, cleanHero960, dirtyHero960, originalHero, scanAngleWebp, scanAnglePng, supportingWideWebp, supportingPortraitWebp, supportingJpeg] = await Promise.all([
     fetch(`${base}/homle-logo-128-4f82ebad.png`),
     fetch(`${base}/homle-logo-192-c8defd4b.png`),
     fetch(`${base}/homle-logo.png`),
@@ -481,7 +481,10 @@ try {
     fetch(`${base}/landing/open-plan-living-dirty-960-f5c7de87.webp`),
     fetch(`${base}/landing/open-plan-living.jpg`),
     fetch(`${base}/landing/angle-1-664cb339.webp`),
-    fetch(`${base}/landing/angle-1.png`)
+    fetch(`${base}/landing/angle-1.png`),
+    fetch(`${base}/landing/people-backdrop-1600-2eb86892.webp`),
+    fetch(`${base}/landing/person-iulia-640-9c0a329d.webp`),
+    fetch(`${base}/landing/people-backdrop.jpg`)
   ]);
   assert(compactLogo128.ok && compactLogo192.ok && compactLogo128.headers.get("cache-control") === "public, max-age=31536000, immutable" && compactLogo192.headers.get("cache-control") === "public, max-age=31536000, immutable", "Content-addressed public booking logos were not served with the isolated immutable cache policy.");
   assert(originalLogo.ok && originalLogo.headers.get("cache-control") === "no-cache", "The Cleaner Dashboard's original logo asset boundary was changed by the public booking cache optimisation.");
@@ -489,6 +492,8 @@ try {
   assert(originalHero.ok && originalHero.headers.get("content-type") === "image/jpeg" && originalHero.headers.get("cache-control") === "no-cache", "The original homepage JPEG fallback no longer retains its safe stable-URL cache policy.");
   assert(scanAngleWebp.ok && scanAngleWebp.headers.get("content-type") === "image/webp" && scanAngleWebp.headers.get("cache-control") === "public, max-age=31536000, immutable", "The content-addressed scanner-animation frame is missing its WebP type or immutable cache policy.");
   assert(scanAnglePng.ok && scanAnglePng.headers.get("content-type") === "image/png" && scanAnglePng.headers.get("cache-control") === "no-cache", "The scanner-animation PNG fallback no longer retains its safe stable-URL cache policy.");
+  assert(supportingWideWebp.ok && supportingPortraitWebp.ok && supportingWideWebp.headers.get("content-type") === "image/webp" && supportingPortraitWebp.headers.get("content-type") === "image/webp" && supportingWideWebp.headers.get("cache-control") === "public, max-age=31536000, immutable" && supportingPortraitWebp.headers.get("cache-control") === "public, max-age=31536000, immutable", "Responsive supporting photographs are missing their WebP type or immutable cache policy.");
+  assert(supportingJpeg.ok && supportingJpeg.headers.get("content-type") === "image/jpeg" && supportingJpeg.headers.get("cache-control") === "no-cache", "A supporting JPEG fallback no longer retains its safe stable-URL cache policy.");
   const accessSafetyAsset = await fetch(`${base}/access-detail-safety.js?v=smoke-test`);
   const accessSafetyAssetText = await accessSafetyAsset.text();
   assert(accessSafetyAsset.ok && accessSafetyAssetText.includes("containsSensitiveAccessDetails") && accessSafetyAssetText.includes("only after a booking is accepted"), "Shared access-secret validation rules were unavailable.");

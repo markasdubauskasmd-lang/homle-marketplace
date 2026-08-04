@@ -58,6 +58,11 @@ const probe = `
       litAngle: angles.findIndex((i) => i.style.opacity === '1') + 1,
       angleSources: angles.map((image) => image.currentSrc),
       phoneView: document.querySelector('[data-phone-view]').getAttribute('src'),
+      phoneViewSource: document.querySelector('[data-phone-view]').currentSrc,
+      manualBgSource: document.querySelector('.ci-manual-bg').currentSrc,
+      peopleBgSource: document.querySelector('.ci-people-bg').currentSrc,
+      personSources: [...document.querySelectorAll('.ci-person img')].map((image) => image.currentSrc),
+      videoPoster: video.getAttribute('poster'),
       beat: document.querySelector('[data-beat-title]').textContent,
       items: Number(document.querySelector('[data-beat-items]').textContent),
       views: document.querySelector('[data-views]').textContent,
@@ -122,6 +127,8 @@ try {
     "The room never changes angle, so the walk is not moving between beats.");
   assert(scanLate.angleSources.length === 5 && scanLate.angleSources.every((source) => /\/landing\/angle-[1-5]-[0-9a-f]{8}\.webp$/.test(source)),
     `The scanner animation downloaded a PNG fallback or unversioned frame: ${JSON.stringify(scanLate.angleSources)}.`);
+  assert(/\/landing\/dark-kitchen-(?:480|960)-[0-9a-f]{8}\.webp$/.test(scanLate.phoneViewSource),
+    `The scanner-phone view downloaded its full JPEG fallback: ${scanLate.phoneViewSource}.`);
 
   // The read-out counts up with the walk rather than sitting at its final value.
   assert(scanLate.items > scanEarly.items, `Items analysed does not climb: ${scanEarly.items} -> ${scanLate.items}.`);
@@ -146,6 +153,13 @@ try {
 
   const past = await at("join", 0.85);
   assert(past.videoPaused === true, "The clip keeps playing after its act has left the screen.");
+  assert(/\/landing\/sage-living-(?:960|1600)-[0-9a-f]{8}\.webp$/.test(past.manualBgSource),
+    `The manual-booking act downloaded its full JPEG fallback: ${past.manualBgSource}.`);
+  assert(/\/landing\/people-backdrop-(?:1600|2000)-[0-9a-f]{8}\.webp$/.test(past.peopleBgSource),
+    `The handoff act downloaded its full JPEG fallback: ${past.peopleBgSource}.`);
+  assert(past.personSources.length === 4 && past.personSources.every((source) => /\/landing\/person-[a-z]+-(?:320|640)-[0-9a-f]{8}\.webp$/.test(source)),
+    `A capability card downloaded its full JPEG fallback: ${JSON.stringify(past.personSources)}.`);
+  assert(past.videoPoster === "/landing/dark-kitchen-1600-f930f4ce.webp", `The clip retained its full JPEG poster: ${past.videoPoster}.`);
 
   /* ── Act 6: the closing button ────────────────────── */
 

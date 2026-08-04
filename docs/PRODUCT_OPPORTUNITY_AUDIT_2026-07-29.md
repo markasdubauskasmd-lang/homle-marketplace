@@ -217,6 +217,27 @@ Benefit: the public explanation of Homle's scan-and-speak workflow reaches users
 faster without changing the real scanner, animation design, copy, routing, account or
 booking logic, or any Cleaner Dashboard file or behaviour.
 
+## Supporting landing photography transfer — implemented 5 August 2026
+
+Problem: after the hero and scanner frames were optimized, the lower landing acts
+still named seven full-resolution JPEGs totalling 1,638,741 bytes. They were used as
+a small phone view, two subdued backgrounds and four cards no wider than 240 px.
+
+Implemented: modern browsers receive width-appropriate, content-addressed WebPs for
+all seven photographs, while the exact JPEGs remain compatibility fallbacks. The
+largest complete path—including a separate reviewed video poster and every desktop
+card—is 654,556 bytes, a 60.1% reduction. The mobile browser proof now scrolls each
+lazy act into view before asserting the chosen sources; the desktop motion proof
+checks that the optimized media preserves all six scroll acts. Hash, byte-size, MIME
+and immutable-cache checks protect the reviewed files.
+
+Benefit: visitors who read beyond the scanner explanation spend materially less
+mobile data and wait less for the booking, evidence and handoff sections without a
+visual redesign or any change to accounts, the real scanner, booking logic or the
+Cleaner Dashboard. The unchanged 2.5 MB detail clip is now the largest remaining
+public-media opportunity and should be evaluated separately with a visually reviewed
+multi-codec fallback before any replacement.
+
 ## Prioritised opportunities
 
 ### P0 — prove one genuine two-account booking rehearsal

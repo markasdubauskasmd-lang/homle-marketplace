@@ -119,6 +119,46 @@ const originalScanAngleTransfer = (await Promise.all([1, 2, 3, 4, 5].map((angle)
 assert(scanAngleTransfer <= originalScanAngleTransfer * 0.07, "The scanner-animation WebP path no longer saves at least 93% versus its PNG fallbacks.");
 assert((page.match(/<picture><source type="image\/webp" srcset="\/landing\/angle-/g) || []).length === 5, "The five scanner-animation frames do not provide WebP sources with PNG fallbacks.");
 
+// The lower half of the page still carried seven full-resolution JPEGs after
+// the hero and scanner frames were fixed. Pin every reviewed derivative and
+// keep the original JPEGs in the markup so older browsers retain the approved
+// composition. The wide-path comparison includes both the phone image and the
+// separate video poster because a complete visitor can request both URLs.
+const responsiveSupportingAssets = new Map([
+  ["dark-kitchen-480-2dad9656.webp", [20_620, "2dad9656ce9eaaa91e65b8e8cdfb6c17aea72c043369b14a25d99ae852a9d9d7"]],
+  ["dark-kitchen-960-f761f9b4.webp", [59_166, "f761f9b4677c6ebbeeaccb2564fe0203d27bad86a272c1292134ea846b200a36"]],
+  ["dark-kitchen-1600-f930f4ce.webp", [125_076, "f930f4ce9a663fb5bbd2f24797a67612e6715b6ec1482431fede03f325e4ee7d"]],
+  ["sage-living-480-bdf0e74d.webp", [20_432, "bdf0e74d01501fa5a44ffd1626c3727253d56d93674910dfb65c7b5898a3e950"]],
+  ["sage-living-960-e4022c28.webp", [64_084, "e4022c284df3d6b86fcbd58a54cebe696481a2138a9139ee4c4c019087d348bd"]],
+  ["sage-living-1600-fed719d6.webp", [157_374, "fed719d6277fdab253cb9e6c9da2eaeb228b2cd6a0d513fdcbc1f3ea18529bbb"]],
+  ["people-backdrop-480-d6fa13df.webp", [13_020, "d6fa13df59d83c5e1a704aa9e415a39b52a76ac4fc16a985c7f55b38ed6e76f9"]],
+  ["people-backdrop-960-8a9c8f83.webp", [32_546, "8a9c8f83cd79171b890739bf3d1d4f0ad2adab1e0aeb8ed8a8193a965f97df43"]],
+  ["people-backdrop-1600-2eb86892.webp", [80_484, "2eb86892747cfb9aa942f0e7d29ec0008bed3b9e79818d3140951c15d6737847"]],
+  ["people-backdrop-2000-8b9c3a29.webp", [157_854, "8b9c3a291038218753ab9d8c6304b190abc990b2579658a03f926d1fdcf3b9c5"]],
+  ["person-marta-320-4852e577.webp", [13_354, "4852e57755caf1c141feb44f77f9e9aa1df85e87d4cd0e84124694f1a00d59bb"]],
+  ["person-marta-640-a6f84fb2.webp", [33_148, "a6f84fb26aaf62ca6387097d9d45902620923884f7a5a67be172e29d246596c0"]],
+  ["person-andrei-320-354d4801.webp", [8_196, "354d4801f4fab4a9730bbd6760173c2909b617503af519b9e77d7ddb716e0332"]],
+  ["person-andrei-640-29a2f2dd.webp", [24_020, "29a2f2dd5a6fc680e60e0fc3cd7058a1e9427aeb0ef924ec7caebb22b63bb6db"]],
+  ["person-grace-320-8ff237c2.webp", [8_300, "8ff237c248644dcf9052ad6b58944540a8ef91ad0b4bef9287374604353bd196"]],
+  ["person-grace-640-1dd1df0e.webp", [22_598, "1dd1df0e9f6814012f5454900e37e01df9dc636e0fc1c1c55aaeba99728fb6bf"]],
+  ["person-iulia-320-101559af.webp", [23_930, "101559af2224737edcae680a8426f6cbbc336d2f7d29a0c6a127fefbf66034a9"]],
+  ["person-iulia-640-9c0a329d.webp", [75_320, "9c0a329dbbe344310cfa9b07237c490ee55f22c0a1064070694633fb753ad092"]]
+]);
+for (const [file, [expectedBytes, expectedHash]] of responsiveSupportingAssets) {
+  const body = await readFile(new URL(`../public/landing/${file}`, import.meta.url));
+  assert(body.length === expectedBytes, `Supporting landing asset ${file} changed size without review.`);
+  assert(createHash("sha256").update(body).digest("hex") === expectedHash, `Supporting landing asset ${file} changed visual bytes without review.`);
+  assert(page.includes(`/landing/${file}`), `Supporting landing asset ${file} is not wired into the homepage.`);
+  assert(server.includes(`"/landing/${file}"`), `Supporting landing asset ${file} is not in the immutable cache allow-list.`);
+}
+const supportingFallbacks = ["dark-kitchen.jpg", "sage-living.jpg", "people-backdrop.jpg", "person-marta.jpg", "person-andrei.jpg", "person-grace.jpg", "person-iulia.jpg"];
+const originalSupportingTransfer = (await Promise.all(supportingFallbacks.map((file) => stat(new URL(`../public/landing/${file}`, import.meta.url))))).reduce((sum, info) => sum + info.size, 0);
+const reviewedWideTransfer = [59_166, 125_076, 157_374, 157_854, 33_148, 24_020, 22_598, 75_320].reduce((sum, bytes) => sum + bytes, 0);
+assert(reviewedWideTransfer <= originalSupportingTransfer * 0.41, "The complete supporting-photo WebP path no longer saves at least 59% versus its JPEG fallbacks.");
+assert(supportingFallbacks.every((file) => page.includes(`src="/landing/${file}"`)), "The responsive supporting photographs removed an approved JPEG fallback.");
+assert(page.includes('poster="/landing/dark-kitchen-1600-f930f4ce.webp"'), "The full-resolution JPEG is still used as the video poster.");
+assert(page.includes('sizes="(max-width: 720px) 1px, (max-width: 1080px) 180px, 240px"'), "Hidden mobile capability cards can still request desktop-size portraits.");
+
 // Without these the clip is served as application/octet-stream, and a <video>
 // will not play that at all: the poster stays up and nothing ever happens.
 for (const [extension, type] of [[".mp4", "video/mp4"], [".jpg", "image/jpeg"], [".png", "image/png"], [".webp", "image/webp"]]) {
