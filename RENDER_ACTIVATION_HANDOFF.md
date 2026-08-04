@@ -2,10 +2,20 @@
 
 ## CURRENT LIVE TRUTH — 4 August 2026
 
-This audit began from verified live release **`29dce96b`** with **88** locked
+The current verified live release is **`80636e12`** with **88** locked
 migrations, healthy data integrity and writes allowed. Marketplace runtime,
 authentication, private media, realtime updates, geocoding, direct matching,
 speech summarisation and room vision are ready. Google account entry is available.
+
+The public account handoff was exercised against this release on 4 August 2026.
+Both `/signup?intent=book` and `/signup?intent=work` expose the configured Google
+provider and redirect to Google's authorization endpoint with state, nonce and
+PKCE. An anonymous `/landlord/book` visit returns to the booking sign-up intent
+without exposing the scanner. The landing header offers both role intents under
+one Sign up action, and its scanner animation no longer claims unsupported floor
+or worktop area measurements. PR #213, local checks, GitHub unit/safety CI, real
+PostgreSQL/RLS CI and the live browser verification all passed. The Cleaner
+Dashboard was not changed.
 
 Transactional email/email-password recovery, Facebook, Apple and Stripe test
 payments remain provider-backed launch gaps. Automatic dispatch is deliberately
@@ -25,11 +35,11 @@ Use the exact packaged `main` commit being deployed; never copy the historical
 baseline after `main` advances. Historical sections below are retained for implementation context. Where they
 contradict this section or the live verifier, this section and the verifier win.
 
-## Merged on 2026-07-28 — visual system and sign-in page (needs a redeploy, nothing else)
+## ARCHIVE — merged on 2026-07-28 visual system and sign-in page (already deployed)
 
-All merged to `main`, CI green. **None of it is live**, because `autoDeployTrigger`
-is off. One redeploy publishes all of it. No migration, no new secret and no
-Render setting is required for any of it to work.
+This section describes historical release work. It is already deployed and must
+not be used as a current activation checklist. No migration, new secret or Render
+setting is required for the visual changes below.
 
 - **PR #135 + #140 — one visual system across the app.** `public/homle-tokens.css`
   is now the single owner of typography, palette, radius and shadow, and every
@@ -45,19 +55,21 @@ Render setting is required for any of it to work.
   `/reset-password`, `/onboarding` and `/account-ready`, and every one of those
   modes still works — the redesign changed presentation only, not the auth flow.
 
-### The one thing you may want to switch on: Google sign-in
+### Historical Google sign-in activation note — complete
 
-`Continue with Google` is built, styled and merged, but **hidden**, because the
-page refuses to show a provider the deployment cannot honour. It is gated on
-`providers.google`, which is `false` until both of these exist in the Render
-environment (`src/marketplace/config.mjs`):
+`Continue with Google` is now active and verified on the current live release.
+The page still correctly refuses to show a provider the deployment cannot honour.
+Google remains gated on both of these Render secrets
+(`src/marketplace/config.mjs`):
 
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 
-Set both, redeploy, and the button appears with no code change. Apple and Facebook
-behave identically via their own variable pairs. **Do not remove the gate to make
-the button visible** — without working credentials it is a dead control that errors
+On the verified live release both Google values are present and the button works.
+If either secret is rotated or a new service is created, set both and redeploy;
+the button will appear without a code change. Apple and Facebook behave
+identically via their own variable pairs. **Do not remove the gate to make a
+button visible** — without working credentials it is a dead control that errors
 on click, and `tests/smoke.mjs` asserts this page never advertises an unavailable
 provider.
 
@@ -74,7 +86,13 @@ provider.
   shared `var()` carries a literal fallback. Removing those fallbacks breaks the
   Cleaner pages.
 
-## Local verified improvement awaiting publication
+## ARCHIVE — historical implementation notes, not a publication queue
+
+The entries below record implementation work from earlier releases. Their
+original publication wording is preserved only as history and may describe an
+older commit boundary. Do not deploy, configure or activate anything from this
+section without reconciling it against **CURRENT LIVE TRUTH**, the current
+`main` branch and the live activation verifier above.
 
 - Landlords now have one private notification bell beside the signed-in account picture, and Cleaner invitations no longer require a reload while transactional email is unavailable. Migration 072 emits a commit-bound, privacy-minimal PostgreSQL signal for each in-app notification. An authenticated account-scoped SSE route sends the browser only `{"changed":true}`, then the existing protected inbox is reread and the Cleaner dashboard refreshes actionable invitations. Cross-account isolation, session expiry, connection limits, backpressure cleanup, reconnect catch-up, database trigger safety, package identity and dedicated booking/account LISTEN readiness are covered. Commit `d218ddf` plus the current verified migration/SSE work are local only and have not been pushed, merged or deployed.
 - The guided Landlord journey now survives payout-readiness races both while obtaining the exact quote and at the final invitation write. Quote recovery excludes the failed selection and verifies no more than five server-ranked alternatives, skipping only the specific payout-readiness result. If the approved Cleaner then loses readiness before the atomic invitation write, Homle quote-verifies one final different Cleaner and requires a second named exact-price approval. Declining sends nothing; a repeated commit-boundary failure stops safely. Publish `landlord-journey.js?v=journey8` and `landlord-journey-model.js?v=journey7` together with their HTML reference.
