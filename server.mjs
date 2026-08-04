@@ -5435,9 +5435,17 @@ async function serveFile(requestPath, response, cspNonce = "") {
     // re-downloaded every time a Landlord opened the scan, on mobile data. Its
     // contents never change without the path changing, so it is safe to pin.
     const vendored = requestPath.startsWith("/vendor/");
+    // These public/Landlord derivatives are content-addressed. Their URL
+    // changes whenever their bytes change, so browsers may retain them without
+    // revalidating on every booking or account-entry visit. The original logo
+    // remains no-cache and on the Cleaner Dashboard's existing asset boundary.
+    const immutablePublicAsset = new Set([
+      "/homle-logo-128-4f82ebad.png",
+      "/homle-logo-192-c8defd4b.png"
+    ]).has(requestPath);
     response.writeHead(200, {
       "Content-Type": mimeTypes[extension] || "application/octet-stream",
-      "Cache-Control": extension === ".html" ? "no-store" : vendored ? "public, max-age=31536000, immutable" : "no-cache"
+      "Cache-Control": extension === ".html" ? "no-store" : vendored || immutablePublicAsset ? "public, max-age=31536000, immutable" : "no-cache"
     });
     response.end(body);
     return true;
