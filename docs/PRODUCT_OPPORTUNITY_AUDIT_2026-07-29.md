@@ -163,6 +163,22 @@ Expected benefit: the Facebook deletion journey loads without a known production
 404, and future non-Cleaner page changes fail CI when they introduce a missing local
 route, script, stylesheet, image or manifest.
 
+## Public and Landlord logo transfer — implemented 4 August 2026
+
+Problem: the approved 1254 px Homle logo is 1,969,846 bytes, but the homepage and
+Landlord journeys display it at only 36–54 CSS pixels. A cold mobile visitor had to
+download almost 2 MB before a small brand mark and tab icon could finish loading.
+
+Implemented: those public and Landlord-only pages now use a reviewed 128 px lossless
+PNG derivative weighing 18,506 bytes. The original owner-approved artwork is unchanged
+and remains available where its existing contract is intentionally preserved. Tests
+lock both hashes, cap the compact transfer at 20 KB and prove the Cleaner Dashboard
+still references its original asset.
+
+Benefit: more than 99% less logo transfer on the booking entry path, improving cold
+mobile load time without redesigning the logo, changing a route or touching Cleaner
+Dashboard behaviour.
+
 ## Prioritised opportunities
 
 ### P0 — prove one genuine two-account booking rehearsal
