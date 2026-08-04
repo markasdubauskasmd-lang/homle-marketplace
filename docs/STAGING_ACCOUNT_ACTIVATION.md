@@ -10,16 +10,16 @@ The Google and Facebook callback URLs are machine endpoints. Opening one in a br
 
 In Google Cloud, create an OAuth client with application type **Web application**. Google's [web-server OAuth guide](https://developers.google.com/identity/protocols/oauth2/web-server) requires an exact authorized redirect URI. Use:
 
-- Authorized JavaScript origin: `https://homle-marketplace-preview.onrender.com`
-- Authorized redirect URI: `https://homle-marketplace-preview.onrender.com/api/marketplace/auth/google/callback`
+- Authorized JavaScript origin: `https://homlle.com`
+- Authorized redirect URI: `https://homlle.com/api/marketplace/auth/google/callback`
 
 Keep the OAuth consent screen in testing while Homle is staging and add only the founder-approved test Google account. Store the resulting client ID and secret directly in Render as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Never put the secret in Git, a screenshot, chat or a support message.
 
 For Facebook, create a Meta app owned by the Homle business owner and add Facebook Login for the web preview. Configure:
 
-- Valid OAuth redirect URI: `https://homle-marketplace-preview.onrender.com/api/marketplace/auth/facebook/callback`
-- Data-deletion callback: `https://homle-marketplace-preview.onrender.com/api/marketplace/auth/facebook/data-deletion`
-- Data-deletion status page: `https://homle-marketplace-preview.onrender.com/facebook-data-deletion`
+- Valid OAuth redirect URI: `https://homlle.com/api/marketplace/auth/facebook/callback`
+- Data-deletion callback: `https://homlle.com/api/marketplace/auth/facebook/data-deletion`
+- Data-deletion status page: `https://homlle.com/facebook-data-deletion`
 
 Store the numeric App ID, secret and the currently selected supported Graph API version directly in Render as `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` and `FACEBOOK_GRAPH_API_VERSION`.
 
@@ -71,7 +71,7 @@ For every category except expected consent denial, Render receives only a privac
 Before asking a tester to sign in, run the external readiness verifier. It makes one anonymous, no-cookie request to Google's validated authorization URL and stops before login. If Google has not saved the exact callback on the matching web client, the report fails with `google-provider-registration` and prints the exact URI to add; this prevents another tester from reaching Google's `redirect_uri_mismatch` page:
 
 ```powershell
-$env:TIDEWAY_PUBLIC_ORIGIN = "https://homle-marketplace-preview.onrender.com"
+$env:TIDEWAY_PUBLIC_ORIGIN = "https://homlle.com"
 $env:TIDEWAY_EXPECT_RELEASE = "1234abcd" # exact live sourceCommit from /api/health
 $env:TIDEWAY_EXPECT_SOCIAL_PROVIDERS = "google"
 node tools/domain-readiness.mjs

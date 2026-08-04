@@ -23,7 +23,7 @@ services:
       - key: DATA_DIR
         value: "/var/lib/tideway"
       - key: APP_ORIGIN
-        value: "https://homle-marketplace-preview.onrender.com"
+        value: "https://homlle.com"
       - key: RENDER_STAGING_BOOTSTRAP_ENABLED
         value: "true"
       - key: RENDER_STAGING_BASELINE_MIGRATION_COUNT

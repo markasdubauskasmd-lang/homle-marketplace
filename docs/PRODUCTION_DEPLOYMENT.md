@@ -31,7 +31,7 @@ For runtime, mount an encrypted persistent volume at `/var/lib/tideway`, confirm
 
 ## Render staging Blueprint
 
-The root `render.yaml` defines one free Docker web service and one owner-approved free PostgreSQL 16 staging database in Frankfurt. It disables automatic source deployment, pins the exact assigned preview `APP_ORIGIN`, generates the Administrator and restricted-role secrets, and keeps pilot intake, marketplace accounts, every worker capability and payments off. The database uses the guarded `_homle_staging` name, a distinct migration-owner login and no public IP allow-list. It creates no worker, disk or custom domain. The owner explicitly approved the free staging database on 17 July 2026.
+The root `render.yaml` defines one free Docker web service and one owner-approved free PostgreSQL 16 staging database in Frankfurt. It disables automatic source deployment, pins the connected canonical `APP_ORIGIN` (`https://homlle.com`), generates the Administrator and restricted-role secrets, and keeps pilot intake, marketplace accounts, every worker capability and payments off. The database uses the guarded `_homle_staging` name, a distinct migration-owner login and no public IP allow-list. It creates no worker or disk; the already-connected custom domain remains Dashboard-owned. The owner explicitly approved the free staging database on 17 July 2026.
 
 ### Blueprint and dashboard ownership
 
@@ -42,7 +42,7 @@ Render Blueprint sync overwrites a conflicting Dashboard value when `render.yaml
 After any Blueprint sync or environment edit, verify the actual service rather than assuming the landing page proves readiness:
 
 ```text
-GET https://homle-marketplace-preview.onrender.com/api/health
+GET https://homlle.com/api/health
 ```
 
 The restricted staging configuration may report `marketplace.enabled: true` and `marketplace.ready: true` while `STAGING_ACCOUNTS_ONLY=true`, `PILOT_INTAKE_ENABLED=false`, every public approval false, every worker false and payments false. The Google, private-media, realtime, postcode matching, speech-summary and room-vision readiness fields must match the dependencies intentionally configured in the Dashboard. A false public or payment gate is expected and must not be "fixed" as part of a preview deployment.

@@ -28,7 +28,7 @@ one worker process is scheduled.
 Run the secret-free verifier after every release:
 
 ```powershell
-pnpm run verify:live-activation https://homle-marketplace-preview.onrender.com --expect-release=<exact-eight-character-main-commit>
+pnpm run verify:live-activation https://homlle.com --expect-release=<exact-eight-character-main-commit>
 ```
 
 Use the exact packaged `main` commit being deployed; never copy the historical
