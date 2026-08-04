@@ -12,7 +12,7 @@
   <link rel="icon" href="/homle-logo-128-4f82ebad.png" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="preload" as="image" href="/landing/open-plan-living.jpg">
+  <link rel="preload" as="image" type="image/webp" href="/landing/open-plan-living-960-bacccd4e.webp" imagesrcset="/landing/open-plan-living-480-15f06faa.webp 480w, /landing/open-plan-living-960-bacccd4e.webp 960w, /landing/open-plan-living-1600-c403e366.webp 1600w, /landing/open-plan-living-2200-f5b34bda.webp 2200w" imagesizes="100vw">
   <link rel="stylesheet" href="/landing.css?v=20260731-1">
   <script src="/landing.js?v=20260731-1" type="module"></script>
   <script src="/home.js?v=20260729-1" type="module"></script>
@@ -70,10 +70,16 @@
 
         <div class="ci-hero-stage">
           <div class="ci-hero-frame" data-hero-frame>
-            <img class="ci-hero-img" src="/landing/open-plan-living.jpg" alt="An open-plan living room, spotless" decoding="async">
+            <picture>
+              <source type="image/webp" srcset="/landing/open-plan-living-480-15f06faa.webp 480w, /landing/open-plan-living-960-bacccd4e.webp 960w, /landing/open-plan-living-1600-c403e366.webp 1600w, /landing/open-plan-living-2200-f5b34bda.webp 2200w" sizes="100vw">
+              <img class="ci-hero-img" src="/landing/open-plan-living.jpg" alt="An open-plan living room, spotless" decoding="async" fetchpriority="high">
+            </picture>
 
             <div class="ci-hero-dirty">
-              <img class="ci-hero-img" src="/landing/open-plan-living-dirty.jpg" alt="The same living room before cleaning" decoding="async">
+              <picture>
+                <source type="image/webp" srcset="/landing/open-plan-living-dirty-480-b39d33d1.webp 480w, /landing/open-plan-living-dirty-960-f5c7de87.webp 960w, /landing/open-plan-living-dirty-1600-23975b20.webp 1600w, /landing/open-plan-living-dirty-2200-6526a87e.webp 2200w" sizes="100vw">
+                <img class="ci-hero-img" src="/landing/open-plan-living-dirty.jpg" alt="The same living room before cleaning" decoding="async" fetchpriority="high">
+              </picture>
               <div class="ci-hero-grime"></div>
             </div>
 

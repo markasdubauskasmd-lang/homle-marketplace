@@ -42,6 +42,7 @@ try {
     signupMenu.open = true;
     const bookAccount = signupMenu.querySelector("[data-book-entry]");
     const cleanerAccount = signupMenu.querySelector("[data-cleaner-entry]");
+    const heroImages = [...document.querySelectorAll(".ci-hero-img")];
     const rect = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, width: r.width, height: r.height }; };
     return {
       width: window.innerWidth,
@@ -50,7 +51,8 @@ try {
       login: { hidden: login.hidden, href: login.getAttribute("href"), display: getComputedStyle(login).display, ...rect(login) },
       signup: { text: signup.textContent.trim(), display: getComputedStyle(signup).display, ...rect(signup) },
       bookAccount: { href: bookAccount.getAttribute("href"), text: bookAccount.querySelector("strong").textContent.trim(), ...rect(bookAccount) },
-      cleanerAccount: { href: cleanerAccount.getAttribute("href"), text: cleanerAccount.querySelector("strong").textContent.trim(), ...rect(cleanerAccount) }
+      cleanerAccount: { href: cleanerAccount.getAttribute("href"), text: cleanerAccount.querySelector("strong").textContent.trim(), ...rect(cleanerAccount) },
+      heroSources: heroImages.map((image) => image.currentSrc)
     };
   `);
   assert(entry.width === 390, `The responsive proof did not receive the requested viewport: ${entry.width}.`);
@@ -69,6 +71,8 @@ try {
     `The mobile customer role is missing, misrouted or too small: ${JSON.stringify(entry.bookAccount)}.`);
   assert(entry.cleanerAccount.href === "/signup?intent=work" && entry.cleanerAccount.text === "Work as a cleaner" && entry.cleanerAccount.height >= 48,
     `The mobile Cleaner role is missing, misrouted or too small: ${JSON.stringify(entry.cleanerAccount)}.`);
+  assert(entry.heroSources.length === 2 && entry.heroSources.every((source) => source.endsWith(".webp") && source.includes("-480-")),
+    `The 390px landing view downloaded a fallback or oversized hero instead of its 480px WebP pair: ${JSON.stringify(entry.heroSources)}.`);
 
   // Walk the whole page the way a visitor would. Every act pins and unpins, and
   // none of them may push the document sideways while it moves — the design is
