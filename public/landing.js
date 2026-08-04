@@ -33,7 +33,7 @@ const BEATS = [
   { ang: 3, room: { s: 1.16, x: -2, y: -3 }, ph: { x: 5,    y: 1,    yaw: -7, roll: -1.1, s: 1.06 },
     box: [36, 16, 26, 30], title: "Mirror & wall",         label: "Mirror detected",            items: 24, name: "Lounge" },
   { ang: 4, room: { s: 1.24, x: 0,  y: -5 }, ph: { x: 0.5,  y: 2,    yaw: -3, roll: -0.5, s: 1.08 },
-    box: [22, 56, 54, 34], title: "Measuring floor area…", label: "Floor 7.3 m²",               items: 30, name: "Lounge" },
+    box: [22, 56, 54, 34], title: "Reading floor condition…", label: "Floor finish detected",    items: 30, name: "Lounge" },
   { ang: 4, room: { s: 1.1,  x: -3, y: 1  }, ph: { x: -5,   y: 1.2,  yaw: 6,  roll: 0.9,  s: 1.02 },
     box: [30, 36, 50, 38], title: "Seating & textiles",    label: "Soft furnishings",           items: 36, name: "Lounge" },
   { ang: 5, room: { s: 1.16, x: -7, y: -3 }, ph: { x: 3.5,  y: -1.4, yaw: -5, roll: -0.7, s: 1.04 },
@@ -71,7 +71,6 @@ class Cinematic {
     this.launch = q("[data-launch]");
     this.joins = q("[data-join]");
     this.angles = q("[data-angle]");
-    this.areaEls = q("[data-area],[data-area2]");
 
     this.phone = one("[data-phone]");
     this.phoneView = one("[data-phone-view]");
@@ -231,9 +230,6 @@ class Cinematic {
 
     this.text(this.mnum, String(Math.max(1, Math.min(6, Math.ceil(manualP / 0.16) || 1))));
     this.text(this.mhours, String(Math.max(1, Math.min(3, Math.round(manualP * 3))) || 1));
-    const area = Math.max(2.4, Math.min(16.8, 16.8 * (scanP / 0.62))).toFixed(1);
-    for (const el of this.areaEls || []) this.text(el, area);
-
     /* detailP is read above so the video check and the CSS variable stay in step. */
     void detailP;
 

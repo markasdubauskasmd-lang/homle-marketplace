@@ -28,15 +28,13 @@ const [page, script, accountPage, server, packageFile] = await Promise.all([
 ]);
 
 // The cinematic design carries fewer, larger calls to action than the page it
-// replaced: the header Sign up and the closing account-creation CTA, plus the
-// Cleaner entry in the footer. Both roles must still be reachable from the page.
+// replaced. The one header Sign up action must expose both account intents,
+// while the closing and footer actions preserve the same direct routes.
 assert((page.match(/data-book-entry/g) || []).length >= 2, "Homepage lost its account-first Landlord entry points.");
 assert(page.includes('href="/signup?intent=book" data-book-entry') && page.includes('href="/signup?intent=work" data-cleaner-entry'), "Homepage still points at retired pages.");
 assert(!page.includes('href="/request"') && !page.includes('href="/join"') && !page.includes('href="/cleaners"'), "Homepage exposes a retired route.");
 assert(page.includes('/account-menu.js?') && script.includes('window.addEventListener("homle:account-ready"'), "Homepage session recovery or account menu was removed.");
-// Role choice is now two plainly-labelled links rather than one dropdown: the
-// header signs a customer up, the footer sends a cleaner to the work intent.
-// home.js keeps its dropdown handling for the pages that still use one.
+assert(page.includes('class="ci-signup-menu" data-signup-menu') && page.includes('<summary class="ci-signup">Sign up</summary>'), "The homepage lost its one-action role chooser.");
 assert(page.includes('data-book-entry data-entry-label-fixed') && page.includes('data-cleaner-entry data-entry-label-fixed'), "The homepage lost a fixed-label role entry, so home.js can overwrite the CTA wording.");
 assert(/>Work as a cleaner</.test(page), "The homepage no longer offers cleaners a way to sign up.");
 assert(script.includes("signupMenu.open = false"), "home.js lost its dismissible role-selection menu handling.");

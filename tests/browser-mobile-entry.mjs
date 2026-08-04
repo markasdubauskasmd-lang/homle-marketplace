@@ -37,30 +37,38 @@ try {
   // synchronously on import, before its /api/health call resolves.
   const entry = await browser.evaluate(`
     const login = document.querySelector("[data-account-entry]");
-    const signup = document.querySelector("[data-book-entry]");
+    const signupMenu = document.querySelector("[data-signup-menu]");
+    const signup = signupMenu.querySelector("summary");
+    signupMenu.open = true;
+    const bookAccount = signupMenu.querySelector("[data-book-entry]");
+    const cleanerAccount = signupMenu.querySelector("[data-cleaner-entry]");
     const rect = (el) => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, width: r.width, height: r.height }; };
     return {
       width: window.innerWidth,
       documentWidth: document.documentElement.clientWidth,
       scrollWidth: document.documentElement.scrollWidth,
       login: { hidden: login.hidden, href: login.getAttribute("href"), display: getComputedStyle(login).display, ...rect(login) },
-      signup: { href: signup.getAttribute("href"), text: signup.textContent.trim(), display: getComputedStyle(signup).display, ...rect(signup) }
+      signup: { text: signup.textContent.trim(), display: getComputedStyle(signup).display, ...rect(signup) },
+      bookAccount: { href: bookAccount.getAttribute("href"), text: bookAccount.querySelector("strong").textContent.trim(), ...rect(bookAccount) },
+      cleanerAccount: { href: cleanerAccount.getAttribute("href"), text: cleanerAccount.querySelector("strong").textContent.trim(), ...rect(cleanerAccount) }
     };
   `);
   assert(entry.width === 390, `The responsive proof did not receive the requested viewport: ${entry.width}.`);
   assert(entry.scrollWidth === entry.documentWidth, "The landing page overflows horizontally at 390px.");
   assert(entry.login.hidden === false && entry.login.display !== "none" && entry.login.href === "/login",
     `The mobile Log in control is hidden or misrouted: ${JSON.stringify(entry.login)}.`);
-  assert(entry.signup.display !== "none" && entry.signup.href === "/signup?intent=book",
-    `The mobile Sign up control is hidden or misrouted: ${JSON.stringify(entry.signup)}.`);
+  assert(entry.signup.display !== "none" && entry.signup.text === "Sign up",
+    `The mobile Sign up control is hidden or mislabelled: ${JSON.stringify(entry.signup)}.`);
   // The header pair is the only account entry above the fold, so both have to be
   // comfortably tappable and fully inside the viewport.
   for (const [name, control] of [["Log in", entry.login], ["Sign up", entry.signup]]) {
     assert(control.height >= 44 && control.left >= 0 && control.right <= entry.documentWidth,
       `The ${name} control is clipped or too small to tap: ${JSON.stringify(control)}.`);
   }
-  // home.js must not have eaten the label: the Sign up entry is label-fixed.
-  assert(entry.signup.text === "Sign up", `The Sign up label was overwritten: "${entry.signup.text}".`);
+  assert(entry.bookAccount.href === "/signup?intent=book" && entry.bookAccount.text === "Book cleaning" && entry.bookAccount.height >= 48,
+    `The mobile customer role is missing, misrouted or too small: ${JSON.stringify(entry.bookAccount)}.`);
+  assert(entry.cleanerAccount.href === "/signup?intent=work" && entry.cleanerAccount.text === "Work as a cleaner" && entry.cleanerAccount.height >= 48,
+    `The mobile Cleaner role is missing, misrouted or too small: ${JSON.stringify(entry.cleanerAccount)}.`);
 
   // Walk the whole page the way a visitor would. Every act pins and unpins, and
   // none of them may push the document sideways while it moves — the design is
