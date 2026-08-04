@@ -35,8 +35,11 @@ function environmentEntry(key) {
   return match?.[1] || "";
 }
 
-for (const key of ["PILOT_INTAKE_ENABLED", "MARKETPLACE_ENABLED", "PUBLIC_MARKETPLACE_APPROVED", "LEGAL_BUSINESS_READY", "INSURANCE_READY", "CLEANER_SUPPLY_READY", "PRICING_POLICY_APPROVED", "CUSTOMER_SUPPORT_READY", "CUSTOMER_TERMS_READY", "MARKETPLACE_WORKER_ENABLED", "WORKER_EMAIL_ENABLED", "WORKER_MEDIA_ENABLED", "WORKER_AUTOMATIC_DISPATCH_ENABLED", "PAYMENTS_ENABLED", "PUBLIC_PAYMENTS_APPROVED", "PAYMENT_ACCOUNT_VERIFIED", "REFUND_PROCESS_READY"]) {
+for (const key of ["PILOT_INTAKE_ENABLED", "PUBLIC_MARKETPLACE_APPROVED", "LEGAL_BUSINESS_READY", "INSURANCE_READY", "CLEANER_SUPPLY_READY", "PRICING_POLICY_APPROVED", "CUSTOMER_SUPPORT_READY", "CUSTOMER_TERMS_READY", "MARKETPLACE_WORKER_ENABLED", "WORKER_EMAIL_ENABLED", "WORKER_MEDIA_ENABLED", "WORKER_AUTOMATIC_DISPATCH_ENABLED", "PAYMENTS_ENABLED", "PUBLIC_PAYMENTS_APPROVED", "PAYMENT_ACCOUNT_VERIFIED", "REFUND_PROCESS_READY"]) {
   assert.equal(environmentEntry(key), "value: \"false\"", `${key} must be explicitly false in the preview Blueprint.`);
+}
+for (const key of ["MARKETPLACE_ENABLED", "MAP_PROVIDER", "GEOCODING_PROVIDER", "ADDRESS_LOOKUP_PROVIDER", "ETA_PROVIDER"]) {
+  assert.equal(environmentEntry(key), "sync: false", `${key} must preserve the existing Render service value during Blueprint sync.`);
 }
 assert.equal(environmentEntry("AUTHENTICATION_ENABLED"), 'value: "true"', "Approved staging accounts must be able to create and access private profiles in the preview.");
 assert.equal(environmentEntry("APP_ORIGIN"), 'value: "https://homle-marketplace-preview.onrender.com"', "APP_ORIGIN must match the assigned HTTPS preview origin without a manual secret step.");
@@ -54,10 +57,6 @@ assert.equal(environmentEntry("TRUST_PROXY_PROVIDER"), "value: \"render\"", "Ren
 assert.equal(environmentEntry("TRUSTED_PROXY_CIDRS"), "value: \"\"", "Generic trusted proxy networks must remain blank in Render mode.");
 assert.equal(environmentEntry("MARKETPLACE_ADAPTER_MODULE"), "value: \"homle:render-log-monitoring\"", "The free preview must have privacy-minimal operational monitoring prepared before marketplace activation.");
 assert.equal(environmentEntry("RENDER_LOG_MONITORING_ACKNOWLEDGED"), "value: \"true\"", "Authentication requires the owner-confirmed restricted Render log-access boundary.");
-assert.equal(environmentEntry("MAP_PROVIDER"), 'value: "none"', "The Render preview must keep the Google Cleaner map inactive.");
-assert.equal(environmentEntry("GEOCODING_PROVIDER"), 'value: "none"', "The Render preview must keep Google postcode geocoding inactive.");
-assert.equal(environmentEntry("ADDRESS_LOOKUP_PROVIDER"), 'value: "none"', "The Render preview must keep Google address search inactive.");
-assert.equal(environmentEntry("ETA_PROVIDER"), 'value: "straight-line"', "The Render preview must use the local journey estimate while Google Routes is inactive.");
 for (const key of ["GOOGLE_MAPS_BROWSER_API_KEY", "GOOGLE_MAPS_SERVER_API_KEY"]) assert.equal(environmentEntry(key), "", `${key} must not be requested while Google Maps is inactive.`);
 
 for (const secret of ["DATABASE_URL", "REALTIME_DATABASE_URL", "SMTP_URL", "GOOGLE_CLIENT_SECRET", "FACEBOOK_APP_SECRET", "STRIPE_SECRET_KEY", "OBJECT_STORAGE_SECRET_ACCESS_KEY"]) {
@@ -65,4 +64,4 @@ for (const secret of ["DATABASE_URL", "REALTIME_DATABASE_URL", "SMTP_URL", "GOOG
 }
 assert.match(blueprint, /^\s+- key: DATABASE_BOOTSTRAP_URL\s*\r?\n\s+fromDatabase:\s*\r?\n\s+name: homle-marketplace-staging-db\s*\r?\n\s+property: connectionString\s*$/m, "The guarded bootstrap does not use Render's private database connection reference.");
 
-console.log("Render Blueprint tests passed: one free Docker web service plus one isolated free PostgreSQL 16 staging database, guarded one-time schema bootstrap, no worker/disk/domain, generated secrets and all public marketplace/payment capabilities closed.");
+console.log("Render Blueprint tests passed: one free Docker web service plus one isolated free PostgreSQL 16 staging database, guarded one-time schema bootstrap, operator-owned staging activation/providers, no worker/disk/domain, generated secrets and all public marketplace/payment capabilities closed.");
