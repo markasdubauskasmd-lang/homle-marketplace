@@ -69,3 +69,14 @@ export function supportRequestPage(value) {
     offset: Number.isInteger(source.offset) ? source.offset : 0
   });
 }
+
+export function activeBookingChangeRequestFor(records, bookingId) {
+  const normalizedBookingId = String(bookingId || "").trim().toLowerCase();
+  if (!uuidPattern.test(normalizedBookingId)) return null;
+  const source = Array.isArray(records) ? records : [];
+  return source.find((record) => (
+    record?.category === "booking-change"
+    && record.bookingId === normalizedBookingId
+    && ["open", "reviewing"].includes(record.status)
+  )) || null;
+}

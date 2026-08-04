@@ -8,6 +8,7 @@ Homle now has an authenticated, in-app support path for Landlords and a separate
   - Opens only for an authenticated Landlord role.
   - Accepts account-access, property, room-scan, booking-preparation, confirmed-booking change or other questions.
   - A confirmed booking card can open the page with that booking preselected.
+  - While a change is open or under review, the same booking card shows the request state and links to its private history instead of offering a duplicate request.
   - A booking-change request records reschedule or cancel as structured data. Reschedule also requires a future proposed start within 365 days.
   - Shows only the current account's request history and final in-app responses.
   - Uses a client retry UUID so an uncertain mobile retry does not create a duplicate.
@@ -27,7 +28,9 @@ returns an exact concurrent retry instead of creating a second record.
 This is operational intake, not a booking state transition. Submission and
 Administrator response do not change the scheduled time, booking status, Cleaner
 commitment, payment or notification state. The UI says this before submission and
-again in the resulting request history. That fail-closed boundary is intentional:
+again on the booking card and in the resulting request history. The dashboard loads
+support independently, so a temporary support-history failure cannot hide properties,
+requests or bookings. That fail-closed boundary is intentional:
 actual rescheduling or cancellation must wait for founder-approved notice,
 cancellation, refund/payment-adjustment and Cleaner-compensation policies.
 

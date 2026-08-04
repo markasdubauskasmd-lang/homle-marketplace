@@ -113,6 +113,13 @@ restricted database function. Administrators see the request in the existing que
 without receiving an address, access instruction, payment detail or Cleaner contact
 information.
 
+Once submitted, the confirmed booking card now reconciles the open request from the
+same owner-only support projection. It shows the requested action and current support
+state, includes the preferred replacement time where relevant and replaces the
+duplicate request action with **View change request**. Support history is loaded as a
+non-blocking dashboard dependency, so a temporary failure cannot prevent properties,
+cleaning requests or bookings from opening.
+
 Creating or answering the request deliberately performs no booking, payment,
 notification or Cleaner action. Actual mutation remains a P0/P1 operating-policy
 dependency: Homle first needs approved cancellation windows, refund/payment
