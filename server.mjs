@@ -249,6 +249,23 @@ const mimeTypes = {
   ".woff2": "font/woff2"
 };
 
+// These public/Landlord assets are content-addressed. Their URLs change when
+// their bytes change, so browsers may safely retain them across later deploys.
+// Keep the original logo and JPEG fallbacks uncached because their stable URLs
+// are still used inside the strictly untouched Cleaner Dashboard boundary.
+const immutableStaticAssets = new Set([
+  "/homle-logo-128-4f82ebad.png",
+  "/homle-logo-192-c8defd4b.png",
+  "/landing/open-plan-living-480-15f06faa.webp",
+  "/landing/open-plan-living-960-bacccd4e.webp",
+  "/landing/open-plan-living-1600-c403e366.webp",
+  "/landing/open-plan-living-2200-f5b34bda.webp",
+  "/landing/open-plan-living-dirty-480-b39d33d1.webp",
+  "/landing/open-plan-living-dirty-960-f5c7de87.webp",
+  "/landing/open-plan-living-dirty-1600-23975b20.webp",
+  "/landing/open-plan-living-dirty-2200-6526a87e.webp"
+]);
+
 function setSecurityHeaders(response, requestPath = "", cspNonce = "") {
   const paymentPage = false;
   const activeJobPage = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
@@ -5435,14 +5452,7 @@ async function serveFile(requestPath, response, cspNonce = "") {
     // re-downloaded every time a Landlord opened the scan, on mobile data. Its
     // contents never change without the path changing, so it is safe to pin.
     const vendored = requestPath.startsWith("/vendor/");
-    // These public/Landlord derivatives are content-addressed. Their URL
-    // changes whenever their bytes change, so browsers may retain them without
-    // revalidating on every booking or account-entry visit. The original logo
-    // remains no-cache and on the Cleaner Dashboard's existing asset boundary.
-    const immutablePublicAsset = new Set([
-      "/homle-logo-128-4f82ebad.png",
-      "/homle-logo-192-c8defd4b.png"
-    ]).has(requestPath);
+    const immutablePublicAsset = immutableStaticAssets.has(requestPath);
     response.writeHead(200, {
       "Content-Type": mimeTypes[extension] || "application/octet-stream",
       "Cache-Control": extension === ".html" ? "no-store" : vendored || immutablePublicAsset ? "public, max-age=31536000, immutable" : "no-cache"

@@ -183,6 +183,24 @@ Benefit: more than 99% less logo transfer on the booking entry path, improving c
 mobile load time without redesigning the logo, changing a route or touching Cleaner
 Dashboard behaviour.
 
+## Responsive homepage hero transfer — implemented 4 August 2026
+
+Problem: the animated landing hero displayed two full-bleed 2200 px JPEG layers and
+eagerly downloaded both on every cold visit. Together they weighed 1,626,741 bytes,
+including on a narrow mobile viewport where most of those pixels could not be shown.
+
+Implemented: both layers retain their exact JPEG fallbacks, but modern browsers now
+choose a reviewed WebP at 480, 960, 1600 or 2200 px through `srcset` and `sizes`.
+The likely high-density phone pair totals 174,640 bytes, an 89.3% reduction; even the
+largest WebP pair totals 716,506 bytes, 56.0% less than the fallbacks. Filenames are
+content-addressed and only those exact paths receive immutable caching. Tests pin the
+eight asset hashes and sizes, responsive preload and picture markup, MIME/cache
+headers, JPEG fallback and unchanged Cleaner Dashboard asset boundary.
+
+Benefit: the principal first-view artwork arrives substantially faster on mobile and
+slower connections without changing the approved landing design, animation, route,
+booking logic or Cleaner Dashboard.
+
 ## Prioritised opportunities
 
 ### P0 — prove one genuine two-account booking rehearsal

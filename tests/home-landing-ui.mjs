@@ -1,4 +1,5 @@
 import { readFile, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -65,9 +66,38 @@ for (const file of media) {
   assert(page.includes(`/landing/${file}`), `Landing asset ${file} is shipped but never referenced.`);
 }
 
+// The two full-bleed JPEG fallbacks total more than 1.6 MB. Modern browsers get
+// one width-appropriate WebP for each layer instead, while older clients retain
+// the exact approved JPEG composition. Content hashes pin the reviewed bytes so
+// a visually different recompression cannot slip through as a performance edit.
+const responsiveHeroAssets = new Map([
+  ["open-plan-living-480-15f06faa.webp", [27_722, "15f06faafa68927cc61b980e7cc1b85cc9ee46d511b561af030dfa07bedc8272"]],
+  ["open-plan-living-960-bacccd4e.webp", [88_620, "bacccd4e204298d725566f482c5b3b8bb80a0e74a3d44a372ae407c7745d1e08"]],
+  ["open-plan-living-1600-c403e366.webp", [218_604, "c403e3668f77042148d3ae867e6fc1925b51310ead08a2192f427010e50cdeac"]],
+  ["open-plan-living-2200-f5b34bda.webp", [394_334, "f5b34bdad8d1e4cc125ff4496e1ed0a4f3764b7ab605e58b944a0b928f4c0085"]],
+  ["open-plan-living-dirty-480-b39d33d1.webp", [28_514, "b39d33d1cdef2424b2de7e2de4e2609f65ce3f029169ada68eefc52d4660ffb1"]],
+  ["open-plan-living-dirty-960-f5c7de87.webp", [86_020, "f5c7de87d009aa73eaec5ad7df6bfccc730a915b7483562256131fb3a669ebac"]],
+  ["open-plan-living-dirty-1600-23975b20.webp", [189_190, "23975b2029b9c1d5f70167e12e7ce6d63db5f1071bfea05ee7520c0ed65c46b9"]],
+  ["open-plan-living-dirty-2200-6526a87e.webp", [322_172, "6526a87e9c912e96118ae66b14fae56b58c6b6ac1850c5a5a5ad7df86bb3a5eb"]]
+]);
+for (const [file, [expectedBytes, expectedHash]] of responsiveHeroAssets) {
+  const body = await readFile(new URL(`../public/landing/${file}`, import.meta.url));
+  assert(body.length === expectedBytes, `Responsive hero asset ${file} changed size without review.`);
+  assert(createHash("sha256").update(body).digest("hex") === expectedHash, `Responsive hero asset ${file} changed visual bytes without review.`);
+  assert(page.includes(`/landing/${file}`), `Responsive hero asset ${file} is not wired into the homepage.`);
+  assert(server.includes(`"/landing/${file}"`), `Responsive hero asset ${file} is not in the immutable cache allow-list.`);
+}
+const [cleanOriginal, dirtyOriginal] = await Promise.all([
+  stat(new URL("../public/landing/open-plan-living.jpg", import.meta.url)),
+  stat(new URL("../public/landing/open-plan-living-dirty.jpg", import.meta.url))
+]);
+assert((88_620 + 86_020) <= (cleanOriginal.size + dirtyOriginal.size) * 0.12, "The mobile hero path no longer saves at least 88% versus the JPEG fallbacks.");
+assert((page.match(/<picture>/g) || []).length >= 2 && page.includes('type="image/webp"') && page.includes('imagesrcset="/landing/open-plan-living-480-15f06faa.webp 480w') && page.includes('imagesizes="100vw"'), "The hero does not preload and render responsive WebP sources.");
+assert(page.includes('src="/landing/open-plan-living.jpg"') && page.includes('src="/landing/open-plan-living-dirty.jpg"'), "The responsive hero removed its legacy JPEG fallbacks.");
+
 // Without these the clip is served as application/octet-stream, and a <video>
 // will not play that at all: the poster stays up and nothing ever happens.
-for (const [extension, type] of [[".mp4", "video/mp4"], [".jpg", "image/jpeg"], [".png", "image/png"]]) {
+for (const [extension, type] of [[".mp4", "video/mp4"], [".jpg", "image/jpeg"], [".png", "image/png"], [".webp", "image/webp"]]) {
   assert(server.includes(`"${extension}": "${type}"`), `The server does not serve ${extension} as ${type}, so the landing media cannot load.`);
 }
 
