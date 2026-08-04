@@ -11,6 +11,8 @@ assert.equal(cleanerOnboardingSections.length, 18);
 assert.deepEqual(normalizedCleanerOnboardingInput("personal", { status: "submitted", data: { firstName: " Ras ", livedUnderFiveYears: true } }), {
   section: "personal", status: "submitted", data: { firstName: "Ras", livedUnderFiveYears: true }, schemaVersion: 1
 });
+const previousAddress = { postcode: "SW1A 1AA", houseNumber: "10", street: "Example Road", town: "London", county: "Greater London", country: "United Kingdom", fromMonth: "02", fromYear: "2022", yearsLived: "2.5" };
+assert.deepEqual(normalizedCleanerOnboardingInput("personal", { status: "submitted", data: { livedUnderFiveYears: true, previousAddresses: [previousAddress] } }).data.previousAddresses, [previousAddress]);
 assert.throws(() => normalizedCleanerOnboardingInput("banking", { data: { sortCode: "00-00-00" } }), /Stripe/);
 assert.throws(() => normalizedCleanerOnboardingInput("personal", { data: { portrait: "data:image/png;base64,abc" } }), /embedded file data/);
 
@@ -45,6 +47,9 @@ assert.equal(saved.status, "submitted");
 assert.equal(saved.data.provider, "Example Mutual");
 assert.equal((await service.getOwnSection(actor, "insurance")).data.policyExpiry, "2027-08-01");
 assert.equal((await service.listOwnSections(actor)).length, 1);
+const savedPersonal = await service.saveOwnSection(actor, "personal", { status: "submitted", data: { livedUnderFiveYears: true, previousAddresses: [previousAddress] } });
+assert.deepEqual(savedPersonal.data.previousAddresses, [previousAddress]);
+assert.deepEqual((await service.getOwnSection(actor, "personal")).data.previousAddresses, [previousAddress]);
 await assert.rejects(() => service.listOwnSections({ userId: cleanerId, roles: ["landlord"] }), /Cleaner account/);
 
 console.log("Cleaner onboarding encryption, validation and persistence service passed.");

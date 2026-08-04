@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Marketplace funnel | Homle</title>
+  <link rel="icon" href="/homle-logo.png" type="image/png">
+  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
+  <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <link rel="stylesheet" href="/admin-funnel.css?v=20260804-1">
+  <script type="module" src="/admin-funnel.js?v=20260804-1"></script>
+</head>
+<body class="funnel-page">
+  <a class="skip-link" href="#funnel-main">Skip to funnel report</a>
+  <header class="funnel-header"><div class="shell funnel-nav"><a class="brand" href="/admin"><img src="/homle-logo.png" alt="" width="42" height="42"><span>Homle</span></a><nav aria-label="Administrator"><a href="/admin">Control desk</a><a href="/admin/bookings">Booking operations</a><a href="/admin/support">Landlord support</a><a href="/admin/coverage">Coverage</a><a aria-current="page" href="/admin/funnel">Funnel</a></nav></div></header>
+  <main id="funnel-main" class="shell funnel-main">
+    <section class="funnel-gate" data-funnel-gate role="status" aria-live="polite"><strong data-funnel-gate-title>Checking secure Administrator access…</strong><p data-funnel-gate-copy>Only aggregate marketplace stage counts are shown here.</p><div><a class="button" href="/login" data-funnel-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-funnel-retry hidden>Try again</button></div></section>
+    <div data-funnel-workspace hidden>
+      <header class="funnel-heading"><div><p class="eyebrow">Privacy-minimal business analytics</p><h1>Where Landlords stop</h1><p>See which essential marketplace stages need attention without inspecting a person, property, scan or payment.</p></div><div class="funnel-controls"><label>Reporting window<select data-funnel-window><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select></label><button class="button button-outline" type="button" data-funnel-refresh>Refresh</button></div></header>
+      <aside class="funnel-boundary"><strong>Three honest cohorts—not one misleading funnel.</strong><p>Account setup, cleaning requests and payments start on different dates, so each lane has its own cohort. Fresh records are excluded for 24 hours. Counts contain no names, emails, postcodes, addresses, notes, photos, provider IDs or prices.</p></aside>
+      <div class="funnel-feedback" data-funnel-feedback role="alert" hidden></div>
+      <p class="funnel-cohort" data-funnel-cohort></p>
+      <section class="funnel-report" data-funnel-report aria-label="Marketplace funnel" aria-live="polite" aria-busy="true"></section>
+      <p class="funnel-generated" data-funnel-generated aria-live="polite"></p>
+    </div>
+  </main>
+</body>
+</html>

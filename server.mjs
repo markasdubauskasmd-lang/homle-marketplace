@@ -5402,6 +5402,7 @@ async function serveFile(requestPath, response, cspNonce = "") {
     "/admin/cases": "admin-cases.html",
     "/admin/support": "admin-support.html",
     "/admin/coverage": "admin-coverage.html",
+    "/admin/funnel": "admin-funnel.html",
     "/admin/payments": "admin-payments.html",
     "/admin/scan-pricing": "admin-scan-pricing.html",
     "/admin/scan-operations": "admin-scan-operations.html",

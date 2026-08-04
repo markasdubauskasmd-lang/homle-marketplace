@@ -286,12 +286,29 @@ const administratorCoverageService = {
     };
   }
 };
+const administratorFunnelService = {
+  async get(actor, input) {
+    calls.push({ kind: "administrator-funnel-get", actor, input });
+    return {
+      windowDays: Number(input.windowDays) || 30,
+      generatedAt: "2026-08-04T12:00:00.000Z",
+      cohortStartAt: "2026-07-05T12:00:00.000Z",
+      cohortEndAt: "2026-08-03T12:00:00.000Z",
+      maturityHours: 24,
+      privacyScope: "Aggregate stage counts only.",
+      cohortPolicy: "Each lane is an independent cohort.",
+      onboarding: { accountCount: 0, profileCount: 0, propertyCount: 0 },
+      requestJourney: { requestCount: 0, scanCount: 0, submittedCount: 0, bookingCount: 0, completedCount: 0, reviewCount: 0 },
+      payments: { bookingCount: 0, paymentRecordCount: 0, authorizedCount: 0, capturedCount: 0, refundedCount: 0 }
+    };
+  }
+};
 const scanGroundTruthService = {
   async getQueue(actor, limit) { calls.push({ kind: "truth-queue", actor, limit }); return []; },
   async recordVerdict(actor, objectId, input) { calls.push({ kind: "truth-record", actor, objectId, input }); return { groundTruthId: "t", objectId, ...input }; },
   async getReport(actor) { calls.push({ kind: "truth-report", actor }); return { labelledTotal: 0 }; }
 };
-const dependencies = { security, scanGroundTruthService, cleanerProfileService, cleanerOnboardingService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const dependencies = { security, scanGroundTruthService, cleanerProfileService, cleanerOnboardingService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -365,6 +382,8 @@ const adminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/
 const landlordAdminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings", { headers: { cookie: authHeaders.cookie } });
 const adminCoverage = await dispatch(router, "GET", "/api/marketplace/admin/coverage?windowDays=90", { headers: { cookie: administratorAuthHeaders.cookie } });
 const landlordAdminCoverage = await dispatch(router, "GET", "/api/marketplace/admin/coverage", { headers: { cookie: authHeaders.cookie } });
+const adminFunnel = await dispatch(router, "GET", "/api/marketplace/admin/funnel?windowDays=90", { headers: { cookie: administratorAuthHeaders.cookie } });
+const landlordAdminFunnel = await dispatch(router, "GET", "/api/marketplace/admin/funnel", { headers: { cookie: authHeaders.cookie } });
 const adminMatchingReadiness = await dispatch(router, "GET", "/api/marketplace/admin/cleaning-requests/66666666-6666-4666-8666-666666666666/matching-readiness", { headers: { cookie: administratorAuthHeaders.cookie } });
 const landlordAdminMatchingReadiness = await dispatch(router, "GET", "/api/marketplace/admin/cleaning-requests/66666666-6666-4666-8666-666666666666/matching-readiness", { headers: { cookie: authHeaders.cookie } });
 const relatedPaymentQueue = await dispatch(router, "GET", `/api/marketplace/admin/payments?bookingId=${paymentBookingId}`, { headers: { cookie: administratorAuthHeaders.cookie } });
@@ -376,6 +395,7 @@ const refundedPayment = await dispatch(router, "POST", "/api/marketplace/admin/p
 assert(adminPaymentQueue.response.statusCode === 200 && adminPaymentQueue.body.testMode === true && calls.find((call) => call.kind === "payment-admin-list")?.input.status === "actionable" && landlordPaymentQueue.response.statusCode === 403 && missingAdminPaymentCsrf.response.statusCode === 403, "Administrator payment queue lost role isolation, exact filters, test-mode proof or CSRF protection.");
 assert(adminBookingQueue.response.statusCode === 200 && landlordAdminBookingQueue.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-booking-list")?.input.view === "attention", "Administrator booking operations lost role isolation or its exact view filter.");
 assert(adminCoverage.response.statusCode === 200 && adminCoverage.body.windowDays === 90 && landlordAdminCoverage.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-coverage-get")?.actor.roles.includes("administrator"), "Administrator coverage lost its role isolation or exact reporting window.");
+assert(adminFunnel.response.statusCode === 200 && adminFunnel.body.windowDays === 90 && landlordAdminFunnel.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-funnel-get")?.actor.roles.includes("administrator"), "Administrator funnel lost its role isolation or exact reporting window.");
 
 // Administrator cleaner-verification queue and status setting are administrator-only and CSRF-protected.
 const adminVerificationQueue = await dispatch(router, "GET", "/api/marketplace/admin/cleaner-verifications?view=awaiting&limit=25", { headers: { cookie: administratorAuthHeaders.cookie } });
@@ -659,7 +679,7 @@ const baseEnvironment = {
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtimeAbuseControl = { rateLimiter: { async consume() { return { allowed: true }; } }, clientKey: () => "test-client" };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.geocodingReady === false && runtime.matchingReady === false && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.disputeService && runtime.disputeRepository && runtime.supportRequestService && runtime.supportRequestRepository && runtime.administratorCoverageService && runtime.administratorCoverageRepository && runtime.privacyRequestService && runtime.privacyRequestRepository && runtime.cleanerPayoutRepository && runtime.cleanerPayoutService === null && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews, disputes, Landlord support, aggregate coverage, privacy requests, payout repository and HTTP layers or safely keep incomplete provider delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.geocodingReady === false && runtime.matchingReady === false && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.disputeService && runtime.disputeRepository && runtime.supportRequestService && runtime.supportRequestRepository && runtime.administratorCoverageService && runtime.administratorCoverageRepository && runtime.administratorFunnelService && runtime.administratorFunnelRepository && runtime.privacyRequestService && runtime.privacyRequestRepository && runtime.cleanerPayoutRepository && runtime.cleanerPayoutService === null && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews, disputes, Landlord support, aggregate coverage, aggregate funnel, privacy requests, payout repository and HTTP layers or safely keep incomplete provider delivery detached.");
 let unconfiguredEmailRejected = false;
 assert(runtime.requestMediaService && runtime.requestMediaRepository, "Marketplace runtime did not compose private cleaning-request room media.");
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl, emailDelivery: { send() {} } }); } catch (error) { unconfiguredEmailRejected = error.message.includes("requires one configured HTTPS or SMTP email provider and EMAIL_FROM"); }

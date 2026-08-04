@@ -34,6 +34,7 @@ DECLARE
   room_measurements_installed boolean := false;
   landlord_support_installed boolean := false;
   administrator_coverage_installed boolean := false;
+  administrator_funnel_installed boolean := false;
   property_archiving_installed boolean := false;
   property_restoration_installed boolean := false;
   cleaner_onboarding_records_installed boolean := false;
@@ -247,6 +248,8 @@ BEGIN
       INTO cleaner_onboarding_records_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 85)'
       INTO cleaner_address_lookup_rate_limit_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 87)'
+      INTO administrator_funnel_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -277,6 +280,7 @@ BEGIN
     property_archiving_installed := to_regprocedure('tideway_private.archive_my_property(uuid)') IS NOT NULL;
     property_restoration_installed := to_regprocedure('tideway_private.restore_my_property(uuid)') IS NOT NULL;
     cleaner_onboarding_records_installed := to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NOT NULL;
+    administrator_funnel_installed := to_regprocedure('tideway_private.get_administrator_funnel_report(integer)') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
@@ -361,6 +365,25 @@ BEGIN
         AND position('cleanerId' IN procedure.prosrc)=0
     ) THEN
       RAISE EXCEPTION 'Administrator coverage report is missing, overprivileged or does not use the eligibility matcher';
+    END IF;
+  END IF;
+  IF administrator_funnel_installed THEN
+    app_functions := app_functions || ARRAY[
+      'tideway_private.get_administrator_funnel_report(integer)'
+    ];
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.get_administrator_funnel_report(integer)')
+        AND position('has_role(''administrator'')' IN procedure.prosrc)>0
+        AND position('interval ''24 hours''' IN procedure.prosrc)>0
+        AND position('Aggregate stage counts only' IN procedure.prosrc)>0
+        AND position('addressLine' IN procedure.prosrc)=0
+        AND position('exactPostcode' IN procedure.prosrc)=0
+        AND position('emailAddress' IN procedure.prosrc)=0
+        AND position('avatarUrl' IN procedure.prosrc)=0
+    ) THEN
+      RAISE EXCEPTION 'Administrator funnel report is missing, overprivileged or exposes a private field';
     END IF;
   END IF;
   IF property_archiving_installed THEN
@@ -1073,6 +1096,7 @@ SELECT json_build_object(
   'appFunctionChecks', 48
     + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END
     + CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END
+    + CASE WHEN to_regprocedure('tideway_private.get_administrator_funnel_report(integer)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.archive_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.restore_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NULL THEN 0 ELSE 2 END,

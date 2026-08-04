@@ -2532,6 +2532,38 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 .hc-personal-toggle-input:checked + .hc-personal-toggle::after { transform: translateX(16px); }
 .hc-personal-toggle-input:focus-visible + .hc-personal-toggle { outline: 2px solid var(--hc-red); outline-offset: 2px; }
 
+.hc-previous-addresses {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid var(--hc-rule);
+  border-radius: 12px;
+  background: #fdfaf4;
+}
+
+.hc-previous-addresses[hidden] { display: none; }
+.hc-previous-addresses-head,
+.hc-previous-address-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.hc-previous-addresses-head > span { display: grid; gap: 4px; }
+.hc-previous-addresses-head strong { font-size: 12px; }
+.hc-previous-addresses-head small { color: var(--hc-muted-2); font-size: 9px; font-weight: 400; }
+.hc-previous-address-add,
+.hc-previous-address-remove {
+  padding: 8px 12px;
+  color: var(--hc-red);
+  border: 1px solid #efb9ad;
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 9.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.hc-previous-address-remove:disabled { opacity: .45; cursor: default; }
+.hc-previous-address-list { display: grid; gap: 14px; margin-top: 14px; }
+.hc-previous-address { min-width: 0; margin: 0; padding: 14px; border: 1px solid var(--hc-rule-soft); border-radius: 11px; background: #ffffff; }
+.hc-previous-address-title { margin-bottom: 13px; }
+.hc-previous-address-title legend { width: auto; margin: 0; color: var(--hc-ink); font-size: 10.5px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+.hc-previous-address-dates { margin-top: 13px; }
+
 .hc-personal-photo {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr) auto;
@@ -5170,6 +5202,8 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-personal-grid-four,
   .hc-personal-grid-three,
   .hc-personal-address-top { grid-template-columns: 1fr; }
+  .hc-previous-addresses-head { align-items: flex-start; flex-direction: column; }
+  .hc-previous-address-add { width: 100%; }
   .hc-personal-photo { grid-template-columns: 56px minmax(0, 1fr); }
   .hc-personal-photo-preview-wrap { width: 56px; height: 56px; }
   .hc-personal-photo-button { grid-column: 1 / -1; width: 100%; }

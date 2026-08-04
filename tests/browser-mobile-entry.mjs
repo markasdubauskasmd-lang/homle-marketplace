@@ -109,15 +109,24 @@ try {
   const closing = await browser.evaluate(`
     const join = document.querySelector("[data-stage='join'] a[data-book-entry]");
     const cleaner = document.querySelector("[data-cleaner-entry]");
+    const login = document.querySelector(".ci-join-foot a[href='/login']");
+    const footerLinks = [...document.querySelectorAll(".ci-footer-links a")];
+    const rect = (element) => element ? (() => { const box = element.getBoundingClientRect(); return { width: box.width, height: box.height }; })() : null;
     return {
       joinHref: join ? join.getAttribute("href") : null,
       joinText: join ? join.textContent.trim() : null,
-      cleanerHref: cleaner ? cleaner.getAttribute("href") : null
+      cleanerHref: cleaner ? cleaner.getAttribute("href") : null,
+      login: { href: login ? login.getAttribute("href") : null, ...rect(login) },
+      footerLinks: footerLinks.map((link) => ({ href: link.getAttribute("href"), ...rect(link) }))
     };
   `);
   assert(closing.joinHref === "/signup?intent=book", `The closing call to action does not sign anyone up: ${closing.joinHref}.`);
   assert(closing.joinText === "Create your Homle account", `The closing label was overwritten: "${closing.joinText}".`);
   assert(closing.cleanerHref === "/signup?intent=work", `Cleaners cannot sign up from the landing page: ${closing.cleanerHref}.`);
+  assert(closing.login.href === "/login" && closing.login.height >= 44,
+    `The closing Log in link is missing or too small to tap: ${JSON.stringify(closing.login)}.`);
+  assert(closing.footerLinks.length === 5 && closing.footerLinks.every((link) => link.height >= 44),
+    `The mobile footer links are missing or too small to tap: ${JSON.stringify(closing.footerLinks)}.`);
 
   assert(browser.pageErrors.length === 0,
     `The mobile account entry threw in Chromium: ${browser.pageErrors.join(" | ")}`);
@@ -129,4 +138,4 @@ try {
 }
 
 if (failure) throw failure;
-console.log("Browser mobile-entry checks passed: 390px Log in and Sign up, no overflow across all six acts, photography and clip load, real sign-up routes.");
+console.log("Browser mobile-entry checks passed: 390px account and footer touch targets, no overflow across all six acts, photography and clip load, real sign-up routes.");

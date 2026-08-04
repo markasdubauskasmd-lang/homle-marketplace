@@ -128,6 +128,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.list_my_landlord_support_requests(inte
 GRANT EXECUTE ON FUNCTION tideway_private.list_administrator_support_requests(text,text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.review_landlord_support_request(uuid,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_administrator_coverage_report(integer,boolean) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_administrator_funnel_report(integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.archive_my_property(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.restore_my_property(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_cleaner_onboarding_sections() TO tideway_app;
