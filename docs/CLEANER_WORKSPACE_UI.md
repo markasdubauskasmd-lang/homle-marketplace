@@ -70,7 +70,7 @@ A step is never marked complete to raise the percentage, and the identity/DBS/in
 
 Each of these is a real, navigable route rendering the design's layout. What differs is the content: none presents a figure Homle did not compute.
 
-**Jobs map** keeps the frame's dimensions and treatment from the design but states that no map provider is configured, then lists every pending and confirmed job with a known area beneath it. `MAP_PROVIDER` is `none`, and the design's own map document loads Leaflet from unpkg with OpenStreetMap tiles — both blocked by this site's Content-Security-Policy, so an embedded map could not render even if the route existed.
+**Jobs map** uses the restricted Google Maps browser key to plot the approximate area shared for each pending or confirmed job. Exact customer addresses are not plotted here. A Cleaner can explicitly request a current-location marker through the browser permission prompt; the page-scoped Content-Security-Policy permits only the approved Google Maps assets and connections.
 
 **Performance** renders the rank card, the four-tier ladder and the criteria tiles with no tier assigned. There is no ranking engine, and two of the four inputs the design names are not recorded anywhere. Completed jobs and approved rating carry real values; on-time arrival and cancellation rate report that they are not tracked, and the page says plainly that ranking is not live.
 

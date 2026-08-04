@@ -24,8 +24,8 @@ function response() {
     headers: {},
     body: "",
     writeHead(statusCode, headers) { this.statusCode = statusCode; this.headers = headers; },
-    end(body = "") { this.body = String(body); },
-    parsed() { return JSON.parse(this.body); }
+    end(body = "") { this.body = body; },
+    parsed() { return JSON.parse(String(this.body)); }
   };
 }
 
@@ -33,7 +33,8 @@ async function dispatch(router, method, url, options) {
   const selectedRequest = request(method, url, options);
   const selectedResponse = response();
   const handled = await router.handle(selectedRequest, selectedResponse, new URL(url, "http://127.0.0.1:4173"));
-  return { handled, request: selectedRequest, response: selectedResponse, body: selectedResponse.parsed() };
+  const isJson = String(selectedResponse.headers?.["Content-Type"] || "").includes("application/json");
+  return { handled, request: selectedRequest, response: selectedResponse, body: isJson ? selectedResponse.parsed() : selectedResponse.body };
 }
 
 const sessionSecret = "marketplace-http-session-secret-over-thirty-two-characters";
@@ -237,6 +238,22 @@ const cleanerOnboardingService = {
   async getOwnSection(actor, section) { calls.push({ kind: "onboarding-get", actor, section }); return null; },
   async saveOwnSection(actor, section, input) { calls.push({ kind: "onboarding-save", actor, section, input }); return { section, status: input.status || "draft", data: input.data || {}, schemaVersion: 1, completedAt: null, updatedAt: "2026-08-01T10:00:00.000Z" }; }
 };
+const storedProfilePhoto = Buffer.from("sanitized-profile-photo");
+const cleanerProfilePhotoService = {
+  async getOwnPhoto(actor) { calls.push({ kind: "profile-photo-get", actor }); return { bytes: storedProfilePhoto, mimeType: "image/jpeg", byteSize: storedProfilePhoto.length, width: 320, height: 320, updatedAt: "2026-08-04T10:00:00.000Z" }; },
+  async saveOwnPhoto(actor, input) { calls.push({ kind: "profile-photo-save", actor, input }); return { mimeType: "image/jpeg", byteSize: 1234, width: 320, height: 320, updatedAt: "2026-08-04T10:00:00.000Z" }; }
+};
+const addressLookup = {
+  async searchAddresses(query, sessionToken) {
+    calls.push({ kind: "address-search", query, sessionToken });
+    return { suggestions: [{ id: "ChIJ12345678", address: "10 Example Road, Wallington, SM6 7LQ" }] };
+  },
+  async resolveAddress(id, sessionToken) {
+    calls.push({ kind: "address-resolve", id, sessionToken });
+    return { postcode: "SM6 7LQ", houseNumber: "10", street: "Example Road", town: "Wallington", county: "Greater London", country: "United Kingdom" };
+  }
+};
+const mapsClientConfig = { provider: "google-maps", apiKey: "browser-key", mapId: null, region: "GB", language: "en-GB" };
 let unexpectedError;
 let rateLimitedScope = "";
 let limiterFailure = null;
@@ -274,7 +291,7 @@ const scanGroundTruthService = {
   async recordVerdict(actor, objectId, input) { calls.push({ kind: "truth-record", actor, objectId, input }); return { groundTruthId: "t", objectId, ...input }; },
   async getReport(actor) { calls.push({ kind: "truth-report", actor }); return { labelledTotal: 0 }; }
 };
-const dependencies = { security, scanGroundTruthService, cleanerProfileService, cleanerOnboardingService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const dependencies = { security, scanGroundTruthService, cleanerProfileService, cleanerOnboardingService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -452,6 +469,25 @@ const missingOnboardingCsrf = await dispatch(router, "PUT", "/api/marketplace/cl
 const onboardingSaved = await dispatch(router, "PUT", "/api/marketplace/cleaner/onboarding/personal", { headers: cleanerAuthHeaders, body: { status: "submitted", data: { firstName: "Ras" } } });
 const landlordOnboarding = await dispatch(router, "GET", "/api/marketplace/cleaner/onboarding", { headers: { cookie: authHeaders.cookie } });
 assert(onboardingList.response.statusCode === 200 && Array.isArray(onboardingList.body.sections) && onboardingSection.response.statusCode === 200 && onboardingSection.body.section === null && missingOnboardingCsrf.response.statusCode === 403 && onboardingSaved.response.statusCode === 200 && onboardingSaved.body.section.data.firstName === "Ras" && landlordOnboarding.response.statusCode === 403 && calls.slice(-3).map((call) => call.kind).join(",") === "onboarding-list,onboarding-get,onboarding-save", "Cleaner onboarding routes lost owner role isolation, CSRF protection or exact saved data.");
+const photoUploadHeaders = { ...cleanerAuthHeaders, "content-type": "image/png" };
+const missingProfilePhotoCsrf = await dispatch(router, "PUT", "/api/marketplace/cleaner/profile-photo", { headers: { cookie: cleanerAuthHeaders.cookie, origin: cleanerAuthHeaders.origin, "content-type": "image/png" }, body: Buffer.from("source-photo") });
+const landlordProfilePhoto = await dispatch(router, "PUT", "/api/marketplace/cleaner/profile-photo", { headers: { ...authHeaders, "content-type": "image/png" }, body: Buffer.from("source-photo") });
+const profilePhotoSaved = await dispatch(router, "PUT", "/api/marketplace/cleaner/profile-photo", { headers: photoUploadHeaders, body: Buffer.from("source-photo") });
+const profilePhotoRead = await dispatch(router, "GET", "/api/marketplace/cleaner/profile-photo", { headers: { cookie: cleanerAuthHeaders.cookie } });
+assert(missingProfilePhotoCsrf.response.statusCode === 403 && landlordProfilePhoto.response.statusCode === 403 && profilePhotoSaved.response.statusCode === 200 && profilePhotoSaved.body.photo.mimeType === "image/jpeg" && profilePhotoRead.response.statusCode === 200 && profilePhotoRead.response.headers["Content-Type"] === "image/jpeg" && Buffer.compare(profilePhotoRead.body, storedProfilePhoto) === 0 && Buffer.compare(calls.findLast((call) => call.kind === "profile-photo-save").input.bytes, Buffer.from("source-photo")) === 0, "Cleaner profile photo routes lost role isolation, CSRF protection, exact binary upload or private image delivery.");
+const addressSessionToken = "9f35fdc8-e349-4bd2-b30f-f90dd3aa77cc";
+const missingAddressLookupCsrf = await dispatch(router, "POST", "/api/marketplace/cleaner/address-lookup", { headers: { cookie: cleanerAuthHeaders.cookie, origin: cleanerAuthHeaders.origin, "content-type": cleanerAuthHeaders["content-type"] }, body: { query: "10 Example Road", sessionToken: addressSessionToken } });
+const landlordAddressLookup = await dispatch(router, "POST", "/api/marketplace/cleaner/address-lookup", { headers: authHeaders, body: { query: "10 Example Road", sessionToken: addressSessionToken } });
+const addressSuggestions = await dispatch(router, "POST", "/api/marketplace/cleaner/address-lookup", { headers: cleanerAuthHeaders, body: { query: "10 Example Road", sessionToken: addressSessionToken } });
+const selectedAddress = await dispatch(router, "POST", "/api/marketplace/cleaner/address-lookup/resolve", { headers: cleanerAuthHeaders, body: { id: "ChIJ12345678", sessionToken: addressSessionToken } });
+assert(missingAddressLookupCsrf.response.statusCode === 403 && landlordAddressLookup.response.statusCode === 403 && addressSuggestions.response.statusCode === 200 && addressSuggestions.body.suggestions[0].id === "ChIJ12345678" && selectedAddress.response.statusCode === 200 && selectedAddress.body.address.street === "Example Road" && calls.findLast((call) => call.kind === "address-search")?.query === "10 Example Road" && calls.findLast((call) => call.kind === "address-resolve")?.id === "ChIJ12345678", "Cleaner address lookup lost CSRF, role isolation, session-scoped search, selection resolution or safe address details.");
+assert(calls.filter((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-cleaner:address-lookup").length === 2, "Metered Google address calls did not use the shared lookup allowance.");
+const mapConfig = await dispatch(router, "GET", "/api/marketplace/maps/config", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const landlordMapConfig = await dispatch(router, "GET", "/api/marketplace/maps/config", { headers: { cookie: authHeaders.cookie } });
+assert(mapConfig.response.statusCode === 200 && mapConfig.body.maps.apiKey === "browser-key" && !JSON.stringify(mapConfig.body).includes("server-key") && landlordMapConfig.response.statusCode === 403, "Google Maps browser configuration lost Cleaner isolation or exposed a server credential.");
+const noAddressLookupRouter = createMarketplaceHttpRouter({ ...dependencies, addressLookup: null }, { clientKey: () => trustedClientKey });
+const unavailableAddressLookup = await dispatch(noAddressLookupRouter, "POST", "/api/marketplace/cleaner/address-lookup", { headers: cleanerAuthHeaders, body: { query: "10 Example Road", sessionToken: addressSessionToken } });
+assert(unavailableAddressLookup.response.statusCode === 503 && unavailableAddressLookup.body.code === "address-lookup-not-configured", "An unconfigured address provider did not fail with a truthful safe response.");
 const wrongOrigin = await dispatch(router, "POST", "/api/marketplace/properties", { headers: { ...authHeaders, origin: "https://attacker.example" }, body: { name: "Attempt" } });
 assert(wrongOrigin.response.statusCode === 403 && wrongOrigin.body.code === "origin-rejected", "Property mutation accepted a cross-origin request.");
 const missingCsrf = await dispatch(router, "POST", "/api/marketplace/properties", { headers: { ...authHeaders, "x-csrf-token": "" }, body: { name: "Attempt" } });

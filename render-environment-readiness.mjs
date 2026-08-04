@@ -131,7 +131,15 @@ function marketplaceRuntimeMissing(values) {
     if (!exact(values.get(rule.key))) missing.push(rule.key);
     else if (!boundedInteger(values.get(rule.key), rule.minimum, rule.maximum)) missing.push(`valid ${rule.key}`);
   }
-  if (exact(values.get("GEOCODING_PROVIDER")).toLowerCase() !== "postcodes-io") missing.push("GEOCODING_PROVIDER=postcodes-io");
+  for (const [key, expected] of [
+    ["MAP_PROVIDER", "google-maps"],
+    ["GEOCODING_PROVIDER", "google-maps"],
+    ["ADDRESS_LOOKUP_PROVIDER", "google-maps"],
+    ["ETA_PROVIDER", "google-maps"]
+  ]) {
+    if (exact(values.get(key)).toLowerCase() !== expected) missing.push(`${key}=${expected}`);
+  }
+  missing.push(...missingPresentKeys(values, ["GOOGLE_MAPS_BROWSER_API_KEY", "GOOGLE_MAPS_SERVER_API_KEY"]));
   return [...new Set(missing)];
 }
 

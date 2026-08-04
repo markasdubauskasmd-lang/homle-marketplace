@@ -1,8 +1,11 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
 import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { storedCsrf } from "./session-csrf.js";
 
 const draftKey = "homle-cleaner-personal-details-draft-v1";
 const draftLifetimeMs = 8 * 60 * 60 * 1000;
+const maximumProfilePhotoBytes = 5 * 1024 * 1024;
+const acceptedProfilePhotoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function safeSessionStorage() {
   try {
@@ -103,13 +106,85 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   const storedFields = onboardingResult.status === "fulfilled" ? onboardingResult.value.section?.data || {} : {};
   Object.entries({ ...defaults, ...draft, ...storedFields, email: account.email || "" }).forEach(([name, value]) => putValue(form, name, value));
 
-  const connectedPhoto = Boolean(profile?.profilePhotoUrl || account.avatarUrl);
   const photoTitle = document.querySelector("[data-personal-photo-title]");
   const photoCopy = document.querySelector("[data-personal-photo-copy]");
-  const photoAction = document.querySelector(".hc-personal-photo-action");
-  if (photoTitle) photoTitle.textContent = connectedPhoto ? "Profile photo connected" : "No profile photo connected";
-  if (photoCopy) photoCopy.textContent = connectedPhoto ? "Homle uses your verified account photo." : "A verified sign-in photo will appear here when available.";
-  if (photoAction) photoAction.textContent = connectedPhoto ? "Connected" : "Not connected";
+  const photoStatus = document.querySelector("[data-personal-photo-status]");
+  const photoPreview = document.querySelector("[data-personal-photo-preview]");
+  const photoPlaceholder = document.querySelector("[data-personal-photo-placeholder]");
+  const photoInput = document.querySelector("[data-personal-photo-input]");
+  const photoButton = document.querySelector("[data-personal-photo-button]");
+  let photoObjectUrl = "";
+
+  function showPhoto(blob) {
+    if (!(photoPreview instanceof HTMLImageElement)) return;
+    if (photoObjectUrl) URL.revokeObjectURL(photoObjectUrl);
+    photoObjectUrl = URL.createObjectURL(blob);
+    photoPreview.src = photoObjectUrl;
+    photoPreview.hidden = false;
+    if (photoPlaceholder) photoPlaceholder.hidden = true;
+  }
+
+  async function loadSavedPhoto() {
+    try {
+      const response = await fetch("/api/marketplace/cleaner/profile-photo", { credentials: "same-origin", headers: { Accept: "image/*" } });
+      if (response.status === 404) return;
+      if (!response.ok) throw new Error("The saved photo could not be loaded.");
+      showPhoto(await response.blob());
+      if (photoTitle) photoTitle.textContent = "Profile photo uploaded";
+      if (photoStatus) photoStatus.textContent = "Saved securely to your Homle account.";
+      if (photoButton) photoButton.textContent = "Change photo";
+    } catch {
+      if (photoStatus) photoStatus.textContent = "Your saved photo could not be displayed. You can upload it again.";
+    }
+  }
+
+  photoButton?.addEventListener("click", () => photoInput?.click());
+  photoInput?.addEventListener("change", async () => {
+    const file = photoInput.files?.[0];
+    if (!file) return;
+    if (!acceptedProfilePhotoTypes.has(file.type)) {
+      photoInput.value = "";
+      showFeedback("Choose a JPG, PNG or WebP photo.", "error");
+      return;
+    }
+    if (file.size > maximumProfilePhotoBytes) {
+      photoInput.value = "";
+      showFeedback("The profile photo must be 5 MB or smaller.", "error");
+      return;
+    }
+    const csrf = storedCsrf();
+    if (!csrf) {
+      showFeedback("Your secure editing token is missing. Sign in again before uploading a photo.", "error");
+      return;
+    }
+    showPhoto(file);
+    photoButton.disabled = true;
+    photoButton.textContent = "Uploading…";
+    if (photoStatus) photoStatus.textContent = "Preparing and securely saving your photo…";
+    try {
+      const response = await fetch("/api/marketplace/cleaner/profile-photo", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { Accept: "application/json", "Content-Type": file.type, "X-CSRF-Token": csrf },
+        body: file
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Homle could not upload your photo.");
+      if (photoTitle) photoTitle.textContent = "Profile photo uploaded";
+      if (photoCopy) photoCopy.textContent = "Your photo was resized and its metadata was removed before private storage.";
+      if (photoStatus) photoStatus.textContent = "Saved securely to your Homle account.";
+      showFeedback("Profile photo uploaded securely.");
+    } catch (error) {
+      if (photoStatus) photoStatus.textContent = "The photo was not saved. Try again.";
+      showFeedback(error.message || "Homle could not upload your photo.", "error");
+    } finally {
+      photoButton.disabled = false;
+      photoButton.textContent = "Change photo";
+      photoInput.value = "";
+    }
+  });
+  window.addEventListener("pagehide", () => { if (photoObjectUrl) URL.revokeObjectURL(photoObjectUrl); }, { once: true });
+  void loadSavedPhoto();
 
   let saveTimer = 0;
   function saveDraft() {
@@ -137,10 +212,6 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   form.addEventListener("change", () => {
     updateUnderFiveCopy(form);
     saveDraft();
-  });
-  document.querySelector("[data-address-lookup]")?.addEventListener("click", () => {
-    form.elements.postcode?.focus();
-    showFeedback("Address lookup is not connected yet. Enter the verified address manually; nothing was sent.");
   });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

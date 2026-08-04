@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 84);
-  assert.equal(repositoryResult.migrations.at(-1), "084_cleaner_onboarding_records.sql");
+  assert.equal(repositoryResult.migrations.length, 86);
+  assert.equal(repositoryResult.migrations.at(-1), "086_cleaner_profile_photos.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
@@ -105,6 +105,8 @@ try {
   assert(deploymentVerifier.includes("restore_my_property(uuid)") && deploymentVerifier.includes("Owner property restoration lost its archived-owner guard or audit evidence"), "Deployment verification must prove property restoration remains owner-bound, archived-only and audited.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 84\)'/, "Deployment verification must detect encrypted Cleaner onboarding records dynamically.");
   assert(deploymentVerifier.includes("Cleaner onboarding payloads are missing encrypted byte storage or expose plaintext JSON") && deploymentVerifier.includes("Cleaner onboarding persistence lost its Cleaner-only or audit boundary"), "Deployment verification must prove Cleaner onboarding records are encrypted, owner-bound and audited.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 85\)'/, "Deployment verification must detect the Cleaner address-lookup rate limit dynamically.");
+  assert(deploymentVerifier.includes("Shared rate limiter is missing the Cleaner address-lookup policy") && deploymentVerifier.includes("Shared rate-limit scope CHECK constraint does not admit Cleaner address lookup"), "Deployment verification must prove the metered address provider has a shared bounded allowance.");
   // Under the web-only decision nothing a browser produces is exact. A stored
   // measurement with no band would read as exact for ever after.
   assert(deploymentVerifier.includes("room_scan_measurements_estimate_has_band"), "Migration-74 verification must prove an estimated measurement cannot be stored looking exact.");

@@ -1,9 +1,7 @@
-// Provider-free arrival estimation for the live journey view. Computes the
-// great-circle distance from the Cleaner's latest consented location to the
-// booked property and divides by a conservative urban travel speed, plus a
-// small parking/arrival buffer. Runs entirely on this server: no external
-// routing API, so no live location ever leaves the platform. A road-routing
-// provider can replace this later through the same estimateArrival contract.
+// Arrival estimation providers for the live journey view. The provider-free
+// fallback runs entirely on this server. Google Routes is optional and sends
+// only the current and destination points for a road ETA after the Cleaner's
+// existing journey-location consent boundary has been crossed.
 
 const earthRadiusKm = 6371;
 
@@ -49,9 +47,66 @@ export function createStraightLineEtaProvider(options = {}) {
   });
 }
 
-export function etaProviderFromEnvironment(env = process.env) {
+export function createGoogleRoutesEtaProvider(options = {}) {
+  const fetchImpl = options.fetch || globalThis.fetch;
+  if (typeof fetchImpl !== "function") throw new TypeError("Google Routes requires a fetch implementation.");
+  const apiKey = typeof options.apiKey === "string" ? options.apiKey.trim() : "";
+  if (!apiKey) throw new TypeError("Google Routes requires a server API key.");
+  const endpoint = String(options.endpoint || "https://routes.googleapis.com/directions/v2:computeRoutes");
+  const timeoutMs = Number.isInteger(options.timeoutMs) && options.timeoutMs > 0 && options.timeoutMs <= 30_000 ? options.timeoutMs : 7000;
+  const clock = typeof options.clock === "function" ? options.clock : () => new Date();
+  const fallback = options.fallback || createStraightLineEtaProvider({ clock });
+
+  async function fallbackEstimate(input) {
+    return fallback && typeof fallback.estimateArrival === "function" ? fallback.estimateArrival(input) : null;
+  }
+
+  return Object.freeze({
+    async estimateArrival(input) {
+      if (!validPoint(input?.origin) || !validPoint(input?.destination)) return null;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetchImpl(endpoint, {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "content-type": "application/json",
+            "X-Goog-Api-Key": apiKey,
+            "X-Goog-FieldMask": "routes.duration,routes.distanceMeters"
+          },
+          body: JSON.stringify({
+            origin: { location: { latLng: { latitude: input.origin.latitude, longitude: input.origin.longitude } } },
+            destination: { location: { latLng: { latitude: input.destination.latitude, longitude: input.destination.longitude } } },
+            travelMode: "DRIVE",
+            routingPreference: "TRAFFIC_AWARE",
+            computeAlternativeRoutes: false,
+            languageCode: "en-GB",
+            units: "METRIC"
+          }),
+          redirect: "error",
+          signal: controller.signal
+        });
+        if (!response || response.status !== 200) return fallbackEstimate(input);
+        const body = await response.text();
+        if (typeof body !== "string" || body.length > 128 * 1024) return fallbackEstimate(input);
+        const parsed = JSON.parse(body);
+        const duration = typeof parsed?.routes?.[0]?.duration === "string" ? Number(parsed.routes[0].duration.replace(/s$/, "")) : NaN;
+        if (!Number.isFinite(duration) || duration < 0 || duration > 24 * 60 * 60) return fallbackEstimate(input);
+        return new Date(clock().getTime() + Math.max(60, Math.round(duration)) * 1000);
+      } catch {
+        return fallbackEstimate(input);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  });
+}
+
+export function etaProviderFromEnvironment(env = process.env, options = {}) {
   const selected = String(env.ETA_PROVIDER || "straight-line").trim().toLowerCase();
   if (selected === "none") return null;
-  if (selected !== "straight-line") throw new TypeError("ETA_PROVIDER must be blank, none or straight-line.");
-  return createStraightLineEtaProvider();
+  if (selected === "straight-line") return createStraightLineEtaProvider(options);
+  if (selected === "google-maps") return createGoogleRoutesEtaProvider({ apiKey: env.GOOGLE_MAPS_SERVER_API_KEY, fetch: options.fetch, clock: options.clock });
+  throw new TypeError("ETA_PROVIDER must be blank, none, straight-line or google-maps.");
 }
