@@ -249,15 +249,18 @@ const mimeTypes = {
   ".woff2": "font/woff2"
 };
 
-function setSecurityHeaders(response, requestPath = "") {
+function setSecurityHeaders(response, requestPath = "", cspNonce = "") {
   const paymentPage = false;
   const activeJobPage = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
   const landlordDashboardPage = requestPath === "/landlord/dashboard";
   const journeyPage = requestPath === "/landlord/book";
+  const googleMapPage = requestPath === "/cleaner/jobs-map";
   const privateMediaPage = activeJobPage || landlordDashboardPage || journeyPage;
   const activeJobStorage = privateMediaPage && objectStorageOrigins.length ? ` ${objectStorageOrigins.join(" ")}` : "";
   const trustedAccountAvatars = " https://*.googleusercontent.com https://*.fbcdn.net https://platform-lookaside.fbsbx.com";
-  response.setHeader("Content-Security-Policy", paymentPage
+  response.setHeader("Content-Security-Policy", googleMapPage
+    ? `default-src 'self'; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.googleusercontent.com; style-src 'self' 'nonce-${cspNonce}' https://fonts.googleapis.com; script-src 'nonce-${cspNonce}' 'strict-dynamic' https: 'unsafe-eval' blob:; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; worker-src blob:; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
+    : paymentPage
     ? "default-src 'self'; img-src 'self' data: blob: https://*.stripe.com; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://r.stripe.com https://m.stripe.network; frame-src https://js.stripe.com https://hooks.stripe.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     : privateMediaPage
       ? `default-src 'self'; img-src 'self' data: blob:${activeJobStorage}${trustedAccountAvatars}; style-src 'self'; script-src 'self'; connect-src 'self'${activeJobStorage}; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
@@ -270,7 +273,7 @@ function setSecurityHeaders(response, requestPath = "") {
     ? "camera=(self), microphone=(self), geolocation=()"
     : activeJobPage
       ? "camera=(self), microphone=(), geolocation=(self)"
-      : requestPath === "/tracking-test"
+      : requestPath === "/tracking-test" || googleMapPage
       ? "camera=(), microphone=(), geolocation=(self)"
       : "camera=(), microphone=(), geolocation=()");
 }
@@ -4815,6 +4818,7 @@ async function getAdminConfig(request, response) {
     mediaReady: marketplaceAttachment.mediaReady,
     realtimeReady: marketplaceAttachment.realtimeReady,
     geocodingReady: marketplaceAttachment.geocodingReady,
+    addressLookupReady: marketplaceAttachment.addressLookupReady,
     matchingReady: marketplaceAttachment.matchingReady,
     authenticationReady: accountAttachment.authenticationHttpReady,
     providers: accountAttachment.authenticationCapabilities,
@@ -5347,7 +5351,7 @@ function streamTrackingTest(request, response) {
   }
 }
 
-async function serveFile(requestPath, response) {
+async function serveFile(requestPath, response, cspNonce = "") {
   const routes = {
     "/": "home.html",
     "/login": "account.html",
@@ -5419,8 +5423,11 @@ async function serveFile(requestPath, response) {
   try {
     const fileStat = await stat(filePath);
     if (!fileStat.isFile()) return false;
-    const body = await readFile(filePath);
+    let body = await readFile(filePath);
     const extension = path.extname(filePath).toLowerCase();
+    if (requestPath === "/cleaner/jobs-map" && extension === ".html") {
+      body = Buffer.from(body.toString("utf8").replaceAll("__CSP_NONCE__", cspNonce), "utf8");
+    }
     // Everything else is served `no-cache` with no validator, so it comes back
     // in full on every request. That is fine for a 20 KB script and ruinous for
     // the vendored detector, which is several megabytes: uncached it would be
@@ -5440,7 +5447,8 @@ async function serveFile(requestPath, response) {
 
 async function handleHttpRequest(request, response) {
   const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
-  setSecurityHeaders(response, requestUrl.pathname);
+  const cspNonce = randomBytes(18).toString("base64");
+  setSecurityHeaders(response, requestUrl.pathname, cspNonce);
 
   try {
     const canonicalLocation = canonicalPublicLocation(request, requestUrl);
@@ -5474,6 +5482,7 @@ async function handleHttpRequest(request, response) {
           mediaReady: marketplaceAttachment.mediaReady === true,
           realtimeReady: marketplaceAttachment.realtimeReady === true,
           geocodingReady: marketplaceAttachment.geocodingReady === true,
+          addressLookupReady: marketplaceAttachment.addressLookupReady === true,
           matchingReady: marketplaceAttachment.matchingReady === true,
           paymentsReady: marketplaceAttachment.paymentsReady === true,
           // Automatic dispatch is only real when a process is actually running
@@ -5669,7 +5678,7 @@ async function handleHttpRequest(request, response) {
       return json(response, 401, { ok: false, error: "Admin authorisation required." });
     }
     if (request.method === "GET" || request.method === "HEAD") {
-      if (await serveFile(requestUrl.pathname, response)) return;
+      if (await serveFile(requestUrl.pathname, response, cspNonce)) return;
     }
     json(response, 404, { ok: false, error: "Not found." });
   } catch (error) {

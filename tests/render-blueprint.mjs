@@ -54,6 +54,11 @@ assert.equal(environmentEntry("TRUST_PROXY_PROVIDER"), "value: \"render\"", "Ren
 assert.equal(environmentEntry("TRUSTED_PROXY_CIDRS"), "value: \"\"", "Generic trusted proxy networks must remain blank in Render mode.");
 assert.equal(environmentEntry("MARKETPLACE_ADAPTER_MODULE"), "value: \"homle:render-log-monitoring\"", "The free preview must have privacy-minimal operational monitoring prepared before marketplace activation.");
 assert.equal(environmentEntry("RENDER_LOG_MONITORING_ACKNOWLEDGED"), "value: \"true\"", "Authentication requires the owner-confirmed restricted Render log-access boundary.");
+assert.equal(environmentEntry("MAP_PROVIDER"), 'value: "google-maps"', "The Render preview must select Google Maps for the Cleaner map.");
+assert.equal(environmentEntry("GEOCODING_PROVIDER"), 'value: "google-maps"', "The Render preview must select Google Maps postcode geocoding.");
+assert.equal(environmentEntry("ADDRESS_LOOKUP_PROVIDER"), 'value: "google-maps"', "The Render preview must select Google Maps address search.");
+assert.equal(environmentEntry("ETA_PROVIDER"), 'value: "google-maps"', "The Render preview must select Google Routes for journey estimates.");
+for (const key of ["GOOGLE_MAPS_BROWSER_API_KEY", "GOOGLE_MAPS_SERVER_API_KEY"]) assert.equal(environmentEntry(key), "sync: false", `${key} must be supplied privately in Render.`);
 
 for (const secret of ["DATABASE_URL", "REALTIME_DATABASE_URL", "SMTP_URL", "GOOGLE_CLIENT_SECRET", "FACEBOOK_APP_SECRET", "STRIPE_SECRET_KEY", "OBJECT_STORAGE_SECRET_ACCESS_KEY"]) {
   assert.equal(environmentEntry(secret), "", `Preview Blueprint unexpectedly provisions ${secret}.`);

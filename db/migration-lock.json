@@ -421,12 +421,22 @@
       "order": 84,
       "file": "084_cleaner_onboarding_records.sql",
       "sha256": "a0aa07cf825b4ca73536b4c4dcde401364c2721031e3165ff61e2c1f36911e8a"
+    },
+    {
+      "order": 85,
+      "file": "085_cleaner_address_lookup_rate_limit.sql",
+      "sha256": "29997d20875dfe9c7a8d3e541ae0fcc7bef549c2f3022dda3433d175bd899965"
+    },
+    {
+      "order": 86,
+      "file": "086_cleaner_profile_photos.sql",
+      "sha256": "9e317245db11a1d2ceb23de0ff6705558706071d09ab6772886a897e8ffa9a78"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "87f8ae8f597879f01ba7ecad66d2353c7b72cc2221fd71de4a3f9983b829e5e5"
+      "sha256": "23e68f1c8a3953944d5ec561f6a098f1226a9c9397e2f31c106209906d3f2acb"
     },
     {
       "file": "worker-role-grants.sql",

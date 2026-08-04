@@ -37,6 +37,7 @@ DECLARE
   property_archiving_installed boolean := false;
   property_restoration_installed boolean := false;
   cleaner_onboarding_records_installed boolean := false;
+  cleaner_address_lookup_rate_limit_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables text[] := ARRAY[
@@ -244,6 +245,8 @@ BEGIN
       INTO property_restoration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 84)'
       INTO cleaner_onboarding_records_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 85)'
+      INTO cleaner_address_lookup_rate_limit_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -294,6 +297,11 @@ BEGIN
       WHERE procedure.oid=to_regprocedure('tideway_private.consume_rate_limit(text,bytea)')
         AND position('session-recovery' IN procedure.prosrc)>0
     ) INTO rate_limit_scope_migration_installed;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.consume_rate_limit(text,bytea)')
+        AND position('marketplace-cleaner:address-lookup' IN procedure.prosrc)>0
+    ) INTO cleaner_address_lookup_rate_limit_installed;
     cleaner_verification_migration_installed := EXISTS (
       SELECT 1 FROM pg_trigger trigger_row
       WHERE trigger_row.tgrelid='public.cleaner_profiles'::regclass
@@ -867,6 +875,21 @@ BEGIN
         AND position('marketplace-public:cleaner-profile' IN pg_get_constraintdef(constraint_record.oid))>0
     ) THEN
       RAISE EXCEPTION 'Shared rate-limit scope CHECK constraint does not admit the session-recovery or public Cleaner profile scope';
+    END IF;
+  END IF;
+  IF cleaner_address_lookup_rate_limit_installed THEN
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.consume_rate_limit(text,bytea)');
+    IF position('(''marketplace-cleaner:address-lookup'',40,900)' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
+      RAISE EXCEPTION 'Shared rate limiter is missing the Cleaner address-lookup policy';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint constraint_record
+      WHERE constraint_record.conrelid='tideway_private.request_rate_limits'::regclass
+        AND constraint_record.conname='request_rate_limits_scope_check'
+        AND position('marketplace-cleaner:address-lookup' IN pg_get_constraintdef(constraint_record.oid))>0
+    ) THEN
+      RAISE EXCEPTION 'Shared rate-limit scope CHECK constraint does not admit Cleaner address lookup';
     END IF;
   END IF;
   IF cleaner_verification_migration_installed THEN

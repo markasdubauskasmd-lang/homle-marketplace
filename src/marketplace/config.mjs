@@ -61,6 +61,10 @@ export function marketplaceEnvironment(env = process.env) {
   const stripeConfigured = suppliedPaymentKeys.length === paymentRequirements.length;
   const publicMarketplaceApprovals = approvals(env, publicMarketplaceApprovalRequirements);
   const publicPaymentApprovals = approvals(env, publicPaymentApprovalRequirements);
+  const addressLookupProvider = String(env.ADDRESS_LOOKUP_PROVIDER || "").trim().toLowerCase();
+  const mapsProvider = String(env.MAP_PROVIDER || "").trim().toLowerCase();
+  const googleMapsServerKeyConfigured = present(env, "GOOGLE_MAPS_SERVER_API_KEY");
+  const googleMapsBrowserKeyConfigured = present(env, "GOOGLE_MAPS_BROWSER_API_KEY");
   return {
     production: env.NODE_ENV === "production",
     authentication: { requested: authenticationRequested },
@@ -74,6 +78,16 @@ export function marketplaceEnvironment(env = process.env) {
     appOrigin,
     objectStorageConfigured,
     encryptionConfigured,
+    maps: {
+      provider: mapsProvider || "none",
+      configured: mapsProvider === "google-maps" && googleMapsBrowserKeyConfigured,
+      partial: mapsProvider === "google-maps" && !googleMapsBrowserKeyConfigured
+    },
+    addressLookup: {
+      provider: addressLookupProvider || "none",
+      configured: addressLookupProvider === "google-maps" && googleMapsServerKeyConfigured,
+      partial: addressLookupProvider === "google-maps" && !googleMapsServerKeyConfigured
+    },
     launchApproval: {
       stagingAccountsRestricted: booleanSetting(env, "STAGING_ACCOUNTS_ONLY") === true,
       publicMarketplaceReady: Object.values(publicMarketplaceApprovals).every(Boolean),
@@ -160,8 +174,14 @@ export function validateMarketplaceEnvironment(env = process.env) {
   }
   if (present(env, "OBJECT_STORAGE_BUCKET") && (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(env.OBJECT_STORAGE_BUCKET.trim()) || env.OBJECT_STORAGE_BUCKET.includes("..") || /^\d+\.\d+\.\d+\.\d+$/.test(env.OBJECT_STORAGE_BUCKET.trim()))) errors.push("OBJECT_STORAGE_BUCKET must be a valid DNS-compatible private bucket name.");
   if (present(env, "OBJECT_STORAGE_FORCE_PATH_STYLE") && !["true", "false"].includes(env.OBJECT_STORAGE_FORCE_PATH_STYLE.trim().toLowerCase())) errors.push("OBJECT_STORAGE_FORCE_PATH_STYLE must be true or false.");
-  if (present(env, "GEOCODING_PROVIDER") && !["none", "postcodes-io"].includes(env.GEOCODING_PROVIDER.trim().toLowerCase())) errors.push("GEOCODING_PROVIDER must be blank, none or postcodes-io.");
-  if (present(env, "ETA_PROVIDER") && !["none", "straight-line"].includes(env.ETA_PROVIDER.trim().toLowerCase())) errors.push("ETA_PROVIDER must be blank, none or straight-line.");
+  if (present(env, "MAP_PROVIDER") && !["none", "google-maps"].includes(env.MAP_PROVIDER.trim().toLowerCase())) errors.push("MAP_PROVIDER must be blank, none or google-maps.");
+  if (state.maps.partial) errors.push("Google Maps display is partially configured; set MAP_PROVIDER=google-maps together with GOOGLE_MAPS_BROWSER_API_KEY.");
+  if (present(env, "GEOCODING_PROVIDER") && !["none", "postcodes-io", "google-maps"].includes(env.GEOCODING_PROVIDER.trim().toLowerCase())) errors.push("GEOCODING_PROVIDER must be blank, none, postcodes-io or google-maps.");
+  if (present(env, "ADDRESS_LOOKUP_PROVIDER") && !["none", "google-maps"].includes(env.ADDRESS_LOOKUP_PROVIDER.trim().toLowerCase())) errors.push("ADDRESS_LOOKUP_PROVIDER must be blank, none or google-maps.");
+  if (state.addressLookup.partial) errors.push("Address search is partially configured; set ADDRESS_LOOKUP_PROVIDER=google-maps together with GOOGLE_MAPS_SERVER_API_KEY.");
+  if (present(env, "ETA_PROVIDER") && !["none", "straight-line", "google-maps"].includes(env.ETA_PROVIDER.trim().toLowerCase())) errors.push("ETA_PROVIDER must be blank, none, straight-line or google-maps.");
+  const serverGoogleProviderRequested = [env.GEOCODING_PROVIDER, env.ADDRESS_LOOKUP_PROVIDER, env.ETA_PROVIDER].some((value) => String(value || "").trim().toLowerCase() === "google-maps");
+  if (serverGoogleProviderRequested && !present(env, "GOOGLE_MAPS_SERVER_API_KEY")) errors.push("Google Maps server services require GOOGLE_MAPS_SERVER_API_KEY.");
   if (present(env, "DATA_ENCRYPTION_KEY") && !state.encryptionConfigured) errors.push("DATA_ENCRYPTION_KEY must contain at least 32 characters.");
   if (state.production) {
     if (!state.appOrigin) errors.push("APP_ORIGIN is required in production.");

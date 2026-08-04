@@ -2,6 +2,7 @@ import { scanRates } from "./scan-telemetry.mjs";
 import { measureFromReference, measurementLabel, referenceScale } from "./room-measurement.mjs";
 import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
+import { cleanerProfilePhotoMimeTypes, maximumCleanerProfilePhotoBytes } from "./cleaner-profile-photo.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
@@ -51,6 +52,8 @@ const cleanerProfilePath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern
 const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
 const cleanerAvailabilityPath = new RegExp(`^/api/marketplace/cleaner/availability/(${uuidPattern})$`);
 const cleanerOnboardingSectionPath = /^\/api\/marketplace\/cleaner\/onboarding\/([a-z-]+)$/;
+const cleanerProfilePhotoPath = "/api/marketplace/cleaner/profile-photo";
+const cleanerAddressResolvePath = "/api/marketplace/cleaner/address-lookup/resolve";
 const favouriteCleanerPath = new RegExp(`^/api/marketplace/landlord/favourite-cleaners/(${uuidPattern})$`);
 const bookingCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/completion$`);
 const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews$`);
@@ -97,6 +100,9 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const properties = dependencies?.propertyService;
   const cleaners = dependencies?.cleanerProfileService;
   const cleanerOnboarding = dependencies?.cleanerOnboardingService;
+  const cleanerProfilePhotos = dependencies?.cleanerProfilePhotoService;
+  const addressLookup = dependencies?.addressLookup || null;
+  const mapsClientConfig = dependencies?.mapsClientConfig || null;
   const favouriteCleaners = dependencies?.favouriteCleanerService;
   const cleaningRequests = dependencies?.cleaningRequestService;
   const scans = dependencies?.scanService;
@@ -138,6 +144,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.listArchivedOwnProperties !== "function" || typeof properties.archiveOwnProperty !== "function" || typeof properties.restoreOwnProperty !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "getPublicProfile", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof cleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaner profile service.");
   if (!cleanerOnboarding || !["listOwnSections", "getOwnSection", "saveOwnSection"].every((method) => typeof cleanerOnboarding[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner onboarding service.");
+  if (!cleanerProfilePhotos || !["getOwnPhoto", "saveOwnPhoto"].every((method) => typeof cleanerProfilePhotos[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner profile photo service.");
   if (!favouriteCleaners || !["listOwn", "setOwn"].every((method) => typeof favouriteCleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the favourite-Cleaner service.");
   if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.previewInvitation !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
@@ -366,6 +373,51 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation, roles: ["cleaner"] });
           const profile = mutation ? await cleaners.saveOwnProfile(context.actor, await readJsonObject(request)) : await cleaners.getOwnProfile(context.actor);
           sendJson(response, 200, { ok: true, profile });
+          return true;
+        }
+        if (pathname === cleanerProfilePhotoPath) {
+          if (request.method !== "GET" && request.method !== "PUT") return methodNotAllowed(response, ["GET", "PUT"]), true;
+          const mutation = request.method === "PUT";
+          const context = await security.protect(request, { mutation, roles: ["cleaner"] });
+          if (mutation) {
+            const supplied = request.headers?.["content-type"];
+            const mimeType = String(Array.isArray(supplied) ? supplied[0] : supplied || "").split(";", 1)[0].trim().toLowerCase();
+            if (!cleanerProfilePhotoMimeTypes.includes(mimeType)) throw new TypeError("Choose a JPG, PNG or WebP photo.");
+            const photo = await cleanerProfilePhotos.saveOwnPhoto(context.actor, { mimeType, bytes: await readRawBody(request, maximumCleanerProfilePhotoBytes) });
+            sendJson(response, 200, { ok: true, photo });
+          } else {
+            const photo = await cleanerProfilePhotos.getOwnPhoto(context.actor);
+            if (!photo) throw Object.assign(new Error("No profile photo has been uploaded."), { statusCode: 404, code: "profile-photo-not-found" });
+            response.writeHead(200, {
+              "Content-Type": photo.mimeType,
+              "Content-Length": String(photo.bytes.length),
+              "Cache-Control": "private, no-store",
+              "X-Content-Type-Options": "nosniff"
+            });
+            response.end(photo.bytes);
+          }
+          return true;
+        }
+        if (pathname === "/api/marketplace/maps/config") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          await security.protect(request, { roles: ["cleaner"] });
+          if (!mapsClientConfig) throw Object.assign(new Error("Google Maps has not been configured yet."), { statusCode: 503, code: "maps-not-configured" });
+          sendJson(response, 200, { ok: true, maps: mapsClientConfig });
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/address-lookup" || pathname === cleanerAddressResolvePath) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          await limitPublicRead(request, "marketplace-cleaner:address-lookup");
+          if (!addressLookup) throw Object.assign(new Error("Address lookup has not been configured yet. Enter the address manually for now."), { statusCode: 503, code: "address-lookup-not-configured" });
+          const input = await readJsonObject(request);
+          if (pathname === cleanerAddressResolvePath) {
+            const address = await addressLookup.resolveAddress(input.id, input.sessionToken);
+            sendJson(response, 200, { ok: true, address });
+          } else {
+            const result = await addressLookup.searchAddresses(input.query, input.sessionToken);
+            sendJson(response, 200, { ok: true, suggestions: result.suggestions });
+          }
           return true;
         }
         if (pathname === "/api/marketplace/cleaner/onboarding") {

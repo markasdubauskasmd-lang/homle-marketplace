@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
-  <script src="/cleaner-registration.js?v=20260729-8" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260804-1">
+  <script src="/cleaner-registration.js?v=20260804-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -353,8 +353,7 @@
                 <fieldset class="hc-personal-section">
                   <legend>Address</legend>
                   <div class="hc-personal-address-top">
-                    <label><span>Postcode <b aria-hidden="true">*</b></span><input name="postcode" autocomplete="postal-code" maxlength="10" required><small>Used for distances &amp; job matching</small></label>
-                    <button class="hc-personal-lookup" type="button" data-address-lookup>Look up address</button>
+                    <label><span>Postcode <b aria-hidden="true">*</b></span><input name="postcode" autocomplete="postal-code" maxlength="10" required><small>Used for distances and job matching.</small></label>
                     <label><span>House number <b aria-hidden="true">*</b></span><input name="houseNumber" autocomplete="address-line1" maxlength="40" required></label>
                     <label><span>Street <b aria-hidden="true">*</b></span><input name="street" autocomplete="address-line2" maxlength="120" required></label>
                   </div>
@@ -374,9 +373,13 @@
                 <fieldset class="hc-personal-section">
                   <legend>Profile photo</legend>
                   <div class="hc-personal-photo">
-                    <span class="hc-personal-photo-check" aria-hidden="true">✓</span>
-                    <span><strong data-personal-photo-title>Profile photo from your verified sign-in</strong><small data-personal-photo-copy>Homle uses the verified account photo when one is available.</small></span>
-                    <span class="hc-personal-photo-action">Connected</span>
+                    <span class="hc-personal-photo-preview-wrap" aria-hidden="true">
+                      <img class="hc-personal-photo-preview" data-personal-photo-preview alt="" hidden>
+                      <span class="hc-personal-photo-placeholder" data-personal-photo-placeholder>+</span>
+                    </span>
+                    <span class="hc-personal-photo-copy"><strong data-personal-photo-title>Add a clear photo of yourself</strong><small data-personal-photo-copy>JPG, PNG or WebP, up to 5 MB. Homle resizes the photo and removes its metadata before private storage.</small><small data-personal-photo-status role="status" aria-live="polite">No photo uploaded yet.</small></span>
+                    <input data-personal-photo-input type="file" accept="image/jpeg,image/png,image/webp" hidden>
+                    <button class="hc-personal-photo-button" data-personal-photo-button type="button">Upload photo</button>
                   </div>
                 </fieldset>
 
