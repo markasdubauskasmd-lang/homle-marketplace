@@ -23,14 +23,15 @@ const standaloneDesignPages = new Set(["home.html"]);
 // 54 CSS pixels. Loading the 1.97 MB source there delayed the first useful paint
 // on mobile. These pages use a locked 128 px lossless derivative; Cleaner pages
 // deliberately retain their existing asset and are outside this performance edit.
-const compactLogoPages = new Set([
-  "facebook-data-deletion.html",
-  "home.html",
-  "landlord-dashboard.html",
-  "landlord-help.html",
-  "landlord-journey.html",
-  "privacy.html",
-  "terms.html"
+const compactLogoByPage = new Map([
+  ["account.html", "/homle-logo-192-c8defd4b.png"],
+  ["facebook-data-deletion.html", "/homle-logo-128-4f82ebad.png"],
+  ["home.html", "/homle-logo-128-4f82ebad.png"],
+  ["landlord-dashboard.html", "/homle-logo-128-4f82ebad.png"],
+  ["landlord-help.html", "/homle-logo-128-4f82ebad.png"],
+  ["landlord-journey.html", "/homle-logo-128-4f82ebad.png"],
+  ["privacy.html", "/homle-logo-128-4f82ebad.png"],
+  ["terms.html", "/homle-logo-128-4f82ebad.png"]
 ]);
 const anchorMarkup = await readFile(new URL("account.html", publicRoot), "utf8");
 const sharedStyleVersion = /\/styles\.css\?v=([\w-]+)/.exec(anchorMarkup);
@@ -42,7 +43,7 @@ for (const name of publicFiles) {
   assert(!visibleOldBrand.test(source), `Public asset ${name} still exposes the old Tideway brand.`);
   if (name.endsWith(".html")) {
     assert(!source.includes('/favicon.svg'), `Public page ${name} still references the removed fallback favicon instead of the approved Homle logo.`);
-    const expectedLogo = compactLogoPages.has(name) ? "/homle-logo-128.png" : "/homle-logo.png";
+    const expectedLogo = compactLogoByPage.get(name) || "/homle-logo.png";
     assert(source.includes(`<link rel="icon" href="${expectedLogo}" type="image/png">`), `Public page ${name} omitted its approved Homle tab icon.`);
     if (standaloneDesignPages.has(name)) {
       assert(!source.includes("/styles.css"), `Public page ${name} is a standalone design and must not load the shared sheet.`);
@@ -52,7 +53,7 @@ for (const name of publicFiles) {
   }
 }
 
-const [home, account, landlordDashboard, cleanerDashboard, landlordJourney, roomScan, activeJob, logo, compactLogo, manifest, server, emailWorker] = await Promise.all([
+const [home, account, landlordDashboard, cleanerDashboard, landlordJourney, roomScan, activeJob, logo, compactLogo128, compactLogo192, manifest, server, emailWorker] = await Promise.all([
   readFile(new URL("../public/home.html", import.meta.url), "utf8"),
   readFile(new URL("../public/account.html", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.html", import.meta.url), "utf8"),
@@ -61,17 +62,20 @@ const [home, account, landlordDashboard, cleanerDashboard, landlordJourney, room
   readFile(new URL("../public/room-scan.html", import.meta.url), "utf8"),
   readFile(new URL("../public/active-job.html", import.meta.url), "utf8"),
   readFile(new URL("../public/homle-logo.png", import.meta.url)),
-  readFile(new URL("../public/homle-logo-128.png", import.meta.url)),
+  readFile(new URL("../public/homle-logo-128-4f82ebad.png", import.meta.url)),
+  readFile(new URL("../public/homle-logo-192-c8defd4b.png", import.meta.url)),
   readFile(new URL("../public/site.webmanifest", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8"),
   readFile(new URL("../src/marketplace/email-notification-worker.mjs", import.meta.url), "utf8")
 ]);
 
-assert(home.includes("Homle") && account.includes("Homle") && home.includes('/homle-logo-128.png') && account.includes('/homle-logo.png'), "The homepage or account entry does not use its approved Homle brand asset.");
-assert(landlordJourney.includes('<link rel="icon" href="/homle-logo-128.png" type="image/png">') && roomScan.includes('<link rel="icon" href="/homle-logo.png" type="image/png">'), "The guided booking or legacy scanner surface does not use its approved Homle tab icon.");
+assert(home.includes("Homle") && account.includes("Homle") && home.includes('/homle-logo-128-4f82ebad.png') && account.includes('/homle-logo-192-c8defd4b.png'), "The homepage or account entry does not use its approved compact Homle brand asset.");
+assert(landlordJourney.includes('<link rel="icon" href="/homle-logo-128-4f82ebad.png" type="image/png">') && roomScan.includes('<link rel="icon" href="/homle-logo.png" type="image/png">'), "The guided booking or legacy scanner surface does not use its approved Homle tab icon.");
 assert(createHash("sha256").update(logo).digest("hex") === "cd2edfaae101cc579a97d3dce3743b0c7971b29345db240730be58681b475f36", "The public logo differs from the exact artwork approved by the owner.");
-assert(createHash("sha256").update(compactLogo).digest("hex") === "4f82ebad6fe8c81f219b9691ce5c38e371998facdec074e57df3457d8d6a6568" && compactLogo.length <= 20_000, "The compact public logo is not the reviewed lossless derivative or has regained excessive transfer weight.");
-assert(cleanerDashboard.includes('/homle-logo.png') && !cleanerDashboard.includes('/homle-logo-128.png'), "The public-page logo optimisation changed the Cleaner Dashboard asset boundary.");
+assert(createHash("sha256").update(compactLogo128).digest("hex") === "4f82ebad6fe8c81f219b9691ce5c38e371998facdec074e57df3457d8d6a6568" && compactLogo128.length <= 20_000, "The 128 px public logo is not the reviewed lossless derivative or has regained excessive transfer weight.");
+assert(createHash("sha256").update(compactLogo192).digest("hex") === "c8defd4b4fa90ab3fbc46c4649a8ea5f04a18e24080b20f3a4155d2fb06d9fbe" && compactLogo192.length <= 40_000, "The 192 px account-entry logo is not the reviewed lossless derivative or has regained excessive transfer weight.");
+assert(cleanerDashboard.includes('/homle-logo.png') && !cleanerDashboard.includes('/homle-logo-128-4f82ebad.png') && !cleanerDashboard.includes('/homle-logo-192-c8defd4b.png'), "The public-page logo optimisation changed the Cleaner Dashboard asset boundary.");
+assert(server.includes('"/homle-logo-128-4f82ebad.png"') && server.includes('"/homle-logo-192-c8defd4b.png"') && server.includes('vendored || immutablePublicAsset ? "public, max-age=31536000, immutable" : "no-cache"'), "The content-addressed public logos are not isolated behind immutable caching.");
 const parsedManifest = JSON.parse(manifest);
 assert(parsedManifest.name === "Homle Cleaning" && parsedManifest.short_name === "Homle", "The installable web-app name is not Homle.");
 assert(parsedManifest.id === "/" && parsedManifest.scope === "/" && parsedManifest.display === "standalone" && parsedManifest.lang === "en-GB", "The installed Homle identity or navigation scope is incomplete.");
