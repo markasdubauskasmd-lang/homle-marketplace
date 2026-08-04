@@ -1,5 +1,30 @@
 # Render activation handoff
 
+## CURRENT LIVE TRUTH — 4 August 2026
+
+This audit began from verified live release **`29dce96b`** with **88** locked
+migrations, healthy data integrity and writes allowed. Marketplace runtime,
+authentication, private media, realtime updates, geocoding, direct matching,
+speech summarisation and room vision are ready. Google account entry is available.
+
+Transactional email/email-password recovery, Facebook, Apple and Stripe test
+payments remain provider-backed launch gaps. Automatic dispatch is deliberately
+held off: direct Landlord-approved quote and invitation rehearsal remains possible,
+but the background worker can create Cleaner invitations and must not be enabled
+merely to turn a health flag green. Activation requires explicit founder approval,
+approved supply and pricing, delivery evidence, monitoring and proof that exactly
+one worker process is scheduled.
+
+Run the secret-free verifier after every release:
+
+```powershell
+pnpm run verify:live-activation https://homle-marketplace-preview.onrender.com --expect-release=<exact-eight-character-main-commit>
+```
+
+Use the exact packaged `main` commit being deployed; never copy the historical
+baseline after `main` advances. Historical sections below are retained for implementation context. Where they
+contradict this section or the live verifier, this section and the verifier win.
+
 ## Merged on 2026-07-28 — visual system and sign-in page (needs a redeploy, nothing else)
 
 All merged to `main`, CI green. **None of it is live**, because `autoDeployTrigger`

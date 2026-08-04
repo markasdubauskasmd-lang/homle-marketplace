@@ -21,6 +21,10 @@ const capabilityNames = Object.freeze([
   "speechSummaryReady",
   "roomVisionReady"
 ]);
+// A direct, Landlord-approved invitation can complete the core booking rehearsal
+// without the separately authorised background dispatcher. Keeping those gates
+// distinct prevents an operator from enabling a worker that can contact Cleaners
+// merely to make the general booking readiness field turn green.
 const coreBookingCapabilityNames = Object.freeze([
   "enabled",
   "ready",
@@ -29,7 +33,6 @@ const coreBookingCapabilityNames = Object.freeze([
   "realtimeReady",
   "geocodingReady",
   "matchingReady",
-  "automaticDispatchReady",
   "speechSummaryReady",
   "roomVisionReady"
 ]);
@@ -98,7 +101,7 @@ function remainingActions(snapshot) {
   if (!snapshot.capabilities.realtimeReady) actions.push(action("realtime", "Restore participant-only live updates before journey tracking or cleaning-progress rehearsal."));
   if (!snapshot.capabilities.geocodingReady) actions.push(action("geocoding", "Configure postcode geocoding before distance-based Cleaner matching."));
   if (!snapshot.capabilities.matchingReady) actions.push(action("matching", "Complete the approved pricing and matching policy before inviting a Cleaner."));
-  if (!snapshot.capabilities.automaticDispatchReady) actions.push(action("automatic-dispatch", "Restore the background dispatch worker before testing automatic Cleaner matching."));
+  if (!snapshot.capabilities.automaticDispatchReady) actions.push(action("automatic-dispatch", "Keep automatic Cleaner matching off until the founder explicitly approves activation and the staged delivery, supply, monitoring and single-worker evidence passes; then enable exactly one monitored worker before testing it."));
   if (!snapshot.capabilities.speechSummaryReady) actions.push(action("speech-summary", "Restore the configured speech-summary provider before testing concise spoken room notes."));
   if (!snapshot.capabilities.roomVisionReady) actions.push(action("room-vision", "Restore the configured room-reading provider before testing assisted scan labels."));
   if (!snapshot.capabilities.emailReady || !snapshot.accountAccess.emailPassword || !snapshot.accountAccess.emailVerification || !snapshot.accountAccess.passwordReset) actions.push(action("transactional-email", "Configure an approved transactional email provider and verified sender, enable email/password verification and reset, then test only with approved staging inboxes."));
@@ -135,6 +138,7 @@ export function liveActivationSnapshot(payload, options = {}) {
     ...snapshot,
     readiness: Object.freeze({
       coreBookingRehearsal: coreReady,
+      automaticMatchingRehearsal: coreReady && capabilities.automaticDispatchReady,
       transactionalNotifications: capabilities.emailReady,
       emailFallback: emailFallbackReady,
       requestedAccountEntry: requestedAccountEntryReady,
