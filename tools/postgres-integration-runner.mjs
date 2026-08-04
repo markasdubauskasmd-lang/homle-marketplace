@@ -20,7 +20,9 @@ const scripts = Object.freeze({
   matchingSelfExclusion: "matching-self-exclusion.sql",
   paidMatchingPayoutReadiness: "paid-matching-payout-readiness.sql",
   administratorCoverage: "administrator-coverage-behaviour.sql",
+  administratorFunnelSetup: "administrator-funnel-owner-setup.sql",
   administratorFunnel: "administrator-funnel-behaviour.sql",
+  administratorFunnelCleanup: "administrator-funnel-owner-cleanup.sql",
   propertyArchive: "property-archive-behaviour.sql",
   automaticDispatchSetup: "automatic-dispatch-rehearsal-setup.sql",
   automaticDispatchClaimA: "automatic-dispatch-claim-a.sql",
@@ -231,10 +233,12 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Matching self-exclusion behaviour test", file: scripts.matchingSelfExclusion, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Paid matching payout-readiness test", file: scripts.paidMatchingPayoutReadiness, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Administrator coverage privacy and eligibility test", file: scripts.administratorCoverage, environment: appEnvironment, command, execute });
-    // Owner-run only to age disposable fixtures inside a rolled-back
-    // transaction. The script adopts tideway_app for every product-facing
-    // authorization and report assertion, preserving the runtime boundary.
-    runPsqlSync({ label: "Administrator funnel privacy and cohort test", file: scripts.administratorFunnel, environment: ownerEnvironment, command, execute });
+    runPsqlSync({ label: "Administrator funnel fixture preparation", file: scripts.administratorFunnelSetup, environment: ownerEnvironment, command, execute });
+    try {
+      runPsqlSync({ label: "Administrator funnel privacy and cohort test", file: scripts.administratorFunnel, environment: appEnvironment, command, execute });
+    } finally {
+      runPsqlSync({ label: "Administrator funnel fixture cleanup", file: scripts.administratorFunnelCleanup, environment: ownerEnvironment, command, execute });
+    }
     runPsqlSync({ label: "Owner property archive lifecycle test", file: scripts.propertyArchive, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Automatic-dispatch rehearsal setup", file: scripts.automaticDispatchSetup, environment: ownerEnvironment, command, execute });
     const dispatchClaims = await executeConcurrent([

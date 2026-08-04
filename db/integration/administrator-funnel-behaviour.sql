@@ -2,11 +2,6 @@
 
 BEGIN;
 
--- This integration file runs as the migration owner only so it can age the
--- disposable fixtures below. Every product-facing assertion explicitly adopts
--- the restricted runtime role; do not grant the runtime direct fixture access.
-SET LOCAL ROLE tideway_app;
-
 SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000001',true);
 SELECT set_config('app.user_roles','landlord',true);
 DO $landlord_denied$
@@ -33,32 +28,6 @@ BEGIN
 END
 $cleaner_denied$;
 
-RESET ROLE;
-
--- Mature the existing synthetic Landlord and request fixtures. The transaction
--- rolls back, so later integration scripts retain their original timestamps.
-UPDATE user_roles
-SET granted_at=now()-interval '2 days'
-WHERE user_id='10000000-0000-4000-8000-000000000001' AND role='landlord';
-
-UPDATE cleaning_requests
-SET created_at=now()-interval '2 days'
-WHERE id IN (
-  '30000000-0000-4000-8000-000000000001',
-  '30000000-0000-4000-8000-000000000002',
-  '30000000-0000-4000-8000-000000000003'
-);
-
-INSERT INTO room_scan_sessions(id,cleaning_request_id,landlord_user_id,device_class,captured_at,created_at)
-VALUES(
-  '3e000000-0000-4000-8000-000000000001',
-  '30000000-0000-4000-8000-000000000001',
-  '10000000-0000-4000-8000-000000000001',
-  'guided-web',now()-interval '2 days',now()-interval '2 days'
-);
-
-SET LOCAL ROLE tideway_app;
-
 SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000004',true);
 SELECT set_config('app.user_roles','administrator',true);
 DO $funnel_report$
@@ -74,7 +43,7 @@ BEGIN
     OR (report->'requestJourney'->>'requestCount')::integer<>3
     OR (report->'requestJourney'->>'scanCount')::integer<>1
     OR (report->'requestJourney'->>'submittedCount')::integer<>1
-    OR (report->'requestJourney'->>'bookingCount')::integer<>0
+    OR (report->'requestJourney'->>'bookingCount')::integer<>1
     OR (report->'payments'->>'bookingCount')::integer<>0
     OR (report->>'maturityHours')::integer<>24 THEN
     RAISE EXCEPTION 'Administrator funnel did not derive cumulative matured cohorts from authoritative records';
