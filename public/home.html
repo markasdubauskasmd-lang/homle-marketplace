@@ -35,7 +35,19 @@
         </div>
         <div class="ci-nav-actions">
           <a class="ci-login" href="/login" data-account-entry hidden>Log in</a>
-          <a class="ci-signup" href="/signup?intent=book" data-book-entry data-entry-label-fixed>Sign up</a>
+          <details class="ci-signup-menu" data-signup-menu>
+            <summary class="ci-signup">Sign up</summary>
+            <div class="ci-signup-panel" aria-label="Choose how you want to use Homle">
+              <a href="/signup?intent=book" data-book-entry data-entry-label-fixed>
+                <strong>Book cleaning</strong>
+                <span>For homes, landlords and businesses</span>
+              </a>
+              <a href="/signup?intent=work" data-cleaner-entry data-entry-label-fixed>
+                <strong>Work as a cleaner</strong>
+                <span>Create your professional Cleaner account</span>
+              </a>
+            </div>
+          </details>
           <!-- Swapped in by account-menu.js once a session is known. -->
           <details class="account-menu public-account-menu ci-account" data-account-menu hidden>
             <summary aria-label="Open signed-in Homle account"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary>
@@ -148,10 +160,10 @@
                 <span>2 SPOTTED &middot; READING&hellip;</span>
                 <i></i>
               </div>
-              <div class="ci-tel ci-chip ci-chip-acc ci-chip-floor" data-tel data-at=".1">FLOOR <span data-area>16.8</span> m&sup2;</div>
+              <div class="ci-tel ci-chip ci-chip-acc ci-chip-floor" data-tel data-at=".1">FLOOR finish</div>
               <div class="ci-tel ci-chip ci-chip-kitchen" data-tel data-at=".18">KITCHEN detected</div>
               <div class="ci-tel ci-chip ci-chip-acc ci-chip-sink" data-tel data-at=".42">SINK residue</div>
-              <div class="ci-tel ci-chip ci-chip-worktop" data-tel data-at=".58">WORKTOP 3.4 m&sup2;</div>
+              <div class="ci-tel ci-chip ci-chip-worktop" data-tel data-at=".58">WORKTOP residue</div>
               <div class="ci-tel ci-tel-price" data-tel data-at=".82">
                 <span>REVIEW</span>
                 <b>SCOPE READY</b>
@@ -193,7 +205,7 @@
         <div class="ci-readout" aria-hidden="true">
           <div class="ci-tel ci-card" data-tel data-at=".18">
             <p class="ci-card-k">Room</p>
-            <p class="ci-card-v"><span data-beat-room>Lounge</span> &middot; <span data-area2>16.8</span> m&sup2;</p>
+            <p class="ci-card-v"><span data-beat-room>Lounge</span> &middot; scan in progress</p>
           </div>
           <div class="ci-tel ci-card" data-tel data-at=".2">
             <p class="ci-card-k">Items analysed</p>
@@ -204,8 +216,8 @@
             <p class="ci-card-v">Medium</p>
           </div>
           <div class="ci-tel ci-card" data-tel data-at=".58">
-            <p class="ci-card-k">Estimated time</p>
-            <p class="ci-card-v">1 h 40 min</p>
+            <p class="ci-card-k">Timing</p>
+            <p class="ci-card-v">Shown after review</p>
           </div>
           <div class="ci-tel ci-card-price" data-tel data-at=".76">
             <p class="ci-card-k">Next step</p>

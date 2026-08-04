@@ -216,6 +216,69 @@ body.ci-body {
 }
 
 /*
+ * One Sign up action, two explicit account intents. <details> keeps the role
+ * choice keyboard- and touch-operable without adding a second navigation
+ * screen; account-menu.js hides the whole control after session recovery.
+ */
+.ci-signup-menu { position: relative; }
+.ci-signup-menu[hidden] { display: none; }
+.ci-signup-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.ci-signup-menu > summary::-webkit-details-marker { display: none; }
+.ci-signup-menu[open] > .ci-signup {
+  background: rgba(244, 242, 238, .12);
+  border-color: rgba(244, 242, 238, .45);
+}
+.ci-signup-menu > .ci-signup::after { transition: transform .22s ease; }
+.ci-signup-menu[open] > .ci-signup::after { transform: rotate(90deg); }
+.ci-signup-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 4;
+  width: min(310px, calc(100vw - 32px));
+  box-sizing: border-box;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(244, 242, 238, .22);
+  border-radius: 18px;
+  background: rgba(15, 15, 15, .94);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, .45);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transform-origin: top right;
+  animation: ci-signup-open .2s ease-out both;
+}
+.ci-signup-panel a {
+  display: grid;
+  gap: 4px;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: var(--ci-ink);
+  transition: background .18s ease, color .18s ease;
+}
+.ci-signup-panel a:hover,
+.ci-signup-panel a:focus-visible {
+  background: rgba(244, 242, 238, .1);
+  color: var(--ci-ink);
+}
+.ci-signup-panel strong { font-size: 14px; }
+.ci-signup-panel span {
+  color: rgba(244, 242, 238, .62);
+  font-size: 12px;
+  line-height: 1.35;
+}
+@keyframes ci-signup-open {
+  from { opacity: 0; transform: translateY(-7px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/*
  * Signed-in account menu. account-menu.js unhides this and fills it in when a
  * session is found, and home.js hides the "Log in" link at the same time. The
  * old landing page got these styles from styles.css; this page does not load it,

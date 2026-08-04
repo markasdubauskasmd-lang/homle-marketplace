@@ -105,6 +105,7 @@ for (const truthfulPromise of [
   assert(page.includes(truthfulPromise), `The landing page lost the grounded promise: ${truthfulPromise}.`);
 }
 assert((page.match(/data-book-entry/g) || []).length >= 2 && (page.match(/data-cleaner-entry/g) || []).length >= 1, "The redesign dropped the role-aware booking or cleaner entry hooks home.js drives.");
+assert(page.includes('class="ci-signup-menu" data-signup-menu') && page.includes('aria-label="Choose how you want to use Homle"'), "The landing header does not expose an accessible two-role Sign up menu.");
 assert(page.includes("data-account-menu hidden") && page.includes("data-account-avatar") && page.includes("data-account-entry hidden") && page.includes("/account-menu.js?"), "The account menu, avatar or sign-in state hooks were lost.");
 assert(page.includes("data-year") && page.includes("apple-mobile-web-app-capable"), "The footer year hook or the installable-app metadata was dropped.");
 
@@ -116,6 +117,13 @@ assert(css.includes(".ci-account .account-menu-panel") && css.includes(".ci-acco
 // [data-book-entry] with textContent, which would delete a real child arrow node.
 assert(!page.includes("↗") && !page.includes("&#8599;") && !page.includes("→") && !page.includes("&rarr;"), "An arrow glyph is in the markup; home.js textContent updates would erase it. Use a CSS pseudo-element.");
 assert(css.includes(".ci-signup::after") && css.includes(".ci-btn-join::after") && css.includes(".ci-btn-primary::after"), "The CTA arrows are not drawn as pseudo-elements.");
+assert(css.includes(".ci-signup-panel") && css.includes("@keyframes ci-signup-open") && css.includes(".ci-signup-menu[hidden]"), "The role chooser is not a smooth, session-hideable landing control.");
+
+// The web scanner cannot infer physical area without a user-confirmed scale
+// reference. Its own overlay refuses to display square metres, so the public
+// animation must not promise automatic floor/worktop measurements either.
+assert(!/m(?:&sup2;|²)/.test(page) && !/m²|Measuring floor area/.test(script) && !script.includes("data-area"), "The landing animation claims unsupported physical measurements.");
+assert(page.includes("scan in progress") && script.includes("Reading floor condition"), "The truthful condition/readiness replacement for fake area values is missing.");
 
 // Every call to action reaches a route the server actually serves, so no act of
 // the design dead-ends on the in-page anchors it was prototyped against.
