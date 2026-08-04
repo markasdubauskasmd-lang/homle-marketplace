@@ -95,6 +95,30 @@ assert((88_620 + 86_020) <= (cleanOriginal.size + dirtyOriginal.size) * 0.12, "T
 assert((page.match(/<picture>/g) || []).length >= 2 && page.includes('type="image/webp"') && page.includes('imagesrcset="/landing/open-plan-living-480-15f06faa.webp 480w') && page.includes('imagesizes="100vw"'), "The hero does not preload and render responsive WebP sources.");
 assert(page.includes('src="/landing/open-plan-living.jpg"') && page.includes('src="/landing/open-plan-living-dirty.jpg"'), "The responsive hero removed its legacy JPEG fallbacks.");
 
+// The scanner animation used five photographs encoded as PNGs, totalling more
+// than 1.6 MB. Preserve each PNG fallback while modern clients receive the
+// reviewed content-addressed WebP. These hashes protect the animation's exact
+// room sequence from a quiet visual substitution disguised as compression.
+const scanAngleAssets = new Map([
+  ["angle-1-664cb339.webp", [25_538, "664cb3394b6d6b28ecb4d77db75de507cb43d386acc92151a61fc2f80a9626c6"]],
+  ["angle-2-d071de5c.webp", [24_014, "d071de5c6bd8faa68b219180bc5e1ed5928600df16c24610075c5cb059f8f9a2"]],
+  ["angle-3-6a19ea10.webp", [27_336, "6a19ea10029405ffd8ba4a6060d17364b4e5e404a0d8a66e7ee021a6975675a2"]],
+  ["angle-4-7f1915b0.webp", [16_654, "7f1915b07a28bf4ea3ac0d32a9d32a2e2b13ef4183d4330a0d1e7957712a4175"]],
+  ["angle-5-b3d670d8.webp", [8_862, "b3d670d8aca2ad30e1436226466b9044f99aae3fb0838eb2009fd28e5691f3bd"]]
+]);
+let scanAngleTransfer = 0;
+for (const [file, [expectedBytes, expectedHash]] of scanAngleAssets) {
+  const body = await readFile(new URL(`../public/landing/${file}`, import.meta.url));
+  scanAngleTransfer += body.length;
+  assert(body.length === expectedBytes, `Scanner-animation asset ${file} changed size without review.`);
+  assert(createHash("sha256").update(body).digest("hex") === expectedHash, `Scanner-animation asset ${file} changed visual bytes without review.`);
+  assert(page.includes(`/landing/${file}`), `Scanner-animation asset ${file} is not wired into the homepage.`);
+  assert(server.includes(`"/landing/${file}"`), `Scanner-animation asset ${file} is not in the immutable cache allow-list.`);
+}
+const originalScanAngleTransfer = (await Promise.all([1, 2, 3, 4, 5].map((angle) => stat(new URL(`../public/landing/angle-${angle}.png`, import.meta.url))))).reduce((sum, info) => sum + info.size, 0);
+assert(scanAngleTransfer <= originalScanAngleTransfer * 0.07, "The scanner-animation WebP path no longer saves at least 93% versus its PNG fallbacks.");
+assert((page.match(/<picture><source type="image\/webp" srcset="\/landing\/angle-/g) || []).length === 5, "The five scanner-animation frames do not provide WebP sources with PNG fallbacks.");
+
 // Without these the clip is served as application/octet-stream, and a <video>
 // will not play that at all: the poster stays up and nothing ever happens.
 for (const [extension, type] of [[".mp4", "video/mp4"], [".jpg", "image/jpeg"], [".png", "image/png"], [".webp", "image/webp"]]) {

@@ -263,7 +263,12 @@ const immutableStaticAssets = new Set([
   "/landing/open-plan-living-dirty-480-b39d33d1.webp",
   "/landing/open-plan-living-dirty-960-f5c7de87.webp",
   "/landing/open-plan-living-dirty-1600-23975b20.webp",
-  "/landing/open-plan-living-dirty-2200-6526a87e.webp"
+  "/landing/open-plan-living-dirty-2200-6526a87e.webp",
+  "/landing/angle-1-664cb339.webp",
+  "/landing/angle-2-d071de5c.webp",
+  "/landing/angle-3-6a19ea10.webp",
+  "/landing/angle-4-7f1915b0.webp",
+  "/landing/angle-5-b3d670d8.webp"
 ]);
 
 function setSecurityHeaders(response, requestPath = "", cspNonce = "") {
