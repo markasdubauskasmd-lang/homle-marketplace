@@ -2,20 +2,22 @@
 
 ## CURRENT LIVE TRUTH — 4 August 2026
 
-The current verified live release is **`80636e12`** with **88** locked
+The current verified live release at **`https://homlle.com`** is **`e3403963`** with **88** locked
 migrations, healthy data integrity and writes allowed. Marketplace runtime,
 authentication, private media, realtime updates, geocoding, direct matching,
 speech summarisation and room vision are ready. Google account entry is available.
 
-The public account handoff was exercised against this release on 4 August 2026.
-Both `/signup?intent=book` and `/signup?intent=work` expose the configured Google
-provider and redirect to Google's authorization endpoint with state, nonce and
-PKCE. An anonymous `/landlord/book` visit returns to the booking sign-up intent
-without exposing the scanner. The landing header offers both role intents under
-one Sign up action, and its scanner animation no longer claims unsupported floor
-or worktop area measurements. PR #213, local checks, GitHub unit/safety CI, real
-PostgreSQL/RLS CI and the live browser verification all passed. The Cleaner
-Dashboard was not changed.
+The canonical-domain cutover was exercised against this release on 4 August 2026.
+Render's runtime uses `APP_ORIGIN=https://homlle.com`, and the existing Google Web
+client accepts the exact
+`https://homlle.com/api/marketplace/auth/google/callback`. Both the booking and
+Cleaner-work account intents redirect to Google's authorization endpoint with
+that callback plus state, nonce and PKCE. `https://www.homlle.com/test?x=1`
+redirects to `https://homlle.com/test?x=1`, preserving path and query. The apex
+landing returns 200 with the expected Homle title, and the secret-free live
+activation verifier passed for packaged release `e3403963`. PR #214, the complete
+local suite, GitHub unit/safety CI, real PostgreSQL/RLS CI and post-merge CI all
+passed. The Cleaner Dashboard was not changed.
 
 Transactional email/email-password recovery, Facebook, Apple and Stripe test
 payments remain provider-backed launch gaps. Automatic dispatch is deliberately
