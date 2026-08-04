@@ -72,6 +72,8 @@ body.ci-body {
   left: -9999px;
   top: 0;
   z-index: 200;
+  min-height: 44px;
+  box-sizing: border-box;
   padding: 12px 20px;
   background: var(--ci-ink);
   color: #101010;
@@ -1789,7 +1791,12 @@ body.ci-body {
   color: rgba(244, 242, 238, .5);
   opacity: calc((var(--p, 1) - .4) * 3);
 }
-.ci-join-foot a { color: rgba(244, 242, 238, .8); }
+.ci-join-foot a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: rgba(244, 242, 238, .8);
+}
 
 /* -------------------------------------------------------------- footer --- */
 
@@ -1822,7 +1829,12 @@ body.ci-body {
   gap: 22px;
   font-size: 13px;
 }
-.ci-footer-links a { color: rgba(244, 242, 238, .6); }
+.ci-footer-links a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: rgba(244, 242, 238, .6);
+}
 .ci-footer-links a:hover { color: var(--ci-acc); }
 
 /* ------------------------------------------------------------ responsive - */
