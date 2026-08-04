@@ -893,7 +893,7 @@
 
 /* -------------------------------------------------------------- sidebar -- */
 
-.hc-side { width: 262px; flex: none; display: flex; flex-direction: column; border-right: 1px solid var(--hc-rule); }
+.hc-side { width: 262px; flex: none; display: flex; flex-direction: column; color: var(--hc-ink); border-right: 1px solid var(--hc-rule); background: var(--hc-ground); }
 .hc-brand { display: flex; align-items: center; gap: 12px; padding: 22px 22px 14px; }
 .hc-brand-mark {
   width: 44px; height: 44px; border-radius: 14px; background: var(--hc-red);
